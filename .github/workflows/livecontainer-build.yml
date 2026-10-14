@@ -1,5 +1,6 @@
 name: LiveContainer embedded SideStore build
 
+# Register this existing fork workflow for dispatch; job definitions unchanged.
 on:
   workflow_dispatch:
   push:
