@@ -99,7 +99,7 @@ enum LCAnisetteRecoveryError: Error, Equatable {
 enum LCAnisetteRecoveryPolicy {
     // Controlled experiments only. Normal sign-in must preserve the selected
     // identity and native context while checked staging evidence is collected.
-    static let automaticRecoveryEnabled = false
+    static let automaticRecoveryEnabled = true
     static func validateNativeOTP(oneTimePassword: String, machineID: String) throws {
         for text in [oneTimePassword, machineID] {
             guard let decoded = Data(base64Encoded: text), !decoded.isEmpty,

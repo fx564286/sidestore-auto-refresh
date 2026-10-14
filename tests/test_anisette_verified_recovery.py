@@ -28,10 +28,12 @@ def recovery_sources(*, experimental=False):
     doubles = doubles.replace('    if rows.isEmpty { return errSecItemNotFound }',
         '    if Store.malformedLegacyRow && query[kSecAttrAccount] != nil { rows.append([kSecAttrAccount: "identifier"]) }\n    if rows.isEmpty { return errSecItemNotFound }')
     source = '\n'.join((doubles, (ROOT / 'scripts/templates/embedded_shared_keychain.swift').read_text(), keychain.module.KEYCHAIN_ACCESS_ADAPTER, ''))
-    if experimental:
-        flag = 'static let automaticRecoveryEnabled = false'
-        assert source.count(flag) == 1
-        source = source.replace(flag, flag.replace('false', 'true'), 1)
+    # Candidate production exercises verified recovery, while this test still
+    # executes both disabled and enabled policies against the same source.
+    flag = 'static let automaticRecoveryEnabled = true'
+    assert source.count(flag) == 1
+    if not experimental:
+        source = source.replace(flag, flag.replace('true', 'false'), 1)
     return source
 
 
@@ -75,7 +77,7 @@ class AnisetteVerifiedRecoveryTests(unittest.TestCase):
 
     def test_production_boundary_is_scoped_and_proof_only(self):
         source = (ROOT / 'scripts/templates/embedded_shared_keychain.swift').read_text()
-        self.assertEqual(source.count('static let automaticRecoveryEnabled = false'), 1)
+        self.assertEqual(source.count('static let automaticRecoveryEnabled = true'), 1)
         candidate = declaration(source, '    static func anisetteRecoveryCandidate(')
         self.assertNotIn('.set(', candidate)
         self.assertNotIn('.remove(', candidate)
