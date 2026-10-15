@@ -11,6 +11,8 @@ class Auth80045IdentityTest(unittest.TestCase):
         android = "<Pixel 7> <Android;14;UQ1A.240205.002> <com.apple.AuthKit/1 (com.apple.akd/1.0)>"
         self.assertIn(android, text)
         self.assertNotIn("<PC> <Windows;6.2(0,0);9200>", text)
+        self.assertNotIn("return original",text)
+        self.assertIn("NRG_GSA_80045_IDENTITY_V2",text)
         self.assertIn('"X-MMe-Client-Info": nrgGrandSlamClientInfo(anisetteData.clientInfo)', text)
         self.assertIn('"X-MMe-Client-Info": nrgGrandSlamClientInfo(a.clientInfo)', other)
         self.assertIn("NRG_GSA_CLIENT_IDENTITY_V3", other)
