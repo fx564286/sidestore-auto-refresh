@@ -139,6 +139,9 @@ private enum NRGPushedCodeCycle {
     @TaskLocal static var handled = false
 }
 ''', 'bounded 2FA recursion')
+    src = one(src, 'codeAlreadySent: Bool = false) async throws \n',
+              'codeAlreadySent: Bool = false) async throws\n',
+              'SideSign 2FA trailing whitespace')
     return src
 
 
