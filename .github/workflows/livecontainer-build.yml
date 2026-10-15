@@ -300,6 +300,16 @@ jobs:
           python3 builder/scripts/patch_sidesign_2fa_state.py "$SIDESIGN"
           python3 builder/scripts/patch_combined_service_startup.py --portal "$SIDESIGN"
           python3 builder/scripts/patch_combined_service_startup.py --portal "$SIDESIGN"
+          # NRG_GSA_RECOVERY_V1: compile the independently patched auth paths.
+          python3 builder/scripts/patch_nrg_gsa_auth.py "$SIDESTORE" --sidesign "$SIDESIGN"
+          python3 builder/scripts/patch_nrg_gsa_auth.py "$SIDESTORE" --sidesign "$SIDESIGN" --check
+          # NRG_GSA_HTTP_STATUS_V2: source-only reviewed overlay
+          python3 builder/scripts/patch_nrg_gsa_http_v2.py "$SIDESIGN" --apply
+          python3 builder/scripts/patch_nrg_gsa_http_v2.py "$SIDESIGN" --check
+          swiftc -frontend -parse "$SIDESIGN/Sources/DeveloperPortal/Authentication.swift"
+          swiftc -frontend -parse "$SIDESIGN/Sources/DeveloperPortal/Authentication.swift"
+          swiftc -frontend -parse "$SIDESIGN/Sources/DeveloperPortal/DeveloperPortalAPI.swift"
+          swiftc -frontend -parse "$SIDESTORE/SideStore/Core/Operations/StandaloneOperations/SignInOperation.swift"
           git -C "$SIDESIGN" diff --check
           expected_sidesign=$(printf '%s\n' \
             'Sources/DeveloperPortal/Authentication.swift' \
