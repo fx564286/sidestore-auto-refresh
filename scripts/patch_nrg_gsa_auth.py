@@ -37,13 +37,13 @@ def patch_side_sign(src: str) -> str:
 
     # A private helper used for GrandSlam only; the original anisette state
     # and its identity remain intact for provisioning and developer operations.
-    helper = '''    // NRG_GSA_RECOVERY_V1: use Android AuthKit identity for Android ADI anisette; 2FA must match.
+    helper = '''    // NRG_GSA_RECOVERY_V1: match proven Windows ADI identity across SRP and 2FA.
     // Do not mutate Anisette machine IDs or re-provision existing identities.
     private func nrgGrandSlamClientInfo(_ original: String) -> String {
         // NRG_GSA_80045_IDENTITY_V2: server reports a macOS/akd identity;
         // keep its Anisette telemetry unchanged, advertise Android AuthKit
         // consistently for both initial SRP and 2FA GrandSlam traffic.
-        return "<Pixel 7> <Android;14;UQ1A.240205.002> <com.apple.AuthKit/1 (com.apple.akd/1.0)>"
+        return "<PC> <Windows;6.2(0,0);9200> <com.apple.AuthKit/1 (com.apple.iTunes/12.12.4.1)>"
     }
 
 '''
@@ -52,6 +52,16 @@ def patch_side_sign(src: str) -> str:
         '            "X-MMe-Client-Info": anisetteData.clientInfo,\n',
         '            "X-MMe-Client-Info": nrgGrandSlamClientInfo(anisetteData.clientInfo),\n',
         'GSA request header')
+    # Match the successfully validated PC SideInstaller header shape; don't just
+    # change X-MMe-Client-Info while retaining an unrelated Xcode User-Agent.
+    src = one(src,
+        '            "Accept": "*/*",\n            "User-Agent": h.grandSlam.userAgent,\n',
+        '            "Accept": "*/*",\n'
+        '            "User-Agent": "akd/1.0 CFNetwork/808.1.4",\n'
+        '            "X-Xcode-Version": "14.2 (14C18)",\n'
+        '            "X-Apple-App-Info": "com.apple.gs.xcode.auth",\n',
+        'GSA Windows header compatibility')
+
 
     # Early HTTP status classification. The existing upstream parser otherwise
     # attempts to interpret a proxy HTML 503 response as a plist and displays

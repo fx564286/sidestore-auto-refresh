@@ -19,12 +19,19 @@ def transform(source: str) -> str:
     cut = source.index(START)
     tail = source[cut:]
     if MARKER in source:
-        if source.count(MARKER) != 1 or tail.count(AFTER) != 1 or tail.count(BEFORE) != 0:
+        if source.count(MARKER) != 1 or tail.count(AFTER) != 1 or tail.count(BEFORE) != 0 or "NRG_GSA_WINDOWS_UA_V4" not in tail:
             raise ValueError("Partial V3 installation")
         return source
     if tail.count(BEFORE) != 1 or tail.count('"X-MMe-Client-Info"') != 1:
         raise ValueError("2FA request header source drift")
-    return source[:cut] + tail.replace(BEFORE, AFTER, 1)
+    new_tail = tail.replace(BEFORE, AFTER, 1)
+    original_ua = '            "User-Agent": h.developerServices.userAgent,'
+    replacement_ua = ('            // NRG_GSA_WINDOWS_UA_V4: align 2FA with PC AuthKit identity.\n'
+                      '            "User-Agent": "akd/1.0 CFNetwork/808.1.4",')
+    if new_tail.count(original_ua) != 1:
+        raise ValueError("2FA User-Agent source drift")
+    new_tail = new_tail.replace(original_ua, replacement_ua, 1)
+    return source[:cut] + new_tail
 def main():
     p = argparse.ArgumentParser()
     p.add_argument("root", type=Path)

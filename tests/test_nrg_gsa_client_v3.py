@@ -16,6 +16,7 @@ public extension DeveloperPortal {
     private func makeTwoFactorAuthRequest() {
         let headers = [
             "Content-Type": "application/x-plist",
+            "User-Agent": h.developerServices.userAgent,
             "X-MMe-Client-Info": a.clientInfo,
             "X-Apple-I-MD": a.oneTimePassword,
             "X-Mme-Device-Id": a.deviceID

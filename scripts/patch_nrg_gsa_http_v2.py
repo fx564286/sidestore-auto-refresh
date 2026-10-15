@@ -58,6 +58,10 @@ HELPER = '''    // NRG_GSA_HTTP_STATUS_V2
                     reason: "GSA response did not contain an HTTP status", jsonPayload: "")
             }
             let status = http.statusCode
+            // NRG_GSA_STEP_TRACE_V4: emit only whitelisted operation and HTTP
+            // status, no headers, credentials, request body or server response.
+            let safeOperation = ["init", "complete", "apptokens"].contains(operation) ? operation : "other"
+            debugLog("[NRG_GSA_STEP] operation=\(safeOperation) status=\(status) attempt=\(index + 1)")
             // 429 is NOT automatically retried; this protects rate limits.
             // 401/403/409/422 and other failures are also not replayed.
             if status == 429 || status >= 500 {
