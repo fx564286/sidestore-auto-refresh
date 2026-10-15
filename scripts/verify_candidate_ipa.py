@@ -668,7 +668,7 @@ def is_github_actions_run_url(value: object) -> bool:
         return False
     parsed = urlsplit(value)
     return (parsed.scheme == "https" and parsed.netloc == "github.com" and
-            re.fullmatch(r"/NRG-Wardog/sidestore-auto-refresh/actions/runs/[0-9]+", parsed.path) is not None and
+            re.fullmatch(r"/(?:NRG-Wardog|fx564286)/sidestore-auto-refresh/actions/runs/[0-9]+", parsed.path) is not None and
             not parsed.query and not parsed.fragment)
 
 

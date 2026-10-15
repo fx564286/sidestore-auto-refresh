@@ -581,6 +581,9 @@ class CandidateArchiveSizeReportTests(unittest.TestCase):
     def test_provenance_run_url_must_match_exact_github_actions_repo_and_shape(self):
         good = "https://github.com/NRG-Wardog/sidestore-auto-refresh/actions/runs/36372125879"
         self.assertTrue(verify_module.is_github_actions_run_url(good))
+        fork = "https://github.com/fx564286/sidestore-auto-refresh/actions/runs/38741523421"
+        self.assertTrue(verify_module.is_github_actions_run_url(fork))
+        self.assertFalse(verify_module.is_github_actions_run_url(fork + "?query=1"))
         self.assertFalse(verify_module.is_github_actions_run_url("https://github.com/"))
         self.assertFalse(verify_module.is_github_actions_run_url(
             "https://github.com/other/repo/actions/runs/36372125879"))
