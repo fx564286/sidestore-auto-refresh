@@ -37,11 +37,11 @@ def patch_side_sign(src: str) -> str:
 
     # A private helper used for GrandSlam only; the original anisette state
     # and its identity remain intact for provisioning and developer operations.
-    helper = '''    // NRG_GSA_RECOVERY_V1: identity-only GrandSlam compatibility lane.
+    helper = '''    // NRG_GSA_RECOVERY_V1: use Android AuthKit identity for Android ADI anisette; 2FA must match.
     // Do not mutate Anisette machine IDs or re-provision existing identities.
     private func nrgGrandSlamClientInfo(_ original: String) -> String {
         if original.contains("<Android;") || original.contains("com.apple.dt.Xcode") {
-            return "<PC> <Windows;6.2(0,0);9200> <com.apple.AuthKit/1 (com.apple.iTunes/12.12.4.1)>"
+            return "<Pixel 7> <Android;14;UQ1A.240205.002> <com.apple.AuthKit/1 (com.apple.akd/1.0)>"
         }
         return original
     }
