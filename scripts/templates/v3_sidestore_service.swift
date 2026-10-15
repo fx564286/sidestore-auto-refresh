@@ -43,7 +43,7 @@ enum V3ActiveCertificateExportAdapter {
                          identitySHA256: String) -> [String: Any]? {
         guard !p12Data.isEmpty, p12Data.count <= maximumP12Bytes,
               password.utf8.count <= maximumPasswordBytes,
-              !teamIdentifier.isEmpty, teamIdentifier.utf8.count <= 64,
+              teamIdentifier.utf8.count <= 64, // empty only while authenticated provisioning is incomplete
               identitySHA256.range(of: "^[0-9a-f]{64}$", options: .regularExpression) != nil else {
             return nil
         }
@@ -1927,25 +1927,49 @@ final class V3SideStoreService: NSObject {
         case "certList":
             return ["certificates": V3BackendCommands.certificates()]
         case "certExportActive":
+            // V3_CERT_EXPORT_PROVISIONING_RECOVERY_V2
+            // JIT-Less copies the *existing* signing identity. Provisioning is
+            // not a precondition for copying an already-active PKCS#12 identity.
+            // Require authenticated, stable local identity and preserve the
+            // service-owned Keychain and active-material continuity checks.
             let auth = AuthManager.shared
-            guard auth.v3IdentityIsStable, !V3HeadlessRuntime.shared.auth.hasActiveSession else {
+            guard auth.v3IdentityIsStable,
+                  !V3HeadlessRuntime.shared.auth.hasActiveSession else {
                 throw ServiceError.notFound
             }
             let capturedStamp = auth.v3IdentityStamp
             let authSnapshot = auth.authenticationSnapshot
             guard authSnapshot?.isAuthenticated == true,
-                  let account = DatabaseManager.shared.activeAccount(),
-                  let teamRecord = DatabaseManager.shared.activeTeam(),
-                  teamRecord.account?.identifier == account.identifier,
-                  V3AuthIdentityBindingPolicy.mayUseTeam(
-                    sessionOwner: authSnapshot?.appleIDEmailAddress,
-                    teamOwner: account.appleID) else { throw ServiceError.notFound }
-            let team = teamRecord.identifier
-            guard !team.isEmpty else { throw ServiceError.notFound }
+                  authSnapshot?.appleIDEmailAddress?.isEmpty == false else {
+                throw ServiceError.notFound
+            }
+
+            // When provisioning has not finished, activeTeam is nil although
+            // Apple authentication succeeded. An empty team hint is returned
+            // in that case; the host MUST derive and validate the signing team
+            // from the PKCS#12 itself before installing a JIT-Less copy.
+            let account = DatabaseManager.shared.activeAccount()
+            let teamRecord = DatabaseManager.shared.activeTeam()
+            let team: String
+            if let teamRecord {
+                guard let account,
+                      teamRecord.account?.identifier == account.identifier,
+                      V3AuthIdentityBindingPolicy.mayUseTeam(
+                          sessionOwner: authSnapshot?.appleIDEmailAddress,
+                          teamOwner: account.appleID),
+                      !teamRecord.identifier.isEmpty else {
+                    throw ServiceError.notFound
+                }
+                team = teamRecord.identifier
+            } else {
+                team = ""
+            }
             guard let active = CertificateManager.shared.activeCertificate,
-                  let der = active.certificate.x509.data else { throw ServiceError.notFound }
-            // Upstream supports both password-protected and unencrypted P12s.
-            // The host's existing parser accepts an empty passphrase for the latter.
+                  let der = active.certificate.x509.data else {
+                throw ServiceError.notFound
+            }
+            // Never log or persist private material. The response is bounded by
+            // V3ActiveCertificateExportAdapter and the existing XPC contract.
             let password = active.password ?? ""
             let fingerprint = SHA256.hash(data: der).map { String(format: "%02x", $0) }.joined()
             guard let exported = V3ActiveCertificateExportAdapter.response(
@@ -1955,11 +1979,21 @@ final class V3SideStoreService: NSObject {
                   !V3HeadlessRuntime.shared.auth.hasActiveSession,
                   let current = CertificateManager.shared.activeCertificate,
                   current.p12Data == active.p12Data, current.password == active.password,
-                  current.certificate.x509.data == der,
-                  DatabaseManager.shared.activeTeam()?.identifier == team,
-                  DatabaseManager.shared.activeAccount()?.identifier == account.identifier,
-                  DatabaseManager.shared.activeTeam()?.account?.identifier == account.identifier else {
+                  current.certificate.x509.data == der else {
                 throw ServiceError.notFound
+            }
+            if !team.isEmpty {
+                guard DatabaseManager.shared.activeTeam()?.identifier == team,
+                      DatabaseManager.shared.activeAccount()?.identifier == account?.identifier,
+                      DatabaseManager.shared.activeTeam()?.account?.identifier == account?.identifier else {
+                    throw ServiceError.notFound
+                }
+            } else {
+                // Incomplete provisioning must not race into a different team
+                // while export is in progress.
+                guard DatabaseManager.shared.activeTeam() == nil else {
+                    throw ServiceError.notFound
+                }
             }
             return exported
         case "certSetActive":
