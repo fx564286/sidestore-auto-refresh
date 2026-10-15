@@ -2842,6 +2842,18 @@ class GsaPreparedTreeTests(unittest.TestCase):
                 self.assertIn("Authentication.swift", content)
                 self.assertIn("DeveloperPortalAPI.swift", content)
                 continue
+            # Three fixed, separately tested NRG GSA overlays have their own
+            # source revision/anchor checks. All other scripts still fail when
+            # touching the canonical authentication file.
+            reviewed_nrg = {
+                "patch_nrg_gsa_auth.py": "NRG_GSA_RECOVERY_V1",
+                "patch_nrg_gsa_http_v2.py": "NRG_GSA_HTTP_STATUS_V2",
+                "patch_nrg_gsa_client_v3.py": "NRG_GSA_CLIENT_IDENTITY_V3",
+            }
+            if script.name in reviewed_nrg:
+                self.assertIn("DeveloperPortal/Authentication", content)
+                self.assertIn(reviewed_nrg[script.name], content)
+                continue
             self.assertNotIn("DeveloperPortal/Authentication", content)
         # A read-only provenance collector may reference SideSign source paths.
         # Its source-preservation behavior is exercised by the collector harness.

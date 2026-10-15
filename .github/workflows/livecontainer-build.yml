@@ -306,6 +306,9 @@ jobs:
           # NRG_GSA_HTTP_STATUS_V2: source-only reviewed overlay
           python3 builder/scripts/patch_nrg_gsa_http_v2.py "$SIDESIGN" --apply
           python3 builder/scripts/patch_nrg_gsa_http_v2.py "$SIDESIGN" --check
+          # NRG_GSA_CLIENT_IDENTITY_V3: preserve the advertised SRP client through 2FA
+          python3 builder/scripts/patch_nrg_gsa_client_v3.py "$SIDESIGN" --apply
+          python3 builder/scripts/patch_nrg_gsa_client_v3.py "$SIDESIGN" --check
           swiftc -frontend -parse "$SIDESIGN/Sources/DeveloperPortal/Authentication.swift"
           swiftc -frontend -parse "$SIDESIGN/Sources/DeveloperPortal/Authentication.swift"
           swiftc -frontend -parse "$SIDESIGN/Sources/DeveloperPortal/DeveloperPortalAPI.swift"

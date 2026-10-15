@@ -23,8 +23,12 @@ struct PromptRaceHarness {
         }
         precondition(center.pendingCount == 1, "prompt continuation was not installed")
         precondition(center.answer(promptID: prompt, answer: ["action": "sms"]) == .accepted)
-        precondition(center.answer(promptID: prompt, answer: ["action": "voice"]) == .alreadySettled,
-                     "rapid duplicate answer was accepted")
+        // The resumed waiter can remove a consumed prompt before the second
+        // tap is observed. Both outcomes are safe; .accepted is never safe.
+        let duplicateDisposition = center.answer(promptID: prompt, answer: ["action": "voice"])
+        precondition(duplicateDisposition == .alreadySettled ||
+                     (duplicateDisposition == .unavailable && center.pendingCount == 0),
+                     "rapid duplicate answer was accepted or retained unexpectedly")
         let pendingReply = V3PromptResponseStatePolicy.responsePending(.unavailable,
             acceptedPromptID: prompt, promptID: prompt, sessionID: "session",
             revision: 2, state: "awaitingPrompt", prompt: ["id": prompt])
