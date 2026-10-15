@@ -177,6 +177,9 @@ def patch_host(root: Path) -> None:
             }
             guard V3CertificateImportOwnership.isActive(requestID) else { return }
 
+            // NRG_JITLESS_IMPORT_STAGE_TRACE_V1: fixed stage names only.
+            // Never log, cache or copy private signing materials in diagnostics.
+            var importStage = "certExportActive"
             do {
                 let reply = try await V3ServiceBridge.shared.request(operation: "certExportActive")
                 guard V3CertificateImportOwnership.isActive(requestID),
@@ -191,6 +194,7 @@ def patch_host(root: Path) -> None:
                       LCUtils.getCertTeamId(withKeyData: data, password: password) == team else {
                     throw NSError(domain: "V3CertificateImport", code: 2)
                 }
+                importStage = "healthSnapshot"
                 let status = try await V3ServiceBridge.shared.request(operation: "healthSnapshot")
                 guard V3CertificateImportOwnership.isActive(requestID),
                       let current = status["certificateState"] as? [String: Any],
@@ -199,11 +203,13 @@ def patch_host(root: Path) -> None:
                       current["certificateIdentitySHA256"] as? String == fingerprint else {
                     throw NSError(domain: "V3CertificateImport", code: 3)
                 }
+                importStage = "copyIntoLiveContainer"
                 v3CompleteSideStoreCertificateImport(certificateData: data, password: password,
                     requestID: requestID)
             } catch {
                 guard V3CertificateImportOwnership.cancel(requestID) else { return }
-                errorInfo = "The active SideStore certificate could not be imported. Check Certificates and try again."
+                errorInfo = "The active SideStore certificate could not be imported (stage: " +
+                    importStage + "). Check Certificates and try again."
                 errorShow = true
             }
         } else {
