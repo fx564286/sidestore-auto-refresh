@@ -108,7 +108,7 @@ enum V3WireContract {
         "opStart", "opPoll", "opAnswer", "opCancel", "opRecoveryPrepare", "opRecoveryReconcile",
         "refreshAdmissionReconcile", "recoveryDiscardUnreadable", "directRecoveryInspect",
         "directRecoveryReconcile", "ipaCleanup", "ipaActiveTokens",
-        "certList", "certExportActive", "certSetActive", "certDelete", "certPortalList", "certRevoke", "certCreate",
+        "certList", "certExportActive", "certSetActive", "certDelete", "certPortalList", "certRevoke", "certCreate", "certImport",
         "devTeams", "devDevices", "devAppIDs", "devGroups", "devProfiles",
         "sourcePreview", "sourceAddConfirmed", "sourceRemoveConfirmed",
         "pairingImportData", "settingsGet", "settingsSet",
@@ -143,7 +143,7 @@ enum V3WireContract {
         ]
         if emptyTargetOperations.contains(operation) && !target.isEmpty { return nil }
         if ["authBegin", "authPoll", "authRespond", "authCancel", "authRetryProvisioning",
-            "opPoll", "opAnswer", "opCancel", "pairingImportData", "sidesignImport", "accountImport",
+            "opPoll", "opAnswer", "opCancel", "pairingImportData", "sidesignImport", "accountImport", "certImport",
             "refreshAdmissionBegin", "refreshAdmissionEnd", "refreshAdmissionReconcile",
             "opRecoveryReconcile", "directRecoveryInspect", "directRecoveryReconcile", "cancel"].contains(operation),
            !canonicalSecretToken(target) { return nil }
@@ -177,7 +177,7 @@ enum V3WireContract {
 
     private static let requiredPayloadOperations: Set<String> = [
         "authBegin", "authRetryProvisioning", "authRespond", "opAnswer", "opStart", "opRecoveryPrepare",
-        "cancel", "accountExport", "accountImport", "settingsSet", "sidesignSet", "refreshAdmissionEnd",
+        "cancel", "accountExport", "accountImport", "certImport", "settingsSet", "sidesignSet", "refreshAdmissionEnd",
         "recoveryDiscardUnreadable", "directRecoveryReconcile"
     ]
 
@@ -195,7 +195,7 @@ enum V3WireContract {
     private static let credentialAnswerKey = "answer"
 
     private static let credentialAnswerOperations: Set<String> = [
-        "authRespond", "opAnswer", "accountExport", "accountImport"
+        "authRespond", "opAnswer", "accountExport", "accountImport", "certImport"
     ]
 
     /// A flat, strictly bounded string map. Nothing can nest inside it, so the
@@ -243,6 +243,12 @@ enum V3WireContract {
             return Set(payload.keys) == Set(["includeApple", credentialAnswerKey]) &&
                 strictBool(payload["includeApple"]) != nil &&
                 credentialAnswerIsBounded(payload[credentialAnswerKey])
+        case "certImport":
+            guard Set(payload.keys) == Set([credentialAnswerKey]),
+                  let answer = payload[credentialAnswerKey] as? [String: String],
+                  Set(answer.keys) == Set(["password"]),
+                  let password = answer["password"], password.utf8.count <= 1024 else { return false }
+            return true
         case "accountImport":
             return Set(payload.keys) == Set([credentialAnswerKey]) &&
                 credentialAnswerIsBounded(payload[credentialAnswerKey])
