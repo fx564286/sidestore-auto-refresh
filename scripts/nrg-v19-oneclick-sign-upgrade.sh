@@ -3,7 +3,7 @@
 set -Eeuo pipefail
 umask 077
 REPO=fx564286/sidestore-auto-refresh
-RUN=38957775497
+RUN=38958855142
 UDID=00008160-000569490C600036
 BUNDLE=com.kdt.livecontainer.P8EZT3U5N4
 ROOT="$HOME/다운로드/NRG-IPA"
