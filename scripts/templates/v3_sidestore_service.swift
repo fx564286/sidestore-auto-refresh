@@ -1281,7 +1281,7 @@ final class V3SideStoreService: NSObject {
                 case "catalog": stage = .catalog
                 case "authBegin", "authPoll", "authRespond", "authCancel", "authRetryProvisioning", "accountExport", "accountImport": stage = .authentication
                 case "opStart", "opPoll", "opAnswer", "opCancel": stage = .command
-                case "certList", "certExportActive", "certSetActive", "certDelete", "certPortalList", "certRevoke", "certCreate": stage = .signing
+                case "certList", "certExportActive", "certSetActive", "certDelete", "certPortalList", "certRevoke", "certCreate", "certImport": stage = .signing
                 case "devTeams", "devDevices", "devAppIDs", "devGroups", "devProfiles", "syncAppIDs": stage = .authentication
                 case "sourcePreview", "sourceAddConfirmed", "sourceRemoveConfirmed", "refreshSources": stage = .source
                 default: stage = .command
@@ -1962,6 +1962,36 @@ final class V3SideStoreService: NSObject {
                 throw ServiceError.notFound
             }
             return exported
+        case "certImport":
+            // Import an existing P12 directly into SideStore's active signing
+            // Keychain, separate from LiveContainer's JIT-Less certificate.
+            // Never create or revoke a portal certificate or App ID here.
+            guard let answer = payload["answer"] as? [String: String],
+                  let password = answer["password"], password.utf8.count <= 1024 else {
+                throw ServiceError.invalidRequest
+            }
+            let p12 = try V3BackendCommands.consumeSharedFile(token: target, purpose: "certImport")
+            guard !p12.isEmpty, p12.count <= 4_194_304 else {
+                throw ServiceError.invalidRequest
+            }
+            let certificate = try CertificateManager.parse(
+                p12, password: password.isEmpty ? nil : password)
+            guard !certificate.serialNumber.isEmpty,
+                  certificate.x509.data != nil,
+                  certificate.x509.expiryDate > Date() else {
+                throw ServiceError.invalidRequest
+            }
+            try CertificateManager.shared.setActiveCertificate(certificate)
+            // Read back the persisted PKCS12 and the canonical active identity.
+            guard CertificateManager.shared.activeCertificate?.serialNumber == certificate.serialNumber,
+                  let restored = CertificateManager.shared.getLocalCertificate(
+                    serialNumber: certificate.serialNumber),
+                  restored.serialNumber == certificate.serialNumber,
+                  let active = try CertificateManager.shared.loadActiveCertificate(),
+                  active.serialNumber == certificate.serialNumber else {
+                throw ServiceError.notReady
+            }
+            return ["serial": certificate.serialNumber, "active": true]
         case "certSetActive":
             guard let certificate = CertificateManager.shared.getLocalCertificate(serialNumber: target) else {
                 throw ServiceError.notFound
