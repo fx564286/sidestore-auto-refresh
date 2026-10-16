@@ -43,7 +43,7 @@ enum V3ActiveCertificateExportAdapter {
                          identitySHA256: String) -> [String: Any]? {
         guard !p12Data.isEmpty, p12Data.count <= maximumP12Bytes,
               password.utf8.count <= maximumPasswordBytes,
-              !teamIdentifier.isEmpty, teamIdentifier.utf8.count <= 64,
+              teamIdentifier.utf8.count <= 64,
               identitySHA256.range(of: "^[0-9a-f]{64}$", options: .regularExpression) != nil else {
             return nil
         }
@@ -1927,25 +1927,24 @@ final class V3SideStoreService: NSObject {
         case "certList":
             return ["certificates": V3BackendCommands.certificates()]
         case "certExportActive":
+            // V3_JITLESS_AUTO_IMPORT_V17: export the locally activated SideStore
+            // signing identity directly. A portal team/account is NOT required:
+            // those can remain unset after Apple login even when SideStore has
+            // a legitimate local signing certificate. Do not create/revoke.
             let auth = AuthManager.shared
             guard auth.v3IdentityIsStable, !V3HeadlessRuntime.shared.auth.hasActiveSession else {
                 throw ServiceError.notFound
             }
             let capturedStamp = auth.v3IdentityStamp
-            let authSnapshot = auth.authenticationSnapshot
-            guard authSnapshot?.isAuthenticated == true,
-                  let account = DatabaseManager.shared.activeAccount(),
-                  let teamRecord = DatabaseManager.shared.activeTeam(),
-                  teamRecord.account?.identifier == account.identifier,
-                  V3AuthIdentityBindingPolicy.mayUseTeam(
-                    sessionOwner: authSnapshot?.appleIDEmailAddress,
-                    teamOwner: account.appleID) else { throw ServiceError.notFound }
-            let team = teamRecord.identifier
-            guard !team.isEmpty else { throw ServiceError.notFound }
             guard let active = CertificateManager.shared.activeCertificate,
-                  let der = active.certificate.x509.data else { throw ServiceError.notFound }
-            // Upstream supports both password-protected and unencrypted P12s.
-            // The host's existing parser accepts an empty passphrase for the latter.
+                  let der = active.certificate.x509.data,
+                  active.certificate.x509.expiryDate > Date() else {
+                throw ServiceError.notFound
+            }
+            // Team is optional in the response. Host independently derives
+            // the signer team from the PKCS12 and verifies the certificate
+            // DER fingerprint before committing the JIT-Less copy.
+            let team = DatabaseManager.shared.activeTeam()?.identifier ?? ""
             let password = active.password ?? ""
             let fingerprint = SHA256.hash(data: der).map { String(format: "%02x", $0) }.joined()
             guard let exported = V3ActiveCertificateExportAdapter.response(
@@ -1956,9 +1955,7 @@ final class V3SideStoreService: NSObject {
                   let current = CertificateManager.shared.activeCertificate,
                   current.p12Data == active.p12Data, current.password == active.password,
                   current.certificate.x509.data == der,
-                  DatabaseManager.shared.activeTeam()?.identifier == team,
-                  DatabaseManager.shared.activeAccount()?.identifier == account.identifier,
-                  DatabaseManager.shared.activeTeam()?.account?.identifier == account.identifier else {
+                  (DatabaseManager.shared.activeTeam()?.identifier ?? "") == team else {
                 throw ServiceError.notFound
             }
             return exported
