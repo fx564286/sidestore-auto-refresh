@@ -403,7 +403,7 @@ enum V3SharedFileRecord {
     static let maximumPendingFiles = 16
     static let maximumPendingStoredBytes = 16_777_216
     private static let directoryComponents = ["Library", "Application Support", "LiveContainer", "V3SharedFileStaging"]
-    private static let allowedPurposes: Set<String> = ["pairing", "sidesign", "accountImport"]
+    private static let allowedPurposes: Set<String> = ["pairing", "sidesign", "accountImport", "certImport"]
     private static let transactionLock = NSLock()
 
     static func stagingDirectory(containerRoot: URL) -> URL {
