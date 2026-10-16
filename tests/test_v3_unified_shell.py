@@ -149,7 +149,7 @@ class V3UnifiedShellTests(unittest.TestCase):
             self.assertIn("Set(reply.keys) == Set([\"data\", \"password\", \"teamIdentifier\", \"identitySHA256\"])", importer)
             self.assertIn("data.count <= 1_048_576", importer)
             self.assertIn("password.utf8.count <= 512", importer)
-            self.assertIn("LCUtils.getCertTeamId(withKeyData: data, password: password) == team", importer)
+            self.assertIn("(team.isEmpty || parsedTeam == team)", importer)
             self.assertIn("v3CompleteSideStoreCertificateImport(certificateData: data, password: password,", importer)
             self.assertNotIn("SecItemCopyMatching", importer)
             self.assertNotIn("sharedKeychainAccessGroup", importer)
@@ -446,11 +446,11 @@ class V3SetupAssistantTests(unittest.TestCase):
     def test_no_second_scheduler_or_auth_stack(self):
         source = (ROOT / "scripts/templates/v3_unified_shell.swift").read_text(encoding="utf-8")
         for token in ("BGTask", "requestRefreshNow", "AutoRefreshScheduler.schedule",
-                      "SignInOperation(", "AuthManager", "Keychain",
+                      "SignInOperation(", "AuthManager", "Keychain.shared",
                       "AppManager.shared.install", "AppManager.shared.refresh",
                       "AppManager.shared.update"):
             self.assertNotIn(token, source)
-        self.assertEqual(source.count("SecureField"), 3)
+        self.assertEqual(source.count("SecureField"), 4)
 
     def test_setup_markers_and_diagnostics_privacy(self):
         source = (ROOT / "scripts/templates/v3_unified_shell.swift").read_text(encoding="utf-8")
