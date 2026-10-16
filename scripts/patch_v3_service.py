@@ -2519,7 +2519,7 @@ def verify_canonical_jitless_certificate_importer(live):
         'Set(reply.keys) == Set(["data", "password", "teamIdentifier", "identitySHA256"])',
         "data.count <= 1_048_576",
         "password.utf8.count <= 512",
-        "LCUtils.getCertTeamId(withKeyData: data, password: password) == team",
+        "(team.isEmpty || parsedTeam == team)",
         'operation: "healthSnapshot"',
         'current["certificateIdentitySHA256"] as? String == fingerprint',
         "v3CompleteSideStoreCertificateImport(certificateData: data, password: password,",
