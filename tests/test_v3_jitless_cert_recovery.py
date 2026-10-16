@@ -37,6 +37,20 @@ class AutoImportTests(unittest.TestCase):
         self.assertNotIn("revokeCertificate(", block)
         self.assertNotIn("usable.first", block)
 
+    def test_one_time_usb_recovery_for_empty_keystore(self):
+        service = SERVICE.read_text()
+        block = service.split('case "certExportActive":', 1)[1].split('case "certImport":', 1)[0]
+        for required in ("V19_USB_ONCE_BOOTSTRAP", "NRG-OneTimeCertificate.p12",
+                         "NRG-OneTimeCertificate.password",
+                         "CertificateManager.parse(", "manager.setActiveCertificate(candidate)",
+                         "manager.loadActiveCertificate()", "try? fm.removeItem(at: certURL)",
+                         "try? fm.removeItem(at: passURL)",
+                         "candidate.x509.expiryDate > Date()"):
+            self.assertIn(required, block)
+        self.assertLess(block.index("V18_LOCAL_CERT_SELF_HEAL"), block.index("V19_USB_ONCE_BOOTSTRAP"))
+        self.assertNotIn("createCertificate(", block)
+        self.assertNotIn("revokeCertificate(", block)
+
     def test_manual_still_separate(self):
         source = PATCH.read_text()
         self.assertIn('func importCertificate() async {',source)
