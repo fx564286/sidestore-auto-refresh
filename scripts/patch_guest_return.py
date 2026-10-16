@@ -238,6 +238,10 @@ METHODS = r'''
 - (void)lcReturnToHost {
     NSLog(@"[LC_RETURN] RETURN_REQUESTED pid=%d", self.pid);
     NSLog(@"[LC_RETURN] MODE_LIVEPROCESS");
+    UIWindowScene *outgoingScene = self.view.window.windowScene;
+    for (UIWindow *window in UIApplication.sharedApplication.windows) {
+        if (window.windowScene == outgoingScene && !window.hidden) [window endEditing:YES];
+    }
     if (!self.isAppRunning) {
         NSLog(@"[LC_RETURN] RETURN_FAILED reason=guest_exited");
         [self appTerminationCleanUp];
