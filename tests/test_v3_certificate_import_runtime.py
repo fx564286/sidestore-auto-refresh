@@ -23,7 +23,7 @@ def production_method_parts():
     callback_start = settings.index(
         "    func onSideStoreCertificateCallback(certificateData: Data, password: String)",
         wrapper_start)
-    return (settings[start:wrapper_start], settings[wrapper_start:callback_start],
+    return (settings[start:settings.index("    // V3_JITLESS_P12_RECOVERY_V1:", start)], settings[wrapper_start:callback_start],
             fixture_module.patch.IMPORT_OWNERSHIP_SWIFT)
 
 
@@ -102,6 +102,14 @@ enum LCUtils {
     var errorInfo = ""
     var errorShow = false
     var committed: [(Data, String)] = []
+
+    func v3RecoverSideStoreCertificateFromP12(requestID: String) async {
+        // The runtime mock covers fallback ownership and error presentation;
+        // the real picker/P12/Keychain boundary is checked separately.
+        guard V3CertificateImportOwnership.cancel(requestID) else { return }
+        errorInfo = "Choose the existing P12 signing certificate."
+        errorShow = true
+    }
 
     func onSideStoreCertificateCallback(certificateData: Data, password: String) {
         committed.append((certificateData, password))
