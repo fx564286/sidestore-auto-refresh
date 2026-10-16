@@ -56,7 +56,35 @@ openssl x509 -in "$CERT" -checkend 0 -noout >/dev/null || {
     exit 6
 }
 
+# Verify the PKCS12 contains the matching PRIVATE signing key as well.
+p12_pubkey_digest="$(
+    openssl pkcs12 -in "$P12" -passin "file:$PASSWORD" -nocerts -nodes 2>/dev/null |
+    openssl pkey -pubout -outform DER 2>/dev/null | sha256sum | awk '{print $1}'
+)"
+cert_pubkey_digest="$(
+    openssl x509 -in "$CERT" -pubkey -noout 2>/dev/null |
+    openssl pkey -pubin -outform DER 2>/dev/null | sha256sum | awk '{print $1}'
+)"
+[[ -n "$p12_pubkey_digest" && "$p12_pubkey_digest" == "$cert_pubkey_digest" ]] || {
+    echo '[ERROR] Private key in P12 does not match the signing certificate.' >&2
+    exit 6
+}
+
+# Best-effort cleanup of temporary device inbox files on partial transfers.
+# On success the app consumes and deletes them when its import action runs.
+upload_started=0
+on_exit() {
+    status=$?
+    if [[ "$status" -ne 0 && "$upload_started" -eq 1 ]]; then
+        python3 -m pymobiledevice3 apps rm "$BUNDLE" 'Documents/NRG-OneTimeCertificate.p12' >/dev/null 2>&1 || true
+        python3 -m pymobiledevice3 apps rm "$BUNDLE" 'Documents/NRG-OneTimeCertificate.password' >/dev/null 2>&1 || true
+        echo '[SECURITY] Attempted cleanup of incomplete USB transfer.' >&2
+    fi
+}
+trap on_exit EXIT
+
 echo '[PASS] iPhone paired, NRG 3.8.16 installed, existing P12 verified.'
+upload_started=1
 echo '[USB] Sending encrypted certificate into NRG Documents inbox ...'
 $PUSH "$BUNDLE" "$P12" 'Documents/NRG-OneTimeCertificate.p12'
 echo '[USB] Sending matching local password into NRG Documents inbox ...'
