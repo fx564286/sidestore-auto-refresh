@@ -25,6 +25,18 @@ class AutoImportTests(unittest.TestCase):
         self.assertNotIn("createCertificate(",section)
         self.assertNotIn("revokeCertificate(",section)
 
+    def test_lost_active_identity_self_heals_only_with_one_valid_local_cert(self):
+        source = SERVICE.read_text()
+        block = source.split('case "certExportActive":', 1)[1].split('case "certImport":', 1)[0]
+        self.assertIn("V18_LOCAL_CERT_SELF_HEAL", block)
+        self.assertIn("manager.loadActiveCertificate()", block)
+        self.assertIn("manager.getAllLocalCertificates()", block)
+        self.assertIn("usable.count == 1", block)
+        self.assertIn("manager.setActiveCertificate(usable[0])", block)
+        self.assertNotIn("createCertificate(", block)
+        self.assertNotIn("revokeCertificate(", block)
+        self.assertNotIn("usable.first", block)
+
     def test_manual_still_separate(self):
         source = PATCH.read_text()
         self.assertIn('func importCertificate() async {',source)
