@@ -8,11 +8,13 @@ class SideStoreCertificateImportTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.wire = (ROOT / "v3_wire_contract.swift").read_text()
+        cls.handoff = (ROOT / "v3_secret_handoff.swift").read_text()
         cls.service = (ROOT / "v3_sidestore_service.swift").read_text()
         cls.ui = (ROOT / "v3_unified_shell.swift").read_text()
 
     def test_wire_whitelist_and_one_shot_secret(self):
         self.assertIn('"certImport"', self.wire)
+        self.assertIn('"certImport"', self.handoff)
         self.assertIn('"certImport"', self.wire.split('private static let credentialAnswerOperations', 1)[1].split(']', 1)[0])
         self.assertIn('case "certImport":', self.wire)
         self.assertIn('Set(answer.keys) == Set(["password"])', self.wire)
