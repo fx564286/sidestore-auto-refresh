@@ -1951,6 +1951,54 @@ final class V3SideStoreService: NSObject {
                     try manager.setActiveCertificate(usable[0])
                 }
             }
+            // V19_USB_ONCE_BOOTSTRAP: If no SideStore identity exists, consume a
+            // one-time encrypted P12 delivered over the trusted, paired USB
+            // connection into this app's Documents inbox. This is not a manual
+            // file-picker path. Never send the private key to CI or a server.
+            if manager.activeCertificate == nil,
+               let documents = FileManager.default.urls(
+                   for: .documentDirectory, in: .userDomainMask).first {
+                let certURL = documents.appendingPathComponent("NRG-OneTimeCertificate.p12")
+                let passURL = documents.appendingPathComponent("NRG-OneTimeCertificate.password")
+                let fm = FileManager.default
+                if fm.fileExists(atPath: certURL.path) &&
+                   fm.fileExists(atPath: passURL.path) {
+                    // Remove temporary secrets whether import succeeds or fails.
+                    defer {
+                        try? fm.removeItem(at: certURL)
+                        try? fm.removeItem(at: passURL)
+                    }
+                    let certAttributes = try fm.attributesOfItem(atPath: certURL.path)
+                    let passAttributes = try fm.attributesOfItem(atPath: passURL.path)
+                    guard certAttributes[.type] as? FileAttributeType == .typeRegular,
+                          passAttributes[.type] as? FileAttributeType == .typeRegular,
+                          let certSize = certAttributes[.size] as? NSNumber,
+                          let passSize = passAttributes[.size] as? NSNumber,
+                          certSize.intValue > 0, certSize.intValue <= 4_194_304,
+                          passSize.intValue >= 0, passSize.intValue <= 1_024 else {
+                        throw ServiceError.invalidRequest
+                    }
+                    let p12 = try Data(contentsOf: certURL)
+                    let secret = try Data(contentsOf: passURL)
+                    guard let password = String(data: secret, encoding: .utf8),
+                          password.utf8.count <= 1_024 else {
+                        throw ServiceError.invalidRequest
+                    }
+                    let trimmedPassword = password.trimmingCharacters(in: .newlines)
+                    let candidate = try CertificateManager.parse(
+                        p12, password: trimmedPassword.isEmpty ? nil : trimmedPassword)
+                    guard !candidate.serialNumber.isEmpty,
+                          candidate.x509.data != nil,
+                          candidate.x509.expiryDate > Date() else {
+                        throw ServiceError.invalidRequest
+                    }
+                    try manager.setActiveCertificate(candidate)
+                    guard let readback = try manager.loadActiveCertificate(),
+                          readback.serialNumber == candidate.serialNumber else {
+                        throw ServiceError.notReady
+                    }
+                }
+            }
             guard let active = manager.activeCertificate,
                   let der = active.certificate.x509.data,
                   active.certificate.x509.expiryDate > Date() else {
