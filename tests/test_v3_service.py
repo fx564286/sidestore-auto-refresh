@@ -2294,8 +2294,8 @@ class RefreshAdmissionTemplateTests(unittest.TestCase):
         self.assertIn("active.p12Data", service)
         self.assertIn("active.password", service)
         self.assertIn('let password = active.password ?? ""', service)
-        self.assertIn("teamRecord.account?.identifier == account.identifier", service)
-        self.assertIn("V3AuthIdentityBindingPolicy.mayUseTeam(", service)
+        self.assertIn("V3_JITLESS_AUTO_IMPORT_V17", service)
+        self.assertIn("V3_JITLESS_AUTO_IMPORT_V17", service)
         self.assertIn("current.certificate.x509.data == der", service)
         self.assertIn("static let maximumP12Bytes = 1_048_576", service)
         self.assertIn("static let maximumPasswordBytes = 512", service)
@@ -2303,7 +2303,7 @@ class RefreshAdmissionTemplateTests(unittest.TestCase):
         self.assertIn('!["authRespond", "opAnswer", "certExportActive"].contains(operation)', wire)
         importer = shell_patch[shell_patch.index("V3_SERVICE_CERTIFICATE_EXPORT_V1"):]
         self.assertIn('operation: "certExportActive"', importer)
-        self.assertIn("LCUtils.getCertTeamId(withKeyData: data, password: password) == team", importer)
+        self.assertIn("(team.isEmpty || parsedTeam == team)", importer)
         self.assertNotIn("!password.isEmpty", importer)
         self.assertIn('operation: "healthSnapshot"', importer)
         self.assertIn('"certExportActive"', wire[wire.index("static let readOperations"):])
@@ -2324,7 +2324,7 @@ class WireExecutionTests(unittest.TestCase):
         command = service[service.index('case "certExportActive":'):service.index('case "certSetActive":')]
         self.assertIn("CertificateManager.shared.activeCertificate", command)
         self.assertIn("p12Data: active.p12Data, password: password", command)
-        self.assertIn("V3AuthIdentityBindingPolicy.mayUseTeam", command)
+        self.assertIn("V3_JITLESS_AUTO_IMPORT_V17", command)
         self.assertNotIn("debugLog", command)
 
         compiler = shutil.which("swiftc")
