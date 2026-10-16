@@ -1936,7 +1936,22 @@ final class V3SideStoreService: NSObject {
                 throw ServiceError.notFound
             }
             let capturedStamp = auth.v3IdentityStamp
-            guard let active = CertificateManager.shared.activeCertificate,
+            // V18_LOCAL_CERT_SELF_HEAL: recover the keychain-active certificate
+            // if a single valid PKCS12 has already been imported locally.
+            // Never create/revoke Apple certificates or guess between identities.
+            let manager = CertificateManager.shared
+            if manager.activeCertificate == nil {
+                _ = try? manager.loadActiveCertificate()
+            }
+            if manager.activeCertificate == nil {
+                let usable = manager.getAllLocalCertificates().filter {
+                    $0.x509.data != nil && $0.x509.expiryDate > Date()
+                }
+                if usable.count == 1 {
+                    try manager.setActiveCertificate(usable[0])
+                }
+            }
+            guard let active = manager.activeCertificate,
                   let der = active.certificate.x509.data,
                   active.certificate.x509.expiryDate > Date() else {
                 throw ServiceError.notFound
