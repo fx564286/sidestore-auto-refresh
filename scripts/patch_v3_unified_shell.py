@@ -188,10 +188,17 @@ def patch_host(root: Path) -> None:
                       let password = reply["password"] as? String,
                       password.utf8.count <= 512,
                       let team = reply["teamIdentifier"] as? String,
-                      !team.isEmpty, team.utf8.count <= 64,
+                      team.utf8.count <= 64,
                       let fingerprint = reply["identitySHA256"] as? String,
                       fingerprint.range(of: "^[0-9a-f]{64}$", options: .regularExpression) != nil,
-                      LCUtils.getCertTeamId(withKeyData: data, password: password) == team else {
+                      // Active portal team is optional; the local signing
+                      // certificate identifies its team even before provisioning.
+                      let parsedTeam = LCUtils.getCertTeamId(withKeyData: data, password: password),
+                      !parsedTeam.isEmpty,
+                      (team.isEmpty || parsedTeam == team),
+                      let facts = LCUtils.certificateFacts(withKeyData: data, password: password),
+                      facts["teamIdentifier"] == parsedTeam,
+                      facts["identitySHA256"] == fingerprint else {
                     throw NSError(domain: "V3CertificateImport", code: 2)
                 }
                 importStage = "healthSnapshot"
@@ -207,16 +214,10 @@ def patch_host(root: Path) -> None:
                 v3CompleteSideStoreCertificateImport(certificateData: data, password: password,
                     requestID: requestID)
             } catch {
-                if importStage == "certExportActive" {
-                    // V3_JITLESS_P12_RECOVERY_V1: no active SideStore certificate
-                    // or bound team. Allow the owner to choose the existing P12;
-                    // never create or revoke an Apple developer certificate.
-                    await v3RecoverSideStoreCertificateFromP12(requestID: requestID)
-                    return
-                }
                 guard V3CertificateImportOwnership.cancel(requestID) else { return }
-                errorInfo = "The SideStore JIT-Less certificate transfer stopped (stage: " +
-                    importStage + "). Reopen Certificates to check the active identity."
+                errorInfo = "내장 SideStore에서 활성 서명 인증서를 자동으로 가져오지 못했습니다 (stage: " +
+                    importStage + "). SideStore 인증서 관리에서 활성 인증서를 확인하세요. " +
+                    "파일에서 직접 가져오기는 별도의 '인증서 가져오기' 메뉴를 이용하세요."
                 errorShow = true
             }
         } else {
@@ -226,73 +227,6 @@ def patch_host(root: Path) -> None:
         }
     }
 
-    // V3_JITLESS_P12_RECOVERY_V1: a single, user-selected local P12 is
-    // imported into SideStore's canonical signing Keychain AND the existing
-    // LiveContainer JIT-Less storage. It is not stored in the IPA or logs.
-    private func v3RecoverSideStoreCertificateFromP12(requestID: String) async {
-        guard V3CertificateImportOwnership.isActive(requestID) else { return }
-        guard let url = await certificateImportFileAlert.open() else {
-            _ = V3CertificateImportOwnership.cancel(requestID)
-            return
-        }
-        guard V3CertificateImportOwnership.isActive(requestID) else { return }
-        guard let password = await certificateImportPasswordAlert.open() else {
-            _ = V3CertificateImportOwnership.cancel(requestID)
-            return
-        }
-        guard V3CertificateImportOwnership.isActive(requestID) else { return }
-        var recoveryStage = "readP12"
-        do {
-            let scoped = url.startAccessingSecurityScopedResource()
-            defer { if scoped { url.stopAccessingSecurityScopedResource() } }
-            let data = try await V3SharedFileInput.readBoundedAsync(url)
-            guard !data.isEmpty, data.count <= 4_194_304,
-                  let team = LCUtils.getCertTeamId(withKeyData: data, password: password),
-                  !team.isEmpty,
-                  let certificateFacts = LCUtils.certificateFacts(withKeyData: data, password: password),
-                  let fingerprint = certificateFacts["identitySHA256"],
-                  fingerprint.range(of: "^[0-9a-f]{64}$", options: .regularExpression) != nil,
-                  certificateFacts["teamIdentifier"] == team else {
-                throw NSError(domain: "V3JITLessP12Recovery", code: 1)
-            }
-            recoveryStage = "stageP12"
-            guard let containerRoot = V3IPAStaging.sideStoreContainerRoot(
-                selectedGroup: LCSharedUtils.appGroupID()),
-                  let token = V3SharedFileRecord.stage(
-                    data, purpose: "certImport", containerRoot: containerRoot) else {
-                throw NSError(domain: "V3JITLessP12Recovery", code: 2)
-            }
-            defer { V3SharedFileRecord.discard(token, containerRoot: containerRoot) }
-            recoveryStage = "certImport"
-            let imported = try await V3ServiceBridge.shared.request(
-                operation: "certImport", target: token,
-                payload: ["answer": ["password": password]])
-            guard V3CertificateImportOwnership.isActive(requestID),
-                  V3ServiceBridge.strictBool(imported["active"]) == true,
-                  let serial = imported["serial"] as? String, !serial.isEmpty else {
-                throw NSError(domain: "V3JITLessP12Recovery", code: 3)
-            }
-            recoveryStage = "verifyActiveCertificate"
-            let health = try await V3ServiceBridge.shared.request(operation: "healthSnapshot")
-            guard V3CertificateImportOwnership.isActive(requestID),
-                  let current = health["certificateState"] as? [String: Any],
-                  V3ServiceBridge.strictBool(current["active"]) == true,
-                  current["certificateIdentitySHA256"] as? String == fingerprint else {
-                throw NSError(domain: "V3JITLessP12Recovery", code: 4)
-            }
-            recoveryStage = "saveJITLess"
-            v3CompleteSideStoreCertificateImport(
-                certificateData: data, password: password, requestID: requestID)
-            UserDefaults.standard.set(LCSharedUtils.appGroupID(), forKey: "LCAppGroupID")
-            NotificationCenter.default.post(
-                name: Notification.Name("V3CanonicalJITLessCertificateUpdated"), object: nil)
-        } catch {
-            guard V3CertificateImportOwnership.cancel(requestID) else { return }
-            errorInfo = "Existing P12 recovery could not finish (stage: " +
-                recoveryStage + "). No Apple certificates were revoked or created."
-            errorShow = true
-        }
-    }
 
 '''
         text = text[:start] + replacement + text[end:]
@@ -503,7 +437,7 @@ def verify(live: Path, side: Path) -> None:
                   'operation: "certExportActive"',
                   'Set(reply.keys) == Set(["data", "password", "teamIdentifier", "identitySHA256"])',
                   "data.count <= 1_048_576", "password.utf8.count <= 512",
-                  "LCUtils.getCertTeamId(withKeyData: data, password: password) == team",
+                  "(team.isEmpty || parsedTeam == team)",
                   'operation: "healthSnapshot"',
                   'current["certificateIdentitySHA256"] as? String == fingerprint',
                   "v3CompleteSideStoreCertificateImport(certificateData: data, password: password,",
