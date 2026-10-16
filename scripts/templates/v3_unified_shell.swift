@@ -6769,6 +6769,11 @@ struct V3CertificatesView: View {
                 }
             }
             Section("On This Device (\(local.count))") {
+                // NRG_V20_USB_CERT_RECOVERY: user-initiated, local-only import.
+                Button(busy == "usbCertRecovery" ? "Recovering USB Certificate..." : "Recover USB Certificate (V20)") {
+                    Task { await recoverUSBSigningCertificate() }
+                }
+                .disabled(!busy.isEmpty || signingP12Token != nil)
                 Button("Import SideStore Signing Certificate (.p12 / .pfx)") {
                     selectingSigningP12 = true
                 }
@@ -6882,6 +6887,84 @@ struct V3CertificatesView: View {
             Text("Revoking or deleting a certificate affects every app signed with it.")
         }
     }
+    // NRG_V20_USB_CERT_RECOVERY: USB files belong to the host's Documents,
+    // not the embedded SideStore service's sandbox. Stage through the existing
+    // bounded, request-scoped certImport transport rather than reading a
+    // different process's Documents directory.
+    private func recoverUSBSigningCertificate() async {
+        guard busy.isEmpty, signingP12Token == nil else { return }
+        busy = "usbCertRecovery"
+        defer { busy = "" }
+        guard let documents = FileManager.default.urls(
+            for: .documentDirectory, in: .userDomainMask).first else {
+            message = "NRG Documents directory unavailable."
+            return
+        }
+        let certificateURL = documents.appendingPathComponent("NRG-OneTimeCertificate.p12")
+        let passwordURL = documents.appendingPathComponent("NRG-OneTimeCertificate.password")
+        let fm = FileManager.default
+        guard fm.fileExists(atPath: certificateURL.path),
+              fm.fileExists(atPath: passwordURL.path) else {
+            message = "USB signing files not found in NRG Documents. Run the USB bootstrap again."
+            return
+        }
+        // Never keep a plain-text password in the application Documents after
+        // an attempted import; the paired PC retains the authoritative P12.
+        defer {
+            try? fm.removeItem(at: certificateURL)
+            try? fm.removeItem(at: passwordURL)
+        }
+        do {
+            let attributes = try fm.attributesOfItem(atPath: certificateURL.path)
+            let passwordAttributes = try fm.attributesOfItem(atPath: passwordURL.path)
+            guard attributes[.type] as? FileAttributeType == .typeRegular,
+                  passwordAttributes[.type] as? FileAttributeType == .typeRegular,
+                  let size = attributes[.size] as? NSNumber,
+                  let passwordSize = passwordAttributes[.size] as? NSNumber,
+                  size.intValue > 0, size.intValue <= 4_194_304,
+                  passwordSize.intValue > 0, passwordSize.intValue <= 1_024 else {
+                message = "USB certificate files failed the local size/type checks."
+                return
+            }
+            let p12 = try Data(contentsOf: certificateURL)
+            let passwordData = try Data(contentsOf: passwordURL)
+            guard let password = String(data: passwordData, encoding: .utf8),
+                  password.utf8.count <= 1_024 else {
+                message = "USB certificate password is not valid UTF-8."
+                return
+            }
+            let cleanPassword = password.trimmingCharacters(in: .newlines)
+            guard let token = await status.stageSharedFile(p12, purpose: "certImport") else {
+                message = "Failed to stage the signing certificate for SideStore."
+                return
+            }
+            defer { status.discardSharedFile(token) }
+            let mutationTicket = status.beginDirectMutation()
+            do {
+                let reply = try await V3ServiceBridge.shared.request(
+                    operation: "certImport", target: token,
+                    payload: ["answer": ["password": cleanPassword]])
+                guard V3ServiceBridge.strictBool(reply["active"]) == true,
+                      let serial = reply["serial"] as? String, !serial.isEmpty else {
+                    throw NSError(domain: "NRGUSBRecovery", code: 1,
+                        userInfo: [NSLocalizedDescriptionKey:
+                            "SideStore did not confirm an active signing identity."])
+                }
+                status.finishDirectMutation(ticket: mutationTicket, requestReload: true)
+                status.invalidateSetupFacts()
+                status.reload()
+                await reload()
+                message = ""
+                notice = "USB certificate restored to SideStore and activated. Continue JIT-Less setup."
+            } catch {
+                status.finishDirectMutation(ticket: mutationTicket, requestReload: true)
+                message = V3FailureGuidance.message(error)
+            }
+        } catch {
+            message = V3FailureGuidance.message(error)
+        }
+    }
+
     private func discardSigningP12() {
         if let token = signingP12Token { status.discardSharedFile(token) }
         signingP12Token = nil
