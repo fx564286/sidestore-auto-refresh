@@ -6747,6 +6747,10 @@ struct V3CertificatesView: View {
     @State private var loadingRequest = false
     @State private var portalTicket: UInt64 = 0
     @State private var confirm: (String, String)?
+    @State private var selectingSigningP12 = false
+    @State private var confirmingSigningP12 = false
+    @State private var signingP12Token: String?
+    @State private var signingP12Password = ""
     var body: some View {
         List {
             if !message.isEmpty {
@@ -6765,6 +6769,10 @@ struct V3CertificatesView: View {
                 }
             }
             Section("On This Device (\(local.count))") {
+                Button("Import SideStore Signing Certificate (.p12 / .pfx)") {
+                    selectingSigningP12 = true
+                }
+                .disabled(!busy.isEmpty || signingP12Token != nil)
                 if loading { ProgressView("Loading certificates...") }
                 ForEach(local) { cert in
                     VStack(alignment: .leading, spacing: 4) {
@@ -6852,6 +6860,19 @@ struct V3CertificatesView: View {
         .onDisappear {
             portalTicket &+= 1
         }
+        .fileImporter(isPresented: $selectingSigningP12,
+                      allowedContentTypes: [UTType(filenameExtension: "p12") ?? .data,
+                                            UTType(filenameExtension: "pfx") ?? .data],
+                      allowsMultipleSelection: false) { result in
+            receiveSigningP12(result)
+        }
+        .alert("Import SideStore Signing Certificate", isPresented: $confirmingSigningP12) {
+            SecureField("P12 password (blank if none)", text: $signingP12Password)
+            Button("Import") { Task { await finishSigningP12Import() } }
+            Button("Cancel", role: .cancel) { discardSigningP12() }
+        } message: {
+            Text("Imports the existing private key into SideStore's active signing Keychain. Does not revoke or create Apple certificates.")
+        }
         .confirmationDialog("Are you sure?", isPresented: Binding(get: { confirm != nil }, set: { if !$0 { confirm = nil } }), titleVisibility: .visible) {
             Button("Confirm", role: .destructive) {
                 if let action = confirm { Task { await runConfirmed(action: action.0, serial: action.1) } }
@@ -6859,6 +6880,75 @@ struct V3CertificatesView: View {
             Button("Cancel", role: .cancel) { confirm = nil }
         } message: {
             Text("Revoking or deleting a certificate affects every app signed with it.")
+        }
+    }
+    private func discardSigningP12() {
+        if let token = signingP12Token { status.discardSharedFile(token) }
+        signingP12Token = nil
+        signingP12Password = ""
+    }
+    private func receiveSigningP12(_ result: Result<[URL], Error>) {
+        switch result {
+        case .failure(let error):
+            message = V3FailureGuidance.message(error)
+        case .success(let urls):
+            guard let url = urls.first,
+                  ["p12", "pfx"].contains(url.pathExtension.lowercased()) else {
+                message = "Choose a .p12 or .pfx signing-certificate file."
+                return
+            }
+            busy = "certImportPreparing"
+            Task {
+                defer { busy = "" }
+                do {
+                    let scoped = url.startAccessingSecurityScopedResource()
+                    defer { if scoped { url.stopAccessingSecurityScopedResource() } }
+                    let data = try await V3SharedFileInput.readBoundedAsync(url)
+                    guard !data.isEmpty, data.count <= 4_194_304 else {
+                        message = "The selected P12 is empty or exceeds 4 MiB."
+                        return
+                    }
+                    guard let token = await status.stageSharedFile(data, purpose: "certImport") else {
+                        return
+                    }
+                    signingP12Token = token
+                    signingP12Password = ""
+                    confirmingSigningP12 = true
+                } catch {
+                    message = V3FailureGuidance.message(error)
+                }
+            }
+        }
+    }
+    private func finishSigningP12Import() async {
+        guard let token = signingP12Token else { return }
+        let password = signingP12Password
+        signingP12Password = ""
+        busy = "certImport"
+        let mutationTicket = status.beginDirectMutation()
+        defer {
+            status.discardSharedFile(token)
+            signingP12Token = nil
+            busy = ""
+        }
+        do {
+            let reply = try await V3ServiceBridge.shared.request(
+                operation: "certImport", target: token,
+                payload: ["answer": ["password": password]])
+            guard V3ServiceBridge.strictBool(reply["active"]) == true,
+                  let serial = reply["serial"] as? String, !serial.isEmpty else {
+                throw NSError(domain: "NRGCertificateImport", code: 1,
+                    userInfo: [NSLocalizedDescriptionKey: "SideStore did not confirm a stored, active certificate."])
+            }
+            status.finishDirectMutation(ticket: mutationTicket, requestReload: true)
+            status.invalidateSetupFacts()
+            status.reload()
+            await reload()
+            notice = "Signing certificate imported and activated. Continue provisioning without revoking it."
+            message = ""
+        } catch {
+            status.finishDirectMutation(ticket: mutationTicket, requestReload: true)
+            message = V3FailureGuidance.message(error)
         }
     }
     private func reload() async {
