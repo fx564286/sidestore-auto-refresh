@@ -3,7 +3,7 @@ name: LiveContainer embedded SideStore build
 on:
   workflow_dispatch:
   push:
-    branches: [fix/combined-refresh-build-and-runtime, fix/v3.0.3-auth-errors, build/nrg-v3-ipa-priority-20261015, fix/nrg-cert-import-20261016]
+    branches: [fix/combined-refresh-build-and-runtime, fix/v3.0.3-auth-errors, build/nrg-v3-ipa-priority-20261015, fix/nrg-cert-import-20261016, fix/nrg-jitless-cert-recovery-20261016]
 
 permissions:
   contents: read
@@ -101,7 +101,7 @@ jobs:
           set -euo pipefail
           # Priority IPA build: targeted source and authentication suites.
           # Full matrix is running separately on the standard V3 branch.
-          for pattern in test_repository.py test_v3_service.py test_nrg_gsa_client_v3.py test_v3_certificate_import.py; do
+          for pattern in test_repository.py test_v3_service.py test_nrg_gsa_client_v3.py test_v3_certificate_import.py test_v3_jitless_cert_recovery.py; do
             python3 -m unittest discover -s builder/tests -p "$pattern" -v
           done 2>&1 | tee artifacts/logs/repository-tests.log
 
