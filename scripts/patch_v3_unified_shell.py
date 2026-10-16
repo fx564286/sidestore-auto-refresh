@@ -207,14 +207,89 @@ def patch_host(root: Path) -> None:
                 v3CompleteSideStoreCertificateImport(certificateData: data, password: password,
                     requestID: requestID)
             } catch {
+                if importStage == "certExportActive" {
+                    // V3_JITLESS_P12_RECOVERY_V1: no active SideStore certificate
+                    // or bound team. Allow the owner to choose the existing P12;
+                    // never create or revoke an Apple developer certificate.
+                    await v3RecoverSideStoreCertificateFromP12(requestID: requestID)
+                    return
+                }
                 guard V3CertificateImportOwnership.cancel(requestID) else { return }
-                errorInfo = "The active SideStore certificate could not be imported (stage: " +
-                    importStage + "). Check Certificates and try again."
+                errorInfo = "The SideStore JIT-Less certificate transfer stopped (stage: " +
+                    importStage + "). Reopen Certificates to check the active identity."
                 errorShow = true
             }
         } else {
             _ = V3CertificateImportOwnership.cancel(requestID)
             errorInfo = "Embedded SideStore is unavailable in this LiveContainer build."
+            errorShow = true
+        }
+    }
+
+    // V3_JITLESS_P12_RECOVERY_V1: a single, user-selected local P12 is
+    // imported into SideStore's canonical signing Keychain AND the existing
+    // LiveContainer JIT-Less storage. It is not stored in the IPA or logs.
+    private func v3RecoverSideStoreCertificateFromP12(requestID: String) async {
+        guard V3CertificateImportOwnership.isActive(requestID) else { return }
+        guard let url = await certificateImportFileAlert.open() else {
+            _ = V3CertificateImportOwnership.cancel(requestID)
+            return
+        }
+        guard V3CertificateImportOwnership.isActive(requestID) else { return }
+        guard let password = await certificateImportPasswordAlert.open() else {
+            _ = V3CertificateImportOwnership.cancel(requestID)
+            return
+        }
+        guard V3CertificateImportOwnership.isActive(requestID) else { return }
+        var recoveryStage = "readP12"
+        do {
+            let scoped = url.startAccessingSecurityScopedResource()
+            defer { if scoped { url.stopAccessingSecurityScopedResource() } }
+            let data = try await V3SharedFileInput.readBoundedAsync(url)
+            guard !data.isEmpty, data.count <= 4_194_304,
+                  let team = LCUtils.getCertTeamId(withKeyData: data, password: password),
+                  !team.isEmpty,
+                  let certificateFacts = LCUtils.certificateFacts(withKeyData: data, password: password),
+                  let fingerprint = certificateFacts["identitySHA256"],
+                  fingerprint.range(of: "^[0-9a-f]{64}$", options: .regularExpression) != nil,
+                  certificateFacts["teamIdentifier"] == team else {
+                throw NSError(domain: "V3JITLessP12Recovery", code: 1)
+            }
+            recoveryStage = "stageP12"
+            guard let containerRoot = V3IPAStaging.sideStoreContainerRoot(
+                selectedGroup: LCSharedUtils.appGroupID()),
+                  let token = V3SharedFileRecord.stage(
+                    data, purpose: "certImport", containerRoot: containerRoot) else {
+                throw NSError(domain: "V3JITLessP12Recovery", code: 2)
+            }
+            defer { V3SharedFileRecord.discard(token, containerRoot: containerRoot) }
+            recoveryStage = "certImport"
+            let imported = try await V3ServiceBridge.shared.request(
+                operation: "certImport", target: token,
+                payload: ["answer": ["password": password]])
+            guard V3CertificateImportOwnership.isActive(requestID),
+                  V3ServiceBridge.strictBool(imported["active"]) == true,
+                  let serial = imported["serial"] as? String, !serial.isEmpty else {
+                throw NSError(domain: "V3JITLessP12Recovery", code: 3)
+            }
+            recoveryStage = "verifyActiveCertificate"
+            let health = try await V3ServiceBridge.shared.request(operation: "healthSnapshot")
+            guard V3CertificateImportOwnership.isActive(requestID),
+                  let current = health["certificateState"] as? [String: Any],
+                  V3ServiceBridge.strictBool(current["active"]) == true,
+                  current["certificateIdentitySHA256"] as? String == fingerprint else {
+                throw NSError(domain: "V3JITLessP12Recovery", code: 4)
+            }
+            recoveryStage = "saveJITLess"
+            v3CompleteSideStoreCertificateImport(
+                certificateData: data, password: password, requestID: requestID)
+            UserDefaults.standard.set(LCSharedUtils.appGroupID(), forKey: "LCAppGroupID")
+            NotificationCenter.default.post(
+                name: Notification.Name("V3CanonicalJITLessCertificateUpdated"), object: nil)
+        } catch {
+            guard V3CertificateImportOwnership.cancel(requestID) else { return }
+            errorInfo = "Existing P12 recovery could not finish (stage: " +
+                recoveryStage + "). No Apple certificates were revoked or created."
             errorShow = true
         }
     }
