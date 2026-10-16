@@ -23,7 +23,7 @@ def production_method_parts():
     callback_start = settings.index(
         "    func onSideStoreCertificateCallback(certificateData: Data, password: String)",
         wrapper_start)
-    return (settings[start:settings.index("    private func v3RecoverSideStoreCertificateFromP12(", start)], settings[wrapper_start:callback_start],
+    return (settings[start:wrapper_start], settings[wrapper_start:callback_start],
             fixture_module.patch.IMPORT_OWNERSHIP_SWIFT)
 
 
@@ -95,6 +95,11 @@ enum LCUtils {
         parsedPassphrases.append(password)
         return data == Data([1, 2, 3]) ? parsedTeam : nil
     }
+    static func certificateFacts(withKeyData data: Data, password: String) -> [String: String]? {
+        guard data == Data([1, 2, 3]), let team = parsedTeam else { return nil }
+        return ["teamIdentifier": team,
+                "identitySHA256": String(repeating: "a", count: 64)]
+    }
 }
 
 @MainActor final class ImporterHarness {
@@ -102,14 +107,6 @@ enum LCUtils {
     var errorInfo = ""
     var errorShow = false
     var committed: [(Data, String)] = []
-
-    func v3RecoverSideStoreCertificateFromP12(requestID: String) async {
-        // The runtime mock covers fallback ownership and error presentation;
-        // the real picker/P12/Keychain boundary is checked separately.
-        guard V3CertificateImportOwnership.cancel(requestID) else { return }
-        errorInfo = "Choose the existing P12 signing certificate."
-        errorShow = true
-    }
 
     func onSideStoreCertificateCallback(certificateData: Data, password: String) {
         committed.append((certificateData, password))
@@ -164,6 +161,13 @@ enum LCUtils {
             precondition(V3ServiceBridge.shared.operations == ["certExportActive", "healthSnapshot"])
             precondition(LCUtils.parsedPassphrases == [passphrase])
         }
+
+        // Automatically copy an active identity with no registered portal team.
+        let unbound = ImporterHarness()
+        reset(unbound, certificate: certificateReply(team: ""), statusTeam: "")
+        await unbound.importCertificateFromSideStore()
+        precondition(unbound.committed.count == 1)
+        precondition(V3ServiceBridge.shared.operations == ["certExportActive", "healthSnapshot"])
 
         // Service/export unavailable: one export attempt, no host commit.
         let unavailable = ImporterHarness()
@@ -223,7 +227,7 @@ enum LCUtils {
         let fingerprint = String(repeating: "b", count: 64)
         reset(wrongFingerprint, certificate: certificateReply(fingerprint: fingerprint))
         await wrongFingerprint.importCertificateFromSideStore()
-        precondition(V3ServiceBridge.shared.operations == ["certExportActive", "healthSnapshot"])
+        precondition(V3ServiceBridge.shared.operations == ["certExportActive"])
         precondition(wrongFingerprint.committed.isEmpty)
 
         print("CERTIFICATE_IMPORT_RUNTIME_PASS")
