@@ -238,6 +238,12 @@ METHODS = r'''
 - (void)lcReturnToHost {
     NSLog(@"[LC_RETURN] RETURN_REQUESTED pid=%d", self.pid);
     NSLog(@"[LC_RETURN] MODE_LIVEPROCESS");
+    // Release the outgoing guest responder before activating another scene.
+    // Keyboard windows are system-owned: never remove or hide them directly.
+    UIWindowScene *outgoingScene = self.view.window.windowScene;
+    for (UIWindow *window in UIApplication.sharedApplication.windows) {
+        if (window.windowScene == outgoingScene && !window.hidden) [window endEditing:YES];
+    }
     if (!self.isAppRunning) {
         NSLog(@"[LC_RETURN] RETURN_FAILED reason=guest_exited");
         [self appTerminationCleanUp];
