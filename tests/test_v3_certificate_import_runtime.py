@@ -23,7 +23,7 @@ def production_method_parts():
     callback_start = settings.index(
         "    func onSideStoreCertificateCallback(certificateData: Data, password: String)",
         wrapper_start)
-    return (settings[start:settings.index("    // V3_JITLESS_P12_RECOVERY_V1:", start)], settings[wrapper_start:callback_start],
+    return (settings[start:settings.index("    private func v3RecoverSideStoreCertificateFromP12(", start)], settings[wrapper_start:callback_start],
             fixture_module.patch.IMPORT_OWNERSHIP_SWIFT)
 
 
