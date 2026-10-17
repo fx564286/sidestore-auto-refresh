@@ -4842,6 +4842,24 @@ enum V3AuthStatusTextPolicy {
 }
 
 enum V3AuthFailureDiagnosticsPolicy {
+    // NRG_V29_AUTH_PROMPT_ERROR_CAUSE_V2: fixed categories only, never raw
+    // Apple responses, localized errors, email, password or 2FA content.
+    static let knownDiagnosticCategories: Set<String> = [
+        "anisette", "keychainHandoff", "developerPortal",
+        "serverBadResponse", "serverResponseFormat", "serverMissingField",
+        "serverReportedError", "networkTransport", "osStatus", "unclassified"
+    ]
+
+    static func safePromptCause(_ failure: [String: Any]) -> String {
+        guard let category = failure["diagnosticCategory"] as? String,
+              knownDiagnosticCategories.contains(category) else { return "" }
+        // Numeric error codes are diagnostic evidence, NOT stable Apple
+        // semantic classifications. Never expose associated provider text.
+        let code = failure["diagnosticCode"] as? Int
+        let codeText = code.map(String.init) ?? "unknown"
+        return " [diagnostic: " + category + ", code: " + codeText + "]"
+    }
+
     static func shouldShowTerminalDetails(state: String, hasPrompt: Bool,
                                           hasFailure: Bool) -> Bool {
         hasFailure && !hasPrompt && ["failed", "timedOut", "promptExpired", "resultUnknown"]
@@ -4857,7 +4875,7 @@ enum V3AuthFailureDiagnosticsPolicy {
         let underlyingDomain = failure["underlyingDomain"] as? String ?? ""
         let codeText = underlyingCode.map(String.init) ?? "unknown"
         let retryableText = retryableValue.map { $0 ? "yes" : "no" } ?? "unknown"
-        return "kind=\(kind) stage=\(stage) code=\(code) correlation=\(correlation) underlying=\(underlyingDomain)/\(codeText) retryable=\(retryableText)"
+        return "kind=\(kind) stage=\(stage) code=\(code) correlation=\(correlation) underlying=\(underlyingDomain)/\(codeText) retryable=\(retryableText)" + safePromptCause(failure)
     }
 }
 
