@@ -36,6 +36,26 @@ SIGNER_METHOD = '''// V3_CANONICAL_CERTIFICATE_FACTS_V1: observation only; use L
     for (unsigned int i = 0; i < length; ++i) [fingerprint appendFormat:@"%02x", digest[i]];
     NSString *team = [NSString stringWithUTF8String:asset.m_strTeamId.c_str()];
     if (!team) return nil;
+    // V32_OFFLINE_CERT_EXPIRATION_V1: X.509 notAfter is public signed
+    // metadata, independently of Apple's online OCSP response. This must not
+    // be conflated with revocation/validity: those still require checkCert.
+    NSString *expiration = nil;
+    BIO *dateBIO = BIO_new(BIO_s_mem());
+    if (dateBIO) {
+        const ASN1_TIME *notAfter = X509_get0_notAfter((X509 *)asset.m_x509Cert);
+        if (notAfter && ASN1_TIME_print(dateBIO, notAfter) == 1) {
+            char *value = nullptr;
+            long length = BIO_get_mem_data(dateBIO, &value);
+            if (value && length > 0 && length < 96) {
+                expiration = [[NSString alloc] initWithBytes:value
+                    length:(NSUInteger)length encoding:NSASCIIStringEncoding];
+            }
+        }
+        BIO_free(dateBIO);
+    }
+    if (expiration) {
+        return @{@"teamIdentifier": team, @"identitySHA256": fingerprint, @"notAfter": expiration};
+    }
     return @{@"teamIdentifier": team, @"identitySHA256": fingerprint};
 }
 
