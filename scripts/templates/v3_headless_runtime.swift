@@ -454,6 +454,21 @@ func v3SafeAuthCause(_ error: Error) -> String {
     }
 }
 
+// V30_AUTH_TYPE_ID: a Swift type name contains neither an error's associated
+// values nor the Apple ID. Emit only simple, bounded, static identifiers.
+func v3SafeAuthTypeID(_ error: Error, depth: Int = 0) -> String {
+    guard depth < 4 else { return "opaque" }
+    if let wrapped = error as? ALTWrappedError {
+        return v3SafeAuthTypeID(wrapped.wrappedError, depth: depth + 1)
+    }
+    let name = String(reflecting: type(of: error))
+    let allowed = CharacterSet(charactersIn:
+        "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789._")
+    guard !name.isEmpty, name.utf8.count <= 96,
+          name.unicodeScalars.allSatisfy({ allowed.contains($0) }) else { return "opaque" }
+    return name
+}
+
 // SideSign ServerError.underlyingError carries Apple's fixed numeric code
 // separately from untrusted provider text. Preserve the number (e.g. -80045)
 // instead of NSError's often-zero generic enum bridging code.
@@ -951,11 +966,12 @@ final class V3AuthCenter {
                 let kind = v3ClassifyAuthError(error)?.rawValue ?? "unknown"
                 wire["kind"] = kind
                 let safeCause = v3SafeAuthCause(error)
+                let safeType = v3SafeAuthTypeID(error)
                 // NRG_V29_SAFE_AUTH_CAUSE_V1: preserve an actionable, non-secret
                 // error family on screen even when NSError has a redacted domain.
                 let message = kind == "unknown"
                     ? failure.safeMessage + " [diagnostic: " + safeCause + ", code: " +
-                        String(v3SafeAuthNumericCode(error)) + "]"
+                        String(v3SafeAuthNumericCode(error)) + ", type: " + safeType + "]"
                     : V3AuthFailureDisplay.message(for: kind)
                 debugLog("[V3_AUTH_CAUSE] stage=authentication category=\(safeCause) kind=\(kind) code=\((error as NSError).code)")
                 let response: [String: Any] = ["state": "failed", "stage": failure.stage.rawValue,
@@ -1345,6 +1361,7 @@ final class V3HeadlessAuthHandler: SignInHandler, AnisetteServerHandler {
             let numericCode = v3SafeAuthNumericCode(error)
             wire["diagnosticCategory"] = category
             wire["diagnosticCode"] = numericCode
+            wire["diagnosticType"] = v3SafeAuthTypeID(error)
             V3HeadlessRuntime.shared.auth.sessions[sessionID]?.previousFailure = wire
             debugLog("[V3_AUTH_CAUSE] stage=promptFailure category=\(category) kind=\(kind.rawValue) code=\(numericCode)")
             debugLog("[V3_AUTH] ATTEMPT_FAILED session=\(sessionID) kind=\(kind.rawValue) stage=\(failure.stage.rawValue) code=\(failure.code.rawValue) correlation=\(failure.correlationID)")
