@@ -6151,7 +6151,9 @@ final class V3AuthStore: ObservableObject {
         case "anisetteFailure", "anisette": return "Authentication could not obtain valid Anisette data."
         case "networkFailure", "network": return "Authentication could not reach the required Apple service. Check the connection and try again."
         case "accountRepairRequired": return "Apple requires attention on this account before signing in."
-        case "unknown": return "Apple sign-in returned an error that could not be safely classified."
+        case "unknown":
+            return "Apple sign-in returned an error that could not be safely classified." +
+                V3AuthFailureDiagnosticsPolicy.safePromptCause(failure)
         case nil: break
         default: break
         }
