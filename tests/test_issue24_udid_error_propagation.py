@@ -62,19 +62,19 @@ class Issue24UdidErrorPropagationTests(SourceFixture):
             self.assertIn("case .createCoreDevice(let reason)", self.wrapper_text)
             self.assertRegex(self.wrapper_text, r"case \.createCoreDevice\(let reason\)[^:]*:\s*return \.noDevice\(reason: reason\)")
 
-    def test_requirement3_heartbeat_failure_remains_transport_heartbeat_error(self):
-        """3. Heartbeat failures remain transport/heartbeat errors (.connect)."""
+    def test_requirement3_missing_optional_heartbeat_cannot_block_verified_rsd(self):
+        """3. Heartbeat alone cannot reject real CoreDevice/RSD transport."""
         ensure_core = function(self.gateway_text, "ensureCoreDeviceConnection")
-        self.assertIn("guard tunnel_heartbeat_is_active() else {", ensure_core)
-        self.assertIn('debugLog("[SIDESTORE_COREDEVICE] HEARTBEAT_FAIL")', ensure_core)
-        self.assertIn('throw IdeviceGatewayError(.connectionFailed, reason: "CoreDevice heartbeat is inactive")', ensure_core)
+        self.assertIn("HEARTBEAT_OPTIONAL_RSD_VERIFIED", ensure_core)
+        self.assertNotIn("guard tunnel_heartbeat_is_active() else {", ensure_core)
+        self.assertNotIn('reason: "CoreDevice heartbeat is inactive"', ensure_core)
+        self.assertIn("guard adapter != nil, handshake != nil else {", ensure_core)
+        self.assertIn("CoreDevice tunnel returned incomplete handles", ensure_core)
 
-        # Verify runIdeviceCheckingVPN maps heartbeat failure to MinimuxerError.connect
+        # Preserve typed errors when a genuine heartbeat transport error does occur.
         run_vpn = function(self.impl_text, "runIdeviceCheckingVPN")
         self.assertIn('if err.reason.lowercased().contains("heartbeat") {', run_vpn)
         self.assertIn("throw MinimuxerError.connect(err.reason)", run_vpn)
-
-        # Verify MinimuxerWrapper maps .connect to .noDevice, never .invalidPairingFile
         if self.wrapper_text:
             self.assertIn(".connect(let reason)", self.wrapper_text)
 
