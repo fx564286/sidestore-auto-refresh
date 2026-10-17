@@ -119,7 +119,7 @@ class RepositoryTests(unittest.TestCase):
                 REQUIRED_SCRIPTS | LIVE_CONTAINER_SCRIPTS | {
                     "patch_sidesign_privacy.py", "verify_candidate_ipa.py", "run_required_tests.py",
                     "patch_nrg_gsa_auth.py", "patch_nrg_gsa_http_v2.py",
-                    "patch_nrg_gsa_client_v3.py"},
+                    "patch_nrg_gsa_client_v3.py", "patch_v24_install_download.py"},
         )
 
     def test_patch_scripts_parse_and_contain_guard_markers(self):
