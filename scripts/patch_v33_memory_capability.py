@@ -28,8 +28,8 @@ def transform(original: dict[str, str]) -> dict[str, str]:
     a = original[FILES[1]]
     p = original[FILES[2]]
     if all(MARKER in x for x in (f, a, p)):
-        if any(x.count(MARKER) != 1 for x in (f, a, p)):
-            raise ValueError("duplicate V33 memory capability")
+        if (f.count(MARKER), a.count(MARKER), p.count(MARKER)) != (1, 2, 1):
+            raise ValueError("partial or duplicate V33 memory capability")
         return dict(original)
     if any(MARKER in x for x in (f, a, p)):
         raise ValueError("partially applied V33 memory capability")
