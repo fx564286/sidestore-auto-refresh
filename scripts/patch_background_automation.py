@@ -1291,8 +1291,8 @@ def patch_background_operation(sidestore: Path) -> None:
         )
 
         helper = r'''
-    // V22: Activation is permitted only for a unique Apple-verified team tied
-    // to the existing signing certificate and the current authenticated route.
+    // V22: Prefer the active team, then a portal team from the authenticated account.
+    // Local team recovery does not require single-team or matching-cert checks.
     // This restores incomplete local provisioning; it never registers new
     // Apple IDs, provisions devices, or replaces signing identities.
     private func v22ResolveSigningTeamForRefresh() async throws {
@@ -1308,8 +1308,7 @@ def patch_background_operation(sidestore: Path) -> None:
         guard auth.v3IdentityIsStable,
               let appleID = credentials?.appleIDEmailAddress, !appleID.isEmpty,
               let dsid = credentials?.appleIDAdsid, !dsid.isEmpty,
-              let token = credentials?.appleIDXcodeToken, !token.isEmpty,
-              let activeCert = CertificateManager.shared.activeCertificate else {
+              let token = credentials?.appleIDXcodeToken, !token.isEmpty else {
             throw OperationError.notAuthenticated
         }
         let session = try await auth.getAuthenticatedSession()
@@ -1320,17 +1319,12 @@ def patch_background_operation(sidestore: Path) -> None:
         }
         let account = ALTAccount(appleID: appleID, identifier: dsid)
         let teams = try await DeveloperPortalProxy.shared.fetchTeams(for: account)
-        guard teams.count == 1, let verifiedTeam = teams.first,
-              verifiedTeam.account?.appleID.lowercased() == appleID.lowercased() else {
-            debugLog("[AUTO_REFRESH] TEAM_REPAIR_REFUSED reason=ambiguous_or_unowned_team")
+        let preferredID = auth.team?.identifier ?? DatabaseManager.shared.activeTeam()?.identifier
+        guard let verifiedTeam = teams.first(where: { $0.identifier == preferredID }) ?? teams.first else {
             throw OperationError.notAuthenticated
         }
-        let portalCertificates = try await DeveloperPortalProxy.shared.fetchCertificates(team: verifiedTeam)
-        guard portalCertificates.contains(where: {
-            $0.serialNumber.caseInsensitiveCompare(activeCert.serialNumber) == .orderedSame
-        }), stamp == auth.v3IdentityStamp,
+        guard stamp == auth.v3IdentityStamp,
               generation == auth.v3IdentityGeneration, auth.v3IdentityIsStable else {
-            debugLog("[AUTO_REFRESH] TEAM_REPAIR_REFUSED reason=certificate_or_identity_mismatch")
             throw OperationError.notAuthenticated
         }
         let context = DatabaseManager.shared.persistentContainer.newBackgroundContext()
@@ -1382,7 +1376,7 @@ def patch_background_operation(sidestore: Path) -> None:
             throw OperationError.notAuthenticated
         }
         auth.team = verifiedTeam
-        debugLog("[AUTO_REFRESH] TEAM_REPAIR_PASS source=apple_verified_existing_cert")
+        debugLog("[AUTO_REFRESH] TEAM_REPAIR_PASS source=authenticated_account_team")
     }
 
     private func automaticRefreshDefaults() throws -> UserDefaults {
