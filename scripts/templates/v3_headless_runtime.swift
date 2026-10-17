@@ -431,8 +431,27 @@ func v3SafeAuthCause(_ error: Error) -> String {
     if CombinedFailure.knownURLTransportCause(domain: native.domain, code: native.code) != nil {
         return "networkTransport"
     }
-    if native.domain == "NSOSStatusErrorDomain" { return "osStatus" }
-    return "unclassified"
+    // Fixed-domain fallbacks for NSError-bridged errors without a native
+    // Swift enum. Never display raw provider domains or userInfo.
+    switch native.domain {
+    case "com.SideStore.Keychain", "com.kishikawakatsumi.KeychainAccess.error",
+         "LiveContainerRefresh.Configuration":
+        return "keychainPersistence"
+    case "AnisetteServersManager":
+        return "anisetteServerCatalog"
+    case "NSCocoaErrorDomain":
+        return "cocoaStorage"
+    case "NSPOSIXErrorDomain":
+        return "posixTransport"
+    case "NSURLErrorDomain":
+        return "networkTransport"
+    case "NSOSStatusErrorDomain":
+        return "osStatus"
+    case "V3Prompt":
+        return "authPrompt"
+    default:
+        return "unclassified"
+    }
 }
 
 // SideSign ServerError.underlyingError carries Apple's fixed numeric code
