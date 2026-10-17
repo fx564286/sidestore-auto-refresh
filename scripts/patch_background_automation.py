@@ -1089,7 +1089,7 @@ def patch_background_operation(sidestore: Path) -> None:
         / "BackgroundRefreshAppsOperation.swift"
     )
     text = path.read_text(encoding="utf-8")
-    if "import SideSign" not in text:
+    if "import CoreData" in text and "import SideSign" not in text:
         text = replace_once(text, "import CoreData", "import CoreData\nimport SideSign", "v22 import")
     marker = "[AUTO_REFRESH] AUTH_PREFLIGHT_PASS"
     verification_marker = "[AUTO_REFRESH] VERIFICATION_MANIFEST_V1"
