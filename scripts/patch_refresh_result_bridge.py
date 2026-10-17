@@ -78,13 +78,20 @@ CLIENT = r'''
     // V3_RUNTIME_SHARED_REFRESH_STORE_V1: the same runtime App Group the service
     // wrote the manifest into. Without it the result is reported unconfirmed
     // rather than read from a store the service can never have written.
-    func reportRefreshResult(_ error: String?, server: any RefreshServer) {
+    func reportRefreshResult(_ error: String?, runID capturedRunID: String?, server: any RefreshServer) {
         guard let defaults = V3SharedAppGroup.sharedUserDefaults() else {
             server.finish("SideStore could not open its refresh-state store. Refresh is unconfirmed.")
             return
         }
-        guard let runID = defaults.string(forKey: "liveContainerAutoRefreshExpectedRunID") else {
-            server.finish(error)
+        // V21: Callback identity is captured at dispatch. A mutable shared
+        // expected-run marker is only an admission check, never the source of
+        // the result's identity. A late callback must not impersonate a new run.
+        guard let runID = capturedRunID, !runID.isEmpty else {
+            server.finish("SideStore refresh callback was missing its run identity.")
+            return
+        }
+        guard defaults.string(forKey: "liveContainerAutoRefreshExpectedRunID") == runID else {
+            server.finishRefresh("SideStore returned a result for an earlier refresh.", runID: runID, verification: nil)
             return
         }
         var payload: [String: Any] = [:]
@@ -116,6 +123,16 @@ def patch(root: Path):
     signature = "mangledTypeName:(NSString *)mangledTypeName"
     header = replace(header, signature + ";", signature + " refreshRunID:(NSString* _Nullable)refreshRunID;")
     objc = replace(objc, signature + " {", signature + " refreshRunID:(NSString* _Nullable)refreshRunID {")
+    # V21: pass the immutable per-request run ID through Objective-C into the
+    # Swift async closure. Reading UserDefaults on callback completion races
+    # subsequent requests and can misattribute their result to another run.
+    objc = replace(objc,
+        "                                     server:(id <RefreshServer> _Nonnull)server;",
+        "                                     server:(id <RefreshServer> _Nonnull)server\n"
+        "                               refreshRunID:(NSString * _Nullable)refreshRunID;")
+    objc = replace(objc,
+        "[self performRefreshForRealWithIdentifier:identifier mangledTypeName:mangledTypeName server:handler.server];",
+        "[self performRefreshForRealWithIdentifier:identifier mangledTypeName:mangledTypeName server:handler.server refreshRunID:refreshRunID];")
     objc = replace(objc, "    [self performRefreshForRealWithIdentifier:", f'''    // V3_RUNTIME_SHARED_REFRESH_STORE_V1: the run ID, the previous verification
     // manifest and the host-handoff record form the host/service contract, so
     // they are cleared and stamped in the one runtime App Group the host
@@ -144,8 +161,12 @@ def patch(root: Path):
     [self performRefreshForRealWithIdentifier:''')
     host = replace(host, "client.refreshAllApps(withIdentifier: identifier, mangledTypeName: mangledName)", 'client.refreshAllApps(withIdentifier: identifier, mangledTypeName: mangledName, refreshRunID: V3SharedAppGroup.sharedUserDefaults()?.string(forKey: "liveContainerAutoRefreshExpectedRunID"))')
     host = replace(host, "    func finish(_ error: String?) {", HOST + "\n    func finish(_ error: String?) {")
-    client = replace(client, "    @objc(performRefreshForRealWithIdentifier:mangledTypeName:server:)", CLIENT + "\n    @objc(performRefreshForRealWithIdentifier:mangledTypeName:server:)")
-    client = replace(client, "                server.finish(nil)", "                reportRefreshResult(nil, server: server)")
-    client = replace(client, "                server.finish(error.localizedDescription)", "                reportRefreshResult(error.localizedDescription, server: server)")
+    client = replace(client, "    @objc(performRefreshForRealWithIdentifier:mangledTypeName:server:)",
+                     CLIENT + "\n    @objc(performRefreshForRealWithIdentifier:mangledTypeName:server:refreshRunID:)")
+    client = replace(client,
+        "func performRefreshForReal(identifier: String, mangledTypeName: String, server: any RefreshServer) {",
+        "func performRefreshForReal(identifier: String, mangledTypeName: String, server: any RefreshServer, refreshRunID: String?) {")
+    client = replace(client, "                server.finish(nil)", "                reportRefreshResult(nil, runID: refreshRunID, server: server)")
+    client = replace(client, "                server.finish(error.localizedDescription)", "                reportRefreshResult(error.localizedDescription, runID: refreshRunID, server: server)")
     for path, text in zip(paths, (header, objc, host, client)):
         path.write_text(text, encoding="utf-8")
