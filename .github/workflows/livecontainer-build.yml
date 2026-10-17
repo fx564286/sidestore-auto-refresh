@@ -379,7 +379,9 @@ jobs:
           git -C "$SIDESIGN" diff --check
           expected_sidesign=$(printf '%s\n' \
             'Sources/DeveloperPortal/Authentication.swift' \
+            'Sources/DeveloperPortal/AppIDs.swift' \
             'Sources/DeveloperPortal/DeveloperPortalAPI.swift' \
+            'Sources/Models/Feature.swift' \
             'Sources/Logging.swift' | sort)
           actual_sidesign=$(git -C "$SIDESIGN" diff --name-only | sort)
           test "$actual_sidesign" = "$expected_sidesign"
