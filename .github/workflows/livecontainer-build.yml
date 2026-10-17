@@ -3,7 +3,7 @@ name: LiveContainer embedded SideStore build
 on:
   workflow_dispatch:
   push:
-    branches: [fix/combined-refresh-build-and-runtime, fix/v3.0.3-auth-errors, build/nrg-v3-ipa-priority-20261015, fix/nrg-cert-import-20261016, fix/nrg-jitless-cert-recovery-20261016, fix/nrg-jitless-auto-import-v17-20261017, fix/nrg-jitless-selfheal-v18, fix/nrg-cert-usb-bootstrap-v19, fix/nrg-cert-usb-bootstrap-v20, fix/nrg-refresh-correlation-v21, fix/nrg-v22-refresh-team-repair, fix/nrg-v23-direct-lockdown-refresh, fix/nrg-v24-refresh-install-recovery, fix/nrg-v25-rppairing-first-ios27, fix/nrg-v26-install-cancellation-trace, fix/nrg-v27-install-ui-lifecycle, fix/nrg-v28-refresh-regression, fix/nrg-v29-gsa-identity]
+    branches: [fix/combined-refresh-build-and-runtime, fix/v3.0.3-auth-errors, build/nrg-v3-ipa-priority-20261015, fix/nrg-cert-import-20261016, fix/nrg-jitless-cert-recovery-20261016, fix/nrg-jitless-auto-import-v17-20261017, fix/nrg-jitless-selfheal-v18, fix/nrg-cert-usb-bootstrap-v19, fix/nrg-cert-usb-bootstrap-v20, fix/nrg-refresh-correlation-v21, fix/nrg-v22-refresh-team-repair, fix/nrg-v23-direct-lockdown-refresh, fix/nrg-v24-refresh-install-recovery, fix/nrg-v25-rppairing-first-ios27, fix/nrg-v26-install-cancellation-trace, fix/nrg-v27-install-ui-lifecycle, fix/nrg-v28-refresh-regression, fix/nrg-v29-gsa-identity, fix/nrg-v30-auth-code3-rootcause]
 
 permissions:
   contents: read
@@ -101,7 +101,7 @@ jobs:
           set -euo pipefail
           # Priority IPA build: targeted source and authentication suites.
           # Full matrix is running separately on the standard V3 branch.
-          for pattern in test_repository.py test_v3_service.py test_nrg_gsa_client_v3.py test_v3_certificate_import.py test_v3_jitless_cert_recovery.py test_v3_certificate_import_runtime.py test_v3_jitless_import_ownership.py test_refresh_result_bridge.py test_v24_install_download.py test_v26_install_cancel_trace.py test_v27_install_lifecycle.py test_v28_refresh_regression.py test_v28_guest_lifecycle.py test_v28_pip_audio.py test_v29_auth_trace.py test_v29_coredevice_heartbeat_fallback.py test_issue24_udid_error_propagation.py; do
+          for pattern in test_repository.py test_v3_service.py test_nrg_gsa_client_v3.py test_v3_certificate_import.py test_v3_jitless_cert_recovery.py test_v3_certificate_import_runtime.py test_v3_jitless_import_ownership.py test_refresh_result_bridge.py test_v24_install_download.py test_v26_install_cancel_trace.py test_v27_install_lifecycle.py test_v28_refresh_regression.py test_v28_guest_lifecycle.py test_v28_pip_audio.py test_v29_auth_trace.py test_v29_coredevice_heartbeat_fallback.py test_issue24_udid_error_propagation.py test_v30_auth_code3.py; do
             python3 -m unittest discover -s builder/tests -p "$pattern" -v
           done 2>&1 | tee artifacts/logs/repository-tests.log
 
