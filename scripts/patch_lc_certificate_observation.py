@@ -40,18 +40,12 @@ SIGNER_METHOD = '''// V3_CANONICAL_CERTIFICATE_FACTS_V1: observation only; use L
     // metadata, independently of Apple's online OCSP response. This must not
     // be conflated with revocation/validity: those still require checkCert.
     NSString *expiration = nil;
-    BIO *dateBIO = BIO_new(BIO_s_mem());
-    if (dateBIO) {
-        const ASN1_TIME *notAfter = X509_get0_notAfter((X509 *)asset.m_x509Cert);
-        if (notAfter && ASN1_TIME_print(dateBIO, notAfter) == 1) {
-            char *value = nullptr;
-            long length = BIO_get_mem_data(dateBIO, &value);
-            if (value && length > 0 && length < 96) {
-                expiration = [[NSString alloc] initWithBytes:value
-                    length:(NSUInteger)length encoding:NSASCIIStringEncoding];
-            }
-        }
-        BIO_free(dateBIO);
+    const ASN1_TIME *notAfter = X509_get0_notAfter((X509 *)asset.m_x509Cert);
+    struct tm expiryParts = {};
+    if (notAfter && ASN1_TIME_to_tm(notAfter, &expiryParts) == 1) {
+        expiration = [NSString stringWithFormat:@"%04d-%02d-%02d %02d:%02d:%02d UTC",
+            expiryParts.tm_year + 1900, expiryParts.tm_mon + 1, expiryParts.tm_mday,
+            expiryParts.tm_hour, expiryParts.tm_min, expiryParts.tm_sec];
     }
     if (expiration) {
         return @{@"teamIdentifier": team, @"identitySHA256": fingerprint, @"notAfter": expiration};
