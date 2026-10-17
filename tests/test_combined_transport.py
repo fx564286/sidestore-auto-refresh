@@ -319,7 +319,8 @@ class CombinedTransportTests(SourceFixture):
         patch(self.mux)
         parser = self.read("Common/PairingFile.swift")
         body = parser[parser.index("public static func validatePairingFile"):]
-        self.assertLess(body.index("return .lockdown"), body.index("return .rppairing"))
+        self.assertIn("#available(iOS 17.4, *)", body)
+        self.assertLess(body.index("return .rppairing"), body.index("return .lockdown"))
 
     def test_cleanup_closures_preserve_return_values(self):
         patch(self.mux)
@@ -411,7 +412,7 @@ let keys = ["WiFiMACAddress", "SystemBUID", "RootPrivateKey", "HostPrivateKey", 
 var lockdown: [String: any Sendable] = [:]
 for key in keys { lockdown[key] = "test" }
 let composite = lockdown.merging(rp) { old, _ in old }
-for (record, expected) in [(rp, PairingProtocol.rppairing), (lockdown, .lockdown), (composite, .lockdown)] {
+for (record, expected) in [(rp, PairingProtocol.rppairing), (lockdown, .lockdown), (composite, .rppairing)] {
     let selected = try PairingFileParser.validatePairingFile(from: record)
     precondition(selected == expected)
     let data = try PropertyListSerialization.data(fromPropertyList: record, format: .xml, options: 0)
