@@ -1664,12 +1664,14 @@ final class V3OperationCenter {
 
     func expire(id: String) {
         guard let session = sessions[id], case nil = session.terminal.value else { return }
+        debugLog("[NRG_V26_CANCEL_ORIGIN] source=operation_watchdog phase=\(session.phase.phase.rawValue) kind=\(session.kind)")
         _ = cancel(id: id)
     }
 
     @discardableResult
     func cancel(id: String) -> Bool {
         guard var session = sessions[id] else { return false }
+        debugLog("[NRG_V26_CANCEL_ORIGIN] source=operation_cancel phase=\(session.phase.phase.rawValue) kind=\(session.kind) already_requested=\(session.terminal.isCancellationRequested)")
         guard case nil = session.terminal.value else { return true }
         guard session.terminal.requestCancellation() else { return true }
         session.watchdog?.cancel()
@@ -1819,9 +1821,18 @@ final class V3OperationCenter {
         // The session id is the end-to-end correlation identifier.
         let classifiedError = V3HeadlessPairingFailure.tagIfInvalidPairing(error)
         let failure = CombinedFailure.capture(classifiedError, operation: kind, stage: stage, id: id)
+        // NRG V26: the broad "installation" stage does not identify the
+        // failing pipeline step. Preserve the backend-observed last phase.
+        let lastPhase = sessions[id]?.phase.phase.rawValue ?? "unavailable"
+        let isInstall = ["install", "installURL", "installSharedIPA", "update"].contains(kind)
+        let details = failure.technicalDetails +
+            (isInstall ? " last_pipeline_phase=\(lastPhase)" : "")
+        if isInstall {
+            debugLog("[NRG_V26_FAILURE_PHASE] phase=\(lastPhase) cancellation_requested=\(sessions[id]?.terminal.isCancellationRequested == true)")
+        }
         var terminal: [String: Any] = ["state": "failed", "stage": failure.stage.rawValue,
             "code": failure.code.rawValue, "message": failure.message,
-            "technical": failure.technicalDetails, "failure": failure.wire]
+            "technical": details, "failure": failure.wire]
         if let retryable = failure.retryable { terminal["retryable"] = retryable }
         return terminal
     }
