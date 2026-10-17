@@ -4851,7 +4851,8 @@ enum V3AuthFailureDiagnosticsPolicy {
         "onDeviceAnisetteSymbol", "onDeviceAnisetteResponse", "onDeviceAnisetteNative",
         "onDeviceAnisetteLibraries", "onDeviceAnisetteHTTP", "sideStoreAccountState",
         "sideStoreDeviceTransport", "sideStoreAppGroup", "sideStorePairing",
-        "sideStoreOperation",
+        "sideStoreOperation", "keychainPersistence", "anisetteServerCatalog",
+        "cocoaStorage", "posixTransport", "authPrompt",
         "serverBadResponse", "serverResponseFormat", "serverMissingField",
         "serverReportedError", "networkTransport", "osStatus", "unclassified"
     ]
