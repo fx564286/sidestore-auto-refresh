@@ -3,6 +3,7 @@ import CoreData
 import CryptoKit
 import UIKit
 import SideSign
+import AnisetteKit
 import Minimuxer
 import MinimuxerCommon
 
@@ -380,6 +381,34 @@ func v3ClassifyAuthError(_ error: Error) -> V3AuthFailureKind? {
 // NRG_V29_SAFE_AUTH_CAUSE_V1: fixed enum categories only; never include Apple ID,
 // passwords, challenge responses, Anisette payloads or raw localized errors.
 func v3SafeAuthCause(_ error: Error) -> String {
+    // NRG_V30_TYPED_AUTH_ORIGIN_V1: a bridged NSError code alone is ambiguous.
+    // SideStore's pinned AnisetteKit has a distinct enum whose .readFailure
+    // bridges to code 3. Match the Swift type and case, never the code alone.
+    if let onDevice = error as? AnisetteKit.AnisetteError {
+        switch onDevice {
+        case .readFailure: return "onDeviceAnisetteRead"
+        case .invalidArgument: return "onDeviceAnisetteArgument"
+        case .loaderFailed: return "onDeviceAnisetteLoader"
+        case .symbolMissing: return "onDeviceAnisetteSymbol"
+        case .invalidResponse: return "onDeviceAnisetteResponse"
+        case .adiError: return "onDeviceAnisetteNative"
+        case .librariesNotFound: return "onDeviceAnisetteLibraries"
+        case .httpError: return "onDeviceAnisetteHTTP"
+        }
+    }
+    if let operation = error as? OperationError {
+        switch operation {
+        case .notAuthenticated: return "sideStoreAccountState"
+        case .noConnection, .noVPN, .invalidVPN, .noDevice, .notReachable:
+            return "sideStoreDeviceTransport"
+        case .missingAppGroup: return "sideStoreAppGroup"
+        case .invalidPairingFile, .pairingNotComplete: return "sideStorePairing"
+        default: return "sideStoreOperation"
+        }
+    }
+    if let wrapped = error as? ALTWrappedError {
+        return v3SafeAuthCause(wrapped.wrappedError)
+    }
     if error is SideSign.AnisetteError { return "anisette" }
     if error is V3SecretHandoffError { return "keychainHandoff" }
     if let portal = error as? DeveloperPortalError {
@@ -410,6 +439,16 @@ func v3SafeAuthCause(_ error: Error) -> String {
 // separately from untrusted provider text. Preserve the number (e.g. -80045)
 // instead of NSError's often-zero generic enum bridging code.
 func v3SafeAuthNumericCode(_ error: Error) -> Int {
+    if let onDevice = error as? AnisetteKit.AnisetteError {
+        switch onDevice {
+        case .httpError(let statusCode, _): return statusCode
+        case .adiError(let code, _): return Int(code)
+        default: break
+        }
+    }
+    if let wrapped = error as? ALTWrappedError {
+        return v3SafeAuthNumericCode(wrapped.wrappedError)
+    }
     if let server = error as? ServerError,
        case .underlyingError(let code, _) = server { return code }
     return (error as NSError).code
