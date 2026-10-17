@@ -164,18 +164,24 @@ def patch(minimuxer: Path):
         if missingLockdown.isEmpty {
             return .lockdown
         }'''
-        new = '''        // Composite records must use Lockdown/CoreDevice, not RemotePairing.
+        new = '''        // V25: On iOS 17.4+ a composite file must prefer RemotePairing.
+        // Raw Lockdown TCP can accept a socket yet fail every AFC/misagent
+        // service with BrokenPipe on iOS 27. Do not treat that as reachability.
+        let missingRP = RPPairingFile.missingKeys(in: plist)
+        if #available(iOS 17.4, *), missingRP.isEmpty {
+            return .rppairing
+        }
+
         let missingLockdown = LockdownPairingFile.missingKeys(in: plist)
         if missingLockdown.isEmpty {
             return .lockdown
         }
 
-        let missingRP = RPPairingFile.missingKeys(in: plist)
         if missingRP.isEmpty {
             return .rppairing
         }'''
         return replace_once(text, old, new, "composite pairing selection")
-    edit(common / "PairingFile.swift", "Composite records must use", pairing)
+    edit(common / "PairingFile.swift", "V25: On iOS 17.4+ a composite file must prefer RemotePairing", pairing)
 
     api = minimuxer / "DeviceGateway/DeviceGatewayAPI.swift"
     def gateway_api(text):
