@@ -102,8 +102,9 @@ int main(int argc, const char *argv[]) {
                      @"team must come from upstream ZSignAsset")) return 2;
         if (!require([factsOne[@"identitySHA256"] isEqualToString:expectedDigestOne],
                      @"leaf DER SHA-256 must match OpenSSL DER output")) return 3;
-        if (!require(factsOne.count == 2 && factsOne[@"password"] == nil && factsOne[@"p12Data"] == nil,
-                     @"facts contain only public team and digest")) return 4;
+        if (!require(factsOne.count == 3 && [factsOne[@"notAfter"] length] > 10 &&
+                     factsOne[@"password"] == nil && factsOne[@"p12Data"] == nil,
+                     @"facts contain only public team, digest and signed expiry")) return 4;
 
         NSDictionary<NSString *, NSString *> *factsTwo =
             [LCUtils certificateFactsWithKeyData:second password:gPassword];
