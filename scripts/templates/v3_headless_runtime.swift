@@ -382,7 +382,14 @@ func v3ClassifyAuthError(_ error: Error) -> V3AuthFailureKind? {
 func v3SafeAuthCause(_ error: Error) -> String {
     if error is SideSign.AnisetteError { return "anisette" }
     if error is V3SecretHandoffError { return "keychainHandoff" }
-    if error is DeveloperPortalError { return "developerPortal" }
+    if let portal = error as? DeveloperPortalError {
+        switch portal {
+        case .authenticationHandshakeFailed: return "appleHandshake"
+        case .invalid2FAResponse: return "invalid2FAResponse"
+        case .unknown: return "portalUnknown"
+        default: return "developerPortal"
+        }
+    }
     if let server = error as? ServerError {
         switch server {
         case .badServerResponse: return "serverBadResponse"
@@ -397,6 +404,15 @@ func v3SafeAuthCause(_ error: Error) -> String {
     }
     if native.domain == "NSOSStatusErrorDomain" { return "osStatus" }
     return "unclassified"
+}
+
+// SideSign ServerError.underlyingError carries Apple's fixed numeric code
+// separately from untrusted provider text. Preserve the number (e.g. -80045)
+// instead of NSError's often-zero generic enum bridging code.
+func v3SafeAuthNumericCode(_ error: Error) -> Int {
+    if let server = error as? ServerError,
+       case .underlyingError(let code, _) = server { return code }
+    return (error as NSError).code
 }
 
 // MARK: - Provisioning failure guidance (typed, never numeric)
@@ -866,7 +882,7 @@ final class V3AuthCenter {
                     "failure": failureWire,
                     "technicalDetails": failure.technicalDetails]
                 finish(id: id, response: response)
-                debugLog("[V3_AUTH_CAUSE] stage=provisioning category=\(v3SafeAuthCause(error)) code=\((error as NSError).code)")
+                debugLog("[V3_AUTH_CAUSE] stage=provisioning category=\(v3SafeAuthCause(error)) code=\(v3SafeAuthNumericCode(error))")
                 debugLog("[V3_AUTH] TERMINAL session=\(id) state=authenticatedProvisioningIncomplete outcome=\(cancelled ? "provisioningCancelled" : "provisioningFailed") stage=\(failure.stage.rawValue) code=\(failure.code.rawValue)")
             } else if cancelled {
                 finish(id: id, response: ["state": "cancelled", "authenticated": false])
@@ -881,7 +897,7 @@ final class V3AuthCenter {
                 // error family on screen even when NSError has a redacted domain.
                 let message = kind == "unknown"
                     ? failure.safeMessage + " [diagnostic: " + safeCause + ", code: " +
-                        String((error as NSError).code) + "]"
+                        String(v3SafeAuthNumericCode(error)) + "]"
                     : V3AuthFailureDisplay.message(for: kind)
                 debugLog("[V3_AUTH_CAUSE] stage=authentication category=\(safeCause) kind=\(kind) code=\((error as NSError).code)")
                 let response: [String: Any] = ["state": "failed", "stage": failure.stage.rawValue,
@@ -1268,7 +1284,7 @@ final class V3HeadlessAuthHandler: SignInHandler, AnisetteServerHandler {
             // prompt displays previousFailure, NOT the terminal failure. Keep
             // a fixed, non-secret type and numeric code on that exact path.
             let category = v3SafeAuthCause(error)
-            let numericCode = (error as NSError).code
+            let numericCode = v3SafeAuthNumericCode(error)
             wire["diagnosticCategory"] = category
             wire["diagnosticCode"] = numericCode
             V3HeadlessRuntime.shared.auth.sessions[sessionID]?.previousFailure = wire
