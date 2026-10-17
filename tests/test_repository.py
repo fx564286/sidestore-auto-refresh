@@ -120,7 +120,8 @@ class RepositoryTests(unittest.TestCase):
                     "patch_sidesign_privacy.py", "verify_candidate_ipa.py", "run_required_tests.py",
                     "patch_nrg_gsa_auth.py", "patch_nrg_gsa_http_v2.py",
                     "patch_nrg_gsa_client_v3.py", "patch_v24_install_download.py", "patch_v26_install_trace.py",
-                    "patch_v27_guest_switch.py", "patch_v27_provisioning.py", "patch_v28_refresh_regression.py"},
+                    "patch_v27_guest_switch.py", "patch_v27_provisioning.py",
+                    "patch_v28_refresh_regression.py", "patch_v28_guest_lifecycle.py"},
         )
 
     def test_patch_scripts_parse_and_contain_guard_markers(self):
