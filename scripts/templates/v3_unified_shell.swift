@@ -3920,6 +3920,9 @@ struct V3OperationSheet: View {
         }
         .onDisappear {
             if !isDismissing {
+                // NRG V26: detect implicit SwiftUI cover dismissal which may
+                // otherwise cancel an active IPA download.
+                debugLog("[NRG_V26_UI_COVER] dismissed terminal=\(attempt.isTerminal) running=\(isRunning)")
                 isDismissing = true
                 let oldTask = task
                 let wasTerminal = attempt.isTerminal
