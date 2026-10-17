@@ -4847,6 +4847,11 @@ enum V3AuthFailureDiagnosticsPolicy {
     static let knownDiagnosticCategories: Set<String> = [
         "anisette", "keychainHandoff", "developerPortal",
         "appleHandshake", "invalid2FAResponse", "portalUnknown",
+        "onDeviceAnisetteRead", "onDeviceAnisetteArgument", "onDeviceAnisetteLoader",
+        "onDeviceAnisetteSymbol", "onDeviceAnisetteResponse", "onDeviceAnisetteNative",
+        "onDeviceAnisetteLibraries", "onDeviceAnisetteHTTP", "sideStoreAccountState",
+        "sideStoreDeviceTransport", "sideStoreAppGroup", "sideStorePairing",
+        "sideStoreOperation",
         "serverBadResponse", "serverResponseFormat", "serverMissingField",
         "serverReportedError", "networkTransport", "osStatus", "unclassified"
     ]
