@@ -440,9 +440,11 @@ func sideStoreTransportLog(_ message: UnsafePointer<CChar>?) {
                             "        ffiQueue.setSpecific(key: ffiQueueKey, value: true)",
                             "queue-aware invalidation initialization")
     ensure_coredevice = r'''    private func ensureCoreDeviceConnection() throws {
-        if adapter != nil, handshake != nil, coreDeviceProvider != nil,
-           tunnel_heartbeat_is_active() {
-            verboseLog("[SIDESTORE_COREDEVICE] TRANSPORT_REUSE")
+        // V29_JIT_HEARTBEAT_OPTIONAL: CoreDevice has already proven its
+        // authenticated RSD handshake when these three handles are present.
+        // Absence of the independent Heartbeat service must not destroy it.
+        if adapter != nil, handshake != nil, coreDeviceProvider != nil {
+            verboseLog("[SIDESTORE_COREDEVICE] TRANSPORT_REUSE heartbeat_active=\(tunnel_heartbeat_is_active())")
             return
         }
 
@@ -513,10 +515,11 @@ func sideStoreTransportLog(_ message: UnsafePointer<CChar>?) {
             debugLog("[SIDESTORE_COREDEVICE] TRANSPORT_CREATE_FAIL reason=incomplete_handles")
             throw IdeviceGatewayError(.connectionFailed, reason: "CoreDevice tunnel returned incomplete handles")
         }
-        guard tunnel_heartbeat_is_active() else {
-            releaseTransport()
-            debugLog("[SIDESTORE_COREDEVICE] HEARTBEAT_FAIL")
-            throw IdeviceGatewayError(.connectionFailed, reason: "CoreDevice heartbeat is inactive")
+        // The Rust tunnel_create_usb above only returns both handles after a
+        // genuine CoreDevice + RSD handshake. Keep that verification mandatory.
+        // Heartbeat is optional; failed RSD/Lockdown remains a real failure.
+        if !tunnel_heartbeat_is_active() {
+            debugLog("[SIDESTORE_COREDEVICE] HEARTBEAT_OPTIONAL_RSD_VERIFIED")
         }
         debugLog("[SIDESTORE_COREDEVICE] TRANSPORT_CREATE_PASS")
     }
@@ -994,11 +997,15 @@ func sideStoreTransportLog(_ message: UnsafePointer<CChar>?) {
        try verifyInitialized()
        if !isRPPairing {
            try ensureCoreDeviceConnection()
-           guard tunnel_heartbeat_is_active() else {
-               throw IdeviceGatewayError(.connectionFailed, reason: "CoreDevice heartbeat is inactive")
+           guard adapter != nil, handshake != nil, coreDeviceProvider != nil else {
+               throw IdeviceGatewayError(.connectionFailed, reason: "CoreDevice RSD tunnel is not established")
            }
            newInterval.pointee = 60
-           verboseLog("[SIDESTORE_COREDEVICE] HEARTBEAT_ACTIVE")
+           if tunnel_heartbeat_is_active() {
+               verboseLog("[SIDESTORE_COREDEVICE] HEARTBEAT_ACTIVE")
+           } else {
+               verboseLog("[SIDESTORE_COREDEVICE] HEARTBEAT_OPTIONAL_RSD_VERIFIED")
+           }
            return
        }
        try performWithEitherService(
