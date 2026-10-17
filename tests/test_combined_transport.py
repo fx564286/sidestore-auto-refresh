@@ -440,8 +440,8 @@ for modern in [false, true] {
       else if mode == .remoteServer { expected = .proxy }
       else if mode != .localVPN || !utun { expected = .unavailable }
       else if pairing == .rppairing { expected = .remotePairing }
-      else if modern && supported { expected = .coreDevice }
       else if ipsec { expected = .lockdownIPSec }
+      else if modern && supported { expected = .coreDevice }
       else if !modern { expected = .lockdownLegacy }
       else { expected = .unavailable }
       let actual = RefreshTransportPolicy.select(modernOS: modern, mode: mode, pairing: pairing, utun: utun, ipsec: ipsec, coreDeviceSupported: supported)
