@@ -4,6 +4,8 @@ import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
 SOURCE = ROOT / "scripts/patch_coredevice_idevice.py"
+GATEWAY_SOURCE = ROOT / "scripts/patch_sidestore_integration.py"
+FAILURE_SOURCE = ROOT / "scripts/patch_combined_service_startup.py"
 
 class V29CoreDeviceHeartbeatTests(unittest.TestCase):
     def setUp(self):
@@ -33,6 +35,16 @@ class V29CoreDeviceHeartbeatTests(unittest.TestCase):
         self.assertIn('RSD handshake timed out after 15 seconds', s)
         self.assertIn('V29_JIT_HEARTBEAT_OPTIONAL', s)
         self.assertNotIn('rppairing_connect_quic_tunnel', s.split('new = r',1)[-1].split('free_path =',1)[0])
+
+    def test_swift_gateway_accepts_verified_rsd_without_heartbeat(self):
+        swift_patch = GATEWAY_SOURCE.read_text()
+        failure_patch = FAILURE_SOURCE.read_text()
+        self.assertIn("V29_JIT_HEARTBEAT_OPTIONAL", swift_patch)
+        self.assertIn("HEARTBEAT_OPTIONAL_RSD_VERIFIED", swift_patch)
+        self.assertIn("CoreDevice RSD tunnel is not established", swift_patch)
+        self.assertNotIn('reason: "CoreDevice heartbeat is inactive"', swift_patch)
+        self.assertIn("CoreDevice RSD tunnel is not established", failure_patch)
+        self.assertIn('guard adapter != nil, handshake != nil else {', swift_patch)
 
     def test_transport_teardown_still_clears_heartbeat(self):
         s = self.source
