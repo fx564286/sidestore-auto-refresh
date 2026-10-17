@@ -160,6 +160,8 @@ jobs:
             python3 builder/scripts/patch_v37_window_overflow.py work/LiveContainer
             python3 builder/scripts/patch_v38_maximized_safe_area.py work/LiveContainer
             python3 builder/scripts/patch_v38_maximized_safe_area.py work/LiveContainer
+            python3 builder/scripts/patch_v39_dock_app_switch_only.py work/LiveContainer
+            python3 builder/scripts/patch_v39_dock_app_switch_only.py work/LiveContainer
             swiftc -frontend -parse work/LiveContainer/MultitaskSupport/MultitaskAppWindow.swift
             swiftc -frontend -parse work/LiveContainer/MultitaskSupport/MultitaskDockView.swift
             swiftc -frontend -parse work/LiveContainer/LiveContainerSwiftUI/Models/AppLayoutStyle.swift
