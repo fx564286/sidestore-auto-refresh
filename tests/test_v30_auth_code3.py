@@ -46,6 +46,16 @@ class V30AuthCode3Tests(unittest.TestCase):
         self.assertNotIn("description",code)
         self.assertNotIn("message",code)
 
+    def test_error_type_is_bounded_and_never_serializes_error_payload(self):
+        runtime=self.runtime
+        self.assertIn("func v3SafeAuthTypeID(_ error: Error, depth: Int = 0)",runtime)
+        self.assertIn("String(reflecting: type(of: error))",runtime)
+        self.assertIn("name.utf8.count <= 96",runtime)
+        self.assertIn("wire[\"diagnosticType\"] = v3SafeAuthTypeID(error)",runtime)
+        self.assertIn("rawType.utf8.count <= 96",self.primitives)
+        self.assertIn('", type: " + safeType + "]"',runtime)
+        self.assertNotIn("String(describing: error)",runtime[runtime.index("func v3SafeAuthTypeID"):runtime.index("// SideSign ServerError.underlyingError")])
+
     def test_prompt_screen_allows_only_fixed_type_tokens(self):
         categories = ["onDeviceAnisetteRead","onDeviceAnisetteNative","sideStoreAccountState","sideStoreAppGroup"]
         for category in categories:self.assertIn('"'+category+'"',self.primitives)
