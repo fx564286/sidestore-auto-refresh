@@ -313,10 +313,31 @@ jobs:
           git -C "$MUX" diff --check
           while IFS= read -r -d '' source; do swiftc -frontend -parse "$source"; done < <(find "$MUX" -type f -name '*.swift' -not -path '*/.build/*' -print0)
           swift package --package-path "$MUX/DeviceGateway" dump-package >"$RUNNER_TEMP/combined-gateway-package.json"
-          # SideSign, Anisette and auth protocol stay upstream-owned. The only
-          # Core Auth/AppManager changes remove presenter-only UI adapters from
-          # the headless target and are checked against exact pinned transforms.
-          git -C work/EmbeddedSideStore diff --exit-code -- SideStore/Core/Anisette
+          # V31 exception: one precisely audited ADI recovery transform is
+          # allowed. All other Anisette and SideSign sources stay unchanged.
+          # Fail if any unexpected source file changes, or if the exact modified
+          # file differs from patch(pinned HEAD). Never waive source integrity.
+          python3 - <<'PY'
+          import importlib.util
+          import subprocess
+          from pathlib import Path
+          root=Path("work/EmbeddedSideStore")
+          relative="SideStore/Core/Anisette/OnDeviceAnisetteManager.swift"
+          changed=subprocess.check_output(
+              ["git", "-C", str(root), "diff", "--name-only", "--", "SideStore/Core/Anisette"],
+              text=True).splitlines()
+          assert changed == [relative], f"Unexpected Anisette source changes: {changed!r}"
+          spec=importlib.util.spec_from_file_location("adi_patch", "builder/scripts/patch_v31_adi_45061.py")
+          patch=importlib.util.module_from_spec(spec)
+          spec.loader.exec_module(patch)
+          original=subprocess.check_output(
+              ["git", "-C", str(root), "show", "HEAD:"+relative], text=True)
+          actual=(root/relative).read_text(encoding="utf-8")
+          assert actual == patch.patch(original), "V31 Anisette transform differs from pinned expected output"
+          print("[PASS] V31 only the exact audited ADI recovery changes pinned Anisette sources")
+          PY
+          # Core Auth/AppManager headless changes are still checked against
+          # their exact pinned transforms.
           expected_auth=$(printf '%s\n' \
             'AltStore/Managing Apps/AppManager.swift' \
             'SideStore/Core/Auth/AuthManager.swift' \
