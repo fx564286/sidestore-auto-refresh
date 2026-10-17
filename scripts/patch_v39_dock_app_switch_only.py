@@ -14,12 +14,12 @@ def patch(s):
 
 '''
     if s.count(old) == 1:
-        return s.replace(old, "                        // " + MARK + ": window management belongs to top overflow.\\n", 1)
+        return s.replace(old, "                        // " + MARK + ": window management belongs to top overflow.\n", 1)
     import re
-    pattern = r"(?m)^[ \\t]*MinimizeAllButtonView\\(\\)[ \\t]*\\n[ \\t]*\\.onTapGesture[ \\t]*\\{[ \\t]*\\n[ \\t]*dockManager\\.minimizeAllWindows\\(\\)[ \\t]*\\n[ \\t]*\\}[ \\t]*\\n"
+    pattern = r"(?m)^[ \t]*MinimizeAllButtonView\(\)[ \t]*\n[ \t]*\.onTapGesture[ \t]*\{[ \t]*\n[ \t]*dockManager\.minimizeAllWindows\(\)[ \t]*\n[ \t]*\}[ \t]*\n"
     if len(re.findall(pattern, s)) != 1:
         raise RuntimeError("expected single dock minimize-all control")
-    return re.sub(pattern, "\\n                        // " + MARK + ": window management belongs to top overflow.\\n", s, count=1)
+    return re.sub(pattern, "\n                        // " + MARK + ": window management belongs to top overflow.\n", s, count=1)
 if __name__ == "__main__":
     p = Path(sys.argv[1]) / P
     original = p.read_text()
