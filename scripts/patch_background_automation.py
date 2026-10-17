@@ -1181,7 +1181,22 @@ def patch_background_operation(sidestore: Path) -> None:
             self.scheduleFinishedRefreshingNotification(for: .failure(error), delay: 0)
             throw error
         }
-        debugLog("[AUTO_REFRESH] AUTH_PREFLIGHT_PASS")
+        // V22: token presence alone is not an active developer team.
+        // Restore only a uniquely verified Apple-owned team matching the
+        // currently active signing certificate; never create/revoke a cert.
+        do {
+            try await self.v22ResolveSigningTeamForRefresh()
+        } catch {
+            let failure = NSError(domain: "com.SideStore.Authentication", code: 1005,
+                userInfo: ["LCStructuredFailureStageV1": "authentication",
+                           "LCStructuredFailureCauseV1": "authSessionUnavailable",
+                           NSLocalizedDescriptionKey:
+                           "Apple sign-in or active developer team is incomplete. Open Account & Signing and finish provisioning before refreshing."])
+            debugLog("[AUTO_REFRESH] AUTH_PREFLIGHT_FAIL reason=active_team_unavailable")
+            self.scheduleFinishedRefreshingNotification(for: .failure(failure), delay: 0)
+            throw failure
+        }
+        debugLog("[AUTO_REFRESH] AUTH_PREFLIGHT_PASS team_verified=true")
 
         if UserDefaults.standard.enableEMPforWireguard {
 ''',
@@ -1274,6 +1289,100 @@ def patch_background_operation(sidestore: Path) -> None:
         )
 
         helper = r'''
+    // V22: Activation is permitted only for a unique Apple-verified team tied
+    // to the existing signing certificate and the current authenticated route.
+    // This restores incomplete local provisioning; it never registers new
+    // Apple IDs, provisions devices, or replaces signing identities.
+    private func v22ResolveSigningTeamForRefresh() async throws {
+        let auth = AuthManager.shared
+        if let team = try? await auth.getAuthenticatedTeam(),
+           DatabaseManager.shared.activeTeam()?.identifier == team.identifier {
+            return
+        }
+        debugLog("[AUTO_REFRESH] TEAM_REPAIR_START reason=no_active_team")
+        let stamp = auth.v3IdentityStamp
+        let generation = auth.v3IdentityGeneration
+        let credentials = auth.authenticationSnapshot
+        guard auth.v3IdentityIsStable,
+              let appleID = credentials?.appleIDEmailAddress, !appleID.isEmpty,
+              let dsid = credentials?.appleIDAdsid, !dsid.isEmpty,
+              let token = credentials?.appleIDXcodeToken, !token.isEmpty,
+              let activeCert = CertificateManager.shared.activeCertificate else {
+            throw OperationError.notAuthenticated
+        }
+        let session = try await auth.getAuthenticatedSession()
+        guard session.dsid == dsid, session.authToken == token,
+              stamp == auth.v3IdentityStamp, generation == auth.v3IdentityGeneration,
+              auth.v3IdentityIsStable else {
+            throw OperationError.notAuthenticated
+        }
+        let account = ALTAccount(appleID: appleID, identifier: dsid)
+        let teams = try await DeveloperPortalProxy.shared.fetchTeams(for: account)
+        guard teams.count == 1, let verifiedTeam = teams.first,
+              verifiedTeam.account?.appleID.lowercased() == appleID.lowercased() else {
+            debugLog("[AUTO_REFRESH] TEAM_REPAIR_REFUSED reason=ambiguous_or_unowned_team")
+            throw OperationError.notAuthenticated
+        }
+        let portalCertificates = try await DeveloperPortalProxy.shared.fetchCertificates(team: verifiedTeam)
+        guard portalCertificates.contains(where: {
+            $0.serialNumber.caseInsensitiveCompare(activeCert.serialNumber) == .orderedSame
+        }), stamp == auth.v3IdentityStamp,
+              generation == auth.v3IdentityGeneration, auth.v3IdentityIsStable else {
+            debugLog("[AUTO_REFRESH] TEAM_REPAIR_REFUSED reason=certificate_or_identity_mismatch")
+            throw OperationError.notAuthenticated
+        }
+        let context = DatabaseManager.shared.persistentContainer.newBackgroundContext()
+        try await context.perform {
+            // A second identity check before CoreData mutation prevents a
+            // late portal response activating the wrong user's team.
+            guard auth.v3IdentityIsStable,
+                  auth.v3IdentityStamp == stamp,
+                  auth.v3IdentityGeneration == generation else {
+                throw OperationError.notAuthenticated
+            }
+            let accountID = verifiedTeam.account?.identifier ?? verifiedTeam.identifier
+            let savedAccount: Account
+            if let previous = Account.first(satisfying:
+                NSPredicate(format: "%K == %@", #keyPath(Account.identifier), accountID),
+                in: context) {
+                guard previous.appleID.lowercased() == appleID.lowercased() else {
+                    throw OperationError.notAuthenticated
+                }
+                savedAccount = previous
+            } else {
+                savedAccount = Account(account, context: context)
+            }
+            let savedTeam: Team
+            if let previous = Team.first(satisfying:
+                NSPredicate(format: "%K == %@", #keyPath(Team.identifier), verifiedTeam.identifier),
+                in: context) {
+                guard previous.account?.appleID.lowercased() == appleID.lowercased() else {
+                    throw OperationError.notAuthenticated
+                }
+                savedTeam = previous
+            } else {
+                savedTeam = Team(verifiedTeam, account: savedAccount, context: context)
+            }
+            savedAccount.update(account: account)
+            savedTeam.update(team: verifiedTeam)
+            savedAccount.isActiveAccount = true
+            savedTeam.isActiveTeam = true
+            let othersAccounts = Account.fetchRequest() as NSFetchRequest<Account>
+            othersAccounts.predicate = NSPredicate(format: "%K != %@", #keyPath(Account.identifier), accountID)
+            for row in try context.fetch(othersAccounts) { row.isActiveAccount = false }
+            let othersTeams = Team.fetchRequest() as NSFetchRequest<Team>
+            othersTeams.predicate = NSPredicate(format: "%K != %@", #keyPath(Team.identifier), verifiedTeam.identifier)
+            for row in try context.fetch(othersTeams) { row.isActiveTeam = false }
+            try context.save()
+        }
+        guard auth.v3IdentityIsStable, stamp == auth.v3IdentityStamp,
+              generation == auth.v3IdentityGeneration else {
+            throw OperationError.notAuthenticated
+        }
+        auth.team = verifiedTeam
+        debugLog("[AUTO_REFRESH] TEAM_REPAIR_PASS source=apple_verified_existing_cert")
+    }
+
     private func automaticRefreshDefaults() throws -> UserDefaults {
         // V3_RUNTIME_SHARED_REFRESH_STORE_V1: the one runtime App Group the host
         // published, resolved by the same V3SharedAppGroup identity IPA staging,
