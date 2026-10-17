@@ -40,7 +40,7 @@ def patch(root: Path):
         // NRG_V27_PROFILE_CAPACITY_PREFLIGHT: fail before creating a partial
         // set of new Apple IDs when a free team lacks the available slots.
         try await nrgV27PreflightFreeTeamCapacity(bundle: targetAppBundle,
-                                                   team: team, session: session)
+                                                   team: team)
 
         self.debugLog("[FetchProvisioningProfiles] Preparing main provisioning profile""",
         "preflight invocation",
@@ -54,7 +54,7 @@ def patch(root: Path):
             for (index, ext) in ordered.enumerated() {
                 try Task.checkCancellation()
                 let extProfile = try await self.provisionAndFetchProfile(
-                    for: ext, parentAppBundle: targetAppBundle, team: team, session: session)
+                    for: ext, parentAppBundle: targetAppBundle, team: team)
                 let updatedID = ext.bundleIdentifier.replacingOccurrences(
                     of: targetAppBundle.bundleIdentifier, with: effectiveBundleId)
                 profiles[updatedID] = extProfile
@@ -73,15 +73,14 @@ def patch(root: Path):
     helper = """    // NRG_V27_PROFILE_CAPACITY_PREFLIGHT: use the same authoritative portal
     // App ID list as registration. Avoid logging raw IDs or personal details.
     private func nrgV27PreflightFreeTeamCapacity(bundle: ALTApplication,
-                                                  team: ALTTeam,
-                                                  session: ALTAppleAPISession) async throws {
+                                                  team: ALTTeam) async throws {
         guard team.type == .free else { return }
         let existing: [ALTAppID]
         if let cached = self.context.sharedContext?.appIDs {
             existing = cached
         } else {
             let fetched = try await TaskChainCoalescer.shared.coalesce(key: "fetch_app_ids_\\(team.identifier)") {
-                try await ALTAppleAPI.shared.fetchAppIDs(for: team, session: session)
+                try await DeveloperPortalProxy.shared.fetchAppIDs(for: team)
             }
             self.context.sharedContext?.appIDs = fetched
             existing = fetched
