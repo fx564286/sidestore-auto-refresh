@@ -123,7 +123,8 @@ class RepositoryTests(unittest.TestCase):
                     "patch_v27_guest_switch.py", "patch_v27_provisioning.py",
                     "patch_v28_refresh_regression.py", "patch_v28_guest_lifecycle.py", "patch_v28_pip_audio.py",
                     "patch_v31_adi_45061.py", "patch_v32_jitless_diagnosis.py",
-                    "patch_v33_sidesign_memory.py", "patch_v33_sidestore_memory.py"},
+                    "patch_v33_sidesign_memory.py", "patch_v33_sidestore_memory.py",
+                    "patch_v34_display_profiles.py"},
         )
 
     def test_patch_scripts_parse_and_contain_guard_markers(self):
