@@ -4864,7 +4864,14 @@ enum V3AuthFailureDiagnosticsPolicy {
         // semantic classifications. Never expose associated provider text.
         let code = failure["diagnosticCode"] as? Int
         let codeText = code.map(String.init) ?? "unknown"
-        return " [diagnostic: " + category + ", code: " + codeText + "]"
+        let rawType = failure["diagnosticType"] as? String ?? ""
+        let asciiType = CharacterSet(charactersIn:
+            "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789._")
+        let safeType = !rawType.isEmpty && rawType.utf8.count <= 96 &&
+            rawType.unicodeScalars.allSatisfy({ asciiType.contains($0) })
+            ? rawType : "opaque"
+        return " [diagnostic: " + category + ", code: " + codeText +
+            ", type: " + safeType + "]"
     }
 
     static func shouldShowTerminalDetails(state: String, hasPrompt: Bool,
