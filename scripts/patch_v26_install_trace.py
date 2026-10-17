@@ -36,7 +36,7 @@ def patch(root: Path):
             throw error
         }
     }
-
+    
     private func logOperationResult"""
     new="""        } catch {
             // NRG_V26_CANCEL_ORIGIN — backend source step, no URL or user data.
@@ -69,7 +69,7 @@ def patch(root: Path):
             if Task.isCancelled {"""
     texts[runner]=replace_once(texts[runner],old,new,runner.name)
     old="""            return try await self.download(appVersion ?? app)
-
+            
         } catch let error as VerificationError where error.code == .iOSVersionNotSupported {"""
     new="""            do {
                 return try await self.download(appVersion ?? app)
