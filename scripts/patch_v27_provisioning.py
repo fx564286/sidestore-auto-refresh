@@ -121,7 +121,7 @@ def patch(root: Path):
         "capacity helper",
     )
     source = once(source,
-        "        let preferredBundleID = await self.getPreferredBundleID(for: targetAppBundle, team: team)\\n",
+        "        let preferredBundleID = await self.getPreferredBundleID(for: targetAppBundle, team: team)\n",
         """        // NRG_V27_PARENT_PREFERRED_ID_FIX: child IDs retain the existing parent's
         // preferred ID plus their distinct bundle suffix. The upstream lookup
         // otherwise resolves every child to the same parent record.
