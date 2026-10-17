@@ -1,0 +1,45 @@
+"""V29: only safe typed login diagnostics; do not regress password/2FA handoff."""
+from pathlib import Path
+import unittest
+
+ROOT = Path(__file__).resolve().parents[1]
+RUNTIME = ROOT / "scripts/templates/v3_headless_runtime.swift"
+SERVICE = ROOT / "scripts/templates/v3_sidestore_service.swift"
+BRIDGE = ROOT / "scripts/templates/v3_service_bridge.swift"
+
+class V29AuthenticationFailureTraceTests(unittest.TestCase):
+    def test_actual_signin_failure_cause_is_visible_without_raw_error(self):
+        source = RUNTIME.read_text()
+        self.assertIn("NRG_V29_SAFE_AUTH_CAUSE_V1", source)
+        self.assertIn('let safeCause = v3SafeAuthCause(error)', source)
+        self.assertIn('" [diagnostic: " + safeCause + ", code: "', source)
+        self.assertIn('[V3_AUTH_CAUSE] stage=authentication', source)
+        self.assertIn('[V3_AUTH_CAUSE] stage=provisioning', source)
+        self.assertNotIn("error.localizedDescription", source)
+
+    def test_infrastructure_source_families_are_typed_not_inferred(self):
+        source = RUNTIME.read_text()
+        start = source.index("func v3SafeAuthCause(_ error: Error) -> String")
+        end = source.index("// MARK: - Provisioning failure guidance",start)
+        diag = source[start:end]
+        self.assertIn('error is SideSign.AnisetteError', diag)
+        self.assertIn('error is V3SecretHandoffError', diag)
+        self.assertIn('error is DeveloperPortalError', diag)
+        self.assertIn('error as? ServerError', diag)
+        self.assertIn('return "unclassified"', diag)
+        self.assertNotIn('String(describing: error)', diag)
+        self.assertNotIn('error.localizedDescription', diag)
+
+    def test_auth_2fa_direct_payload_delivery_remains(self):
+        service = SERVICE.read_text()
+        bridge = BRIDGE.read_text()
+        start = service.index('case "authRespond":')
+        end = service.index('case "authCancel":',start)
+        auth = service[start:end]
+        self.assertIn('payload["answer"] as? [String: String]', auth)
+        self.assertIn('auth.respond(id: target, promptID: promptID, answer: answer)',auth)
+        self.assertNotIn('V3SecretStore.store',auth)
+        self.assertIn('if !requestPayload.isEmpty { message["payload"] = requestPayload }',bridge)
+
+if __name__ == "__main__":
+    unittest.main()
