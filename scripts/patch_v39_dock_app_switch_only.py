@@ -14,8 +14,7 @@ def patch(s):
 
 '''
     if s.count(old) != 1:
-        raise RuntimeError("expected single dock minimize-all control")
-    return s.replace(old, "                        // " + MARK + ": window management belongs to the top overflow menu.\n", 1)
+        # SwiftUI formatting may differ; match the view plus its tap handler.\n        import re\n        pattern = r"(?m)^\\s*MinimizeAllButtonView\\(\\)\\s*\\n\\s*\\.onTapGesture\\s*\\{\\s*\\n\\s*dockManager\\.minimizeAllWindows\\(\\)\\s*\\n\\s*\\}\\s*\\n"\n        if len(re.findall(pattern, s)) != 1:\n            raise RuntimeError("expected single dock minimize-all control")\n        return re.sub(pattern, "\\n                        // " + MARK + ": window management belongs to top overflow.\\n", s, count=1)\n    return s.replace(old, "                        // " + MARK + ": window management belongs to the top overflow menu.\\n", 1)
 if __name__ == "__main__":
     p = Path(sys.argv[1]) / P
     original = p.read_text()
