@@ -489,22 +489,23 @@ void LCLaunchServiceExtension(NSExtension *extension, NSExtensionItem *item, voi
             '            payload = CombinedVerification.sanitized(payload, runID: runID)\n            let data = try PropertyListSerialization.data(fromPropertyList: payload, format: .binary, options: 0)')
         text = replace(text, '"SideStore could not encode installation results: " + error.localizedDescription',
             'CombinedFailure.capture(error, operation: "refresh", stage: .refreshVerification, id: runID).encodedString')
-        for old in ['reportRefreshResult(error.localizedDescription, server: server)',
-                    'reportRefreshResult("SideStore refresh failed. Check account, pairing and operation diagnostics.", server: server)']:
+        for old in ['reportRefreshResult(error.localizedDescription, runID: refreshRunID, server: server)',
+                    'reportRefreshResult("SideStore refresh failed. Check account, pairing and operation diagnostics.", runID: refreshRunID, server: server)']:
             if old in text:
-                text = replace(text, old, 'reportStructuredRefreshFailure(error, server: server)')
+                text = replace(text, old, 'reportStructuredRefreshFailure(error, runID: refreshRunID, server: server)')
                 break
         else: raise SystemExit("structured refresh failure anchor missing")
         return text + '''
     @available(iOS 17.0, *)
     extension SideStoreClient {
-    func reportStructuredRefreshFailure(_ error: Error, server: any RefreshServer) {
-        // V3_RUNTIME_SHARED_REFRESH_STORE_V1: the expected run ID is written by
-        // the host scheduler into the one runtime App Group, and read back by the
-        // embedded service. A fixed suite name correlates the failure to a run
-        // the service never began.
-        let id = V3SharedAppGroup.sharedUserDefaults()?.string(forKey: "liveContainerAutoRefreshExpectedRunID") ?? UUID().uuidString
-        reportRefreshResult(CombinedFailure.capture(error, operation: "refresh", stage: .command, id: id).encodedString, server: server)
+    func reportStructuredRefreshFailure(_ error: Error, runID: String?, server: any RefreshServer) {
+        // V21: bind error to the run ID captured at XPC dispatch.
+        // Never read the mutable expected-run marker on async completion.
+        guard let runID, !runID.isEmpty else {
+            server.finish("SideStore refresh callback was missing its run identity.")
+            return
+        }
+        reportRefreshResult(CombinedFailure.capture(error, operation: "refresh", stage: .command, id: runID).encodedString, runID: runID, server: server)
     }
 }
 '''
