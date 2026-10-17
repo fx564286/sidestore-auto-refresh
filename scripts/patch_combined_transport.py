@@ -496,7 +496,7 @@ def verify(root):
             "COMBINED_COREDEVICE_BATCH_V1", "usesCoreDevice", "afc_client_connect_rsd",
             "installation_proxy_connect_rsd", "syncInstallAppBundle", "STAGED_FILE_SIZE_MATCH",
             "[SIDESTORE_COREDEVICE] FETCH_UDID_START"],
-        "Common/PairingFile.swift": ["Composite records must use Lockdown/CoreDevice"],
+        "Common/PairingFile.swift": ["V25: On iOS 17.4+ a composite file must prefer RemotePairing"],
         "Sources/MinimuxerImpl.swift": ["configureRefreshTransport", "hasActiveTransportBatch",
                                         "deviceUDID_present="],
     }
