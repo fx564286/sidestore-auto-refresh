@@ -30,6 +30,31 @@ class V29AuthenticationFailureTraceTests(unittest.TestCase):
         self.assertNotIn('String(describing: error)', diag)
         self.assertNotIn('error.localizedDescription', diag)
 
+    def test_intermediate_prompt_error_gets_safe_diagnostics(self):
+        source = RUNTIME.read_text()
+        start = source.index("func handleSignInResult(")
+        end = source.index("func resolveTeam(", start)
+        segment = source[start:end]
+        self.assertIn("NRG_V29_AUTH_PROMPT_ERROR_CAUSE_V2", segment)
+        self.assertIn('wire["diagnosticCategory"] = category', segment)
+        self.assertIn('wire["diagnosticCode"] = numericCode', segment)
+        self.assertIn('v3SafeAuthCause(error)', segment)
+        self.assertIn('stage=promptFailure', segment)
+        self.assertNotIn('error.localizedDescription', segment)
+
+    def test_prompt_diagnostic_category_is_bounded_and_visible(self):
+        primitives = (ROOT / "scripts/templates/v3_behavioral_primitives.swift").read_text()
+        shell = (ROOT / "scripts/templates/v3_unified_shell.swift").read_text()
+        start = primitives.index("enum V3AuthFailureDiagnosticsPolicy")
+        end = primitives.index("enum V3SignInFailureRoutingPolicy", start)
+        segment = primitives[start:end]
+        self.assertIn("knownDiagnosticCategories", segment)
+        self.assertIn("category = failure", segment)
+        self.assertIn("knownDiagnosticCategories.contains(category)", segment)
+        self.assertIn("safePromptCause(failure)", segment)
+        self.assertIn('case "unknown":\n', shell)
+        self.assertIn("V3AuthFailureDiagnosticsPolicy.safePromptCause(failure)", shell)
+
     def test_auth_2fa_direct_payload_delivery_remains(self):
         service = SERVICE.read_text()
         bridge = BRIDGE.read_text()
