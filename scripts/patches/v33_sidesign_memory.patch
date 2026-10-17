@@ -1,0 +1,271 @@
+--- a/Sources/Models/Feature.swift
++++ b/Sources/Models/Feature.swift
+@@ -75,9 +75,22 @@
+     static let extendedVirtualAddressing: Feature       = "extendedVirtualAddressing"
+     static let increasedDebuggingMemoryLimit: Feature   = "increasedDebuggingMemoryLimit"
+ 
++    /// The capability ID the developer services v1 `bundleIdCapabilities`
++    /// endpoint uses for a feature the legacy `updateAppId.action` request
++    /// cannot enable, or nil for a legacy feature.
++    var capabilityID: String? {
++        switch self {
++        case .increasedMemoryLimit: return "INCREASED_MEMORY_LIMIT"
++        default:                    return nil
++        }
++    }
++
+     static let freeFeatures: Set<Feature> = [
+         .appGroups,
+-        .interAppAudio
++        .interAppAudio,
++        // Apple offers this capability to free teams; it is enabled through
++        // the v1 bundleIdCapabilities request (see `capabilityID`).
++        .increasedMemoryLimit
+     ]
+ 
+     static let paidFeatures: Set<Feature> = [
+--- a/Sources/DeveloperPortal/AppIDs.swift
++++ b/Sources/DeveloperPortal/AppIDs.swift
+@@ -73,7 +73,15 @@
+             "appIdId": appID.identifier
+         ]
+ 
++        var capabilityIDs: [String] = []
+         for (feature, value) in appID.features {
++            if let capabilityID = feature.capabilityID {
++                // Not a legacy feature: enabled below with a v1 request.
++                if value.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() == "true" {
++                    capabilityIDs.append(capabilityID)
++                }
++                continue
++            }
+             let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+             if trimmed.lowercased() == "true" {
+                 parameters[feature.rawValue] = true
+@@ -93,7 +101,55 @@
+ 
+         debugLog("[SideSign] updateAppID succeeded")
+         verboseLog("[SideSign] Updated: \(updatedAppID.name) (\(updatedAppID.bundleIdentifier))")
++
++        if !capabilityIDs.isEmpty {
++            // A failure here leaves the App ID as the legacy request left it,
++            // so the app still installs, without these capabilities.
++            do {
++                try await enableCapabilities(capabilityIDs.sorted(), for: updatedAppID, team: team, session: session)
++            } catch {
++                debugLog("[SideSign] updateAppID: could not enable \(capabilityIDs.sorted()): \(error.localizedDescription); continuing without them")
++            }
++        }
+         return updatedAppID
++    }
++
++    /// Enables capabilities that only the developer services v1 API can enable
++    /// (Increased Memory Limit). This is the request Xcode sends, and the one
++    /// AltSign and GetMoreRam send; Apple accepts it for free teams too.
++    func enableCapabilities(_ capabilityIDs: [String], for appID: AppID, team: Team, session: Session) async throws {
++        debugLog("[SideSign] enableCapabilities starting...")
++        verboseLog("[SideSign] AppID: \(appID.bundleIdentifier), capabilities: \(capabilityIDs)")
++
++        let capabilities: [[String: Any]] = capabilityIDs.map { capabilityID in
++            [
++                "type": "bundleIdCapabilities",
++                "attributes": ["enabled": true, "settings": [Any]()],
++                "relationships": ["capability": ["data": ["id": capabilityID, "type": "capabilities"]]]
++            ]
++        }
++        let body: [String: Any] = [
++            "data": [
++                "id": appID.identifier,
++                "type": "bundleIds",
++                "attributes": [
++                    "name": appID.name,
++                    "identifier": appID.bundleIdentifier,
++                    "teamId": team.identifier,
++                    "seedId": team.identifier,
++                    "bundleType": "bundle",
++                    "hasExclusiveManagedCapabilities": false
++                ],
++                "relationships": ["bundleIdCapabilities": ["data": capabilities]]
++            ]
++        ]
++
++        var request = URLRequest(url: URL(string: "bundleIds/\(appID.identifier)", relativeTo: servicesBaseURL)!)
++        request.httpMethod = "PATCH"
++        request.httpBody = try JSONSerialization.data(withJSONObject: body, options: [.sortedKeys])
++
++        let _: EmptyResponse = try await sendServicesBodyRequest(request, session: session)
++        debugLog("[SideSign] enableCapabilities succeeded")
+     }
+ 
+     func deleteAppID(_ appID: AppID, for team: Team, session: Session) async throws -> Bool {
+--- a/Sources/DeveloperPortal/DeveloperPortalAPI.swift
++++ b/Sources/DeveloperPortal/DeveloperPortalAPI.swift
+@@ -419,6 +419,71 @@
+         request.httpBody = bodyData
+         request.setValue(methodOverride, forHTTPHeaderField: "X-HTTP-Method-Override")
+ 
++        servicesHeaders(for: apiSession, includeAnisette: includeAnisette).forEach { request.setValue($1, forHTTPHeaderField: $0) }
++
++        verboseLog("[SideSign] sendServicesRequest to: \(request.url?.absoluteString ?? "unknown URL")")
++        verboseLog("[SideSign] sendServicesRequest parameters: \(additionalParameters ?? [:])")
++        if let allHeaders = request.allHTTPHeaderFields {
++            verboseLog("[SideSign] sendServicesRequest HTTP headers: \(prettyJSONString(from: sanitizeHeadersForLogging(allHeaders)))")
++        }
++
++        let (data, response): (Data, URLResponse)
++        do {
++            (data, response) = try await session.data(for: request)
++        } catch {
++            debugLog("[SideSign] sendServicesRequest network error: \(error)")
++            throw error
++        }
++
++        let httpResponse = response as? HTTPURLResponse
++        let statusCode = httpResponse?.statusCode ?? 0
++        let isDelete = methodOverride == "DELETE"
++        let isNoContent = statusCode == HTTPStatusCodes.noContent
++
++        guard !data.isEmpty else {
++            if isDelete || isNoContent || T.self == EmptyResponse.self {
++                verboseLog("[SideSign] sendServicesRequest: successful empty response for DELETE or \(HTTPStatusCodes.noContent)")
++                if let empty = EmptyResponse() as? T {
++                    return empty
++                }
++            }
++            debugLog("[SideSign] sendServicesRequest server returned 0 bytes (HTTP \(statusCode))")
++            throw ServerError.badServerResponse(reason: "Server returned empty response", jsonPayload: "0 bytes")
++        }
++
++        if let payloadString = formatPayload(data) {
++            verboseLog("[SideSign] sendServicesRequest response: \(payloadString)")
++        }
++
++        if let status = try? JSONDecoder().decode(DeveloperPortalStatusResponse.self, from: data) {
++            if let errors = status.errors, let firstError = errors.first, let detail = firstError.detail {
++                debugLog("[SideSign] processResponse parsed Apple developer API error: \(detail)")
++                throw ServerError.underlyingError(code: -1, message: detail)
++            }
++            if let code = status.resultCode, code != DeveloperPortalResultCodes.success {
++                let message = status.userString ?? status.resultString ?? status.errorString ?? "Apple Developer Portal Error"
++                if let customError = resultCodeHandler?(code, message) {
++                    debugLog("[SideSign] processResponse error (code: \(code)): \(customError.localizedDescription)")
++                    throw customError
++                }
++                debugLog("[SideSign] processResponse error: \(message) (code: \(code))")
++                throw ServerError.underlyingError(code: code, message: message)
++            }
++        }
++
++        do {
++            return try JSONDecoder().decode(T.self, from: data)
++        } catch {
++            if isDelete || isNoContent, let empty = EmptyResponse() as? T {
++                return empty
++            }
++            let rawStr = String(data: data, encoding: .utf8) ?? data.hexEncodedString()
++            debugLog("[SideSign] sendServicesRequest failed to decode \(T.self): \(error). Raw payload: \(rawStr)")
++            throw ServerError.invalidResponseFormat(rawPayload: rawStr)
++        }
++    }
++
++    func servicesHeaders(for apiSession: Session, includeAnisette: Bool) -> [String: String] {
+         let h = customHeaders
+         var headers: [String: String] = [
+             "Content-Type": "application/vnd.api+json",
+@@ -444,67 +509,48 @@
+             headers["X-Apple-I-Locale"] = a.locale
+             headers["X-Apple-I-TimeZone"] = a.timeZone
+         }
+-
+-        headers.forEach { request.setValue($1, forHTTPHeaderField: $0) }
+-
+-        verboseLog("[SideSign] sendServicesRequest to: \(request.url?.absoluteString ?? "unknown URL")")
+-        verboseLog("[SideSign] sendServicesRequest parameters: \(additionalParameters ?? [:])")
+-        if let allHeaders = request.allHTTPHeaderFields {
+-            verboseLog("[SideSign] sendServicesRequest HTTP headers: \(prettyJSONString(from: sanitizeHeadersForLogging(allHeaders)))")
+-        }
++        return headers
++    }
++
++    // JSON:API Request Dispatcher: sends the request's own method and JSON body
++    // (a PATCH, say), where sendServicesRequest tunnels a query through POST.
++    func sendServicesBodyRequest<T: Decodable>(_ originalRequest: URLRequest, session apiSession: Session) async throws -> T {
++        var request = originalRequest
++        servicesHeaders(for: apiSession, includeAnisette: true).forEach { request.setValue($1, forHTTPHeaderField: $0) }
++
++        verboseLog("[SideSign] sendServicesBodyRequest \(request.httpMethod ?? "GET") to: \(request.url?.absoluteString ?? "unknown URL")")
+ 
+         let (data, response): (Data, URLResponse)
+         do {
+             (data, response) = try await session.data(for: request)
+         } catch {
+-            debugLog("[SideSign] sendServicesRequest network error: \(error)")
++            debugLog("[SideSign] sendServicesBodyRequest network error: \(error)")
+             throw error
+         }
+ 
+-        let httpResponse = response as? HTTPURLResponse
+-        let statusCode = httpResponse?.statusCode ?? 0
+-        let isDelete = methodOverride == "DELETE"
+-        let isNoContent = statusCode == HTTPStatusCodes.noContent
+-
+-        guard !data.isEmpty else {
+-            if isDelete || isNoContent || T.self == EmptyResponse.self {
+-                verboseLog("[SideSign] sendServicesRequest: successful empty response for DELETE or \(HTTPStatusCodes.noContent)")
+-                if let empty = EmptyResponse() as? T {
+-                    return empty
+-                }
+-            }
+-            debugLog("[SideSign] sendServicesRequest server returned 0 bytes (HTTP \(statusCode))")
+-            throw ServerError.badServerResponse(reason: "Server returned empty response", jsonPayload: "0 bytes")
+-        }
+-
++        let statusCode = (response as? HTTPURLResponse)?.statusCode ?? 0
+         if let payloadString = formatPayload(data) {
+-            verboseLog("[SideSign] sendServicesRequest response: \(payloadString)")
+-        }
+-
+-        if let status = try? JSONDecoder().decode(DeveloperPortalStatusResponse.self, from: data) {
+-            if let errors = status.errors, let firstError = errors.first, let detail = firstError.detail {
+-                debugLog("[SideSign] processResponse parsed Apple developer API error: \(detail)")
+-                throw ServerError.underlyingError(code: -1, message: detail)
+-            }
+-            if let code = status.resultCode, code != DeveloperPortalResultCodes.success {
+-                let message = status.userString ?? status.resultString ?? status.errorString ?? "Apple Developer Portal Error"
+-                if let customError = resultCodeHandler?(code, message) {
+-                    debugLog("[SideSign] processResponse error (code: \(code)): \(customError.localizedDescription)")
+-                    throw customError
+-                }
+-                debugLog("[SideSign] processResponse error: \(message) (code: \(code))")
+-                throw ServerError.underlyingError(code: code, message: message)
+-            }
+-        }
+-
++            verboseLog("[SideSign] sendServicesBodyRequest response (HTTP \(statusCode)): \(payloadString)")
++        }
++
++        if let status = try? JSONDecoder().decode(DeveloperPortalStatusResponse.self, from: data),
++           let firstError = status.errors?.first {
++            let message = firstError.detail ?? firstError.title ?? "Apple Developer Services Error"
++            debugLog("[SideSign] sendServicesBodyRequest error (HTTP \(statusCode)): \(message)")
++            throw ServerError.underlyingError(code: Int(firstError.status ?? "") ?? statusCode, message: message)
++        }
++        guard (200..<300).contains(statusCode) else {
++            throw ServerError.underlyingError(code: statusCode, message: "Apple Developer Services returned HTTP \(statusCode)")
++        }
++
++        if data.isEmpty, let empty = EmptyResponse() as? T {
++            return empty
++        }
+         do {
+             return try JSONDecoder().decode(T.self, from: data)
+         } catch {
+-            if isDelete || isNoContent, let empty = EmptyResponse() as? T {
+-                return empty
+-            }
+             let rawStr = String(data: data, encoding: .utf8) ?? data.hexEncodedString()
+-            debugLog("[SideSign] sendServicesRequest failed to decode \(T.self): \(error). Raw payload: \(rawStr)")
++            debugLog("[SideSign] sendServicesBodyRequest failed to decode \(T.self): \(error). Raw payload: \(rawStr)")
+             throw ServerError.invalidResponseFormat(rawPayload: rawStr)
+         }
+     }
