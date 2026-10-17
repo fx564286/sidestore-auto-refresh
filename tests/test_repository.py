@@ -122,7 +122,7 @@ class RepositoryTests(unittest.TestCase):
                     "patch_nrg_gsa_client_v3.py", "patch_v24_install_download.py", "patch_v26_install_trace.py",
                     "patch_v27_guest_switch.py", "patch_v27_provisioning.py",
                     "patch_v28_refresh_regression.py", "patch_v28_guest_lifecycle.py", "patch_v28_pip_audio.py",
-                    "patch_v31_adi_45061.py"},
+                    "patch_v31_adi_45061.py", "patch_v32_jitless_diagnosis.py"},
         )
 
     def test_patch_scripts_parse_and_contain_guard_markers(self):
