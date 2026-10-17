@@ -24,7 +24,10 @@ class V29AuthenticationFailureTraceTests(unittest.TestCase):
         diag = source[start:end]
         self.assertIn('error is SideSign.AnisetteError', diag)
         self.assertIn('error is V3SecretHandoffError', diag)
-        self.assertIn('error is DeveloperPortalError', diag)
+        self.assertIn('error as? DeveloperPortalError', diag)
+        self.assertIn('case .authenticationHandshakeFailed: return "appleHandshake"', diag)
+        self.assertIn('case .invalid2FAResponse: return "invalid2FAResponse"', diag)
+        self.assertIn('case .unknown: return "portalUnknown"', diag)
         self.assertIn('error as? ServerError', diag)
         self.assertIn('return "unclassified"', diag)
         self.assertNotIn('String(describing: error)', diag)
@@ -39,6 +42,8 @@ class V29AuthenticationFailureTraceTests(unittest.TestCase):
         self.assertIn('wire["diagnosticCategory"] = category', segment)
         self.assertIn('wire["diagnosticCode"] = numericCode', segment)
         self.assertIn('v3SafeAuthCause(error)', segment)
+        self.assertIn('v3SafeAuthNumericCode(error)', segment)
+        self.assertIn('case .underlyingError(let code, _) = server', source)
         self.assertIn('stage=promptFailure', segment)
         self.assertNotIn('error.localizedDescription', segment)
 
