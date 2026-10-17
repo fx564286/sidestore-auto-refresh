@@ -1296,44 +1296,44 @@ def patch_background_operation(sidestore: Path) -> None:
     // This restores incomplete local provisioning; it never registers new
     // Apple IDs, provisions devices, or replaces signing identities.
     private func v22ResolveSigningTeamForRefresh() async throws {
-        let auth = AuthManager.shared
-        if let team = try? await auth.getAuthenticatedTeam(),
+        let signerAuth = AuthManager.shared
+        if let team = try? await signerAuth.getAuthenticatedTeam(),
            DatabaseManager.shared.activeTeam()?.identifier == team.identifier {
             return
         }
         debugLog("[AUTO_REFRESH] TEAM_REPAIR_START reason=no_active_team")
-        let stamp = auth.v3IdentityStamp
-        let generation = auth.v3IdentityGeneration
-        let credentials = auth.authenticationSnapshot
-        guard auth.v3IdentityIsStable,
+        let stamp = signerAuth.v3IdentityStamp
+        let generation = signerAuth.v3IdentityGeneration
+        let credentials = signerAuth.authenticationSnapshot
+        guard signerAuth.v3IdentityIsStable,
               let appleID = credentials?.appleIDEmailAddress, !appleID.isEmpty,
               let dsid = credentials?.appleIDAdsid, !dsid.isEmpty,
               let token = credentials?.appleIDXcodeToken, !token.isEmpty else {
             throw OperationError.notAuthenticated
         }
-        let session = try await auth.getAuthenticatedSession()
+        let session = try await signerAuth.getAuthenticatedSession()
         guard session.dsid == dsid, session.authToken == token,
-              stamp == auth.v3IdentityStamp, generation == auth.v3IdentityGeneration,
-              auth.v3IdentityIsStable else {
+              stamp == signerAuth.v3IdentityStamp, generation == signerAuth.v3IdentityGeneration,
+              signerAuth.v3IdentityIsStable else {
             throw OperationError.notAuthenticated
         }
         let account = ALTAccount(appleID: appleID, identifier: dsid)
         let teams = try await DeveloperPortalProxy.shared.fetchTeams(for: account)
-        let preferredID = auth.team?.identifier ?? DatabaseManager.shared.activeTeam()?.identifier
+        let preferredID = signerAuth.team?.identifier ?? DatabaseManager.shared.activeTeam()?.identifier
         guard let verifiedTeam = teams.first(where: { $0.identifier == preferredID }) ?? teams.first else {
             throw OperationError.notAuthenticated
         }
-        guard stamp == auth.v3IdentityStamp,
-              generation == auth.v3IdentityGeneration, auth.v3IdentityIsStable else {
+        guard stamp == signerAuth.v3IdentityStamp,
+              generation == signerAuth.v3IdentityGeneration, signerAuth.v3IdentityIsStable else {
             throw OperationError.notAuthenticated
         }
         let context = DatabaseManager.shared.persistentContainer.newBackgroundContext()
         try await context.perform {
             // A second identity check before CoreData mutation prevents a
             // late portal response activating the wrong user's team.
-            guard auth.v3IdentityIsStable,
-                  auth.v3IdentityStamp == stamp,
-                  auth.v3IdentityGeneration == generation else {
+            guard signerAuth.v3IdentityIsStable,
+                  signerAuth.v3IdentityStamp == stamp,
+                  signerAuth.v3IdentityGeneration == generation else {
                 throw OperationError.notAuthenticated
             }
             let accountID = verifiedTeam.account?.identifier ?? verifiedTeam.identifier
@@ -1371,11 +1371,11 @@ def patch_background_operation(sidestore: Path) -> None:
             for row in try context.fetch(othersTeams) { row.isActiveTeam = false }
             try context.save()
         }
-        guard auth.v3IdentityIsStable, stamp == auth.v3IdentityStamp,
-              generation == auth.v3IdentityGeneration else {
+        guard signerAuth.v3IdentityIsStable, stamp == signerAuth.v3IdentityStamp,
+              generation == signerAuth.v3IdentityGeneration else {
             throw OperationError.notAuthenticated
         }
-        auth.team = verifiedTeam
+        signerAuth.team = verifiedTeam
         debugLog("[AUTO_REFRESH] TEAM_REPAIR_PASS source=authenticated_account_team")
     }
 
