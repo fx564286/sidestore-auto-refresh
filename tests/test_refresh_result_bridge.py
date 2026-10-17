@@ -123,6 +123,24 @@ print("RESULT_BRIDGE_TESTS_PASSED")
         for secret in ('password', 'token', 'Keychain', 'certificate'):
             self.assertNotIn(secret, bridge.CLIENT)
 
+    def test_v21_async_callbacks_preserve_original_request_id(self):
+        # Source generation must carry a request ID from XPC dispatch into
+        # the async task. A later UserDefaults expected-run value must never
+        # be used to identify an earlier callback.
+        self.assertIn("runID capturedRunID: String?", bridge.CLIENT)
+        self.assertIn("guard let runID = capturedRunID, !runID.isEmpty", bridge.CLIENT)
+        self.assertIn('defaults.string(forKey: "liveContainerAutoRefreshExpectedRunID") == runID', bridge.CLIENT)
+        self.assertNotIn('let runID = defaults.string(forKey: "liveContainerAutoRefreshExpectedRunID")', bridge.CLIENT)
+        source = (ROOT / "scripts/patch_refresh_result_bridge.py").read_text(encoding="utf-8")
+        self.assertIn("server:handler.server refreshRunID:refreshRunID", source)
+        self.assertIn("@objc(performRefreshForRealWithIdentifier:mangledTypeName:server:refreshRunID:)", source)
+        self.assertIn("runID: refreshRunID, server: server", source)
+
+        combined = (ROOT / "scripts/patch_combined_service_startup.py").read_text(encoding="utf-8")
+        self.assertIn("reportStructuredRefreshFailure(error, runID: refreshRunID, server: server)", combined)
+        self.assertIn("func reportStructuredRefreshFailure(_ error: Error, runID: String?", combined)
+        self.assertNotIn('let id = V3SharedAppGroup.sharedUserDefaults()?.string(forKey: "liveContainerAutoRefreshExpectedRunID")', combined)
+
     def test_pinned_xpc_patch_idempotence(self):
         source = Path(os.environ.get("LIVE_CONTAINER_TEST_SOURCE", ROOT / ".audit/upstream/LiveContainer"))
         if not source.exists():
