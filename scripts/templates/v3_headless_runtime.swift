@@ -377,6 +377,28 @@ func v3ClassifyAuthError(_ error: Error) -> V3AuthFailureKind? {
     return .unknown
 }
 
+// NRG_V29_SAFE_AUTH_CAUSE_V1: fixed enum categories only; never include Apple ID,
+// passwords, challenge responses, Anisette payloads or raw localized errors.
+func v3SafeAuthCause(_ error: Error) -> String {
+    if error is SideSign.AnisetteError { return "anisette" }
+    if error is V3SecretHandoffError { return "keychainHandoff" }
+    if error is DeveloperPortalError { return "developerPortal" }
+    if let server = error as? ServerError {
+        switch server {
+        case .badServerResponse: return "serverBadResponse"
+        case .invalidResponseFormat: return "serverResponseFormat"
+        case .missingKey: return "serverMissingField"
+        case .underlyingError: return "serverReportedError"
+        }
+    }
+    let native = error as NSError
+    if CombinedFailure.knownURLTransportCause(domain: native.domain, code: native.code) != nil {
+        return "networkTransport"
+    }
+    if native.domain == "NSOSStatusErrorDomain" { return "osStatus" }
+    return "unclassified"
+}
+
 // MARK: - Provisioning failure guidance (typed, never numeric)
 
 // User-facing message plus what Retry means for a concrete
@@ -844,6 +866,7 @@ final class V3AuthCenter {
                     "failure": failureWire,
                     "technicalDetails": failure.technicalDetails]
                 finish(id: id, response: response)
+                debugLog("[V3_AUTH_CAUSE] stage=provisioning category=\(v3SafeAuthCause(error)) code=\((error as NSError).code)")
                 debugLog("[V3_AUTH] TERMINAL session=\(id) state=authenticatedProvisioningIncomplete outcome=\(cancelled ? "provisioningCancelled" : "provisioningFailed") stage=\(failure.stage.rawValue) code=\(failure.code.rawValue)")
             } else if cancelled {
                 finish(id: id, response: ["state": "cancelled", "authenticated": false])
@@ -851,8 +874,16 @@ final class V3AuthCenter {
             } else {
                 let failure = CombinedFailure.capture(error, operation: "signIn", stage: .authentication, id: id)
                 var wire = failure.wire
-                if let kind = v3ClassifyAuthError(error) { wire["kind"] = kind.rawValue }
-                let message = (wire["kind"] as? String).map { V3AuthFailureDisplay.message(for: $0) } ?? failure.safeMessage
+                let kind = v3ClassifyAuthError(error)?.rawValue ?? "unknown"
+                wire["kind"] = kind
+                let safeCause = v3SafeAuthCause(error)
+                // NRG_V29_SAFE_AUTH_CAUSE_V1: preserve an actionable, non-secret
+                // error family on screen even when NSError has a redacted domain.
+                let message = kind == "unknown"
+                    ? failure.safeMessage + " [diagnostic: " + safeCause + ", code: " +
+                        String((error as NSError).code) + "]"
+                    : V3AuthFailureDisplay.message(for: kind)
+                debugLog("[V3_AUTH_CAUSE] stage=authentication category=\(safeCause) kind=\(kind) code=\((error as NSError).code)")
                 let response: [String: Any] = ["state": "failed", "stage": failure.stage.rawValue,
                     "code": failure.code.rawValue, "failure": wire, "message": message,
                     "technicalDetails": failure.technicalDetails]
