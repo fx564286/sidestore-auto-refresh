@@ -44,11 +44,15 @@ public enum RefreshTransportPolicy {
         if pairing == .rppairing {
             return .init(transport: .remotePairing, reason: "RemotePairing-only record; not CoreDevice proof")
         }
-        if modernOS && coreDeviceSupported {
-            return .init(transport: .coreDevice, reason: "iOS>=26.4 local VPN with Lockdown record and patched CoreDevice backend; initialization pending")
-        }
+        // V23: With a reachable Lockdown peer and IPSec route, prefer the
+        // existing direct Lockdown transport. The CoreDevice heartbeat tunnel
+        // repeatedly fails code=16 on iOS 27.2 before misagent can run.
+        // Keep CoreDevice available when direct Lockdown/IPSec is absent.
         if ipsec {
-            return .init(transport: .lockdownIPSec, reason: "Upstream Lockdown with utun and IPSec interfaces")
+            return .init(transport: .lockdownIPSec, reason: "Prefer direct Lockdown/IPSec for misagent; avoid failing CoreDevice heartbeat tunnel")
+        }
+        if modernOS && coreDeviceSupported {
+            return .init(transport: .coreDevice, reason: "CoreDevice fallback when no IPSec interface is available")
         }
         if !modernOS {
             return .init(transport: .lockdownLegacy, reason: "Preserve upstream Lockdown below iOS26.4")
