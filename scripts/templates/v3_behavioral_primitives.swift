@@ -4846,6 +4846,7 @@ enum V3AuthFailureDiagnosticsPolicy {
     // Apple responses, localized errors, email, password or 2FA content.
     static let knownDiagnosticCategories: Set<String> = [
         "anisette", "keychainHandoff", "developerPortal",
+        "appleHandshake", "invalid2FAResponse", "portalUnknown",
         "serverBadResponse", "serverResponseFormat", "serverMissingField",
         "serverReportedError", "networkTransport", "osStatus", "unclassified"
     ]
