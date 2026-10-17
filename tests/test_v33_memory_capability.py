@@ -30,8 +30,9 @@ class V33MemoryCapabilityTests(unittest.TestCase):
         self.assertNotEqual(self.original,self.new)
         self.assertEqual(mod.transform(self.new),self.new)
         self.assertEqual(set(self.new),set(mod.FILES))
-        for file in mod.FILES:
-            self.assertEqual(self.new[file].count(mod.MARKER),1)
+        expected_counts=(1,2,1)
+        for file, count in zip(mod.FILES, expected_counts):
+            self.assertEqual(self.new[file].count(mod.MARKER),count)
 
     def test_free_personal_team_and_no_paid_capabilities(self):
         s=self.new[mod.FILES[0]]
