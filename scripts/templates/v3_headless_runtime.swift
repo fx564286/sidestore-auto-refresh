@@ -1264,7 +1264,15 @@ final class V3HeadlessAuthHandler: SignInHandler, AnisetteServerHandler {
             let failure = CombinedFailure.capture(error, operation: "signIn", stage: .authentication, id: sessionID)
             var wire = failure.wire
             wire["kind"] = kind.rawValue
+            // NRG_V29_AUTH_PROMPT_ERROR_CAUSE_V2: the on-screen credentials
+            // prompt displays previousFailure, NOT the terminal failure. Keep
+            // a fixed, non-secret type and numeric code on that exact path.
+            let category = v3SafeAuthCause(error)
+            let numericCode = (error as NSError).code
+            wire["diagnosticCategory"] = category
+            wire["diagnosticCode"] = numericCode
             V3HeadlessRuntime.shared.auth.sessions[sessionID]?.previousFailure = wire
+            debugLog("[V3_AUTH_CAUSE] stage=promptFailure category=\(category) kind=\(kind.rawValue) code=\(numericCode)")
             debugLog("[V3_AUTH] ATTEMPT_FAILED session=\(sessionID) kind=\(kind.rawValue) stage=\(failure.stage.rawValue) code=\(failure.code.rawValue) correlation=\(failure.correlationID)")
         }
     }
