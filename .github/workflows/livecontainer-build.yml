@@ -154,6 +154,8 @@ jobs:
             swiftc -frontend -parse work/EmbeddedSideStore/SideStore/Core/Operations/PipelineRunner.swift
             python3 builder/scripts/patch_v34_display_profiles.py work/LiveContainer
             python3 builder/scripts/patch_v34_display_profiles.py work/LiveContainer
+            python3 builder/scripts/patch_v36_multitask_chrome.py work/LiveContainer
+            python3 builder/scripts/patch_v36_multitask_chrome.py work/LiveContainer
             swiftc -frontend -parse work/LiveContainer/MultitaskSupport/MultitaskAppWindow.swift
             swiftc -frontend -parse work/LiveContainer/MultitaskSupport/MultitaskDockView.swift
             swiftc -frontend -parse work/LiveContainer/LiveContainerSwiftUI/Models/AppLayoutStyle.swift
