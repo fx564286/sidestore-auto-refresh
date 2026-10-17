@@ -14,7 +14,7 @@ OLD = """        var entitlements = targetAppBundle.entitlements
         for (key, value) in context.additionalEntitlements {
             entitlements[key] = value
         }
-
+        
         guard let allowedFeatures = team.type.allowedFeatures else {"""
 NEW = """        var entitlements = targetAppBundle.entitlements
         for (key, value) in context.additionalEntitlements {
