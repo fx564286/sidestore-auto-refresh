@@ -9,6 +9,7 @@ import sys
 
 MARKER = "NRG_V27_PROFILE_CAPACITY_PREFLIGHT"
 SERIAL_MARKER = "NRG_V27_FREE_TEAM_SERIAL_PROVISIONING"
+PARENT_MARKER = "NRG_V27_PARENT_PREFERRED_ID_FIX"
 PATH = "SideStore/Core/Operations/PipelineOperations/FetchProvisioningProfilesOperation.swift"
 
 
@@ -23,7 +24,7 @@ def patch(root: Path):
     path = root / PATH
     source = path.read_text(encoding="utf-8")
     if MARKER in source or SERIAL_MARKER in source:
-        if source.count(MARKER) != 2 or source.count(SERIAL_MARKER) != 1:
+        if source.count(MARKER) != 2 or source.count(SERIAL_MARKER) != 1 or source.count(PARENT_MARKER) != 1:
             raise SystemExit("V27 partial provisioning patch")
         print("[PASS] V27 provisioning already patched")
         return
@@ -98,9 +99,8 @@ def patch(root: Path):
                     throw OperationError.invalidApp(
                         reason: "App extension ID does not belong to its parent; refusing registration.")
                 }
-                let preferred = await self.getPreferredBundleID(for: ext, team: team)
                 let suffix = String(ext.bundleIdentifier.dropFirst(bundle.bundleIdentifier.count))
-                candidates.append(preferred ?? (parentID + suffix))
+                candidates.append(parentID + suffix)
             }
         }
         let distinct = Set(candidates.map { $0.lowercased() })
@@ -120,7 +120,17 @@ def patch(root: Path):
         helper + "    private func getPreferredBundleID(for targetAppBundle: ALTApplication, team: ALTTeam) async -> String? {\n",
         "capacity helper",
     )
-    if source.count(MARKER) != 2 or source.count(SERIAL_MARKER) != 1:
+    source = once(source,
+        "        let preferredBundleID = await self.getPreferredBundleID(for: targetAppBundle, team: team)\\n",
+        """        // NRG_V27_PARENT_PREFERRED_ID_FIX: child IDs retain the existing parent's
+        // preferred ID plus their distinct bundle suffix. The upstream lookup
+        // otherwise resolves every child to the same parent record.
+        let preferredBundleID = await self.getPreferredBundleID(
+            for: parentAppBundle ?? targetAppBundle, team: team)
+""",
+        "existing parent ID reuse",
+    )
+    if source.count(MARKER) != 2 or source.count(SERIAL_MARKER) != 1 or source.count(PARENT_MARKER) != 1:
         raise SystemExit("V27 provisioning markers incomplete")
     path.write_text(source, encoding="utf-8")
     print("[PASS] V27 free-team budget preflight and serialized extension provisioning")
