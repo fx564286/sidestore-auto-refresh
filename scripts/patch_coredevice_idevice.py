@@ -176,6 +176,8 @@ fn transport_log(message: &str) {
             "tunnel_heartbeat_is_active",
             ".min(1340)",
             "TUNNEL_RSD_HANDSHAKE_PASS",
+            "V29_JIT_HEARTBEAT_OPTIONAL",
+            "fallback=coredevice",
         ]
         missing = [item for item in required if item not in text]
         if missing:
@@ -232,38 +234,50 @@ pub unsafe extern "C" fn tunnel_heartbeat_stop() {
 
         unsafe { tunnel_heartbeat_stop() };
         use idevice::heartbeat::HeartbeatClient;
-        let mut heartbeat = match HeartbeatClient::connect(provider_ref).await {
-            Ok(client) => {
+        // V29_JIT_HEARTBEAT_OPTIONAL: Heartbeat is a keepalive, not proof that
+        // CoreDevice's independent trusted Lockdown transport is unavailable.
+        // In iOS 27 a failed heartbeat connect must not short-circuit the
+        // authenticated CoreDevice tunnel and RSD handshakes below.
+        let heartbeat_client = match tokio::time::timeout(
+            std::time::Duration::from_secs(5),
+            HeartbeatClient::connect(provider_ref),
+        ).await {
+            Ok(Ok(client)) => {
                 transport_log("[SIDESTORE_COREDEVICE] HEARTBEAT_CONNECT_PASS");
-                client
+                Some(client)
             }
-            Err(error) => {
-                transport_log("[SIDESTORE_COREDEVICE] HEARTBEAT_CONNECT_FAIL stage=heartbeat result=failed");
-                return Err(IdeviceError::InternalError(format!(
-                    "CoreDevice heartbeat connection failed: {error}"
-                )));
+            Ok(Err(_error)) => {
+                transport_log("[SIDESTORE_COREDEVICE] HEARTBEAT_CONNECT_FAIL stage=heartbeat fallback=coredevice");
+                None
+            }
+            Err(_) => {
+                transport_log("[SIDESTORE_COREDEVICE] HEARTBEAT_CONNECT_TIMEOUT stage=heartbeat fallback=coredevice");
+                None
             }
         };
-
-        HEARTBEAT_IS_ACTIVE.store(true, Ordering::SeqCst);
-        let heartbeat_task = tokio::spawn(async move {
-            loop {
-                match heartbeat.get_marco(60).await {
-                    Ok(_) => {
-                        if let Err(_error) = heartbeat.send_polo().await {
-                            transport_log("[SIDESTORE_COREDEVICE] HEARTBEAT_POLO_FAIL stage=heartbeat result=failed");
+        if let Some(mut heartbeat) = heartbeat_client {
+            HEARTBEAT_IS_ACTIVE.store(true, Ordering::SeqCst);
+            let heartbeat_task = tokio::spawn(async move {
+                loop {
+                    match heartbeat.get_marco(60).await {
+                        Ok(_) => {
+                            if let Err(_error) = heartbeat.send_polo().await {
+                                transport_log("[SIDESTORE_COREDEVICE] HEARTBEAT_POLO_FAIL stage=heartbeat result=failed");
+                                break;
+                            }
+                        }
+                        Err(_error) => {
+                            transport_log("[SIDESTORE_COREDEVICE] HEARTBEAT_MARCO_FAIL stage=heartbeat result=failed");
                             break;
                         }
                     }
-                    Err(_error) => {
-                        transport_log("[SIDESTORE_COREDEVICE] HEARTBEAT_MARCO_FAIL stage=heartbeat result=failed");
-                        break;
-                    }
                 }
-            }
+                HEARTBEAT_IS_ACTIVE.store(false, Ordering::SeqCst);
+            });
+            *ACTIVE_HEARTBEAT.lock().unwrap() = Some(heartbeat_task);
+        } else {
             HEARTBEAT_IS_ACTIVE.store(false, Ordering::SeqCst);
-        });
-        *ACTIVE_HEARTBEAT.lock().unwrap() = Some(heartbeat_task);
+        }
 
         tokio::time::sleep(std::time::Duration::from_millis(400)).await;
         transport_log("[SIDESTORE_COREDEVICE] TUNNEL_COREDEVICE_CONNECT_START");
@@ -400,6 +414,8 @@ def verify(root: Path) -> None:
             "tunnel_heartbeat_is_active",
             ".min(1340)",
             "TUNNEL_RSD_HANDSHAKE_PASS",
+            "V29_JIT_HEARTBEAT_OPTIONAL",
+            "fallback=coredevice",
         ],
         root / "ffi" / "src" / "afc.rs": [
             "run_sync_local(async move { fd.write_entire(data_slice).await })",
