@@ -124,7 +124,7 @@ class RepositoryTests(unittest.TestCase):
                     "patch_v28_refresh_regression.py", "patch_v28_guest_lifecycle.py", "patch_v28_pip_audio.py",
                     "patch_v31_adi_45061.py", "patch_v32_jitless_diagnosis.py",
                     "patch_v33_sidesign_memory.py", "patch_v33_sidestore_memory.py",
-                    "patch_v34_display_profiles.py", "patch_v35_native_guest_default.py", "patch_v36_multitask_chrome.py", "patch_v37_window_overflow.py", "patch_v38_maximized_safe_area.py", "patch_v39_dock_app_switch_only.py", "patch_v41_remove_floating_return.py", "patch_v43_sidejit_dns_guard.py", "patch_v45_builtin_settings.py", "patch_v46_keyboard_window_scope.py"},
+                    "patch_v34_display_profiles.py", "patch_v35_native_guest_default.py", "patch_v36_multitask_chrome.py", "patch_v37_window_overflow.py", "patch_v38_maximized_safe_area.py", "patch_v39_dock_app_switch_only.py", "patch_v41_remove_floating_return.py", "patch_v43_sidejit_dns_guard.py", "patch_v45_builtin_settings.py", "patch_v46_keyboard_window_scope.py", "patch_v46_jit_recovery.py"},
         )
 
     def test_patch_scripts_parse_and_contain_guard_markers(self):
