@@ -8,6 +8,7 @@ import plistlib
 import shutil
 import struct
 import subprocess
+import zipfile
 
 from audit_ipa_signing import inventory
 
@@ -80,6 +81,24 @@ def adapt(text):
     text = replace_once(text, 'brew install ldid', 'command -v ldid >/dev/null')
     text = replace_once(text, 'wget https://github.com/LiveContainer/SideStore/releases/download/nightly/SideStore.ipa',
                         'cp "$PATCHED_SIDESTORE_IPA" SideStore.ipa')
+    # NRG_WIDGETLESS_V46: the SideStore widget is an independent extension.
+    # Drop it from the embedded framework rather than renaming it and creating
+    # another free-team App ID. Keep SideStore's host App Intent wrappers.
+    widget_copy = '# AltWidgetExtension\nmv ./Payload/LiveContainer.app/Frameworks/SideStoreApp.framework/PlugIns/AltWidgetExtension.appex ./Payload/LiveContainer.app/PlugIns/LiveWidgetExtension.appex\n/usr/libexec/PlistBuddy -c "Set :CFBundleIdentifier com.kdt.livecontainer.LiveWidget"  ./Payload/LiveContainer.app/PlugIns/LiveWidgetExtension.appex/Info.plist\n/usr/libexec/PlistBuddy -c "Set :CFBundleExecutable LiveWidgetExtension"  ./Payload/LiveContainer.app/PlugIns/LiveWidgetExtension.appex/Info.plist\nmv ./Payload/LiveContainer.app/PlugIns/LiveWidgetExtension.appex/AltWidgetExtension ./Payload/LiveContainer.app/PlugIns/LiveWidgetExtension.appex/LiveWidgetExtension\n'
+    if widget_copy in text:
+        text = replace_once(text, widget_copy,
+            '# NRG_WIDGETLESS_V46: do not install LiveWidget.\n'
+            'rm -rf ./Payload/LiveContainer.app/Frameworks/SideStoreApp.framework/PlugIns/AltWidgetExtension.appex\n')
+        text = replace_once(text,
+            'ldid -S.github/sidelc/LiveWidgetExtension_adhoc.xml ./Payload/LiveContainer.app/PlugIns/LiveWidgetExtension.appex/LiveWidgetExtension',
+            'test ! -e ./Payload/LiveContainer.app/PlugIns/LiveWidgetExtension.appex')
+    elif 'AltWidgetExtension' in text or 'LiveWidgetExtension' in text:
+        raise ValueError('Pinned widget packaging changed; refusing to include an unreviewed extension')
+    # Test after both paths and before preparing entitlements / archiving.
+    text = replace_once(text, '# package\n',
+        'test ! -e ./Payload/LiveContainer.app/PlugIns/LiveWidgetExtension.appex\n'
+        'test ! -e ./Payload/LiveContainer.app/Frameworks/SideStoreApp.framework/PlugIns/AltWidgetExtension.appex\n'
+        '# package\n')
     text = replace_once(text, 'rm -r .zsign_cache', '# No zsign cache exists in the fresh packaging workspace.')
     text = replace_once(text, 'find payloadlc/Payload -type d -name "_CodeSignature" -exec rm -r {} +',
                         'find Payload -type d -name "_CodeSignature" -prune -exec rm -r {} +')
@@ -113,7 +132,6 @@ def prepare_entitlements(root, app):
         'PlugIns/LiveProcess.appex': 'LiveProcess/LiveProcess.entitlements',
         'PlugIns/ShareExtension.appex': 'ShareExtension/ShareExtension.entitlements',
         'PlugIns/LaunchAppExtension.appex': 'LaunchAppExtension/LaunchAppExtension.entitlements',
-        'PlugIns/LiveWidgetExtension.appex': '.github/sidelc/LiveWidgetExtension_adhoc.xml',
     }
     for relative, source in sources.items():
         bundle = app / relative
@@ -167,11 +185,17 @@ def verify(path, side_product=None):
     embedded = base + '/Frameworks/SideStoreApp.framework'
     assert bundles[embedded]['info']['CFBundleIdentifier'] == 'com.SideStore.SideStore', 'iLoader SideStoreLc recognition'
     assert bundles[embedded]['executable_present']
+    # Hard-fail if upstream starts shipping the widget again under another path.
+    with zipfile.ZipFile(path) as package:
+        forbidden_widget = [name for name in package.namelist()
+                            if '/LiveWidgetExtension.appex/' in name
+                            or '/AltWidgetExtension.appex/' in name]
+    if forbidden_widget:
+        raise ValueError('Widget extension leaked into packaged IPA: ' + forbidden_widget[0])
     live_process_path = base + '/PlugIns/LiveProcess.appex'
     shared_keychain_group = verify_shared_secret_handoff_group(
         bundles[base]['signing']['xml_entitlements'].get('keychain-access-groups'),
         bundles[live_process_path]['signing']['xml_entitlements'].get('keychain-access-groups'))
-    import zipfile
     with zipfile.ZipFile(path) as archive:
         executable = archive.read(embedded + '/SideStore')
         assert executable[:4] == b'\xcf\xfa\xed\xfe', 'Expected arm64 Mach-O'
@@ -220,7 +244,7 @@ def verify(path, side_product=None):
                     continue
                 assert archive.read(embedded + '/' + relative) == source.read_bytes(), relative
     for extension, suffix in [('LiveProcess', 'LiveProcess'), ('ShareExtension', 'ShareExtension'),
-                              ('LaunchAppExtension', 'LaunchAppExtension'), ('LiveWidgetExtension', 'LiveWidget')]:
+                              ('LaunchAppExtension', 'LaunchAppExtension')]:
         bundle = bundles[base + '/PlugIns/' + extension + '.appex']
         assert bundle['executable_present']
         assert bundle['info']['CFBundleIdentifier'] == 'com.kdt.livecontainer.' + suffix
@@ -228,7 +252,7 @@ def verify(path, side_product=None):
     assert bundles[base]['signing']['xml_entitlements'].get('keychain-access-groups')
     assert host['ALTAppGroups'] == ['group.com.SideStore.SideStore']
     for extension, suffix in [('LiveProcess', 'LiveProcess'), ('ShareExtension', 'ShareExtension'),
-                              ('LaunchAppExtension', 'LaunchAppExtension'), ('LiveWidgetExtension', 'LiveWidget')]:
+                              ('LaunchAppExtension', 'LaunchAppExtension')]:
         # Every extension resolves the same packaged fallback list as the host,
         # so a launch that published no group cannot split the shared store.
         assert bundles[base + '/PlugIns/' + extension + '.appex']['info']['ALTAppGroups'] == host['ALTAppGroups'], \
@@ -241,7 +265,8 @@ def verify(path, side_product=None):
     assert 'processing' in host['UIBackgroundModes']
     result['semantic_verification'] = 'passed; device signing and runtime unverified'
     result['iloader_special_app'] = 'SideStoreLc'
-    result['registration_targets_before_reuse'] = 5
+    # One host plus 3 extension App IDs; LiveWidget is not packaged.
+    result['registration_targets_before_reuse'] = 4
     return result
 
 

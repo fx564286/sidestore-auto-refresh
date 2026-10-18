@@ -101,7 +101,7 @@ jobs:
           set -euo pipefail
           # Priority IPA build: targeted source and authentication suites.
           # Full matrix is running separately on the standard V3 branch.
-          for pattern in test_repository.py test_v3_service.py test_nrg_gsa_client_v3.py test_v3_certificate_import.py test_v3_jitless_cert_recovery.py test_v3_certificate_import_runtime.py test_v3_jitless_import_ownership.py test_refresh_result_bridge.py test_v24_install_download.py test_v26_install_cancel_trace.py test_v27_install_lifecycle.py test_v28_refresh_regression.py test_v28_guest_lifecycle.py test_v28_pip_audio.py test_v29_auth_trace.py test_v29_coredevice_heartbeat_fallback.py test_issue24_udid_error_propagation.py test_v30_auth_code3.py test_v31_adi_reprovision.py test_v32_jitless_diagnosis.py test_v33_iram_memory_integration.py test_v45_builtin_settings.py test_v46_keyboard_window_scope.py test_v46_jit_recovery.py test_v46_jit_host_bundle.py; do
+          for pattern in test_repository.py test_v3_service.py test_nrg_gsa_client_v3.py test_v3_certificate_import.py test_v3_jitless_cert_recovery.py test_v3_certificate_import_runtime.py test_v3_jitless_import_ownership.py test_refresh_result_bridge.py test_v24_install_download.py test_v26_install_cancel_trace.py test_v27_install_lifecycle.py test_v28_refresh_regression.py test_v28_guest_lifecycle.py test_v28_pip_audio.py test_v29_auth_trace.py test_v29_coredevice_heartbeat_fallback.py test_issue24_udid_error_propagation.py test_v30_auth_code3.py test_v31_adi_reprovision.py test_v32_jitless_diagnosis.py test_v33_iram_memory_integration.py test_v45_builtin_settings.py test_v46_keyboard_window_scope.py test_v46_jit_recovery.py test_v46_jit_host_bundle.py test_combined_packaging.py test_v46_widgetless_installer.py; do
             python3 -m unittest discover -s builder/tests -p "$pattern" -v
           done 2>&1 | tee artifacts/logs/repository-tests.log
 
@@ -460,6 +460,24 @@ jobs:
             --host "$RUNNER_TEMP/livecontainer-derived-data/Build/Products/Release-iphoneos/LiveContainer.app" \
             --side "$RUNNER_TEMP/embedded-sidestore-derived-data/Build/Products/Release-iphoneos/SideStore.app" \
             --output artifacts/LiveContainer-SideStore-v3.0.3-rc.ipa 2>&1 | tee artifacts/logs/combined-packaging.log
+          # NRG_WIDGETLESS_V46: release IPA contains exactly 3 app extensions,
+          # with no LiveWidget anywhere (including inside embedded SideStore).
+          python3 - <<'PY_WIDGETLESS'
+          from pathlib import Path
+          import plistlib, zipfile
+          ipa = Path('artifacts/LiveContainer-SideStore-v3.0.3-rc.ipa')
+          with zipfile.ZipFile(ipa) as archive:
+              names = archive.namelist()
+              forbidden = [n for n in names if '/LiveWidgetExtension.appex/' in n or '/AltWidgetExtension.appex/' in n]
+              assert not forbidden, 'unexpected widget extensions: ' + repr(forbidden[:3])
+              extroot = 'Payload/LiveContainer.app/PlugIns/'
+              found = {plistlib.loads(archive.read(n))['CFBundleIdentifier'] for n in names
+                       if n.startswith(extroot) and n.endswith('.appex/Info.plist')}
+              expected = {'com.kdt.livecontainer.LiveProcess', 'com.kdt.livecontainer.ShareExtension',
+                          'com.kdt.livecontainer.LaunchAppExtension'}
+              assert found == expected, f'extension IDs: {found!r}'
+              print('[PASS] NRG_WIDGETLESS_V46: 3 required extensions; no widget')
+          PY_WIDGETLESS
           python3 builder/scripts/patch_combined_refresh_contract.py --verify-ipa artifacts/LiveContainer-SideStore-v3.0.3-rc.ipa \
             2>&1 | tee artifacts/logs/runtime-contract-verification.log
           printf 'builder_commit=%s\n' "$GITHUB_SHA" > artifacts/builder-commit.txt

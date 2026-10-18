@@ -79,11 +79,26 @@ class CombinedPackagingTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "declares no packaged App Group fallback"):
                 share_packaged_app_groups(app)
 
+    def test_widgetless_registration_and_entitlement_policy(self):
+        import inspect
+        import package_livecontainer_combined as pkg
+        source = inspect.getsource(pkg)
+        self.assertNotIn("'PlugIns/LiveWidgetExtension.appex':", source)
+        self.assertIn("result['registration_targets_before_reuse'] = 4", source)
+        self.assertIn("Widget extension leaked into packaged IPA:", source)
+        self.assertIn("('LaunchAppExtension', 'LaunchAppExtension')", source)
+        self.assertNotIn("('LiveWidgetExtension', 'LiveWidget')", source)
+
     def test_upstream_adapter_retains_transformations(self):
         script = '''brew install ldid
 wget https://github.com/LiveContainer/SideStore/releases/download/nightly/SideStore.ipa
 ./dylibify input output
-mv widget destination
+# AltWidgetExtension
+mv ./Payload/LiveContainer.app/Frameworks/SideStoreApp.framework/PlugIns/AltWidgetExtension.appex ./Payload/LiveContainer.app/PlugIns/LiveWidgetExtension.appex
+/usr/libexec/PlistBuddy -c "Set :CFBundleIdentifier com.kdt.livecontainer.LiveWidget"  ./Payload/LiveContainer.app/PlugIns/LiveWidgetExtension.appex/Info.plist
+/usr/libexec/PlistBuddy -c "Set :CFBundleExecutable LiveWidgetExtension"  ./Payload/LiveContainer.app/PlugIns/LiveWidgetExtension.appex/Info.plist
+mv ./Payload/LiveContainer.app/PlugIns/LiveWidgetExtension.appex/AltWidgetExtension ./Payload/LiveContainer.app/PlugIns/LiveWidgetExtension.appex/LiveWidgetExtension
+ldid -S.github/sidelc/LiveWidgetExtension_adhoc.xml ./Payload/LiveContainer.app/PlugIns/LiveWidgetExtension.appex/LiveWidgetExtension
 rm -r .zsign_cache
 find payloadlc/Payload -type d -name "_CodeSignature" -exec rm -r {} +
 # copy intents
@@ -97,7 +112,12 @@ zip output Payload
 '''
         result = adapt(script)
         self.assertIn('cp "$PATCHED_SIDESTORE_IPA" SideStore.ipa', result)
-        self.assertIn('./dylibify input output\nmv widget destination', result)
+        self.assertIn('./dylibify input output', result)
+        self.assertIn('rm -rf ./Payload/LiveContainer.app/Frameworks/SideStoreApp.framework/PlugIns/AltWidgetExtension.appex', result)
+        self.assertNotIn('mv ./Payload/LiveContainer.app/Frameworks/SideStoreApp.framework/PlugIns/AltWidgetExtension.appex', result)
+        self.assertNotIn('ldid -S.github/sidelc/LiveWidgetExtension_adhoc.xml', result)
+        self.assertIn('test ! -e ./Payload/LiveContainer.app/PlugIns/LiveWidgetExtension.appex', result)
+        self.assertIn('test ! -e ./Payload/LiveContainer.app/Frameworks/SideStoreApp.framework/PlugIns/AltWidgetExtension.appex', result)
         self.assertIn('rm -rf ./Payload/LiveContainer.app/Frameworks/SideStoreApp.framework/Metadata.appintents', result)
         self.assertLess(result.index('--prepare-entitlements'), result.index('zip output'))
         self.assertTrue(result.startswith('set -eu\n'))
