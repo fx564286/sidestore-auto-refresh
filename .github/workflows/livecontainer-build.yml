@@ -74,6 +74,14 @@ jobs:
           test "$(git -C idevice rev-parse HEAD)" = "$IDEVICE_REF"
           test "$(git -C jktcp rev-parse HEAD)" = "$JKTCP_REF"
 
+      - name: Apply V47 JIT response validation
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 builder/scripts/patch_v47_jit_response.py work/LiveContainer work/EmbeddedSideStore
+          git -C work/LiveContainer diff --check
+          git -C work/EmbeddedSideStore diff --check
+
       - name: Select Xcode 26.4
         uses: maxim-lobanov/setup-xcode@v1.6.0
         with:
