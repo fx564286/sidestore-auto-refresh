@@ -23,14 +23,20 @@ def patch(s):
     if s.count(override) != 1:
         raise RuntimeError("Expected one raw override return")
     s = s.replace(override, '            return "" // NRG_V44 unresolved override\n', 1)
+    # Patch the specific method rather than assuming how many other call sites exist.
+    method = '    public func askForNetwork() async {'
+    if s.count(method) != 1:
+        raise RuntimeError("Expected one askForNetwork method")
+    before, after = s.split(method, 1)
     trigger = '        let SJSURL = await resolveServerURL()\n'
-    if s.count(trigger) != 2:
-        raise RuntimeError("Expected two SideJIT URL call sites")
-    s = s.replace(trigger, trigger +
+    if trigger not in after:
+        raise RuntimeError("askForNetwork resolution anchor missing")
+    after = after.replace(trigger, trigger +
         '        guard !SJSURL.isEmpty else {\n' +
         '            debugLog("[SideJITManager] NRG_V44: no server; skip trigger")\n' +
         '            return\n' +
         '        }\n', 1)
+    s = before + method + after
     return s
 def main():
     root=Path(sys.argv[1]);f=root/REL;s=f.read_text();t=patch(s)
