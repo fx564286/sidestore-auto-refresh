@@ -1,4 +1,4 @@
-"""V46 regression: window ownership, guest-scoped focus and no global resign."""
+"""V46: pinned owning-window path; no cross-guest/host-wide keyboard dismissal."""
 import importlib.util
 import os
 from pathlib import Path
@@ -9,19 +9,14 @@ v46=importlib.util.module_from_spec(spec)
 spec.loader.exec_module(v46)
 
 class KeyboardWindowScope(unittest.TestCase):
- def test_window_ownership_and_no_global_resign(self):
-  # Focus-source snippet from pinned LiveContainer after V27/V28 processing.
+ def test_existing_guest_window_owner_kept_and_focus_scoped(self):
+  # The real generated source is guest_return -> V27 -> V28 -> V46.
   source="""// NRG_V27_GUEST_SWITCH_LIFECYCLE
 // NRG_V28_GUEST_LIFECYCLE
 // NRG_V27_GEOMETRY_FADE_ONLY
-        guard let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene else {
+        guard let window = targetView.window else {
             return false
         }
-
-        for window in windowScene.windows {
-    private func findMultitaskView(in view: UIView, withUUID uuid: String) -> UIView? {
-        apps.first { $0.appUUID == uuid }?.view
-    }
         var previousGuests = 0
         for app in apps {
             guard let old = app.view, old !== targetView, old.window === window else { continue }
@@ -42,10 +37,8 @@ class KeyboardWindowScope(unittest.TestCase):
         NSLog("[NRG_V27_GUEST_FOCUS] previous_guests=%ld resign_requested=1", previousGuests)
 """
   result=v46.patch(source)
-  self.assertIn("let owningWindow = guest.window",result)
-  self.assertIn("guest.window === candidateWindow",result)
+  self.assertIn("guard let window = targetView.window else",result)
   self.assertIn("oldWindow.windowScene === targetScene",result)
-  self.assertNotIn("connectedScenes.first",result)
   self.assertNotIn("window.endEditing(true)",result)
   self.assertNotIn("UIApplication.shared.sendAction",result)
   self.assertIn("PiPManager.shared?.isPiP(withDecoratedVC: vc)",result)
@@ -64,16 +57,18 @@ class KeyboardWindowScope(unittest.TestCase):
   self.assertIn("[self.appSceneVC.view endEditing:YES];",result)
   self.assertEqual(v46.patch_minimize(result),result)
 
- def test_upstream_changes_fail_before_mutation(self):
-  with self.assertRaisesRegex(RuntimeError,"requires existing V27/V28"):
+ def test_unpinned_source_refused(self):
+  with self.assertRaisesRegex(RuntimeError,"requires existing pinned"):
    v46.patch("// unrelated upstream source")
+  with self.assertRaisesRegex(RuntimeError,"requires V28"):
+   v46.patch_minimize("// unrelated source")
 
- def test_real_generated_sources_if_available(self):
+ def test_real_generated_source_if_available(self):
   root=os.environ.get("V46_PATCHED_LIVECONTAINER")
   if not root:self.skipTest("Set V46_PATCHED_LIVECONTAINER during post-patch CI")
   source=(Path(root)/v46.DOCK).read_text()
   self.assertEqual(v46.patch(source),source)
-  self.assertIn("NRG_V28_GUEST_LIFECYCLE",source)
+  self.assertIn("guard let window = targetView.window else",source)
   decorated=(Path(root)/v46.DEC).read_text()
   self.assertEqual(v46.patch_minimize(decorated),decorated)
   self.assertNotIn("[self.view.window endEditing:YES];",decorated)
