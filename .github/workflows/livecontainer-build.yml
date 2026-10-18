@@ -3,7 +3,7 @@ name: LiveContainer embedded SideStore build
 on:
   workflow_dispatch:
   push:
-    branches: [fix/combined-refresh-build-and-runtime, fix/v3.0.3-auth-errors, build/nrg-v3-ipa-priority-20261015, fix/nrg-cert-import-20261016, fix/nrg-jitless-cert-recovery-20261016, fix/nrg-jitless-auto-import-v17-20261017, fix/nrg-jitless-selfheal-v18, fix/nrg-cert-usb-bootstrap-v19, fix/nrg-cert-usb-bootstrap-v20, fix/nrg-refresh-correlation-v21, fix/nrg-v22-refresh-team-repair, fix/nrg-v23-direct-lockdown-refresh, fix/nrg-v24-refresh-install-recovery, fix/nrg-v25-rppairing-first-ios27, fix/nrg-v26-install-cancellation-trace, fix/nrg-v27-install-ui-lifecycle, fix/nrg-v28-refresh-regression, fix/nrg-v29-gsa-identity, fix/nrg-v30-auth-code3-rootcause, fix/nrg-v31-adi-45061-reprovision, fix/nrg-v32-jitless-cert-observation, fix/nrg-v33-iram-memory-integration, fix/nrg-v34-memory-display-profiles, fix/nrg-v45-settings-first-20261018, fix/nrg-v46-keyboard-window-scope-20261018]
+    branches: [fix/combined-refresh-build-and-runtime, fix/v3.0.3-auth-errors, build/nrg-v3-ipa-priority-20261015, fix/nrg-cert-import-20261016, fix/nrg-jitless-cert-recovery-20261016, fix/nrg-jitless-auto-import-v17-20261017, fix/nrg-jitless-selfheal-v18, fix/nrg-cert-usb-bootstrap-v19, fix/nrg-cert-usb-bootstrap-v20, fix/nrg-refresh-correlation-v21, fix/nrg-v22-refresh-team-repair, fix/nrg-v23-direct-lockdown-refresh, fix/nrg-v24-refresh-install-recovery, fix/nrg-v25-rppairing-first-ios27, fix/nrg-v26-install-cancellation-trace, fix/nrg-v27-install-ui-lifecycle, fix/nrg-v28-refresh-regression, fix/nrg-v29-gsa-identity, fix/nrg-v30-auth-code3-rootcause, fix/nrg-v31-adi-45061-reprovision, fix/nrg-v32-jitless-cert-observation, fix/nrg-v33-iram-memory-integration, fix/nrg-v34-memory-display-profiles, fix/nrg-v45-settings-first-20261018, fix/nrg-v46-keyboard-window-scope-20261018, fix/nrg-v47-four-issue-recovery-20261018]
 
 permissions:
   contents: read
@@ -101,7 +101,7 @@ jobs:
           set -euo pipefail
           # Priority IPA build: targeted source and authentication suites.
           # Full matrix is running separately on the standard V3 branch.
-          for pattern in test_repository.py test_v3_service.py test_nrg_gsa_client_v3.py test_v3_certificate_import.py test_v3_jitless_cert_recovery.py test_v3_certificate_import_runtime.py test_v3_jitless_import_ownership.py test_refresh_result_bridge.py test_v24_install_download.py test_v26_install_cancel_trace.py test_v27_install_lifecycle.py test_v28_refresh_regression.py test_v28_guest_lifecycle.py test_v28_pip_audio.py test_v29_auth_trace.py test_v29_coredevice_heartbeat_fallback.py test_issue24_udid_error_propagation.py test_v30_auth_code3.py test_v31_adi_reprovision.py test_v32_jitless_diagnosis.py test_v33_iram_memory_integration.py test_v45_builtin_settings.py test_v46_keyboard_window_scope.py test_v46_jit_recovery.py test_v46_jit_host_bundle.py test_combined_packaging.py test_v46_widgetless_installer.py; do
+          for pattern in test_repository.py test_v3_service.py test_nrg_gsa_client_v3.py test_v3_certificate_import.py test_v3_jitless_cert_recovery.py test_v3_certificate_import_runtime.py test_v3_jitless_import_ownership.py test_refresh_result_bridge.py test_v24_install_download.py test_v26_install_cancel_trace.py test_v27_install_lifecycle.py test_v28_refresh_regression.py test_v28_guest_lifecycle.py test_v28_pip_audio.py test_v29_auth_trace.py test_v29_coredevice_heartbeat_fallback.py test_issue24_udid_error_propagation.py test_v30_auth_code3.py test_v31_adi_reprovision.py test_v32_jitless_diagnosis.py test_v33_iram_memory_integration.py test_v45_builtin_settings.py test_v46_keyboard_window_scope.py test_v46_jit_recovery.py test_v46_jit_host_bundle.py test_combined_packaging.py test_v46_widgetless_installer.py test_v47_resume.py test_v47_portal_budget.py test_v47_memory_audit.py test_v47_jit_transport.py; do
             python3 -m unittest discover -s builder/tests -p "$pattern" -v
           done 2>&1 | tee artifacts/logs/repository-tests.log
 
@@ -132,6 +132,11 @@ jobs:
             python3 builder/scripts/patch_v46_keyboard_window_scope.py work/LiveContainer
             swiftc -frontend -parse work/LiveContainer/MultitaskSupport/MultitaskDockView.swift
             V46_PATCHED_LIVECONTAINER=work/LiveContainer python3 -m unittest discover -s builder/tests -p test_v46_keyboard_window_scope.py -v
+            # V47: restore visible retained guest scenes after iOS host activation.
+            python3 builder/scripts/patch_v47_resume.py work/LiveContainer
+            python3 builder/scripts/patch_v47_resume.py work/LiveContainer
+            swiftc -frontend -parse work/LiveContainer/MultitaskSupport/MultitaskDockView.swift
+            swiftc -frontend -parse work/LiveContainer/LiveContainerSwiftUI/App/AppDelegate.swift
             # V28: querying PiP does not activate the host playback audio session.
             python3 builder/scripts/patch_v28_pip_audio.py work/LiveContainer
             python3 builder/scripts/patch_v28_pip_audio.py work/LiveContainer
@@ -202,6 +207,9 @@ jobs:
             # V27: exact parent/extension IDs plus free Apple team quota preflight.
             python3 builder/scripts/patch_v27_provisioning.py work/EmbeddedSideStore
             python3 builder/scripts/patch_v27_provisioning.py work/EmbeddedSideStore
+            # V47: cached free-team App ID counts are not Apple server capacity.
+            python3 builder/scripts/patch_v47_portal_budget.py work/EmbeddedSideStore
+            python3 builder/scripts/patch_v47_portal_budget.py work/EmbeddedSideStore
             # V28: restore existing-app refresh behavior from V26; V27 new installs retain capacity guards.
             python3 builder/scripts/patch_v28_refresh_regression.py work/EmbeddedSideStore
             python3 builder/scripts/patch_v28_refresh_regression.py work/EmbeddedSideStore
@@ -216,6 +224,9 @@ jobs:
             # V46 JIT: missing external helper -> paired debugger fallback; verify HTTP response.
             python3 builder/scripts/patch_v46_jit_recovery.py work/EmbeddedSideStore
             python3 builder/scripts/patch_v46_jit_recovery.py work/EmbeddedSideStore
+            # V47: transient 502/503/504 proxy errors -> already-paired debugger.
+            python3 builder/scripts/patch_v47_jit_transport.py work/EmbeddedSideStore
+            python3 builder/scripts/patch_v47_jit_transport.py work/EmbeddedSideStore
             swiftc -frontend -parse work/EmbeddedSideStore/SideStore/Core/JIT/SideJITManager.swift
             swiftc -frontend -parse work/EmbeddedSideStore/SideStore/Core/Operations/StandaloneOperations/EnableJITOperation.swift
             swiftc -frontend -parse work/EmbeddedSideStore/SideStore/AppBootManager.swift
