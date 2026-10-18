@@ -101,7 +101,7 @@ jobs:
           set -euo pipefail
           # Priority IPA build: targeted source and authentication suites.
           # Full matrix is running separately on the standard V3 branch.
-          for pattern in test_repository.py test_v3_service.py test_nrg_gsa_client_v3.py test_v3_certificate_import.py test_v3_jitless_cert_recovery.py test_v3_certificate_import_runtime.py test_v3_jitless_import_ownership.py test_refresh_result_bridge.py test_v24_install_download.py test_v26_install_cancel_trace.py test_v27_install_lifecycle.py test_v28_refresh_regression.py test_v28_guest_lifecycle.py test_v28_pip_audio.py test_v29_auth_trace.py test_v29_coredevice_heartbeat_fallback.py test_issue24_udid_error_propagation.py test_v30_auth_code3.py test_v31_adi_reprovision.py test_v32_jitless_diagnosis.py test_v33_iram_memory_integration.py test_v45_builtin_settings.py test_v46_keyboard_window_scope.py test_v46_jit_recovery.py; do
+          for pattern in test_repository.py test_v3_service.py test_nrg_gsa_client_v3.py test_v3_certificate_import.py test_v3_jitless_cert_recovery.py test_v3_certificate_import_runtime.py test_v3_jitless_import_ownership.py test_refresh_result_bridge.py test_v24_install_download.py test_v26_install_cancel_trace.py test_v27_install_lifecycle.py test_v28_refresh_regression.py test_v28_guest_lifecycle.py test_v28_pip_audio.py test_v29_auth_trace.py test_v29_coredevice_heartbeat_fallback.py test_issue24_udid_error_propagation.py test_v30_auth_code3.py test_v31_adi_reprovision.py test_v32_jitless_diagnosis.py test_v33_iram_memory_integration.py test_v45_builtin_settings.py test_v46_keyboard_window_scope.py test_v46_jit_recovery.py test_v46_jit_host_bundle.py; do
             python3 -m unittest discover -s builder/tests -p "$pattern" -v
           done 2>&1 | tee artifacts/logs/repository-tests.log
 
@@ -169,6 +169,10 @@ jobs:
             python3 builder/scripts/patch_v39_dock_app_switch_only.py work/LiveContainer
             python3 builder/scripts/patch_v41_remove_floating_return.py work/LiveContainer
             python3 builder/scripts/patch_v41_remove_floating_return.py work/LiveContainer
+            # V46 Madeira JIT: return to launchable host app, not LiveProcess.appex.
+            python3 builder/scripts/patch_v46_jit_host_bundle.py work/LiveContainer
+            python3 builder/scripts/patch_v46_jit_host_bundle.py work/LiveContainer
+            grep -Fq 'NRG_V46_JIT_HOST_BUNDLE_RETURN' work/LiveContainer/LiveContainer/LCBootstrap.m
             swiftc -frontend -parse work/LiveContainer/MultitaskSupport/MultitaskAppWindow.swift
             swiftc -frontend -parse work/LiveContainer/MultitaskSupport/MultitaskDockView.swift
             swiftc -frontend -parse work/LiveContainer/LiveContainerSwiftUI/Models/AppLayoutStyle.swift
