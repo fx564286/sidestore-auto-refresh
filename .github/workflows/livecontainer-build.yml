@@ -199,6 +199,8 @@ jobs:
             # V33: automatic memory capability request for guest app IDs.
             python3 builder/scripts/patch_v33_sidestore_memory.py work/EmbeddedSideStore
             python3 builder/scripts/patch_v33_sidestore_memory.py work/EmbeddedSideStore
+            python3 builder/scripts/patch_v43_sidejit_dns_guard.py work/EmbeddedSideStore
+            python3 builder/scripts/patch_v43_sidejit_dns_guard.py work/EmbeddedSideStore
             # V31: ADIOTPRequest -45061: re-provision with old Keychain blob preserved.
             python3 builder/scripts/patch_v31_adi_45061.py work/EmbeddedSideStore
             python3 builder/scripts/patch_v31_adi_45061.py work/EmbeddedSideStore
