@@ -43,7 +43,9 @@ DELEGATE_ADDITION = DELEGATE_ANCHOR + """
     // bringing a virtual guest to front via the dock. Reconcile on activation.
     func sceneDidBecomeActive(_ scene: UIScene) {
         guard let windowScene = scene as? UIWindowScene else { return }
-        MultitaskDockManager.shared.nrgV47RestoreVisibleGuestScenes(for: windowScene)
+        if #available(iOS 16.0, *) {
+            MultitaskDockManager.shared.nrgV47RestoreVisibleGuestScenes(for: windowScene)
+        }
     }
 """
 

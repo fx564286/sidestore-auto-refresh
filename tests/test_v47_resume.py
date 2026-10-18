@@ -29,6 +29,7 @@ class ResumeTests(unittest.TestCase):
         fixed = mod.patch_delegate(original)
         self.assertIn("func sceneDidBecomeActive(_ scene: UIScene)", fixed)
         self.assertIn("nrgV47RestoreVisibleGuestScenes", fixed)
+        self.assertIn("if #available(iOS 16.0, *)", fixed)
         self.assertNotIn("sceneWillEnterForeground", fixed)
         self.assertEqual(mod.patch_delegate(fixed), fixed)
 
