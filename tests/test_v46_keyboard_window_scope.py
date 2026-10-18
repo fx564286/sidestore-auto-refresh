@@ -51,6 +51,19 @@ class KeyboardWindowScope(unittest.TestCase):
   self.assertIn("PiPManager.shared?.isPiP(withDecoratedVC: vc)",result)
   self.assertEqual(v46.patch(result),result)
 
+ def test_async_minimize_only_resigns_old_guest(self):
+  source="""// NRG_V28_GUEST_LIFECYCLE
+    [self.view endEditing:YES];
+    [self.appSceneVC.view endEditing:YES];
+    [self.appSceneVC.contentView endEditing:YES];
+    [self.view.window endEditing:YES];
+"""
+  result=v46.patch_minimize(source)
+  self.assertNotIn("[self.view.window endEditing:YES];",result)
+  self.assertIn("[self.view endEditing:YES];",result)
+  self.assertIn("[self.appSceneVC.view endEditing:YES];",result)
+  self.assertEqual(v46.patch_minimize(result),result)
+
  def test_upstream_changes_fail_before_mutation(self):
   with self.assertRaisesRegex(RuntimeError,"requires existing V27/V28"):
    v46.patch("// unrelated upstream source")
@@ -61,6 +74,9 @@ class KeyboardWindowScope(unittest.TestCase):
   source=(Path(root)/v46.DOCK).read_text()
   self.assertEqual(v46.patch(source),source)
   self.assertIn("NRG_V28_GUEST_LIFECYCLE",source)
+  decorated=(Path(root)/v46.DEC).read_text()
+  self.assertEqual(v46.patch_minimize(decorated),decorated)
+  self.assertNotIn("[self.view.window endEditing:YES];",decorated)
 
 if __name__=="__main__":
  unittest.main()
