@@ -185,7 +185,8 @@ def verify(path, side_product=None):
         assert b'v3SideStoreStatusSnapshot' not in executable, 'Retired status publisher remains'
         assert b'lcReturnToHost' in host_code, 'Guest return action missing from host binary'
         assert b'LCReturnControlPosition' in host_code, 'Movable return control missing'
-        assert b'virtual_window_chrome' in host_code, 'Multitasking Return input-layer fix missing'
+        # V41 intentionally removes the floating Return overlay; its old layer marker is no longer required.
+        assert b'NRG_V41_FLOATING_RETURN_REMOVED' in host_code or b'virtual_window_chrome' in host_code, 'V41 return removal or legacy input-layer marker missing'
         bootstrap_code = archive.read(base + '/Frameworks/LiveContainerShared.framework/LiveContainerShared')
         support_code = archive.read(base + '/Frameworks/SideStoreSupport.framework/SideStoreSupport')
         verify_host_intent_runtime_symbols(support_code)
