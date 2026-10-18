@@ -207,12 +207,12 @@ jobs:
             # V27: exact parent/extension IDs plus free Apple team quota preflight.
             python3 builder/scripts/patch_v27_provisioning.py work/EmbeddedSideStore
             python3 builder/scripts/patch_v27_provisioning.py work/EmbeddedSideStore
-            # V47: cached free-team App ID counts are not Apple server capacity.
-            python3 builder/scripts/patch_v47_portal_budget.py work/EmbeddedSideStore
-            python3 builder/scripts/patch_v47_portal_budget.py work/EmbeddedSideStore
             # V28: restore existing-app refresh behavior from V26; V27 new installs retain capacity guards.
             python3 builder/scripts/patch_v28_refresh_regression.py work/EmbeddedSideStore
             python3 builder/scripts/patch_v28_refresh_regression.py work/EmbeddedSideStore
+            # V47: cached free-team App ID counts are not Apple server capacity.
+            python3 builder/scripts/patch_v47_portal_budget.py work/EmbeddedSideStore
+            python3 builder/scripts/patch_v47_portal_budget.py work/EmbeddedSideStore
             # V33: automatic memory capability request for guest app IDs.
             python3 builder/scripts/patch_v33_sidestore_memory.py work/EmbeddedSideStore
             python3 builder/scripts/patch_v33_sidestore_memory.py work/EmbeddedSideStore
