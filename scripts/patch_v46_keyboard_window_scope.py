@@ -9,6 +9,8 @@ import sys
 
 MARK="NRG_V46_KEYBOARD_WINDOW_SCOPE"
 DOCK="MultitaskSupport/MultitaskDockView.swift"
+DEC="MultitaskSupport/DecoratedAppSceneViewController.m"
+MINIMIZE_MARK="NRG_V46_MINIMIZE_KEYBOARD_SCOPE"
 
 def replace_once(text,old,new,label):
     count=text.count(old)
@@ -97,13 +99,33 @@ def patch(source):
     assert source.count(MARK)==3, "V46 patch marker count mismatch"
     return source
 
+def patch_minimize(source):
+    if MINIMIZE_MARK in source:
+        assert source.count(MINIMIZE_MARK)==1, "V46 minimize marker count wrong"
+        assert "[self.view.window endEditing:YES];" not in source
+        return source
+    if "NRG_V28_GUEST_LIFECYCLE" not in source:
+        raise RuntimeError("V46 requires V28 guest minimization policy")
+    # Asynchronous minimizeAllWindows can run after another guest starts editing
+    # in the same shared host UIWindow. This global endEditing would dismiss the
+    # new guest's keyboard. Existing guest-view scopes suffice.
+    return replace_once(source,
+        "    [self.view.window endEditing:YES];\n",
+        "    // "+MINIMIZE_MARK+": do not resign the shared host UIWindow during old-guest minimization.\n",
+        "avoid host-wide keyboard resignation during minimize")
+
 def main(root):
-    path=Path(root)/DOCK
-    original=path.read_text(encoding="utf-8")
-    updated=patch(original)
-    assert patch(updated)==updated,"non-idempotent V46 patch"
-    if updated!=original:path.write_text(updated,encoding="utf-8")
-    print("[PASS] V46 owns correct UIWindow, resigns only previous guests, preserves V28 PiP/Dock/Refresh")
+    root=Path(root)
+    targets=((root/DOCK,patch),(root/DEC,patch_minimize))
+    changes=[]
+    for path,fn in targets:
+        original=path.read_text(encoding="utf-8")
+        updated=fn(original)
+        assert fn(updated)==updated,"non-idempotent V46 patch"
+        changes.append((path,original,updated))
+    for path,original,updated in changes:
+        if updated!=original:path.write_text(updated,encoding="utf-8")
+    print("[PASS] V46 correct UIWindow + previous-guest-only focus; no shared-window/global resign")
 
 if __name__=="__main__":
     if len(sys.argv)!=2:raise SystemExit("usage: patch_v46_keyboard_window_scope.py <pinned-LiveContainer>")
