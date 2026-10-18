@@ -18,6 +18,19 @@ def patch(s):
     old='        return AppConstants.SideJIT.defaultServerURL\n'
     if s.count(old)!=1: raise RuntimeError("Expected one fallback return")
     s=s.replace(old, '        return "" // '+MARK+': unresolved server; do not trigger network requests.\n',1)
+    # V44: unresolved user overrides and absent servers must fail closed.
+    override = '            return userInput\\n'
+    if s.count(override) != 1:
+        raise RuntimeError("Expected one raw override return")
+    s = s.replace(override, '            return "" // NRG_V44 unresolved override\\n', 1)
+    trigger = '        let SJSURL = await resolveServerURL()\\n'
+    if s.count(trigger) != 2:
+        raise RuntimeError("Expected two SideJIT URL call sites")
+    s = s.replace(trigger, trigger +
+        '        guard !SJSURL.isEmpty else {\\n' +
+        '            debugLog("[SideJITManager] NRG_V44: no server; skip trigger")\\n' +
+        '            return\\n' +
+        '        }\\n', 1)
     return s
 def main():
     root=Path(sys.argv[1]);f=root/REL;s=f.read_text();t=patch(s)
