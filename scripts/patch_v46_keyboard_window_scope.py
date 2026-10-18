@@ -18,8 +18,10 @@ def replace_once(text,old,new,label):
 def patch(source):
     if MARK in source:
         assert source.count(MARK)==3, "V46 patch marker count wrong"
-        assert "window.endEditing(true)" not in source.split("private func prepareKeyboardForGuestSwitch",1)[1].split("private func passURLSchemeToView",1)[0]
-        assert "UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder)" not in source
+        focus = source.split("private func prepareKeyboardForGuestSwitch",1)[-1]
+        focus = focus.split("private func passURLSchemeToView",1)[0]
+        assert "window.endEditing(true)" not in focus
+        assert "UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder)" not in focus
         return source
     for required in ("NRG_V27_GUEST_SWITCH_LIFECYCLE", "NRG_V28_GUEST_LIFECYCLE",
                      "NRG_V27_GEOMETRY_FADE_ONLY"):
