@@ -12,21 +12,13 @@ MARK = "NRG_V45_SETTINGS_FIRST"
 BOOT = Path("SideStore/AppBootManager.swift")
 VIEW = Path("SideStore/Views/Settings/Advanced/JIT/SideJITServerConfigView.swift")
 
-BOOT_OLD = """            if #available(iOS 17, *), !UserDefaults.standard.isSideJITServerEnabled {
-                do {
-                    try await SideJITManager.shared.isSideJITServerDetected()
-                    self.needsSideJITPrompt = true
-                } catch {
-                    debugLog("[AppBootManager] Cannot find sideJITServer")
-                }
-            }
-            
-            if #available(iOS 17, *), UserDefaults.standard.isSideJITServerEnabled {
+BOOT_OLD = """            if #available(iOS 17, *), UserDefaults.standard.isSideJITServerEnabled {
                 await SideJITManager.shared.askForNetwork()
                 debugLog("[AppBootManager] SideJITServer Enabled")
             }"""
-BOOT_NEW = """            // NRG_V45_SETTINGS_FIRST: do not scan for an optional external helper
-            // when the user has disabled it. Local VPN and Refresh are independent.
+BOOT_NEW = """            // NRG_V45_SETTINGS_FIRST: the existing headless integration already
+            // removes optional server auto-discovery when disabled. Respect that
+            // policy and keep configured server operation independent of Refresh.
             if #available(iOS 17, *) {
                 if UserDefaults.standard.isSideJITServerEnabled {
                     await SideJITManager.shared.askForNetwork()
