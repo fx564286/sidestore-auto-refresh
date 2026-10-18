@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
 R=39083771063
-B=com.kdt.livecontainer
+B=com.kdt.livecontainer.P8EZT3U5N4
 U=00008160-000569490C600036
 C="$HOME/.sideinstaller/recovery-v13-P8EZT3U5N4"
 Z="$HOME/.sideinstaller/bin/zsign"
@@ -20,7 +20,7 @@ with zipfile.ZipFile(os.environ['I']) as z:
  if len(a)!=1: sys.exit('[ERROR] IPA app structure')
  bundle=plistlib.loads(z.read(a[0]))['CFBundleIdentifier']
  print('[INFO] unsigned IPA bundle: '+bundle,file=sys.stderr)
- if bundle not in (os.environ['B'],'com.kdt.livecontainer.P8EZT3U5N4'): sys.exit('[ERROR] unexpected bundle ID')
+ if bundle not in (os.environ['B'],'com.kdt.livecontainer'): sys.exit('[ERROR] unexpected bundle ID')
 valid=[]
 for f in glob.glob(os.environ['C']+'/profile-*.mobileprovision'):
  p=subprocess.run(['openssl','cms','-verify','-inform','DER','-noverify','-in',f],capture_output=True)
