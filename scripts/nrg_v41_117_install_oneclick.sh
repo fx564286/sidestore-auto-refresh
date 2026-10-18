@@ -35,7 +35,7 @@ for f in glob.glob(os.environ['C']+'/profile-*.mobileprovision'):
  expiry=d.get('ExpirationDate')
  if expiry and expiry.replace(tzinfo=datetime.timezone.utc)<=datetime.datetime.now(datetime.timezone.utc):continue
  valid.append(f)
-if len(valid)!=1:
+if len(valid)<1:
  print('[DIAGNOSTIC] No compatible signing profile. Existing app will NOT be modified.',file=sys.stderr)
  for f in sorted(glob.glob(os.environ['C']+'/*.mobileprovision')):
   p=subprocess.run(['openssl','cms','-verify','-inform','DER','-noverify','-in',f],capture_output=True)
@@ -50,7 +50,13 @@ PY
 )
 echo "[INFO] matched profile: $P"
 S="$D/NRG-V41-117-SIGNED.ipa"
-"$Z" -f -k "$C/renewed-key.pem" -c "$C/renewed-cert.pem" -m "$P" -b "$B" -o "$S" "$I"
+# LiveContainer contains four extensions: all five distinct profiles are required.
+PROFILE_ARGS=()
+for F in "$C"/profile-{0,1,2,3,4}.mobileprovision; do
+  test -s "$F" || { echo "[ERROR] missing extension profile: $F"; exit 1; }
+  PROFILE_ARGS+=(-m "$F")
+done
+"$Z" -f -k "$C/renewed-key.pem" -c "$C/renewed-cert.pem" "${PROFILE_ARGS[@]}" -b "$B" -o "$S" "$I"
 export S
 python3 - <<'PY'
 import zipfile,plistlib,os,sys
