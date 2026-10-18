@@ -23,7 +23,7 @@ without that evidence can destroy the reuse path.
 
 1. Back up the existing installed NRG and its data; preserve the original host
    Bundle ID and three extension IDs.
-2. Run the existing widgetless four-profile upgrade path. If a required profile
+2. Run `scripts/nrg_v47_widgetless_install_oneclick.sh <successful-V47-run-id>` with four matching existing developer profiles. If a required profile
    is missing or Apple denies its creation, **stop**; do not uninstall NRG.
 3. For JIT, check a real guest's JIT-required workload instead of only LLDB
    attachment or the launcher's return URL.
