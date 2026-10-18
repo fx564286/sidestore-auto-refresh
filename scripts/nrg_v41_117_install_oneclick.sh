@@ -35,7 +35,16 @@ for f in glob.glob(os.environ['C']+'/profile-*.mobileprovision'):
  expiry=d.get('ExpirationDate')
  if expiry and expiry.replace(tzinfo=datetime.timezone.utc)<=datetime.datetime.now(datetime.timezone.utc):continue
  valid.append(f)
-if len(valid)!=1:sys.exit('[ERROR] Expected one matching provisioning profile; found '+str(len(valid)))
+if len(valid)!=1:
+ print('[DIAGNOSTIC] No compatible signing profile. Existing app will NOT be modified.',file=sys.stderr)
+ for f in sorted(glob.glob(os.environ['C']+'/*.mobileprovision')):
+  p=subprocess.run(['openssl','cms','-verify','-inform','DER','-noverify','-in',f],capture_output=True)
+  try:
+   d=plistlib.loads(p.stdout) if p.returncode==0 else {}
+   e=d.get('Entitlements',{})
+   print('[PROFILE]',os.path.basename(f),'app_id=',e.get('application-identifier',e.get('com.apple.application-identifier','?')),'team=',d.get('TeamIdentifier'),'device_match=',os.environ['U'] in d.get('ProvisionedDevices',[]),'expires=',d.get('ExpirationDate'),file=sys.stderr)
+  except Exception as ex: print('[PROFILE]',os.path.basename(f),'decode_failed=',str(ex),file=sys.stderr)
+ sys.exit('[ERROR] No valid profile for '+os.environ['B']+'; signing blocked')
 print(valid[0])
 PY
 )
