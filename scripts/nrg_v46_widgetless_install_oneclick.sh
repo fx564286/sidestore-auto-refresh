@@ -71,6 +71,21 @@ if missing: sys.exit('[ERROR] missing/expired development profiles (will not mod
 with open(os.environ['P'],'w') as f:
     for ident in ids:
         f.write(profiles[ident]+'\n')
+# NRG_V47_MEMORY_PROFILE_AUDIT: only an Apple-signed entitlement grant
+# can raise an iOS guest's memory allowance. Never claim unlimited memory.
+memory_key='com.apple.developer.kernel.increased-memory-limit'
+granted=0
+for ident in ids:
+    proc=subprocess.run(['openssl','cms','-verify','-inform','DER','-noverify','-in',profiles[ident]],capture_output=True)
+    if proc.returncode: sys.exit('[ERROR] previously selected profile is unreadable')
+    data=plistlib.loads(proc.stdout)
+    active=data.get('Entitlements',{}).get(memory_key) is True
+    granted+=int(active)
+    print('[NRG_V47_MEMORY_PROFILE] bundle='+ident+' increased_memory_granted='+str(active).lower())
+if granted==0:
+    print('[WARN] No profile grants Increased Memory Limit; do not claim iOS memory cap was raised')
+else:
+    print('[INFO] Increased Memory Limit granted in '+str(granted)+'/4 profiles; device jetsam limits remain')
 print('[PASS] found 4 compatible development profiles; no LiveWidget profile required')
 PY
 mapfile -t PROFILES < "$P"
