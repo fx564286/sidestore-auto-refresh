@@ -7,7 +7,6 @@ REL = Path("SideStore/Core/JIT/SideJITManager.swift")
 def patch(s):
     if MARK in s:
         return s
-    anchor = '            debugLog("[SideJITManager] resolveAddressIfNeeded: DNS-SD resolution timed out for descriptor \\'\\(host)\\'")'
     # Use stable statement matching without escaping interpolations.
     lines=s.splitlines(keepends=True)
     indices=[i for i,l in enumerate(lines) if 'DNS-SD resolution timed out for descriptor' in l]
