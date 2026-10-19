@@ -87,7 +87,7 @@ def adapt(text):
             '''git clone --quiet --depth 1 --branch 1.0 https://github.com/LiveContainer/dylibify.git ./dylibify-src
 test "$(git -C ./dylibify-src rev-parse HEAD)" = "5daf713df9fb07724510490c88aa8e00061be14a"
 clang -arch "$(uname -m)" -framework Foundation -fobjc-arc ./dylibify-src/main.m -o ./dylibify
-lipo -verify_arch "$(uname -m)" ./dylibify
+lipo ./dylibify -verify_arch "$(uname -m)"
 echo "[NRG_V58_DYLIBIFY] macos_host_arch=$(uname -m) source_tag=1.0"''')
     elif '# copy lc' in text:
         raise ValueError("Pinned upstream dylibify tool bootstrap changed")
