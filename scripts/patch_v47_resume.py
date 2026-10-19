@@ -27,7 +27,15 @@ DOCK_ADDITION = """    // NRG_V53_ORIENTATION_RECONCILE: invalidate visible reta
             controller.view.setNeedsLayout()
             controller.appSceneVC.view.setNeedsLayout()
             view.superview?.setNeedsLayout()
-            NSLog("[NRG_V53_GEOMETRY] scene_reconciled=1 guest_running=1 scale_preserved=1")
+            // V54: run constraint layout after invalidation; do not override
+            // windowed guest frames or intentional transforms.
+            view.superview?.layoutIfNeeded()
+            controller.view.layoutIfNeeded()
+            controller.appSceneVC.view.layoutIfNeeded()
+            let hostBounds = hostScene.coordinateSpace.bounds
+            let guestBounds = controller.appSceneVC.view.bounds
+            NSLog("[NRG_V54_GEOMETRY] host=%.1fx%.1f guest=%.1fx%.1f windowed_frame_preserved=1",
+                  hostBounds.width, hostBounds.height, guestBounds.width, guestBounds.height)
         }
     }
 
