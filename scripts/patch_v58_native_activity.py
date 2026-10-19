@@ -41,7 +41,8 @@ MANAGER = r'''
         if #available(iOS 16.2, *), UIDevice.current.userInterfaceIdiom == .phone {
             // Keep the old dock model for retained guest scene switching,
             // but do not overlay a floating bar on top of the game screen.
-            hostingController?.view.isHidden = true
+            let systemIslandEnabled = ActivityAuthorizationInfo().areActivitiesEnabled
+            hostingController?.view.isHidden = systemIslandEnabled
             let runningCount = apps.count
             let name = String((apps.last?.appName ?? "NRG").prefix(32))
             let state = NRGGuestActivityAttributes.ContentState(
@@ -53,7 +54,7 @@ MANAGER = r'''
                 }
                 return
             }
-            guard ActivityAuthorizationInfo().areActivitiesEnabled else {
+            guard systemIslandEnabled else {
                 NSLog("[NRG_V58_ACTIVITY] available=0 count=%ld", runningCount)
                 return
             }
@@ -187,7 +188,12 @@ def patch_dock(s):
             break
     else:
         raise RuntimeError("V58 removed guest hook not found")
-    # The earlier patch inserts the above line for removeRunningApp only.
+    # Ensure the first guest cannot re-display the floating right dock
+    # after the native activity is requested during apps.append().
+    s=one(s,
+          "                self.showDock()\n            } else if self.isVisible {\n",
+          "                self.showDock()\n                self.nrgV58RefreshNativeIsland()\n            } else if self.isVisible {\n",
+          "post-launch floating dock suppression")
     return s
 
 def main(root,side):
