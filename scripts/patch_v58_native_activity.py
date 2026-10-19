@@ -18,9 +18,16 @@ SHARED_ATTRS = r'''
 // NRG_V58_NATIVE_ISLAND_ACTIVITY: ActivityKit attributes mirrored byte-for-byte
 // in host and widget extension; Codable schema must remain compatible.
 struct NRGGuestActivityAttributes: ActivityAttributes {
+    public struct Guest: Codable, Hashable {
+        var name: String
+        var launchURL: String
+        var running: Bool
+    }
     public struct ContentState: Codable, Hashable {
         var runningCount: Int
+        var installedCount: Int
         var activeName: String
+        var guests: [Guest]
     }
     var purpose: String
 }
@@ -43,12 +50,45 @@ MANAGER = r'''
             // but do not overlay a floating bar on top of the game screen.
             let systemIslandEnabled = ActivityAuthorizationInfo().areActivitiesEnabled
             hostingController?.view.isHidden = systemIslandEnabled
+            // NRG_V60_ISLAND_GUEST_SWITCH: expose installed guests via
+            // the system-managed Dynamic Island, never as a screen overlay.
+            // Hidden applications are deliberately omitted.
+            let installed = DataManager.shared.model.apps
             let runningCount = apps.count
             let name = String((apps.last?.appName ?? "NRG").prefix(32))
+            let catalog: [(model: LCAppModel, running: Bool)] = installed.map { model in
+                let active = apps.contains { dock in
+                    dock.appInfo?.relativeBundlePath == model.appInfo.relativeBundlePath ||
+                    model.uiContainers.contains(where: { $0.folderName == dock.appUUID })
+                }
+                return (model: model, running: active)
+            }
+            // The Island has finite space: prioritize active guests.
+            let guests = catalog.sorted { lhs, rhs in
+                lhs.running && !rhs.running
+            }.prefix(6).compactMap { item -> NRGGuestActivityAttributes.Guest? in
+                guard let bundle = item.model.appInfo.relativeBundlePath,
+                      bundle.hasSuffix(".app"), bundle.utf8.count <= 180 else { return nil }
+                var route = URLComponents()
+                route.scheme = "livecontainer"
+                route.host = "livecontainer-launch"
+                var query = [URLQueryItem(name: "bundle-name", value: bundle),
+                             URLQueryItem(name: "nrg-multitask", value: "1")]
+                if let container = item.model.uiSelectedContainer?.folderName,
+                   !container.isEmpty {
+                    query.append(URLQueryItem(name: "container-folder-name", value: container))
+                }
+                route.queryItems = query
+                guard let launchURL = route.url?.absoluteString else { return nil }
+                return NRGGuestActivityAttributes.Guest(
+                    name: String(item.model.appInfo.displayName().prefix(24)),
+                    launchURL: launchURL, running: item.running)
+            }
             let state = NRGGuestActivityAttributes.ContentState(
-                runningCount: runningCount, activeName: name)
+                runningCount: runningCount, installedCount: installed.count,
+                activeName: name, guests: guests)
             let existing = Activity<NRGGuestActivityAttributes>.activities
-            if runningCount == 0 {
+            if installed.isEmpty {
                 for activity in existing {
                     Task { await activity.end(nil, dismissalPolicy: .immediate) }
                 }
@@ -97,7 +137,7 @@ struct NRGGuestIslandWidget: Widget {
                     Text(context.state.activeName).font(.caption).lineLimit(1)
                 }
                 Spacer(minLength: 2)
-                Text(String(context.state.runningCount)).monospacedDigit()
+                Text(String(context.state.installedCount)).monospacedDigit()
             }
             .padding(12)
             .activityBackgroundTint(.black)
@@ -119,11 +159,32 @@ struct NRGGuestIslandWidget: Widget {
                         .font(.subheadline)
                 }
                 DynamicIslandExpandedRegion(.bottom) {
-                    Link(destination: homeURL) {
-                        Label("앱으로 돌아가기 · 전환", systemImage: "arrow.uturn.backward")
-                            .font(.subheadline.weight(.semibold))
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 8)
+                    // NRG_V60_ISLAND_GUEST_SWITCH: open exactly the selected
+                    // guest, retaining LiveContainer's ordinary sign/JIT path.
+                    VStack(spacing: 6) {
+                        LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())],
+                                  spacing: 6) {
+                            ForEach(context.state.guests, id: \.launchURL) { guest in
+                                Link(destination: URL(string: guest.launchURL) ?? homeURL) {
+                                    HStack(spacing: 5) {
+                                        Image(systemName: guest.running ? "circle.fill" : "app.fill")
+                                            .font(.system(size: 9))
+                                        Text(guest.name)
+                                            .font(.caption.weight(.medium))
+                                            .lineLimit(1)
+                                            .minimumScaleFactor(0.8)
+                                    }
+                                    .frame(maxWidth: .infinity, minHeight: 30)
+                                    .background(.white.opacity(0.16), in: Capsule())
+                                }
+                            }
+                        }
+                        Link(destination: URL(string: "livecontainer://nrg-apps")!) {
+                            Label("모든 앱 (\(context.state.installedCount))",
+                                  systemImage: "square.grid.2x2.fill")
+                                .font(.caption.weight(.semibold))
+                                .frame(maxWidth: .infinity, minHeight: 28)
+                        }
                     }
                     .tint(.white)
                 }
@@ -135,7 +196,6 @@ struct NRGGuestIslandWidget: Widget {
             } minimal: {
                 Image(systemName: "square.stack.3d.up.fill")
             }
-            .widgetURL(homeURL)
         }
     }
 }

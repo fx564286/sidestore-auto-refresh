@@ -45,7 +45,7 @@ class V58PinnedTests(unittest.TestCase):
         self.assertIn(island.SHARED_ATTRS,island.WIDGET)
         self.assertIn("ActivityConfiguration(for: NRGGuestActivityAttributes.self)",island.WIDGET)
         self.assertIn("DynamicIslandExpandedRegion(.bottom)",island.WIDGET)
-        self.assertIn('Link(destination: homeURL)',island.WIDGET)
+        self.assertIn('Link(destination: URL(string: guest.launchURL)',island.WIDGET)
         self.assertIn("Activity<NRGGuestActivityAttributes>.request(",island.MANAGER)
         self.assertIn("ActivityAuthorizationInfo().areActivitiesEnabled",island.MANAGER)
         self.assertIn("dismissalPolicy: .immediate",island.MANAGER)

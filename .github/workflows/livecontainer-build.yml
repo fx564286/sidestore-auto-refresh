@@ -207,6 +207,12 @@ jobs:
             # V58: genuine system Dynamic Island; one reused LiveWidget bundle ID.
             python3 builder/scripts/patch_v58_native_activity.py work/LiveContainer work/EmbeddedSideStore
             python3 builder/scripts/patch_v58_native_activity.py work/LiveContainer work/EmbeddedSideStore
+            # V60: actual installed-guest shortcuts in the genuine Dynamic Island.
+            python3 builder/scripts/patch_v60_island_guest_switch.py work/LiveContainer
+            python3 builder/scripts/patch_v60_island_guest_switch.py work/LiveContainer
+            python3 -m unittest discover -s builder/tests -p test_v60_island_guest_switch.py -v
+            swiftc -frontend -parse work/LiveContainer/LiveContainerSwiftUI/Views/V3UnifiedShell.swift
+            swiftc -frontend -parse work/LiveContainer/LiveContainerSwiftUI/Views/AppList/LCAppListView.swift
             swiftc -frontend -parse work/EmbeddedSideStore/AltWidget/AltWidgetBundle.swift
             LIVE_CONTAINER_TEST_SOURCE=work/LiveContainer python3 -m unittest discover -s builder/tests -p test_v58_fullscreen_activity.py -v
             swiftc -frontend -parse work/LiveContainer/MultitaskSupport/MultitaskDockView.swift
