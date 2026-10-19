@@ -10165,25 +10165,52 @@ private struct NRGOTAUpdateView: View {
     private var current: Int {
         (Bundle.main.object(forInfoDictionaryKey: "NRGOTASequence") as? NSNumber)?.intValue ?? 0
     }
+    // NRG_V55_OTA_ROW_HIT_TARGETS: each action is its own List row.
+    // A VStack containing multiple Buttons inside one Section row makes
+    // UIKit/SwiftUI hit testing ambiguous on some iOS builds.
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack {
-                Label("NRG 앱 업데이트", systemImage: "arrow.down.app")
-                Spacer()
-                Text("#\(current)").font(.caption2).foregroundColor(.secondary)
+        Group {
+            VStack(alignment: .leading, spacing: 8) {
+                HStack {
+                    Label("NRG 앱 업데이트", systemImage: "arrow.down.app")
+                    Spacer()
+                    Text("#\\(current)").font(.caption2).foregroundColor(.secondary)
+                }
+                Text(note).font(.caption).foregroundColor(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                if busy { ProgressView() }
             }
-            Text(note).font(.caption).foregroundColor(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
-            if busy { ProgressView() }
-            Button("새 버전 확인") { Task { await check() } }.disabled(busy)
+            .accessibilityElement(children: .contain)
+
+            Button(action: {
+                NSLog("[NRG_V55_OTA] action=check tapped=1")
+                Task { await check() }
+            }) {
+                Label("새 버전 확인", systemImage: "arrow.clockwise")
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.borderless)
+            .disabled(busy)
+            .accessibilityIdentifier("nrgOTACheckAction")
+
             if let build, build.version > current {
-                Button("빌드 #\(build.version) 다운로드 및 설치") {
+                Button(action: {
+                    NSLog("[NRG_V55_OTA] action=download tapped=1 candidate=%d", build.version)
                     Task { await downloadAndStage(build) }
-                }.disabled(busy)
+                }) {
+                    Label("빌드 #\\(build.version) 다운로드 및 설치", systemImage: "square.and.arrow.down")
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.borderless)
+                .disabled(busy)
+                .accessibilityIdentifier("nrgOTADownloadAction")
             }
+
             Text("기존 앱 삭제 금지. 실제 서명과 설치 성공 여부는 SideStore에서 확인해야 해.")
                 .font(.caption2).foregroundColor(.secondary)
-        }.padding(.vertical, 5)
+        }
     }
     @MainActor private func check() async {
         guard !busy else { return }
