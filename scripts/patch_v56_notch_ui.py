@@ -238,7 +238,7 @@ def replace_one(s: str, old: str, new: str, label: str) -> str:
 
 def patch(s: str) -> str:
     if MARK in s:
-        if s.count(MARK) < 3 or "nrgV56IslandHome" not in s or "nrgDockReturnHome" in s:
+        if s.count(MARK) != 2 or "nrgV56IslandHome" not in s or "nrgDockReturnHome" in s:
             raise RuntimeError("partial V56 UI overlay")
         return s
     if "NRG_V55_ROTATION_GEOMETRY" not in s or "NRG_V42_DOCK_GLASS_HOME" not in s:
