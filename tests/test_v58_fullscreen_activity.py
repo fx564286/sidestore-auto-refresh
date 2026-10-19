@@ -54,7 +54,7 @@ class V58PinnedTests(unittest.TestCase):
     def test_dock_patch_order_and_repeat(self):
         source=os.environ.get("LIVE_CONTAINER_TEST_SOURCE")
         if not source:self.skipTest("pinned source unavailable")
-        s=(Path(source)/v55.DOCK).read_text()
+        s=(Path(source)/v58.DOCK).read_text()
         if v47.MARK not in s:
             s=s.replace(v47.DOCK_ANCHOR,v47.DOCK_ADDITION+v47.DOCK_ANCHOR,1)
         s=v55.dock(s)
