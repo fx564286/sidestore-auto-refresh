@@ -14,7 +14,24 @@ DOCK = Path("MultitaskSupport/MultitaskDockView.swift")
 DELEGATE = Path("LiveContainerSwiftUI/App/AppDelegate.swift")
 
 DOCK_ANCHOR = "    private func passURLSchemeToView(_ view: UIView) {"
-DOCK_ADDITION = """    // NRG_V47_HOST_FOREGROUND_RESUME: iOS may suspend host/guest scenes while
+DOCK_ADDITION = """    // NRG_V53_ORIENTATION_RECONCILE: invalidate visible retained guest views.
+    @objc public func nrgV53ReconcileGuestGeometry(for hostScene: UIWindowScene) {
+        precondition(Thread.isMainThread)
+        for app in apps {
+            guard let view = app.view, !view.isHidden,
+                  view.window?.windowScene === hostScene,
+                  let controller = view._viewDelegate() as? DecoratedAppSceneViewController,
+                  controller.appSceneVC.isAppRunning else { continue }
+            view.setNeedsUpdateConstraints()
+            view.setNeedsLayout()
+            controller.view.setNeedsLayout()
+            controller.appSceneVC.view.setNeedsLayout()
+            view.superview?.setNeedsLayout()
+            NSLog("[NRG_V53_GEOMETRY] scene_reconciled=1 guest_running=1 scale_preserved=1")
+        }
+    }
+
+    // NRG_V47_HOST_FOREGROUND_RESUME: iOS may suspend host/guest scenes while
     // another app or an offline lock screen remains active for a long time.
     // Restore only the retained, currently visible guest; do not steal a
     // keyboard responder or mutate any process-wide AVAudioSession.
@@ -38,7 +55,17 @@ DELEGATE_ANCHOR = """    func scene(_ scene: UIScene, willConnectTo session: UIS
         self.window = (scene as? UIWindowScene)?.keyWindow
     }
 """
-DELEGATE_ADDITION = DELEGATE_ANCHOR + """
+DELEGATE_ADDITION = DELEGATE_ANCHOR + """    // NRG_V53_ORIENTATION_RECONCILE: scene geometry changed.
+    func scene(_ scene: UIScene, didUpdate previousCoordinateSpace: UICoordinateSpace,
+               interfaceOrientation previousInterfaceOrientation: UIInterfaceOrientation,
+               traitCollection previousTraitCollection: UITraitCollection) {
+        guard let windowScene = scene as? UIWindowScene else { return }
+        DispatchQueue.main.async {
+            MultitaskDockManager.shared.nrgV53ReconcileGuestGeometry(for: windowScene)
+        }
+    }
+
+
     // NRG_V47_HOST_FOREGROUND_RESUME: scene activation is not the same as
     // bringing a virtual guest to front via the dock. Reconcile on activation.
     func sceneDidBecomeActive(_ scene: UIScene) {
