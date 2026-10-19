@@ -1,0 +1,94 @@
+name: Publish verified V55 OTA artifact
+
+on:
+  push:
+    branches:
+      - fix/nrg-v55-display-watchdog-memory
+    paths:
+      - .github/workflows/nrg-v55-ota-promote.yml
+
+permissions:
+  actions: read
+  contents: write
+
+concurrency:
+  group: nrg-v55-ota-promote
+  cancel-in-progress: false
+
+jobs:
+  promote-verified-v55:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      GH_TOKEN: ${{ github.token }}
+      REPOSITORY: ${{ github.repository }}
+      SOURCE_RUN_ID: "39256691268"
+      SOURCE_HEAD_SHA: "11321777d2b7e73c06e687791cc04cffe1bb1556"
+      SOURCE_RUN_NUMBER: "169"
+      IPA_NAME: "LiveContainer-SideStore-v3.0.3-rc.ipa"
+    steps:
+      - name: Confirm previously verified successful build
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh api "repos/$REPOSITORY/actions/runs/$SOURCE_RUN_ID" > /tmp/nrg-v55-source.json
+          python3 - <<'PY'
+          import json, os
+          d = json.load(open('/tmp/nrg-v55-source.json'))
+          assert d['conclusion'] == 'success', d['conclusion']
+          assert d['head_sha'] == os.environ['SOURCE_HEAD_SHA'], d['head_sha']
+          assert d['run_number'] == int(os.environ['SOURCE_RUN_NUMBER'])
+          assert d['head_branch'] == 'fix/nrg-v55-display-watchdog-memory'
+          print('[PASS] existing V55 build is successful and pinned')
+          PY
+
+      - name: Download exact V55 IPA from successful run
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p dist
+          gh run download "$SOURCE_RUN_ID" -R "$REPOSITORY" \
+            -n LiveContainer-SideStore-v3.0.3-rc-IPA -D dist
+
+      - name: Verify embedded build identity, extensions and SHA-256
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          import hashlib, os, plistlib, zipfile
+          p = Path('dist') / os.environ['IPA_NAME']
+          assert p.is_file() and 5_000_000 < p.stat().st_size < 350_000_000
+          with zipfile.ZipFile(p) as z:
+              files=z.namelist()
+              app='Payload/LiveContainer.app/'
+              info=plistlib.loads(z.read(app+'Info.plist'))
+              assert info['CFBundleIdentifier']=='com.kdt.livecontainer'
+              assert info['NRGOTASequence']==169
+              actual={plistlib.loads(z.read(n))['CFBundleIdentifier'] for n in files
+                      if n.startswith(app+'PlugIns/') and n.endswith('.appex/Info.plist')}
+              expected={'com.kdt.livecontainer.'+name for name in
+                        ('LiveProcess','ShareExtension','LaunchAppExtension')}
+              assert actual==expected, (actual, expected)
+              assert not any('/LiveWidgetExtension.appex/' in n or
+                             '/AltWidgetExtension.appex/' in n for n in files)
+          digest=hashlib.sha256(p.read_bytes()).hexdigest()
+          (p.parent / (p.name+'.sha256')).write_text(digest+'  '+p.name+'\n')
+          print('[PASS] V55 IPA sha256='+digest)
+          PY
+
+      - name: Publish version 169 to existing OTA release endpoint
+        shell: bash
+        run: |
+          set -euo pipefail
+          tag="nrg-ota-v169"
+          if gh release view "$tag" -R "$REPOSITORY" >/dev/null 2>&1; then
+            echo "Release already exists: $tag"
+            exit 0
+          fi
+          gh release create "$tag" -R "$REPOSITORY" \
+            --target "$SOURCE_HEAD_SHA" \
+            --title "NRG V55 OTA 169" \
+            --notes "V55 verified unsigned IPA from workflow $SOURCE_RUN_ID. Fullscreen orientation recovery, memory telemetry, existing JIT and SideStore preserved. Sign with existing team and matching bundle ID; do not uninstall existing NRG. Memory entitlement grant and real device install remain unverified." \
+            "dist/$IPA_NAME" "dist/$IPA_NAME.sha256"
+          echo "[PASS] published nrg-ota-v169"
