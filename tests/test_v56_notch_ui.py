@@ -57,8 +57,6 @@ class V56ControlsTests(unittest.TestCase):
         # Test production patch order: guest-return first rewrites both
         # removed-app bookkeeping and successful foreground resume.
         base=target.read_text()
-        if v47.MARK not in base:
-            base=base.replace(v47.DOCK_ANCHOR,v47.DOCK_ADDITION+v47.DOCK_ANCHOR,1)
         start=base.index("    func bringMultitaskViewToFront(uuid:")
         end=base.index("    private func passURLSchemeToView(",start)
         production=base[:start]+returns.DOCK_RESUME+base[end:]
@@ -76,6 +74,8 @@ class V56ControlsTests(unittest.TestCase):
 
 """
         production=production[:start]+rewritten+production[end:]
+        if v47.MARK not in production:
+            production=production.replace(v47.DOCK_ANCHOR,v47.DOCK_ADDITION+v47.DOCK_ANCHOR,1)
         production=v55.dock(production)
         production=v39.patch(production)
         updated=v56.patch(production)
