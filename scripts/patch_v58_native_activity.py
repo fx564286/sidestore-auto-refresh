@@ -178,10 +178,15 @@ def patch_dock(s):
 
     @objc public func nrgV56ReturnHome()''',
           "guest show controls")
-    s=one(s,
-          "        self.apps.removeAll { $0.appUUID == appUUID }\n        self.nrgV56RelayoutIsland()\n",
-          "        self.apps.removeAll { $0.appUUID == appUUID }\n        self.nrgV56RelayoutIsland()\n        self.nrgV58RefreshNativeIsland()\n",
-          "removed guest state")
+    # V3 guest-return rewrites removeRunningApp; upstream fallback is async.
+    for indent in ("        ", "            "):
+        needle = (indent+"self.apps.removeAll { $0.appUUID == appUUID }\n"
+                  +indent+"self.nrgV56RelayoutIsland()\n")
+        if needle in s:
+            s=one(s, needle, needle+indent+"self.nrgV58RefreshNativeIsland()\n", "removed guest state")
+            break
+    else:
+        raise RuntimeError("V58 removed guest hook not found")
     # The earlier patch inserts the above line for removeRunningApp only.
     return s
 
