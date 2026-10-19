@@ -313,6 +313,9 @@ jobs:
           retention-days: 90
 
       - name: Build unified host before transport compilation
+        # Previously 3-6 minutes on both successful and failed macOS 26 Intel builds.
+        # Prevent a stalled SwiftPM/xcodebuild from consuming the 60-minute job budget.
+        timeout-minutes: 15
         shell: bash
         run: |
           set -euo pipefail
