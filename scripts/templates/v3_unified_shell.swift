@@ -10248,9 +10248,9 @@ private struct NRGOTAUpdateView: View {
                 throw NSError(domain:"NRGOTA",code:5)
             }
             note = "IPA 다운로드 중…"
-            let (ipa, response) = try await URLSession.shared.download(for: URLRequest(url: candidate.ipa))
+            let (ipa, ipaResponse) = try await URLSession.shared.download(for: URLRequest(url: candidate.ipa))
             downloadFile = ipa
-            guard let response = response as? HTTPURLResponse, response.statusCode == 200 else {
+            guard let response = ipaResponse as? HTTPURLResponse, response.statusCode == 200 else {
                 throw NSError(domain:"NRGOTA",code:6)
             }
             let size = (try FileManager.default.attributesOfItem(atPath: ipa.path)[.size] as? NSNumber)?.int64Value ?? 0
