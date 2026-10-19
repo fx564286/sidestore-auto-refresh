@@ -23,7 +23,9 @@ env:
 
 jobs:
   source-and-host-build:
-    runs-on: macos-26
+    # V58: native arm64 queue starved; standard Intel macOS 26 image also has Xcode 26.4.1.
+    # This is a cross-build for iphoneos arm64, not a change of IPA architecture.
+    runs-on: macos-26-intel
     timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
