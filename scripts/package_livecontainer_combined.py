@@ -78,6 +78,16 @@ def replace_once(text, old, new):
 
 
 def adapt(text):
+    # NRG_V58_DYLIBIFY_HOST_ARCH: the v1.0 release binary is arm64-only.
+    # Build its exact tagged source for the CI Mac host (Intel or Apple Silicon).
+    # This tool modifies the iOS Mach-O payload but itself runs on macOS.
+    text = replace_once(text,
+        'wget https://github.com/LiveContainer/dylibify/releases/download/1.0/dylibify\\nchmod +x dylibify',
+        '''git clone --quiet --depth 1 --branch 1.0 https://github.com/LiveContainer/dylibify.git ./dylibify-src
+test "$(git -C ./dylibify-src rev-parse HEAD)" = "5daf713df9fb07724510490c88aa8e00061be14a"
+clang -arch "$(uname -m)" -framework Foundation -fobjc-arc ./dylibify-src/main.m -o ./dylibify
+lipo -verify_arch "$(uname -m)" ./dylibify
+echo "[NRG_V58_DYLIBIFY] macos_host_arch=$(uname -m) source_tag=1.0"''')
     text = replace_once(text, 'brew install ldid', 'command -v ldid >/dev/null')
     text = replace_once(text, 'wget https://github.com/LiveContainer/SideStore/releases/download/nightly/SideStore.ipa',
                         'cp "$PATCHED_SIDESTORE_IPA" SideStore.ipa')
