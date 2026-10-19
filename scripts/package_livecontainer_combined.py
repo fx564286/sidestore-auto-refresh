@@ -85,20 +85,27 @@ def adapt(text):
     # Drop it from the embedded framework rather than renaming it and creating
     # another free-team App ID. Keep SideStore's host App Intent wrappers.
     widget_copy = '# AltWidgetExtension\nmv ./Payload/LiveContainer.app/Frameworks/SideStoreApp.framework/PlugIns/AltWidgetExtension.appex ./Payload/LiveContainer.app/PlugIns/LiveWidgetExtension.appex\n/usr/libexec/PlistBuddy -c "Set :CFBundleIdentifier com.kdt.livecontainer.LiveWidget"  ./Payload/LiveContainer.app/PlugIns/LiveWidgetExtension.appex/Info.plist\n/usr/libexec/PlistBuddy -c "Set :CFBundleExecutable LiveWidgetExtension"  ./Payload/LiveContainer.app/PlugIns/LiveWidgetExtension.appex/Info.plist\nmv ./Payload/LiveContainer.app/PlugIns/LiveWidgetExtension.appex/AltWidgetExtension ./Payload/LiveContainer.app/PlugIns/LiveWidgetExtension.appex/LiveWidgetExtension\n'
-    if widget_copy in text:
-        text = replace_once(text, widget_copy,
-            '# NRG_WIDGETLESS_V46: do not install LiveWidget.\n'
-            'rm -rf ./Payload/LiveContainer.app/Frameworks/SideStoreApp.framework/PlugIns/AltWidgetExtension.appex\n')
-        text = replace_once(text,
-            'ldid -S.github/sidelc/LiveWidgetExtension_adhoc.xml ./Payload/LiveContainer.app/PlugIns/LiveWidgetExtension.appex/LiveWidgetExtension',
-            'test ! -e ./Payload/LiveContainer.app/PlugIns/LiveWidgetExtension.appex')
-    elif 'AltWidgetExtension' in text or 'LiveWidgetExtension' in text:
-        raise ValueError('Pinned widget packaging changed; refusing to include an unreviewed extension')
-    # Test after both paths and before preparing entitlements / archiving.
-    text = replace_once(text, '# package\n',
-        'test ! -e ./Payload/LiveContainer.app/PlugIns/LiveWidgetExtension.appex\n'
-        'test ! -e ./Payload/LiveContainer.app/Frameworks/SideStoreApp.framework/PlugIns/AltWidgetExtension.appex\n'
-        '# package\n')
+    if os.environ.get("NRG_V58_NATIVE_ISLAND") == "1":
+        # V58: reuse the same upstream WidgetKit target for the native Island.
+        # The extra LiveWidget App ID is explicitly opt-in at packaging time.
+        if text.count(widget_copy) != 1:
+            raise ValueError("Pinned WidgetKit copy anchor changed")
+        if text.count('ldid -S.github/sidelc/LiveWidgetExtension_adhoc.xml') != 1:
+            raise ValueError("Pinned WidgetKit signer anchor changed")
+        text = replace_once(text, '# package\n',
+            'test -f ./Payload/LiveContainer.app/PlugIns/LiveWidgetExtension.appex/LiveWidgetExtension\n'
+            'test ! -e ./Payload/LiveContainer.app/Frameworks/SideStoreApp.framework/PlugIns/AltWidgetExtension.appex\n'
+            '# package\n')
+    else:
+        if widget_copy in text:
+            text = replace_once(text, widget_copy,
+                '# NRG_WIDGETLESS_V46: do not install LiveWidget.\n'
+                'rm -rf ./Payload/LiveContainer.app/Frameworks/SideStoreApp.framework/PlugIns/AltWidgetExtension.appex\n')
+            text = replace_once(text,
+                'ldid -S.github/sidelc/LiveWidgetExtension_adhoc.xml ./Payload/LiveContainer.app/PlugIns/LiveWidgetExtension.appex/LiveWidgetExtension',
+                'test ! -e ./Payload/LiveContainer.app/PlugIns/LiveWidgetExtension.appex')
+        elif 'AltWidgetExtension' in text or 'LiveWidgetExtension' in text:
+            raise ValueError('Pinned widget packaging changed; refusing to include an unreviewed extension')
     text = replace_once(text, 'rm -r .zsign_cache', '# No zsign cache exists in the fresh packaging workspace.')
     text = replace_once(text, 'find payloadlc/Payload -type d -name "_CodeSignature" -exec rm -r {} +',
                         'find Payload -type d -name "_CodeSignature" -prune -exec rm -r {} +')
@@ -187,9 +194,22 @@ def verify(path, side_product=None):
     assert bundles[embedded]['executable_present']
     # Hard-fail if upstream starts shipping the widget again under another path.
     with zipfile.ZipFile(path) as package:
-        forbidden_widget = [name for name in package.namelist()
-                            if '/LiveWidgetExtension.appex/' in name
-                            or '/AltWidgetExtension.appex/' in name]
+        names = package.namelist()
+        native_island = os.environ.get("NRG_V58_NATIVE_ISLAND") == "1"
+        forbidden_widget = [name for name in names if
+                            '/AltWidgetExtension.appex/' in name or
+                            (not native_island and '/LiveWidgetExtension.appex/' in name)]
+        if native_island:
+            widget = base + '/PlugIns/LiveWidgetExtension.appex'
+            if widget not in bundles or not bundles[widget]['executable_present']:
+                raise ValueError("V58 native Dynamic Island widget is not packaged")
+            wi = bundles[widget]['info']
+            if wi.get('CFBundleIdentifier') != 'com.kdt.livecontainer.LiveWidget':
+                raise ValueError("V58 widget bundle ID mismatch")
+            if wi.get('NSExtension', {}).get('NSExtensionPointIdentifier') != 'com.apple.widgetkit-extension':
+                raise ValueError("V58 widget is not a WidgetKit extension")
+            if host.get('NSSupportsLiveActivities') is not True:
+                raise ValueError("V58 host does not enable Live Activities")
     if forbidden_widget:
         raise ValueError('Widget extension leaked into packaged IPA: ' + forbidden_widget[0])
     live_process_path = base + '/PlugIns/LiveProcess.appex'
@@ -267,6 +287,8 @@ def verify(path, side_product=None):
     result['iloader_special_app'] = 'SideStoreLc'
     # One host plus 3 extension App IDs; LiveWidget is not packaged.
     result['registration_targets_before_reuse'] = 4
+    if os.environ.get('NRG_V58_NATIVE_ISLAND') == '1':
+        result['registration_targets_before_reuse'] = 5
     return result
 
 
