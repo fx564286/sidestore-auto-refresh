@@ -109,7 +109,7 @@ with zipfile.ZipFile(os.environ['S']) as z:
     if len(hosts)!=1 or plistlib.loads(z.read(hosts[0]))['CFBundleIdentifier']!=os.environ['B']:
         sys.exit('[ERROR] signed host bundle changed unexpectedly')
     exts=[plistlib.loads(z.read(n))['CFBundleIdentifier'] for n in names if n.startswith(hosts[0].removesuffix('Info.plist')+'PlugIns/') and n.endswith('.appex/Info.plist')]
-    expected={os.environ['B']+'.'+x for x in ('LiveProcess','ShareExtension','LaunchAppExtension')}
+    expected={os.environ['B']+'.'+x for x in ('LiveProcess','ShareExtension','LaunchAppExtension','LiveWidget')}
     if len(exts)!=4 or set(exts)!=expected:
         sys.exit('[ERROR] signed extension bundle IDs mismatch: '+repr(exts))
     if not any('/LiveWidgetExtension.appex/' in n for n in names):
