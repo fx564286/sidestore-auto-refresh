@@ -37,7 +37,7 @@ class V56ControlsTests(unittest.TestCase):
         if v47.MARK not in src:
             self.assertEqual(src.count(v47.DOCK_ANCHOR),1)
             src=src.replace(v47.DOCK_ANCHOR,v47.DOCK_ADDITION+v47.DOCK_ANCHOR,1)
-        src=v55.patch_dock(src)
+        src=v55.dock(src)
         src=v39.patch(src)
         after=v56.patch(src)
         self.assertEqual(v56.patch(after),after)
