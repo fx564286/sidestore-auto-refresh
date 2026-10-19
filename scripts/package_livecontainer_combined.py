@@ -106,6 +106,10 @@ def adapt(text):
                 'test ! -e ./Payload/LiveContainer.app/PlugIns/LiveWidgetExtension.appex')
         elif 'AltWidgetExtension' in text or 'LiveWidgetExtension' in text:
             raise ValueError('Pinned widget packaging changed; refusing to include an unreviewed extension')
+        text = replace_once(text, '# package\\n',
+            'test ! -e ./Payload/LiveContainer.app/PlugIns/LiveWidgetExtension.appex\\n'
+            'test ! -e ./Payload/LiveContainer.app/Frameworks/SideStoreApp.framework/PlugIns/AltWidgetExtension.appex\\n'
+            '# package\\n')
     text = replace_once(text, 'rm -r .zsign_cache', '# No zsign cache exists in the fresh packaging workspace.')
     text = replace_once(text, 'find payloadlc/Payload -type d -name "_CodeSignature" -exec rm -r {} +',
                         'find Payload -type d -name "_CodeSignature" -prune -exec rm -r {} +')
