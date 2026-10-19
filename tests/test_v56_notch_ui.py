@@ -56,9 +56,12 @@ class V56ControlsTests(unittest.TestCase):
         self.assertIn("ForEach(dockManager.apps) { app in",after)
         # Test production patch order: guest-return first rewrites both
         # removed-app bookkeeping and successful foreground resume.
-        start=src.index("    func bringMultitaskViewToFront(uuid:")
-        end=src.index("    private func passURLSchemeToView(",start)
-        production=src[:start]+returns.DOCK_RESUME+src[end:]
+        base=target.read_text()
+        if v47.MARK not in base:
+            base=base.replace(v47.DOCK_ANCHOR,v47.DOCK_ADDITION+v47.DOCK_ANCHOR,1)
+        start=base.index("    func bringMultitaskViewToFront(uuid:")
+        end=base.index("    private func passURLSchemeToView(",start)
+        production=base[:start]+returns.DOCK_RESUME+base[end:]
         start=production.index("    @objc public func removeRunningApp(")
         end=production.index("    @objc public func showDock()",start)
         rewritten="""    @objc public func removeRunningApp(_ appUUID: String) {
@@ -73,6 +76,8 @@ class V56ControlsTests(unittest.TestCase):
 
 """
         production=production[:start]+rewritten+production[end:]
+        production=v55.dock(production)
+        production=v39.patch(production)
         updated=v56.patch(production)
         self.assertEqual(v56.patch(updated),updated)
         self.assertIn("nrgV56ShowGuestControls()\n        print(",updated)
