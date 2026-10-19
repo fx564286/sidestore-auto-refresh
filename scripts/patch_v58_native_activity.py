@@ -156,7 +156,7 @@ def one(s,a,b,label):
 
 def patch_dock(s):
     if MARK in s:
-        if s.count(MARK)<3 or "nrgV58RefreshNativeIsland()" not in s:
+        if s.count(MARK)!=2 or "nrgV58RefreshNativeIsland()" not in s:
             raise RuntimeError("partial V58 activity manager")
         return s
     if "NRG_V56_NOTCH_ADJACENT_CONTROLS" not in s:raise RuntimeError("V58 requires V56")
@@ -179,8 +179,8 @@ def patch_dock(s):
     @objc public func nrgV56ReturnHome()''',
           "guest show controls")
     s=one(s,
-          "        self.nrgV56RelayoutIsland()\n",
-          "        self.nrgV56RelayoutIsland()\n        self.nrgV58RefreshNativeIsland()\n",
+          "        self.apps.removeAll { $0.appUUID == appUUID }\n        self.nrgV56RelayoutIsland()\n",
+          "        self.apps.removeAll { $0.appUUID == appUUID }\n        self.nrgV56RelayoutIsland()\n        self.nrgV58RefreshNativeIsland()\n",
           "removed guest state")
     # The earlier patch inserts the above line for removeRunningApp only.
     return s
