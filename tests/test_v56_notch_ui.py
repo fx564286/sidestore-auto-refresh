@@ -14,6 +14,7 @@ def load(module_name):
 
 v39=load("patch_v39_dock_app_switch_only")
 v47=load("patch_v47_resume")
+returns=load("patch_guest_return")
 v55=load("patch_v55_rotation_geometry")
 v56=load("patch_v56_notch_ui")
 
@@ -53,6 +54,29 @@ class V56ControlsTests(unittest.TestCase):
             self.assertIn(expected,after)
         self.assertIn("nrgV55ReconcileRotationGeometry()",after)
         self.assertIn("ForEach(dockManager.apps) { app in",after)
+        # Test production patch order: guest-return first rewrites both
+        # removed-app bookkeeping and successful foreground resume.
+        start=src.index("    func bringMultitaskViewToFront(uuid:")
+        end=src.index("    private func passURLSchemeToView(",start)
+        production=src[:start]+returns.DOCK_RESUME+src[end:]
+        start=production.index("    @objc public func removeRunningApp(")
+        end=production.index("    @objc public func showDock()",start)
+        rewritten="""    @objc public func removeRunningApp(_ appUUID: String) {
+        if !Thread.isMainThread {
+            DispatchQueue.main.async { self.removeRunningApp(appUUID) }
+            return
+        }
+        self.apps.removeAll { $0.appUUID == appUUID }
+        if self.apps.isEmpty { self.hideDock() }
+        else if self.isVisible { self.updateDockFrame() }
+    }
+
+"""
+        production=production[:start]+rewritten+production[end:]
+        updated=v56.patch(production)
+        self.assertEqual(v56.patch(updated),updated)
+        self.assertIn("nrgV56ShowGuestControls()\n        print(",updated)
+        self.assertIn("self.apps.removeAll { $0.appUUID == appUUID }\n        self.nrgV56RelayoutIsland()",updated)
 
     def test_requires_existing_v55_and_dock_patch(self):
         with self.assertRaises(RuntimeError):
