@@ -48,7 +48,7 @@ with zipfile.ZipFile(ipa) as z:
     original=plistlib.loads(z.read(info[0]))['CFBundleIdentifier']
     if original not in ('com.kdt.livecontainer',bundle): sys.exit('[ERROR] unexpected candidate bundle ID '+original)
     exts={n:plistlib.loads(z.read(n))['CFBundleIdentifier'] for n in names if n.startswith(info[0].removesuffix('Info.plist')+'PlugIns/') and n.endswith('.appex/Info.plist')}
-    expect={'com.kdt.livecontainer.'+suffix for suffix in ('LiveProcess','ShareExtension','LaunchAppExtension')}
+    expect={'com.kdt.livecontainer.'+suffix for suffix in ('LiveProcess','ShareExtension','LaunchAppExtension','LiveWidget')}
     if len(exts)!=4 or set(exts.values())!=expect: sys.exit('[ERROR] IPA does not contain exactly 4 expected extensions: '+repr(exts))
     if not any('/LiveWidgetExtension.appex/' in n for n in names):
         sys.exit('[ERROR] NRG V58 widget extension missing')
