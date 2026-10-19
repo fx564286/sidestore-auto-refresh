@@ -3,7 +3,7 @@ name: LiveContainer embedded SideStore build
 on:
   workflow_dispatch:
   push:
-    branches: [fix/combined-refresh-build-and-runtime, fix/v3.0.3-auth-errors, build/nrg-v3-ipa-priority-20261015, fix/nrg-cert-import-20261016, fix/nrg-jitless-cert-recovery-20261016, fix/nrg-jitless-auto-import-v17-20261017, fix/nrg-jitless-selfheal-v18, fix/nrg-cert-usb-bootstrap-v19, fix/nrg-cert-usb-bootstrap-v20, fix/nrg-refresh-correlation-v21, fix/nrg-v22-refresh-team-repair, fix/nrg-v23-direct-lockdown-refresh, fix/nrg-v24-refresh-install-recovery, fix/nrg-v25-rppairing-first-ios27, fix/nrg-v26-install-cancellation-trace, fix/nrg-v27-install-ui-lifecycle, fix/nrg-v28-refresh-regression, fix/nrg-v29-gsa-identity, fix/nrg-v30-auth-code3-rootcause, fix/nrg-v31-adi-45061-reprovision, fix/nrg-v32-jitless-cert-observation, fix/nrg-v33-iram-memory-integration, fix/nrg-v34-memory-display-profiles, fix/nrg-v45-settings-first-20261018, fix/nrg-v46-keyboard-window-scope-20261018, fix/nrg-v47-four-issue-recovery-20261018, fix/nrg-v48-madeira-runtime-20261018, fix/nrg-v49-jit-auto-return-20261019, fix/nrg-v50-stikdebug-pid-script-20261019, fix/nrg-v52-ota-inapp-20261019, fix/nrg-v53-orientation-geometry-20261019, fix/nrg-v54-guest-jit-geometry-20261019]
+    branches: [fix/combined-refresh-build-and-runtime, fix/v3.0.3-auth-errors, build/nrg-v3-ipa-priority-20261015, fix/nrg-cert-import-20261016, fix/nrg-jitless-cert-recovery-20261016, fix/nrg-jitless-auto-import-v17-20261017, fix/nrg-jitless-selfheal-v18, fix/nrg-cert-usb-bootstrap-v19, fix/nrg-cert-usb-bootstrap-v20, fix/nrg-refresh-correlation-v21, fix/nrg-v22-refresh-team-repair, fix/nrg-v23-direct-lockdown-refresh, fix/nrg-v24-refresh-install-recovery, fix/nrg-v25-rppairing-first-ios27, fix/nrg-v26-install-cancellation-trace, fix/nrg-v27-install-ui-lifecycle, fix/nrg-v28-refresh-regression, fix/nrg-v29-gsa-identity, fix/nrg-v30-auth-code3-rootcause, fix/nrg-v31-adi-45061-reprovision, fix/nrg-v32-jitless-cert-observation, fix/nrg-v33-iram-memory-integration, fix/nrg-v34-memory-display-profiles, fix/nrg-v45-settings-first-20261018, fix/nrg-v46-keyboard-window-scope-20261018, fix/nrg-v47-four-issue-recovery-20261018, fix/nrg-v48-madeira-runtime-20261018, fix/nrg-v49-jit-auto-return-20261019, fix/nrg-v50-stikdebug-pid-script-20261019, fix/nrg-v52-ota-inapp-20261019, fix/nrg-v53-orientation-geometry-20261019, fix/nrg-v54-guest-jit-geometry-20261019, fix/nrg-v55-display-watchdog-memory]
 
 permissions:
   contents: read
@@ -187,6 +187,19 @@ jobs:
             # V50: current host/liveprocess PID, correct StikDebug scheme and base64 JS.
             python3 builder/scripts/patch_v50_stikdebug_protocol.py work/LiveContainer
             python3 builder/scripts/patch_v50_stikdebug_protocol.py work/LiveContainer
+            # V55: fix fullscreen guest rotation without resizing windowed guests.
+            python3 builder/scripts/patch_v55_rotation_geometry.py work/LiveContainer
+            python3 builder/scripts/patch_v55_rotation_geometry.py work/LiveContainer
+            # V55: log observed physical memory usage; do not claim entitlement grants.
+            python3 builder/scripts/patch_v55_memory_probe.py work/LiveContainer
+            python3 builder/scripts/patch_v55_memory_probe.py work/LiveContainer
+            swiftc -frontend -parse work/LiveContainer/MultitaskSupport/MultitaskDockView.swift
+            swiftc -frontend -parse work/LiveContainer/LiveContainerSwiftUI/App/AppDelegate.swift
+            clang -fsyntax-only -x objective-c -fobjc-arc -isysroot "$(xcrun --sdk iphoneos --show-sdk-path)" -target arm64-apple-ios15.0 work/LiveContainer/MultitaskSupport/DecoratedAppSceneViewController.m 2>/tmp/v55-objc-parse.log || {
+              # ObjC is validated in the subsequent Xcode target build; this
+              # standalone check may lack the project's private header paths.
+              echo "[V55] standalone ObjC syntax check deferred to Xcode"
+            }
             swiftc -frontend -parse work/LiveContainer/LiveContainerSwiftUI/Views/AppList/LCAppListView.swift
             swiftc -frontend -parse work/LiveContainer/LiveContainerSwiftUI/Utilities/LCUtilsExtensions.swift
             swiftc -frontend -parse work/LiveContainer/LiveContainerSwiftUI/Views/AppList/LCAppListView.swift
