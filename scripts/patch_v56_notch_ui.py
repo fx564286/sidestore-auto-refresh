@@ -256,10 +256,18 @@ def patch(s: str) -> str:
         "            if self.isVisible {\n                self.updateDockFrame()\n            }\n        }\n    }\n    \n    @objc private func userDefaultsDidChange()",
         "            if self.isVisible {\n                self.updateDockFrame()\n            }\n            self.nrgV56RelayoutIsland()\n        }\n    }\n    \n    @objc private func userDefaultsDidChange()",
         "orientation observer")
-    s = replace_one(s,
-        "            self.apps.removeAll { $0.appUUID == appUUID }\n",
-        "            self.apps.removeAll { $0.appUUID == appUUID }\n            self.nrgV56RelayoutIsland()\n",
-        "guest removal")
+    # LC_GUEST_RETURN_V3 runs first in production and rewrites removeRunningApp.
+    # Support both its synchronous-main version and the pinned upstream form.
+    if "        self.apps.removeAll { $0.appUUID == appUUID }\n" in s:
+        s = replace_one(s,
+            "        self.apps.removeAll { $0.appUUID == appUUID }\n",
+            "        self.apps.removeAll { $0.appUUID == appUUID }\n        self.nrgV56RelayoutIsland()\n",
+            "guest removal after guest-return patch")
+    else:
+        s = replace_one(s,
+            "            self.apps.removeAll { $0.appUUID == appUUID }\n",
+            "            self.apps.removeAll { $0.appUUID == appUUID }\n            self.nrgV56RelayoutIsland()\n",
+            "guest removal on pinned upstream")
     s = replace_one(s,
         "            self.apps.append(appModel)\n",
         "            self.apps.append(appModel)\n"
@@ -275,13 +283,22 @@ def patch(s: str) -> str:
         "            }\n"
         "            self.apps.forEach { app in\n",
         "return home")
-    s = replace_one(s,
-        "                animateViewAppearance(targetView, from: center, in: window)\n"
-        "                return true",
-        "                animateViewAppearance(targetView, from: center, in: window)\n"
-        "                nrgV56ShowGuestControls()\n"
-        "                return true",
-        "guest foreground")
+    # LC_GUEST_RETURN_V3 replaces this method with the owning-window resume
+    # path. Update its successful resume exactly once, not the cold-launch path.
+    if "        animateViewAppearance(targetView, from: center, in: window)\n" in s:
+        s = replace_one(s,
+            "        animateViewAppearance(targetView, from: center, in: window)\n",
+            "        animateViewAppearance(targetView, from: center, in: window)\n"
+            "        nrgV56ShowGuestControls()\n",
+            "guest resume after guest-return patch")
+    else:
+        s = replace_one(s,
+            "                animateViewAppearance(targetView, from: center, in: window)\n"
+            "                return true",
+            "                animateViewAppearance(targetView, from: center, in: window)\n"
+            "                nrgV56ShowGuestControls()\n"
+            "                return true",
+            "guest resume on pinned upstream")
     old = "// MARK: - Collapsed Dock View\n"
     s = replace_one(s, old, BAR + old, "overlay view code")
     return s
