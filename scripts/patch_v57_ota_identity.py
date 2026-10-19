@@ -21,7 +21,7 @@ def one(text: str, original: str, replacement: str, label: str) -> str:
 
 def patch_shell(text: str) -> str:
     if MARK in text:
-        if (text.count(MARK) < 3 or r'Text("#\(current)")' not in text or
+        if (text.count(MARK) != 2 or r'Text("#\(current)")' not in text or
                 r'Label("빌드 #\(build.version) 다운로드 및 설치"' not in text or
                 'hostEntry.bundleID == signedHostID' not in text):
             raise RuntimeError("V57 OTA self-identity patch is partial")
@@ -73,13 +73,13 @@ def patch_shell(text: str) -> str:
             note = "SHA-256 체크섬 확인 중…"'''
     text = one(text, old, new, "self-update identity gate")
 
-    old_catch = '''        } catch {
+    old_catch = r'''        } catch {
             note = "업데이트 중단 (단계 코드: \((error as NSError).code)). SideStore 연결 및 서명을 확인해."
             NSLog("[NRG_V52_OTA] stage=prepare result=failed candidate=%d",candidate.version)
         }
     }
 }'''
-    new_catch = '''        } catch {
+    new_catch = r'''        } catch {
             // ''' + MARK + ''': a missing database identity is not a pairing failure.
             let code = (error as NSError).code
             switch code {
@@ -88,7 +88,7 @@ def patch_shell(text: str) -> str:
             case 4:
                 note = "SideStore 연결·로그인 또는 작업 준비 상태를 확인해."
             default:
-                note = "업데이트 중단 (단계 코드: \(code)). 설치 전 준비 상태를 확인해."
+                note = "업데이트 중단 (단계 코드: \\(code)). 설치 전 준비 상태를 확인해."
             }
             NSLog("[NRG_V57_OTA] stage=prepare result=failed candidate=%d code=%d",
                   candidate.version, code)
