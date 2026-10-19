@@ -55,12 +55,18 @@ class V58PinnedTests(unittest.TestCase):
         source=os.environ.get("LIVE_CONTAINER_TEST_SOURCE")
         if not source:self.skipTest("pinned source unavailable")
         s=(Path(source)/v58.DOCK).read_text()
-        if v47.MARK not in s:
-            s=s.replace(v47.DOCK_ANCHOR,v47.DOCK_ADDITION+v47.DOCK_ANCHOR,1)
-        s=v55.dock(s)
-        s=v39.patch(s)
-        s=v56.patch(s)
-        s=v58.dock(s)
+        # CI executes this suite twice: once against pristine pinned sources,
+        # then again after the build pipeline has already patched that tree.
+        # A second V39 transform on a V58 tree incorrectly fails its anchors.
+        if "NRG_V58_HOST_WINDOW_GEOMETRY" not in s:
+            if v47.MARK not in s:
+                s=s.replace(v47.DOCK_ANCHOR,v47.DOCK_ADDITION+v47.DOCK_ANCHOR,1)
+            s=v55.dock(s)
+            s=v39.patch(s)
+            s=v56.patch(s)
+            s=v58.dock(s)
+        else:
+            self.assertIn("NRG_V58_NATIVE_ISLAND_ACTIVITY",s)
         self.assertEqual(v58.dock(s),s)
         patched=island.patch_dock(s)
         self.assertEqual(island.patch_dock(patched),patched)
