@@ -248,6 +248,12 @@ enum V3IPAStaging {
         let file = try resolve(token: token, containerRoot: containerRoot, fileManager: fileManager)
         do { return try readMetadata(file) }
         catch let error as CombinedIPAFileError { throw error }
-        catch { throw CombinedIPAFileError(.invalidPackage) }
+        catch {
+            // NRG_V59_IPA_METADATA_DIAGNOSTICS: never log private file paths.
+            let underlying = error as NSError
+            NSLog("[NRG_V59_IPA] phase=metadata result=failed error_type=%@ error_domain=%@ error_code=%ld",
+                  String(describing: type(of: error)), underlying.domain, underlying.code)
+            throw CombinedIPAFileError(.invalidPackage)
+        }
     }
 }

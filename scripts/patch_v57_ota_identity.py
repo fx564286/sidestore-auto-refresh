@@ -61,17 +61,28 @@ def patch_shell(text: str) -> str:
             if !status.installedApps.contains(where: { $0.bundleID == signedHostID && $0.isActive }) {
                 _ = await status.reloadAndWait(manual: true)
             }
-            guard let hostEntry = status.installedApps.first(where: {
+            // NRG_V59_OTA_EXTERNAL_INSTALL: SideStore's database does not own
+            // an NRG installed by Stik/SideInstaller. A missing row cannot
+            // attest an unsafe identity, but it also does not prove an update.
+            // Permit verified IPA staging without claiming an in-place install.
+            let hostEntry = status.installedApps.first(where: {
                 $0.bundleID == signedHostID && $0.isActive
-            }), hostEntry.bundleID == signedHostID else {
-                NSLog("[NRG_V57_OTA] stage=self_identity result=failed reason=installed_host_not_matched count=%d",
+            })
+            if let hostEntry, hostEntry.bundleID == signedHostID {
+                NSLog("[NRG_V57_OTA] stage=self_identity result=pass host_match=1 legacy_isHost=%d sequence=%d",
+                      hostEntry.isHost ? 1 : 0, current)
+            } else {
+                NSLog("[NRG_V59_OTA] stage=self_identity result=external_install_row_missing installed_count=%d",
                       status.installedApps.count)
-                throw NSError(domain: "NRGOTA", code: 3)
             }
-            NSLog("[NRG_V57_OTA] stage=self_identity result=pass host_match=1 legacy_isHost=%d sequence=%d",
-                  hostEntry.isHost ? 1 : 0, current)
             note = "SHA-256 체크섬 확인 중…"'''
     text = one(text, old, new, "self-update identity gate")
+    # A staged candidate is not proof of an in-place upgrade.
+    old_note = '            note = "IPA 검증 완료. 내장 SideStore에서 실제 서명·설치 결과를 확인해."'
+    new_note = '''            note = hostEntry == nil
+                ? "IPA 검증 완료. 기존 NRG 설치 기록을 찾지 못했어. 기존 앱은 삭제하지 말고 최종 서명 Bundle ID를 확인해."
+                : "IPA 검증 완료. 내장 SideStore에서 실제 서명·설치 결과를 확인해."'''
+    text = one(text, old_note, new_note, "external install status warning")
 
     old_catch = r'''        } catch {
             note = "업데이트 중단 (단계 코드: \((error as NSError).code)). SideStore 연결 및 서명을 확인해."

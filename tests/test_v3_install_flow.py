@@ -272,7 +272,8 @@ class InstallStructuredFailureTests(unittest.TestCase):
         self.assertIn("OperationError.invalidApp", text)
         self.assertIn("readAppMetadata", text)
         self.assertIn("V3IPAStaging.inspect(token: token", text)
-        self.assertIn("catch { throw CombinedIPAFileError(.invalidPackage) }", text)
+        self.assertIn("NRG_V59_IPA_URL_METADATA_DIAGNOSTICS", text)
+        self.assertIn("throw CombinedIPAFileError(.invalidPackage)", text)
 
     def test_pipeline_errors_are_preserved_not_relabelled(self):
         # The gate forwards the native pipeline result untouched. Signing and

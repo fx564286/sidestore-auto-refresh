@@ -2403,7 +2403,13 @@ final class V3OperationCenter {
         let packageType = PackageType(url: localURL) ?? .ipa
         let (bundleIdentifier, appName): (String, String)
         do { (bundleIdentifier, appName) = try AppManager.readAppMetadata(from: localURL, packageType: packageType) }
-        catch { throw CombinedIPAFileError(.invalidPackage) }
+        catch {
+            // NRG_V59_IPA_URL_METADATA_DIAGNOSTICS: never log URLs or paths.
+            let underlying = error as NSError
+            NSLog("[NRG_V59_IPA] phase=url_metadata result=failed error_type=%@ error_domain=%@ error_code=%ld",
+                  String(describing: type(of: error)), underlying.domain, underlying.code)
+            throw CombinedIPAFileError(.invalidPackage)
+        }
         guard sessions[sessionID]?.terminal.isEmpty == true,
               sessions[sessionID]?.terminal.isCancellationRequested != true else {
             cleanupTemporaryIPA(id: sessionID)
