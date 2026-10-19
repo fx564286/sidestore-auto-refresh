@@ -1,0 +1,66 @@
+name: NRG remote bootstrap IPA release
+on:
+  push:
+    branches:
+      - fix/nrg-v52-ota-inapp-20261019
+    paths:
+      - .github/workflows/nrg-remote-bootstrap.yml
+  workflow_dispatch: {}
+permissions:
+  actions: read
+  contents: write
+jobs:
+  publish-v50-bootstrap:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      GH_TOKEN: ${{ github.token }}
+      REPO: ${{ github.repository }}
+      SOURCE_RUN: '39170081298'
+      SOURCE_SHA: 'c45705b7ba8455ad22c62299bff9e479636bf0ca'
+      TAG: nrg-bootstrap-v50-160
+    steps:
+      - name: Verify completed source build
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          gh api "repos/$REPO/actions/runs/$SOURCE_RUN" --jq '[.status,.conclusion,.head_sha] | join("|")' | grep -Fx "completed|success|$SOURCE_SHA"
+          echo '[PASS] V50 source run and commit verified'
+      - name: Download and validate original unsigned IPA
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          mkdir -p dist
+          gh run download "$SOURCE_RUN" -R "$REPO" -n LiveContainer-SideStore-v3.0.3-rc-IPA -D dist
+          cd dist
+          python3 - <<'PY'
+          from pathlib import Path
+          import zipfile,plistlib,hashlib,json
+          p=Path('LiveContainer-SideStore-v3.0.3-rc.ipa')
+          assert p.exists() and 5_000_000 < p.stat().st_size < 350_000_000, 'candidate missing or unexpected size'
+          with zipfile.ZipFile(p) as z:
+              names=z.namelist()
+              app='Payload/LiveContainer.app/'
+              info=plistlib.loads(z.read(app+'Info.plist'))
+              assert info['CFBundleIdentifier']=='com.kdt.livecontainer', 'unexpected original host'
+              ext={plistlib.loads(z.read(n))['CFBundleIdentifier'] for n in names if n.startswith(app+'PlugIns/') and n.endswith('.appex/Info.plist')}
+              expected={'com.kdt.livecontainer.'+x for x in ('LiveProcess','ShareExtension','LaunchAppExtension')}
+              assert ext==expected, 'unexpected extension set'
+              assert not any('/LiveWidgetExtension.appex/' in n or '/AltWidgetExtension.appex/' in n for n in names), 'widget was packaged'
+          digest=hashlib.file_digest(p.open('rb'),'sha256').hexdigest()
+          (Path(p.name+'.sha256')).write_text(digest+'  '+p.name+'\n')
+          Path('bootstrap-metadata.json').write_text(json.dumps({'source_run':39170081298,'source_commit':'c45705b7ba8455ad22c62299bff9e479636bf0ca','original_host_bundle_id':'com.kdt.livecontainer','original_extensions':sorted(ext),'signed':False,'same_id_upgrade_verified':False,'sha256':digest},indent=2))
+          print('[PASS] validated unsigned IPA:',digest)
+          PY
+      - name: Publish immutable prerelease for phone-side SideStore
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          test ! "$(gh release view "$TAG" -R "$REPO" --json tagName --jq .tagName 2>/dev/null || true)" = "$TAG" || { echo '[ERROR] immutable tag exists; refusing overwrite'; exit 1; }
+          gh release create "$TAG" -R "$REPO" --target "$SOURCE_SHA" --prerelease \
+            --title 'NRG V50 remote bootstrap (unsigned)' \
+            --notes 'Verified unsigned IPA from successful workflow 39170081298. For existing NRG only: iPhone SideStore must sign host and three extensions under the same existing Apple team and com.kdt.livecontainer.P8EZT3U5N4 ID. Cancel if different. Never uninstall original NRG. This release does NOT certify successful installation, JIT or memory permission.' \
+            dist/LiveContainer-SideStore-v3.0.3-rc.ipa \
+            dist/LiveContainer-SideStore-v3.0.3-rc.ipa.sha256 \
+            dist/bootstrap-metadata.json
+          echo "READY=https://github.com/$REPO/releases/tag/$TAG"
