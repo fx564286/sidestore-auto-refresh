@@ -138,6 +138,14 @@ jobs:
             grep -Fq 'LIVE_REFRESH_LOG_RETENTION_V1' work/EmbeddedSideStore/SideStore/Utils/iostreams/ConsoleLog.swift
           } 2>&1 | tee artifacts/logs/host-preflight.log
 
+      - name: Restore Rust build cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: |
+            idevice -> target
+            jktcp -> target
+          key: nrg-ios-${{ runner.os }}-${{ env.IDEVICE_REF }}-${{ env.JKTCP_REF }}-${{ hashFiles('builder/scripts/patch_coredevice_idevice.py', 'builder/scripts/patch_jktcp_reliability.py') }}
+
       - name: Install build tools
         run: |
           set -euo pipefail
