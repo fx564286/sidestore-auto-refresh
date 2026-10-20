@@ -533,7 +533,7 @@ def patch(root):
     implementation = replace(implementation, "@implementation AppSceneViewController", "@implementation AppSceneViewController\n" + METHODS, "return method")
     # Portrait-only hosted guest safe area. Keep landscape frame/rotation untouched.
     # Use the host scene's actual safe-area inset rather than hard-coded notch dimensions.
-    portrait_anchor = "            settings.frame = frame;\\n            if(block) {"
+    portrait_anchor = "            settings.frame = frame;\n            if(block) {"
     portrait_replacement = """            // NRG_PORTRAIT_GUEST_SAFE_AREA_V1
             // The host disables the guest status bar. Reserve its physical top
             // unsafe area so game controls remain visible and tappable.
