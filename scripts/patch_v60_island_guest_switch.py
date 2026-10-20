@@ -26,10 +26,16 @@ def patch_shell(s):
         "        .onOpenURL(perform: dispatchURL)\n",
         '''        // NRG_V60_ISLAND_ROUTE: start/update a native Live Activity while
         // the host is visible. No in-app overlay can capture the hardware notch.
-        .onAppear { MultitaskDockManager.shared.nrgV58RefreshNativeIsland() }
+        .onAppear {
+            if #available(iOS 16.0, *) {
+                MultitaskDockManager.shared.nrgV58RefreshNativeIsland()
+            }
+        }
         .onReceive(sharedModel.$apps) { _ in
             DispatchQueue.main.async {
-                MultitaskDockManager.shared.nrgV58RefreshNativeIsland()
+                if #available(iOS 16.0, *) {
+                    MultitaskDockManager.shared.nrgV58RefreshNativeIsland()
+                }
             }
         }
         .onOpenURL(perform: dispatchURL)

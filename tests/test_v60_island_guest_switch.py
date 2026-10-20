@@ -38,6 +38,11 @@ class V60GuestSwitchTests(unittest.TestCase):
         self.assertIn('case "nrg-apps":',out)
         self.assertIn('sharedModel.deepLink = url',out)
         self.assertIn('MultitaskDockManager.shared.nrgV58RefreshNativeIsland()',out)
+        # Xcode's iOS 15 deployment target rejects referencing the iOS 16-only
+        # MultitaskDockManager without guarding every call site.
+        self.assertIn('.onAppear {\n            if #available(iOS 16.0, *) {',out)
+        self.assertIn('DispatchQueue.main.async {\n                if #available(iOS 16.0, *) {',out)
+        self.assertNotIn('.onAppear { MultitaskDockManager.shared',out)
         # This sample is the exact upstream pinned source, with its existing
         # launch and lock/JIT flow retained.
         pinned=Path('/tmp/nrg-livecontainer-src/LiveContainerSwiftUI/Views/AppList/LCAppListView.swift')
