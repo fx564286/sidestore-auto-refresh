@@ -180,7 +180,7 @@ import ActivityKit
 '''+SHARED_ATTRS+r'''
 @available(iOS 16.1, *)
 struct NRGGuestIslandWidget: Widget {
-    private let homeURL = URL(string: "livecontainer://")!
+    private let homeURL = URL(string: "livecontainer://nrg-apps")!
 
     var body: some WidgetConfiguration {
         ActivityConfiguration(for: NRGGuestActivityAttributes.self) { context in
@@ -233,6 +233,13 @@ struct NRGGuestIslandWidget: Widget {
                                 }
                             }
                         }
+                    }
+                    .tint(.white)
+                    // NRG_V195_HOST_REENTRY: always allow returning to the host.
+                    Link(destination: homeURL) {
+                        Label("Scarlet & Crystal 열기", systemImage: "house.fill")
+                            .font(.caption.weight(.semibold))
+                            .frame(maxWidth: .infinity, minHeight: 30)
                     }
                     .tint(.white)
                 }
