@@ -53,8 +53,26 @@ def decorated(s):
         // '''+MARK+''': draw guest pixels across the *whole* screen. Safe-area
         // guidance goes to the guest scene only, not to the host view's frame.
         settings.peripheryInsets = UIEdgeInsetsZero;
+        // NRG_V196_PORTRAIT_TOUCH_SAFEAREA: the maximized guest frame is
+        // deliberately edge-to-edge, so its own safeAreaInsets can be zero.
+        // Obtain system exclusion insets from the UIWindow instead. Forward
+        // them to the guest scene so UIKit places interactive controls below
+        // the status bar / Dynamic Island and above the home gesture.
+        UIWindow *guestWindow = self.view.window;
+        UIInterfaceOrientation guestOrientation = guestWindow.windowScene.interfaceOrientation;
+        UIEdgeInsets guestSafeInsets = safeAreaInsets;
+        if (guestWindow && UIInterfaceOrientationIsPortrait(guestOrientation)) {
+            UIEdgeInsets systemInsets = guestWindow.safeAreaInsets;
+            guestSafeInsets.top = MAX(guestSafeInsets.top, systemInsets.top);
+            guestSafeInsets.bottom = MAX(guestSafeInsets.bottom, systemInsets.bottom);
+            guestSafeInsets.left = MAX(guestSafeInsets.left, systemInsets.left);
+            guestSafeInsets.right = MAX(guestSafeInsets.right, systemInsets.right);
+        }
         settings.safeAreaInsetsPortrait = LCUIEdgeInsetsRotateToOrientation(
-            safeAreaInsets, self.view.window.windowScene.interfaceOrientation);
+            guestSafeInsets, guestOrientation);
+        NSLog(@"[NRG_V196_PORTRAIT_SAFEAREA] orientation=%ld top=%.1f bottom=%.1f windowTop=%.1f windowBottom=%.1f",
+              (long)guestOrientation, guestSafeInsets.top, guestSafeInsets.bottom,
+              guestWindow.safeAreaInsets.top, guestWindow.safeAreaInsets.bottom);
         return UIEdgeInsetsZero;''',
        "maximized fullscreen safe area")
     old='''    CGRect target = UIEdgeInsetsInsetRect(window.bounds,
