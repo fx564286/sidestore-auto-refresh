@@ -531,6 +531,29 @@ def patch(root):
                              '#import "UIKitPrivate+MultitaskSupport.h"\n#include <math.h>\n' + CONTROL, "control")
     implementation = replace(implementation, "@property int resizeDebounceToken;", "@property(nonatomic, strong) LCReturnControl *lcReturnControl;\n@property int resizeDebounceToken;", "control property")
     implementation = replace(implementation, "@implementation AppSceneViewController", "@implementation AppSceneViewController\n" + METHODS, "return method")
+    # Portrait-only hosted guest safe area. Keep landscape frame/rotation untouched.
+    # Use the host scene's actual safe-area inset rather than hard-coded notch dimensions.
+    portrait_anchor = "            settings.frame = frame;\\n            if(block) {"
+    portrait_replacement = """            // NRG_PORTRAIT_GUEST_SAFE_AREA_V1
+            // The host disables the guest status bar. Reserve its physical top
+            // unsafe area so game controls remain visible and tappable.
+            if (UIInterfaceOrientationIsPortrait(settings.interfaceOrientation) &&
+                self.view.window && self.view.window.windowScene) {
+                CGFloat top = MAX(0.0, self.view.window.safeAreaInsets.top);
+                // Only the full-screen guest needs the top inset; do not shift
+                // floating/multitask windows or change landscape geometry.
+                CGRect hostBounds = self.view.window.bounds;
+                if (fabs(CGRectGetWidth(self.view.bounds) - CGRectGetWidth(hostBounds)) < 2.0 &&
+                    fabs(CGRectGetHeight(self.view.bounds) - CGRectGetHeight(hostBounds)) < 2.0 &&
+                    top > 0.0 && top < CGRectGetHeight(frame) * 0.25) {
+                    frame.origin.y += top;
+                    frame.size.height = MAX(1.0, frame.size.height - top);
+                }
+            }
+            settings.frame = frame;
+            if(block) {"""
+    implementation = replace(implementation, portrait_anchor, portrait_replacement, "portrait guest safe area")
+
     implementation = replace(implementation, "    [self.view addSubview:_contentView];", "    [self.view addSubview:_contentView];\n    [self.view setNeedsLayout]; // Re-show control after asynchronous guest initialization.", "control readiness")
     implementation = replace(implementation, "return _pid > 0 && getpgid(_pid) > 0;", "return !_isAppTerminationCleanUpCalled && _pid > 0 && getpgid(_pid) > 0;", "retired process is not resumable")
     implementation = section(implementation, "- (void)appTerminationCleanUp {", "- (void)setBackgroundNotificationEnabled:", CLEANUP, "synchronous cleanup")
