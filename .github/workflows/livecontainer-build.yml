@@ -528,6 +528,10 @@ jobs:
           path=Path(os.environ['RUNNER_TEMP'])/'livecontainer-derived-data/Build/Products/Release-iphoneos/LiveContainer.app/Info.plist'
           info=plistlib.loads(path.read_bytes())
           info['NRGOTASequence']=int(os.environ['GITHUB_RUN_NUMBER'])
+          # Ensure brand survives Xcode's INFOPLIST_KEY_ build setting overrides.
+          info['CFBundleDisplayName']='Scarlet & Crystal'
+          info['CFBundleName']='Scarlet & Crystal'
+          info['CFBundleVersion']='3.8.192'
           path.write_bytes(plistlib.dumps(info))
           PY_NRG_V52
           python3 builder/scripts/package_livecontainer_combined.py \
