@@ -36,11 +36,37 @@ struct NRGGuestActivityAttributes: ActivityAttributes {
 MANAGER = r'''
     // NRG_V58_NATIVE_ISLAND_ACTIVITY: one system-managed activity per NRG
     // installation. No alternate UI view consumes the guest viewport.
+    // NRG_V191_STARTUP_HOST_ATTACH: an iOS 27 first launch can trigger
+    // SwiftUI.onAppear before the root controller has any child views. The
+    // pinned upstream init() force-unwraps root.subviews.first and SIGTRAPs.
+    // Reconcile lazily on launch, Island refresh, and scene activation.
+    @objc public func nrgV191AttachGuestWindowHostIfReady() {
+        guard Thread.isMainThread else {
+            DispatchQueue.main.async { self.nrgV191AttachGuestWindowHostIfReady() }
+            return
+        }
+        let window = UIApplication.shared.connectedScenes
+            .compactMap { $0 as? UIWindowScene }
+            .flatMap { $0.windows }
+            .first(where: { $0.isKeyWindow }) ?? keyWindow
+        guard let root = window?.rootViewController?.view else { return }
+        // The root itself is a safe early anchor. Reparent to its first real
+        // child after UIKit constructs one; never attach a view to itself.
+        let anchor = root.subviews.first(where: { $0 !== windowHostingView }) ?? root
+        if windowHostingView.superview !== anchor {
+            windowHostingView.removeFromSuperview()
+            anchor.addSubview(windowHostingView)
+            windowHostingView.frame = anchor.bounds
+        }
+    }
+
     @objc public func nrgV58RefreshNativeIsland() {
         guard Thread.isMainThread else {
             DispatchQueue.main.async { self.nrgV58RefreshNativeIsland() }
             return
         }
+        // The SwiftUI tab can appear before UIKit has populated root.subviews.
+        nrgV191AttachGuestWindowHostIfReady()
         nrgV56IslandHidden = true
         nrgV56IslandExpanded = false
         nrgV56RelayoutIsland()
@@ -219,6 +245,10 @@ def patch_dock(s):
     if MARK in s:
         if s.count(MARK)!=2 or "nrgV58RefreshNativeIsland()" not in s:
             raise RuntimeError("partial V58 activity manager")
+        if "NRG_V191_STARTUP_HOST_ATTACH" not in s:
+            raise RuntimeError("V58 source is from an old build without V191 startup guard")
+        if "keyWindow!.rootViewController!.view.subviews.first!" in s:
+            raise RuntimeError("V191 unsafe singleton initializer remains")
         return s
     if "NRG_V56_NOTCH_ADJACENT_CONTROLS" not in s:raise RuntimeError("V58 requires V56")
     s=one(s,"import Combine\n","import Combine\nimport ActivityKit\n"+SHARED_ATTRS,"ActivityKit model")
@@ -248,6 +278,13 @@ def patch_dock(s):
             break
     else:
         raise RuntimeError("V58 removed guest hook not found")
+    # NRG_V191_STARTUP_HOST_ATTACH: never dereference a root child before
+    # UIKit finishes constructing its first SwiftUI scene. The app crashed in
+    # MultitaskDockManager.init() with SIGTRAP on the main thread (~150ms).
+    s=one(s,
+          "        keyWindow!.rootViewController!.view.subviews.first!.addSubview(self.windowHostingView)",
+          "        nrgV191AttachGuestWindowHostIfReady()",
+          "startup safe UIKit host attachment")
     # Ensure the first guest cannot re-display the floating right dock
     # after the native activity is requested during apps.append().
     s=one(s,

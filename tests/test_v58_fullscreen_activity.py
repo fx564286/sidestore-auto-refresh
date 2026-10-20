@@ -68,6 +68,19 @@ class V58PinnedTests(unittest.TestCase):
         self.assertIn("dismissalPolicy: .immediate",island.MANAGER)
         self.assertNotIn("extended-virtual-addressing",island.MANAGER)
 
+    def test_v191_startup_avoids_early_unwrapped_root_subview(self):
+        # The device crash is EXC_BREAKPOINT at MultitaskDockManager.init()
+        # because the SwiftUI root has no first subview during first commit.
+        self.assertIn("NRG_V191_STARTUP_HOST_ATTACH", island.MANAGER)
+        self.assertIn("nrgV191AttachGuestWindowHostIfReady()", island.MANAGER)
+        self.assertIn("guard let root = window?.rootViewController?.view else { return }",
+                      island.MANAGER)
+        self.assertIn("?? root", island.MANAGER)
+        self.assertIn("if windowHostingView.superview !== anchor", island.MANAGER)
+        self.assertNotIn("rootViewController!.view.subviews.first!", island.MANAGER)
+        self.assertIn("startup safe UIKit host attachment",
+                      __import__('inspect').getsource(island.patch_dock))
+
     def test_dock_patch_order_and_repeat(self):
         source=os.environ.get("LIVE_CONTAINER_TEST_SOURCE")
         if not source:self.skipTest("pinned source unavailable")
