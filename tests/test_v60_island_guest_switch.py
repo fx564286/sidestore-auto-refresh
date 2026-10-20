@@ -1,4 +1,4 @@
-"""V60: native Dynamic Island guest launch and installed guest catalog contracts."""
+"""V60/V193: native Dynamic Island links for running guest sessions only."""
 import importlib.util
 import tempfile
 from pathlib import Path
@@ -21,7 +21,10 @@ class V60GuestSwitchTests(unittest.TestCase):
         self.assertIn('nrg-multitask',native.MANAGER)
         self.assertIn('guest.launchURL', native.WIDGET)
         self.assertIn('ForEach(context.state.guests',native.WIDGET)
-        self.assertIn('livecontainer://nrg-apps',native.WIDGET)
+        self.assertNotIn('livecontainer://nrg-apps',native.WIDGET)
+        self.assertIn('installed.compactMap',native.MANAGER)
+        self.assertIn('return active ? (model: model, running: true) : nil',native.MANAGER)
+        self.assertIn('UIApplication.shared.applicationState != .active',native.MANAGER)
         self.assertIn('Link(destination: URL(string: guest.launchURL)',native.WIDGET)
         self.assertNotIn('Label("앱으로 돌아가기 · 전환"',native.WIDGET)
         self.assertIn('NSSupportsLiveActivities',Path(ROOT/'scripts/patch_v58_native_activity.py').read_text())
@@ -29,7 +32,7 @@ class V60GuestSwitchTests(unittest.TestCase):
         self.assertIn(native.SHARED_ATTRS,native.WIDGET)
         self.assertIn('struct Guest: Codable, Hashable',native.SHARED_ATTRS)
         self.assertIn('.prefix(6)',native.MANAGER)
-        self.assertIn('installed.isEmpty',native.MANAGER)
+        self.assertIn('runningCount == 0',native.MANAGER)
         self.assertIn('route.queryItems = query',native.MANAGER)
     def test_route_and_normal_app_launch_are_distinct_and_repeatable(self):
         sample=(ROOT/'scripts/templates/v3_unified_shell.swift').read_text()
