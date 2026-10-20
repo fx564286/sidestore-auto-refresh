@@ -602,7 +602,7 @@ jobs:
               f'executable={embedded}\n' + '\n'.join(markers) + '\nverification=PASS\n')
           PY
 
-      - name: Upload combined LiveContainer IPA
+      - name: Upload verified Scarlet & Crystal (NRG V192) IPA
         uses: actions/upload-artifact@v4
         with:
           name: LiveContainer-SideStore-v3.0.3-rc-IPA
