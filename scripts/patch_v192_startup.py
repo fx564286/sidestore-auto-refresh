@@ -107,7 +107,7 @@ def main(root):
         pending.append((path,before,after))
     info_path=root/INFO
     info=plistlib.loads(info_path.read_bytes())
-    if info.get("CFBundleIdentifier") != "com.kdt.livecontainer":
+    if info.get("CFBundleIdentifier") not in ("$(PRODUCT_BUNDLE_IDENTIFIER)", "com.kdt.livecontainer"):
         raise RuntimeError("Refusing to alter unknown host bundle identity")
     info["CFBundleDisplayName"]="Scarlet & Crystal"
     info["CFBundleName"]="Scarlet & Crystal"
