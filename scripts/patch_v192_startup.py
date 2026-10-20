@@ -27,11 +27,14 @@ def patch_dock(src):
         "    // NRG_V192_SCARLET_STARTUP: UIKit scene can be absent at init time.\n"
         "    @objc public lazy var windowHostingView = VirtualWindowsHostView()",
         "lazy virtual host")
-    src = replace_once(src,
-        "        nrgV191AttachGuestWindowHostIfReady()\n        setupDockView()",
-        "        // V192: no window access while creating the shared singleton.\n"
-        "        setupDockView()",
+    init_start = src.index("    override init() {")
+    init_end = src.index("\n    deinit {", init_start)
+    init_block = src[init_start:init_end]
+    init_block = replace_once(init_block,
+        "        nrgV191AttachGuestWindowHostIfReady()",
+        "        // V192: defer UIKit host attachment until first scene commit.",
         "no eager host attachment")
+    src = src[:init_start] + init_block + src[init_end:]
     src = replace_once(src,
         "        let anchor = root.subviews.first(where: { $0 !== windowHostingView }) ?? root",
         "        guard root.window === window, !root.bounds.isEmpty,\n"
