@@ -76,23 +76,20 @@ MANAGER = r'''
             // but do not overlay a floating bar on top of the game screen.
             let systemIslandEnabled = ActivityAuthorizationInfo().areActivitiesEnabled
             hostingController?.view.isHidden = systemIslandEnabled
-            // NRG_V60_ISLAND_GUEST_SWITCH: expose installed guests via
-            // the system-managed Dynamic Island, never as a screen overlay.
-            // Hidden applications are deliberately omitted.
+            // NRG_V193_RUNNING_ONLY_ISLAND: never list dormant installed apps.
+            // The Island is a switcher for retained, running guest sessions only.
             let installed = DataManager.shared.model.apps
             let runningCount = apps.count
             let name = String((apps.last?.appName ?? "NRG").prefix(32))
-            let catalog: [(model: LCAppModel, running: Bool)] = installed.map { model in
+            let catalog: [(model: LCAppModel, running: Bool)] = installed.compactMap { model in
                 let active = apps.contains { dock in
                     dock.appInfo?.relativeBundlePath == model.appInfo.relativeBundlePath ||
                     model.uiContainers.contains(where: { $0.folderName == dock.appUUID })
                 }
-                return (model: model, running: active)
+                return active ? (model: model, running: true) : nil
             }
             // The Island has finite space: prioritize active guests.
-            let guests = catalog.sorted { lhs, rhs in
-                lhs.running && !rhs.running
-            }.prefix(6).compactMap { item -> NRGGuestActivityAttributes.Guest? in
+            let guests = catalog.prefix(6).compactMap { item -> NRGGuestActivityAttributes.Guest? in
                 guard let bundle = item.model.appInfo.relativeBundlePath,
                       bundle.hasSuffix(".app"), bundle.utf8.count <= 180 else { return nil }
                 var route = URLComponents()
@@ -111,10 +108,11 @@ MANAGER = r'''
                     launchURL: launchURL, running: item.running)
             }
             let state = NRGGuestActivityAttributes.ContentState(
-                runningCount: runningCount, installedCount: installed.count,
+                runningCount: runningCount, installedCount: runningCount,
                 activeName: name, guests: guests)
             let existing = Activity<NRGGuestActivityAttributes>.activities
-            if installed.isEmpty {
+            // End when no guest is running, or NRG is no longer foreground.
+            if runningCount == 0 || UIApplication.shared.applicationState != .active {
                 for activity in existing {
                     Task { await activity.end(nil, dismissalPolicy: .immediate) }
                 }
@@ -172,7 +170,7 @@ struct NRGGuestIslandWidget: Widget {
         } dynamicIsland: { context in
             DynamicIsland {
                 DynamicIslandExpandedRegion(.leading) {
-                    Label("NRG", systemImage: "square.stack.3d.up.fill")
+                    Label("Scarlet & Crystal", systemImage: "square.stack.3d.up.fill")
                         .font(.headline)
                 }
                 DynamicIslandExpandedRegion(.trailing) {
@@ -204,12 +202,6 @@ struct NRGGuestIslandWidget: Widget {
                                     .background(.white.opacity(0.16), in: Capsule())
                                 }
                             }
-                        }
-                        Link(destination: URL(string: "livecontainer://nrg-apps")!) {
-                            Label("모든 앱 (\(context.state.installedCount))",
-                                  systemImage: "square.grid.2x2.fill")
-                                .font(.caption.weight(.semibold))
-                                .frame(maxWidth: .infinity, minHeight: 28)
                         }
                     }
                     .tint(.white)
