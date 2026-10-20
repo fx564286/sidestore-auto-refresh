@@ -72,7 +72,11 @@ MANAGER = r'''
     }
 
     @objc private func nrgV194ResumeIslandWhenActive() {
-        nrgV58RefreshNativeIsland()
+        // Activation notifications can precede retained guest restoration.
+        // Reconcile again on the next main-loop turn after the host is active.
+        DispatchQueue.main.async { [weak self] in
+            self?.nrgV58RefreshNativeIsland()
+        }
     }
 
     private func nrgV194InstallIslandLifecycleObservers() {
@@ -105,7 +109,9 @@ MANAGER = r'''
             // Keep the old dock model for retained guest scene switching,
             // but do not overlay a floating bar on top of the game screen.
             let systemIslandEnabled = ActivityAuthorizationInfo().areActivitiesEnabled
-            hostingController?.view.isHidden = systemIslandEnabled
+            // Do not suppress the in-app guest switcher until the system
+            // activity is actually available and the app is foregrounded.
+            hostingController?.view.isHidden = systemIslandEnabled && UIApplication.shared.applicationState == .active
             // NRG_V193_RUNNING_ONLY_ISLAND: never list dormant installed apps.
             // The Island is a switcher for retained, running guest sessions only.
             let installed = DataManager.shared.model.apps
@@ -142,7 +148,7 @@ MANAGER = r'''
                 activeName: name, guests: guests)
             let existing = Activity<NRGGuestActivityAttributes>.activities
             // End when no guest is running, or NRG is no longer foreground.
-            if runningCount == 0 || UIApplication.shared.applicationState != .active {
+            if runningCount == 0 || UIApplication.shared.applicationState == .background {
                 for activity in existing {
                     Task { await activity.end(nil, dismissalPolicy: .immediate) }
                 }
