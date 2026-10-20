@@ -41,6 +41,23 @@ class V58PinnedTests(unittest.TestCase):
         self.assertIn("NRG_V58_VIEWPORT",new)
         self.assertIn("UIUserInterfaceIdiomPhone",new)
 
+    def test_landscape_rotation_reconciles_real_window_scene_callback(self):
+        delegate=v47.patch_delegate(v47.DELEGATE_ANCHOR)
+        self.assertIn("func windowScene(_ windowScene: UIWindowScene, didUpdate",delegate)
+        self.assertNotIn("func scene(_ scene: UIScene, didUpdate",delegate)
+        self.assertIn("nrgV53ReconcileGuestGeometry(for: windowScene)",delegate)
+        # Applying the downstream V55 rewrite must not lose this callback.
+        updated=v55.delegate(delegate)
+        self.assertIn("func windowScene(_ windowScene: UIWindowScene, didUpdate",updated)
+        self.assertIn("nrgV53ReconcileGuestGeometry(for: windowScene)",updated)
+        decorated=v36.patch((Path('/tmp/nrg-livecontainer-src')/v58.DECORATED).read_text()) if (Path('/tmp/nrg-livecontainer-src')/v58.DECORATED).exists() else None
+        if decorated:
+            if v38.MARKER not in decorated:
+                decorated=decorated.replace(v38.OLD,v38.NEW,1)
+            updated=v55.decorated(decorated)
+            self.assertIn('NRG_V61_LANDSCAPE_GUEST_RECOVERY',updated)
+            self.assertIn('&& !guestIsStale',updated)
+
     def test_native_island_shares_state_schema(self):
         self.assertIn(island.SHARED_ATTRS,island.WIDGET)
         self.assertIn("ActivityConfiguration(for: NRGGuestActivityAttributes.self)",island.WIDGET)

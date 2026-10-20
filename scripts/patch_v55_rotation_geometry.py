@@ -48,8 +48,14 @@ def decorated(s):
     if (!window || !self.view.superview || CGRectIsEmpty(window.bounds)) return;
     CGSize size = window.bounds.size;
     UIInterfaceOrientation orientation = window.windowScene.interfaceOrientation;
+    // NRG_V61_LANDSCAPE_GUEST_RECOVERY: during UIKit rotation, the host
+    // size can be correct while the retained guest is still portrait-sized.
+    // Do not let a cached rotation token suppress a needed scene resize.
+    CGSize guestSize = self.appSceneVC.view.bounds.size;
+    BOOL guestIsStale = fabs(guestSize.width - size.width) > 1.0 ||
+                        fabs(guestSize.height - size.height) > 1.0;
     if (CGSizeEqualToSize(self.nrgV55LastHostSize, size) &&
-        self.nrgV55LastHostOrientation == orientation) return;
+        self.nrgV55LastHostOrientation == orientation && !guestIsStale) return;
     self.nrgV55LastHostSize = size;
     self.nrgV55LastHostOrientation = orientation;
     __weak typeof(self) weakSelf = self;

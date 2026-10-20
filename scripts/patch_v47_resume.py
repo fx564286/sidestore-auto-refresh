@@ -64,10 +64,12 @@ DELEGATE_ANCHOR = """    func scene(_ scene: UIScene, willConnectTo session: UIS
     }
 """
 DELEGATE_ADDITION = DELEGATE_ANCHOR + """    // NRG_V53_ORIENTATION_RECONCILE: scene geometry changed.
-    func scene(_ scene: UIScene, didUpdate previousCoordinateSpace: UICoordinateSpace,
-               interfaceOrientation previousInterfaceOrientation: UIInterfaceOrientation,
-               traitCollection previousTraitCollection: UITraitCollection) {
-        guard let windowScene = scene as? UIWindowScene else { return }
+    // NRG_V61_WINDOW_SCENE_CALLBACK: UIWindowSceneDelegate uses windowScene(_:)
+    // not scene(_:). The latter is silently ignored on rotation and lets
+    // portrait-sized retained guest scenes leak into landscape bounds.
+    func windowScene(_ windowScene: UIWindowScene, didUpdate previousCoordinateSpace: UICoordinateSpace,
+                     interfaceOrientation previousInterfaceOrientation: UIInterfaceOrientation,
+                     traitCollection previousTraitCollection: UITraitCollection) {
         if #available(iOS 16.0, *) {
             DispatchQueue.main.async {
                 MultitaskDockManager.shared.nrgV53ReconcileGuestGeometry(for: windowScene)
