@@ -60,11 +60,41 @@ MANAGER = r'''
         }
     }
 
+    // NRG_V194_FOREGROUND_ONLY_ISLAND: Live Activities otherwise persist after
+    // leaving the app because refresh is not called on scene deactivation.
+    private static var nrgIslandLifecycleObserversInstalled = false
+
+    @objc private func nrgV194EndIslandWhenInactive() {
+        guard #available(iOS 16.2, *) else { return }
+        for activity in Activity<NRGGuestActivityAttributes>.activities {
+            Task { await activity.end(nil, dismissalPolicy: .immediate) }
+        }
+    }
+
+    @objc private func nrgV194ResumeIslandWhenActive() {
+        nrgV58RefreshNativeIsland()
+    }
+
+    private func nrgV194InstallIslandLifecycleObservers() {
+        guard !Self.nrgIslandLifecycleObserversInstalled else { return }
+        Self.nrgIslandLifecycleObserversInstalled = true
+        NotificationCenter.default.addObserver(
+            self, selector: #selector(nrgV194EndIslandWhenInactive),
+            name: UIApplication.willResignActiveNotification, object: nil)
+        NotificationCenter.default.addObserver(
+            self, selector: #selector(nrgV194EndIslandWhenInactive),
+            name: UIApplication.didEnterBackgroundNotification, object: nil)
+        NotificationCenter.default.addObserver(
+            self, selector: #selector(nrgV194ResumeIslandWhenActive),
+            name: UIApplication.didBecomeActiveNotification, object: nil)
+    }
+
     @objc public func nrgV58RefreshNativeIsland() {
         guard Thread.isMainThread else {
             DispatchQueue.main.async { self.nrgV58RefreshNativeIsland() }
             return
         }
+        nrgV194InstallIslandLifecycleObservers()
         // The SwiftUI tab can appear before UIKit has populated root.subviews.
         nrgV191AttachGuestWindowHostIfReady()
         nrgV56IslandHidden = true
