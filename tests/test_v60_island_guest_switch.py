@@ -16,7 +16,7 @@ workflow=(ROOT/'.github/workflows/livecontainer-build.yml').read_text()
 
 class V60GuestSwitchTests(unittest.TestCase):
     def test_island_has_per_guest_links_not_only_host_home(self):
-        self.assertIn('NRG_V60_ISLAND_GUEST_SWITCH', native.MANAGER)
+        self.assertIn('NRG_V193_RUNNING_ONLY_ISLAND', native.MANAGER)
         self.assertIn('DataManager.shared.model.apps',native.MANAGER)
         self.assertIn('nrg-multitask',native.MANAGER)
         self.assertIn('guest.launchURL', native.WIDGET)
