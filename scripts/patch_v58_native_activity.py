@@ -159,7 +159,7 @@ struct NRGGuestIslandWidget: Widget {
             HStack(spacing: 12) {
                 Image(systemName: "square.stack.3d.up.fill")
                 VStack(alignment: .leading, spacing: 3) {
-                    Text("NRG").font(.headline)
+                    Text("Scarlet & Crystal").font(.caption.weight(.semibold)).lineLimit(1)
                     Text(context.state.activeName).font(.caption).lineLimit(1)
                 }
                 Spacer(minLength: 2)
