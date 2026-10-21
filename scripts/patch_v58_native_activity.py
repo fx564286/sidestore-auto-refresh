@@ -63,6 +63,22 @@ MANAGER = r'''
     // NRG_V194_FOREGROUND_ONLY_ISLAND: Live Activities otherwise persist after
     // leaving the app because refresh is not called on scene deactivation.
     private static var nrgIslandLifecycleObserversInstalled = false
+    // NRG_V61_MRU_ISLAND: the switcher must show running guests in last-used
+    // order, not installed-app order. Session IDs are never persisted or logged.
+    private var nrgV61RecentGuestIDs: [String] = []
+    private var nrgV61LastActivityState: NRGGuestActivityAttributes.ContentState?
+
+    private func nrgV61NoteGuestUse(_ id: String) {
+        guard Thread.isMainThread else {
+            DispatchQueue.main.async { [weak self] in self?.nrgV61NoteGuestUse(id) }
+            return
+        }
+        guard apps.contains(where: { $0.appUUID == id }) else { return }
+        nrgV61RecentGuestIDs.removeAll { $0 == id }
+        nrgV61RecentGuestIDs.insert(id, at: 0)
+        nrgV61RecentGuestIDs = Array(nrgV61RecentGuestIDs.prefix(12))
+        nrgV58RefreshNativeIsland()
+    }
 
     @objc private func nrgV194EndIslandWhenInactive() {
         guard #available(iOS 16.2, *) else { return }
@@ -82,9 +98,9 @@ MANAGER = r'''
     private func nrgV194InstallIslandLifecycleObservers() {
         guard !Self.nrgIslandLifecycleObserversInstalled else { return }
         Self.nrgIslandLifecycleObserversInstalled = true
-        NotificationCenter.default.addObserver(
-            self, selector: #selector(nrgV194EndIslandWhenInactive),
-            name: UIApplication.willResignActiveNotification, object: nil)
+        // Do not end the Live Activity on willResignActive: tapping the Island,
+        // opening Control Center, or transient guest scene changes also fire it.
+        // didEnterBackground below still ends it when leaving LiveContainer.
         NotificationCenter.default.addObserver(
             self, selector: #selector(nrgV194EndIslandWhenInactive),
             name: UIApplication.didEnterBackgroundNotification, object: nil)
@@ -111,16 +127,28 @@ MANAGER = r'''
             let systemIslandEnabled = ActivityAuthorizationInfo().areActivitiesEnabled
             // Do not suppress the in-app guest switcher until the system
             // activity is actually available and the app is foregrounded.
-            hostingController?.view.isHidden = systemIslandEnabled && UIApplication.shared.applicationState == .active
+            // Never hide the only functional guest switcher before ActivityKit
+            // has actually created a Live Activity. Permission is not success.
+            hostingController?.view.isHidden = systemIslandEnabled &&
+                !Activity<NRGGuestActivityAttributes>.activities.isEmpty &&
+                UIApplication.shared.applicationState == .active
             // NRG_V193_RUNNING_ONLY_ISLAND: never list dormant installed apps.
             // The Island is a switcher for retained, running guest sessions only.
             let installed = DataManager.shared.model.apps
             let runningCount = apps.count
-            let name = String((apps.last?.appName ?? "NRG").prefix(32))
+            nrgV61RecentGuestIDs.removeAll { id in
+                !apps.contains(where: { $0.appUUID == id })
+            }
+            let running = apps.sorted { a, b in
+                let ai = nrgV61RecentGuestIDs.firstIndex(of: a.appUUID) ?? Int.max
+                let bi = nrgV61RecentGuestIDs.firstIndex(of: b.appUUID) ?? Int.max
+                return ai == bi ? a.appUUID < b.appUUID : ai < bi
+            }
+            let name = String((running.first?.appName ?? "Scarlet Crystal").prefix(32))
             // NRG_V197_SESSION_IDENTITY: derive links from the *running dock*
             // rather than uiSelectedContainer, which may point to a different
             // instance of the same guest app.
-            let catalog: [(model: LCAppModel, containerUUID: String)] = apps.compactMap { dock in
+            let catalog: [(model: LCAppModel, containerUUID: String)] = running.compactMap { dock in
                 guard let model = installed.first(where: { model in
                     model.uiContainers.contains(where: { $0.folderName == dock.appUUID }) ||
                     (model.appInfo.relativeBundlePath == dock.appInfo?.relativeBundlePath &&
@@ -145,6 +173,14 @@ MANAGER = r'''
                     name: String(item.model.appInfo.displayName().prefix(24)),
                     launchURL: launchURL, running: true)
             }
+            NSLog("[NRG_V61_ISLAND_SNAPSHOT] running=%ld matched=%ld links=%ld authorized=%d active=%d",
+                  runningCount, catalog.count, guests.count, systemIslandEnabled ? 1 : 0,
+                  UIApplication.shared.applicationState == .active ? 1 : 0)
+            guard !guests.isEmpty else {
+                hostingController?.view.isHidden = false
+                NSLog("[NRG_V61_ISLAND] guest_links_missing=1 fallback_dock=1")
+                return
+            }
             let state = NRGGuestActivityAttributes.ContentState(
                 runningCount: runningCount, installedCount: runningCount,
                 activeName: name, guests: guests)
@@ -161,7 +197,12 @@ MANAGER = r'''
                 return
             }
             if let active = existing.first {
-                Task { await active.update(ActivityContent(state: state, staleDate: nil)) }
+                guard nrgV61LastActivityState != state else { return }
+                nrgV61LastActivityState = state
+                Task {
+                    await active.update(ActivityContent(state: state, staleDate: nil))
+                    NSLog("[NRG_V61_ISLAND] updated=1 running=%ld links=%ld", runningCount, guests.count)
+                }
             } else {
                 do {
                     let attrs = NRGGuestActivityAttributes(purpose: "guest-switcher")
@@ -170,9 +211,15 @@ MANAGER = r'''
                         content: ActivityContent(state: state, staleDate: nil),
                         pushType: nil
                     )
-                    NSLog("[NRG_V58_ACTIVITY] started=1 count=%ld", runningCount)
+                    nrgV61LastActivityState = state
+                    hostingController?.view.isHidden = UIApplication.shared.applicationState == .active
+                    NSLog("[NRG_V61_ISLAND] started=1 running=%ld links=%ld", runningCount, guests.count)
                 } catch {
-                    NSLog("[NRG_V58_ACTIVITY] request_failed=1 count=%ld", runningCount)
+                    let ns = error as NSError
+                    nrgV61LastActivityState = nil
+                    hostingController?.view.isHidden = false
+                    NSLog("[NRG_V61_ISLAND] request_failed=1 domain=%@ code=%ld fallback_dock=1",
+                          ns.domain, ns.code)
                 }
             }
         }
@@ -346,6 +393,8 @@ def main(root,side):
     if data.get("NSSupportsLiveActivities") not in (None, True):
         raise RuntimeError("unexpected incompatible Live Activities setting")
     data["NSSupportsLiveActivities"]=True
+    if "NRG_V61_MRU_ISLAND" not in out:
+        raise RuntimeError("V61 Island MRU patch was not applied")
     if orig!=out:dock.write_text(out)
     if previous!=WIDGET:widget.write_text(WIDGET)
     info.write_bytes(plistlib.dumps(data))
