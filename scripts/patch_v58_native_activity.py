@@ -375,6 +375,19 @@ def patch_dock(s):
           "                self.showDock()\n            } else if self.isVisible {\n",
           "                self.showDock()\n                self.nrgV58RefreshNativeIsland()\n            } else if self.isVisible {\n",
           "post-launch floating dock suppression")
+    # Notify the activity when a guest is launched or becomes most-recently
+    # foregrounded. appUUID is LiveContainer's data/container session UUID.
+    s=one(s,
+          "            self.apps.append(appModel)\n            self.nrgV56ShowGuestControls()\n",
+          "            self.apps.append(appModel)\n"
+          "            self.nrgV61NoteGuestUse(appModel.appUUID)\n"
+          "            self.nrgV56ShowGuestControls()\n",
+          "last-used guest on launch")
+    s=one(s,
+          "    func bringMultitaskViewToFront(uuid: String, from center: CGPoint? = nil) -> Bool {\n",
+          "    func bringMultitaskViewToFront(uuid: String, from center: CGPoint? = nil) -> Bool {\n"
+          "        nrgV61NoteGuestUse(uuid)\n",
+          "last-used guest on foreground")
     return s
 
 def main(root,side):
