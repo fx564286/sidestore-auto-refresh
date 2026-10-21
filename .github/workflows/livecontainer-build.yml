@@ -537,6 +537,15 @@ jobs:
           info['CFBundleDisplayName']='Scarlet & Crystal'
           info['CFBundleName']='Scarlet & Crystal'
           info['CFBundleVersion']='3.8.192'
+          # NRG_STIKDEBUG_QUERY_SCHEMES: canOpenURL() must be declared by the
+          # installed host, even when StikDebug is launched for a guest process.
+          schemes=info.get('LSApplicationQueriesSchemes', [])
+          if not isinstance(schemes, list) or any(not isinstance(s, str) for s in schemes):
+              raise RuntimeError('Unexpected LSApplicationQueriesSchemes in host Info.plist')
+          for scheme in ('stikdebug', 'stikjit'):
+              if scheme not in schemes:
+                  schemes.append(scheme)
+          info['LSApplicationQueriesSchemes']=schemes
           path.write_bytes(plistlib.dumps(info))
           PY_NRG_V52
           python3 builder/scripts/package_livecontainer_combined.py \
@@ -558,6 +567,9 @@ jobs:
               assert main.get('NSSupportsLiveActivities') is True
               assert main.get('CFBundleDisplayName')=='Scarlet & Crystal'
               assert main.get('CFBundleVersion')=='3.8.192'
+              query_schemes=main.get('LSApplicationQueriesSchemes', [])
+              assert set(('stikdebug', 'stikjit')).issubset(query_schemes)
+              assert len(query_schemes)==len(set(query_schemes)), 'duplicate URL schemes'
               found={plistlib.loads(archive.read(n))['CFBundleIdentifier'] for n in names
                      if n.startswith(prefix+'PlugIns/') and n.endswith('.appex/Info.plist')}
               expected={'com.kdt.livecontainer.'+x for x in

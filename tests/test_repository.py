@@ -128,7 +128,9 @@ class RepositoryTests(unittest.TestCase):
                     "patch_v47_resume.py", "patch_v47_jit_transport.py", "patch_v47_portal_budget.py", "patch_v48_madeira_runtime_probe.py", "patch_v49_auto_jit.py", "patch_v50_stikdebug_protocol.py",
                     "patch_v55_rotation_geometry.py", "patch_v55_memory_probe.py", "patch_v56_notch_ui.py",
                     "patch_v57_ota_identity.py", "patch_v58_fullscreen.py",
-                    "patch_v58_native_activity.py", "patch_v60_island_guest_switch.py", "patch_v192_startup.py"},
+                    "patch_v58_native_activity.py", "patch_v60_island_guest_switch.py", "patch_v192_startup.py",
+                    "xtool_nrg_auth_compat.py", "xtool_nrg_auth_cpd_v3.py",
+                    "xtool_nrg_auth_resync_v4.py", "xtool_nrg_auth_trace.py", "xtool_nrg_auth_503_v5.py"},
         )
 
     def test_patch_scripts_parse_and_contain_guard_markers(self):
