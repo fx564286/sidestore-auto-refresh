@@ -8,6 +8,8 @@ enum DeveloperPortalError: Error {
     case invalidAnisetteData
     case accountRepairRequired
     case userCancelled
+    case authenticationHandshakeFailed
+    case invalid2FAResponse
     case unknown
 }
 
@@ -25,6 +27,29 @@ enum SideSign {
         case badServerResponse(statusCode: Int, payload: String)
     }
 }
+
+
+
+// Minimal typed dummies for the native SideStore error protocols used by
+// v3SafeAuthCause. Keep this harness self-contained; production sources
+// import their concrete definitions instead.
+enum AnisetteKit {
+    enum AnisetteError: Error {
+        case readFailure, invalidArgument, loaderFailed, symbolMissing
+        case invalidResponse, librariesNotFound
+        case adiError(Int32, String)
+        case httpError(Int, String)
+    }
+}
+
+enum OperationError: Error {
+    case notAuthenticated, noConnection, noVPN, invalidVPN
+    case noDevice, notReachable, missingAppGroup, invalidPairingFile
+    case pairingNotComplete
+}
+
+struct ALTWrappedError: Error { let wrappedError: Error }
+struct V3SecretHandoffError: Error {}
 
 @main
 struct AuthClassificationHarness {
