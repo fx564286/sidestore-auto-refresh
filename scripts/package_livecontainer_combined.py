@@ -243,6 +243,16 @@ def verify(path, side_product=None):
         host_code = archive.read(base + '/Frameworks/LiveContainerSwiftUI.framework/LiveContainerSwiftUI')
         assert b'liveContainerAutoRefresh' in host_code, 'Host automation missing'
         assert b'V3_UNIFIED_SHELL_V1' in host_code, 'Unified v3 host shell missing'
+        # Runtime UI regression gate: source-only tests can pass even if the
+        # signed IPA contains an older LiveContainerSwiftUI binary. The
+        # literal routes below must be present in the SHIPPED framework.
+        # No signing, authentication, or installed user data are affected.
+        for route in (b'nrg-multitask', b'nrg-apps'):
+            if route not in host_code:
+                raise ValueError('Shipped host binary missing V60 Island route: ' + route.decode())
+        for diagnostic in (b'NRG_V58_VIEWPORT', b'NRG_V196_PORTRAIT_SAFEAREA'):
+            if diagnostic not in host_code:
+                raise ValueError('Shipped host binary missing fullscreen runtime: ' + diagnostic.decode())
         assert b'v3SideStoreStatusSnapshot' not in executable, 'Retired status publisher remains'
         assert b'lcReturnToHost' in host_code, 'Guest return action missing from host binary'
         assert b'LCReturnControlPosition' in host_code, 'Movable return control missing'
