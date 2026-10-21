@@ -21,6 +21,7 @@ v39=module("patch_v39_dock_app_switch_only")
 v56=module("patch_v56_notch_ui")
 v58=module("patch_v58_fullscreen")
 island=module("patch_v58_native_activity")
+route=module("patch_v60_island_guest_switch")
 
 class V58PinnedTests(unittest.TestCase):
     def test_entire_host_bounds_not_shrunken_by_safe_area(self):
@@ -84,7 +85,7 @@ class V58PinnedTests(unittest.TestCase):
         self.assertIn("!Activity<NRGGuestActivityAttributes>.activities.isEmpty",manager)
         # Never tear down the session while the user expands the Island.
         self.assertNotIn("name: UIApplication.willResignActiveNotification",manager)
-        self.assertIn("name: UIApplication.didEnterBackgroundNotification",manager)
+        self.assertNotIn("name: UIApplication.didEnterBackgroundNotification",manager)
         self.assertIn("ForEach(context.state.guests, id:",widget)
         self.assertNotIn("ForEach(context.state.installedApps",widget)
         patch_source=__import__('inspect').getsource(island.patch_dock)
@@ -126,7 +127,7 @@ class V58PinnedTests(unittest.TestCase):
         self.assertIn("nrgV58RefreshNativeIsland()",patched)
         self.assertIn("import ActivityKit",patched)
         self.assertIn("NRG_V58_HOST_WINDOW_GEOMETRY",patched)
-        self.assertIn("hostingController?.view.isHidden = apps.isEmpty || (systemIslandEnabled",patched)
+        self.assertIn("hostingController?.view.isHidden = apps.isEmpty || (systemIslandEnabled",route.patch_dock(patched))
 
     def test_default_widgetless_packer_retained(self):
         packer=(ROOT/"scripts/package_livecontainer_combined.py").read_text()
