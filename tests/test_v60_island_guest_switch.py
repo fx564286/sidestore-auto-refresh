@@ -23,7 +23,7 @@ class V60GuestSwitchTests(unittest.TestCase):
         self.assertIn('ForEach(context.state.guests',native.WIDGET)
         self.assertIn('private let homeURL = URL(string: "livecontainer://nrg-apps")!',native.WIDGET)
         self.assertIn('Label("Scarlet Crystal 열기"',native.WIDGET)
-        self.assertIn('apps.compactMap',native.MANAGER)
+        self.assertIn('running.compactMap',native.MANAGER)
         self.assertIn('containerUUID: dock.appUUID',native.MANAGER) 
         self.assertIn('value: item.containerUUID',native.MANAGER) 
         self.assertNotIn('item.model.uiSelectedContainer?.folderName',native.MANAGER)
