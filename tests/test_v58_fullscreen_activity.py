@@ -68,6 +68,29 @@ class V58PinnedTests(unittest.TestCase):
         self.assertIn("dismissalPolicy: .immediate",island.MANAGER)
         self.assertNotIn("extended-virtual-addressing",island.MANAGER)
 
+    def test_v61_mru_only_running_guest_sessions_and_fallback(self):
+        manager=island.MANAGER
+        widget=island.WIDGET
+        self.assertIn("NRG_V61_MRU_ISLAND",manager)
+        self.assertIn("nrgV61RecentGuestIDs.insert(id, at: 0)",manager)
+        self.assertIn("running.compactMap { dock in",manager)
+        self.assertIn("DataManager.shared.model.apps",manager)
+        self.assertIn("model.uiContainers.contains(where:",manager)
+        self.assertIn('URLQueryItem(name: "nrg-multitask", value: "1")',manager)
+        self.assertIn('URLQueryItem(name: "container-folder-name", value: item.containerUUID)',manager)
+        self.assertIn("guard !guests.isEmpty else",manager)
+        self.assertIn("fallback_dock=1",manager)
+        self.assertIn("nrgV61LastActivityState != state",manager)
+        self.assertIn("!Activity<NRGGuestActivityAttributes>.activities.isEmpty",manager)
+        # Never tear down the session while the user expands the Island.
+        self.assertNotIn("name: UIApplication.willResignActiveNotification",manager)
+        self.assertIn("name: UIApplication.didEnterBackgroundNotification",manager)
+        self.assertIn("ForEach(context.state.guests, id:",widget)
+        self.assertNotIn("ForEach(context.state.installedApps",widget)
+        patch_source=__import__('inspect').getsource(island.patch_dock)
+        self.assertIn("last-used guest on launch",patch_source)
+        self.assertIn("last-used guest on foreground",patch_source)
+
     def test_v191_startup_avoids_early_unwrapped_root_subview(self):
         # The device crash is EXC_BREAKPOINT at MultitaskDockManager.init()
         # because the SwiftUI root has no first subview during first commit.
