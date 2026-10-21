@@ -64,7 +64,7 @@ class V60GuestSwitchTests(unittest.TestCase):
             self.assertIn('LCUtils.authenticateUser()',apps)
     def test_v63_recent_guest_launch_across_modes(self):
         # Model runApp is the common launch path, including classic/JIT guest.
-        sample = "        appInfo.lastLaunched = Date()\\n".replace("\\\\n", "\\n")
+        sample = "        appInfo.lastLaunched = Date()" + chr(10)
         patched = route.patch_model(sample)
         self.assertEqual(patched, route.patch_model(patched))
         self.assertIn("NRG_V63_NOTIFY_GUEST_LAUNCH", patched)
