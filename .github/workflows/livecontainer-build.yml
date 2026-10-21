@@ -26,7 +26,7 @@ jobs:
     # V58: native arm64 queue starved; standard Intel macOS 26 image also has Xcode 26.4.1.
     # This is a cross-build for iphoneos arm64, not a change of IPA architecture.
     runs-on: macos-26-intel
-    timeout-minutes: 60
+    timeout-minutes: 120
     steps:
       - uses: actions/checkout@v4
         with:
@@ -490,6 +490,7 @@ jobs:
           test "$actual_side_logging" = "$expected_side_logging"
 
       - name: Build host and embedded SideStore source targets
+        timeout-minutes: 45
         shell: bash
         run: |
           set -euo pipefail
