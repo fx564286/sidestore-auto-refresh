@@ -144,7 +144,6 @@ MANAGER = r'''
                 let bi = nrgV61RecentGuestIDs.firstIndex(of: b.appUUID) ?? Int.max
                 return ai == bi ? a.appUUID < b.appUUID : ai < bi
             }
-            let name = String((running.first?.appName ?? "Scarlet Crystal").prefix(32))
             // NRG_V197_SESSION_IDENTITY: derive links from the *running dock*
             // rather than uiSelectedContainer, which may point to a different
             // instance of the same guest app.
@@ -180,6 +179,8 @@ MANAGER = r'''
                     runningItem.model.appInfo.relativeBundlePath == item.model.appInfo.relativeBundlePath
                 }
             }
+            let name = String((catalog.first?.model.appInfo.displayName() ??
+                "Scarlet Crystal").prefix(32))
             // The Island has finite space: active scenes first, then MRU guests.
             let guests = catalog.prefix(6).compactMap { item -> NRGGuestActivityAttributes.Guest? in
                 guard let bundle = item.model.appInfo.relativeBundlePath,
@@ -290,7 +291,7 @@ struct NRGGuestIslandWidget: Widget {
                         .font(.headline)
                 }
                 DynamicIslandExpandedRegion(.trailing) {
-                    Text(String(context.state.runningCount) + "개 실행")
+                    Text(String(context.state.installedCount) + "개 최근")
                         .font(.caption).monospacedDigit()
                 }
                 DynamicIslandExpandedRegion(.center) {
@@ -332,7 +333,7 @@ struct NRGGuestIslandWidget: Widget {
             } compactLeading: {
                 Image(systemName: "square.stack.3d.up.fill")
             } compactTrailing: {
-                Text(String(context.state.runningCount))
+                Text(String(context.state.installedCount))
                     .monospacedDigit()
             } minimal: {
                 Image(systemName: "square.stack.3d.up.fill")
