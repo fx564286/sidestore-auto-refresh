@@ -74,7 +74,7 @@ PATCHES = {
             """        let (_, body) = try await httpClient.makeRequest(request)
 
         return try self.decoder.decode(Response.self, from: body).urls""",
-            """        // NRG_XTOOL_SIDESTORE_AUTH_V1: use a Mac URL-bag identity to avoid
+            r"""        // NRG_XTOOL_SIDESTORE_AUTH_V1: use a Mac URL-bag identity to avoid
         // the reduced Android GSA endpoint list. Do not change ADI provisioning.
         if DeviceInfo.nrgSideStoreAuth {
             request.headerFields[.init(DeviceInfo.clientInfoKey)!] =
