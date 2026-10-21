@@ -107,9 +107,52 @@ def patch_apps(s):
         "deep link switch")
     return s
 
+DOCK = Path("MultitaskSupport/MultitaskDockView.swift")
+
+def patch_dock(s):
+    """V62: eliminate obsolete portrait overlay, show fallback only when needed."""
+    mark="NRG_V62_EXCLUSIVE_UI_SURFACES"
+    if mark in s:
+        if s.count(mark)!=1:
+            raise RuntimeError("V62 duplicate/partial dock patch")
+        return s
+    if "NRG_V58_NATIVE_ISLAND_ACTIVITY" not in s:
+        raise RuntimeError("V62 requires native Island patch")
+    s=one(s,
+        "        guard let window = keyWindow else { return }\n        if nrgV56IslandHost == nil {",
+        """        // NRG_V62_EXCLUSIVE_UI_SURFACES: ActivityKit owns the system Island.
+        // Do not keep a legacy hosting view attached below the notch on iPhone.
+        if #available(iOS 16.2, *), UIDevice.current.userInterfaceIdiom == .phone {
+            if !nrgV56IslandHidden { nrgV56IslandHidden = true }
+            if nrgV56IslandExpanded { nrgV56IslandExpanded = false }
+            nrgV56IslandHost?.view.removeFromSuperview()
+            nrgV56IslandHost = nil
+            return
+        }
+        guard let window = keyWindow else { return }
+        if nrgV56IslandHost == nil {""",
+        "remove obsolete V56 portrait surface")
+    s=one(s,
+        """            hostingController?.view.isHidden = systemIslandEnabled &&
+                !Activity<NRGGuestActivityAttributes>.activities.isEmpty &&
+                UIApplication.shared.applicationState == .active""",
+        """            // Keep old dock only as the one fallback when guests run and
+            // no native Island is available. No empty dock on the V3 Home tab.
+            hostingController?.view.isHidden = apps.isEmpty || (systemIslandEnabled &&
+                !Activity<NRGGuestActivityAttributes>.activities.isEmpty &&
+                UIApplication.shared.applicationState == .active)""",
+        "single active fallback")
+    s=one(s,
+        """            guard !guests.isEmpty else {
+                hostingController?.view.isHidden = false""",
+        """            guard !guests.isEmpty else {
+                hostingController?.view.isHidden = apps.isEmpty""",
+        "no old dock on empty activity")
+    return s
+
 def main(root):
     pending=[]
-    for relative, transform in ((SHELL, patch_shell), (APPS, patch_apps)):
+    for relative, transform in ((SHELL, patch_shell), (APPS, patch_apps), (DOCK, patch_dock)):
         file=root/relative
         old=file.read_text(encoding="utf-8")
         new=transform(old)
