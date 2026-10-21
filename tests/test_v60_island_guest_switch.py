@@ -37,7 +37,8 @@ class V60GuestSwitchTests(unittest.TestCase):
         self.assertIn(native.SHARED_ATTRS,native.WIDGET)
         self.assertIn('struct Guest: Codable, Hashable',native.SHARED_ATTRS)
         self.assertIn('.prefix(6)',native.MANAGER)
-        self.assertIn('runningCount == 0',native.MANAGER)
+        self.assertIn('guard !guests.isEmpty else',native.MANAGER)
+        self.assertIn('NRG_V63_RECENT_GUEST_CATALOG',native.MANAGER)
         self.assertIn('route.queryItems = query',native.MANAGER)
     def test_route_and_normal_app_launch_are_distinct_and_repeatable(self):
         sample=(ROOT/'scripts/templates/v3_unified_shell.swift').read_text()
