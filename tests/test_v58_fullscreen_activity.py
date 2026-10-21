@@ -126,7 +126,7 @@ class V58PinnedTests(unittest.TestCase):
         self.assertIn("nrgV58RefreshNativeIsland()",patched)
         self.assertIn("import ActivityKit",patched)
         self.assertIn("NRG_V58_HOST_WINDOW_GEOMETRY",patched)
-        self.assertIn("hostingController?.view.isHidden = systemIslandEnabled",patched)
+        self.assertIn("hostingController?.view.isHidden = apps.isEmpty || (systemIslandEnabled",patched)
 
     def test_default_widgetless_packer_retained(self):
         packer=(ROOT/"scripts/package_livecontainer_combined.py").read_text()
