@@ -45,6 +45,8 @@ def patch_shell(s):
 ''',
         '''            // NRG_V60_ISLAND_ROUTE: "all apps" is not a guest launch.
             case "nrg-apps":
+                // The marker is long enough to survive Swift Release SmallString inlining.
+                NSLog("[NRG_V60_GUEST_ROUTE_EXECUTED] path=all-installed-apps")
                 sharedModel.selectedTab = .apps
                 return
             case "livecontainer-launch", "install", "open-web-page", "open-url": sharedModel.selectedTab = .apps
@@ -77,6 +79,10 @@ def patch_apps(s):
                 let islandMultitask: Bool? = components.queryItems?.contains {
                     $0.name == "nrg-multitask" && $0.value == "1"
                 } == true ? true : nil
+                if islandMultitask == true {
+                    // Only the route type, never a guest identifier or URL.
+                    NSLog("[NRG_V60_GUEST_ROUTE_EXECUTED] path=guest-switch")
+                }
                 for queryItem in components.queryItems ?? [] {''',
         "route opt-in")
     s = one(s,
