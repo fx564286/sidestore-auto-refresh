@@ -117,12 +117,16 @@ MANAGER = r'''
             let installed = DataManager.shared.model.apps
             let runningCount = apps.count
             let name = String((apps.last?.appName ?? "NRG").prefix(32))
-            let catalog: [(model: LCAppModel, running: Bool)] = installed.compactMap { model in
-                let active = apps.contains { dock in
-                    dock.appInfo?.relativeBundlePath == model.appInfo.relativeBundlePath ||
-                    model.uiContainers.contains(where: { $0.folderName == dock.appUUID })
-                }
-                return active ? (model: model, running: true) : nil
+            // NRG_V197_SESSION_IDENTITY: derive links from the *running dock*
+            // rather than uiSelectedContainer, which may point to a different
+            // instance of the same guest app.
+            let catalog: [(model: LCAppModel, containerUUID: String)] = apps.compactMap { dock in
+                guard let model = installed.first(where: { model in
+                    model.uiContainers.contains(where: { $0.folderName == dock.appUUID }) ||
+                    (model.appInfo.relativeBundlePath == dock.appInfo?.relativeBundlePath &&
+                     model.uiSelectedContainer?.folderName == dock.appUUID)
+                }) else { return nil }
+                return (model: model, containerUUID: dock.appUUID)
             }
             // The Island has finite space: prioritize active guests.
             let guests = catalog.prefix(6).compactMap { item -> NRGGuestActivityAttributes.Guest? in
@@ -133,15 +137,13 @@ MANAGER = r'''
                 route.host = "livecontainer-launch"
                 var query = [URLQueryItem(name: "bundle-name", value: bundle),
                              URLQueryItem(name: "nrg-multitask", value: "1")]
-                if let container = item.model.uiSelectedContainer?.folderName,
-                   !container.isEmpty {
-                    query.append(URLQueryItem(name: "container-folder-name", value: container))
-                }
+                guard !item.containerUUID.isEmpty else { return nil }
+                query.append(URLQueryItem(name: "container-folder-name", value: item.containerUUID))
                 route.queryItems = query
                 guard let launchURL = route.url?.absoluteString else { return nil }
                 return NRGGuestActivityAttributes.Guest(
                     name: String(item.model.appInfo.displayName().prefix(24)),
-                    launchURL: launchURL, running: item.running)
+                    launchURL: launchURL, running: true)
             }
             let state = NRGGuestActivityAttributes.ContentState(
                 runningCount: runningCount, installedCount: runningCount,
