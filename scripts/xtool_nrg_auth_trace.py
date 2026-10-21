@@ -77,6 +77,9 @@ NEW_RESPONSE = """        do {
                 }
                 throw error
             }
+        } catch let error as GrandSlamOperationError {
+            // A typed GrandSlam rejection was already logged by the decoder.
+            throw error
         } catch let error as HTTPResponseError {
             if tracing {
                 print("[NRG_AUTH_TRACE] phase=\\(phase) http=\\(error.status.code) result=http_failed")
