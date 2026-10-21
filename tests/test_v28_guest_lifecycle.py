@@ -37,6 +37,25 @@ class V28GuestLifecycle(unittest.TestCase):
             self.skipTest("Pinned source only available on integration host")
         with tempfile.TemporaryDirectory() as d:
             root = self.make_fixture(d)
+            # This test runs twice in CI: on the pristine pinned checkout before
+            # integration and on the final generated source after V27 -> V28.
+            # Never apply the V28 patch to raw upstream without its V27
+            # prerequisites; that was the original #243 CI failure.
+            generated = os.environ.get("V28_PATCHED_LIVECONTAINER")
+            if not generated:
+                self.assertNotIn("NRG_V27_GUEST_SWITCH_LIFECYCLE", (root / self.mod.DOCK).read_text())
+                before = [(root / n).read_bytes() for n in (
+                    self.mod.APP_M, self.mod.APP_H, self.mod.DEC_M,
+                    self.mod.DEC_H, self.mod.DOCK)]
+                with self.assertRaisesRegex(SystemExit, "V27 guest lifecycle missing"):
+                    self.mod.patch(root)
+                after = [(root / n).read_bytes() for n in (
+                    self.mod.APP_M, self.mod.APP_H, self.mod.DEC_M,
+                    self.mod.DEC_H, self.mod.DOCK)]
+                self.assertEqual(before, after, "Pre-patch regression mutated pinned source")
+                return
+            self.assertEqual(SOURCE.resolve(), Path(generated).resolve(),
+                             "Post-patch test must use the actual generated checkout")
             self.mod.patch(root)
             app = (root / self.mod.APP_M).read_text()
             dec = (root / self.mod.DEC_M).read_text()

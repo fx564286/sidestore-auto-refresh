@@ -133,6 +133,12 @@ jobs:
             # V28: actual remote scene keyboard + audio background lifecycle, PiP exempt.
             python3 builder/scripts/patch_v28_guest_lifecycle.py work/LiveContainer
             python3 builder/scripts/patch_v28_guest_lifecycle.py work/LiveContainer
+            # V28: verify the REAL generated scene, PiP and focus contract.
+            # The earlier repository sweep verifies the pristine-source
+            # prerequisite without attempting V28 on unpatched V27 sources.
+            V28_PATCHED_LIVECONTAINER=work/LiveContainer \
+              LIVE_CONTAINER_TEST_SOURCE=work/LiveContainer \
+              python3 -m unittest discover -s builder/tests -p test_v28_guest_lifecycle.py -v
             # V46: correct owning UIWindow, no global keyboard responder resign.
             python3 builder/scripts/patch_v46_keyboard_window_scope.py work/LiveContainer
             python3 builder/scripts/patch_v46_keyboard_window_scope.py work/LiveContainer
