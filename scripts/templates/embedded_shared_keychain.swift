@@ -706,7 +706,18 @@ fileprivate enum LCEmbeddedSharedKeychain {
         debugLog("[LC_KEYCHAIN] ACCESS item=\(label) status=\(status) pid=\(ProcessInfo.processInfo.processIdentifier)")
     }
 
+    // V199: noisy successful UI polls are logged only once per healthy streak.
+    // A failed/absent snapshot is always logged; the next recovery logs status=0.
+    // This guard affects diagnostics only, not Keychain reads or migration.
+    private static let snapshotLogLock = NSLock()
+    private static var snapshotSuccessLogged = false
+
     private static func recordAuthenticationSnapshotIssue(_ status: Int) {
+        snapshotLogLock.lock()
+        let shouldLog = status != 0 || !snapshotSuccessLogged
+        snapshotSuccessLogged = status == 0
+        snapshotLogLock.unlock()
+        guard shouldLog else { return }
         debugLog("[LC_KEYCHAIN] SNAPSHOT status=\(status) pid=\(ProcessInfo.processInfo.processIdentifier)")
     }
 
