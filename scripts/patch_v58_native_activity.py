@@ -185,7 +185,9 @@ MANAGER = r'''
                 guard let bundle = item.model.appInfo.relativeBundlePath,
                       bundle.hasSuffix(".app"), bundle.utf8.count <= 180 else { return nil }
                 var route = URLComponents()
-                route.scheme = "livecontainer"
+                // NRG_V63_EXCLUSIVE_SCHEME: route back to this exact app,
+                // not another LiveContainer installation claiming the generic scheme.
+                route.scheme = "scarletcrystal251"
                 route.host = "livecontainer-launch"
                 var query = [URLQueryItem(name: "bundle-name", value: bundle),
                              URLQueryItem(name: "nrg-multitask", value: "1")]
@@ -264,7 +266,7 @@ import ActivityKit
 '''+SHARED_ATTRS+r'''
 @available(iOS 16.1, *)
 struct NRGGuestIslandWidget: Widget {
-    private let homeURL = URL(string: "livecontainer://nrg-apps")!
+    private let homeURL = URL(string: "scarletcrystal251://nrg-apps")!
 
     var body: some WidgetConfiguration {
         ActivityConfiguration(for: NRGGuestActivityAttributes.self) { context in
@@ -435,6 +437,17 @@ def main(root,side):
     if data.get("NSSupportsLiveActivities") not in (None, True):
         raise RuntimeError("unexpected incompatible Live Activities setting")
     data["NSSupportsLiveActivities"]=True
+    # Only the genuine Scarlet Crystal host owns these ActivityKit URLs.
+    # Preserve original livecontainer:// handlers for other app features.
+    types=data.get("CFBundleURLTypes", [])
+    if not isinstance(types,list):raise RuntimeError("invalid URL types list")
+    match=[entry for entry in types if isinstance(entry,dict) and
+           "livecontainer" in entry.get("CFBundleURLSchemes",[])]
+    if len(match)!=1:raise RuntimeError("canonical LiveContainer scheme missing")
+    schemes=match[0]["CFBundleURLSchemes"]
+    if "scarletcrystal251" not in schemes:
+        schemes.append("scarletcrystal251")
+    data["CFBundleURLTypes"]=types
     if "NRG_V61_MRU_ISLAND" not in out:
         raise RuntimeError("V61 Island MRU patch was not applied")
     if orig!=out:dock.write_text(out)
