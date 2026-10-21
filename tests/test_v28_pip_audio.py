@@ -1,12 +1,13 @@
 """V28 regression: PiP-only host audio session and no eager playback activation."""
 import importlib.util
+import os
 from pathlib import Path
 import tempfile
 import unittest
 
 ROOT=Path(__file__).resolve().parents[1]
 SCRIPT=ROOT/"scripts/patch_v28_pip_audio.py"
-UPSTREAM=Path("/shared/nrg-v27-upstream-livecontainer/MultitaskSupport/PiPManager.m")
+UPSTREAM=Path(os.environ.get("LIVE_CONTAINER_TEST_SOURCE", "/shared/nrg-v27-upstream-livecontainer"))/"MultitaskSupport/PiPManager.m"
 
 def patch_mod():
     spec=importlib.util.spec_from_file_location("v28_pip_audio",SCRIPT)

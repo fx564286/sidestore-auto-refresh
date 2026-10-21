@@ -302,8 +302,18 @@ print("standalone manifest privacy PASS")
 
     def fixture(self, root):
         tree = ast.parse((ROOT / "scripts/patch_background_automation.py").read_text(encoding="utf-8"))
-        helper = next(node.value for node in ast.walk(tree) if isinstance(node, ast.Constant)
-                      and isinstance(node.value, str) and node.value.startswith("\n    private func automaticRefreshDefaults()"))
+        # V199: background automation now prepends authenticated-team repair
+        # before the verification helpers. Find the helper by its explicit
+        # Swift function signature instead of relying on a raw-string prefix.
+        functions = [
+            node.value for node in ast.walk(tree)
+            if isinstance(node, ast.Constant) and isinstance(node.value, str)
+            and "    private func automaticRefreshDefaults() throws -> UserDefaults {" in node.value
+            and "    private func persistAutomaticRefreshVerification(" in node.value
+        ]
+        if len(functions) != 1:
+            self.fail("expected exactly one pinned automatic-refresh helper block")
+        helper = functions[0]
         path = root / "SideStore/Core/Operations/StandaloneOperations/BackgroundRefreshAppsOperation.swift"
         path.parent.mkdir(parents=True)
         notification = r'''                self.debugLog("[AUTO_REFRESH] NOTIFICATION_FAILURE failure_category=\(AutomaticRefreshFailureCategory.classify(error).rawValue)")
