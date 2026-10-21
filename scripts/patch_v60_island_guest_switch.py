@@ -114,16 +114,21 @@ def patch_model(s):
     # A real launched guest must be observable without a Dock window.
     if "NRG_V63_NOTIFY_GUEST_LAUNCH" in s:
         return s
-    return one(s, "        appInfo.lastLaunched = Date()\n",
-        """        appInfo.lastLaunched = Date()
-        // NRG_V63_NOTIFY_GUEST_LAUNCH: refresh Activity after a successful
-        // guest launch, including classic / LiveProcess sessions.
+    # Prepare the Activity while Scarlet Crystal is still foregrounded,
+    # after signing succeeds and before guest / JIT control is handed off.
+    # The original post-dispatch lastLaunched update remains unchanged.
+    return one(s,
+        '        UserDefaults.standard.set(uiSelectedContainer?.folderName, forKey: "selectedContainer")\n',
+        """        UserDefaults.standard.set(uiSelectedContainer?.folderName, forKey: "selectedContainer")
+        // NRG_V63_NOTIFY_GUEST_LAUNCH: ActivityKit request must precede
+        // switching to a classic/LiveProcess guest (host may background).
+        appInfo.lastLaunched = Date()
         if #available(iOS 16.2, *) {
             await MainActor.run {
                 MultitaskDockManager.shared.nrgV58RefreshNativeIsland()
             }
         }
-""", "record actual launch across guest execution modes")
+""", "pre-arm native Island before guest and JIT handoff")
 
 DOCK = Path("MultitaskSupport/MultitaskDockView.swift")
 
