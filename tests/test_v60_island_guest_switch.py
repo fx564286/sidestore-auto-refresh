@@ -62,6 +62,22 @@ class V60GuestSwitchTests(unittest.TestCase):
             self.assertIn('multitask: islandMultitask',apps)
             self.assertIn('runApp(multitask: multitask',apps)
             self.assertIn('LCUtils.authenticateUser()',apps)
+    def test_v63_recent_guest_launch_across_modes(self):
+        # Model runApp is the common launch path, including classic/JIT guest.
+        sample = "        appInfo.lastLaunched = Date()\\n".replace("\\\\n", "\\n")
+        patched = route.patch_model(sample)
+        self.assertEqual(patched, route.patch_model(patched))
+        self.assertIn("NRG_V63_NOTIFY_GUEST_LAUNCH", patched)
+        self.assertIn("MultitaskDockManager.shared.nrgV58RefreshNativeIsland()", patched)
+        self.assertIn("NRG_V63_RECENT_GUEST_CATALOG", native.MANAGER)
+        self.assertIn("model.appInfo.lastLaunched", native.MANAGER)
+        self.assertIn("recentCatalog.filter", native.MANAGER)
+        self.assertIn("runningCatalog + recentCatalog", native.MANAGER)
+        self.assertIn("route.scheme = \\"scarletcrystal251\\"", native.MANAGER)
+        self.assertNotIn("UIApplication.didEnterBackgroundNotification", native.MANAGER)
+        self.assertIn("schemes.append(\\"scarletcrystal251\\")",
+                      (ROOT/"scripts/patch_v58_native_activity.py").read_text())
+
     def test_workflow_applies_final_patch_twice(self):
         self.assertEqual(workflow.count('python3 builder/scripts/patch_v60_island_guest_switch.py work/LiveContainer'),2)
         self.assertLess(workflow.index('patch_v58_native_activity.py work/LiveContainer'),
