@@ -33,8 +33,13 @@ class RequiredSkipGateTests(unittest.TestCase):
         allowed = {("test_module.Case.test_known_platform_skip", "requires macOS")}
         self.assertEqual([actual], runner.unexpected_skips([actual], allowed))
 
-    def test_allowlist_schema_is_exact_and_starts_empty(self):
-        self.assertEqual(set(), runner.load_allowlist(ROOT / "scripts" / "required_test_skip_allowlist.json"))
+    def test_allowlist_schema_and_approved_skip_are_exact(self):
+        # V46 generated-source coverage is explicitly gated by the post-patch CI phase.
+        expected = {(
+            "test_v46_keyboard_window_scope.KeyboardWindowScope.test_real_generated_source_if_available",
+            "Set V46_PATCHED_LIVECONTAINER during post-patch CI",
+        )}
+        self.assertEqual(expected, runner.load_allowlist(ROOT / "scripts" / "required_test_skip_allowlist.json"))
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "allowlist.json"
             path.write_text('[{"test_id":"x","reason":"y","wildcard":"*"}]', encoding="utf-8")
