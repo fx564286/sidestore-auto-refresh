@@ -1,12 +1,13 @@
 """V28: remote focus/audio scene contract and pinned-source patch regressions."""
 import importlib.util
+import os
 from pathlib import Path
 import shutil
 import tempfile
 import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
-SOURCE = Path("/shared/nrg-v27-upstream-livecontainer")
+SOURCE = Path(os.environ.get("LIVE_CONTAINER_TEST_SOURCE", "/shared/nrg-v27-upstream-livecontainer"))
 
 def load_patch():
     path = ROOT / "scripts" / "patch_v28_guest_lifecycle.py"
