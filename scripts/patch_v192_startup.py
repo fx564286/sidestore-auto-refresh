@@ -109,14 +109,14 @@ def main(root):
     info=plistlib.loads(info_path.read_bytes())
     if info.get("CFBundleIdentifier") not in ("$(PRODUCT_BUNDLE_IDENTIFIER)", "com.kdt.livecontainer"):
         raise RuntimeError("Refusing to alter unknown host bundle identity")
-    info["CFBundleDisplayName"]="Scarlet & Crystal"
-    info["CFBundleName"]="Scarlet & Crystal"
+    info["CFBundleDisplayName"]="Scarlet Crystal"
+    info["CFBundleName"]="Scarlet Crystal"
     info["CFBundleVersion"]="3.8.192"
     for path,before,after in pending:
         if before!=after:
             path.write_text(after,encoding="utf-8")
     info_path.write_bytes(plistlib.dumps(info))
-    print("[PASS] V192 guarded native island startup, deferred window host, Scarlet & Crystal branding")
+    print("[PASS] V192 guarded native island startup, deferred window host, Scarlet Crystal branding")
     print("[PASS] Original host identifier and provisioning strategy preserved")
 
 if __name__=="__main__":

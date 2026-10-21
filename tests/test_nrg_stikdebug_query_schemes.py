@@ -40,7 +40,7 @@ class StikDebugQueriesTests(unittest.TestCase):
         self.assertEqual(after['UnrelatedValue'],'kept')
         self.assertEqual(after['NRGOTASequence'],214)
         self.assertEqual(after['CFBundleVersion'],'3.8.192')
-        self.assertEqual(after['CFBundleDisplayName'],'Scarlet & Crystal')
+        self.assertEqual(after['CFBundleDisplayName'],'Scarlet Crystal')
         self.assertEqual(after['LSApplicationQueriesSchemes'],
                 ['sidestore','livecontainer','livecontainer2','livecontainer3','stikdebug','stikjit'])
 
