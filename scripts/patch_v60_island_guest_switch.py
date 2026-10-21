@@ -68,6 +68,22 @@ def patch_apps(s):
         '''            try await appFound.runApp(multitask: nil, containerFolderName: container, urlStr: urlStr, forceJIT: forceJIT)''',
         '''            try await appFound.runApp(multitask: multitask, containerFolderName: container, urlStr: urlStr, forceJIT: forceJIT)''',
         "guest execution")
+    # Runtime-result telemetry belongs after runApp() actually returns;
+    # receiving a deep link by itself is NOT proof of a guest switch.
+    s = one(s,
+        '''            try await appFound.runApp(multitask: multitask, containerFolderName: container, urlStr: urlStr, forceJIT: forceJIT)
+        } catch {''',
+        '''            try await appFound.runApp(multitask: multitask, containerFolderName: container, urlStr: urlStr, forceJIT: forceJIT)
+            if multitask == true {
+                NSLog("[NRG_V61_GUEST_SWITCH] route=internal result=launch_returned")
+            }
+        } catch {
+            if multitask == true {
+                let err = error as NSError
+                NSLog("[NRG_V61_GUEST_SWITCH] route=internal result=failed domain=%@ code=%ld",
+                      err.domain, err.code)
+            }''',
+        "real guest switch outcome")
     s = one(s,
         '''                var forceJIT: Bool? = nil
                 var urlStr: String? = nil
