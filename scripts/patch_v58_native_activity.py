@@ -100,10 +100,10 @@ MANAGER = r'''
         Self.nrgIslandLifecycleObserversInstalled = true
         // Do not end the Live Activity on willResignActive: tapping the Island,
         // opening Control Center, or transient guest scene changes also fire it.
-        // didEnterBackground below still ends it when leaving LiveContainer.
-        NotificationCenter.default.addObserver(
-            self, selector: #selector(nrgV194EndIslandWhenInactive),
-            name: UIApplication.didEnterBackgroundNotification, object: nil)
+        // NRG_V63_BACKGROUND_CONTINUITY: Live Activity is intentionally
+        // visible while the guest process runs. Do NOT end on background:
+        // a classic/LiveProcess guest launch backgrounds the host itself.
+        // End only when there are no recent guest routes or on explicit reset.
         NotificationCenter.default.addObserver(
             self, selector: #selector(nrgV194ResumeIslandWhenActive),
             name: UIApplication.didBecomeActiveNotification, object: nil)
@@ -190,7 +190,7 @@ MANAGER = r'''
                 activeName: name, guests: guests)
             let existing = Activity<NRGGuestActivityAttributes>.activities
             // End when no guest is running, or NRG is no longer foreground.
-            if runningCount == 0 || UIApplication.shared.applicationState == .background {
+            if guests.isEmpty {
                 for activity in existing {
                     Task { await activity.end(nil, dismissalPolicy: .immediate) }
                 }
