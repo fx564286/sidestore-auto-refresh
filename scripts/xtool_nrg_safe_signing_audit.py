@@ -141,7 +141,11 @@ def profile_matches(info: dict, certificate: bytes | None, team: str, bundle: st
     team_match = team in teams or app_id.startswith(team + ".")
     app_match = fnmatch.fnmatchcase(f"{team}.{bundle}", app_id)
     date = info.get("ExpirationDate")
-    expiry_ok = isinstance(date, datetime) and date.replace(tzinfo=timezone.utc) > datetime.now(timezone.utc)
+    if isinstance(date, datetime):
+        expiry_utc = date.replace(tzinfo=timezone.utc) if date.tzinfo is None else date.astimezone(timezone.utc)
+        expiry_ok = expiry_utc > datetime.now(timezone.utc)
+    else:
+        expiry_ok = False
     devices = info.get("ProvisionedDevices", [])
     device_ok = udid in devices if udid else False
     certs = info.get("DeveloperCertificates", [])
