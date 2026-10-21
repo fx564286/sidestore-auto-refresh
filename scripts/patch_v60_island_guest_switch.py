@@ -107,6 +107,24 @@ def patch_apps(s):
         "deep link switch")
     return s
 
+MODEL = Path("LiveContainerSwiftUI/Models/LCAppModel.swift")
+
+def patch_model(s):
+    # Called for normal app icons, JIT launches and system Island deep links.
+    # A real launched guest must be observable without a Dock window.
+    if "NRG_V63_NOTIFY_GUEST_LAUNCH" in s:
+        return s
+    return one(s, "        appInfo.lastLaunched = Date()\n",
+        """        appInfo.lastLaunched = Date()
+        // NRG_V63_NOTIFY_GUEST_LAUNCH: refresh Activity after a successful
+        // guest launch, including classic / LiveProcess sessions.
+        if #available(iOS 16.2, *) {
+            await MainActor.run {
+                MultitaskDockManager.shared.nrgV58RefreshNativeIsland()
+            }
+        }
+""", "record actual launch across guest execution modes")
+
 DOCK = Path("MultitaskSupport/MultitaskDockView.swift")
 
 def patch_dock(s):
@@ -152,7 +170,7 @@ def patch_dock(s):
 
 def main(root):
     pending=[]
-    for relative, transform in ((SHELL, patch_shell), (APPS, patch_apps), (DOCK, patch_dock)):
+    for relative, transform in ((SHELL, patch_shell), (APPS, patch_apps), (MODEL, patch_model), (DOCK, patch_dock)):
         file=root/relative
         old=file.read_text(encoding="utf-8")
         new=transform(old)
