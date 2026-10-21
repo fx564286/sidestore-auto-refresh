@@ -18,9 +18,15 @@ cd "$BASE"
 exec > >(tee -a "$BASE/logs/local-parity.log") 2>&1
 fail() { echo "[FAIL] $*" >&2; exit 1; }
 trap 'ret=$?; if [ "$ret" -ne 0 ]; then echo "[FAIL] Check $BASE/logs for details (exit=$ret)" >&2; fi' EXIT
-for command_name in git python3 swiftc; do
+for command_name in git python3 swiftc timeout; do
   command -v "$command_name" >/dev/null || fail "$command_name is missing"
 done
+# Never reset successfully patched sources on a repeat invocation.
+if [ -f "$BASE/.patch-success" ]; then
+  echo "[PASS] PREVIOUS_PATCH_SUCCESS=YES (source tree preserved)"
+  echo "SOURCE_ROOT=$BASE"
+  exit 0
+fi
 
 pin() {
   local url="$1" path="$2" sha="$3"
