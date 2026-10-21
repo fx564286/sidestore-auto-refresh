@@ -180,6 +180,16 @@ public protocol RawADIProvider: Sendable {"""),
     public func provisioningData() -> ProvisioningData? {"""),
     ],
     CLIENT: [
+        ("""                if tracing {
+                    print("[NRG_AUTH_TRACE] phase=\\(phase) http=\\(resp.response.status.code) gsa_code=\\(error.code)")
+                }""",
+"""                if tracing {
+                    print("[NRG_AUTH_TRACE] phase=\\(phase) http=\\(resp.response.status.code) gsa_code=\\(error.code)")
+                    if error.code == -22421 {
+                        let hscText = error.hsc.map { String($0) } ?? "none"
+                        print("[NRG_AUTH_TRACE] phase=\\(phase) hsc=\\(hscText) sim_present=\\(error.resyncData != nil)")
+                    }
+                }"""),
         ("""                throw error
             } catch {
                 if tracing {
