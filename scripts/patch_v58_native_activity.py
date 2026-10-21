@@ -148,7 +148,7 @@ MANAGER = r'''
             // NRG_V197_SESSION_IDENTITY: derive links from the *running dock*
             // rather than uiSelectedContainer, which may point to a different
             // instance of the same guest app.
-            let catalog: [(model: LCAppModel, containerUUID: String)] = running.compactMap { dock in
+            let runningCatalog: [(model: LCAppModel, containerUUID: String)] = running.compactMap { dock in
                 guard let model = installed.first(where: { model in
                     model.uiContainers.contains(where: { $0.folderName == dock.appUUID }) ||
                     (model.appInfo.relativeBundlePath == dock.appInfo?.relativeBundlePath &&
@@ -156,7 +156,31 @@ MANAGER = r'''
                 }) else { return nil }
                 return (model: model, containerUUID: dock.appUUID)
             }
-            // The Island has finite space: prioritize active guests.
+            // NRG_V63_RECENT_GUEST_CATALOG: virtual-window Dock is not a
+            // complete guest inventory. Classic and LiveProcess launches
+            // bypass it. appInfo.lastLaunched is set by the real runApp path.
+            // Never include external iOS apps or unlaunched installed guests.
+            let recentCatalog: [(model: LCAppModel, containerUUID: String)] = installed
+                .filter { model in
+                    guard let used = model.appInfo.lastLaunched else { return false }
+                    return Date().timeIntervalSince(used) >= 0 &&
+                        Date().timeIntervalSince(used) < 48 * 60 * 60
+                }
+                .sorted { ($0.appInfo.lastLaunched ?? .distantPast) >
+                          ($1.appInfo.lastLaunched ?? .distantPast) }
+                .compactMap { model in
+                    guard let folder = model.uiSelectedContainer?.folderName ??
+                            model.uiContainers.first?.folderName,
+                          !folder.isEmpty else { return nil }
+                    return (model: model, containerUUID: folder)
+                }
+            let catalog = runningCatalog + recentCatalog.filter { item in
+                !runningCatalog.contains { runningItem in
+                    runningItem.containerUUID == item.containerUUID &&
+                    runningItem.model.appInfo.relativeBundlePath == item.model.appInfo.relativeBundlePath
+                }
+            }
+            // The Island has finite space: active scenes first, then MRU guests.
             let guests = catalog.prefix(6).compactMap { item -> NRGGuestActivityAttributes.Guest? in
                 guard let bundle = item.model.appInfo.relativeBundlePath,
                       bundle.hasSuffix(".app"), bundle.utf8.count <= 180 else { return nil }
@@ -171,7 +195,8 @@ MANAGER = r'''
                 guard let launchURL = route.url?.absoluteString else { return nil }
                 return NRGGuestActivityAttributes.Guest(
                     name: String(item.model.appInfo.displayName().prefix(24)),
-                    launchURL: launchURL, running: true)
+                    launchURL: launchURL,
+                    running: apps.contains(where: { $0.appUUID == item.containerUUID }))
             }
             NSLog("[NRG_V61_ISLAND_SNAPSHOT] running=%ld matched=%ld links=%ld authorized=%d active=%d",
                   runningCount, catalog.count, guests.count, systemIslandEnabled ? 1 : 0,
@@ -186,7 +211,7 @@ MANAGER = r'''
                 return
             }
             let state = NRGGuestActivityAttributes.ContentState(
-                runningCount: runningCount, installedCount: runningCount,
+                runningCount: runningCount, installedCount: guests.count,
                 activeName: name, guests: guests)
             let existing = Activity<NRGGuestActivityAttributes>.activities
             // End when no guest is running, or NRG is no longer foreground.
