@@ -28,6 +28,7 @@ class NRGXtoolAuthTraceTests(unittest.TestCase):
         transformed = trace.transform(self.source())
         self.assertEqual(trace.transform(transformed), transformed)
         self.assertEqual(transformed.count(trace.MARKER), 1)
+        self.assertEqual(transformed.count("catch let error as GrandSlamOperationError"), 2)
 
     def test_unknown_source_or_partial_patch_fails_closed(self):
         with self.assertRaises(ValueError):
