@@ -25,7 +25,7 @@ class NRGXtoolAnisetteResyncTests(unittest.TestCase):
                         v4.transform("unsupported source",[(old,new)],str(path))
 
     def test_only_init_one_retry_and_specific_apple_challenge(self):
-        client=v4.PATCHES[v4.CLIENT][0][1]
+        client='\n'.join(new for _old,new in v4.PATCHES[v4.CLIENT])
         self.assertIn("request is GrandSlamAuthInitRequest",client)
         self.assertIn("error.code == -22421",client)
         self.assertIn("error.hsc == 434",client)
