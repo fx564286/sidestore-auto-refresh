@@ -178,6 +178,10 @@ MANAGER = r'''
                   UIApplication.shared.applicationState == .active ? 1 : 0)
             guard !guests.isEmpty else {
                 hostingController?.view.isHidden = false
+                nrgV61LastActivityState = nil
+                for activity in Activity<NRGGuestActivityAttributes>.activities {
+                    Task { await activity.end(nil, dismissalPolicy: .immediate) }
+                }
                 NSLog("[NRG_V61_ISLAND] guest_links_missing=1 fallback_dock=1")
                 return
             }
