@@ -1,1 +1,6 @@
-[]
+[
+  {
+    "test_id": "test_v46_keyboard_window_scope.KeyboardWindowScope.test_real_generated_source_if_available",
+    "reason": "Set V46_PATCHED_LIVECONTAINER during post-patch CI"
+  }
+]
