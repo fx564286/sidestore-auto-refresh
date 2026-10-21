@@ -73,9 +73,9 @@ class V60GuestSwitchTests(unittest.TestCase):
         self.assertIn("model.appInfo.lastLaunched", native.MANAGER)
         self.assertIn("recentCatalog.filter", native.MANAGER)
         self.assertIn("runningCatalog + recentCatalog", native.MANAGER)
-        self.assertIn("route.scheme = \\"scarletcrystal251\\"", native.MANAGER)
+        self.assertIn('route.scheme = "scarletcrystal251"', native.MANAGER)
         self.assertNotIn("UIApplication.didEnterBackgroundNotification", native.MANAGER)
-        self.assertIn("schemes.append(\\"scarletcrystal251\\")",
+        self.assertIn('schemes.append("scarletcrystal251")',
                       (ROOT/"scripts/patch_v58_native_activity.py").read_text())
 
     def test_workflow_applies_final_patch_twice(self):
