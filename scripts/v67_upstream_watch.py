@@ -87,7 +87,7 @@ def markdown(data: dict) -> str:
                     f"{item['pinned'][:12]} | {'Review + compatibility tests' if item['update_available'] else 'Current'} |")
     rows += ['', f"Xcode: {data['sdk_observed']['xcode']}",
              f"iPhoneOS SDK: {data['sdk_observed']['iphoneos_sdk']}", '',
-             'API updates must preserve the three-App-ID cap and run the device regression suite.',
+             'API updates must preserve required native extensions, minimize App IDs by verified capabilities, and run device regression tests.',
              'Do not publish or install a new IPA automatically.']
     return '\n'.join(rows) + '\n'
 
