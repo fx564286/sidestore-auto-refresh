@@ -7164,6 +7164,7 @@ struct V3DeveloperServicesView: View {
     // NRG_V65_APP_ID_PORTAL_CONTROL: deletion and server refresh are separate
     // actions within one Apple App ID management screen.
     @State private var appIDDeleteTarget: [String: String]? = nil
+    @State private var showAppIDDeleteConfirmation = false
     @State private var appIDDeleting = false
     @State private var appIDRefreshing = false
     @State private var appIDPortalNotice = ""
@@ -7220,7 +7221,10 @@ struct V3DeveloperServicesView: View {
                                 Label("보호", systemImage: "lock.shield")
                                     .font(.caption).foregroundColor(.secondary)
                             } else {
-                                Button("삭제", role: .destructive) { appIDDeleteTarget = row }
+                                Button("삭제", role: .destructive) {
+                                    appIDDeleteTarget = row
+                                    showAppIDDeleteConfirmation = true
+                                }
                                     .font(.caption)
                                     .disabled(loading || appIDDeleting || appIDRefreshing || !status.authenticated)
                             }
@@ -7251,10 +7255,7 @@ struct V3DeveloperServicesView: View {
         }
         .listStyle(.insetGrouped)
         .navigationTitle("Developer Services")
-        .alert("Apple App ID 삭제", isPresented: Binding(
-            get: { appIDDeleteTarget != nil },
-            set: { if !$0 { appIDDeleteTarget = nil } }
-        )) {
+        .alert("Apple App ID 삭제", isPresented: $showAppIDDeleteConfirmation) {
             Button("삭제 확인", role: .destructive) {
                 let selected = appIDDeleteTarget
                 Task { await deleteSelectedPortalAppID(selected) }
