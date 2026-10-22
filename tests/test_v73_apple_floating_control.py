@@ -52,7 +52,11 @@ class V73FloatingControlTests(unittest.TestCase):
         self.assertIn('[overflow addGestureRecognizer:nrgV73Drag]',text)
         pinned=self.pinned()
         if not pinned.exists():self.skipTest('pinned LiveContainer source missing')
-        self.assertIn('overflow.showsMenuAsPrimaryAction = YES',v72.patch_window(v37.patch(pinned.read_text())))
+        source=pinned.read_text()
+        if v73.MARK not in source:
+            if v72.MARK not in source:
+                source=v72.patch_window(v37.patch(source))
+        self.assertIn('overflow.showsMenuAsPrimaryAction = YES',source)
 
     @staticmethod
     def pinned():
@@ -63,8 +67,13 @@ class V73FloatingControlTests(unittest.TestCase):
     def test_composed_real_source_and_repeatability(self):
         pinned=self.pinned()
         if not pinned.exists():self.skipTest('pinned LiveContainer source missing')
-        s=v72.patch_window(v37.patch(pinned.read_text()))
-        updated=v73.patch(s)
+        s=pinned.read_text()
+        if v73.MARK in s:
+            updated=v73.patch(s)
+        else:
+            if v72.MARK not in s:
+                s=v72.patch_window(v37.patch(s))
+            updated=v73.patch(s)
         self.assertEqual(updated,v73.patch(updated))
         self.assertIn('nrgV72WindowOverflowLongPress',updated)
         self.assertIn('nrgV73DragFloatingOverflow:',updated)
