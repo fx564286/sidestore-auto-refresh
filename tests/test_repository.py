@@ -133,7 +133,8 @@ class RepositoryTests(unittest.TestCase):
                     "xtool_nrg_auth_compat.py", "xtool_nrg_auth_cpd_v3.py",
                     "xtool_nrg_auth_resync_v4.py", "xtool_nrg_auth_trace.py", "xtool_nrg_auth_503_v5.py",
                     "patch_v72_overflow_longpress.py", "patch_v73_apple_floating_control.py",
-                    "patch_v75_retained_guest_reconcile.py"},
+                    "patch_v75_retained_guest_reconcile.py",
+                    "patch_v76_native_guest_switcher.py"},
         )
 
     def test_patch_scripts_parse_and_contain_guard_markers(self):
