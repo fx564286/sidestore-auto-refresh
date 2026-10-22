@@ -4,7 +4,7 @@
   "features": {
     "guest_app_management": true,
     "independent_guest_process": true,
-    "native_dynamic_island": true,
+    "native_dynamic_island": false,
     "native_share_sheet_receiver": true,
     "app_shortcuts": true,
     "files_open_in": true,
@@ -16,6 +16,7 @@
     "This profile preserves native iOS share sheet support; it does not silently replace it with Shortcuts.",
     "If the user explicitly approves Share Sheet -> Shortcut -> host instead, set native_share_sheet_receiver=false.",
     "No arbitrary maximum count: the plan contains only IDs required by the selected native functions.",
-    "New Apple APIs may require review of entitlements or mandatory extension points. Reject unknown features."
+    "New Apple APIs may require review of entitlements or mandatory extension points. Reject unknown features.",
+    "V72: native island and WidgetKit extension intentionally removed; long press on top-right guest window overflow triggers the app switcher."
   ]
 }
