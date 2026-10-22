@@ -145,9 +145,55 @@ rm -f ./Payload/LiveContainer.app/Frameworks/SideStoreApp.framework/Intents.inte
 rm -f ./Payload/LiveContainer.app/Frameworks/SideStoreApp.framework/ViewApp.intentdefinition
 rm -rf ./Payload/LiveContainer.app/Frameworks/SideStoreApp.framework/Metadata.appintents
 ''')
+    if os.environ.get("NRG_V66_4IDS") == "1":
+        # Preserve host-native App Intent metadata before the upstream SideStore
+        # actionsdata replaces the main app's metadata directory.
+        text = replace_once(
+            text,
+            '# Stage the host App Intents schemas/metadata from the headless service build,',
+            '# NRG_V66_FOUR_IDS: preserve host AppIntent metadata.\n'
+            'test -s ./Payload/LiveContainer.app/Metadata.appintents/extract.actionsdata\n'
+            'cp ./Payload/LiveContainer.app/Metadata.appintents/extract.actionsdata ./tmp/nrg-v66-host.actionsdata\n'
+            'rm -rf ./Payload/LiveContainer.app/Metadata.appintents\n'
+            '# Stage the host App Intents schemas/metadata from the headless service build,')
+        text = replace_once(
+            text,
+            'rm -rf ./Payload/LiveContainer.app/Frameworks/SideStoreApp.framework/Metadata.appintents\n',
+            'rm -rf ./Payload/LiveContainer.app/Frameworks/SideStoreApp.framework/Metadata.appintents\n'
+            'python3 "$COMBINED_PACKAGER" --merge-host-intents '
+            './Payload/LiveContainer.app ./tmp/nrg-v66-host.actionsdata\n')
+        text = replace_once(
+            text, '# package\n',
+            '# NRG_V66_FOUR_IDS: retain host, LiveProcess, Share, native Island.\n'
+            'rm -rf ./Payload/LiveContainer.app/PlugIns/LaunchAppExtension.appex\n'
+            'test ! -e ./Payload/LiveContainer.app/PlugIns/LaunchAppExtension.appex\n'
+            '# package\n')
     text = replace_once(text, '# package\n',
                         'python3 "$COMBINED_PACKAGER" --prepare-entitlements . Payload/LiveContainer.app\n\n# package\n')
     return 'set -eu\n' + text
+
+
+def merge_host_intents(app: Path, host_metadata: Path) -> None:
+    # Xcode's actionsdata is JSON; preserve all SideStore actions and add the
+    # app's native AppIntent without blindly swapping the full metadata tree.
+    staged = app / 'Metadata.appintents' / 'extract.actionsdata'
+    side = json.loads(staged.read_text())
+    host = json.loads(host_metadata.read_text())
+    actions = host.get('actions', {})
+    if 'ScarletCrystalLaunchAppIntent' not in actions:
+        raise ValueError('Xcode omitted V66 app-hosted Launch App intent metadata')
+    if 'RefreshAllAppsIntent' not in side.get('actions', {}):
+        raise ValueError('Existing SideStore shortcut metadata missing')
+    if set(side['actions']) & set(actions):
+        raise ValueError('Duplicate App Intent action identifiers')
+    side['actions'].update(actions)
+    for key in ('appEntities', 'entityQueries', 'enums', 'assistantDefinedSchemas'):
+        if isinstance(host.get(key), dict):
+            target = side.setdefault(key, {})
+            if set(target) & set(host[key]):
+                raise ValueError('Duplicate App Intent metadata in ' + key)
+            target.update(host[key])
+    staged.write_text(json.dumps(side, separators=(',', ':'), ensure_ascii=False))
 
 
 def prepare_entitlements(root, app):
@@ -155,7 +201,9 @@ def prepare_entitlements(root, app):
         '': 'entitlements.xml',
         'PlugIns/LiveProcess.appex': 'LiveProcess/LiveProcess.entitlements',
         'PlugIns/ShareExtension.appex': 'ShareExtension/ShareExtension.entitlements',
-        'PlugIns/LaunchAppExtension.appex': 'LaunchAppExtension/LaunchAppExtension.entitlements',
+        **({} if os.environ.get('NRG_V66_4IDS') == '1' else {
+            'PlugIns/LaunchAppExtension.appex': 'LaunchAppExtension/LaunchAppExtension.entitlements'
+        }),
     }
     for relative, source in sources.items():
         bundle = app / relative
@@ -288,16 +336,19 @@ def verify(path, side_product=None):
                 if relative == 'SideStore' or '_CodeSignature' in relative:
                     continue
                 assert archive.read(embedded + '/' + relative) == source.read_bytes(), relative
-    for extension, suffix in [('LiveProcess', 'LiveProcess'), ('ShareExtension', 'ShareExtension'),
-                              ('LaunchAppExtension', 'LaunchAppExtension')]:
+    registered_extensions = [('LiveProcess', 'LiveProcess'), ('ShareExtension', 'ShareExtension')]
+    if os.environ.get('NRG_V66_4IDS') != '1':
+        registered_extensions.append(('LaunchAppExtension', 'LaunchAppExtension'))
+    else:
+        assert base + '/PlugIns/LaunchAppExtension.appex' not in bundles, 'V66 Launcher must be absent'
+    for extension, suffix in registered_extensions:
         bundle = bundles[base + '/PlugIns/' + extension + '.appex']
         assert bundle['executable_present']
         assert bundle['info']['CFBundleIdentifier'] == 'com.kdt.livecontainer.' + suffix
         assert bundle['signing']['xml_entitlements'].get('com.apple.security.application-groups')
     assert bundles[base]['signing']['xml_entitlements'].get('keychain-access-groups')
     assert host['ALTAppGroups'] == ['group.com.SideStore.SideStore']
-    for extension, suffix in [('LiveProcess', 'LiveProcess'), ('ShareExtension', 'ShareExtension'),
-                              ('LaunchAppExtension', 'LaunchAppExtension')]:
+    for extension, suffix in registered_extensions:
         # Every extension resolves the same packaged fallback list as the host,
         # so a launch that published no group cannot split the shared store.
         assert bundles[base + '/PlugIns/' + extension + '.appex']['info']['ALTAppGroups'] == host['ALTAppGroups'], \
@@ -310,10 +361,17 @@ def verify(path, side_product=None):
     assert 'processing' in host['UIBackgroundModes']
     result['semantic_verification'] = 'passed; device signing and runtime unverified'
     result['iloader_special_app'] = 'SideStoreLc'
-    # One host plus 3 extension App IDs; LiveWidget is not packaged.
+    # V66: main-app AppIntent replaces Launcher, retaining the Island widget.
     result['registration_targets_before_reuse'] = 4
     if os.environ.get('NRG_V58_NATIVE_ISLAND') == '1':
         result['registration_targets_before_reuse'] = 5
+    if os.environ.get('NRG_V66_4IDS') == '1':
+        result['registration_targets_before_reuse'] -= 1
+        assert result['registration_targets_before_reuse'] == 4
+        with zipfile.ZipFile(path) as package:
+            root_metadata = json.loads(package.read(base + '/Metadata.appintents/extract.actionsdata'))
+        assert 'ScarletCrystalLaunchAppIntent' in root_metadata['actions'], 'Host shortcut missing'
+        assert 'RefreshAllAppsIntent' in root_metadata['actions'], 'Existing refresh shortcut missing'
     return result
 
 
@@ -348,12 +406,15 @@ def package(root, host, side, output):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--prepare-entitlements', nargs=2, type=Path)
+    parser.add_argument('--merge-host-intents', nargs=2, type=Path)
     parser.add_argument('--root', type=Path)
     parser.add_argument('--host', type=Path)
     parser.add_argument('--side', type=Path)
     parser.add_argument('--output', type=Path)
     args = parser.parse_args()
-    if args.prepare_entitlements:
+    if args.merge_host_intents:
+        merge_host_intents(*(p.resolve() for p in args.merge_host_intents))
+    elif args.prepare_entitlements:
         prepare_entitlements(*(p.resolve() for p in args.prepare_entitlements))
     else:
         package(*(p.resolve() for p in (args.root, args.host, args.side, args.output)))
