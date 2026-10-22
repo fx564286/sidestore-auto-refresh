@@ -50,14 +50,20 @@ class V73FloatingControlTests(unittest.TestCase):
         self.assertIn('UIPanGestureRecognizer',text)
         self.assertNotIn('self.view addGestureRecognizer',text)
         self.assertIn('[overflow addGestureRecognizer:nrgV73Drag]',text)
-        self.assertIn('overflow.showsMenuAsPrimaryAction = YES',v72.patch_window(v37.patch(self.pinned().read_text())))
+        pinned=self.pinned()
+        if not pinned.exists():self.skipTest('pinned LiveContainer source missing')
+        self.assertIn('overflow.showsMenuAsPrimaryAction = YES',v72.patch_window(v37.patch(pinned.read_text())))
 
     @staticmethod
     def pinned():
+        if os.environ.get('LIVE_CONTAINER_TEST_SOURCE'):
+            return Path(os.environ['LIVE_CONTAINER_TEST_SOURCE'])/v73.FILE
         return Path('/workspace/scarlet-v65/pinned-livecontainer/MultitaskSupport/DecoratedAppSceneViewController.m')
 
     def test_composed_real_source_and_repeatability(self):
-        s=v72.patch_window(v37.patch(self.pinned().read_text()))
+        pinned=self.pinned()
+        if not pinned.exists():self.skipTest('pinned LiveContainer source missing')
+        s=v72.patch_window(v37.patch(pinned.read_text()))
         updated=v73.patch(s)
         self.assertEqual(updated,v73.patch(updated))
         self.assertIn('nrgV72WindowOverflowLongPress',updated)
