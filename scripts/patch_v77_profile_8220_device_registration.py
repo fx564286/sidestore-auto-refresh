@@ -59,15 +59,24 @@ REPLACEMENT='''        // LC_V77_PORTAL_8220_REGISTER_CURRENT_DEVICE: the sign-i
         }'''
 
 def patch(src):
+    # UIDevice belongs to UIKit; Foundation/SideSign/CoreData alone do not
+    # expose it when this standalone Swift operation is compiled by Xcode.
+    # Validate the import even on the idempotent second CI patch run.
     if MARKER in src:
         if src.count(MARKER)!=1 or src.count('serverCode == 8220')!=1 or \
-           src.count('current_device_registered team_scoped=1')!=1:
-            raise ValueError('V77 incomplete/duplicate patch')
+           src.count('current_device_registered team_scoped=1')!=1 or \
+           src.count('import UIKit') != 1:
+            raise ValueError('V77 incomplete/duplicate patch or UIKit import missing')
         return src
     if src.count('LC_PROVISIONING_PARENT_ID_UPSTREAM_V1')!=1:
         raise ValueError('V77 needs prior pinned provenance parent-ID patch')
     if src.count(ANCHOR)!=1:
         raise ValueError(f'V77 profile fetch anchor count {src.count(ANCHOR)}')
+    if 'import UIKit' not in src:
+        if src.count('import Foundation\n') != 1:
+            raise ValueError('V77 missing unique Foundation import anchor')
+        src = src.replace('import Foundation\n',
+                          'import Foundation\nimport UIKit\n', 1)
     return src.replace(ANCHOR,REPLACEMENT,1)
 
 def main(root):
