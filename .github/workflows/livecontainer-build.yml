@@ -336,16 +336,31 @@ jobs:
           retention-days: 90
 
       - name: Build unified host before transport compilation
-        # Previously 3-6 minutes on both successful and failed macOS 26 Intel builds.
-        # Prevent a stalled SwiftPM/xcodebuild from consuming the 60-minute job budget.
-        timeout-minutes: 15
+        # Intel Xcode runners can stall under excessive Swift frontend workers.
+        # Cap jobs, stream directly to disk, terminate the process group on timeout.
+        timeout-minutes: 23
         shell: bash
         run: |
           set -euo pipefail
-          xcodebuild -project work/LiveContainer/LiveContainer.xcodeproj \
+          echo '[NRG_V67] diagnostic preflight'; df -h . "$RUNNER_TEMP"; sysctl -n hw.memsize || true
+          python3 builder/scripts/run_bounded_build.py \
+            --log artifacts/logs/livecontainer-build.log --timeout-seconds 1200 -- \
+            xcodebuild -jobs 2 -project work/LiveContainer/LiveContainer.xcodeproj \
             -scheme LiveContainer -sdk iphoneos -configuration Release \
             -derivedDataPath "$RUNNER_TEMP/livecontainer-derived-data" \
-            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO build 2>&1 | tee artifacts/logs/livecontainer-build.log
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO \
+            COMPILER_INDEX_STORE_ENABLE=NO build
+
+      - name: Preserve first Xcode build diagnostic even on failure
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: scarlet-v67-first-build-diagnostics
+          path: |
+            artifacts/logs/livecontainer-build.log
+            artifacts/logs/host-preflight.log
+          if-no-files-found: warn
+          retention-days: 14
 
       - name: Install build tools
         run: |
@@ -522,10 +537,13 @@ jobs:
             sleep 2
           done
           test "$resolved" -eq 1
-          xcodebuild -project work/EmbeddedSideStore/AltStore.xcodeproj \
+          python3 builder/scripts/run_bounded_build.py \
+            --log artifacts/logs/embedded-sidestore-build.log --timeout-seconds 2100 -- \
+            xcodebuild -jobs 2 -project work/EmbeddedSideStore/AltStore.xcodeproj \
             -scheme SideStore -sdk iphoneos -configuration Release \
             -derivedDataPath "$RUNNER_TEMP/embedded-sidestore-derived-data" \
-            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO build 2>&1 | tee artifacts/logs/embedded-sidestore-build.log
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO \
+            COMPILER_INDEX_STORE_ENABLE=NO build
 
       - name: Package and verify combined LiveContainer plus SideStore
         env:
