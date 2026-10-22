@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """V71: restore in-guest switching after V58/V60 suppressed the V56 surface.
 
-The system Island remains owned by ActivityKit outside Scarlet Crystal. In a
-visible retained guest scene only, show a small safe-area-adjacent trigger
-and route recent guests via the same verified ActivityKit guest catalog.
+The system Island remains owned by ActivityKit outside Scarlet Crystal. When
+Scarlet Crystal itself is foreground (My Apps tab OR a retained guest scene),
+show a small safe-area-adjacent trigger, sharing ActivityKit guest routes.
 Never modify the signed host identity, bundle entitlements or landscape frame.
 """
 from pathlib import Path
@@ -186,8 +186,10 @@ def patch(src):
         let height: CGFloat = nrgV56IslandExpanded ? 143.0 : 48.0
 '''
     new = '''        let portrait = window.bounds.height > window.bounds.width
+        // The same picker must also work on Scarlet Crystal's My Apps tab.
+        // In a foreign app / SpringBoard, only ActivityKit owns the Island.
         let visible = portrait && !nrgV56IslandHidden &&
-            nrgV71HasVisibleGuestScene() && !nrgV71Guests.isEmpty
+            UIApplication.shared.applicationState == .active && !nrgV71Guests.isEmpty
         host.view.isHidden = !visible
         if !visible { return }
         // NRG_V71: 86x30 pt passive footprint in the guest. Keep clear of
@@ -207,7 +209,10 @@ def patch(src):
         nrgV56RelayoutIsland()
 '''
     new='''        nrgV191AttachGuestWindowHostIfReady()
-        nrgV56IslandHidden = !nrgV71HasVisibleGuestScene()
+        // Native ActivityKit is foreground-suppressed for the owning app.
+        // Keep the companion picker accessible on BOTH the host Apps screen
+        // and a retained guest screen, whenever this host is foreground.
+        nrgV56IslandHidden = UIApplication.shared.applicationState != .active
         if nrgV56IslandHidden { nrgV56IslandExpanded = false }
 '''
     src=one(src,old,new,'guest foreground refresh')
@@ -229,6 +234,23 @@ def patch(src):
         nrgV58RefreshNativeIsland()
 '''
     src=one(src,old,new,'restored on-guest arrival')
+    # Returning to the host must retain the host's own shortcut. V56
+    # originally hides the capsule completely on this route.
+    old = '''    @objc public func nrgV56ReturnHome() {
+        nrgV56IslandExpanded = false
+        nrgV56IslandHidden = true
+        nrgV56RelayoutIsland()
+        minimizeAllWindows()
+    }
+'''
+    new = '''    @objc public func nrgV56ReturnHome() {
+        nrgV56IslandExpanded = false
+        nrgV56IslandHidden = false
+        nrgV56RelayoutIsland()
+        minimizeAllWindows()
+    }
+'''
+    src=one(src,old,new,'keep picker on the host Apps screen')
     # The original V56 SwiftUI top bar embeds running Dock apps only, which
     # doesn't include classic/LiveProcess recent sessions. Replace its
     # presentation; keep shared DockAppModel and menu helpers intact.
