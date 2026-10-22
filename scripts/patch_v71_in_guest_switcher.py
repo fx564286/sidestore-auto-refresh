@@ -167,8 +167,12 @@ def patch(src):
         guard let window = keyWindow else { return }
 '''
     src=one(src,old,'''        // V71: system ActivityKit remains available outside retained guests;
-        // the in-guest trigger is an app-owned view below the system Island.
-        guard let window = keyWindow else { return }
+        // use the active UIWindow rather than the first registered window.
+        let window = UIApplication.shared.connectedScenes
+            .compactMap { $0 as? UIWindowScene }
+            .flatMap { $0.windows }
+            .first(where: { $0.isKeyWindow }) ?? keyWindow
+        guard let window else { return }
 ''','remove blanket foreground suppression')
     # Minimize footprint, preserve physical hardware exclusion. No screen-wide
     # transparent hit-test surface in the collapsed state.
