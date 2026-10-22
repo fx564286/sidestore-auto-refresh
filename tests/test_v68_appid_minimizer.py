@@ -15,17 +15,18 @@ from v68_appid_minimizer import select, load_policy, shell_environment, verify_a
 class AdaptiveMinimalAppIDTests(unittest.TestCase):
     def test_feature_preserving_minimum_keeps_actual_share_sheet(self):
         plan = load_policy(ROOT / 'config/v68_required_features.json')
-        self.assertEqual(4, plan['minimum_planned_app_ids'])
-        self.assertEqual({'host','LiveProcess','LiveWidget','ShareExtension'}, set(plan['installable_roles']))
-        self.assertEqual([], plan['disabled_or_not_requested_features'])
+        self.assertEqual(3, plan['minimum_planned_app_ids'])
+        self.assertEqual({'host','LiveProcess','ShareExtension'}, set(plan['installable_roles']))
+        self.assertEqual(['native_dynamic_island'], plan['disabled_or_not_requested_features'])
         self.assertTrue(plan['build_supported_by_current_v67_source'])
         self.assertIn('NRG_V67_3IDS=0', shell_environment(plan))
+        self.assertIn('NRG_V58_NATIVE_ISLAND=0', shell_environment(plan))
 
     def test_shortcuts_fallback_3_ids_explicitly_loses_native_share_destination(self):
         requirements = load_policy(ROOT / 'config/v68_required_features.json')['features']
         requirements['native_share_sheet_receiver'] = False
         plan = select(requirements)
-        self.assertEqual(3, plan['minimum_planned_app_ids'])
+        self.assertEqual(2, plan['minimum_planned_app_ids'])
         self.assertTrue(plan['build_supported_by_current_v67_source'])
         self.assertIn('NRG_V67_3IDS=1', shell_environment(plan))
         self.assertTrue(any('not identical' in x for x in plan['limitations']))
@@ -45,9 +46,11 @@ class AdaptiveMinimalAppIDTests(unittest.TestCase):
             select({'native_dynamic_island': 'yes'})
 
     @staticmethod
-    def sample_ipa(path, extensions):
-        info = {'CFBundleIdentifier': 'com.kdt.livecontainer', 'NSSupportsLiveActivities': True,
+    def sample_ipa(path, extensions, activity=False):
+        info = {'CFBundleIdentifier': 'com.kdt.livecontainer',
                 'CFBundleDocumentTypes': [{'LSItemContentTypes':['public.item']}]}
+        if activity:
+            info['NSSupportsLiveActivities'] = True
         with zipfile.ZipFile(path,'w') as package:
             package.writestr('Payload/LiveContainer.app/Info.plist', plistlib.dumps(info))
             for ext in extensions:
@@ -58,15 +61,28 @@ class AdaptiveMinimalAppIDTests(unittest.TestCase):
         full = load_policy(ROOT / 'config/v68_required_features.json')
         with tempfile.TemporaryDirectory() as temporary:
             archive = Path(temporary) / 'test.ipa'
-            self.sample_ipa(archive, ['LiveProcess','LiveWidget','ShareExtension'])
-            self.assertEqual(4, verify_archive(archive, full)['verified_app_ids'])
+            self.sample_ipa(archive, ['LiveProcess','ShareExtension'], activity=False)
+            self.assertEqual(3, verify_archive(archive, full)['verified_app_ids'])
             fallback_features = full['features'].copy()
             fallback_features['native_share_sheet_receiver'] = False
             compact = select(fallback_features)
             with self.assertRaisesRegex(ValueError,'bundle mismatch'):
                 verify_archive(archive, compact)
-            self.sample_ipa(archive, ['LiveProcess','LiveWidget'])
-            self.assertEqual(3, verify_archive(archive, compact)['verified_app_ids'])
+            self.sample_ipa(archive, ['LiveProcess'], activity=False)
+            self.assertEqual(2, verify_archive(archive, compact)['verified_app_ids'])
+
+    def test_widget_forbidden_in_v72_and_native_still_valid_when_opted_in(self):
+        user_plan=load_policy(ROOT / 'config/v68_required_features.json')
+        with tempfile.TemporaryDirectory() as tmp:
+            target=Path(tmp)/'sample.ipa'
+            self.sample_ipa(target,['LiveProcess','LiveWidget','ShareExtension'],activity=True)
+            with self.assertRaisesRegex(ValueError,'bundle mismatch'):
+                verify_archive(target,user_plan)
+            native=user_plan['features'].copy()
+            native['native_dynamic_island']=True
+            old_plan=select(native)
+            self.assertEqual(4,verify_archive(target,old_plan)['verified_app_ids'])
+            self.assertIn('NRG_V58_NATIVE_ISLAND=1',shell_environment(old_plan))
 
     def test_no_fixed_numeric_cap_in_current_feature_policy(self):
         registry = json.loads((ROOT / 'config/v67_api_modules.json').read_text())
