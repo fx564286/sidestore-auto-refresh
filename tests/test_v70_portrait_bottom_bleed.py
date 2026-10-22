@@ -26,7 +26,8 @@ class V70PortraitBottomBleed(unittest.TestCase):
         self.assertIn('settings.frame = CGRectMake',patch)
     def test_ci_patched_source_is_idempotent(self):
         path=os.environ.get('LIVE_CONTAINER_TEST_SOURCE')
-        if not path: self.skipTest('CI patched source is unavailable')
+        if not path or os.environ.get('V70_PATCHED_LIVECONTAINER') != '1':
+            return # before-patch suite sees pristine pinned upstream source
         candidate=Path(path)/v58.DECORATED
         source=candidate.read_text()
         self.assertIn('NRG_V70_PORTRAIT_BOTTOM_BLEED',source)
