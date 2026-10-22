@@ -2132,6 +2132,10 @@ final class V3SideStoreService: NSObject {
                   !bundle.contains("scarletcrystal") else {
                 throw V3SideStoreServiceError.invalidRequest
             }
+            // Revalidate the selected developer team immediately before mutation.
+            guard (try await AuthManager.shared.getAuthenticatedTeam()).identifier == team.identifier else {
+                throw V3SideStoreServiceError.authRequired
+            }
             let removed = try await DeveloperPortalProxy.shared.deleteAppID(item, team: team)
             guard removed else { throw V3SideStoreServiceError.persistenceUnverified }
             return ["deleted": true, "refreshRequired": true]
