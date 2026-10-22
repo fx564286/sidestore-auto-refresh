@@ -14,11 +14,13 @@ def mod(name):
 v71=mod('patch_v71_in_guest_switcher')
 
 class V71Tests(unittest.TestCase):
-    def test_tiny_guest_trigger_only_when_retained_guest_visible(self):
+    def test_tiny_trigger_when_host_or_guest_foreground(self):
         script=(ROOT/'scripts/patch_v71_in_guest_switcher.py').read_text()
-        self.assertIn('nrgV71HasVisibleGuestScene() && !nrgV71Guests.isEmpty',script)
+        self.assertIn('UIApplication.shared.applicationState == .active && !nrgV71Guests.isEmpty',script)
         self.assertIn('nrgV56IslandExpanded ? 218.0 : 30.0',script)
         self.assertIn('nrgV56IslandExpanded',v71.UI)
+        self.assertIn('nrgV56IslandHidden = false',script)
+        self.assertIn('nrgV56IslandHidden = UIApplication.shared.applicationState != .active',script)
         self.assertIn('nrgV71GuestSwitcherTrigger',v71.UI)
         self.assertIn('UIApplication.shared.applicationState == .active',v71.HELPER)
         self.assertIn('if candidate.isHidden || candidate.alpha < 0.05',v71.HELPER)
