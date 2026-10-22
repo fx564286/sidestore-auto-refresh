@@ -120,6 +120,16 @@ class V58PinnedTests(unittest.TestCase):
         source=os.environ.get("LIVE_CONTAINER_TEST_SOURCE")
         if not source:self.skipTest("pinned source unavailable")
         s=(Path(source)/v58.DOCK).read_text()
+        # V72 intentionally strips the old native Island after V58/V60 have
+        # been used to construct the shared guest launch route. The final
+        # compiled dock keeps V70 geometry, V192 startup attach and V72 hold.
+        if 'NRG_V72_OVERFLOW_LONGPRESS' in s:
+            self.assertIn('NRG_V58_HOST_WINDOW_GEOMETRY',s)
+            self.assertIn('nrgV191AttachGuestWindowHostIfReady',s)
+            self.assertNotIn('import ActivityKit',s)
+            self.assertNotIn('nrgV58RefreshNativeIsland',s)
+            self.assertNotIn('nrgV56IslandHost',s)
+            return
         # CI executes this suite twice: once against pristine pinned sources,
         # then again after the build pipeline has already patched that tree.
         # A second V39 transform on a V58 tree incorrectly fails its anchors.
