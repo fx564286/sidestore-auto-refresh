@@ -88,7 +88,10 @@ class V66FourAppIdsTests(unittest.TestCase):
         workflow = (ROOT / ".github/workflows/livecontainer-build.yml").read_text()
         self.assertIn('NRG_V66_4IDS: "1"', workflow)
         self.assertIn('python3 builder/scripts/patch_v66_four_ids.py work/LiveContainer', workflow)
-        self.assertIn("('LiveProcess','ShareExtension','LiveWidget')", workflow)
+        if 'NRG_V67_3IDS: "1"' in workflow:
+            self.assertIn("('LiveProcess','LiveWidget')", workflow)
+        else:
+            self.assertIn("('LiveProcess','ShareExtension','LiveWidget')", workflow)
         self.assertNotIn("('LiveProcess','ShareExtension','LaunchAppExtension','LiveWidget')", workflow.split("PY_WIDGET",1)[0])
 
 
