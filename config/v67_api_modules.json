@@ -1,0 +1,29 @@
+{
+  "schema": 1,
+  "app_id_cap": 3,
+  "bundle_roles": ["host", "liveprocess", "livewidget"],
+  "extension_policy": "fail_closed",
+  "api_location": {
+    "host_or_host_framework": [
+      "AppIntents", "BackgroundTasks", "CoreBluetooth", "CoreLocation",
+      "CoreML", "CoreMotion", "CoreNFC", "FileImporter", "LocalAuthentication",
+      "Network", "StoreKit", "SwiftData", "UIKit", "UserNotifications", "Vision"
+    ],
+    "widget_extension": ["WidgetKit", "ActivityKit"],
+    "guest_execution_extension": ["LiveProcess"]
+  },
+  "conditional_entitlements": [
+    "HealthKit", "HomeKit", "CarPlay", "CriticalAlerts", "associated-domains"
+  ],
+  "extension_required_incompatible_with_cap": [
+    "NSExtension.share-services native share sheet target",
+    "NotificationServiceExtension",
+    "FileProviderExtension"
+  ],
+  "notes": [
+    "An API/framework entry here is a design target, NOT proof it is implemented or authorized.",
+    "A new framework does not consume a new App ID, but entitlements and provisioning may still block access.",
+    "Open In and Files public.item remain; receiving via native iOS share extension does not.",
+    "Review upstream updates daily, never silently replace tested pins or install unsigned builds."
+  ]
+}
