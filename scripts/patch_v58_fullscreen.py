@@ -112,11 +112,17 @@ def decorated(s):
         }
         portraitTop = MIN(MAX(portraitTop, 0.0), CGRectGetHeight(physicalRect) / 4.0);
         portraitBottom = MIN(MAX(portraitBottom, 0.0), CGRectGetHeight(physicalRect) / 5.0);
+        // NRG_V70_PORTRAIT_BOTTOM_BLEED: keep the proven physical TOP guard
+        // protecting notch controls, but let the guest paint right through
+        // the home-indicator strip. Cutting the bottom 34pt off the actual
+        // guest UIView exposed the underlying LiveContainer window chrome.
+        // UIKit guest controls still receive the home-gesture exclusion via
+        // scene safe-area metadata. No bottom physical inset AND metadata
+        // inset at once; no changes to the landscape/iPad code path.
         physicalRect = UIEdgeInsetsInsetRect(physicalRect,
-            UIEdgeInsetsMake(portraitTop, 0, portraitBottom, 0));
-        // The viewport now excludes the unsafe bands; a second safe-area
-        // injection would push the touch coordinates down twice.
-        settings.safeAreaInsetsPortrait = UIEdgeInsetsZero;
+            UIEdgeInsetsMake(portraitTop, 0, 0, 0));
+        settings.safeAreaInsetsPortrait = LCUIEdgeInsetsRotateToOrientation(
+            UIEdgeInsetsMake(0, 0, portraitBottom, 0), orientation);
         settings.peripheryInsets = UIEdgeInsetsZero;
     }
     if (CGRectIsEmpty(physicalRect)) return;
