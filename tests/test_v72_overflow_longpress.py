@@ -74,6 +74,10 @@ class OverflowLongPressTests(unittest.TestCase):
             self.assertNotIn('ActivityKit',s)
             self.assertNotIn('nrgV56',s)
             self.assertNotIn('nrgV58',s)
+            for declaration in ('enum LCMultitaskDockRenderedMode',
+                                'struct LCMultitaskDockPresentationState',
+                                'struct LCMultitaskDockSessionState'):
+                self.assertEqual(s.count(declaration),1, declaration)
 
     def test_bundle_plan_widgetless_and_no_live_activity_entitlement(self):
         policy=__import__('json').loads((ROOT/'config/v68_required_features.json').read_text())
