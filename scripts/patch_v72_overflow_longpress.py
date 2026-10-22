@@ -129,6 +129,10 @@ def patch_dock(s):
     if MARK in s:
         if s.count(MARK)!=1 or 'ActivityKit' in s or 'nrgV56' in s or 'nrgV58' in s:
             raise RuntimeError('V72 incomplete/double dock transformation')
+        if any(s.count(name)!=1 for name in ('enum LCMultitaskDockRenderedMode',
+                   'struct LCMultitaskDockPresentationState',
+                   'struct LCMultitaskDockSessionState')):
+            raise RuntimeError('V74 missing/duplicate dock session model')
         return s
     for required in ('NRG_V58_NATIVE_ISLAND_ACTIVITY','NRG_V62_EXCLUSIVE_UI_SURFACES',
                      'NRG_V56_NOTCH_ADJACENT_CONTROLS','NRG_V192_SCARLET_STARTUP'):
@@ -136,6 +140,23 @@ def patch_dock(s):
     s=replace_one(s,'import ActivityKit\n','', 'ActivityKit import')
     s=cut_between(s,'// NRG_V58_NATIVE_ISLAND_ACTIVITY: ActivityKit attributes mirrored byte-for-byte',
                   '// MARK: - App Info Provider','native activity declarations')
+    # V74 compiler repair: V58's broad removal region can include the V3
+    # dock first-frame/session model types. Those models are still consumed by
+    # MultitaskDockManager and its SwiftUI root; never discard them with the
+    # superseded ActivityKit attributes. Restore only missing complete types.
+    models=('enum LCMultitaskDockRenderedMode',
+            'struct LCMultitaskDockPresentationState',
+            'struct LCMultitaskDockSessionState')
+    model_hits=[s.count(name) for name in models]
+    if model_hits == [0, 0, 0]:
+        template=(Path(__file__).with_name('templates') / 'multitask_dock_session_state.swift').read_text()
+        if not all(template.count(name)==1 for name in models):
+            raise RuntimeError('V74 dock session template mismatch')
+        template=template.removeprefix('import Foundation\n').strip()
+        s=replace_one(s,'// MARK: - App Info Provider',template+'\n\n// MARK: - App Info Provider',
+                      'restore V3 dock session types')
+    elif model_hits != [1, 1, 1]:
+        raise RuntimeError(f'V74 partial/duplicated dock session model: {model_hits}')
     nrg_v191_start=s.index('    @objc public func nrgV191AttachGuestWindowHostIfReady()')
     nrg_v191_end=s.index('    // NRG_V194_FOREGROUND_ONLY_ISLAND:',nrg_v191_start)
     safe_host_attach=s[nrg_v191_start:nrg_v191_end]
