@@ -1,0 +1,21 @@
+{
+  "schema": 1,
+  "selection_policy": "minimum_bundle_ids_without_unapproved_feature_loss",
+  "features": {
+    "guest_app_management": true,
+    "independent_guest_process": true,
+    "native_dynamic_island": true,
+    "native_share_sheet_receiver": true,
+    "app_shortcuts": true,
+    "files_open_in": true,
+    "sidestore_signing": true,
+    "jit_orchestration": true,
+    "custom_api_modules": true
+  },
+  "notes": [
+    "This profile preserves native iOS share sheet support; it does not silently replace it with Shortcuts.",
+    "If the user explicitly approves Share Sheet -> Shortcut -> host instead, set native_share_sheet_receiver=false.",
+    "No arbitrary maximum count: the plan contains only IDs required by the selected native functions.",
+    "New Apple APIs may require review of entitlements or mandatory extension points. Reject unknown features."
+  ]
+}
