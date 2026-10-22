@@ -1282,7 +1282,7 @@ final class V3SideStoreService: NSObject {
                 case "authBegin", "authPoll", "authRespond", "authCancel", "authRetryProvisioning", "accountExport", "accountImport": stage = .authentication
                 case "opStart", "opPoll", "opAnswer", "opCancel": stage = .command
                 case "certList", "certExportActive", "certSetActive", "certDelete", "certPortalList", "certRevoke", "certCreate", "certImport": stage = .signing
-                case "devTeams", "devDevices", "devAppIDs", "devGroups", "devProfiles", "syncAppIDs": stage = .authentication
+                case "devTeams", "devDevices", "devAppIDs", "devDeleteAppID", "devGroups", "devProfiles", "syncAppIDs": stage = .authentication
                 case "sourcePreview", "sourceAddConfirmed", "sourceRemoveConfirmed", "refreshSources": stage = .source
                 default: stage = .command
                 }
