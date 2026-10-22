@@ -75,7 +75,35 @@ class V67ThreeAppIDsTests(unittest.TestCase):
                                'upstream':{'sha': live,'url':'https://github.com/LiveContainer/LiveContainer'},
                                'pinned': live, 'update_available': False}},
               'sdk_observed':{'xcode':'Xcode test','iphoneos_sdk':'test'}}
-        self.assertIn('three-App-ID cap', markdown(data))
+        rendered = markdown(data)
+        # V68+ uses a feature-derived App ID minimum, not a fixed count.
+        # Keep the security and update-integrity contract: immutable SHA
+        # pins, required native extensions, device testing and no auto-release.
+        self.assertIn('minimize App IDs by verified capabilities', rendered)
+        self.assertIn('preserve required native extensions', rendered)
+        self.assertIn('run device regression tests', rendered)
+        self.assertIn('Do not publish or install a new IPA automatically.', rendered)
+        self.assertIn(live[:12], rendered)
+        self.assertIn('Current', rendered)
+        self.assertNotIn('three-App-ID cap', rendered)
+
+    def test_upstream_candidate_requires_review_without_autorelease(self):
+        workflow = (ROOT / '.github/workflows/livecontainer-build.yml').read_text()
+        live = pinned_sha(workflow, 'LIVE_CONTAINER_REF')
+        candidate = 'f' * 40 if live != 'f' * 40 else 'e' * 40
+        data = {'upstreams': {'a': {
+            'repository': 'LiveContainer/LiveContainer',
+            'branch': 'main',
+            'upstream': {'sha': candidate,
+                         'url': 'https://github.com/LiveContainer/LiveContainer'},
+            'pinned': live,
+            'update_available': True}},
+            'sdk_observed': {'xcode': 'Xcode test', 'iphoneos_sdk': 'test'}}
+        rendered = markdown(data)
+        self.assertIn('Review + compatibility tests', rendered)
+        self.assertIn(live[:12], rendered)
+        self.assertIn(candidate[:12], rendered)
+        self.assertIn('Do not publish or install a new IPA automatically.', rendered)
 
 
 if __name__ == '__main__':
