@@ -82,22 +82,62 @@ def decorated(s):
     target = [self.view.superview convertRect:target fromView:window];
     if (!CGRectEqualToRect(self.view.frame, target)) self.view.frame = target;'''
     new='''    // '''+MARK+''': UIKit window bounds are the only full-screen authority.
-    // Parent views (including a SwiftUI tab root) may themselves be inset.
+    // NRG_V64_PORTRAIT_TOUCH_FRAME: the previous edge-to-edge *scene*
+    // frame put interactive guest controls beneath the hardware Island. Some
+    // guest apps ignore settings.safeAreaInsetsPortrait, so they remain
+    // inaccessible despite V196. Only portrait iPhone uses a physically
+    // touch-safe viewport. Leave landscape and iPad frames untouched.
     [self updateMaximizedSafeAreaWithSettings:settings];
-    CGRect target = [self.view.superview convertRect:window.bounds fromView:window];
-    if (CGRectIsEmpty(target)) return;
+    UIInterfaceOrientation orientation = window.windowScene.interfaceOrientation;
+    BOOL portraitPhone = UIDevice.currentDevice.userInterfaceIdiom == UIUserInterfaceIdiomPhone &&
+        UIInterfaceOrientationIsPortrait(orientation);
+    CGRect physicalRect = window.bounds;
+    CGFloat portraitTop = 0.0;
+    CGFloat portraitBottom = 0.0;
+    if (portraitPhone) {
+        UIEdgeInsets physicalInsets = window.safeAreaInsets;
+        portraitTop = MAX(physicalInsets.top, self.view.superview.safeAreaInsets.top);
+        portraitBottom = MAX(physicalInsets.bottom, self.view.superview.safeAreaInsets.bottom);
+        // The status bar may be hidden in a retained guest window. Use the
+        // scene's status frame when available, never a translated child frame.
+        UIStatusBarManager *statusManager = window.windowScene.statusBarManager;
+        if (statusManager) {
+            portraitTop = MAX(portraitTop, CGRectGetMaxY(statusManager.statusBarFrame));
+        }
+        // iOS 26/27 can report zero insets for borderless hosted scenes.
+        // A conservative fallback applies only to modern portrait phones.
+        if (@available(iOS 26.0, *)) {
+            if (portraitTop < 32.0) portraitTop = 59.0;
+            if (portraitBottom < 10.0) portraitBottom = 34.0;
+        }
+        portraitTop = MIN(MAX(portraitTop, 0.0), CGRectGetHeight(physicalRect) / 4.0);
+        portraitBottom = MIN(MAX(portraitBottom, 0.0), CGRectGetHeight(physicalRect) / 5.0);
+        physicalRect = UIEdgeInsetsInsetRect(physicalRect,
+            UIEdgeInsetsMake(portraitTop, 0, portraitBottom, 0));
+        // The viewport now excludes the unsafe bands; a second safe-area
+        // injection would push the touch coordinates down twice.
+        settings.safeAreaInsetsPortrait = UIEdgeInsetsZero;
+        settings.peripheryInsets = UIEdgeInsetsZero;
+    }
+    if (CGRectIsEmpty(physicalRect)) return;
+    // Convert from UIWindow to the actual hosting superview: its origin can
+    // be offset by the V3 SwiftUI safe area and must not be subtracted twice.
+    CGRect target = [self.view.superview convertRect:physicalRect fromView:window];
     if (!CGRectEqualToRect(self.view.frame, target)) self.view.frame = target;
     self.view.layer.cornerRadius = 0;
     self.view.layer.masksToBounds = NO;
-    // AppSceneVC sets settings.frame BEFORE invoking this callback in V55.
-    // Correct it here, after resizing, to avoid old-portrait-frame letterboxing.
-    CGSize pixels = window.bounds.size;
-    UIInterfaceOrientation orientation = window.windowScene.interfaceOrientation;
+    // Scene pixels and hit-test viewport share identical physical bounds.
+    // The landscape orientation swap remains exactly as in V58.
+    CGSize pixels = physicalRect.size;
     settings.frame = UIInterfaceOrientationIsLandscape(orientation)
         ? CGRectMake(0, 0, pixels.height, pixels.width)
         : CGRectMake(0, 0, pixels.width, pixels.height);
+    NSLog(@"[NRG_V64_PORTRAIT_TOUCH_FRAME] orientation=%ld full=%d top=%.1f bottom=%.1f window=%.0fx%.0f viewport=%.0fx%.0f viewY=%.1f",
+          (long)orientation, portraitPhone ? 1 : 0, portraitTop, portraitBottom,
+          window.bounds.size.width, window.bounds.size.height,
+          pixels.width, pixels.height, self.view.frame.origin.y);
     NSLog(@"[NRG_V58_VIEWPORT] orientation=%ld window=%.0fx%.0f guest=%.0fx%.0f full=1",
-          (long)orientation, pixels.width, pixels.height,
+          (long)orientation, window.bounds.size.width, window.bounds.size.height,
           self.view.bounds.size.width, self.view.bounds.size.height);'''
     s=one(s,old,new,"V55 host container frame")
     return s
