@@ -107,15 +107,17 @@ class V66FourAppIdsTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "runtime action marker missing"):
                 self.packager.merge_host_intents(root, host)
 
-    def test_ci_checks_exactly_four_extension_and_host_ids(self):
-        workflow = (ROOT / ".github/workflows/livecontainer-build.yml").read_text()
-        self.assertIn('NRG_V66_4IDS: "1"', workflow)
+    def test_ci_checks_current_minimum_feature_packaging(self):
+        workflow = (ROOT / '.github/workflows/livecontainer-build.yml').read_text()
         self.assertIn('python3 builder/scripts/patch_v66_four_ids.py work/LiveContainer', workflow)
-        if 'NRG_V67_3IDS: "1"' in workflow:
+        if 'v68_appid_minimizer.py' in workflow:
+            self.assertIn('builder/config/v68_required_features.json', workflow)
+            self.assertIn("expected=set(plan['expected_unsigned_bundle_ids'][1:])", workflow)
+        elif 'NRG_V67_3IDS: "1"' in workflow:
             self.assertIn("('LiveProcess','LiveWidget')", workflow)
         else:
             self.assertIn("('LiveProcess','ShareExtension','LiveWidget')", workflow)
-        self.assertNotIn("('LiveProcess','ShareExtension','LaunchAppExtension','LiveWidget')", workflow.split("PY_WIDGET",1)[0])
+        self.assertNotIn("('LiveProcess','ShareExtension','LaunchAppExtension','LiveWidget')", workflow.split('PY_WIDGET',1)[0])
 
 
 if __name__ == "__main__":
