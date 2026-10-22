@@ -7250,6 +7250,17 @@ struct V3DeveloperServicesView: View {
         }
         .listStyle(.insetGrouped)
         .navigationTitle("Developer Services")
+        .alert("Apple App ID 삭제", isPresented: Binding(
+            get: { appIDDeleteTarget != nil },
+            set: { if !$0 { appIDDeleteTarget = nil } }
+        )) {
+            Button("삭제 확인", role: .destructive) {
+                Task { await deleteSelectedPortalAppID() }
+            }
+            Button("취소", role: .cancel) { appIDDeleteTarget = nil }
+        } message: {
+            Text("Apple 서버에 등록된 App ID를 삭제해. 다른 설치 앱의 프로비저닝이 작동하지 않을 수 있고, 무료 계정의 7일 등록 한도는 즉시 복구되지 않아. 삭제 후 서버 목록을 다시 조회할게.")
+        }
         .task { await reload() }
         .onChange(of: status.identityStamp) { _ in
             invalidateScopedRows()
@@ -7271,6 +7282,45 @@ struct V3DeveloperServicesView: View {
             }
         .onDisappear {
             reloadTicket &+= 1
+        }
+    }
+    private func refreshPortalAppIDs() async {
+        // Read-only portal refresh: not an Apple quota reset, no registration.
+        appIDPortalNotice = ""
+        await reload()
+        if message.isEmpty, status.authenticated {
+            appIDLastChecked = Date()
+            appIDPortalNotice = "Apple 서버 목록을 갱신했어. 등록 가능 수는 Apple이 결정해."
+        }
+    }
+    private func deleteSelectedPortalAppID() async {
+        guard let row = appIDDeleteTarget,
+              let identifier = row["identifier"], !identifier.isEmpty,
+              let bundle = row["bundleID"],
+              status.authenticated, !loading, !appIDDeleting else { return }
+        let lowered = bundle.lowercased()
+        guard !lowered.hasPrefix("com.kdt.livecontainer"),
+              !lowered.contains("sidestore"),
+              !lowered.contains("scarletcrystal") else { return }
+        let identityBefore = status.identityStamp
+        appIDDeleteTarget = nil
+        appIDDeleting = true
+        defer { appIDDeleting = false }
+        do {
+            let result = try await V3ServiceBridge.shared.request(
+                operation: "devDeleteAppID", target: identifier)
+            guard V3ServiceBridge.strictBool(result["deleted"]) == true,
+                  identityBefore == status.identityStamp else {
+                appIDPortalNotice = "삭제 결과를 확인할 수 없어. 서버 목록을 조회해줘."
+                return
+            }
+            await reload()
+            appIDLastChecked = message.isEmpty ? Date() : nil
+            appIDPortalNotice = message.isEmpty
+                ? "App ID 삭제 요청이 승인됐고 서버 목록을 다시 조회했어. 7일 등록 한도는 Apple에서 갱신돼."
+                : "삭제가 접수됐을 수 있지만 재조회 실패. 반복 삭제하지 말고 서버 현황을 확인해줘."
+        } catch {
+            appIDPortalNotice = "삭제 성공 여부가 확인되지 않았어. Apple 서버 목록을 새로고침해줘. 인증서·서명은 변경하지 않았어."
         }
     }
     private func simpleSection(_ title: String, rows: [String]) -> some View {
