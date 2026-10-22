@@ -418,14 +418,15 @@ def verify(path, side_product=None):
         document_types = host.get('CFBundleDocumentTypes', [])
         assert any('public.item' in entry.get('LSItemContentTypes', []) for entry in document_types)
         assert host.get('LSSupportsOpeningDocumentsInPlace') is True
-        assert result['registration_targets_before_reuse'] == 3
+        assert result['registration_targets_before_reuse'] == (3 if os.environ.get('NRG_V58_NATIVE_ISLAND') == '1' else 2)
         with zipfile.ZipFile(path) as package:
             plug_infos = [x for x in package.namelist() if '/PlugIns/' in x and x.endswith('.appex/Info.plist')]
-            expected = {'com.kdt.livecontainer.LiveProcess', 'com.kdt.livecontainer.LiveWidget'}
+            expected = {'com.kdt.livecontainer.LiveProcess'}
+            if os.environ.get('NRG_V58_NATIVE_ISLAND') == '1': expected.add('com.kdt.livecontainer.LiveWidget')
             found = {plistlib.loads(package.read(x))['CFBundleIdentifier'] for x in plug_infos}
             assert found == expected, ('Unexpected App ID', found, expected)
     elif os.environ.get('NRG_V66_4IDS') == '1':
-        assert result['registration_targets_before_reuse'] == 4
+        assert result['registration_targets_before_reuse'] == (4 if os.environ.get('NRG_V58_NATIVE_ISLAND') == '1' else 3)
         with zipfile.ZipFile(path) as package:
             root_metadata = json.loads(package.read(base + '/Metadata.appintents/extract.actionsdata'))
         assert 'ScarletCrystalLaunchAppIntent' in root_metadata['actions'], 'Host shortcut missing'
