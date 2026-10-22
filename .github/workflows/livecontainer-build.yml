@@ -345,7 +345,7 @@ jobs:
           echo '[NRG_V67] diagnostic preflight'; df -h . "$RUNNER_TEMP"; sysctl -n hw.memsize || true
           python3 builder/scripts/run_bounded_build.py \
             --log artifacts/logs/livecontainer-build.log --timeout-seconds 1200 -- \
-            xcodebuild -jobs 2 -project work/LiveContainer/LiveContainer.xcodeproj \
+            xcodebuild -project work/LiveContainer/LiveContainer.xcodeproj -jobs 2 \
             -scheme LiveContainer -sdk iphoneos -configuration Release \
             -derivedDataPath "$RUNNER_TEMP/livecontainer-derived-data" \
             CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO \
@@ -539,7 +539,7 @@ jobs:
           test "$resolved" -eq 1
           python3 builder/scripts/run_bounded_build.py \
             --log artifacts/logs/embedded-sidestore-build.log --timeout-seconds 2100 -- \
-            xcodebuild -jobs 2 -project work/EmbeddedSideStore/AltStore.xcodeproj \
+            xcodebuild -project work/EmbeddedSideStore/AltStore.xcodeproj -jobs 2 \
             -scheme SideStore -sdk iphoneos -configuration Release \
             -derivedDataPath "$RUNNER_TEMP/embedded-sidestore-derived-data" \
             CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO \
