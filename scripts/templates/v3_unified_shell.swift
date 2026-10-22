@@ -7161,6 +7161,12 @@ struct V3DeveloperServicesView: View {
     @State private var message = ""
     @State private var loading = true
     @State private var reloadTicket: UInt64 = 0
+    // NRG_V65_APP_ID_PORTAL_CONTROL: deletion and server refresh are separate
+    // actions within one Apple App ID management screen.
+    @State private var appIDDeleteTarget: [String: String]? = nil
+    @State private var appIDDeleting = false
+    @State private var appIDPortalNotice = ""
+    @State private var appIDLastChecked: Date? = nil
     var body: some View {
         List {
             if !message.isEmpty {
@@ -7183,7 +7189,47 @@ struct V3DeveloperServicesView: View {
             }
             simpleSection("Teams", rows: teams.map { "\($0["name"] ?? "") (\($0["identifier"] ?? ""))" })
             simpleSection("Devices", rows: devices.map { "\($0["name"] ?? "") · \($0["identifier"] ?? "")" })
-            simpleSection("App IDs", rows: appIDs.map { "\($0["name"] ?? "") · \($0["bundleID"] ?? "")" })
+            Section("Apple App IDs (\(appIDs.count))") {
+                Text("App ID 삭제와 Apple 서버 등록 현황 갱신은 별도 작업이야. 삭제해도 7일 등록 제한이 즉시 초기화되지는 않아.")
+                    .font(.footnote).foregroundColor(.secondary)
+                Button {
+                    Task { await refreshPortalAppIDs() }
+                } label: {
+                    Label("Apple 서버 등록 현황 새로고침", systemImage: "arrow.clockwise")
+                }
+                .disabled(loading || appIDDeleting || !status.authenticated)
+                if let appIDLastChecked {
+                    Text("서버 목록 확인: " + appIDLastChecked.formatted(date: .abbreviated, time: .shortened))
+                        .font(.caption).foregroundColor(.secondary)
+                }
+                if !appIDPortalNotice.isEmpty {
+                    Text(appIDPortalNotice).font(.footnote).textSelection(.enabled)
+                }
+                ForEach(appIDs.indices, id: \.self) { index in
+                    let row = appIDs[index]
+                    let bundle = row["bundleID"] ?? ""
+                    let lowered = bundle.lowercased()
+                    let isProtected = lowered.hasPrefix("com.kdt.livecontainer") ||
+                        lowered.contains("sidestore") || lowered.contains("scarletcrystal")
+                    VStack(alignment: .leading, spacing: 5) {
+                        HStack {
+                            Text(row["name"] ?? "App ID").font(.headline)
+                            Spacer()
+                            if isProtected {
+                                Label("보호", systemImage: "lock.shield")
+                                    .font(.caption).foregroundColor(.secondary)
+                            } else {
+                                Button("삭제", role: .destructive) { appIDDeleteTarget = row }
+                                    .font(.caption)
+                                    .disabled(loading || appIDDeleting || !status.authenticated)
+                            }
+                        }
+                        Text(bundle).font(.caption).foregroundColor(.secondary)
+                            .textSelection(.enabled)
+                    }
+                    .padding(.vertical, 3)
+                }
+            }
             simpleSection("App Groups", rows: groups.map { "\($0["name"] ?? "") · \($0["identifier"] ?? "")" })
             Section("Provisioning Profiles (\(profiles.count))") {
                 if loading { ProgressView() }
