@@ -3,7 +3,7 @@ name: LiveContainer embedded SideStore build
 on:
   workflow_dispatch:
   push:
-    branches: [fix/combined-refresh-build-and-runtime, fix/v3.0.3-auth-errors, build/nrg-v3-ipa-priority-20261015, fix/nrg-cert-import-20261016, fix/nrg-jitless-cert-recovery-20261016, fix/nrg-jitless-auto-import-v17-20261017, fix/nrg-jitless-selfheal-v18, fix/nrg-cert-usb-bootstrap-v19, fix/nrg-cert-usb-bootstrap-v20, fix/nrg-refresh-correlation-v21, fix/nrg-v22-refresh-team-repair, fix/nrg-v23-direct-lockdown-refresh, fix/nrg-v24-refresh-install-recovery, fix/nrg-v25-rppairing-first-ios27, fix/nrg-v26-install-cancellation-trace, fix/nrg-v27-install-ui-lifecycle, fix/nrg-v28-refresh-regression, fix/nrg-v29-gsa-identity, fix/nrg-v30-auth-code3-rootcause, fix/nrg-v31-adi-45061-reprovision, fix/nrg-v32-jitless-cert-observation, fix/nrg-v33-iram-memory-integration, fix/nrg-v34-memory-display-profiles, fix/nrg-v45-settings-first-20261018, fix/nrg-v46-keyboard-window-scope-20261018, fix/nrg-v47-four-issue-recovery-20261018, fix/nrg-v48-madeira-runtime-20261018, fix/nrg-v49-jit-auto-return-20261019, fix/nrg-v50-stikdebug-pid-script-20261019, fix/nrg-v52-ota-inapp-20261019, fix/nrg-v53-orientation-geometry-20261019, fix/nrg-v54-guest-jit-geometry-20261019, fix/nrg-v55-display-watchdog-memory, fix/nrg-v56-notch-controls-20261019, fix/nrg-v57-ota-self-update-identity-20261019, fix/nrg-v58-native-island-fullscreen-20261019, fix/nrg-v192-scarlet-crashguard, audit/nrg-v199-ci-keychain-20261021, fix/nrg-v214-diagnostics-stikdebug-20261021, fix/nrg-brand-scarlet-crystal-20261021]
+    branches: [fix/combined-refresh-build-and-runtime, fix/v3.0.3-auth-errors, build/nrg-v3-ipa-priority-20261015, fix/nrg-cert-import-20261016, fix/nrg-jitless-cert-recovery-20261016, fix/nrg-jitless-auto-import-v17-20261017, fix/nrg-jitless-selfheal-v18, fix/nrg-cert-usb-bootstrap-v19, fix/nrg-cert-usb-bootstrap-v20, fix/nrg-refresh-correlation-v21, fix/nrg-v22-refresh-team-repair, fix/nrg-v23-direct-lockdown-refresh, fix/nrg-v24-refresh-install-recovery, fix/nrg-v25-rppairing-first-ios27, fix/nrg-v26-install-cancellation-trace, fix/nrg-v27-install-ui-lifecycle, fix/nrg-v28-refresh-regression, fix/nrg-v29-gsa-identity, fix/nrg-v30-auth-code3-rootcause, fix/nrg-v31-adi-45061-reprovision, fix/nrg-v32-jitless-cert-observation, fix/nrg-v33-iram-memory-integration, fix/nrg-v34-memory-display-profiles, fix/nrg-v45-settings-first-20261018, fix/nrg-v46-keyboard-window-scope-20261018, fix/nrg-v47-four-issue-recovery-20261018, fix/nrg-v48-madeira-runtime-20261018, fix/nrg-v49-jit-auto-return-20261019, fix/nrg-v50-stikdebug-pid-script-20261019, fix/nrg-v52-ota-inapp-20261019, fix/nrg-v53-orientation-geometry-20261019, fix/nrg-v54-guest-jit-geometry-20261019, fix/nrg-v55-display-watchdog-memory, fix/nrg-v56-notch-controls-20261019, fix/nrg-v57-ota-self-update-identity-20261019, fix/nrg-v58-native-island-fullscreen-20261019, fix/nrg-v192-scarlet-crashguard, audit/nrg-v199-ci-keychain-20261021, fix/nrg-v214-diagnostics-stikdebug-20261021, fix/nrg-brand-scarlet-crystal-20261021, experiment/nrg-v66-4-appids-20261022]
 
 permissions:
   contents: read
@@ -223,6 +223,10 @@ jobs:
             # V192: iOS 27 startup crash regression and app display branding.
             python3 builder/scripts/patch_v192_startup.py work/LiveContainer
             python3 builder/scripts/patch_v192_startup.py work/LiveContainer
+            # V66: move "Launch App" shortcut into the host's actual binary.
+            python3 builder/scripts/patch_v66_four_ids.py work/LiveContainer
+            python3 builder/scripts/patch_v66_four_ids.py work/LiveContainer
+            swiftc -frontend -parse work/LiveContainer/LiveContainer/ScarletCrystalLaunchAppIntent.swift
             python3 -m unittest discover -s builder/tests -p test_v60_island_guest_switch.py -v
             swiftc -frontend -parse work/LiveContainer/LiveContainerSwiftUI/Views/V3UnifiedShell.swift
             swiftc -frontend -parse work/LiveContainer/LiveContainerSwiftUI/Views/AppList/LCAppListView.swift
@@ -526,6 +530,7 @@ jobs:
       - name: Package and verify combined LiveContainer plus SideStore
         env:
           NRG_V58_NATIVE_ISLAND: "1"
+          NRG_V66_4IDS: "1"
         shell: bash
         run: |
           set -euo pipefail
@@ -579,13 +584,13 @@ jobs:
               found={plistlib.loads(archive.read(n))['CFBundleIdentifier'] for n in names
                      if n.startswith(prefix+'PlugIns/') and n.endswith('.appex/Info.plist')}
               expected={'com.kdt.livecontainer.'+x for x in
-                        ('LiveProcess','ShareExtension','LaunchAppExtension','LiveWidget')}
+                        ('LiveProcess','ShareExtension','LiveWidget')}
               assert found==expected,(found,expected)
               widget='Payload/LiveContainer.app/PlugIns/LiveWidgetExtension.appex/'
               info=plistlib.loads(archive.read(widget+'Info.plist'))
               assert info['NSExtension']['NSExtensionPointIdentifier']=='com.apple.widgetkit-extension'
               assert archive.read(widget+'LiveWidgetExtension')[:4]==b'\xcf\xfa\xed\xfe'
-              print('[PASS] NRG_V58_NATIVE_ISLAND: 5 total IDs, widget and ActivityKit host valid')
+              print('[PASS] NRG_V66_FOUR_IDS: 4 App IDs, widget and ActivityKit host valid')
           PY_WIDGET
           python3 builder/scripts/patch_combined_refresh_contract.py --verify-ipa artifacts/LiveContainer-SideStore-v3.0.3-rc.ipa \
             2>&1 | tee artifacts/logs/runtime-contract-verification.log
