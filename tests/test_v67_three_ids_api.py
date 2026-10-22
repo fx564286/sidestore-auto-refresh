@@ -62,7 +62,7 @@ class V67ThreeAppIDsTests(unittest.TestCase):
             self.assertIn("('LiveProcess','LiveWidget')", workflow)
         self.assertIn("assert found==expected,(found,expected)", workflow)
         packager = (ROOT/'scripts/package_livecontainer_combined.py').read_text()
-        self.assertIn("assert result['registration_targets_before_reuse'] == 3",packager)
+        self.assertIn("assert result['registration_targets_before_reuse'] == (3 if os.environ.get('NRG_V58_NATIVE_ISLAND') == '1' else 2)",packager)
         self.assertIn("'public.item'", packager)
 
     def test_upstream_watch_never_floats_build_refs(self):
