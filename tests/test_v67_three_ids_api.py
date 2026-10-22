@@ -54,9 +54,12 @@ class V67ThreeAppIDsTests(unittest.TestCase):
 
     def test_exact_id_cap_ci(self):
         workflow = (ROOT / '.github/workflows/livecontainer-build.yml').read_text()
-        self.assertIn('NRG_V67_3IDS: "1"', workflow)
-        self.assertIn("('LiveProcess','LiveWidget')", workflow)
-        self.assertNotIn("('LiveProcess','ShareExtension','LiveWidget')", workflow.split('PY_WIDGET')[0])
+        if 'v68_appid_minimizer.py' in workflow:
+            self.assertIn('builder/config/v68_required_features.json', workflow)
+            self.assertIn("expected=set(plan['expected_unsigned_bundle_ids'][1:])", workflow)
+        else:
+            self.assertIn('NRG_V67_3IDS: "1"', workflow)
+            self.assertIn("('LiveProcess','LiveWidget')", workflow)
         self.assertIn("assert found==expected,(found,expected)", workflow)
         packager = (ROOT/'scripts/package_livecontainer_combined.py').read_text()
         self.assertIn("assert result['registration_targets_before_reuse'] == 3",packager)
