@@ -191,18 +191,49 @@ def merge_host_intents(app: Path, host_metadata: Path) -> None:
     actions = host.get('actions', {})
     if 'ScarletCrystalLaunchAppIntent' not in actions:
         raise ValueError('Xcode omitted V66 app-hosted Launch App intent metadata')
-    if 'RefreshAllAppsIntent' not in side.get('actions', {}):
-        raise ValueError('Existing SideStore shortcut metadata missing')
-    if set(side['actions']) & set(actions):
-        raise ValueError('Duplicate App Intent action identifiers')
-    side['actions'].update(actions)
-    for key in ('appEntities', 'entityQueries', 'enums', 'assistantDefinedSchemas'):
-        if isinstance(host.get(key), dict):
+    # The SideStore action dictionary uses Xcode-generated action identifiers,
+    # NOT the Swift struct name: it is incorrect to require a key literally
+    # named RefreshAllAppsIntent. Check the actual runtime binding instead.
+    side_actions = side.get('actions')
+    if not isinstance(side_actions, dict) or not side_actions:
+        raise ValueError('Existing SideStore actions metadata empty')
+    serialized = json.dumps(side, ensure_ascii=False)
+    for marker in ('16SideStoreSupport20RefreshAllAppsIntentV',
+                   '16SideStoreSupport26RefreshAllAppsWidgetIntentV'):
+        if marker not in serialized:
+            raise ValueError('Existing SideStore runtime action marker missing: ' + marker)
+    overlap = set(side_actions) & set(actions)
+    if overlap:
+        raise ValueError('Colliding App Intent action identifiers: ' + ', '.join(sorted(overlap)))
+    side_actions.update(actions)
+    # The data extractor's companion definitions may be dictionaries or lists.
+    # Do not assume all top-level metadata collections share the same shape.
+    for key in ('entities', 'queries', 'enums', 'assistantEntities', 'assistantIntents',
+                'assistantDefinedSchemas', 'autoShortcuts', 'assistantIntentNegativePhrases'):
+        extra = host.get(key)
+        if isinstance(extra, dict):
             target = side.setdefault(key, {})
-            if set(target) & set(host[key]):
-                raise ValueError('Duplicate App Intent metadata in ' + key)
-            target.update(host[key])
+            if not isinstance(target, dict):
+                raise ValueError('Incompatible App Intents metadata shape: ' + key)
+            for identifier, entry in extra.items():
+                if identifier in target and target[identifier] != entry:
+                    raise ValueError('Conflicting App Intents metadata for: ' + identifier)
+                target[identifier] = entry
+        elif isinstance(extra, list) and extra:
+            target = side.setdefault(key, [])
+            if not isinstance(target, list):
+                raise ValueError('Incompatible App Intents metadata shape: ' + key)
+            for entry in extra:
+                if entry not in target:
+                    target.append(entry)
     staged.write_text(json.dumps(side, separators=(',', ':'), ensure_ascii=False))
+    merged = json.loads(staged.read_text())
+    if 'ScarletCrystalLaunchAppIntent' not in merged.get('actions', {}):
+        raise ValueError('Merged Launch App intent missing')
+    for marker in ('16SideStoreSupport20RefreshAllAppsIntentV',
+                   '16SideStoreSupport26RefreshAllAppsWidgetIntentV'):
+        if marker not in json.dumps(merged):
+            raise ValueError('SideStore action damaged during merge: ' + marker)
 
 
 def prepare_entitlements(root, app):
@@ -398,7 +429,8 @@ def verify(path, side_product=None):
         with zipfile.ZipFile(path) as package:
             root_metadata = json.loads(package.read(base + '/Metadata.appintents/extract.actionsdata'))
         assert 'ScarletCrystalLaunchAppIntent' in root_metadata['actions'], 'Host shortcut missing'
-        assert 'RefreshAllAppsIntent' in root_metadata['actions'], 'Existing refresh shortcut missing'
+        assert '16SideStoreSupport20RefreshAllAppsIntentV' in json.dumps(root_metadata), 'Existing refresh runtime binding missing'
+        assert '16SideStoreSupport26RefreshAllAppsWidgetIntentV' in json.dumps(root_metadata), 'Widget refresh runtime binding missing'
     return result
 
 
