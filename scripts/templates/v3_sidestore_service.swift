@@ -2115,6 +2115,26 @@ final class V3SideStoreService: NSObject {
             return try await accountScopedRead("devices") { try await V3BackendCommands.developerDevices() }
         case "devAppIDs":
             return try await accountScopedRead("appIDs") { try await V3BackendCommands.developerAppIDs() }
+        case "devDeleteAppID":
+            // NRG_V65_APPID_DELETE: explicit user-authorized portal action.
+            guard !target.isEmpty, target.utf8.count <= 512 else {
+                throw V3SideStoreServiceError.invalidRequest
+            }
+            _ = try await AuthManager.shared.getAuthenticatedSession()
+            let team = try await AuthManager.shared.getAuthenticatedTeam()
+            let ids = try await DeveloperPortalProxy.shared.fetchAppIDs(team: team)
+            guard let item = ids.first(where: { $0.identifier == target }) else {
+                throw ServiceError.notFound
+            }
+            let bundle = item.bundleIdentifier.lowercased()
+            guard !bundle.hasPrefix("com.kdt.livecontainer"),
+                  !bundle.contains("sidestore"),
+                  !bundle.contains("scarletcrystal") else {
+                throw V3SideStoreServiceError.invalidRequest
+            }
+            let removed = try await DeveloperPortalProxy.shared.deleteAppID(item, team: team)
+            guard removed else { throw V3SideStoreServiceError.persistenceUnverified }
+            return ["deleted": true, "refreshRequired": true]
         case "devGroups":
             return try await accountScopedRead("groups") { try await V3BackendCommands.developerGroups() }
         case "devProfiles":
