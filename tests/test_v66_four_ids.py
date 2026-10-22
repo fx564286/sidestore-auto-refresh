@@ -72,17 +72,40 @@ class V66FourAppIdsTests(unittest.TestCase):
         self.assertNotIn("--merge-host-intents", baseline)
         self.assertNotIn("rm -rf ./Payload/LiveContainer.app/PlugIns/LaunchAppExtension.appex", baseline)
 
-    def test_merge_preserves_both_shortcut_action_names(self):
+    def test_merge_preserves_generated_shortcut_action_identifiers(self):
+        # Real SideStore action names are Xcode-extracted, not necessarily Swift
+        # type names. Reproduces the V67 macOS CI failure #39728166811.
         with tempfile.TemporaryDirectory() as folder:
             root = Path(folder)
             actions_file = root / "Metadata.appintents" / "extract.actionsdata"
             actions_file.parent.mkdir()
-            actions_file.write_text(json.dumps({"actions": {"RefreshAllAppsIntent": {"mangledTypeNameV2": "legacy"}}}))
+            side_actions = {
+                "RefreshAllIntent": {"mangledTypeNameV2": "16SideStoreSupport20RefreshAllAppsIntentV"},
+                "RefreshAllWidgetIntent": {"mangledTypeNameV2": "16SideStoreSupport26RefreshAllAppsWidgetIntentV"},
+            }
+            actions_file.write_text(json.dumps({"version": 1, "actions": side_actions,
+                                                "enums": [], "entities": {}, "queries": {}}))
+            host = root / "host.json"
+            host.write_text(json.dumps({"version": 1,
+                                        "actions": {"ScarletCrystalLaunchAppIntent": {"mangledTypeNameV2": "native"}},
+                                        "enums": [{"case": "example"}], "entities": {}}))
+            self.packager.merge_host_intents(root, host)
+            merged = json.loads(actions_file.read_text())
+            self.assertEqual(set(merged["actions"]),
+                             {"RefreshAllIntent", "RefreshAllWidgetIntent", "ScarletCrystalLaunchAppIntent"})
+            self.assertEqual(merged["actions"]["RefreshAllIntent"], side_actions["RefreshAllIntent"])
+            self.assertEqual(merged["enums"], [{"case": "example"}])
+
+    def test_merge_rejects_missing_side_store_runtime_or_overwriting_intents(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            actions_file = root / "Metadata.appintents" / "extract.actionsdata"
+            actions_file.parent.mkdir()
             host = root / "host.json"
             host.write_text(json.dumps({"actions": {"ScarletCrystalLaunchAppIntent": {"mangledTypeNameV2": "native"}}}))
-            self.packager.merge_host_intents(root, host)
-            actions = json.loads(actions_file.read_text())["actions"]
-            self.assertEqual(set(actions), {"RefreshAllAppsIntent", "ScarletCrystalLaunchAppIntent"})
+            actions_file.write_text(json.dumps({"actions": {"Unknown": {"mangledTypeNameV2": "not SIDESTORE"}}}))
+            with self.assertRaisesRegex(ValueError, "runtime action marker missing"):
+                self.packager.merge_host_intents(root, host)
 
     def test_ci_checks_exactly_four_extension_and_host_ids(self):
         workflow = (ROOT / ".github/workflows/livecontainer-build.yml").read_text()
