@@ -39,10 +39,9 @@ def select(features: dict) -> dict:
     required = {role for feature, enabled in features.items() if enabled
                 for role in FEATURE_ROLES[feature]}
     roles = ['host'] + [role for role in ROLE_ORDER if role in required]
-    # Current code always builds a real LiveProcess and a real LiveWidget.
-    # Fewer IDs may be conceptually possible under reduced feature requirements,
-    # but require unimplemented bootstrap changes; do NOT report them buildable.
-    build_supported = {'LiveProcess', 'LiveWidget'} <= required
+    # V72: no Widget target needed for the user's overflow-menu UI.
+    # A separate LiveProcess is still required for independent guest execution.
+    build_supported = {'LiveProcess'} <= required
     lost = [f for f, enabled in features.items() if not enabled]
     return {
         'schema': 1,
@@ -54,7 +53,7 @@ def select(features: dict) -> dict:
         'build_supported_by_current_v67_source': build_supported,
         'disabled_or_not_requested_features': lost,
         'limitations': (
-            ['The 1- or 2-ID source refactor has NOT been implemented or tested.']
+            ['Configurations without LiveProcess require source work and device testing.']
             if not build_supported else []
         ) + (
             ['Native share-sheet destination is unavailable; Open In/Files and user-installed Shortcuts are not identical.']
@@ -72,11 +71,10 @@ def load_policy(path: Path) -> dict:
 
 def shell_environment(plan: dict) -> str:
     if not plan['build_supported_by_current_v67_source']:
-        raise ValueError('Requested reduced layout requires an unimplemented guest/widget source redesign')
+        raise ValueError('Requested reduced layout requires an unimplemented guest source redesign')
     required = set(plan['installable_roles'])
-    # These flags adapt existing tested packaging paths. A widget and a
-    # separate guest process remain required for this specific feature profile.
-    return ('export NRG_V58_NATIVE_ISLAND=1\n'
+    # V72: package LiveWidget only if explicitly requested by a different policy.
+    return ('export NRG_V58_NATIVE_ISLAND=' + ('1' if 'LiveWidget' in required else '0') + '\n'
             'export NRG_V66_4IDS=1\n'
             'export NRG_V67_3IDS=' + ('0' if 'ShareExtension' in required else '1') + '\n')
 
@@ -101,6 +99,8 @@ def verify_archive(path: Path, plan: dict) -> dict:
             types = host.get('CFBundleDocumentTypes', [])
             if not any('public.item' in entry.get('LSItemContentTypes', []) for entry in types):
                 raise ValueError('File Open In capability lost')
+        if not plan['features'].get('native_dynamic_island') and (BASE + '.LiveWidget' in found or host.get('NSSupportsLiveActivities')):
+            raise ValueError('Unrequested Live Activity capability remains in IPA')
         if not plan['features'].get('native_share_sheet_receiver') and BASE + '.ShareExtension' in found:
             raise ValueError('Unrequested ShareExtension is installed')
     return {'archive': str(path), 'verified_app_ids': len(required) + 1,
