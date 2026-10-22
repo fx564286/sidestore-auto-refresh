@@ -1,0 +1,64 @@
+name: Scarlet Crystal upstream and Apple SDK watch
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '21 3 * * *'
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: scarlet-v67-upstream-api-watch
+  cancel-in-progress: false
+
+jobs:
+  check:
+    runs-on: macos-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout API contract from isolated V67 branch
+        uses: actions/checkout@v4
+        with:
+          ref: experiment/nrg-v67-three-ids-api-20261022
+          persist-credentials: false
+
+      - name: Compare pinned revisions with public upstream and installed Apple SDK
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          python3 scripts/v67_upstream_watch.py \
+            --workflow .github/workflows/livecontainer-build.yml \
+            --json artifacts/v67-upstream-check.json \
+            --markdown artifacts/v67-upstream-check.md
+          cat artifacts/v67-upstream-check.md
+
+      - name: Save timestamped compatibility report
+        uses: actions/upload-artifact@v4
+        with:
+          name: scarlet-v67-upstream-sdk-report
+          path: artifacts/v67-upstream-check.*
+          retention-days: 30
+
+      - name: Open or refresh review issue when upstream/Apple SDK is newer
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          needs_review="$(python3 -c 'import json;print(str(json.load(open("artifacts/v67-upstream-check.json"))["review_required"]).lower())')"
+          if [[ "$needs_review" != true ]]; then
+            echo 'No newer source or installed SDK detected.'
+            exit 0
+          fi
+          title='Scarlet Crystal V67: upstream/API update review (3 App IDs)'
+          number="$(gh issue list --repo "$REPOSITORY" --state open --limit 100 --json number,title \
+            --jq '.[] | select(.title == "Scarlet Crystal V67: upstream/API update review (3 App IDs)") | .number' | head -n1)"
+          if [[ -n "$number" ]]; then
+            gh issue edit "$number" --repo "$REPOSITORY" --body-file artifacts/v67-upstream-check.md
+          else
+            gh issue create --repo "$REPOSITORY" --title "$title" \
+              --body-file artifacts/v67-upstream-check.md
+          fi
