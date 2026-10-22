@@ -168,6 +168,15 @@ rm -rf ./Payload/LiveContainer.app/Frameworks/SideStoreApp.framework/Metadata.ap
             'rm -rf ./Payload/LiveContainer.app/PlugIns/LaunchAppExtension.appex\n'
             'test ! -e ./Payload/LiveContainer.app/PlugIns/LaunchAppExtension.appex\n'
             '# package\n')
+    if os.environ.get('NRG_V67_3IDS') == '1':
+        from patch_v67_three_ids import assert_invariants
+        assert_invariants()
+        text = replace_once(text, '# package\n',
+            '# NRG_V67_THREE_IDS: public.item/Files replaces Share sheet target.\n'
+            'python3 "$V67_PATCH" --check ./Payload/LiveContainer.app\n'
+            'rm -rf ./Payload/LiveContainer.app/PlugIns/ShareExtension.appex\n'
+            'test ! -e ./Payload/LiveContainer.app/PlugIns/ShareExtension.appex\n'
+            '# package\n')
     text = replace_once(text, '# package\n',
                         'python3 "$COMBINED_PACKAGER" --prepare-entitlements . Payload/LiveContainer.app\n\n# package\n')
     return 'set -eu\n' + text
@@ -200,7 +209,7 @@ def prepare_entitlements(root, app):
     sources = {
         '': 'entitlements.xml',
         'PlugIns/LiveProcess.appex': 'LiveProcess/LiveProcess.entitlements',
-        'PlugIns/ShareExtension.appex': 'ShareExtension/ShareExtension.entitlements',
+        **({} if os.environ.get('NRG_V67_3IDS') == '1' else {'PlugIns/ShareExtension.appex': 'ShareExtension/ShareExtension.entitlements'}),
         **({} if os.environ.get('NRG_V66_4IDS') == '1' else {
             'PlugIns/LaunchAppExtension.appex': 'LaunchAppExtension/LaunchAppExtension.entitlements'
         }),
@@ -336,7 +345,11 @@ def verify(path, side_product=None):
                 if relative == 'SideStore' or '_CodeSignature' in relative:
                     continue
                 assert archive.read(embedded + '/' + relative) == source.read_bytes(), relative
-    registered_extensions = [('LiveProcess', 'LiveProcess'), ('ShareExtension', 'ShareExtension')]
+    registered_extensions = [('LiveProcess', 'LiveProcess')]
+    if os.environ.get('NRG_V67_3IDS') != '1':
+        registered_extensions.append(('ShareExtension', 'ShareExtension'))
+    else:
+        assert base + '/PlugIns/ShareExtension.appex' not in bundles, 'V67 Share extension must be absent'
     if os.environ.get('NRG_V66_4IDS') != '1':
         registered_extensions.append(('LaunchAppExtension', 'LaunchAppExtension'))
     else:
@@ -367,6 +380,20 @@ def verify(path, side_product=None):
         result['registration_targets_before_reuse'] = 5
     if os.environ.get('NRG_V66_4IDS') == '1':
         result['registration_targets_before_reuse'] -= 1
+    if os.environ.get('NRG_V67_3IDS') == '1':
+        from patch_v67_three_ids import assert_invariants
+        assert_invariants()
+        result['registration_targets_before_reuse'] -= 1
+        document_types = host.get('CFBundleDocumentTypes', [])
+        assert any('public.item' in entry.get('LSItemContentTypes', []) for entry in document_types)
+        assert host.get('LSSupportsOpeningDocumentsInPlace') is True
+        assert result['registration_targets_before_reuse'] == 3
+        with zipfile.ZipFile(path) as package:
+            plug_infos = [x for x in package.namelist() if '/PlugIns/' in x and x.endswith('.appex/Info.plist')]
+            expected = {'com.kdt.livecontainer.LiveProcess', 'com.kdt.livecontainer.LiveWidget'}
+            found = {plistlib.loads(package.read(x))['CFBundleIdentifier'] for x in plug_infos}
+            assert found == expected, ('Unexpected App ID', found, expected)
+    elif os.environ.get('NRG_V66_4IDS') == '1':
         assert result['registration_targets_before_reuse'] == 4
         with zipfile.ZipFile(path) as package:
             root_metadata = json.loads(package.read(base + '/Metadata.appintents/extract.actionsdata'))
@@ -393,7 +420,8 @@ def package(root, host, side, output):
     script = root / 'combined-build.sh'
     script.write_text(adapt(upstream))
     env = dict(os.environ, archive_path='combined', scheme='LiveContainer',
-               PATCHED_SIDESTORE_IPA=str(side_ipa), COMBINED_PACKAGER=str(Path(__file__).resolve()))
+               PATCHED_SIDESTORE_IPA=str(side_ipa), COMBINED_PACKAGER=str(Path(__file__).resolve()),
+               V67_PATCH=str((Path(__file__).resolve().parent / 'patch_v67_three_ids.py')))
     subprocess.run(['bash', str(script)], cwd=root, env=env, check=True)
     ipa = root / 'LiveContainer+SideStore.ipa'
     result = verify(ipa, side)
