@@ -77,9 +77,10 @@ class NUDGuestHooksCrashGuardTests(unittest.TestCase):
         patched = v78.patch(self.fixture())
         # Mutant A: permit dereference of NULL exported symbol.
         mutant_a = patched.replace(
-            "if (_CFPrefsCurrentAppIdentifierCache != NULL) {",
-            "if (YES) {", 1,
+            "    if (_CFPrefsCurrentAppIdentifierCache != NULL) {\\n        CFStringRef previousHostIdentifier".replace("\\n", "\n"),
+            "    if (YES) {\\n        CFStringRef previousHostIdentifier".replace("\\n", "\n"), 1,
         )
+        self.assertNotEqual(patched, mutant_a)
         with self.assertRaises(AssertionError):
             self.assert_safe_pref_chain(mutant_a)
         # Mutant B: permit CFStringCreateCopy with a NULL first-level value.
@@ -91,9 +92,10 @@ class NUDGuestHooksCrashGuardTests(unittest.TestCase):
             self.assert_safe_pref_chain(mutant_b)
         # Mutant C: permit writing through an absent language symbol.
         mutant_c = patched.replace(
-            "if (_CFBundleUserLanguages != NULL) {",
-            "if (YES) {", 1,
+            "        if (_CFBundleUserLanguages != NULL) {\\n            NSMutableArray* newUserLanguages".replace("\\n", "\n"),
+            "        if (YES) {\\n            NSMutableArray* newUserLanguages".replace("\\n", "\n"), 1,
         )
+        self.assertNotEqual(patched, mutant_c)
         with self.assertRaises(AssertionError):
             self.assert_safe_pref_chain(mutant_c)
 
