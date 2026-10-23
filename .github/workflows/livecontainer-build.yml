@@ -387,36 +387,39 @@ jobs:
             CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO \
             COMPILER_INDEX_STORE_ENABLE=NO build
 
-      # V78: capture exact linked instructions and UUID, not speculative
-      # inference from ESR/LR. This is a build-time artifact only; it does
-      # NOT match an on-device crash unless the UUID matches its image.
-      - name: Record LiveProcess NUD disassembly and UUID
+      # V78: NUDGuestHooksInit is in LiveContainerShared.framework, not
+      # the LiveProcess.appex executable. Never symbolize a different image.
+      - name: Record LiveContainerShared NUD disassembly and UUID
         if: always()
         shell: bash
         run: |
           set -uo pipefail
           mkdir -p artifacts/logs
           {
-            echo 'V78 linked LiveProcess forensic evidence'
+            echo 'V78 LiveContainerShared.framework linked-image forensic evidence'
             product="$RUNNER_TEMP/livecontainer-derived-data/Build/Products/Release-iphoneos"
-            binary="$product/LiveContainer.app/PlugIns/LiveProcess.appex/LiveProcess"
+            binary="$product/LiveContainer.app/Frameworks/LiveContainerShared.framework/LiveContainerShared"
             if [[ ! -f "$binary" ]]; then
-              binary="$(find "$product" -type f -path '*/LiveProcess.appex/LiveProcess' -print -quit 2>/dev/null || true)"
+              binary="$(find "$product" -type f -path '*/LiveContainerShared.framework/LiveContainerShared' -print -quit 2>/dev/null || true)"
             fi
             if [[ -z "$binary" || ! -f "$binary" ]]; then
-              echo '[UNAVAILABLE] linked LiveProcess binary; no disassembly claim'
+              echo '[UNAVAILABLE] LiveContainerShared image missing: no disassembly/UUID claim'
             else
-              echo '[FOUND] linked LiveProcess executable'
+              echo '[FOUND] LiveContainerShared image (NOT the LiveProcess executable)'
               file "$binary"
+              echo '[UUID/ARCH]'
               xcrun dwarfdump --uuid "$binary" || true
               echo '[SYMBOLS] NUDGuestHooksInit'
               xcrun nm -an "$binary" | grep -F 'NUDGuestHooksInit' || true
-              echo '[DISASSEMBLY] _NUDGuestHooksInit with instruction bytes'
+              echo '[DISASSEMBLY] _NUDGuestHooksInit and instruction bytes'
               xcrun llvm-objdump --macho --dis-symname=_NUDGuestHooksInit "$binary" \
                 || xcrun llvm-objdump --disassemble-symbols=_NUDGuestHooksInit "$binary" \
-                || echo '[UNAVAILABLE] symbolic disassembly; requires matching dSYM'
+                || echo '[UNAVAILABLE] stripped function; use matching binary/dSYM'
             fi
-            echo '[NOTE] A different on-device UUID invalidates this offset comparison.'
+            echo '[NOTE] The 2026-10-24 original fault address +456 belongs to'
+            echo '       the crashed original image UUID, not to this patched V78 image.'
+            echo '[NOTE] Do not treat the imageOffset=93456 as an identical V78'
+            echo '       instruction location. Match the ORIGINAL image UUID first.'
           } 2>&1 | tee artifacts/logs/v78-liveprocess-forensics.txt
 
       - name: Preserve first Xcode build diagnostic even on failure
