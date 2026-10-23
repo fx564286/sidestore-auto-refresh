@@ -55,7 +55,7 @@ class NUDGuestHooksCrashGuardTests(unittest.TestCase):
         )
         self.assertRegex(
             source,
-            r"if \(_CFBundleUserLanguages != NULL\) \{[\s\S]*?\*_CFBundleUserLanguages =",
+            r"if \(_CFBundleUserLanguages != NULL\) \{\s+NSMutableArray\* newUserLanguages =",
         )
 
     def test_second_level_null_guard_and_diagnostic_branches(self):
