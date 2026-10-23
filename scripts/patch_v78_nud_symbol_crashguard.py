@@ -38,6 +38,9 @@ NEW_APP_CACHE = """    // SCARLET_V78_NUD_NULL_SYMBOL_GUARD: private symbols may
     }
     if (_CFPrefsCurrentAppIdentifierCache != NULL) {
         CFStringRef previousHostIdentifier = *_CFPrefsCurrentAppIdentifierCache;
+        // Diagnostic is intentionally non-address-bearing: no ASLR pointers in logs.
+        NSLog(@"[SCARLET_V78_DIAG] prefs_symbol=present prefs_value=%@",
+              previousHostIdentifier != NULL ? @"non_null" : @"null");
         if (previousHostIdentifier != NULL) {
             CFStringRef identifierCopy = CFStringCreateCopy(kCFAllocatorDefault, previousHostIdentifier);
             if (identifierCopy != NULL) {
@@ -47,7 +50,9 @@ NEW_APP_CACHE = """    // SCARLET_V78_NUD_NULL_SYMBOL_GUARD: private symbols may
             NSLog(@"[SCARLET_V78] preference_cache_value_null; host identifier left unchanged");
         }
         *_CFPrefsCurrentAppIdentifierCache = (__bridge CFStringRef)NSUserDefaults.lcGuestAppId;
+        NSLog(@"[SCARLET_V78_DIAG] prefs_override=applied");
     } else {
+        NSLog(@"[SCARLET_V78_DIAG] prefs_symbol=missing prefs_override=skipped");
         NSLog(@"[SCARLET_V78] preference_cache_symbol_missing; skipped unsafe private override");
     }"""
 
@@ -76,7 +81,9 @@ NEW_LANGUAGE_CACHE = """        CFMutableArrayRef* _CFBundleUserLanguages = NULL
         if (_CFBundleUserLanguages != NULL) {
             NSMutableArray* newUserLanguages = [NSMutableArray arrayWithObjects:selectedLanguage, nil];
             *_CFBundleUserLanguages = (__bridge CFMutableArrayRef)newUserLanguages;
+            NSLog(@"[SCARLET_V78_DIAG] language_symbol=present language_override=applied");
         } else {
+            NSLog(@"[SCARLET_V78_DIAG] language_symbol=missing language_override=skipped");
             NSLog(@"[SCARLET_V78] language_cache_symbol_missing; preserved AppleLanguages override");
         }"""
 
