@@ -387,6 +387,38 @@ jobs:
             CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO \
             COMPILER_INDEX_STORE_ENABLE=NO build
 
+      # V78: capture exact linked instructions and UUID, not speculative
+      # inference from ESR/LR. This is a build-time artifact only; it does
+      # NOT match an on-device crash unless the UUID matches its image.
+      - name: Record LiveProcess NUD disassembly and UUID
+        if: always()
+        shell: bash
+        run: |
+          set -uo pipefail
+          mkdir -p artifacts/logs
+          {
+            echo 'V78 linked LiveProcess forensic evidence'
+            product="$RUNNER_TEMP/livecontainer-derived-data/Build/Products/Release-iphoneos"
+            binary="$product/LiveContainer.app/PlugIns/LiveProcess.appex/LiveProcess"
+            if [[ ! -f "$binary" ]]; then
+              binary="$(find "$product" -type f -path '*/LiveProcess.appex/LiveProcess' -print -quit 2>/dev/null || true)"
+            fi
+            if [[ -z "$binary" || ! -f "$binary" ]]; then
+              echo '[UNAVAILABLE] linked LiveProcess binary; no disassembly claim'
+            else
+              echo '[FOUND] linked LiveProcess executable'
+              file "$binary"
+              xcrun dwarfdump --uuid "$binary" || true
+              echo '[SYMBOLS] NUDGuestHooksInit'
+              xcrun nm -an "$binary" | grep -F 'NUDGuestHooksInit' || true
+              echo '[DISASSEMBLY] _NUDGuestHooksInit with instruction bytes'
+              xcrun llvm-objdump --macho --dis-symname=_NUDGuestHooksInit "$binary" \
+                || xcrun llvm-objdump --disassemble-symbols=_NUDGuestHooksInit "$binary" \
+                || echo '[UNAVAILABLE] symbolic disassembly; requires matching dSYM'
+            fi
+            echo '[NOTE] A different on-device UUID invalidates this offset comparison.'
+          } 2>&1 | tee artifacts/logs/v78-liveprocess-forensics.txt
+
       - name: Preserve first Xcode build diagnostic even on failure
         if: always()
         uses: actions/upload-artifact@v4
@@ -395,6 +427,7 @@ jobs:
           path: |
             artifacts/logs/livecontainer-build.log
             artifacts/logs/host-preflight.log
+            artifacts/logs/v78-liveprocess-forensics.txt
           if-no-files-found: warn
           retention-days: 14
 
