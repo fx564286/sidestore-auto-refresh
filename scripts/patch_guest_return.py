@@ -482,7 +482,10 @@ DIRECT_RUNTIME = r'''
 }
 - (void)directReturnHold:(UILongPressGestureRecognizer *)gesture {
     if (gesture.state != UIGestureRecognizerStateBegan) return;
-    [self confirmRestartForScene:gesture.view.window.windowScene origin:@"hold"];
+    // SCARLET_V91_ORIGINAL_DOCK_LONGPRESS: request the same original Dock
+    // that right-edge swipe used; never prompt for a restart on hold.
+    [[NSNotificationCenter defaultCenter] postNotificationName:@"ScarletOriginalDockLongHold" object:nil];
+    NSLog(@"[SCARLET_V91_DOCK] event=direct_button_hold request=original_dock");
 }
 - (void)show:(NSNotification *)notification {
     if (!NSThread.isMainThread) {
