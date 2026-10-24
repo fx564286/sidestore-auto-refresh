@@ -109,7 +109,7 @@ enum V3WireContract {
         "refreshAdmissionReconcile", "recoveryDiscardUnreadable", "directRecoveryInspect",
         "directRecoveryReconcile", "ipaCleanup", "ipaActiveTokens",
         "certList", "certExportActive", "certSetActive", "certDelete", "certPortalList", "certRevoke", "certCreate", "certImport",
-        "devTeams", "devDevices", "devAppIDs", "devDeleteAppID", "devGroups", "devProfiles",
+        "devTeams", "devDevices", "devAppIDs", "devDeleteAppID", "devDeleteExtensionProfile", "devGroups", "devProfiles",
         "sourcePreview", "sourceAddConfirmed", "sourceRemoveConfirmed",
         "pairingImportData", "settingsGet", "settingsSet",
         "anisetteList", "anisetteReset", "anisetteSync",

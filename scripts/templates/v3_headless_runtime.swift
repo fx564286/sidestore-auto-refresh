@@ -2558,21 +2558,19 @@ enum V3BackendCommands {
     }
 
     static func profileRow(_ profile: ALTListedProvisioningProfile) -> [String: Any] {
-        // The portal list shape is upstream-owned; reflect scalar members instead
-        // of hard-coding them so portal changes cannot break compilation.
-        var row: [String: Any] = [:]
-        for child in Mirror(reflecting: profile).children {
-            guard let label = child.label else { continue }
-            switch child.value {
-            case let value as String: row[label] = value
-            case let value as Bool: row[label] = value
-            case let value as Int: row[label] = value
-            case let value as Date: row[label] = value
-            case let value as UUID: row[label] = value.uuidString
-            default: row[label] = String(describing: child.value)
-            }
-        }
-        return row
+        // SCARLET_V96_PROFILE_IDENTITY: typed portal profile identifiers, never
+        // Mirror(Optional(...)) strings. The opaque Apple profile ID is used
+        // only after selecting a server-listed extension and confirming deletion.
+        return [
+            "identifier": profile.provisioningProfileId ?? "",
+            "uuid": profile.uuid.uuidString,
+            "name": profile.name,
+            "status": profile.status ?? "",
+            "bundleID": profile.bundleIdentifier ?? "",
+            "expiration": profile.dateExpire,
+            "isFree": profile.isFreeProvisioningProfile ?? false,
+            "isTeam": profile.isTeamProfile ?? false
+        ]
     }
 
     static func developerProfiles() async throws -> [[String: Any]] {

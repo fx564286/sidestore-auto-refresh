@@ -7169,6 +7169,14 @@ struct V3DeveloperServicesView: View {
     @State private var appIDRefreshing = false
     @State private var appIDPortalNotice = ""
     @State private var appIDLastChecked: Date? = nil
+    // SCARLET_V96_EXTENSION_PROFILE_UI: portal deletion is separate from
+    // installed-device profile removal and App ID deletion.
+    @State private var profileDeleteTarget: [String: Any]? = nil
+    @State private var showProfileDeleteConfirmation = false
+    @State private var profileDeleting = false
+    @State private var profileRefreshing = false
+    @State private var profileNotice = ""
+    @State private var profileLastChecked: Date? = nil
     var body: some View {
         List {
             if !message.isEmpty {
@@ -7237,19 +7245,55 @@ struct V3DeveloperServicesView: View {
             }
             simpleSection("App Groups", rows: groups.map { "\($0["name"] ?? "") · \($0["identifier"] ?? "")" })
             Section("Provisioning Profiles (\(profiles.count))") {
+                Text("Apple 서버의 확장 프로파일만 선택 삭제해. 현재 iPhone에 설치된 프로파일이나 앱·게임 데이터는 삭제하지 않아. 사용 중인 프로파일을 지우면 다음 재서명에서 재발급이 필요할 수 있어.")
+                    .font(.footnote).foregroundColor(.secondary)
+                Button {
+                    Task { await refreshPortalProfiles() }
+                } label: {
+                    Label("Apple 서버 프로파일 목록 갱신", systemImage: "arrow.clockwise")
+                }
+                .disabled(loading || profileDeleting || profileRefreshing || !status.authenticated)
+                if let profileLastChecked {
+                    Text("서버 확인: " + profileLastChecked.formatted(date: .abbreviated, time: .shortened))
+                        .font(.caption).foregroundColor(.secondary)
+                }
+                if !profileNotice.isEmpty {
+                    Text(profileNotice).font(.footnote).textSelection(.enabled)
+                }
                 if loading { ProgressView() }
                 ForEach(profiles.indices, id: \.self) { index in
                     let row = profiles[index]
-                    let name = row["name"] as? String ?? row["profileName"] as? String ?? "Profile"
-                    let detail = row["bundleID"] as? String ?? row["bundleIdentifier"] as? String ?? ""
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(name).font(.headline)
-                        if !detail.isEmpty {
-                            Text(detail)
-                                .font(.caption).foregroundColor(.secondary)
+                    let name = row["name"] as? String ?? "Profile"
+                    let bundle = row["bundleID"] as? String ?? ""
+                    let identifier = row["identifier"] as? String ?? ""
+                    let normalized = bundle.lowercased()
+                    let isExtension = [".shareextension", ".altwidget", ".liveprocess", ".launchappextension"]
+                        .contains(where: { normalized.hasSuffix($0) })
+                    VStack(alignment: .leading, spacing: 4) {
+                        HStack {
+                            Text(name).font(.headline)
+                            Spacer()
+                            if isExtension && !identifier.isEmpty {
+                                Button("확장 삭제", role: .destructive) {
+                                    profileDeleteTarget = row
+                                    showProfileDeleteConfirmation = true
+                                }
+                                .font(.caption)
+                                .disabled(loading || profileDeleting || profileRefreshing || !status.authenticated)
+                            } else {
+                                Label("보호", systemImage: "lock.shield")
+                                    .font(.caption).foregroundColor(.secondary)
+                            }
+                        }
+                        Text(bundle.isEmpty ? "프로파일 대상 미확인" : bundle)
+                            .font(.caption).foregroundColor(.secondary)
+                            .textSelection(.enabled)
+                        if let expiration = row["expiration"] as? Date {
+                            Text("만료: " + expiration.formatted(date: .abbreviated, time: .shortened))
+                                .font(.caption2).foregroundColor(.secondary)
                         }
                     }
-                    .padding(.vertical, 2)
+                    .padding(.vertical, 3)
                 }
             }
         }
@@ -7263,6 +7307,15 @@ struct V3DeveloperServicesView: View {
             Button("취소", role: .cancel) { appIDDeleteTarget = nil }
         } message: {
             Text("Apple 서버에 등록된 App ID를 삭제해. 다른 설치 앱의 프로비저닝이 작동하지 않을 수 있고, 무료 계정의 7일 등록 한도는 즉시 복구되지 않아. 삭제 후 서버 목록을 다시 조회할게.")
+        }
+        .alert("확장 프로파일 삭제", isPresented: $showProfileDeleteConfirmation) {
+            Button("Apple 서버에서 삭제", role: .destructive) {
+                let selected = profileDeleteTarget
+                Task { await deleteSelectedExtensionProfile(selected) }
+            }
+            Button("취소", role: .cancel) { profileDeleteTarget = nil }
+        } message: {
+            Text("선택한 확장 프로파일을 Apple 서버에서 삭제해. iPhone의 설치된 프로파일과 앱은 유지하지만, 현재 사용 중인 확장이라면 다음 새로고침 때 재발급해야 할 수 있어. App ID 한도는 초기화되지 않아.")
         }
         .task { await reload() }
         .onChange(of: status.identityStamp) { _ in
@@ -7287,6 +7340,65 @@ struct V3DeveloperServicesView: View {
             reloadTicket &+= 1
         }
     }
+    private func refreshPortalProfiles() async {
+        // SCARLET_V96_PORTAL_PROFILE_LIST: read-only and independent of deletion.
+        guard status.authenticated, !loading, !profileRefreshing, !profileDeleting,
+              let stamp = status.identityStamp else { return }
+        profileRefreshing = true
+        profileNotice = ""
+        defer { profileRefreshing = false }
+        do {
+            let response = try await V3ServiceBridge.shared.request(operation: "devProfiles")
+            let identity = try await V3ServiceBridge.shared.request(operation: "snapshot")
+            guard status.identityStamp == stamp,
+                  V3ServiceBridge.strictBool(identity["identityStable"]) == true,
+                  identity["identityStamp"] as? String == stamp,
+                  response["identityStamp"] as? String == stamp else { return }
+            profiles = response["profiles"] as? [[String: Any]] ?? []
+            profileLastChecked = Date()
+            profileNotice = "Apple 서버 확장 프로파일 목록을 확인했어."
+        } catch {
+            profileNotice = "서버 조회 실패. 기존 목록에서 삭제를 시도하지 말고 새로고침해줘."
+        }
+    }
+
+    private func deleteSelectedExtensionProfile(_ selected: [String: Any]?) async {
+        guard let selected,
+              let identifier = selected["identifier"] as? String, !identifier.isEmpty,
+              let bundle = selected["bundleID"] as? String,
+              [".shareextension", ".altwidget", ".liveprocess", ".launchappextension"]
+                .contains(where: { bundle.lowercased().hasSuffix($0) }),
+              !loading, !profileDeleting, !profileRefreshing, status.authenticated,
+              let stamp = status.identityStamp else { return }
+        profileDeleteTarget = nil
+        profileDeleting = true
+        profileNotice = ""
+        defer { profileDeleting = false }
+        do {
+            let response = try await V3ServiceBridge.shared.request(
+                operation: "devDeleteExtensionProfile", target: identifier)
+            guard stamp == status.identityStamp,
+                  V3ServiceBridge.strictBool(response["deleted"]) == true,
+                  V3ServiceBridge.strictBool(response["verifiedAbsent"]) == true else {
+                profileNotice = "결과를 확인할 수 없어. 삭제를 반복하지 말고 서버 목록을 다시 확인해줘."
+                return
+            }
+            let refreshed = try await V3ServiceBridge.shared.request(operation: "devProfiles")
+            guard stamp == status.identityStamp,
+                  refreshed["identityStamp"] as? String == stamp else { return }
+            let rows = refreshed["profiles"] as? [[String: Any]] ?? []
+            guard !rows.contains(where: { ($0["identifier"] as? String) == identifier }) else {
+                profileNotice = "Apple 서버에 프로파일이 남아 있어. 목록을 확인해줘."
+                return
+            }
+            profiles = rows
+            profileLastChecked = Date()
+            profileNotice = "선택한 확장 프로파일 삭제를 서버에서 확인했어. 기기 설치 프로파일과 앱은 그대로야."
+        } catch {
+            profileNotice = "삭제 결과 불명. 요청을 반복하지 말고 Apple 서버 목록을 조회해줘."
+        }
+    }
+
     private func refreshPortalAppIDs() async {
         // Apple portal LIST only: independently refresh counts without
         // generating IDs, profiles or certificates.

@@ -1282,7 +1282,7 @@ final class V3SideStoreService: NSObject {
                 case "authBegin", "authPoll", "authRespond", "authCancel", "authRetryProvisioning", "accountExport", "accountImport": stage = .authentication
                 case "opStart", "opPoll", "opAnswer", "opCancel": stage = .command
                 case "certList", "certExportActive", "certSetActive", "certDelete", "certPortalList", "certRevoke", "certCreate", "certImport": stage = .signing
-                case "devTeams", "devDevices", "devAppIDs", "devDeleteAppID", "devGroups", "devProfiles", "syncAppIDs": stage = .authentication
+                case "devTeams", "devDevices", "devAppIDs", "devDeleteAppID", "devDeleteExtensionProfile", "devGroups", "devProfiles", "syncAppIDs": stage = .authentication
                 case "sourcePreview", "sourceAddConfirmed", "sourceRemoveConfirmed", "refreshSources": stage = .source
                 default: stage = .command
                 }
@@ -2143,6 +2143,37 @@ final class V3SideStoreService: NSObject {
             return try await accountScopedRead("groups") { try await V3BackendCommands.developerGroups() }
         case "devProfiles":
             return try await accountScopedRead("profiles") { try await V3BackendCommands.developerProfiles() }
+        case "devDeleteExtensionProfile":
+            // SCARLET_V96_PORTAL_EXTENSION_DELETE: explicit, portal-only action.
+            // Never remove device-installed profiles from the active app.
+            guard !target.isEmpty, target.utf8.count <= 256,
+                  target.unicodeScalars.allSatisfy({
+                    CharacterSet(charactersIn: "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-").contains($0)
+                  }) else { throw V3SideStoreServiceError.invalidRequest }
+            _ = try await AuthManager.shared.getAuthenticatedSession()
+            let team = try await AuthManager.shared.getAuthenticatedTeam()
+            let profiles = try await DeveloperPortalProxy.shared.listProvisioningProfiles(team: team)
+            guard let profile = profiles.first(where: { $0.provisioningProfileId == target }),
+                  let bundle = profile.bundleIdentifier?.lowercased(),
+                  [".shareextension", ".altwidget", ".liveprocess", ".launchappextension"]
+                    .contains(where: { bundle.hasSuffix($0) }) else {
+                throw V3SideStoreServiceError.invalidRequest
+            }
+            guard (try await AuthManager.shared.getAuthenticatedTeam()).identifier == team.identifier else {
+                throw V3SideStoreServiceError.authRequired
+            }
+            guard try await DeveloperPortalProxy.shared.deleteProvisioningProfile(
+                profileID: target, team: team) else {
+                throw V3SideStoreServiceError.persistenceUnverified
+            }
+            // A completed delete request does not imply successful read-back;
+            // a retry could delete something unexpected after portal state shifts.
+            let remaining = try await DeveloperPortalProxy.shared.listProvisioningProfiles(team: team)
+            guard !remaining.contains(where: { $0.provisioningProfileId == target }) else {
+                throw V3SideStoreServiceError.persistenceUnverified
+            }
+            return ["deleted": true, "verifiedAbsent": true,
+                    "scope": "apple_portal_only", "refreshRequired": true]
         case "sourcePreview":
             guard V3SourceAddPersistencePolicy.validatedURL(target) != nil else {
                 throw V3SideStoreServiceError.invalidRequest
