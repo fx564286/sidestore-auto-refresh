@@ -33,7 +33,14 @@ SWIFT_SWITCHER = r'''
         let current = Date()
         // Current session windows take precedence over recently launched
         // classic/LiveProcess guests (those do not appear in Dock.apps).
-        let activeFolders = Set(apps.map { $0.appUUID })
+        // SCARLET_V87_NATIVE_RUNNING_GUESTS: the Dock only owns virtual
+        // guest views. Include retained native LiveProcess windows too.
+        // Never count a stale/unbound window as running.
+        let nativeFolders = Set(MultitaskWindowManager.appDict.values.compactMap { entry -> String? in
+            guard let controller = entry.controller, controller.isAppRunning else { return nil }
+            return entry.dataUUID
+        })
+        let activeFolders = Set(apps.map { $0.appUUID }).union(nativeFolders)
         let candidates = models.compactMap { model -> (name: String, bundle: String, route: URL, folder: String, running: Bool, used: Date)? in
             guard let bundle = model.appInfo.relativeBundlePath,
                   bundle.hasSuffix(".app"), bundle.utf8.count <= 180,
@@ -65,7 +72,7 @@ SWIFT_SWITCHER = r'''
         var seen = Set<String>()
         let recent = Array(candidates.filter { seen.insert($0.folder).inserted }.prefix(8))
 
-        let menu = UIAlertController(title: "최근 게스트 전환",
+        let menu = UIAlertController(title: "홍수정 내부 앱 전환",
                                      message: recent.isEmpty ? "최근 실행한 컨테이너 앱이 없습니다." : nil,
                                      preferredStyle: .actionSheet)
         for guest in recent {
@@ -80,9 +87,20 @@ SWIFT_SWITCHER = r'''
                     NSLog("[NRG_V72_SWITCH] rejected=stale_guest")
                     return
                 }
-                if guest.running && self.bringMultitaskViewToFront(uuid: guest.folder) {
-                    NSLog("[NRG_V72_SWITCH] route=retained result=presented")
-                    return
+                // Native and virtual windows have independent presentation
+                // ownership. Restore an existing native scene before asking
+                // the Dock or starting another guest process.
+                if guest.running {
+                    if #available(iOS 16.1, *),
+                       MultitaskWindowManager.openExistingAppWindow(dataUUID: guest.folder) {
+                        NSLog("[SCARLET_V87_SWITCH] route=native_existing result=requested")
+                        return
+                    }
+                    if self.bringMultitaskViewToFront(uuid: guest.folder) {
+                        NSLog("[SCARLET_V87_SWITCH] route=virtual_existing result=presented")
+                        return
+                    }
+                    NSLog("[SCARLET_V87_SWITCH] result=retained_window_unavailable fallback=guarded_route")
                 }
                 UIApplication.shared.open(guest.route, options: [:]) { accepted in
                     NSLog("[NRG_V72_SWITCH] route=guest_deeplink accepted=%d", accepted ? 1 : 0)

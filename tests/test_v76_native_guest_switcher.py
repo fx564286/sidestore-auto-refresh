@@ -46,7 +46,9 @@ class NativeGuestSwitchTests(unittest.TestCase):
     def test_virtual_scene_has_one_control_and_owner_safe_route(self):
         self.assertIn('|| decorated;',v76.LAYOUT)
         self.assertIn('presenter.view.window',v76.SWITCH_METHOD)
-        self.assertIn('UIApplicationStateActive',v76.SWITCH_METHOD)
+        self.assertIn('owner.rootViewController',v76.SWITCH_METHOD)
+        self.assertIn('source.window',v76.SWITCH_METHOD)
+        self.assertNotIn('UIApplicationStateActive',v76.SWITCH_METHOD)
         self.assertIn('nrgV72PresentGuestSwitcherFrom:presenter',v76.SWITCH_METHOD)
         self.assertIn('self.switchAction()',v76.METHODS)
         self.assertIn('UIGestureRecognizerStateBegan',v76.METHODS)
