@@ -23,6 +23,23 @@ OLD_APP_CACHE = """    CFStringRef* _CFPrefsCurrentAppIdentifierCache = getCache
     [NSUserDefaults.lcUserDefaults _setIdentifier:(__bridge NSString*)CFStringCreateCopy(nil, *_CFPrefsCurrentAppIdentifierCache)];
     *_CFPrefsCurrentAppIdentifierCache = (__bridge CFStringRef)NSUserDefaults.lcGuestAppId;"""
 
+DSC_DIAG_HELPER = """static void ScarletV78LogDSCReadability(NSString* hookPath) {
+    // Diagnostic only: cache discovery/readability is not proof of symbol absence.
+    // Avoid extra costly litehook_find_dsc_symbol calls on the guest startup path.
+    const char* locatedDSC = litehook_locate_dsc();
+    NSString* cachePath = locatedDSC != NULL && locatedDSC[0] != '\\0'
+        ? [NSString stringWithUTF8String:locatedDSC] : nil;
+    NSString* symbolsPath = [cachePath stringByAppendingString:@".symbols"];
+    NSFileManager* manager = NSFileManager.defaultManager;
+    NSLog(@"[SCARLET_V78_DIAG] hook_path=%@ dsc_located=%@ dsc_main_readable=%@ dsc_symbols_readable=%@",
+          hookPath,
+          cachePath != nil ? @"yes" : @"no",
+          cachePath != nil && [manager isReadableFileAtPath:cachePath] ? @"yes" : @"no",
+          symbolsPath != nil && [manager isReadableFileAtPath:symbolsPath] ? @"yes" : @"no");
+}
+
+"""
+
 NEW_APP_CACHE = """    // SCARLET_V78_NUD_NULL_SYMBOL_GUARD: private symbols may be absent on iOS 27.2.
     // Do not cache an invalid address or dereference a NULL symbol pointer.
     CFStringRef* _CFPrefsCurrentAppIdentifierCache = NULL;
@@ -34,13 +51,16 @@ NEW_APP_CACHE = """    // SCARLET_V78_NUD_NULL_SYMBOL_GUARD: private symbols may
         if (_CFPrefsCurrentAppIdentifierCache == NULL) {
             _CFPrefsCurrentAppIdentifierCache = litehook_find_dsc_symbol(coreFoundationPath, "__CFPrefsCurrentAppIdentifierCache");
             prefsDscResult = _CFPrefsCurrentAppIdentifierCache != NULL ? @"hit" : @"miss";
+            if (_CFPrefsCurrentAppIdentifierCache == NULL) {
+                ScarletV78LogDSCReadability(@"prefs_first");
+            }
             if (_CFPrefsCurrentAppIdentifierCache != NULL) {
                 uint64_t offset = (uint64_t)((void*)_CFPrefsCurrentAppIdentifierCache - (void*)coreFoundationHeader);
                 saveCachedSymbol(@"__CFPrefsCurrentAppIdentifierCache", coreFoundationHeader, offset);
             }
         }
     }
-    NSLog(@"[SCARLET_V78_DIAG] prefs_cache=%@ prefs_dsc=%@ prefs_symbol=%@",
+    NSLog(@"[SCARLET_V78_DIAG] hook_path=prefs_first prefs_cache=%@ prefs_dsc=%@ prefs_symbol=%@",
           prefsCacheResult, prefsDscResult,
           _CFPrefsCurrentAppIdentifierCache != NULL ? @"present" : @"missing");
     if (_CFPrefsCurrentAppIdentifierCache != NULL) {
@@ -82,6 +102,9 @@ NEW_LANGUAGE_CACHE = """        CFMutableArrayRef* _CFBundleUserLanguages = NULL
             if (_CFBundleUserLanguages == NULL) {
                 _CFBundleUserLanguages = litehook_find_dsc_symbol(coreFoundationPath, "__CFBundleUserLanguages");
                 langDscResult = _CFBundleUserLanguages != NULL ? @"hit" : @"miss";
+                if (_CFBundleUserLanguages == NULL) {
+                    ScarletV78LogDSCReadability(@"lang_second");
+                }
                 if (_CFBundleUserLanguages != NULL) {
                     uint64_t offset = (uint64_t)((void*)_CFBundleUserLanguages - (void*)coreFoundationHeader);
                     saveCachedSymbol(@"__CFBundleUserLanguages", coreFoundationHeader, offset);
@@ -89,7 +112,7 @@ NEW_LANGUAGE_CACHE = """        CFMutableArrayRef* _CFBundleUserLanguages = NULL
             }
         }
         // AppleLanguages still gets stored in newStandardUserDefaults above.
-        NSLog(@"[SCARLET_V78_DIAG] lang_cache=%@ lang_dsc=%@ lang_symbol=%@",
+        NSLog(@"[SCARLET_V78_DIAG] hook_path=lang_second lang_cache=%@ lang_dsc=%@ lang_symbol=%@",
               langCacheResult, langDscResult,
               _CFBundleUserLanguages != NULL ? @"present" : @"missing");
         if (_CFBundleUserLanguages != NULL) {
@@ -111,7 +134,7 @@ OLD_UNSELECTED_LANGUAGE = """    } else {
 
 NEW_UNSELECTED_LANGUAGE = """    } else {
         // No language override requested. Do not mistake 'not_attempted' for symbol missing.
-        NSLog(@"[SCARLET_V78_DIAG] lang_cache=not_attempted lang_dsc=not_attempted lang_symbol=not_attempted lang_value=not_read lang_override=not_attempted");
+        NSLog(@"[SCARLET_V78_DIAG] hook_path=lang_second lang_skip=no_selected_language lang_cache=not_attempted lang_dsc=not_attempted lang_symbol=not_attempted lang_value=not_read lang_override=not_attempted");
         [newStandardUserDefaults removeObjectForKey:@"AppleLanguages"];
     }"""
 
@@ -127,8 +150,11 @@ def patch(source: str) -> str:
     ):
         if source.count(original) != 1:
             raise ValueError(f"V78 pinned {label} preference block missing or duplicated")
+    if source.count("void NUDGuestHooksInit(void) {") != 1:
+        raise ValueError("V78 pinned NUDGuestHooksInit entry missing or duplicated")
     return (
-        source.replace(OLD_APP_CACHE, NEW_APP_CACHE, 1)
+        source.replace("void NUDGuestHooksInit(void) {", DSC_DIAG_HELPER + "void NUDGuestHooksInit(void) {", 1)
+        .replace(OLD_APP_CACHE, NEW_APP_CACHE, 1)
         .replace(OLD_LANGUAGE_CACHE, NEW_LANGUAGE_CACHE, 1)
         .replace(OLD_UNSELECTED_LANGUAGE, NEW_UNSELECTED_LANGUAGE, 1)
     )
