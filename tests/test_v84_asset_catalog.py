@@ -69,5 +69,35 @@ class V84AssetCatalogTests(unittest.TestCase):
             self.m.patch(fixture() + self.m.FILE_ID)
 
 
+class V85LeafAssetTests(unittest.TestCase):
+    def test_exact_leaf_path_exclusions_and_replay(self):
+        import tempfile
+        m = module()
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "Contents.json").write_text("{}")
+            for i in range(32):
+                (root / f"asset-{i}.png").write_bytes(b"fixture")
+            patched = m.patch(fixture())
+            excluded = m.exclude_leaf_assets(patched, root)
+            self.assertIn(m.LEAF_MARK, excluded)
+            self.assertEqual(m.exclude_leaf_assets(excluded, root), excluded)
+            for p in root.iterdir():
+                expected = '"Resources/Icons.xcassets/' + p.name + '",'
+                self.assertEqual(excluded.count(expected), 1)
+            self.assertNotIn("rm -rf", excluded)
+            corrupted = excluded.replace('"Resources/Icons.xcassets/asset-10.png",', "")
+            with self.assertRaises(ValueError):
+                m.exclude_leaf_assets(corrupted, root)
+
+    def test_incomplete_catalog_fails_closed(self):
+        import tempfile
+        m = module()
+        with tempfile.TemporaryDirectory() as tmp:
+            (Path(tmp) / "Contents.json").write_text("{}")
+            with self.assertRaises(ValueError):
+                m.exclude_leaf_assets(m.patch(fixture()), Path(tmp))
+
+
 if __name__ == "__main__":
     unittest.main()
