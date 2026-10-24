@@ -130,7 +130,6 @@ class NUDGuestHooksCrashGuardTests(unittest.TestCase):
         self.assertRegex(src, r'if \(_CFPrefsCurrentAppIdentifierCache == NULL\) \{\s+ScarletV78LogDSCReadability\(@"prefs_first"\);')
         self.assertRegex(src, r'if \(_CFBundleUserLanguages == NULL\) \{\s+ScarletV78LogDSCReadability\(@"lang_second"\);')
         self.assertLess(src.index('ScarletV78LogDSCReadability(@"prefs_first")'), src.index('prefs_cache=%@'))
-        self.assertIn('return;', src.split("static void ScarletV78LogDSCReadability", 1)[0] if False else '') if False else None
 
     def test_unselected_language_path_is_explicit(self):
         result = v78.patch(self.fixture())
