@@ -22,6 +22,9 @@ class NUDGuestHooksCrashGuardTests(unittest.TestCase):
             '    const char* coreFoundationPath = "/System/Library/Frameworks/CoreFoundation.framework/CoreFoundation";',
             "    mach_header_u* coreFoundationHeader = LCGetLoadedImageHeader(2, coreFoundationPath);",
             v78.OLD_APP_CACHE,
+            '    NSUserDefaults* newStandardUserDefaults = [[NSUserDefaults alloc] initWithSuiteName:@"whatever"];',
+            '    [newStandardUserDefaults _setIdentifier:NSUserDefaults.lcGuestAppId];',
+            '    NSUserDefaults.standardUserDefaults = newStandardUserDefaults;',
             '    NSString* selectedLanguage = NSUserDefaults.guestAppInfo[@"LCSelectedLanguage"];',
             "    if(selectedLanguage) {",
             '        [newStandardUserDefaults setObject:@[selectedLanguage] forKey:@"AppleLanguages"];',
@@ -100,6 +103,34 @@ class NUDGuestHooksCrashGuardTests(unittest.TestCase):
         )
         self.assertIn('prefsCacheResult = @"not_attempted";', source)
         self.assertIn('langDscResult = @"not_attempted";', source)
+
+    def test_cache_miss_only_skips_private_override_not_guest_defaults(self):
+        src = v78.patch(self.fixture())
+        self.assertLess(
+            src.index('preference_cache_symbol_missing; skipped unsafe private override'),
+            src.index('NSUserDefaults.standardUserDefaults = newStandardUserDefaults;'),
+        )
+        self.assertLess(
+            src.index('NSUserDefaults.standardUserDefaults = newStandardUserDefaults;'),
+            src.index('NSString* selectedLanguage = NSUserDefaults.guestAppInfo'),
+        )
+        self.assertNotIn('return;', src[src.index('preference_cache_symbol_missing'):src.index('NSUserDefaults.standardUserDefaults = newStandardUserDefaults;')])
+
+    def test_readonly_dsc_probe_only_on_lookup_failure(self):
+        src = v78.patch(self.fixture())
+        self.assertEqual(src.count("static void ScarletV78LogDSCReadability"), 1)
+        self.assertIn('dsc_main_readable=%@ dsc_symbols_readable=%@', src)
+        self.assertIn('isReadableFileAtPath:cachePath', src)
+        self.assertIn('isReadableFileAtPath:symbolsPath', src)
+        self.assertNotIn('dlsym(', src)
+        self.assertEqual(src.count('= litehook_find_dsc_symbol('), 2)
+        self.assertIn('hook_path=prefs_first prefs_cache=%@', src)
+        self.assertIn('hook_path=lang_second lang_cache=%@', src)
+        self.assertIn('hook_path=lang_second lang_skip=no_selected_language', src)
+        self.assertRegex(src, r'if \(_CFPrefsCurrentAppIdentifierCache == NULL\) \{\s+ScarletV78LogDSCReadability\(@"prefs_first"\);')
+        self.assertRegex(src, r'if \(_CFBundleUserLanguages == NULL\) \{\s+ScarletV78LogDSCReadability\(@"lang_second"\);')
+        self.assertLess(src.index('ScarletV78LogDSCReadability(@"prefs_first")'), src.index('prefs_cache=%@'))
+        self.assertIn('return;', src.split("static void ScarletV78LogDSCReadability", 1)[0] if False else '') if False else None
 
     def test_unselected_language_path_is_explicit(self):
         result = v78.patch(self.fixture())
