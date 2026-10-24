@@ -138,15 +138,83 @@ NEW_UNSELECTED_LANGUAGE = """    } else {
         [newStandardUserDefaults removeObjectForKey:@"AppleLanguages"];
     }"""
 
+
+# V78 Gate 3: prove the selector exchange occurred, and classify non-Apple
+# preference routing without logging identifiers or flooding runtime logs.
+OLD_CF_PREFS_SWIZZLE = """    swizzle2(CFPrefsPlistSourceClass, @selector(initWithDomain:user:byHost:containerPath:containingPreferences:), CFPrefsPlistSource2.class, @selector(hook_initWithDomain:user:byHost:containerPath:containingPreferences:));"""
+
+NEW_CF_PREFS_SWIZZLE = """    // SCARLET_V78_CF_PREFS_SWIZZLE_VERIFY: verify *pre-exchange* IMP identity.
+    // Comparing to the hook selector after exchange can inspect the original IMP.
+    SEL originalPrefsSelector = @selector(initWithDomain:user:byHost:containerPath:containingPreferences:);
+    SEL hookedPrefsSelector = @selector(hook_initWithDomain:user:byHost:containerPath:containingPreferences:);
+    Method sourceHookMethod = class_getInstanceMethod(CFPrefsPlistSource2.class, hookedPrefsSelector);
+    Method originalPrefsMethod = CFPrefsPlistSourceClass != Nil
+        ? class_getInstanceMethod(CFPrefsPlistSourceClass, originalPrefsSelector) : NULL;
+    IMP expectedHookIMP = sourceHookMethod != NULL ? method_getImplementation(sourceHookMethod) : NULL;
+    IMP originalPrefsIMP = originalPrefsMethod != NULL ? method_getImplementation(originalPrefsMethod) : NULL;
+    if (sourceHookMethod != NULL && originalPrefsMethod != NULL) {
+        // If hook was installed previously, do not swap it back out.
+        if (originalPrefsIMP != expectedHookIMP) {
+            swizzle2(CFPrefsPlistSourceClass, originalPrefsSelector,
+                     CFPrefsPlistSource2.class, hookedPrefsSelector);
+        }
+    }
+    Method installedPrefsMethod = CFPrefsPlistSourceClass != Nil
+        ? class_getInstanceMethod(CFPrefsPlistSourceClass, originalPrefsSelector) : NULL;
+    Method forwardedPrefsMethod = CFPrefsPlistSourceClass != Nil
+        ? class_getInstanceMethod(CFPrefsPlistSourceClass, hookedPrefsSelector) : NULL;
+    BOOL prefsSwizzleInstalled = expectedHookIMP != NULL && installedPrefsMethod != NULL
+        && method_getImplementation(installedPrefsMethod) == expectedHookIMP
+        && forwardedPrefsMethod != NULL;
+    NSLog(@"[SCARLET_V78_DIAG] cfprefs_swizzle=%@ original_selector=%@ hook_selector=%@",
+          prefsSwizzleInstalled ? @"installed" : @"failed",
+          originalPrefsMethod != NULL ? @"present" : @"missing",
+          sourceHookMethod != NULL ? @"present" : @"missing");"""
+
+OLD_CF_PREFS_ROUTE = """@implementation CFPrefsPlistSource2
+-(id)hook_initWithDomain:(CFStringRef)domain user:(CFStringRef)user byHost:(bool)host containerPath:(CFStringRef)containerPath containingPreferences:(id)arg5 {
+    if(isAppleIdentifier((__bridge NSString*)domain)) {"""
+
+NEW_CF_PREFS_ROUTE = """// One log per classification per process; do not record preference domains,
+// usernames, app identifiers, paths, values, memory addresses, or key names.
+static atomic_uint_fast32_t scarletV78RouteSeen = ATOMIC_VAR_INIT(0);
+static void ScarletV78LogCFPrefsRoute(CFStringRef domain, CFStringRef user, bool byHost) {
+    const BOOL appleDomain = isAppleIdentifier((__bridge NSString*)domain);
+    const BOOL anyUser = user == kCFPreferencesAnyUser;
+    const BOOL currentUser = user == kCFPreferencesCurrentUser;
+    const unsigned int userClass = anyUser ? 0u : (currentUser ? 1u : 2u);
+    const unsigned int index = (appleDomain ? 6u : 0u) + userClass * 2u + (byHost ? 1u : 0u);
+    const uint_fast32_t flag = ((uint_fast32_t)1u << index);
+    if ((atomic_fetch_or_explicit(&scarletV78RouteSeen, flag, memory_order_relaxed) & flag) != 0) return;
+    NSLog(@"[SCARLET_V78_DIAG] cfprefs_domain=%@ cfprefs_user=%@ cfprefs_by_host=%@ cfprefs_route=%@",
+          appleDomain ? @"apple" : @"non_apple",
+          anyUser ? @"any_user" : (currentUser ? @"current_user" : @"other_user"),
+          byHost ? @"true" : @"false",
+          appleDomain ? @"original_path" : (anyUser ? @"guest_path_any_to_current_user" : @"guest_path"));
+}
+
+@implementation CFPrefsPlistSource2
+-(id)hook_initWithDomain:(CFStringRef)domain user:(CFStringRef)user byHost:(bool)host containerPath:(CFStringRef)containerPath containingPreferences:(id)arg5 {
+    ScarletV78LogCFPrefsRoute(domain, user, host);
+    if(isAppleIdentifier((__bridge NSString*)domain)) {"""
+
+OLD_ATOMIC_IMPORT = "#include \"Tweaks.h\""
+NEW_ATOMIC_IMPORT = "#include \"Tweaks.h\"\\n#include <stdatomic.h>"
+
 def patch(source: str) -> str:
     if MARKER in source:
-        if source.count(MARKER) != 1 or source.count("preference_cache_symbol_missing") != 1 or source.count("language_cache_symbol_missing") != 1:
+        if (source.count(MARKER) != 1 or source.count("SCARLET_V78_CF_PREFS_SWIZZLE_VERIFY") != 1
+            or source.count("preference_cache_symbol_missing") != 1
+            or source.count("language_cache_symbol_missing") != 1):
             raise ValueError("V78 partial or duplicated crash guard")
         return source
     for original, label in (
         (OLD_APP_CACHE, "application"),
         (OLD_LANGUAGE_CACHE, "language"),
         (OLD_UNSELECTED_LANGUAGE, "unselected-language"),
+        (OLD_CF_PREFS_SWIZZLE, "cfprefs swizzle"),
+        (OLD_CF_PREFS_ROUTE, "cfprefs route"),
+        (OLD_ATOMIC_IMPORT, "atomic include"),
     ):
         if source.count(original) != 1:
             raise ValueError(f"V78 pinned {label} preference block missing or duplicated")
@@ -154,6 +222,9 @@ def patch(source: str) -> str:
         raise ValueError("V78 pinned NUDGuestHooksInit entry missing or duplicated")
     return (
         source.replace("void NUDGuestHooksInit(void) {", DSC_DIAG_HELPER + "void NUDGuestHooksInit(void) {", 1)
+        .replace(OLD_ATOMIC_IMPORT, NEW_ATOMIC_IMPORT, 1)
+        .replace(OLD_CF_PREFS_SWIZZLE, NEW_CF_PREFS_SWIZZLE, 1)
+        .replace(OLD_CF_PREFS_ROUTE, NEW_CF_PREFS_ROUTE, 1)
         .replace(OLD_APP_CACHE, NEW_APP_CACHE, 1)
         .replace(OLD_LANGUAGE_CACHE, NEW_LANGUAGE_CACHE, 1)
         .replace(OLD_UNSELECTED_LANGUAGE, NEW_UNSELECTED_LANGUAGE, 1)
