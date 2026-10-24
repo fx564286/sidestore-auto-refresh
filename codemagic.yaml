@@ -1,36 +1,36 @@
 # Alternative macOS/iOS builder while GitHub Actions is disabled.
-# An existing Codemagic app/webhook triggers this exact V79 branch on push.
+# An existing Codemagic app/webhook triggers this exact V80 branch on push.
 # Original app ID, Apple credentials, profiles and guest data are untouched.
 workflows:
-  scarlet-v79-unsigned:
-    name: Scarlet Crystal V79 — macOS unsigned IPA and Gate 1
+  scarlet-v80-unsigned:
+    name: Scarlet Crystal V80 — macOS unsigned IPA and Gate 1
     instance_type: mac_mini_m2
     max_build_duration: 120
     # Codemagic builds independently of GitHub Actions. An installed webhook
-    # will trigger only this V79 branch when a commit is pushed.
+    # will trigger only this V80 branch when a commit is pushed.
     triggering:
       events:
         - push
       branch_patterns:
-        - pattern: fix/scarlet-v79-dyld-vtable-null-guard-20261024
+        - pattern: fix/scarlet-v80-extensionlaunch-snapshot-recovery-20261024
           include: true
           source: true
       cancel_previous_builds: true
     environment:
       xcode: "26.4"
     scripts:
-      - name: Verify exact V79 branch and prepare pinned Python runner
+      - name: Verify exact V80 branch and prepare pinned Python runner
         script: |
           set -euo pipefail
           cd "$CM_BUILD_DIR"
-          test "$CM_BRANCH" = "fix/scarlet-v79-dyld-vtable-null-guard-20261024"
+          test "$CM_BRANCH" = "fix/scarlet-v80-extensionlaunch-snapshot-recovery-20261024"
           git log -1 --format='%H %s'
           xcodebuild -version
           xcodebuild -showsdks | grep -i ios
           python3 -m venv .scarlet-codemagic-venv
           source .scarlet-codemagic-venv/bin/activate
           python3 -m pip install --disable-pip-version-check 'PyYAML==6.0.2'
-          python3 -m py_compile scripts/run_v79_codemagic.py
+          python3 -m py_compile scripts/run_v80_codemagic.py
           # Codemagic mac_mini_m2 does not guarantee cargo/rustup in PATH.
           # Rust is required for pinned idevice/jktcp and bindgen.
           if ! command -v cargo >/dev/null 2>&1 || ! command -v rustup >/dev/null 2>&1; then
@@ -52,32 +52,32 @@ workflows:
           import yaml
           from pathlib import Path
           cfg = yaml.safe_load(Path("codemagic.yaml").read_text())
-          wf = cfg["workflows"]["scarlet-v79-unsigned"]
+          wf = cfg["workflows"]["scarlet-v80-unsigned"]
           assert wf["environment"]["xcode"] == "26.4"
           assert wf["triggering"]["events"] == ["push"]
           assert wf["triggering"]["branch_patterns"] == [
-              {"pattern": "fix/scarlet-v79-dyld-vtable-null-guard-20261024",
+              {"pattern": "fix/scarlet-v80-extensionlaunch-snapshot-recovery-20261024",
                "include": True, "source": True}
           ]
-          print("[V79] Codemagic branch-specific YAML ready")
+          print("[V80] Codemagic branch-specific YAML ready")
           PY_VERIFY_CI
-      - name: Run pinned V79 host, embedded SideStore, unsigned IPA and archive
+      - name: Run pinned V80 host, embedded SideStore, unsigned IPA and archive
         script: |
           set -euo pipefail
           cd "$CM_BUILD_DIR"
           source .scarlet-codemagic-venv/bin/activate
           export PATH="$HOME/.cargo/bin:$PATH"
           command -v cargo && command -v rustup
-          python3 scripts/run_v79_codemagic.py
-      - name: Verify and label V79 unsigned IPA without modifying signer identity
+          python3 scripts/run_v80_codemagic.py
+      - name: Verify and label V80 unsigned IPA without modifying signer identity
         script: |
           set -euo pipefail
           cd "$CM_BUILD_DIR"
-          python3 - <<'PY_VERIFY_V79_IPA'
+          python3 - <<'PY_VERIFY_V80_IPA'
           import zipfile
           from pathlib import Path
           source = Path("artifacts/LiveContainer-SideStore-v3.0.3-rc.ipa")
-          target = Path("artifacts/Scarlet-Crystal-V79-UNSIGNED.ipa")
+          target = Path("artifacts/Scarlet-Crystal-V80-UNSIGNED.ipa")
           assert source.is_file() and source.stat().st_size > 1_000_000, "unsigned IPA missing"
           with zipfile.ZipFile(source) as ipa:
               bad = ipa.testzip()
@@ -87,11 +87,11 @@ workflows:
               assert any("LiveProcess.appex/" in n for n in names), "LiveProcess extension absent"
           import shutil
           shutil.copy2(source, target)
-          print("[V79] zipped unsigned IPA verified and uniquely named:", target, flush=True)
-          PY_VERIFY_V79_IPA
-          shasum -a 256 artifacts/Scarlet-Crystal-V79-UNSIGNED.ipa | tee artifacts/logs/v79-unsigned-sha256.txt
+          print("[V80] zipped unsigned IPA verified and uniquely named:", target, flush=True)
+          PY_VERIFY_V80_IPA
+          shasum -a 256 artifacts/Scarlet-Crystal-V80-UNSIGNED.ipa | tee artifacts/logs/v80-unsigned-sha256.txt
     artifacts:
-      - artifacts/Scarlet-Crystal-V79-UNSIGNED.ipa
+      - artifacts/Scarlet-Crystal-V80-UNSIGNED.ipa
       - artifacts/builder-commit.txt
       - artifacts/logs/**/*
       - artifacts/debug-evidence/**/*
