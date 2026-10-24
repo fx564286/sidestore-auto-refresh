@@ -43,32 +43,46 @@ METHODS=r'''
 '''
 
 SWITCH_METHOD=r'''
-// V76: this presenter belongs to Scarlet Crystal's host, not LiveProcess.
-// Guest data is never enumerated in an untrusted guest process.
+// SCARLET_V87_HOST_GUEST_PICKER: visible host-window ownership is the
+// reliable presenter anchor, even while the remote guest scene is initializing.
+// No home-screen app enumeration or LiveProcess-owned presentation.
 - (void)lcV76ShowInstalledGuestSwitcher {
     if (!NSThread.isMainThread) {
         dispatch_async(dispatch_get_main_queue(), ^{ [self lcV76ShowInstalledGuestSwitcher]; });
         return;
     }
-    if (self.isAppTerminationCleanUpCalled || !self.isAppRunning ||
-        !self.lcReturnControl || !self.lcReturnControl.window ||
-        UIApplication.sharedApplication.applicationState != UIApplicationStateActive) {
-        NSLog(@"[LC_GUEST_SWITCH_V76] ignored=guest_inactive");
+    UIButton *source = self.lcReturnControl.button;
+    UIWindow *owner = source.window;
+    if (_isAppTerminationCleanUpCalled || !source || !owner || !owner.windowScene) {
+        NSLog(@"[SCARLET_V87_SWITCH] result=refused reason=no_visible_host_window");
         return;
     }
-    // Use the visible owner for UIKit action-sheet presentation. The virtual
-    // window's V73 ellipsis owns its own picker and is unaffected.
     UIViewController *presenter = self;
-    if ([self.delegate isKindOfClass:DecoratedAppSceneViewController.class]) {
-        presenter = (DecoratedAppSceneViewController *)self.delegate;
+    if (presenter.view.window != owner) {
+        if ([self.delegate isKindOfClass:DecoratedAppSceneViewController.class] &&
+            [(DecoratedAppSceneViewController *)self.delegate view].window == owner) {
+            presenter = (DecoratedAppSceneViewController *)self.delegate;
+        } else {
+            presenter = owner.rootViewController;
+        }
     }
-    if (!presenter.view.window) {
-        NSLog(@"[LC_GUEST_SWITCH_V76] ignored=presenter_has_no_window");
+    if (!presenter || presenter.view.window != owner) {
+        NSLog(@"[SCARLET_V87_SWITCH] result=refused reason=host_presenter_missing");
         return;
     }
+    // Follow currently visible host presentation instead of presenting from
+    // a detached remote AppSceneViewController.
+    while (presenter.presentedViewController &&
+           !presenter.presentedViewController.isBeingDismissed) {
+        presenter = presenter.presentedViewController;
+    }
+    if (presenter.isBeingDismissed || !presenter.view.window) {
+        NSLog(@"[SCARLET_V87_SWITCH] result=refused reason=transitioning");
+        return;
+    }
+    NSLog(@"[SCARLET_V87_SWITCH] event=long_hold presenter=visible_host");
     [MultitaskDockManager.shared nrgV72PresentGuestSwitcherFrom:presenter
-                                                     sourceView:self.lcReturnControl.button];
-    NSLog(@"[LC_GUEST_SWITCH_V76] route=host_recent_guests");
+                                                     sourceView:source];
 }
 '''
 
