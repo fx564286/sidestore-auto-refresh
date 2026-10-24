@@ -21,20 +21,26 @@ class OverflowLongPressTests(unittest.TestCase):
         self.assertIn('nrgWindowOverflow',script)
         self.assertIn('UIImpactFeedbackGenerator',script)
 
-    def test_recent_mru_and_only_installed_lc_models(self):
+    def test_reuse_original_running_dock_not_second_recent_picker(self):
         code=v72.SWIFT_SWITCHER
-        for check in ('DataManager.shared.model.apps','model.appInfo.lastLaunched',
-                      'activeFolders.contains(folder)','48 * 60 * 60',
-                      'URLQueryItem(name: "bundle-name"',
-                      'URLQueryItem(name: "container-folder-name"',
-                      'URLQueryItem(name: "nrg-multitask"',
-                      'components.scheme = "scarletcrystal251"',
-                      'bringMultitaskViewToFront(uuid: guest.folder)',
-                      'UIApplication.shared.open(guest.route',
-                      'model.appInfo.relativeBundlePath == guest.bundle',
-                      'controller.present(menu, animated: true)'):
-            self.assertIn(check,code)
-        self.assertNotIn('UIApplication.shared.open(URL(string: "instagram',code)
+        for token in ('SCARLET_V91_ORIGINAL_DOCK_LONGPRESS',
+                      'nrgV91RevealOriginalRunningDock(source: "button_hold")',
+                      'guard isDockEnabled(), !apps.isEmpty',
+                      'if !isVisible { showDock() }',
+                      'self.showDockFromHidden()',
+                      'self.toggleDockCollapse()',
+                      'nrgV91DirectControlHold',
+                      'nrgV91DirectControlHold'):
+            self.assertIn(token,code)
+        for retired in ('UIAlertController(', 'model.appInfo.lastLaunched',
+                        'URLQueryItem(name: "bundle-name"',
+                        'UIApplication.shared.open(guest.route',
+                        '48 * 60 * 60'):
+            self.assertNotIn(retired,code)
+        self.assertIn('UIScreenEdgePanGestureRecognizer',
+                      (ROOT/'scripts/patch_v72_overflow_longpress.py').read_text())
+        self.assertIn('cut_between(s, start, stop',
+                      (ROOT/'scripts/patch_v72_overflow_longpress.py').read_text())
 
     def test_actual_pinned_dock_and_window_patches_idempotent(self):
         source=os.environ.get('LIVE_CONTAINER_TEST_SOURCE')
