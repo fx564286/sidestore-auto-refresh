@@ -220,6 +220,16 @@ func lcProvisioningBundleRequest<T>(role: String, originalBundleID: String, pref
             case .missingKey: typedKind = "portal_missing_key"
             }
             stage = "signing"; sourceStep = "provisioningProfileRetrieval"
+        } else if let rawFacts = (error as NSError).userInfo["LCStructuredSigningContextV1"] as? [String: String],
+                  let facts = CombinedFailure.validatedSigningContext(rawFacts),
+                  facts["typed_error"]?.hasPrefix("sideSign") == true {
+            // The DeveloperPortalProxy already wrapped a typed ServerError.
+            // Recover only the allowlisted classification, never guess from
+            // NSError.code, whose 3 is not an Apple result code.
+            typedKind = facts["typed_error"] == "sideSignServerReportedError"
+                ? "portal_server_reported_wrapped" : "portal_typed_wrapped"
+            portalResultCode = facts["server_code"] ?? "unavailable"
+            stage = "signing"; sourceStep = "provisioningProfileRetrieval"
         } else if error is DeveloperPortalError {
             typedKind = "developer_portal_typed"
             stage = "signing"; sourceStep = "provisioningProfileRetrieval"
