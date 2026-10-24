@@ -2155,7 +2155,7 @@ final class V3SideStoreService: NSObject {
             let profiles = try await DeveloperPortalProxy.shared.listProvisioningProfiles(team: team)
             guard let profile = profiles.first(where: { $0.provisioningProfileId == target }),
                   let bundle = profile.bundleIdentifier?.lowercased(),
-                  [".shareextension", ".altwidget", ".liveprocess", ".launchappextension"]
+                  [".shareextension", ".altwidget", ".livewidget", ".liveprocess", ".launchappextension"]
                     .contains(where: { bundle.hasSuffix($0) }) else {
                 throw V3SideStoreServiceError.invalidRequest
             }

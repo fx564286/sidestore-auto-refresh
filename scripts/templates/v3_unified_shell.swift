@@ -7267,7 +7267,7 @@ struct V3DeveloperServicesView: View {
                     let bundle = row["bundleID"] as? String ?? ""
                     let identifier = row["identifier"] as? String ?? ""
                     let normalized = bundle.lowercased()
-                    let isExtension = [".shareextension", ".altwidget", ".liveprocess", ".launchappextension"]
+                    let isExtension = [".shareextension", ".altwidget", ".livewidget", ".liveprocess", ".launchappextension"]
                         .contains(where: { normalized.hasSuffix($0) })
                     VStack(alignment: .leading, spacing: 4) {
                         HStack {
@@ -7366,7 +7366,7 @@ struct V3DeveloperServicesView: View {
         guard let selected,
               let identifier = selected["identifier"] as? String, !identifier.isEmpty,
               let bundle = selected["bundleID"] as? String,
-              [".shareextension", ".altwidget", ".liveprocess", ".launchappextension"]
+              [".shareextension", ".altwidget", ".livewidget", ".liveprocess", ".launchappextension"]
                 .contains(where: { bundle.lowercased().hasSuffix($0) }),
               !loading, !profileDeleting, !profileRefreshing, status.authenticated,
               let stamp = status.identityStamp else { return }

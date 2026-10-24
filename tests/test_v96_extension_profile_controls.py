@@ -33,7 +33,7 @@ class ExtensionProfileControls(unittest.TestCase):
         for must in [
             '$0.provisioningProfileId == target',
             'profile.bundleIdentifier?.lowercased()',
-            '".shareextension"', '".altwidget"', '".liveprocess"', '".launchappextension"',
+            '".shareextension"', '".altwidget"', '".livewidget"', '".liveprocess"', '".launchappextension"',
             'getAuthenticatedTeam()).identifier == team.identifier',
             'DeveloperPortalProxy.shared.deleteProvisioningProfile(',
             'DeveloperPortalProxy.shared.listProvisioningProfiles(team: team)',
