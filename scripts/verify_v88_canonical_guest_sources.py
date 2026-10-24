@@ -34,6 +34,8 @@ REQUIRED = {
         "func nrgV72PresentGuestSwitcher": 1,
         "SCARLET_V87_NATIVE_RUNNING_GUESTS": 1,
         "MultitaskWindowManager.appDict.values": 1,
+        "SCARLET_V89_IOS161_AVAILABILITY": 1,
+        "if #available(iOS 16.1, *)": 2,
         "MultitaskWindowManager.openExistingAppWindow(dataUUID: guest.folder)": 1,
     },
     SCENE: {
