@@ -82,16 +82,51 @@ def patch(source: str) -> str:
     return source
 
 
+LEAF_MARK = "SCARLET_V85_EXPLICIT_LEAF_EXCLUSIONS"
+
+
+def exclude_leaf_assets(source: str, catalog: Path) -> str:
+    """Exclude each synced source file, not just its parent directory.
+
+    Xcode 27.2 does not recursively honor parent folder exceptions for
+    individual raw-copy producers, as confirmed by V84 CI #40081308677.
+    Only the pinned SideStore membership exception is modified.
+    """
+    leaves = sorted(p.relative_to(catalog).as_posix()
+                    for p in catalog.rglob("*") if p.is_file())
+    if len(leaves) < 30 or "Contents.json" not in leaves:
+        raise ValueError("V85 incomplete icon catalog; refusing partial exclusion")
+    expected = ['Resources/Icons.xcassets/' + p for p in leaves]
+    tag = "A8EEC8CB2F4B146B00F2436D /* PBXFileSystemSynchronizedBuildFileExceptionSet */ = {"
+    if source.count(tag) != 1:
+        raise ValueError("V85 pinned SideStore exception set missing or duplicated")
+    start = source.index(tag)
+    end = source.index("\n\t\t};", start) + len("\n\t\t};")
+    subset = source[start:end]
+    if f"target = {TARGET_ID} /* SideStore */;" not in subset:
+        raise ValueError("V85 wrong SideStore target")
+    quoted = ['"' + p.replace('\\', '\\\\').replace('"', '\\"') + '",' for p in expected]
+    if LEAF_MARK in source:
+        if source.count(LEAF_MARK) != 1 or any(subset.count(item) != 1 for item in quoted):
+            raise ValueError("V85 incomplete or modified leaf exception state")
+        return source
+    anchor = "\t\t\tmembershipExceptions = (\n"
+    payload = "\t\t\t\t/* " + LEAF_MARK + " */\n" + "".join(
+        "\t\t\t\t" + item + "\n" for item in quoted)
+    patched = one(subset, anchor, anchor + payload, "leaf membership")
+    return source[:start] + patched + source[end:]
+
+
 def apply(root: Path) -> None:
     catalog = root / CATALOG
     if not catalog.is_dir() or not (catalog / "Contents.json").is_file():
         raise ValueError("V84 original icon catalog missing; refusing to change project")
     project = root / PROJECT
     original = project.read_text(encoding="utf8")
-    modified = patch(original)
+    modified = exclude_leaf_assets(patch(original), catalog)
     if original != modified:
         project.write_text(modified, encoding="utf8")
-    print("[PASS] V84: one compiled asset catalog; raw synchronized icon copies excluded; icons preserved")
+    print("[PASS] V85: compiled catalog preserved and each raw synced asset file excluded")
 
 
 if __name__ == "__main__":
