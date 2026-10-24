@@ -40,8 +40,24 @@ class SettingsPersistenceTests(unittest.TestCase):
         # No builder patch may retarget the guest preference container.
         import glob
         for path in glob.glob(str(ROOT / "scripts/patch_*.py")):
-            text = Path(path).read_text(encoding="utf-8")
-            self.assertNotIn("NSUserDefaults.m", text)
+            patch_path = Path(path)
+            text = patch_path.read_text(encoding="utf-8")
+            # V78 is the single audited exception: it guards an upstream
+            # CoreFoundation private-symbol NULL dereference *in this file*.
+            # Keep rejecting any additional builder that rewrites guest
+            # preference routing or changes the selected-language store.
+            if patch_path.name == "patch_v78_nud_symbol_crashguard.py":
+                self.assertIn('TARGET = Path("LiveContainer/Tweaks/NSUserDefaults.m")', text)
+                self.assertIn("SCARLET_V78_NUD_NULL_SYMBOL_GUARD", text)
+                self.assertIn("OLD_APP_CACHE", text)
+                self.assertIn("OLD_LANGUAGE_CACHE", text)
+                self.assertIn("OLD_CF_PREFS_ROUTE", text)
+                self.assertIn("NEW_CF_PREFS_ROUTE", text)
+                for forbidden in ("LCUtils.appGroupUserDefault", "LCSharedDefaults",
+                                  "Library/Preferences", "group.com.kdt"):
+                    self.assertNotIn(forbidden, text)
+            else:
+                self.assertNotIn("NSUserDefaults.m", text)
             self.assertNotIn("LCSelectedLanguage", text)
 
     def test_no_cross_container_key_sharing(self):

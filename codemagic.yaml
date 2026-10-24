@@ -1,0 +1,78 @@
+# Alternative macOS/iOS builder while GitHub Actions is disabled.
+# An existing Codemagic app/webhook triggers this exact V78 branch on push.
+# Original app ID, Apple credentials, profiles and guest data are untouched.
+workflows:
+  scarlet-v78-unsigned:
+    name: Scarlet Crystal V78 — macOS unsigned IPA and Gate 1
+    instance_type: mac_mini_m2
+    max_build_duration: 120
+    # Codemagic builds independently of GitHub Actions. An installed webhook
+    # will trigger only this V78 branch when a commit is pushed.
+    triggering:
+      events:
+        - push
+      branch_patterns:
+        - pattern: fix/scarlet-v78-liveprocess-null-pref-cache-20261024
+          include: true
+          source: true
+      cancel_previous_builds: true
+    environment:
+      xcode: "26.4"
+    scripts:
+      - name: Verify exact V78 branch and prepare pinned Python runner
+        script: |
+          set -euo pipefail
+          cd "$CM_BUILD_DIR"
+          test "$CM_BRANCH" = "fix/scarlet-v78-liveprocess-null-pref-cache-20261024"
+          git log -1 --format='%H %s'
+          xcodebuild -version
+          xcodebuild -showsdks | grep -i ios
+          python3 -m venv .scarlet-codemagic-venv
+          source .scarlet-codemagic-venv/bin/activate
+          python3 -m pip install --disable-pip-version-check 'PyYAML==6.0.2'
+          python3 -m py_compile scripts/run_v78_codemagic.py
+          # Codemagic mac_mini_m2 does not guarantee cargo/rustup in PATH.
+          # Rust is required for pinned idevice/jktcp and bindgen.
+          if ! command -v cargo >/dev/null 2>&1 || ! command -v rustup >/dev/null 2>&1; then
+            curl --proto '=https' --tlsv1.2 -fsSL https://sh.rustup.rs | sh -s -- -y --profile minimal --default-toolchain stable
+          fi
+          export PATH="$HOME/.cargo/bin:$PATH"
+          command -v cargo
+          command -v rustup
+          cargo --version
+          rustup --version
+          # Minimal rustup profiles omit rustfmt; transport preflight requires cargo fmt.
+          rustup component add rustfmt
+          cargo fmt --version
+          rustup target add aarch64-apple-ios
+          # CM_ENV persists the PATH only for later Codemagic script steps.
+          echo "PATH=$PATH" >> "$CM_ENV"
+          # Validate YAML parsed from this branch and fail before expensive compilation.
+          python3 - <<'PY_VERIFY_CI'
+          import yaml
+          from pathlib import Path
+          cfg = yaml.safe_load(Path("codemagic.yaml").read_text())
+          wf = cfg["workflows"]["scarlet-v78-unsigned"]
+          assert wf["environment"]["xcode"] == "26.4"
+          assert wf["triggering"]["events"] == ["push"]
+          assert wf["triggering"]["branch_patterns"] == [
+              {"pattern": "fix/scarlet-v78-liveprocess-null-pref-cache-20261024",
+               "include": True, "source": True}
+          ]
+          print("[V78] Codemagic branch-specific YAML ready")
+          PY_VERIFY_CI
+      - name: Run pinned V78 host, embedded SideStore, unsigned IPA and archive
+        script: |
+          set -euo pipefail
+          cd "$CM_BUILD_DIR"
+          source .scarlet-codemagic-venv/bin/activate
+          export PATH="$HOME/.cargo/bin:$PATH"
+          command -v cargo && command -v rustup
+          python3 scripts/run_v78_codemagic.py
+    artifacts:
+      - artifacts/LiveContainer-SideStore-v3.0.3-rc.ipa
+      - artifacts/builder-commit.txt
+      - artifacts/logs/**/*
+      - artifacts/debug-evidence/**/*
+      - artifacts/*verification*.json
+      - artifacts/candidate-package-verification.json

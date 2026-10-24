@@ -3,7 +3,7 @@ name: LiveContainer embedded SideStore build
 on:
   workflow_dispatch:
   push:
-    branches: [fix/combined-refresh-build-and-runtime, fix/v3.0.3-auth-errors, build/nrg-v3-ipa-priority-20261015, fix/nrg-cert-import-20261016, fix/nrg-jitless-cert-recovery-20261016, fix/nrg-jitless-auto-import-v17-20261017, fix/nrg-jitless-selfheal-v18, fix/nrg-cert-usb-bootstrap-v19, fix/nrg-cert-usb-bootstrap-v20, fix/nrg-refresh-correlation-v21, fix/nrg-v22-refresh-team-repair, fix/nrg-v23-direct-lockdown-refresh, fix/nrg-v24-refresh-install-recovery, fix/nrg-v25-rppairing-first-ios27, fix/nrg-v26-install-cancellation-trace, fix/nrg-v27-install-ui-lifecycle, fix/nrg-v28-refresh-regression, fix/nrg-v29-gsa-identity, fix/nrg-v30-auth-code3-rootcause, fix/nrg-v31-adi-45061-reprovision, fix/nrg-v32-jitless-cert-observation, fix/nrg-v33-iram-memory-integration, fix/nrg-v34-memory-display-profiles, fix/nrg-v45-settings-first-20261018, fix/nrg-v46-keyboard-window-scope-20261018, fix/nrg-v47-four-issue-recovery-20261018, fix/nrg-v48-madeira-runtime-20261018, fix/nrg-v49-jit-auto-return-20261019, fix/nrg-v50-stikdebug-pid-script-20261019, fix/nrg-v52-ota-inapp-20261019, fix/nrg-v53-orientation-geometry-20261019, fix/nrg-v54-guest-jit-geometry-20261019, fix/nrg-v55-display-watchdog-memory, fix/nrg-v56-notch-controls-20261019, fix/nrg-v57-ota-self-update-identity-20261019, fix/nrg-v58-native-island-fullscreen-20261019, fix/nrg-v192-scarlet-crashguard, audit/nrg-v199-ci-keychain-20261021, fix/nrg-v214-diagnostics-stikdebug-20261021, fix/nrg-brand-scarlet-crystal-20261021, experiment/nrg-v66-4-appids-20261022, experiment/nrg-v67-three-ids-api-20261022, experiment/nrg-v68-adaptive-appids-20261022, fix/nrg-v69-signing-udid-transport-20261022, fix/nrg-v70-portrait-bottom-safearea-20261022, fix/nrg-v72-overflow-longpress-20261022, fix/nrg-v73-apple-floating-control-20261022, audit/scarlet-unified-modernization-20261022, fix/scarlet-v75-retained-guest-reconcile-20261023, fix/scarlet-v76-in-guest-switch-all-modes-20261023, fix/scarlet-v77-profile-8220-device-registration-20261023]
+    branches: [fix/combined-refresh-build-and-runtime, fix/v3.0.3-auth-errors, build/nrg-v3-ipa-priority-20261015, fix/nrg-cert-import-20261016, fix/nrg-jitless-cert-recovery-20261016, fix/nrg-jitless-auto-import-v17-20261017, fix/nrg-jitless-selfheal-v18, fix/nrg-cert-usb-bootstrap-v19, fix/nrg-cert-usb-bootstrap-v20, fix/nrg-refresh-correlation-v21, fix/nrg-v22-refresh-team-repair, fix/nrg-v23-direct-lockdown-refresh, fix/nrg-v24-refresh-install-recovery, fix/nrg-v25-rppairing-first-ios27, fix/nrg-v26-install-cancellation-trace, fix/nrg-v27-install-ui-lifecycle, fix/nrg-v28-refresh-regression, fix/nrg-v29-gsa-identity, fix/nrg-v30-auth-code3-rootcause, fix/nrg-v31-adi-45061-reprovision, fix/nrg-v32-jitless-cert-observation, fix/nrg-v33-iram-memory-integration, fix/nrg-v34-memory-display-profiles, fix/nrg-v45-settings-first-20261018, fix/nrg-v46-keyboard-window-scope-20261018, fix/nrg-v47-four-issue-recovery-20261018, fix/nrg-v48-madeira-runtime-20261018, fix/nrg-v49-jit-auto-return-20261019, fix/nrg-v50-stikdebug-pid-script-20261019, fix/nrg-v52-ota-inapp-20261019, fix/nrg-v53-orientation-geometry-20261019, fix/nrg-v54-guest-jit-geometry-20261019, fix/nrg-v55-display-watchdog-memory, fix/nrg-v56-notch-controls-20261019, fix/nrg-v57-ota-self-update-identity-20261019, fix/nrg-v58-native-island-fullscreen-20261019, fix/nrg-v192-scarlet-crashguard, audit/nrg-v199-ci-keychain-20261021, fix/nrg-v214-diagnostics-stikdebug-20261021, fix/nrg-brand-scarlet-crystal-20261021, experiment/nrg-v66-4-appids-20261022, experiment/nrg-v67-three-ids-api-20261022, experiment/nrg-v68-adaptive-appids-20261022, fix/nrg-v69-signing-udid-transport-20261022, fix/nrg-v70-portrait-bottom-safearea-20261022, fix/nrg-v72-overflow-longpress-20261022, fix/nrg-v73-apple-floating-control-20261022, audit/scarlet-unified-modernization-20261022, fix/scarlet-v75-retained-guest-reconcile-20261023, fix/scarlet-v76-in-guest-switch-all-modes-20261023, fix/scarlet-v77-profile-8220-device-registration-20261023, fix/scarlet-v78-liveprocess-null-pref-cache-20261024]
 
 permissions:
   contents: read
@@ -121,6 +121,11 @@ jobs:
             python3 builder/scripts/patch_livecontainer_autorefresh.py work/LiveContainer
             python3 builder/scripts/patch_embedded_sidestore_startup.py work/LiveContainer work/EmbeddedSideStore
             python3 builder/scripts/patch_embedded_sidestore_startup.py work/LiveContainer work/EmbeddedSideStore
+            # V78: prevent iOS 27.2 LiveProcess NUDGuestHooksInit NULL symbol crash.
+            # Pinned CF private symbols may vanish; preserve all other V1-V77 patches.
+            python3 builder/scripts/patch_v78_nud_symbol_crashguard.py work/LiveContainer
+            python3 builder/scripts/patch_v78_nud_symbol_crashguard.py work/LiveContainer
+            V78_PATCHED_LIVECONTAINER=1 LIVE_CONTAINER_TEST_SOURCE=work/LiveContainer python3 -m unittest discover -s builder/tests -p test_v78_nud_symbol_crashguard.py -v
             python3 builder/scripts/patch_guest_return.py work/LiveContainer
             python3 builder/scripts/patch_guest_return.py work/LiveContainer
             # V76: share V72 recent guest switcher with native LiveProcess
@@ -382,6 +387,41 @@ jobs:
             CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO \
             COMPILER_INDEX_STORE_ENABLE=NO build
 
+      # V78: NUDGuestHooksInit is in LiveContainerShared.framework, not
+      # the LiveProcess.appex executable. Never symbolize a different image.
+      - name: Record LiveContainerShared NUD disassembly and UUID
+        if: always()
+        shell: bash
+        run: |
+          set -uo pipefail
+          mkdir -p artifacts/logs
+          {
+            echo 'V78 LiveContainerShared.framework linked-image forensic evidence'
+            product="$RUNNER_TEMP/livecontainer-derived-data/Build/Products/Release-iphoneos"
+            binary="$product/LiveContainer.app/Frameworks/LiveContainerShared.framework/LiveContainerShared"
+            if [[ ! -f "$binary" ]]; then
+              binary="$(find "$product" -type f -path '*/LiveContainerShared.framework/LiveContainerShared' -print -quit 2>/dev/null || true)"
+            fi
+            if [[ -z "$binary" || ! -f "$binary" ]]; then
+              echo '[UNAVAILABLE] LiveContainerShared image missing: no disassembly/UUID claim'
+            else
+              echo '[FOUND] LiveContainerShared image (NOT the LiveProcess executable)'
+              file "$binary"
+              echo '[UUID/ARCH]'
+              xcrun dwarfdump --uuid "$binary" || true
+              echo '[SYMBOLS] NUDGuestHooksInit'
+              xcrun nm -an "$binary" | grep -F 'NUDGuestHooksInit' || true
+              echo '[DISASSEMBLY] _NUDGuestHooksInit and instruction bytes'
+              xcrun llvm-objdump --macho --dis-symname=_NUDGuestHooksInit "$binary" \
+                || xcrun llvm-objdump --disassemble-symbols=_NUDGuestHooksInit "$binary" \
+                || echo '[UNAVAILABLE] stripped function; use matching binary/dSYM'
+            fi
+            echo '[NOTE] The 2026-10-24 original fault address +456 belongs to'
+            echo '       the crashed original image UUID, not to this patched V78 image.'
+            echo '[NOTE] Do not treat the imageOffset=93456 as an identical V78'
+            echo '       instruction location. Match the ORIGINAL image UUID first.'
+          } 2>&1 | tee artifacts/logs/v78-liveprocess-forensics.txt
+
       - name: Preserve first Xcode build diagnostic even on failure
         if: always()
         uses: actions/upload-artifact@v4
@@ -390,6 +430,7 @@ jobs:
           path: |
             artifacts/logs/livecontainer-build.log
             artifacts/logs/host-preflight.log
+            artifacts/logs/v78-liveprocess-forensics.txt
           if-no-files-found: warn
           retention-days: 14
 
@@ -701,6 +742,62 @@ jobs:
           if-no-files-found: error
           compression-level: 0
           retention-days: 7
+
+      # Gate 1 is deliberately split: the existing IPA remains unsigned and
+      # uploadable even when this independent archive validation fails.
+      # Never invent a distribution identity or mutate V77 signing profiles.
+      - name: V78 Gate 1 unsigned archive and Mach-O verification
+        timeout-minutes: 30
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts/logs
+          {
+            echo '[V78_GATE1] builder_sha='"$GITHUB_SHA"
+            echo '[V78_GATE1] Xcode version and available iPhoneOS SDK'
+            xcodebuild -version
+            xcodebuild -showsdks | grep -i ios
+            echo '[V78_GATE1] target=generic/platform=iOS signing=disabled'
+          } | tee artifacts/logs/v78-gate1-environment.txt
+          archive="$RUNNER_TEMP/V78.xcarchive"
+          python3 builder/scripts/run_bounded_build.py \
+            --log artifacts/logs/v78-archive.log --timeout-seconds 1500 -- \
+            xcodebuild -project work/LiveContainer/LiveContainer.xcodeproj -jobs 2 \
+            -scheme LiveContainer -configuration Release \
+            -destination 'generic/platform=iOS' -sdk iphoneos \
+            -derivedDataPath "$RUNNER_TEMP/v78-archive-derived-data" \
+            -archivePath "$archive" \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO \
+            COMPILER_INDEX_STORE_ENABLE=NO archive
+          app="$archive/Products/Applications/LiveContainer.app"
+          binary="$app/Frameworks/LiveContainerShared.framework/LiveContainerShared"
+          extension="$app/PlugIns/LiveProcess.appex/LiveProcess"
+          test -d "$app" && test -f "$binary" && test -f "$extension"
+          {
+            echo '[V78_GATE1] archive_present=1'
+            echo '[V78_GATE1] LiveContainerShared LC_UUID:'
+            xcrun dwarfdump --uuid "$binary"
+            echo '[V78_GATE1] LiveContainerShared slices:'
+            xcrun lipo -info "$binary"
+            xcrun lipo -archs "$binary" | tr ' ' '\n' | grep -Fx arm64
+            echo '[V78_GATE1] LiveProcess LC_UUID:'
+            xcrun dwarfdump --uuid "$extension"
+            echo '[V78_GATE1] UUID must differ from original 9f35e8b4-af78-357f-9df2-2b3f715ce203'
+            ! xcrun dwarfdump --uuid "$binary" | grep -i '9f35e8b4-af78-357f-9df2-2b3f715ce203'
+            echo '[V78_GATE1] unsigned_archive=PASS; signed_entitlements=NOT_TESTED'
+          } | tee artifacts/logs/v78-archive-verification.txt
+
+      - name: Upload V78 archive evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: scarlet-v78-archive-evidence
+          path: |
+            artifacts/logs/v78-archive.log
+            artifacts/logs/v78-archive-verification.txt
+            artifacts/logs/v78-gate1-environment.txt
+          if-no-files-found: warn
+          retention-days: 14
 
       - name: Upload source-build evidence
         if: always()
