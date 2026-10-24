@@ -139,7 +139,8 @@ class RepositoryTests(unittest.TestCase):
                     # V78: private symbol safety guards and alternative macOS CI runner.
                     "patch_v78_nud_symbol_crashguard.py", "run_v78_codemagic.py",
                     "patch_v79_dyld_vtable_crashguard.py", "run_v79_codemagic.py",
-                    "run_v80_codemagic.py", "patch_v81_arm64ex1_litehook.py"},
+                    "run_v80_codemagic.py", "patch_v81_arm64ex1_litehook.py",
+                    "patch_v84_asset_catalog.py"},
         )
 
     def test_patch_scripts_parse_and_contain_guard_markers(self):
