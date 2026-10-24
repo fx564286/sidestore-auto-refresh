@@ -140,7 +140,14 @@ func lcStructuredSigningFailure(_ error: Error, stage: String, sourceStep: Strin
         NSUnderlyingErrorKey: native, NSLocalizedDescriptionKey: "SideStore could not complete this pipeline step."]
     if let sourceStep { info["LCStructuredFailureSourceV1"] = sourceStep }
     var context = facts
-    if stage == "signing" { info["LCStructuredFailureCauseV1"] = lcSafeSigningCause(error, portalResponse: portalResponse) }
+    if stage == "authentication", let failure = error as? OperationError,
+       failure == .notAuthenticated {
+        // SCARLET_V94_TYPED_AUTH_CAUSE: map only the Swift enum case, never an
+        // untrusted NSError ordinal such as code=3.
+        info["LCStructuredFailureCauseV1"] = "authSessionUnavailable"
+    } else if stage == "signing" {
+        info["LCStructuredFailureCauseV1"] = lcSafeSigningCause(error, portalResponse: portalResponse)
+    }
     // Associated provider descriptions are not transport/stage evidence.
     // Reuse the wire boundary's existing typed-body guard for portal enums too.
     if error is DeveloperPortalError { context["typed_error"] = "sideSignDeveloperPortalError" }
@@ -240,8 +247,12 @@ func lcProvisioningBundleRequest<T>(role: String, originalBundleID: String, pref
             typedKind = "other_non_cancellation"
             stage = "signing"; sourceStep = "provisioningProfileFetch"
         }
-        NSLog("[SCARLET_V93_PROFILE_FAIL] role=%@ subtype=%@ typed=1 portal_code=%@ auth_stable=%d",
-            role, typedKind, portalResultCode, AuthManager.shared.v3IdentityIsStable ? 1 : 0)
+        // SCARLET_V94_SCOPE_SAFE_TRACE: this shared signing helper is
+        // standalone-compiled in the pinned SideSign fixture, where AuthManager
+        // does not exist. Actual session-binding changes are already reflected
+        // in the typed OperationError.notAuthenticated branch above.
+        NSLog("[SCARLET_V93_PROFILE_FAIL] role=%@ subtype=%@ typed=1 portal_code=%@",
+            role, typedKind, portalResultCode)
         throw lcStructuredSigningFailure(error, stage: stage, sourceStep: sourceStep,
             facts: ["provisioning_bundle_role": role,
                     "provisioning_bundle_sha256": lcSigningHash(originalBundleID),
