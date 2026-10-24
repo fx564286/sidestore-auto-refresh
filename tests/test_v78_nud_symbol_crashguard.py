@@ -133,6 +133,29 @@ class NUDGuestHooksCrashGuardTests(unittest.TestCase):
         with self.assertRaises(AssertionError):
             self.assert_safe_pref_chain(mutant_c)
 
+    def test_null_symbol_offsets_are_never_cached(self):
+        # The UUID-matched V77 original did save a NULL-derived offset
+        # after litehook_find_dsc_symbol returned NULL, before LDR [X20].
+        # Both prefs and language symbol-save paths must guard the write.
+        for symbol, label in (
+            ("_CFPrefsCurrentAppIdentifierCache", "prefs"),
+            ("_CFBundleUserLanguages", "language"),
+        ):
+            result = v78.patch(self.fixture())
+            guard = f"if ({symbol} != NULL) {{"
+            save = f'saveCachedSymbol(@"__CFPrefsCurrentAppIdentifierCache"' if label == "prefs" else f'saveCachedSymbol(@"__CFBundleUserLanguages"'
+            before_save = result.split(save, 1)[0]
+            self.assertIn(guard, before_save)
+            anchor = guard + "\\n" + (
+                "                uint64_t offset" if label == "prefs"
+                else "                    uint64_t offset"
+            )
+            anchor = anchor.replace("\\n", "\n")
+            self.assertEqual(before_save.count(anchor), 1)
+            mutated = result.replace(anchor, anchor.replace(guard, "if (YES) {"), 1)
+            self.assertNotEqual(mutated, result)
+            self.assertNotIn(anchor, mutated.split(save, 1)[0])
+
     def test_idempotent_and_unrelated_code_unchanged(self):
         original = self.fixture()
         once = v78.patch(original)
