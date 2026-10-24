@@ -166,11 +166,25 @@ class RefreshHandler: NSObject {
         item.userInfo = V3EmbeddedSideStoreLaunchPayload.userInfo(
             bookmark: bookmark, endpoint: listener.endpoint,
             identity: V3SharedAppGroup.runtimeIdentity())
+        // SCARLET_V80_EXTENSION_LAUNCH: classify each native lifecycle callback.
+        // Never log NSError.localizedDescription, bundle identities, paths, or
+        // the private NSExtension request capability. Retain its original error.
         ext.setRequestCancellationBlock { [weak self] _, error in
-            Task { @MainActor in self?.failed(id, stage: .extensionLaunch, underlying: error) }
+            Task { @MainActor in
+                guard let self, self.launchID == id else { return }
+                NSLog("[SCARLET_V80_LAUNCH] event=request_cancelled error_present=%@ pending=%@",
+                      error != nil ? "yes" : "no",
+                      self.launchRequestPending == id ? "yes" : "no")
+                self.failed(id, stage: .extensionLaunch, underlying: error)
+            }
         }
         ext.setRequestInterruptionBlock { [weak self] _ in
-            Task { @MainActor in self?.failed(id, stage: .extensionLaunch, code: .interrupted) }
+            Task { @MainActor in
+                guard let self, self.launchID == id else { return }
+                NSLog("[SCARLET_V80_LAUNCH] event=request_interrupted pending=%@",
+                      self.launchRequestPending == id ? "yes" : "no")
+                self.failed(id, stage: .extensionLaunch, code: .interrupted)
+            }
         }
         launchRequestPending = id
         LCLaunchServiceExtension(ext, item) { [weak self] uuid, error in
@@ -186,9 +200,19 @@ class RefreshHandler: NSObject {
                 }
                 guard self.launchRequestPending == id else { return }
                 self.launchRequestPending = nil
-                guard error == nil, let uuid else { self.failed(id, stage: .extensionLaunch, underlying: error); return }
+                guard error == nil, let uuid else {
+                    NSLog("[SCARLET_V80_LAUNCH] event=%@ error_present=%@",
+                          error == nil ? "missing_request_identifier" : "native_launch_error",
+                          error != nil ? "yes" : "no")
+                    self.failed(id, stage: .extensionLaunch, underlying: error)
+                    return
+                }
                 let pid = ext.pid(forRequestIdentifier: uuid)
-                guard pid > 0 else { self.failed(id, stage: .extensionLaunch); return }
+                guard pid > 0 else {
+                    NSLog("[SCARLET_V80_LAUNCH] event=missing_launched_pid")
+                    self.failed(id, stage: .extensionLaunch)
+                    return
+                }
                 self.sideStorePid = pid
                 NSLog("[V3_SERVICE_START] PROCESS_LAUNCHED id=%@ pid=%d", id.uuidString, pid)
                 self.service.signal(.launched, attempt: id)
