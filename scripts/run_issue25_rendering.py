@@ -50,7 +50,11 @@ def available_devices() -> list[tuple[str, str, str]]:
         raise RuntimeError("No available iOS simulator runtime; rendering was not validated")
     # The oldest actually installed runtime is exercised. Do not imply iOS 15 was
     # executed merely because compilation supports that deployment target.
-    runtime = supported[0]
+    selected_ios = os.environ.get("SCARLET_LAYOUT_IOS")
+    candidates = [item for item in supported if item["version"] == selected_ios] if selected_ios else supported
+    if not candidates:
+        raise RuntimeError("Required simulator runtime unavailable: " + str(selected_ios))
+    runtime = candidates[0]
     devices = result["devices"].get(runtime["identifier"], [])
     selected = []
     for kind, needle in (("phone", "iPhone"), ("tablet", "iPad")):
@@ -210,7 +214,29 @@ def execute(bundle: Path, bundle_id: str, kind: str, device: str, output: Path, 
     while not report_path.exists() and time.monotonic() < deadline:
         time.sleep(0.5)
     if not report_path.exists():
-        raise RuntimeError(f"Simulator rendering did not produce {kind}/{phase} evidence within 180 seconds")
+        # V83: keep evidence of the failing simulator instead of reporting only
+        # an opaque timeout. No developer credentials or production app logs.
+        destination = output / "diagnostics"
+        destination.mkdir(parents=True, exist_ok=True)
+        for title, cmd in (
+            ("fixture-log", ["xcrun", "simctl", "spawn", device, "log", "show",
+                             "--last", "3m", "--style", "compact",
+                             "--predicate", 'process == "Issue25Rendering"']),
+            ("process-list", ["xcrun", "simctl", "spawn", device, "launchctl", "list"]),
+        ):
+            try:
+                result = subprocess.run(cmd, capture_output=True, text=True, timeout=20)
+                (destination / f"{kind}-{phase}-{title}.log").write_text(
+                    (result.stdout + "\n" + result.stderr)[-60000:])
+            except (subprocess.SubprocessError, OSError) as error:
+                (destination / f"{kind}-{phase}-{title}.log").write_text(type(error).__name__)
+        try:
+            subprocess.run(["xcrun", "simctl", "io", device, "screenshot",
+                            str(destination / f"{kind}-{phase}-timeout.png")],
+                           capture_output=True, timeout=15, check=False)
+        except (subprocess.SubprocessError, OSError):
+            pass
+        raise RuntimeError(f"Simulator rendering did not produce {kind}/{phase} evidence within 180 seconds; inspect diagnostics/")
     report = json.loads(report_path.read_text())
     destination = output / (mode or ("baseline" if baseline else "corrected"))
     destination.mkdir(parents=True, exist_ok=True)
