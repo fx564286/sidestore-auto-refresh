@@ -26,6 +26,8 @@ class NUDGuestHooksCrashGuardTests(unittest.TestCase):
             "    if(selectedLanguage) {",
             '        [newStandardUserDefaults setObject:@[selectedLanguage] forKey:@"AppleLanguages"];',
             v78.OLD_LANGUAGE_CACHE,
+            "    } else {",
+            '        [newStandardUserDefaults removeObjectForKey:@"AppleLanguages"];',
             "    }",
             "}",
         ]) + "\n"
@@ -40,6 +42,7 @@ class NUDGuestHooksCrashGuardTests(unittest.TestCase):
         self.assertIn('preference_cache_symbol_missing', result)
         self.assertIn('language_cache_symbol_missing', result)
         self.assertIn('setObject:@[selectedLanguage] forKey:@"AppleLanguages"', result)
+        self.assertIn("lang_symbol=not_attempted", result)
         self.assertNotIn(v78.OLD_APP_CACHE, result)
         self.assertNotIn(v78.OLD_LANGUAGE_CACHE, result)
 
@@ -62,16 +65,47 @@ class NUDGuestHooksCrashGuardTests(unittest.TestCase):
         source = v78.patch(self.fixture())
         self.assert_safe_pref_chain(source)
         for event in (
+            "prefs_cache=%@ prefs_dsc=%@ prefs_symbol=%@",
             "prefs_symbol=present prefs_value=%@",
             "prefs_symbol=missing prefs_override=skipped",
             "prefs_override=applied",
-            "language_symbol=present language_override=applied",
-            "language_symbol=missing language_override=skipped",
+            "lang_cache=%@ lang_dsc=%@ lang_symbol=%@",
+            "lang_value=%@",
+            "lang_override=applied",
+            "lang_value=not_read lang_override=skipped",
+            "lang_symbol=not_attempted lang_value=not_read lang_override=not_attempted",
         ):
             self.assertIn(event, source)
         # Diagnostics must not leak process ASLR addresses.
         self.assertNotIn("prefs_symbol=%p", source)
         self.assertNotIn("language_symbol=%p", source)
+        self.assertNotIn("lang_symbol=%p", source)
+        self.assertNotIn("prefs_cache=%p", source)
+        self.assertNotIn("lang_cache=%p", source)
+
+    def test_lookup_attribution_is_before_dereference(self):
+        source = v78.patch(self.fixture())
+        # Each source reports the result of the actual lookup it performs.
+        self.assertLess(
+            source.index('prefsCacheResult = _CFPrefsCurrentAppIdentifierCache != NULL ? @"hit" : @"miss";'),
+            source.index('if (_CFPrefsCurrentAppIdentifierCache == NULL) {'),
+        )
+        self.assertLess(
+            source.index('prefsDscResult = _CFPrefsCurrentAppIdentifierCache != NULL ? @"hit" : @"miss";'),
+            source.index('saveCachedSymbol(@"__CFPrefsCurrentAppIdentifierCache"'),
+        )
+        self.assertLess(
+            source.index('langDscResult = _CFBundleUserLanguages != NULL ? @"hit" : @"miss";'),
+            source.index('saveCachedSymbol(@"__CFBundleUserLanguages"'),
+        )
+        self.assertIn('prefsCacheResult = @"not_attempted";', source)
+        self.assertIn('langDscResult = @"not_attempted";', source)
+
+    def test_unselected_language_path_is_explicit(self):
+        result = v78.patch(self.fixture())
+        self.assertEqual(result.count("lang_symbol=not_attempted"), 1)
+        self.assertIn('removeObjectForKey:@"AppleLanguages"', result)
+        self.assertNotIn(v78.OLD_UNSELECTED_LANGUAGE, result)
 
     def test_mutated_null_guards_are_detected(self):
         patched = v78.patch(self.fixture())
