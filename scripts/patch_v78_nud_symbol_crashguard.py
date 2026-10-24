@@ -166,7 +166,9 @@ NEW_CF_PREFS_SWIZZLE = """    // SCARLET_V78_CF_PREFS_SWIZZLE_VERIFY: verify *pr
     BOOL prefsSwizzleInstalled = expectedHookIMP != NULL && installedPrefsMethod != NULL
         && method_getImplementation(installedPrefsMethod) == expectedHookIMP
         && forwardedPrefsMethod != NULL
-        && method_getImplementation(forwardedPrefsMethod) != expectedHookIMP;
+        && method_getImplementation(forwardedPrefsMethod) != expectedHookIMP
+        && (originalPrefsIMP == expectedHookIMP
+            || method_getImplementation(forwardedPrefsMethod) == originalPrefsIMP);
     NSLog(@"[SCARLET_V78_DIAG] cfprefs_swizzle=%@ original_selector=%@ hook_selector=%@",
           prefsSwizzleInstalled ? @"installed" : @"failed",
           originalPrefsMethod != NULL ? @"present" : @"missing",
