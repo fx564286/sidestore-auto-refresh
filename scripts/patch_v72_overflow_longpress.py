@@ -18,8 +18,9 @@ INFO = Path('LiveContainer/Info.plist')
 MARK = 'NRG_V72_OVERFLOW_LONGPRESS'
 
 SWIFT_SWITCHER = r'''
-    // NRG_V72_OVERFLOW_LONGPRESS: the existing 1-o'clock window-control
-    // button owns the long press, not SpringBoard or Dynamic Island.
+    // NRG_V72_OVERFLOW_LONGPRESS / SCARLET_V91_ORIGINAL_DOCK_LONGPRESS
+    // The original right-edge swipe already exposed the live Dock.apps view.
+    // Reuse that exact view/model; do NOT build a separate recent-app sheet.
     @objc(nrgV72PresentGuestSwitcherFrom:sourceView:)
     public func nrgV72PresentGuestSwitcher(from controller: UIViewController,
                                            sourceView: UIView) {
@@ -29,98 +30,44 @@ SWIFT_SWITCHER = r'''
             }
             return
         }
-        let models = DataManager.shared.model.apps
-        let current = Date()
-        // Current session windows take precedence over recently launched
-        // classic/LiveProcess guests (those do not appear in Dock.apps).
-        // SCARLET_V87_NATIVE_RUNNING_GUESTS: the Dock only owns virtual
-        // guest views. Include retained native LiveProcess windows too.
-        // Never count a stale/unbound window as running.
-        // SCARLET_V89_IOS161_AVAILABILITY: keep iOS 15/16.0 compiling.
-        // The native multiwindow manager is introduced only on iOS 16.1.
-        // A version-gated empty set is not a replacement UI implementation.
-        var nativeFolders = Set<String>()
-        if #available(iOS 16.1, *) {
-            nativeFolders = Set(MultitaskWindowManager.appDict.values.compactMap { entry -> String? in
-                guard let controller = entry.controller, controller.isAppRunning else { return nil }
-                return entry.dataUUID
-            })
+        guard sourceView.window != nil else {
+            NSLog("[SCARLET_V91_DOCK] denied=button_not_visible")
+            return
         }
-        let activeFolders = Set(apps.map { $0.appUUID }).union(nativeFolders)
-        let candidates = models.compactMap { model -> (name: String, bundle: String, route: URL, folder: String, running: Bool, used: Date)? in
-            guard let bundle = model.appInfo.relativeBundlePath,
-                  bundle.hasSuffix(".app"), bundle.utf8.count <= 180,
-                  let folder = model.uiContainers.first(where: { activeFolders.contains($0.folderName) })?.folderName ??
-                               model.uiSelectedContainer?.folderName ?? model.uiContainers.first?.folderName,
-                  !folder.isEmpty else { return nil }
-            let isRunning = activeFolders.contains(folder)
-            let used = model.appInfo.lastLaunched ?? .distantPast
-            // Do not confuse all installed guests with recently used guests.
-            guard isRunning || (used <= current && current.timeIntervalSince(used) < 48 * 60 * 60) else {
-                return nil
-            }
-            var components = URLComponents()
-            components.scheme = "scarletcrystal251"
-            components.host = "livecontainer-launch"
-            components.queryItems = [
-                URLQueryItem(name: "bundle-name", value: bundle),
-                URLQueryItem(name: "container-folder-name", value: folder),
-                URLQueryItem(name: "nrg-multitask", value: "1")
-            ]
-            guard let url = components.url else { return nil }
-            return (name: model.appInfo.displayName(), bundle: bundle, route: url,
-                    folder: folder, running: isRunning, used: used)
-        }.sorted { lhs, rhs in
-            if lhs.running != rhs.running { return lhs.running }
-            if lhs.used != rhs.used { return lhs.used > rhs.used }
-            return lhs.name < rhs.name
-        }
-        var seen = Set<String>()
-        let recent = Array(candidates.filter { seen.insert($0.folder).inserted }.prefix(8))
+        nrgV91RevealOriginalRunningDock(source: "button_hold")
+    }
 
-        let menu = UIAlertController(title: "홍수정 내부 앱 전환",
-                                     message: recent.isEmpty ? "최근 실행한 컨테이너 앱이 없습니다." : nil,
-                                     preferredStyle: .actionSheet)
-        for guest in recent {
-            menu.addAction(UIAlertAction(title: (guest.running ? "● " : "") + guest.name,
-                                         style: .default) { [weak self] _ in
-                guard let self else { return }
-                // Revalidate against live installed catalog at selection time.
-                guard DataManager.shared.model.apps.contains(where: { model in
-                    model.appInfo.relativeBundlePath == guest.bundle &&
-                    model.uiContainers.contains(where: { $0.folderName == guest.folder })
-                }) else {
-                    NSLog("[NRG_V72_SWITCH] rejected=stale_guest")
-                    return
-                }
-                // Native and virtual windows have independent presentation
-                // ownership. Restore an existing native scene before asking
-                // the Dock or starting another guest process.
-                if guest.running {
-                    if #available(iOS 16.1, *),
-                       MultitaskWindowManager.openExistingAppWindow(dataUUID: guest.folder) {
-                        NSLog("[SCARLET_V87_SWITCH] route=native_existing result=requested")
-                        return
-                    }
-                    if self.bringMultitaskViewToFront(uuid: guest.folder) {
-                        NSLog("[SCARLET_V87_SWITCH] route=virtual_existing result=presented")
-                        return
-                    }
-                    NSLog("[SCARLET_V87_SWITCH] result=retained_window_unavailable fallback=guarded_route")
-                }
-                UIApplication.shared.open(guest.route, options: [:]) { accepted in
-                    NSLog("[NRG_V72_SWITCH] route=guest_deeplink accepted=%d", accepted ? 1 : 0)
-                }
-            })
+    // The Direct round control posts the same host-only request. It never
+    // calls the old classic-mode restart on a long hold.
+    @objc private func nrgV91DirectControlHold(_ note: Notification) {
+        nrgV91RevealOriginalRunningDock(source: "direct_hold")
+    }
+
+    @objc public func nrgV91RevealOriginalRunningDock(source: String) {
+        guard Thread.isMainThread else {
+            DispatchQueue.main.async { [weak self] in
+                self?.nrgV91RevealOriginalRunningDock(source: source)
+            }
+            return
         }
-        menu.addAction(UIAlertAction(title: "취소", style: .cancel))
-        if let popover = menu.popoverPresentationController {
-            popover.sourceView = sourceView
-            popover.sourceRect = sourceView.bounds
+        // The upstream dock only represents independently running virtual
+        // guests. Never invent a running session or cold-launch a saved guest.
+        guard isDockEnabled(), !apps.isEmpty else {
+            NSLog("[SCARLET_V91_DOCK] result=unavailable mode=not_virtual_or_no_running_guests source=%@", source)
+            return
         }
-        guard controller.view.window != nil else { return }
-        controller.present(menu, animated: true)
-        NSLog("[NRG_V72_SWITCH] longpress=1 recent=%ld", recent.count)
+        if !isVisible { showDock() }
+        // showDock() commits on the main queue; after it mounts, reuse the
+        // same visibility and expansion methods that edge swipe used.
+        DispatchQueue.main.async { [weak self] in
+            guard let self, self.isVisible else {
+                NSLog("[SCARLET_V91_DOCK] result=unavailable reason=host_dock_not_mounted")
+                return
+            }
+            if self.isDockHidden { self.showDockFromHidden() }
+            if self.isCollapsed { self.toggleDockCollapse() }
+            NSLog("[SCARLET_V91_DOCK] result=reveal_original_dock source=%@ running=%ld", source, self.apps.count)
+        }
     }
 '''
 
@@ -151,7 +98,7 @@ def cut_between(s, left, right, why, keep_right=True):
 
 def patch_dock(s):
     if MARK in s:
-        if s.count(MARK)!=1 or 'ActivityKit' in s or 'nrgV56' in s or 'nrgV58' in s:
+        if s.count(MARK)!=1 or 'ActivityKit' in s or 'nrgV56' in s or 'nrgV58' in s or 'UIScreenEdgePanGestureRecognizer' in s:
             raise RuntimeError('V72 incomplete/double dock transformation')
         if any(s.count(name)!=1 for name in ('enum LCMultitaskDockRenderedMode',
                    'struct LCMultitaskDockPresentationState',
@@ -190,6 +137,25 @@ def patch_dock(s):
     s=cut_between(s,
         '// NRG_V56_NOTCH_ADJACENT_CONTROLS: uses an existing app window, not a',
         '// MARK: - Collapsed Dock View','legacy view and SwiftUI overlay')
+    # V91 replaces the *entry gesture*, not the Dock presentation. Delete the
+    # original edge handlers and their registration, rather than disabling them.
+    swipe_registration = 'self.setupEdgeGestureRecognizers()'
+    if s.count(swipe_registration) != 3:
+        raise RuntimeError('V91 edge registration changed unexpectedly')
+    s = s.replace(swipe_registration, '/* SCARLET_V91_ORIGINAL_DOCK_LONGPRESS: hold only */')
+    start = '    // Add edge gesture recognition areas when dock is hidden\n'
+    stop = '    // MARK: - Multitask Mode Check\n'
+    s = cut_between(s, start, stop, 'remove retired edge-pan listener')
+    s = replace_one(s, '        static let edgeSwipeThreshold: CGFloat = 30.0\n', '', 'remove retired edge threshold')
+    # Single original manager instance listens for the Direct button hold,
+    # where direct bootstrap cannot statically link to a Swift class.
+    s = replace_one(s, '        setupDockView()\n',
+        '        setupDockView()\n'
+        '        NotificationCenter.default.addObserver(self, selector: #selector(nrgV91DirectControlHold(_:)), '
+        'name: Notification.Name("ScarletOriginalDockLongHold"), object: nil)\n',
+        'direct guest bridge observer')
+    if 'UIScreenEdgePanGestureRecognizer' in s or 'handleEdgeSwipe(' in s:
+        raise RuntimeError('V91 old edge gesture survived')
     for line in (
         '            self.nrgV56RelayoutIsland()\n',
         '        self.nrgV56RelayoutIsland()\n',
