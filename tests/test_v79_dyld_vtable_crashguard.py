@@ -67,13 +67,20 @@ class DyldVtableNullGuardTests(unittest.TestCase):
         if compiler is None:
             # Source checks still run on the host without a native C toolchain.
             return
-        section = v79.patch(self.fixture()).split(
-            "int searchVtable(void** vtable, void *func) {", 1)[1].split(
-            "\n    return -1;\n}", 1)[0]
+        # Isolate ONLY the pinned searchVtable replacement, not the
+        # concatenated multi-anchor fixture containing Objective-C helpers.
+        # The previous extraction accidentally swallowed the subsequent
+        # dlopen_nolock body on macOS and made a pure-C test uncompilable.
+        actual = v79.patch(self.fixture())
+        search_header = v79.REPLACEMENTS[0][1]
+        self.assertIn(search_header, actual)
         c = (
             "#include <stddef.h>\n"
-            "int searchVtable(void** vtable, void *func) {"
-            + section + "\n    return -1;\n}\n"
+            + search_header
+            + "\n        if (vtable[i] == func) return i;\n"
+            + "    }\n"
+            + "    return -1;\n"
+            + "}\n"
             "int main(void) {\n"
             "    void* table[100] = { 0 };\n"
             "    table[13] = (void*)0x1234;\n"
