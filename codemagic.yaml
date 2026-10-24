@@ -31,6 +31,20 @@ workflows:
           source .scarlet-codemagic-venv/bin/activate
           python3 -m pip install --disable-pip-version-check 'PyYAML==6.0.2'
           python3 -m py_compile scripts/run_v78_codemagic.py
+          # Validate YAML parsed from this branch and fail before expensive compilation.
+          python3 - <<'PY_VERIFY_CI'
+          import yaml
+          from pathlib import Path
+          cfg = yaml.safe_load(Path("codemagic.yaml").read_text())
+          wf = cfg["workflows"]["scarlet-v78-unsigned"]
+          assert wf["environment"]["xcode"] == "26.4"
+          assert wf["triggering"]["events"] == ["push"]
+          assert wf["triggering"]["branch_patterns"] == [
+              {"pattern": "fix/scarlet-v78-liveprocess-null-pref-cache-20261024",
+               "include": True, "source": True}
+          ]
+          print("[V78] Codemagic branch-specific YAML ready")
+          PY_VERIFY_CI
       - name: Run pinned V78 host, embedded SideStore, unsigned IPA and archive
         script: |
           set -euo pipefail
