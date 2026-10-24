@@ -10,6 +10,7 @@ from __future__ import annotations
 import os
 from pathlib import Path
 import re
+import shutil
 import subprocess
 import sys
 import traceback
@@ -19,7 +20,8 @@ import yaml
 ROOT = Path.cwd().resolve()
 WORKFLOW = ROOT / ".github/workflows/livecontainer-build.yml"
 EXPECTED_BRANCH = "fix/scarlet-v78-liveprocess-null-pref-cache-20261024"
-SKIP_USE = ("actions/upload-artifact@", "actions/download-artifact@")
+UPLOAD_PREFIX = "actions/upload-artifact@"
+DOWNLOAD_PREFIX = "actions/download-artifact@"
 EXTERNAL_REPOS = {"idevice": "SideStore/idevice", "jktcp": "SideStore/jktcp"}
 
 
@@ -109,8 +111,33 @@ def run_step(step):
         action = step["uses"]
         if action.startswith("actions/checkout@"):
             clone_checkout(step)
-        elif action.startswith(SKIP_USE):
-            print("[CODEMAGIC_STEP] artifact transfer handled by Codemagic", flush=True)
+        elif action.startswith(UPLOAD_PREFIX):
+            # Codemagic collects artifacts at the end, after build completion.
+            print("[CODEMAGIC_STEP] final artifact upload owned by Codemagic", flush=True)
+        elif action.startswith(DOWNLOAD_PREFIX):
+            # The original job uploads and then downloads evidence for integrity
+            # checks. On this single Codemagic machine emulate the local handoff;
+            # do NOT claim GitHub Actions storage transport was tested.
+            metadata = step.get("with") or {}
+            artifact = metadata.get("name")
+            output = ROOT / str(metadata.get("path", ""))
+            if artifact == "LiveContainer-SideStore-v3.0.3-rc-IPA":
+                src = ROOT / "artifacts/LiveContainer-SideStore-v3.0.3-rc.ipa"
+                if not src.is_file():
+                    raise RuntimeError("Unsigned IPA missing before local verification")
+                output.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(src, output / src.name)
+                print("[CODEMAGIC_STEP] unsigned IPA copied locally for candidate verification", flush=True)
+            elif artifact == "combined-v3-debug-evidence":
+                src = ROOT / "artifacts/debug-evidence"
+                if not src.is_dir():
+                    raise RuntimeError("Debug provenance missing before local verification")
+                if output.exists():
+                    raise RuntimeError("Debug evidence output already exists: " + str(output))
+                shutil.copytree(src, output)
+                print("[CODEMAGIC_STEP] provenance copied locally for candidate verification", flush=True)
+            else:
+                raise RuntimeError("Unrecognized local handoff artifact: " + str(artifact))
         elif action.startswith("maxim-lobanov/setup-xcode@"):
             print("[CODEMAGIC_STEP] Xcode selected by codemagic.yaml", flush=True)
         else:
