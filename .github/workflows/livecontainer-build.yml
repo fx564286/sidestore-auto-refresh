@@ -3,7 +3,7 @@ name: LiveContainer embedded SideStore build
 on:
   workflow_dispatch:
   push:
-    branches: [fix/combined-refresh-build-and-runtime, fix/v3.0.3-auth-errors, build/nrg-v3-ipa-priority-20261015, fix/nrg-cert-import-20261016, fix/nrg-jitless-cert-recovery-20261016, fix/nrg-jitless-auto-import-v17-20261017, fix/nrg-jitless-selfheal-v18, fix/nrg-cert-usb-bootstrap-v19, fix/nrg-cert-usb-bootstrap-v20, fix/nrg-refresh-correlation-v21, fix/nrg-v22-refresh-team-repair, fix/nrg-v23-direct-lockdown-refresh, fix/nrg-v24-refresh-install-recovery, fix/nrg-v25-rppairing-first-ios27, fix/nrg-v26-install-cancellation-trace, fix/nrg-v27-install-ui-lifecycle, fix/nrg-v28-refresh-regression, fix/nrg-v29-gsa-identity, fix/nrg-v30-auth-code3-rootcause, fix/nrg-v31-adi-45061-reprovision, fix/nrg-v32-jitless-cert-observation, fix/nrg-v33-iram-memory-integration, fix/nrg-v34-memory-display-profiles, fix/nrg-v45-settings-first-20261018, fix/nrg-v46-keyboard-window-scope-20261018, fix/nrg-v47-four-issue-recovery-20261018, fix/nrg-v48-madeira-runtime-20261018, fix/nrg-v49-jit-auto-return-20261019, fix/nrg-v50-stikdebug-pid-script-20261019, fix/nrg-v52-ota-inapp-20261019, fix/nrg-v53-orientation-geometry-20261019, fix/nrg-v54-guest-jit-geometry-20261019, fix/nrg-v55-display-watchdog-memory, fix/nrg-v56-notch-controls-20261019, fix/nrg-v57-ota-self-update-identity-20261019, fix/nrg-v58-native-island-fullscreen-20261019, fix/nrg-v192-scarlet-crashguard, audit/nrg-v199-ci-keychain-20261021, fix/nrg-v214-diagnostics-stikdebug-20261021, fix/nrg-brand-scarlet-crystal-20261021, experiment/nrg-v66-4-appids-20261022, experiment/nrg-v67-three-ids-api-20261022, experiment/nrg-v68-adaptive-appids-20261022, fix/nrg-v69-signing-udid-transport-20261022, fix/nrg-v70-portrait-bottom-safearea-20261022, fix/nrg-v72-overflow-longpress-20261022, fix/nrg-v73-apple-floating-control-20261022, audit/scarlet-unified-modernization-20261022, fix/scarlet-v75-retained-guest-reconcile-20261023, fix/scarlet-v76-in-guest-switch-all-modes-20261023, fix/scarlet-v77-profile-8220-device-registration-20261023, fix/scarlet-v78-liveprocess-null-pref-cache-20261024, fix/scarlet-v79-dyld-vtable-null-guard-20261024, fix/scarlet-v80-extensionlaunch-snapshot-recovery-20261024, experiment/scarlet-v80-xcode27-1-20261024, fix/scarlet-v81-ios272-arm64ex1-dsc-20261024, fix/scarlet-v82-safe-auth-preconnect-20261024]
+    branches: [fix/combined-refresh-build-and-runtime, fix/v3.0.3-auth-errors, build/nrg-v3-ipa-priority-20261015, fix/nrg-cert-import-20261016, fix/nrg-jitless-cert-recovery-20261016, fix/nrg-jitless-auto-import-v17-20261017, fix/nrg-jitless-selfheal-v18, fix/nrg-cert-usb-bootstrap-v19, fix/nrg-cert-usb-bootstrap-v20, fix/nrg-refresh-correlation-v21, fix/nrg-v22-refresh-team-repair, fix/nrg-v23-direct-lockdown-refresh, fix/nrg-v24-refresh-install-recovery, fix/nrg-v25-rppairing-first-ios27, fix/nrg-v26-install-cancellation-trace, fix/nrg-v27-install-ui-lifecycle, fix/nrg-v28-refresh-regression, fix/nrg-v29-gsa-identity, fix/nrg-v30-auth-code3-rootcause, fix/nrg-v31-adi-45061-reprovision, fix/nrg-v32-jitless-cert-observation, fix/nrg-v33-iram-memory-integration, fix/nrg-v34-memory-display-profiles, fix/nrg-v45-settings-first-20261018, fix/nrg-v46-keyboard-window-scope-20261018, fix/nrg-v47-four-issue-recovery-20261018, fix/nrg-v48-madeira-runtime-20261018, fix/nrg-v49-jit-auto-return-20261019, fix/nrg-v50-stikdebug-pid-script-20261019, fix/nrg-v52-ota-inapp-20261019, fix/nrg-v53-orientation-geometry-20261019, fix/nrg-v54-guest-jit-geometry-20261019, fix/nrg-v55-display-watchdog-memory, fix/nrg-v56-notch-controls-20261019, fix/nrg-v57-ota-self-update-identity-20261019, fix/nrg-v58-native-island-fullscreen-20261019, fix/nrg-v192-scarlet-crashguard, audit/nrg-v199-ci-keychain-20261021, fix/nrg-v214-diagnostics-stikdebug-20261021, fix/nrg-brand-scarlet-crystal-20261021, experiment/nrg-v66-4-appids-20261022, experiment/nrg-v67-three-ids-api-20261022, experiment/nrg-v68-adaptive-appids-20261022, fix/nrg-v69-signing-udid-transport-20261022, fix/nrg-v70-portrait-bottom-safearea-20261022, fix/nrg-v72-overflow-longpress-20261022, fix/nrg-v73-apple-floating-control-20261022, audit/scarlet-unified-modernization-20261022, fix/scarlet-v75-retained-guest-reconcile-20261023, fix/scarlet-v76-in-guest-switch-all-modes-20261023, fix/scarlet-v77-profile-8220-device-registration-20261023, fix/scarlet-v78-liveprocess-null-pref-cache-20261024, fix/scarlet-v79-dyld-vtable-null-guard-20261024, fix/scarlet-v80-extensionlaunch-snapshot-recovery-20261024, experiment/scarlet-v80-xcode27-1-20261024, fix/scarlet-v81-ios272-arm64ex1-dsc-20261024, fix/scarlet-v82-safe-auth-preconnect-20261024, fix/scarlet-v83-xcode272-simulator-rescue-20261024]
 
 permissions:
   contents: read
@@ -85,18 +85,18 @@ jobs:
           test "$(git -C idevice rev-parse HEAD)" = "$IDEVICE_REF"
           test "$(git -C jktcp rev-parse HEAD)" = "$JKTCP_REF"
 
-      - name: Select Xcode 27.1
+      - name: Select Xcode 27.2
         uses: maxim-lobanov/setup-xcode@v1.6.0
         with:
-          xcode-version: "27.1"
+          xcode-version: "27.2"
 
-      - name: Verify Xcode 27.1 toolchain and iOS SDK provenance
+      - name: Verify Xcode 27.2 toolchain and iOS SDK provenance
         shell: bash
         run: |
           set -euo pipefail
           mkdir -p artifacts/logs
           {
-            echo "[SCARLET_V80_TOOLCHAIN] selected=27.1 expected_arch=arm64"
+            echo "[SCARLET_V83_TOOLCHAIN] selected=27.2 expected_arch=arm64"
             uname -m
             xcodebuild -version
             xcodebuild -showsdks
@@ -104,10 +104,10 @@ jobs:
             xcrun --find swiftc
             xcrun --find clang
             sw_vers
-          } | tee artifacts/logs/v80-xcode-27.1-provenance.txt
+          } | tee artifacts/logs/v83-xcode-27.2-provenance.txt
           test "$(uname -m)" = "arm64"
-          xcodebuild -version | grep -Fx "Xcode 27.1"
-          xcrun --sdk iphoneos --show-sdk-version | grep -Fx "27.1"
+          xcodebuild -version | grep -Fx "Xcode 27.2"
+          xcrun --sdk iphoneos --show-sdk-version | grep -Fx "27.2"
 
       - name: Run repository checks before patches
         env:
@@ -381,18 +381,47 @@ jobs:
             grep -Fq 'LIVE_REFRESH_LOG_RETENTION_V1' work/EmbeddedSideStore/SideStore/Utils/iostreams/ConsoleLog.swift
           } 2>&1 | tee artifacts/logs/host-preflight.log
 
-      - name: Execute real layout regression on final generated source
-        # SCARLET_V82_LAYOUT_GATE: on the V82 regression-recovery branch the
-        # real simulator render must run. Do not report a successful build as
-        # UI-verified when simulator evidence was skipped or unavailable.
-        if: ${{ github.ref_name == 'fix/scarlet-v82-safe-auth-preconnect-20261024' }}
+      - name: Execute real iOS 27.2 simulator layout diagnostic
+        # V83: a simulator hang must remain visible, not prevent IPA compilation.
+        # IPA build success is not a statement about simulator layout success.
+        id: scarlet_layout
+        continue-on-error: true
+        if: ${{ github.ref_name == 'fix/scarlet-v83-xcode272-simulator-rescue-20261024' }}
         shell: bash
+        env:
+          SCARLET_LAYOUT_IOS: "27.2"
         run: |
           set -euo pipefail
           git -C builder fetch --no-tags origin 7d8ae12905f8baa6e0ecc4dbdd3f25e2aa0e43fa
           python3 builder/scripts/run_issue25_rendering.py --livecontainer work/LiveContainer \
             --v3-source work/LiveContainer/LiveContainerSwiftUI/Views/V3UnifiedShell.swift \
             --output artifacts/layout-evidence 2>&1 | tee artifacts/logs/layout-rendering.log
+
+      - name: Record simulator verdict independently
+        if: ${{ always() && github.ref_name == 'fix/scarlet-v83-xcode272-simulator-rescue-20261024' }}
+        shell: bash
+        env:
+          SCARLET_LAYOUT_OUTCOME: ${{ steps.scarlet_layout.outcome }}
+        run: |
+          mkdir -p artifacts/logs artifacts/layout-evidence
+          if [ "$SCARLET_LAYOUT_OUTCOME" = success ] && python3 -c 'import json; assert json.load(open("artifacts/layout-evidence/rendering-verification.json"))["passed"] is True'; then
+            echo 'SCARLET_V83_LAYOUT=PASS actual_iOS27.2_simulator_evidence=present' | tee artifacts/logs/v83-layout-verdict.txt
+          else
+            echo 'SCARLET_V83_LAYOUT=UNVERIFIED simulator_rendering_did_not_pass' | tee artifacts/logs/v83-layout-verdict.txt
+            echo '::warning::Scarlet V83 UI validation was not successful; IPA build is independent.'
+          fi
+
+      - name: Preserve independent simulator outcome
+        if: always()
+        shell: bash
+        run: |
+          mkdir -p artifacts/logs
+          if [ -f artifacts/layout-evidence/rendering-verification.json ] && grep -q '"passed": true' artifacts/layout-evidence/rendering-verification.json; then
+            echo "simulator_layout=PASS" | tee artifacts/logs/v83-layout-verdict.txt
+          else
+            echo "simulator_layout=UNVERIFIED" | tee artifacts/logs/v83-layout-verdict.txt
+            echo "::warning::Simulation lacked passing iOS 27.2 evidence; only the IPA build may pass."
+          fi
 
       - name: Preserve real layout measurements and screenshots
         if: always()
@@ -402,6 +431,10 @@ jobs:
           path: |
             artifacts/layout-evidence/**/*.json
             artifacts/layout-evidence/**/*.png
+            artifacts/layout-evidence/**/*.log
+            artifacts/layout-evidence/**/*.txt
+            artifacts/logs/layout-rendering.log
+            artifacts/logs/v83-layout-verdict.txt
           if-no-files-found: warn
           retention-days: 90
 
