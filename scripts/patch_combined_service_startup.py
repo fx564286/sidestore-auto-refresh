@@ -192,8 +192,12 @@ func lcProvisioningBundleRequest<T>(role: String, originalBundleID: String, pref
                                     operation: () async throws -> T) async throws -> T {
     do { return try await operation() }
     catch {
-        guard (error as? ServerError) != nil ||
-              (error as NSError).userInfo["LCStructuredSigningContextV1"] != nil else { throw error }
+        // SCARLET_V92_PROFILE_CAUSE_PROPAGATION: A non-ServerError from
+        // group assignment, capability update or profile download used to
+        // escape untyped. Preserve every non-cancellation error's native
+        // chain and an authoritative signing/provisioning source step.
+        // No credentials, raw app IDs or provider descriptions cross IPC.
+        if error is CancellationError { throw error }
         throw lcStructuredSigningFailure(error, stage: "signing", sourceStep: "provisioningProfileFetch",
             facts: ["provisioning_bundle_role": role,
                     "provisioning_bundle_sha256": lcSigningHash(originalBundleID),
@@ -301,8 +305,23 @@ def patch_provisioning_profile_requests(text):
         ) {
 '''
     text = text[:start] + replacement + text[end:]
-    # The existing App ID/features/groups/profile calls remain inside this
-    # observation scope, with the existing explicit team and operation context.
+    # SCARLET_V92_PROVISIONING_PHASES: one authoritative phase trace per
+    # upstream operation. The device log makes the last started phase explicit;
+    # never infer successful profile issuance from a successful app-group grant.
+    phases = (
+        ('register_app_id', 'let appID = try await self.registerAppID(for: targetAppBundle, name: preferredName, bundleIdentifier: bundleID, team: team)'),
+        ('update_capabilities', 'let updatedAppID = try await self.updateFeatures(for: appID, targetAppBundle: targetAppBundle, team: team)'),
+        ('assign_app_groups', 'let groupAppID = try await self.updateAppGroups(for: updatedAppID, targetAppBundle: targetAppBundle, team: team)'),
+    )
+    for phase, operation in phases:
+        start = 'self.debugLog("[SCARLET_V92_PROVISION] role=\\(parentAppBundle == nil ? "main" : "extension") phase=' + phase + ' state=entered")'
+        finished = 'self.debugLog("[SCARLET_V92_PROVISION] role=\\(parentAppBundle == nil ? "main" : "extension") phase=' + phase + ' state=passed")'
+        text = replace(text, '        ' + operation,
+                       '        ' + start + '\n        ' + operation + '\n        ' + finished)
+    text = replace(text, '        verboseLog(targetAppBundle.dumpMachOInfo())',
+        '        self.debugLog("[SCARLET_V92_PROVISION] role=\\(parentAppBundle == nil ? "main" : "extension") phase=profile_download state=entered")\n'
+        '        verboseLog(targetAppBundle.dumpMachOInfo())')
+    # Existing App ID/features/groups/profile behavior remains untouched.
     return replace(text, "        return profile\n    }\n}", "        return profile\n        }\n    }\n}")
 
 
