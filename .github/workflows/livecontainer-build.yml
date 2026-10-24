@@ -743,6 +743,62 @@ jobs:
           compression-level: 0
           retention-days: 7
 
+      # Gate 1 is deliberately split: the existing IPA remains unsigned and
+      # uploadable even when this independent archive validation fails.
+      # Never invent a distribution identity or mutate V77 signing profiles.
+      - name: V78 Gate 1 unsigned archive and Mach-O verification
+        timeout-minutes: 30
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts/logs
+          {
+            echo '[V78_GATE1] builder_sha='"$GITHUB_SHA"
+            echo '[V78_GATE1] Xcode version and available iPhoneOS SDK'
+            xcodebuild -version
+            xcodebuild -showsdks | grep -i ios
+            echo '[V78_GATE1] target=generic/platform=iOS signing=disabled'
+          } | tee artifacts/logs/v78-gate1-environment.txt
+          archive="$RUNNER_TEMP/V78.xcarchive"
+          python3 builder/scripts/run_bounded_build.py \
+            --log artifacts/logs/v78-archive.log --timeout-seconds 1500 -- \
+            xcodebuild -project work/LiveContainer/LiveContainer.xcodeproj -jobs 2 \
+            -scheme LiveContainer -configuration Release \
+            -destination 'generic/platform=iOS' -sdk iphoneos \
+            -derivedDataPath "$RUNNER_TEMP/v78-archive-derived-data" \
+            -archivePath "$archive" \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO \
+            COMPILER_INDEX_STORE_ENABLE=NO archive
+          app="$archive/Products/Applications/LiveContainer.app"
+          binary="$app/Frameworks/LiveContainerShared.framework/LiveContainerShared"
+          extension="$app/PlugIns/LiveProcess.appex/LiveProcess"
+          test -d "$app" && test -f "$binary" && test -f "$extension"
+          {
+            echo '[V78_GATE1] archive_present=1'
+            echo '[V78_GATE1] LiveContainerShared LC_UUID:'
+            xcrun dwarfdump --uuid "$binary"
+            echo '[V78_GATE1] LiveContainerShared slices:'
+            xcrun lipo -info "$binary"
+            xcrun lipo -archs "$binary" | tr ' ' '\n' | grep -Fx arm64
+            echo '[V78_GATE1] LiveProcess LC_UUID:'
+            xcrun dwarfdump --uuid "$extension"
+            echo '[V78_GATE1] UUID must differ from original 9f35e8b4-af78-357f-9df2-2b3f715ce203'
+            ! xcrun dwarfdump --uuid "$binary" | grep -i '9f35e8b4-af78-357f-9df2-2b3f715ce203'
+            echo '[V78_GATE1] unsigned_archive=PASS; signed_entitlements=NOT_TESTED'
+          } | tee artifacts/logs/v78-archive-verification.txt
+
+      - name: Upload V78 archive evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: scarlet-v78-archive-evidence
+          path: |
+            artifacts/logs/v78-archive.log
+            artifacts/logs/v78-archive-verification.txt
+            artifacts/logs/v78-gate1-environment.txt
+          if-no-files-found: warn
+          retention-days: 14
+
       - name: Upload source-build evidence
         if: always()
         uses: actions/upload-artifact@v4
