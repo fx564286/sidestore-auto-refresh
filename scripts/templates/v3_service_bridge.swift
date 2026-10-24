@@ -750,21 +750,32 @@ public final class V3ServiceBridge {
             }
         }
         do {
-            // SCARLET_V80_SNAPSHOT_LAUNCH_RECOVERY: a failed pre-dispatch
-            // extension launch may be retried ONCE for read-only requests only.
-            // A mutation, auth session, refresh or unknown operation must
-            // never be replayed, even when it reports extensionLaunch.
+            // SCARLET_V80_SNAPSHOT_LAUNCH_RECOVERY: reconnect once after an
+            // extension-launch failure. Snapshot/settings reads are permitted.
+            // SCARLET_V82_AUTH_PRE_DISPATCH_CONNECT: authBegin may reconnect
+            // ONLY if its first XPC command was never dispatched. The Apple
+            // authentication RPC itself is NEVER retried or replayed here.
+            // No authRespond, authPoll, provisioning retry, refresh, signing,
+            // installation, or unknown mutation receives an automatic retry.
             do {
                 try await connect()
             } catch {
+                // The first connect() has failed BEFORE pending[id] and XPC
+                // dispatch. This does not retry Apple credentials; it retries
+                // only spawning the local service process. Keep an explicit
+                // ownership and no-dispatch fence for a new sign-in.
+                let safePreDispatchAuthBegin = operation == "authBegin" &&
+                    operationSessionID != nil && activeMutation == id &&
+                    !statusDispatchedRequestIDs.contains(id)
+                let readOnlyReconnect = (operation == "snapshot" || operation == "settingsGet") &&
+                    V3WireContract.readOperations.contains(operation)
                 guard let failure = error as? CombinedFailure,
                       failure.operation == "connect",
                       failure.stage == .extensionLaunch,
                       (failure.code == .failed || failure.code == .interrupted),
-                      (operation == "snapshot" || operation == "settingsGet"),
-                      V3WireContract.readOperations.contains(operation) else { throw error }
+                      (readOnlyReconnect || safePreDispatchAuthBegin) else { throw error }
                 try Task.checkCancellation()
-                NSLog("[SCARLET_V80_LAUNCH] event=read_only_reconnect requested_operation=%@ attempt=2",
+                NSLog("[SCARLET_V80_LAUNCH] event=pre_dispatch_reconnect requested_operation=%@ attempt=2",
                       operation)
                 // Allow extension retirement and lifecycle callbacks to settle;
                 // the existing pending-launch PID fence still blocks an unsafe
