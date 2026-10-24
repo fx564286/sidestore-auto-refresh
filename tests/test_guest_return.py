@@ -190,7 +190,7 @@ class GuestReturnTests(unittest.TestCase):
         self.assertIn('Collapse Return Button', module.CONTROL)
         self.assertIn('boolForKey:@"LCHideReturnControl"', module.CONTROL)
         self.assertIn('LCHideReturnControl', module.DIRECT_CONTROL)
-        self.assertIn("Restarts LiveContainer and closes this guest", module.DIRECT_CONTROL)
+        self.assertIn("Direct guest: returning restarts Scarlet Crystal. Save progress first.", module.DIRECT_CONTROL)
         self.assertIn("DIRECT_PROCESS_RESTART_RETURN", module.DIRECT_RUNTIME)
         self.assertIn("launchToGuestAppWithClassicMode:0", module.DIRECT_RUNTIME)
         self.assertIn("UIWindowDidBecomeVisibleNotification", module.DIRECT_RUNTIME)
@@ -200,6 +200,29 @@ class GuestReturnTests(unittest.TestCase):
         self.assertNotIn("launchToGuestApp", module.METHODS)
         for forbidden in ("NSTimer", "dispatch_after", "SIGKILL", "terminate", "sleep("):
             self.assertNotIn(forbidden, module.DIRECT_RUNTIME)
+
+    def test_direct_mode_tap_and_hold_require_explicit_restart_confirmation(self):
+        runtime = module.DIRECT_RUNTIME
+        self.assertIn('V90_DIRECT_RETURN_USER_CONSENT', runtime)
+        self.assertIn('origin:@"tap"', runtime)
+        self.assertIn('origin:@"hold"', runtime)
+        self.assertIn('directHold.minimumPressDuration = 0.55', runtime)
+        self.assertIn('UIAlertActionStyleCancel', runtime)
+        self.assertIn('confirmation=cancelled', runtime)
+        self.assertIn('confirmation=accepted', runtime)
+        self.assertIn('scene.activationState != UISceneActivationStateForegroundActive', runtime)
+        self.assertEqual(runtime.count('launchToGuestAppWithClassicMode:0'), 1)
+        self.assertLess(runtime.index('confirmation=accepted'),runtime.index('launchToGuestAppWithClassicMode:0'))
+        self.assertNotIn('control.action = ^{\n        NSLog(@"[LC_RETURN] RETURN_REQUESTED mode=DIRECT_PROCESS_RESTART_RETURN");',runtime)
+        self.assertIn('Restart / Return to Scarlet Crystal', module.DIRECT_CONTROL)
+        # The native LiveProcess path never restarts on tap.
+        self.assertNotIn('launchToGuestAppWithClassicMode:0',module.METHODS)
+
+    def test_liveprocess_scene_activation_route_is_distinguishable_from_restart(self):
+        self.assertIn('mode=LIVEPROCESS route=existing_main_scene',module.WINDOW_MANAGER)
+        self.assertIn('mode=LIVEPROCESS route=create_main_window',module.WINDOW_MANAGER)
+        self.assertNotIn('launchToGuestApp',module.WINDOW_MANAGER)
+        self.assertNotIn('terminate',module.WINDOW_MANAGER)
 
     def test_collapse_does_not_disable_global_preference_or_return(self):
         for control in (module.CONTROL, module.DIRECT_CONTROL):
