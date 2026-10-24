@@ -619,6 +619,12 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          # Xcode 27.2 RC: synchronized folder treats *.imageset + *.appiconset
+          # duplicates as separate app resource outputs. Compile the ENTIRE
+          # preserved Icons.xcassets once, rather than deleting any app icon.
+          python3 builder/scripts/patch_v80_xcode27_icons_catalog.py work/EmbeddedSideStore
+          python3 builder/scripts/patch_v80_xcode27_icons_catalog.py work/EmbeddedSideStore
+          grep -Fq '"Resources/Icons.xcassets" = folder.assetcatalog' work/EmbeddedSideStore/AltStore.xcodeproj/project.pbxproj
           rm -rf "$HOME/Library/Caches/org.swift.swiftpm/artifacts/https___github_com_krzyzanowskim_OpenSSL_releases_download_3_6_2000_OpenSSL_xcframework_zip"
           rm -rf "$HOME/Library/Developer/Xcode/DerivedData"/*/SourcePackages/artifacts/openssl
           artifact="$HOME/Library/Caches/org.swift.swiftpm/artifacts/https___github_com_krzyzanowskim_OpenSSL_releases_download_3_6_2000_OpenSSL_xcframework_zip"
