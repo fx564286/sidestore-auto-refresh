@@ -41,6 +41,10 @@ workflows:
           command -v rustup
           cargo --version
           rustup --version
+          # Minimal rustup profiles omit rustfmt; transport preflight requires cargo fmt.
+          rustup component add rustfmt
+          cargo fmt --version
+          rustup target add aarch64-apple-ios
           # CM_ENV persists the PATH only for later Codemagic script steps.
           echo "PATH=$PATH" >> "$CM_ENV"
           # Validate YAML parsed from this branch and fail before expensive compilation.
