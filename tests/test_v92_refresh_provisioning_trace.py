@@ -42,7 +42,7 @@ class ProfileTraceTests(unittest.TestCase):
         self.assertIn('SCARLET_V92_PROFILE_CAUSE_PROPAGATION',source)
         self.assertIn('if error is CancellationError { throw error }',source)
         self.assertNotIn('(error as? ServerError) != nil ||',source)
-        self.assertIn('lcStructuredSigningFailure(error, stage: "signing", sourceStep: "provisioningProfileFetch"',source)
+        self.assertIn('lcStructuredSigningFailure(error, stage: stage, sourceStep: sourceStep',source)
         self.assertIn('NSUnderlyingErrorKey: native',source)
         self.assertNotIn('print(error.localizedDescription)',source)
 
