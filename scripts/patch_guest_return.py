@@ -267,14 +267,16 @@ WINDOW_MANAGER = r'''
     static func activateMainScene(create: () -> Void) {
         if let session = mainSceneSession,
            UIApplication.shared.openSessions.contains(where: { $0.persistentIdentifier == session.persistentIdentifier }) {
+            print("[LC_RETURN_V90] mode=LIVEPROCESS route=existing_main_scene requested=1")
             UIApplication.shared.requestSceneSessionActivation(session, userActivity: nil, options: nil) { error in
                 print("[LC_RETURN] RETURN_FAILED reason=host_activation error=\(error.localizedDescription)")
             }
         } else {
+            print("[LC_RETURN_V90] mode=LIVEPROCESS route=create_main_window requested=1")
             mainSceneSession = nil
             create()
         }
-        // A request is not proof of a foreground transition.
+        // Neither activation nor a new scene request proves a process restart.
         print("[LC_RETURN] HOST_ACTIVATION_REQUESTED mode=LIVEPROCESS_PRESERVED_RETURN")
     }
 
@@ -406,9 +408,14 @@ CLEANUP = r'''
 }
 '''
 
+# V90_DIRECT_RETURN_USER_CONSENT: the direct (in-process) guest cannot be
+# retained as an independent LiveProcess window. Keep the actual escape path,
+# but do not make a single unlabelled button tap silently restart the host.
+# This is the canonical direct control, not another overlay or disabled copy.
 DIRECT_CONTROL = CONTROL.replace("LCReturnControl", "LCDirectReturnControl").replace(
-    'Minimizes this guest without closing it', 'Restarts LiveContainer and closes this guest'
-)
+    'Minimizes this guest without closing it',
+    'Direct guest: returning restarts Scarlet Crystal. Save progress first.'
+).replace('Return to LiveContainer', 'Restart / Return to Scarlet Crystal')
 
 DIRECT_RUNTIME = r'''
 // LC_DIRECT_RETURN_V1: direct guests share the host process, not the dock registry.
@@ -434,6 +441,49 @@ DIRECT_RUNTIME = r'''
     [center addObserver:self selector:@selector(disconnect:) name:UISceneDidDisconnectNotification object:nil];
     return self;
 }
+// V90_DIRECT_RETURN_USER_CONSENT: a Direct/Classic guest shares the host
+// process. Its old automatic restart-on-tap was indistinguishable from the
+// LiveProcess preserve-and-minimize path and could discard unsaved state.
+// Ask once per user interaction; Cancel is the default safe outcome.
+- (void)confirmRestartForScene:(UIWindowScene *)scene origin:(NSString *)origin {
+    UIWindow *hostWindow = nil;
+    for (UIWindow *candidate in scene.windows) {
+        if (candidate.hidden || candidate.windowLevel != UIWindowLevelNormal ||
+            !candidate.rootViewController) continue;
+        hostWindow = candidate;
+        if (candidate.isKeyWindow) break;
+    }
+    UIViewController *presenter = hostWindow.rootViewController;
+    if (!scene || scene.activationState != UISceneActivationStateForegroundActive ||
+        !presenter || !presenter.view.window) {
+        NSLog(@"[LC_RETURN_V90] result=refused reason=direct_presenter_unavailable");
+        return;
+    }
+    while (presenter.presentedViewController && !presenter.presentedViewController.isBeingDismissed) {
+        presenter = presenter.presentedViewController;
+    }
+    if (!presenter.view.window || presenter.isBeingDismissed ||
+        [presenter isKindOfClass:UIAlertController.class]) {
+        NSLog(@"[LC_RETURN_V90] result=refused reason=presenter_busy");
+        return;
+    }
+    NSLog(@"[LC_RETURN_V90] mode=DIRECT confirmation=requested origin=%@ pid=%d", origin, getpid());
+    UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"홍수정 복귀"
+        message:@"현재 게스트는 Direct 방식으로 실행 중이어서 앱을 유지한 채 전환할 수 없습니다. 복귀하면 홍수정이 다시 시작되고 저장되지 않은 게임 진행 상황이 사라질 수 있습니다. 다른 앱을 유지하며 전환하려면 LiveProcess 방식으로 실행해야 합니다."
+        preferredStyle:UIAlertControllerStyleAlert];
+    [alert addAction:[UIAlertAction actionWithTitle:@"취소" style:UIAlertActionStyleCancel handler:^(__unused UIAlertAction *action) {
+        NSLog(@"[LC_RETURN_V90] mode=DIRECT confirmation=cancelled");
+    }]];
+    [alert addAction:[UIAlertAction actionWithTitle:@"재시작 후 복귀" style:UIAlertActionStyleDestructive handler:^(__unused UIAlertAction *action) {
+        NSLog(@"[LC_RETURN] RETURN_REQUESTED mode=DIRECT_PROCESS_RESTART_RETURN confirmation=accepted pid=%d", getpid());
+        [LCSharedUtils launchToGuestAppWithClassicMode:0];
+    }]];
+    [presenter presentViewController:alert animated:YES completion:nil];
+}
+- (void)directReturnHold:(UILongPressGestureRecognizer *)gesture {
+    if (gesture.state != UIGestureRecognizerStateBegan) return;
+    [self confirmRestartForScene:gesture.view.window.windowScene origin:@"hold"];
+}
 - (void)show:(NSNotification *)notification {
     if (!NSThread.isMainThread) {
         dispatch_async(dispatch_get_main_queue(), ^{ [self show:notification]; });
@@ -457,11 +507,15 @@ DIRECT_RUNTIME = r'''
     window.windowLevel = UIWindowLevelAlert + 1;
     LCDirectReturnControl *control = [[LCDirectReturnControl alloc] initWithFrame:window.bounds];
     controller.view = control;
-    control.action = ^{
-        NSLog(@"[LC_RETURN] RETURN_REQUESTED mode=DIRECT_PROCESS_RESTART_RETURN");
-        // Match the upstream SideStore escape path. Never used by LiveProcess.
-        [LCSharedUtils launchToGuestAppWithClassicMode:0];
-    };
+    // Both tap and hold now disclose the direct-process restart, rather than
+    // silently invoking the old escape path. Long-hold is not misrepresented
+    // as a live guest switcher: Direct mode cannot retain a separate process.
+    control.action = ^{ [self confirmRestartForScene:scene origin:@"tap"]; };
+    UILongPressGestureRecognizer *directHold = [[UILongPressGestureRecognizer alloc]
+        initWithTarget:self action:@selector(directReturnHold:)];
+    directHold.minimumPressDuration = 0.55;
+    directHold.cancelsTouchesInView = YES;
+    [control.button addGestureRecognizer:directHold];
     self.windows[identity] = window;
     window.hidden = NO; // Do not steal key-window status from the guest or its keyboard.
     NSLog(@"[LC_RETURN] MODE_DIRECT mode=DIRECT_PROCESS_RESTART_RETURN pid=%d", getpid());
