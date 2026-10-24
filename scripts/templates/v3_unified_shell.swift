@@ -9188,13 +9188,12 @@ final class V3SetupStore: ObservableObject {
     }
 
     private func refreshVerificationRow() {
-        // History display only. A past manifest updates the timestamp row but
-        // never satisfies the current setup test; only checkTestResult() may
-        // mark verification complete, and only for a new fully-covered run.
-        if let manifest = verificationManifest(),
-           let date = manifest["date"] as? Date {
-            lastVerified = date
-        }
+        // SCARLET_V95_VERIFIED_REFRESH_ONLY: the shared manifest's date
+        // records an ATTEMPT, including failed Apple portal requests. Only
+        // markVerified() writes this durable key after full terminal success.
+        // Never label an attempted refresh as "Last verified refresh".
+        lastVerified = groupDefaults?.object(
+            forKey: "liveContainerAutoRefreshLastSuccessfulRefresh") as? Date
         if verification.state == "checking" {
             verification = V3SetupStepState(state: "actionRequired", detail: "No verified refresh in this session yet")
         }

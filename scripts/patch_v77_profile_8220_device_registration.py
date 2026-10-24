@@ -23,10 +23,29 @@ REPLACEMENT='''        // LC_V77_PORTAL_8220_REGISTER_CURRENT_DEVICE: the sign-i
         do {
             profile = try await DeveloperPortalProxy.shared.downloadProvisioningProfile(
                 for: groupAppID, deviceType: DeveloperPortalProxy.currentDeviceType, team: team)
-        } catch let serverError as ServerError {
-            guard case .underlyingError(let serverCode, _) = serverError,
-                  serverCode == 8220 else { throw serverError }
-            self.debugLog("[LC_V77_PORTAL_DEVICE] stage=profile code=8220 recovery=check_team_devices")
+        } catch {
+            // SCARLET_V95_WRAPPED_8220: DeveloperPortalProxy's
+            // lcPortalSigningRequest wraps ServerError into NSError before
+            // this operation receives it. The old typed-only catch never ran.
+            // Only the original typed ServerError OR its authenticated,
+            // request-scoped signing evidence can authorize device recovery.
+            let typed8220: Bool
+            if let serverError = error as? ServerError {
+                if case .underlyingError(let serverCode, _) = serverError {
+                    typed8220 = serverCode == 8220
+                } else {
+                    typed8220 = false
+                }
+            } else {
+                let wrapped = error as NSError
+                let facts = wrapped.userInfo["LCStructuredSigningContextV1"] as? [String: String]
+                let source = wrapped.userInfo["LCStructuredFailureSourceV1"] as? String
+                typed8220 = source == "provisioningProfileRetrieval" &&
+                    facts?["typed_error"] == "sideSignServerReportedError" &&
+                    facts?["server_code"] == "8220"
+            }
+            guard typed8220 else { throw error }
+            self.debugLog("[LC_V77_PORTAL_DEVICE] stage=profile code=8220 recovery=check_team_devices source=typed_or_validated_wrapper")
             // The ID must be obtained from the currently paired, trusted iPhone.
             // Never construct a device ID, reuse an unrelated cached ID, or
             // register a device for a different signing team.
