@@ -58,11 +58,18 @@ class GuestHostRebindTests(unittest.TestCase):
             # The repository suite runs first on the untouched pinned checkout,
             # then again after V191 and V97 host integration. On raw upstream,
             # verify fail-closed behavior instead of requiring a future API.
-            self.assertEqual(source.count(mod.OLD) + source.count(mod.MARKER), 1)
-            if mod.MARKER in source or "nrgV191AttachGuestWindowHostIfReady()" in source:
+            if mod.MARKER in source:
+                self.assertEqual(source.count(mod.MARKER), 1)
+                self.assertEqual(mod.patch(source), source)
+            elif "nrgV191AttachGuestWindowHostIfReady()" in source:
+                # The host integration has landed, but V97 may not have.
+                self.assertEqual(source.count(mod.OLD), 1)
                 self.assertEqual(mod.patch(mod.patch(source)), mod.patch(source))
             else:
-                with self.assertRaisesRegex(ValueError, "upstream host/reopen API not present"):
+                # The real pinned 12377cf source has a different unpatched
+                # docking implementation. This test must not assume a V97
+                # anchor before the prerequisite host transformations run.
+                with self.assertRaises(ValueError):
                     mod.patch(source)
 
 if __name__=="__main__":
