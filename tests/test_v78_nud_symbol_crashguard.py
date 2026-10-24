@@ -210,6 +210,19 @@ class NUDGuestHooksCrashGuardTests(unittest.TestCase):
             v78.apply(root)
             self.assertEqual(once, path.read_text(encoding="utf-8"))
 
+    def test_real_source_preserves_cfpreferences_path_isolation_hook(self):
+        # Source-level invariant only: runtime CFPreferences isolation remains
+        # an explicit iPhone Gate 3. Validate the *full* pinned generated file.
+        root = os.getenv("LIVE_CONTAINER_TEST_SOURCE")
+        if not root or os.getenv("V78_PATCHED_LIVECONTAINER") != "1":
+            return
+        src = (Path(root) / v78.TARGET).read_text(encoding="utf-8")
+        self.assertIn("Class CFPrefsPlistSourceClass = NSClassFromString(@\"CFPrefsPlistSource\");", src)
+        self.assertIn("swizzle2(CFPrefsPlistSourceClass,", src)
+        self.assertIn("@selector(hook_initWithDomain:user:byHost:containerPath:containingPreferences:)", src)
+        self.assertIn("if(isAppleIdentifier((__bridge NSString*)domain))", src)
+        self.assertIn("containerPath:(__bridge CFStringRef)appContainerPath", src)
+        self.assertIn("NSUserDefaults.standardUserDefaults = newStandardUserDefaults;", src)
     def test_generated_source_after_ci_patching(self):
         root = os.getenv("LIVE_CONTAINER_TEST_SOURCE")
         if not root or os.getenv("V78_PATCHED_LIVECONTAINER") != "1":
