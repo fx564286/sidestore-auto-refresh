@@ -165,7 +165,8 @@ NEW_CF_PREFS_SWIZZLE = """    // SCARLET_V78_CF_PREFS_SWIZZLE_VERIFY: verify *pr
         ? class_getInstanceMethod(CFPrefsPlistSourceClass, hookedPrefsSelector) : NULL;
     BOOL prefsSwizzleInstalled = expectedHookIMP != NULL && installedPrefsMethod != NULL
         && method_getImplementation(installedPrefsMethod) == expectedHookIMP
-        && forwardedPrefsMethod != NULL;
+        && forwardedPrefsMethod != NULL
+        && method_getImplementation(forwardedPrefsMethod) != expectedHookIMP;
     NSLog(@"[SCARLET_V78_DIAG] cfprefs_swizzle=%@ original_selector=%@ hook_selector=%@",
           prefsSwizzleInstalled ? @"installed" : @"failed",
           originalPrefsMethod != NULL ? @"present" : @"missing",
@@ -199,7 +200,7 @@ static void ScarletV78LogCFPrefsRoute(CFStringRef domain, CFStringRef user, bool
     if(isAppleIdentifier((__bridge NSString*)domain)) {"""
 
 OLD_ATOMIC_IMPORT = "#include \"Tweaks.h\""
-NEW_ATOMIC_IMPORT = "#include \"Tweaks.h\"\\n#include <stdatomic.h>"
+NEW_ATOMIC_IMPORT = "#include \"Tweaks.h\"\n#include <stdatomic.h>"
 
 def patch(source: str) -> str:
     if MARKER in source:
