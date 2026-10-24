@@ -18,7 +18,10 @@ class NUDGuestHooksCrashGuardTests(unittest.TestCase):
         # The blocks must match pinned source exactly. Everything unrelated is
         # preserved, including registration, JIT, refresh, UI and extensions.
         return "\n".join([
+            v78.OLD_ATOMIC_IMPORT,
             "void NUDGuestHooksInit(void) {",
+            '    Class CFPrefsPlistSourceClass = NSClassFromString(@"CFPrefsPlistSource");',
+            v78.OLD_CF_PREFS_SWIZZLE,
             '    const char* coreFoundationPath = "/System/Library/Frameworks/CoreFoundation.framework/CoreFoundation";',
             "    mach_header_u* coreFoundationHeader = LCGetLoadedImageHeader(2, coreFoundationPath);",
             v78.OLD_APP_CACHE,
@@ -33,6 +36,15 @@ class NUDGuestHooksCrashGuardTests(unittest.TestCase):
             '        [newStandardUserDefaults removeObjectForKey:@"AppleLanguages"];',
             "    }",
             "}",
+            v78.OLD_CF_PREFS_ROUTE,
+            "        return [self hook_initWithDomain:domain user:user byHost:host containerPath:containerPath containingPreferences:arg5];",
+            "    }",
+            "    if(user == kCFPreferencesAnyUser) {",
+            "        user = kCFPreferencesCurrentUser;",
+            "    }",
+            "    return [self hook_initWithDomain:domain user:user byHost:host containerPath:(__bridge CFStringRef)appContainerPath containingPreferences:arg5];",
+            "}",
+            "@end",
         ]) + "\n"
 
     def test_both_null_symbol_paths_are_guarded(self):
@@ -131,6 +143,45 @@ class NUDGuestHooksCrashGuardTests(unittest.TestCase):
         self.assertRegex(src, r'if \(_CFBundleUserLanguages == NULL\) \{\s+ScarletV78LogDSCReadability\(@"lang_second"\);')
         self.assertLess(src.index('ScarletV78LogDSCReadability(@"prefs_first")'), src.index('prefs_cache=%@'))
 
+    def test_swizzle_uses_pre_exchange_imp_comparison(self):
+        src = v78.patch(self.fixture())
+        self.assertEqual(src.count("SCARLET_V78_CF_PREFS_SWIZZLE_VERIFY"), 1)
+        self.assertIn("IMP expectedHookIMP = sourceHookMethod != NULL", src)
+        self.assertIn("IMP originalPrefsIMP = originalPrefsMethod != NULL", src)
+        self.assertIn("if (originalPrefsIMP != expectedHookIMP)", src)
+        self.assertIn("method_getImplementation(installedPrefsMethod) == expectedHookIMP", src)
+        self.assertIn("method_getImplementation(forwardedPrefsMethod) != expectedHookIMP", src)
+        self.assertIn('cfprefs_swizzle=%@ original_selector=%@ hook_selector=%@', src)
+        self.assertIn('prefsSwizzleInstalled ? @"installed" : @"failed"', src)
+        self.assertIn("if (sourceHookMethod != NULL && originalPrefsMethod != NULL)", src)
+        self.assertLess(src.index("IMP expectedHookIMP"), src.index("swizzle2(CFPrefsPlistSourceClass, originalPrefsSelector"))
+        self.assertNotIn(v78.OLD_CF_PREFS_SWIZZLE, src)
+
+    def test_user_byhost_route_diagnostics_are_bounded_and_non_sensitive(self):
+        src = v78.patch(self.fixture())
+        self.assertIn("#include <stdatomic.h>", src)
+        self.assertNotIn(r"\\n#include <stdatomic.h>", src)
+        self.assertIn("atomic_fetch_or_explicit(&scarletV78RouteSeen, flag, memory_order_relaxed)", src)
+        self.assertIn('user == kCFPreferencesAnyUser', src)
+        self.assertIn('user == kCFPreferencesCurrentUser', src)
+        self.assertIn('byHost ? 1u : 0u', src)
+        self.assertIn('cfprefs_domain=%@ cfprefs_user=%@ cfprefs_by_host=%@ cfprefs_route=%@', src)
+        self.assertIn('appleDomain ? @"original_path"', src)
+        self.assertIn('@"guest_path_any_to_current_user"', src)
+        self.assertIn("ScarletV78LogCFPrefsRoute(domain, user, host);", src)
+        self.assertLess(src.index("ScarletV78LogCFPrefsRoute(domain, user, host);"), src.index("if(isAppleIdentifier((__bridge NSString*)domain))"))
+        for disclosure in ("domain=%p", "username=%@", "containerPath=%@", "domain_string=%@"):
+            self.assertNotIn(disclosure, src)
+
+    def test_swizzle_guard_mutations_detected(self):
+        src = v78.patch(self.fixture())
+        guard = "if (sourceHookMethod != NULL && originalPrefsMethod != NULL) {"
+        self.assertEqual(src.count(guard), 1)
+        mutation = src.replace(guard, "if (YES) {")
+        self.assertNotIn(guard, mutation)
+        self.assertNotEqual(src, mutation)
+        self.assertEqual(src.count("SCARLET_V78_CF_PREFS_SWIZZLE_VERIFY"), 1)
+
     def test_unselected_language_path_is_explicit(self):
         result = v78.patch(self.fixture())
         self.assertEqual(result.count("lang_symbol=not_attempted"), 1)
@@ -223,6 +274,9 @@ class NUDGuestHooksCrashGuardTests(unittest.TestCase):
         self.assertIn("if(isAppleIdentifier((__bridge NSString*)domain))", src)
         self.assertIn("containerPath:(__bridge CFStringRef)appContainerPath", src)
         self.assertIn("NSUserDefaults.standardUserDefaults = newStandardUserDefaults;", src)
+        self.assertIn("SCARLET_V78_CF_PREFS_SWIZZLE_VERIFY", src)
+        self.assertIn("ScarletV78LogCFPrefsRoute(domain, user, host);", src)
+
     def test_generated_source_after_ci_patching(self):
         root = os.getenv("LIVE_CONTAINER_TEST_SOURCE")
         if not root or os.getenv("V78_PATCHED_LIVECONTAINER") != "1":
