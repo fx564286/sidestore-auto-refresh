@@ -198,7 +198,38 @@ func lcProvisioningBundleRequest<T>(role: String, originalBundleID: String, pref
         // chain and an authoritative signing/provisioning source step.
         // No credentials, raw app IDs or provider descriptions cross IPC.
         if error is CancellationError { throw error }
-        throw lcStructuredSigningFailure(error, stage: "signing", sourceStep: "provisioningProfileFetch",
+        // SCARLET_V93_PROFILE_TYPED_FAILURE: Swift enum-to-NSError numeric
+        // codes are NOT Apple portal result codes. Classify only via the typed
+        // Swift error; never guess "8220" or "not authenticated" from code=3.
+        // The role and category are fixed safe strings, never raw login data.
+        let typedKind: String
+        let stage: String
+        let sourceStep: String
+        if let failure = error as? OperationError, failure == .notAuthenticated {
+            typedKind = "bound_auth_session_unavailable"
+            stage = "authentication"
+            sourceStep = "provisioningProfileRetrieval"
+        } else if let failure = error as? ServerError {
+            switch failure {
+            case .underlyingError(let code, _):
+                typedKind = code == 8220 ? "portal_device_registration_8220" : "portal_server_reported"
+            case .badServerResponse: typedKind = "portal_bad_response"
+            case .invalidResponseFormat: typedKind = "portal_invalid_format"
+            case .missingKey: typedKind = "portal_missing_key"
+            }
+            stage = "signing"; sourceStep = "provisioningProfileRetrieval"
+        } else if error is DeveloperPortalError {
+            typedKind = "developer_portal_typed"
+            stage = "signing"; sourceStep = "provisioningProfileRetrieval"
+        } else if error is OperationError {
+            typedKind = "pipeline_operation_error"
+            stage = "signing"; sourceStep = "provisioningProfileFetch"
+        } else {
+            typedKind = "other_non_cancellation"
+            stage = "signing"; sourceStep = "provisioningProfileFetch"
+        }
+        NSLog("[SCARLET_V93_PROFILE_FAIL] role=%@ subtype=%@ typed=1", role, typedKind)
+        throw lcStructuredSigningFailure(error, stage: stage, sourceStep: sourceStep,
             facts: ["provisioning_bundle_role": role,
                     "provisioning_bundle_sha256": lcSigningHash(originalBundleID),
                     "preferred_parent_id_match": String(preferredParentMatch)])
