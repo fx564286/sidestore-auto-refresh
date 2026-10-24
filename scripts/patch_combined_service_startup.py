@@ -203,6 +203,7 @@ func lcProvisioningBundleRequest<T>(role: String, originalBundleID: String, pref
         // Swift error; never guess "8220" or "not authenticated" from code=3.
         // The role and category are fixed safe strings, never raw login data.
         let typedKind: String
+        var portalResultCode = "unavailable"
         let stage: String
         let sourceStep: String
         if let failure = error as? OperationError, failure == .notAuthenticated {
@@ -212,6 +213,7 @@ func lcProvisioningBundleRequest<T>(role: String, originalBundleID: String, pref
         } else if let failure = error as? ServerError {
             switch failure {
             case .underlyingError(let code, _):
+                portalResultCode = String(code)
                 typedKind = code == 8220 ? "portal_device_registration_8220" : "portal_server_reported"
             case .badServerResponse: typedKind = "portal_bad_response"
             case .invalidResponseFormat: typedKind = "portal_invalid_format"
@@ -228,7 +230,8 @@ func lcProvisioningBundleRequest<T>(role: String, originalBundleID: String, pref
             typedKind = "other_non_cancellation"
             stage = "signing"; sourceStep = "provisioningProfileFetch"
         }
-        NSLog("[SCARLET_V93_PROFILE_FAIL] role=%@ subtype=%@ typed=1", role, typedKind)
+        NSLog("[SCARLET_V93_PROFILE_FAIL] role=%@ subtype=%@ typed=1 portal_code=%@ auth_stable=%d",
+            role, typedKind, portalResultCode, AuthManager.shared.v3IdentityIsStable ? 1 : 0)
         throw lcStructuredSigningFailure(error, stage: stage, sourceStep: sourceStep,
             facts: ["provisioning_bundle_role": role,
                     "provisioning_bundle_sha256": lcSigningHash(originalBundleID),
