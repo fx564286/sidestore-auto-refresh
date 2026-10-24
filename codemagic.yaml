@@ -1,5 +1,5 @@
 # Alternative macOS/iOS builder while GitHub Actions is disabled.
-# Select the exact V78 branch in Codemagic and start manually.
+# An existing Codemagic app/webhook triggers this exact V78 branch on push.
 # Original app ID, Apple credentials, profiles and guest data are untouched.
 workflows:
   scarlet-v78-unsigned:
