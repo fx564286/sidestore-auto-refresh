@@ -135,7 +135,9 @@ class RepositoryTests(unittest.TestCase):
                     "patch_v72_overflow_longpress.py", "patch_v73_apple_floating_control.py",
                     "patch_v75_retained_guest_reconcile.py",
                     "patch_v76_native_guest_switcher.py",
-                    "patch_v77_profile_8220_device_registration.py"},
+                    "patch_v77_profile_8220_device_registration.py",
+                    # V78: private symbol safety guards and alternative macOS CI runner.
+                    "patch_v78_nud_symbol_crashguard.py", "run_v78_codemagic.py"},
         )
 
     def test_patch_scripts_parse_and_contain_guard_markers(self):
