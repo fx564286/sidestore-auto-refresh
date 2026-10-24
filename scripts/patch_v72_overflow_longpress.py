@@ -36,10 +36,16 @@ SWIFT_SWITCHER = r'''
         // SCARLET_V87_NATIVE_RUNNING_GUESTS: the Dock only owns virtual
         // guest views. Include retained native LiveProcess windows too.
         // Never count a stale/unbound window as running.
-        let nativeFolders = Set(MultitaskWindowManager.appDict.values.compactMap { entry -> String? in
-            guard let controller = entry.controller, controller.isAppRunning else { return nil }
-            return entry.dataUUID
-        })
+        // SCARLET_V89_IOS161_AVAILABILITY: keep iOS 15/16.0 compiling.
+        // The native multiwindow manager is introduced only on iOS 16.1.
+        // A version-gated empty set is not a replacement UI implementation.
+        var nativeFolders = Set<String>()
+        if #available(iOS 16.1, *) {
+            nativeFolders = Set(MultitaskWindowManager.appDict.values.compactMap { entry -> String? in
+                guard let controller = entry.controller, controller.isAppRunning else { return nil }
+                return entry.dataUUID
+            })
+        }
         let activeFolders = Set(apps.map { $0.appUUID }).union(nativeFolders)
         let candidates = models.compactMap { model -> (name: String, bundle: String, route: URL, folder: String, running: Bool, used: Date)? in
             guard let bundle = model.appInfo.relativeBundlePath,
