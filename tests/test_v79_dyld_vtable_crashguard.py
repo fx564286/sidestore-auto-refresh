@@ -31,7 +31,8 @@ class DyldVtableNullGuardTests(unittest.TestCase):
         self.assertNotIn('NSCAssert(unlockOffset != -1', after)
         for old, new in v79.REPLACEMENTS:
             self.assertIn(new, after)
-            self.assertNotIn(old, after)
+            if old not in new:
+                self.assertNotIn(old, after)
 
     def test_fail_closed_null_vtable_symbol_and_cache(self):
         after = v79.patch(self.fixture())
@@ -54,7 +55,7 @@ class DyldVtableNullGuardTests(unittest.TestCase):
         for original, _ in v79.REPLACEMENTS:
             with self.subTest(anchor=original[:38]):
                 with self.assertRaises(ValueError):
-                    v79.patch(source.replace(original, original + "tampered", 1))
+                    v79.patch(source.replace(original, original[:-1] + "#", 1))
         patched = v79.patch(source)
         with self.assertRaises(ValueError):
             v79.patch(patched.replace('safe_abort=missing_mandatory_vtable', 'missing_marker', 1))
