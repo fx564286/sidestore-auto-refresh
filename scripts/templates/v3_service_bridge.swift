@@ -750,7 +750,29 @@ public final class V3ServiceBridge {
             }
         }
         do {
-            try await connect()
+            // SCARLET_V80_SNAPSHOT_LAUNCH_RECOVERY: a failed pre-dispatch
+            // extension launch may be retried ONCE for read-only requests only.
+            // A mutation, auth session, refresh or unknown operation must
+            // never be replayed, even when it reports extensionLaunch.
+            do {
+                try await connect()
+            } catch {
+                guard let failure = error as? CombinedFailure,
+                      failure.operation == "connect",
+                      failure.stage == .extensionLaunch,
+                      (failure.code == .failed || failure.code == .interrupted),
+                      (operation == "snapshot" || operation == "settingsGet"),
+                      V3WireContract.readOperations.contains(operation) else { throw error }
+                try Task.checkCancellation()
+                NSLog("[SCARLET_V80_LAUNCH] event=read_only_reconnect requested_operation=%@ attempt=2",
+                      operation)
+                // Allow extension retirement and lifecycle callbacks to settle;
+                // the existing pending-launch PID fence still blocks an unsafe
+                // overlapping process or unresolved launch callback.
+                try await Task.sleep(nanoseconds: 300_000_000)
+                try Task.checkCancellation()
+                try await connect()
+            }
             if let connectedTicket = observeConnectedStatusService(ownerID: statusOwnerID ??
                 V3StatusAuthorityOperationPolicy.controlOwnerID(
                     operation: operation, sessionID: operationSessionID)) {
