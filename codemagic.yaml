@@ -42,7 +42,7 @@ workflows:
           cargo --version
           rustup --version
           # CM_ENV persists the PATH only for later Codemagic script steps.
-          printf 'PATH=%s\\n' "$PATH" >> "$CM_ENV"
+          echo "PATH=$PATH" >> "$CM_ENV"
           # Validate YAML parsed from this branch and fail before expensive compilation.
           python3 - <<'PY_VERIFY_CI'
           import yaml
