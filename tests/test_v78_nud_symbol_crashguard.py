@@ -58,7 +58,7 @@ class NUDGuestHooksCrashGuardTests(unittest.TestCase):
         )
         self.assertRegex(
             source,
-            r"if \(_CFBundleUserLanguages != NULL\) \{\s+NSMutableArray\* newUserLanguages =",
+            r"if \(_CFBundleUserLanguages != NULL\) \{\s+CFMutableArrayRef previousUserLanguages = \*_CFBundleUserLanguages;",
         )
 
     def test_second_level_null_guard_and_diagnostic_branches(self):
@@ -126,8 +126,8 @@ class NUDGuestHooksCrashGuardTests(unittest.TestCase):
             self.assert_safe_pref_chain(mutant_b)
         # Mutant C: permit writing through an absent language symbol.
         mutant_c = patched.replace(
-            "        if (_CFBundleUserLanguages != NULL) {\\n            NSMutableArray* newUserLanguages".replace("\\n", "\n"),
-            "        if (YES) {\\n            NSMutableArray* newUserLanguages".replace("\\n", "\n"), 1,
+            "        if (_CFBundleUserLanguages != NULL) {\\n            CFMutableArrayRef previousUserLanguages".replace("\\n", "\n"),
+            "        if (YES) {\\n            CFMutableArrayRef previousUserLanguages".replace("\\n", "\n"), 1,
         )
         self.assertNotEqual(patched, mutant_c)
         with self.assertRaises(AssertionError):
