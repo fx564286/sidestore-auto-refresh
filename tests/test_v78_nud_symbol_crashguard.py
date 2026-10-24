@@ -151,6 +151,7 @@ class NUDGuestHooksCrashGuardTests(unittest.TestCase):
         self.assertIn("if (originalPrefsIMP != expectedHookIMP)", src)
         self.assertIn("method_getImplementation(installedPrefsMethod) == expectedHookIMP", src)
         self.assertIn("method_getImplementation(forwardedPrefsMethod) != expectedHookIMP", src)
+        self.assertIn("method_getImplementation(forwardedPrefsMethod) == originalPrefsIMP", src)
         self.assertIn('cfprefs_swizzle=%@ original_selector=%@ hook_selector=%@', src)
         self.assertIn('prefsSwizzleInstalled ? @"installed" : @"failed"', src)
         self.assertIn("if (sourceHookMethod != NULL && originalPrefsMethod != NULL)", src)
