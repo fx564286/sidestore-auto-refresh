@@ -141,7 +141,7 @@ class RepositoryTests(unittest.TestCase):
                     "patch_v79_dyld_vtable_crashguard.py", "run_v79_codemagic.py",
                     "run_v80_codemagic.py", "patch_v81_arm64ex1_litehook.py",
                     "patch_v84_asset_catalog.py", "patch_v86_verified_dead_guest_reconcile.py",
-                    "patch_v97_retained_guest_host_rebind.py", "patch_v98_gsa_80046_trace.py",
+                    "patch_v97_retained_guest_host_rebind.py", "patch_v98_gsa_80046_trace.py", "patch_v99_floating_guest_control.py",
                     "verify_v88_canonical_guest_sources.py"},
         )
 
