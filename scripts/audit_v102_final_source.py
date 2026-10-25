@@ -41,7 +41,7 @@ ACTIVE_RULES={
  'forbidden':('nrgV192RefreshIslandIfReady','NRGGuestActivityAttributes'),
  },
 }
-EXT={'.swift','.m','.mm','.h'}
+EXT={'.swift','.m','.mm','.h','.c','.cc','.cpp','.hpp','.metal','.py','.sh'}
 def audit(host:Path,store:Path|None=None):
  problems=[]
  roots=[host]+([store] if store is not None else [])
@@ -56,8 +56,22 @@ def audit(host:Path,store:Path|None=None):
   summary[str(root)]={'source_files_scanned':len(sources),
                       'source_bytes_scanned':sum(x.stat().st_size for x in sources),
                       'swift':sum(x.suffix=='.swift' for x in sources),
-                      'objc':sum(x.suffix in {'.m','.mm','.h'} for x in sources)}
+                      'objc':sum(x.suffix in {'.m','.mm','.h'} for x in sources),
+                      'c_cpp':sum(x.suffix in {'.c','.cc','.cpp','.hpp'} for x in sources),
+                      'other_code':sum(x.suffix in {'.metal','.py','.sh'} for x in sources)}
   if not sources:problems.append(f'No compilable source files in {root}')
+  if root == host:
+   # Cross-file owner audit: obsolete guest UI types or selectors must not
+   # reappear in a different live runtime UI source module.
+   stale=('NRGV56IslandBar','nrgV58RefreshNativeIsland',
+          'nrgV192RefreshIslandIfReady','nrgV72WindowOverflowLongPress')
+   for item in sources:
+    rel=item.relative_to(root)
+    if rel.parts[0] not in ('MultitaskSupport','LiveContainerSwiftUI'):continue
+    if item.suffix not in {'.swift','.m','.mm','.h'}:continue
+    data=item.read_text(encoding='utf-8',errors='replace')
+    for token in stale:
+     if token in data:problems.append(f'{rel}: old guest UI symbol still referenced: {token}')
  for rel,rules in ACTIVE_RULES.items():
   target=host/rel
   if not target.is_file():
@@ -69,7 +83,7 @@ def audit(host:Path,store:Path|None=None):
   for token in rules['forbidden']:
    if token in s: problems.append(f'{rel}: obsolete implementation retained {token}')
  return {'status':'PASS' if not problems else 'FAIL',
-         'scope':'whole generated Swift/ObjC source trees; guest UI enforcement in 4 live owner files',
+         'scope':'all generated source languages, cross-file retired UI symbols, and four live UI owners',
          'trees':summary,'errors':problems}
 if __name__=='__main__':
  if len(sys.argv) not in (2,3):raise SystemExit('usage: audit_v102_final_source.py host [embedded-sideStore]')
