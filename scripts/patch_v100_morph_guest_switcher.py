@@ -253,6 +253,13 @@ def patch_window(s):
     if s.count(method_anchor)!=1:
         raise ValueError("V100 long-hold method anchor drift")
     s=s.replace(WINDOW_OLD,WINDOW_NEW,1)
+    # The old V72 gesture is no longer installed. Retire its selector body
+    # while keeping the required compatibility method declaration, so V88's
+    # single canonical selector ownership check still remains valid.
+    old_call='[MultitaskDockManager.shared nrgV72PresentGuestSwitcherFrom:self sourceView:self.nrgWindowOverflow];'
+    if s.count(old_call)!=1:
+        raise ValueError("V100 old overflow owner selector drift")
+    s=s.replace(old_call,'NSLog(@"[SCARLET_V100_MORPH] legacy_hold_not_installed=1");',1)
     s=s.replace(method_anchor,WINDOW_METHOD+method_anchor,1)
     s=s.replace('overflow.accessibilityHint = @"Tap for window options. Hold to switch guests. Drag to move.";',
                 'overflow.accessibilityHint = @"Tap to expand recent guest apps. Hold for window actions. Drag to move.";',1)
