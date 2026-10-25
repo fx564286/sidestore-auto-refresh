@@ -55,6 +55,8 @@ DEAD_OVERLAY = Path("scripts/patch_v87_guest_button_switcher.py")
 
 def check_file(root: Path, relative: Path, content: str, problems: list[str]):
     for token, wanted in REQUIRED.get(relative, {}).items():
+        if relative == SCENE and token == "[self.button addGestureRecognizer:v76Hold]" and "SCARLET_V100_LIVEPROCESS_MORPH" in content:
+            wanted = 0
         found = content.count(token)
         if found != wanted:
             problems.append(f"{relative}: required final UI token {token!r} count={found}; wanted={wanted}")
