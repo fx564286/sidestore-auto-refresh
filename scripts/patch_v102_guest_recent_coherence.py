@@ -83,6 +83,12 @@ def patch(source):
             return lhs.name < rhs.name''',
         "sort by real recency")
     source = one(source,
+        '        let candidates = models.compactMap { model -> (name: String, bundle: String, route: URL, folder: String, running: Bool, used: Date)? in',
+        '        let candidates = models.compactMap { model -> (name: String, bundle: String, folder: String, running: Bool, used: Date)? in', 'remove inactive route field')
+    source = one(source,
+        '            var components = URLComponents()\n            components.scheme = "scarletcrystal251"\n            components.host = "livecontainer-launch"\n            components.queryItems = [\n                URLQueryItem(name: "bundle-name", value: bundle),\n                URLQueryItem(name: "container-folder-name", value: folder),\n                URLQueryItem(name: "nrg-multitask", value: "1")\n            ]\n            guard let url = components.url else { return nil }\n            return (name: model.appInfo.displayName(), bundle: bundle, route: url,\n                    folder: folder, running: isRunning, used: used)',
+        '            return (name: model.appInfo.displayName(), bundle: bundle,\n                    folder: folder, running: isRunning, used: used)', 'remove unused URL components')
+    source = one(source,
         '        let recent = Array(candidates.filter { seen.insert($0.folder).inserted }.prefix(8))',
         '''        let recent = Array(candidates.filter { seen.insert($0.folder).inserted }.prefix(8))
         NSLog("[SCARLET_V102_RECENT] dock=%ld candidates=%ld recent=%ld order=foreground_focus",
@@ -126,15 +132,10 @@ def patch(source):
         '''                        NSLog("[SCARLET_V100_MORPH] action=blocked reason=retained_window_missing")''',
         '''                        NSLog("[SCARLET_V100_MORPH] action=blocked reason=retained_window_missing")''',
         "guarded old guest")
+
     source = one(source,
-        '''                        NSLog("[SCARLET_V100_MORPH] action=recent_route accepted=%d", accepted ? 1 : 0)''',
-        '''                        if accepted {
-                            DispatchQueue.main.async { [weak self] in
-                                self?.nrgV102NoteFocus(guest.folder)
-                            }
-                        }
-                        NSLog("[SCARLET_V100_MORPH] action=recent_route accepted=%d", accepted ? 1 : 0)''',
-        "accepted app route")
+        '                    UIApplication.shared.open(guest.route, options: [:]) { accepted in\n                        NSLog("[SCARLET_V100_MORPH] action=recent_route accepted=%d", accepted ? 1 : 0)\n                    }',
+        '                    NSLog("[SCARLET_V102_RECENT] no_inactive_launch_path=1")', 'retire nonrunning guest relaunch')
     return source
 
 def main(root):
