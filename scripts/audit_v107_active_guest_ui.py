@@ -36,12 +36,9 @@ def inspect(root: Path) -> dict:
         NATIVE: ("SCARLET_V105_LEGACY_RETURN_SOURCE_DELETED",),
         VIRTUAL: ("SCARLET_V103_VIRTUAL_ONLY_CONTROL", "scarlet.v103.virtual.guest.control"),
         DOCK: ("SCARLET_V103_IMMEDIATE_GUEST_SWITCH", "defer { dismissSelection() }",
-               "SCARLET_V108_NO_BLUE_COLLAPSED_DOCK",
-               "if dockManager.v3DockPresentationState.isReady &&",
-               "SCARLET_V110_SINGLE_GUEST_DOCK_SUPPRESSED",
-               "!dockManager.isDockHidden && dockManager.apps.count > 1",
-               ".allowsHitTesting(dockManager.apps.count > 1)",
-               "ForEach(dockManager.apps) { app in",
+               "SCARLET_V111_CANONICAL_GUEST_SWITCH_OWNER",
+               "nrgV72PresentGuestSwitcher(from: controller, sourceView: sourceView)",
+               "nrgV102NoteFocus(guest.folder)",
                "SCARLET_V107_LIVE_WINDOW_ACTIONS_ONLY",
                "guard controller is DecoratedAppSceneViewController",
                '("최소화", "minimizeWindow")',
@@ -77,6 +74,8 @@ def inspect(root: Path) -> dict:
         problems.append("Removed ActivityKit widget route remains in final Dock")
     for obsolete in ("struct CollapsedDockView: View", "struct CollapseButtonView: View",
                      "CollapsedDockView(isHidden:", "CollapseButtonView()",
+                     "struct MultitaskDockSwiftView: View", "struct AppIconView: View",
+                     "UIHostingController<AnyView>", "setupEdgeGestureRecognizers()",
                      'Image(systemName: "chevron.up")', "hideCollapsedDock",
                      "keyWindow.gestureRecognizers?.removeAll"):
         if obsolete in dock:

@@ -14,11 +14,11 @@ SHELL=Path('LiveContainerSwiftUI/Views/V3UnifiedShell.swift')
 ACTIVE_RULES={
  HOST:{
  'required':('SCARLET_V102_RECENT_FOCUS_CLOCK','SCARLET_V102_UNIFIED_ACTION_SURFACE',
-   'SCARLET_V108_NO_BLUE_COLLAPSED_DOCK',
-   'SCARLET_V110_SINGLE_GUEST_DOCK_SUPPRESSED',
+   'SCARLET_V111_CANONICAL_GUEST_SWITCH_OWNER',
+   'nrgV72PresentGuestSwitcher(from: controller, sourceView: sourceView)',
    'nrgV102PresentWindowActionsFrom:sourceView:','guard isRunning else { return nil }',
-   'nrgV102NoteFocus(uuid)','nrgV102FocusDates[folder]','dockView?.isHidden = true',
-   'dockView?.isHidden = previousDockHidden'),
+   'nrgV102NoteFocus(uuid)','nrgV102FocusDates[folder]',
+   'nrgV102NoteFocus(guest.folder)'),
  'forbidden':('import ActivityKit','NRGV56IslandBar','NRGGuestActivityAttributes',
     'nrgV56RelayoutIsland','nrgV58RefreshNativeIsland',
     'UIAlertController(title: "홍수정 내부 앱 전환"',
@@ -26,6 +26,8 @@ ACTIVE_RULES={
     'struct CollapsedDockView: View', 'struct CollapseButtonView: View',
     'CollapsedDockView(isHidden:', 'CollapseButtonView()',
     'keyWindow.gestureRecognizers?.removeAll',
+    'struct MultitaskDockSwiftView:', 'struct AppIconView:',
+    'UIHostingController<AnyView>', 'setupEdgeGestureRecognizers()',
     '48 * 60 * 60'),
  },
  WINDOW:{
