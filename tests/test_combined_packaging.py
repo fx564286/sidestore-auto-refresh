@@ -82,9 +82,17 @@ class CombinedPackagingTests(unittest.TestCase):
     def test_removed_native_widget_mode_is_rejected_not_repackaged(self):
         import os
         from unittest.mock import patch
+        # This is an early feature-policy rejection. Do not read a pinned
+        # checkout from builder/work: CI keeps work/ beside builder/, whereas
+        # local test runs may have no upstream checkout at all.
+        # Only the two inputs preceding the policy guard are necessary.
+        upstream = (
+            "brew install ldid\n"
+            "wget https://github.com/LiveContainer/SideStore/releases/download/nightly/SideStore.ipa\n"
+        )
         with patch.dict(os.environ, {"NRG_V58_NATIVE_ISLAND": "1"}):
             with self.assertRaisesRegex(ValueError, "obsolete native-Island"):
-                adapt((Path(__file__).resolve().parents[1] / "work/LiveContainer/.github/build_github.sh").read_text())
+                adapt(upstream)
 
     def test_widgetless_registration_and_entitlement_policy(self):
         import inspect
