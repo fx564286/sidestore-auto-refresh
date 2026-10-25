@@ -110,7 +110,9 @@ RENDER = r'''
                            animations: {
                 backdrop.alpha = 0
                 pane.transform = reduceMotion ? .identity
-                    : CGAffineTransform(scaleX: 0.16, y: 0.16)
+                    : CGAffineTransform(translationX: sourceOrigin.midX - pane.center.x,
+                                        y: sourceOrigin.midY - pane.center.y)
+                        .scaledBy(x: 0.16, y: 0.16)
             }, completion: { _ in
                 backdrop.removeFromSuperview()
                 if sourceView?.window != nil { sourceView?.isHidden = false }
