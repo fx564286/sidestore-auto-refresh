@@ -11,8 +11,33 @@ from pathlib import Path
 
 AUTH_REL = Path("Dependencies/SideSign/Sources/DeveloperPortal/Authentication.swift")
 SIGN_REL = Path("SideStore/Core/Operations/StandaloneOperations/SignInOperation.swift")
+LOG_REL = Path("Dependencies/SideSign/Sources/Logging.swift")
 AUTH_MARKER = "SCARLET_V98_GSA_PHASE_TRACE"
 SIGN_MARKER = "SCARLET_V98_80046_TERMINAL"
+LOG_MARKER = "SCARLET_V98_SAFE_GSA_SINK"
+LOG_ANCHOR = "public func verboseLog(_ text: @autoclosure () -> String) {"
+# Do not enable generic debug/verbose logging: the privacy patch must stay.
+LOG_BASE = """public func debugLog(_ text: @autoclosure () -> String) {
+    // SIDESIGN_USER_LOG_PRIVACY_V1: DSID, headers, 2FA bodies, and raw causes stay out of copied logs.
+    _ = text
+}"""
+LOG_INSERT = r'''// SCARLET_V98_SAFE_GSA_SINK: the pinned SideSign privacy patch intentionally
+// disables generic debugLog(). This *only* permits bounded, public diagnostic
+// categories and numeric status codes; no secrets, headers, raw Apple errors,
+// identities, tokens, credentials, session data, or unknown free-form strings.
+public func nrgLogSafeAuthPhase(operation: String, httpStatus: Int, appleCode: Int,
+                                anisetteFamily: String, sentFamily: String) {
+    let operationSet = ["init", "complete", "apptokens"]
+    let familySet = ["windows", "mac", "android"]
+    let phase = operationSet.contains(operation) ? operation : "other"
+    let source = familySet.contains(anisetteFamily) ? anisetteFamily : "other"
+    let sent = familySet.contains(sentFamily) ? sentFamily : "other"
+    let http = (0...599).contains(httpStatus) ? httpStatus : 0
+    let code = (-1000000...1000000).contains(appleCode) ? appleCode : 0
+    print("\(getTag(level: "[D]"))[SCARLET_V98_GSA] operation=\(phase) http=\(http) apple_ec=\(code) anisette_family=\(source) sent_family=\(sent)")
+}
+
+'''
 AUTH_OLD = r'''        let errorCode = status["ec"] as? Int ?? 0
         if errorCode != 0 {
             let errorDesc = status["em"] as? String
@@ -46,7 +71,9 @@ AUTH_NEW = r'''        let errorCode = status["ec"] as? Int ?? 0
         } else {
             sentFamily = "other"
         }
-        debugLog("[SCARLET_V98_GSA] operation=\(safeOperation) http=\(statusCode) apple_ec=\(errorCode) anisette_family=\(anisetteFamily) sent_family=\(sentFamily)")
+        nrgLogSafeAuthPhase(operation: safeOperation, httpStatus: statusCode,
+                             appleCode: errorCode, anisetteFamily: anisetteFamily,
+                             sentFamily: sentFamily)
         if errorCode != 0 {
             let errorDesc = status["em"] as? String
             // Do not surface Apple's potentially sensitive response message.
@@ -56,6 +83,21 @@ SIGN_NEW = "code == 503 || code == 429 || code == -80045 || code == -80046 || co
 SIGN_ANCHOR = "                if case ServerError.underlyingError(let code, _) = error,"
 SIGN_INSERT = ("                // SCARLET_V98_80046_TERMINAL: unknown Apple server policy;\n"
                "                // do not loop credentials, clear accounts or auto-replay SRP.\n" + SIGN_ANCHOR)
+
+def patch_log(source: str) -> str:
+    """Install a strictly allowlisted GSA sink without re-enabling debugLog."""
+    if "SIDESIGN_USER_LOG_PRIVACY_V1" not in source or LOG_BASE not in source:
+        raise ValueError("V98 requires privacy-disabled SideSign debug/verbose sinks")
+    if LOG_MARKER in source:
+        if source.count(LOG_MARKER) != 1 or source.count(LOG_INSERT) != 1:
+            raise ValueError("Partial or drifted V98 privacy-safe logging sink")
+        return source
+    if source.count(LOG_ANCHOR) != 1:
+        raise ValueError("V98 SideSign logging anchor changed")
+    # Security invariant: generic SideSign output MUST stay disabled, even when
+    # the new narrow GSA status sink is active.
+    return source.replace(LOG_ANCHOR, LOG_INSERT + LOG_ANCHOR, 1)
+
 
 def patch_auth(source: str) -> str:
     for marker in ("NRG_GSA_RECOVERY_V1", "NRG_GSA_HTTP_STATUS_V2",
@@ -85,11 +127,11 @@ def patch_signin(source: str) -> str:
     return source.replace(SIGN_ANCHOR, SIGN_INSERT, 1)
 
 def apply(root: Path, check: bool = False) -> None:
-    paths = (root / AUTH_REL, root / SIGN_REL)
+    paths = (root / AUTH_REL, root / SIGN_REL, root / LOG_REL)
     if any(not path.is_file() or path.is_symlink() for path in paths):
-        raise ValueError("Expected two regular embedded SideStore files")
+        raise ValueError("Expected SideSign auth/sign-in/disabled-logging sources")
     before = tuple(path.read_text(encoding="utf-8") for path in paths)
-    after = (patch_auth(before[0]), patch_signin(before[1]))
+    after = (patch_auth(before[0]), patch_signin(before[1]), patch_log(before[2]))
     if check and before != after:
         raise ValueError("V98 patch not yet installed")
     if not check:
