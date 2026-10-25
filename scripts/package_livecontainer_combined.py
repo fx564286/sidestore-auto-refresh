@@ -71,26 +71,18 @@ def verify_shared_secret_handoff_group(host_groups, live_process_groups):
     return shared[0]
 
 
-def verify_guest_return_control_binary_markers(host_code, bootstrap_code):
-    """Check the shipped Return control without demanding retired V41/V103 UI.
-
-    Each framework still contains the collapsible control. Legacy pre-V103
-    builds logged CONTROL_RESTORED, while V103 intentionally removes the
-    extra collapsed-state tap and instead logs restored_and_dispatched=1.
-    Insisting on CONTROL_RESTORED in both binaries rejects valid builds.
-    The final-source audit separately enforces exactly one control owner.
+def verify_v105_direct_morph_binary(bootstrap_code):
+    """Only the V105 owner may create Direct's escape overlay.
+    Check actual compiled symbols, not source comments or retired markers.
     """
-    for name, binary in (("host", host_code), ("bootstrap", bootstrap_code)):
-        if b"CONTROL_COLLAPSED" not in binary:
-            raise ValueError(f"{name}: collapsible guest control missing")
-    legacy = all(b"CONTROL_RESTORED" in b for b in (host_code, bootstrap_code))
-    native_v103 = any(
-        b"[SCARLET_V103_CONTROL] restored_and_dispatched=1" in b
-        for b in (host_code, bootstrap_code)
-    )
-    if not (legacy or native_v103):
-        raise ValueError("Restorable guest control missing; neither legacy nor V103 marker found")
-    return "v103-single-control" if native_v103 else "legacy-restored"
+    required=(b'SCGuestMorphPresenter', b'scarlet.v105.direct.morph',
+              b'[SCARLET_V105_CONTROL]')
+    for marker in required:
+        if marker not in bootstrap_code:
+            raise ValueError("V105 compiled Direct morph missing: " + marker.decode())
+    for retired in (b'LCDirectReturnPresenter',b'LCDirectReturnControl'):
+        if retired in bootstrap_code:
+            raise ValueError("V105 obsolete Direct return class was compiled")
 
 
 def replace_once(text, old, new):
@@ -362,21 +354,15 @@ def verify(path, side_product=None):
             if diagnostic not in host_code:
                 raise ValueError('Shipped host binary missing fullscreen runtime: ' + diagnostic.decode())
         assert b'v3SideStoreStatusSnapshot' not in executable, 'Retired status publisher remains'
-        assert b'lcReturnToHost' in host_code, 'Guest return action missing from host binary'
-        assert b'LCReturnControlPosition' in host_code, 'Movable return control missing'
-        # V41 intentionally removes the floating Return overlay; its old layer marker is no longer required.
-        # V41 removes the Objective-C floating overlay at source level. A source comment
-        # is not a runtime symbol and cannot be verified inside the Swift framework.
-        # The guest-to-host action is verified above; source patch checks run in CI.
+        # V105: old LCReturnControl was deleted from generated Objective-C.
+        # Host virtual guest switches use the retained V102 morph; the separate
+        # Classic/Direct fallback is verified in its compiled bootstrap binary.
         bootstrap_code = archive.read(base + '/Frameworks/LiveContainerShared.framework/LiveContainerShared')
         support_code = archive.read(base + '/Frameworks/SideStoreSupport.framework/SideStoreSupport')
         verify_host_intent_runtime_symbols(support_code)
         verify_auth_answer_transport(host_code, executable, support_code)
         assert b'Import Pairing File' in host_code, 'Unified pairing setup missing'
-        # V103 replaces the two-tap legacy restore with a direct switch.
-        # Do not require the obsolete CONTROL_RESTORED marker in a valid
-        # V103 single-owner control; reject missing collapse or restore code.
-        verify_guest_return_control_binary_markers(host_code, bootstrap_code)
+        verify_v105_direct_morph_binary(bootstrap_code)
         assert b'finishRefresh:runID:verification:' in support_code, 'XPC result receiver missing'
         assert b'refreshAllAppsWithIdentifier:mangledTypeName:refreshRunID:' in support_code, 'XPC run identity missing'
         assert b'RESULT_RECEIVED' in support_code, 'Host result persistence missing'
