@@ -51,6 +51,15 @@ def patch_native(s):
     if (!self.lcReturnControl) {'''
     s=only(s,old,new,"V41 dead unconditional guard")
     s=only(s,
+        '''    [self.button setImage:[UIImage systemImageNamed:@"arrow.uturn.backward.circle.fill"] forState:UIControlStateNormal];''',
+        '''    [self.button setImage:[UIImage systemImageNamed:@"ellipsis"] forState:UIControlStateNormal];''', "unify native control glyph with virtual")
+    s=only(s,
+        '''    [self.button setImage:[UIImage systemImageNamed:self.collapsed ? (self.position.x < 0.5 ? @"chevron.compact.right" : @"chevron.compact.left") : @"arrow.uturn.backward.circle.fill"] forState:UIControlStateNormal];''',
+        '''    [self.button setImage:[UIImage systemImageNamed:self.collapsed ? (self.position.x < 0.5 ? @"chevron.compact.right" : @"chevron.compact.left") : @"ellipsis"] forState:UIControlStateNormal];''', "unify expanded glyph; preserve collapsed edge feedback")
+    s=only(s,
+        '''    self.button.tintColor = customColors ? LCGuestReturnColor(@"LCGuestReturnTintRGB", 0x007AFF) : nil;''',
+        '''    self.button.tintColor = customColors ? LCGuestReturnColor(@"LCGuestReturnTintRGB", 0x007AFF) : UIColor.labelColor;''', "unify system tint, preserve custom preferences")
+    s=only(s,
         '''    self.button.accessibilityLabel = @"Return to LiveContainer";''',
         '''    self.button.accessibilityLabel = @"Switch recently active guest apps";
     self.button.accessibilityIdentifier = @"scarlet.v103.native.guest.control";''',
