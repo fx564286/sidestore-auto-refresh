@@ -67,11 +67,21 @@ class V104SceneTests(unittest.TestCase):
         path=os.getenv("LIVE_CONTAINER_TEST_SOURCE")
         if not path:return
         source=(Path(path)/patch.APP).read_text(encoding="utf-8")
+        prerequisites=("NRG_V28_GUEST_LIFECYCLE", "LC_GUEST_RETURN_V3")
         if patch.MARK_APP in source:
+            # A fully patched generated file must remain idempotent.
             self.assertEqual(patch.patch_app(source),source)
-        else:
+        elif all(marker in source for marker in prerequisites):
+            # A post-V28 source is eligible for the V104 migration.
             patched=patch.patch_app(source)
             self.assertEqual(patch.patch_app(patched),patched)
+        else:
+            # CI's initial LIVE_CONTAINER_TEST_SOURCE is the PINNED
+            # upstream checkout, before V28/V41 or V104. Correct behavior
+            # is refusal, not applying the V104 patch out of order.
+            with self.assertRaisesRegex(ValueError, "V104 requires existing V28"):
+                patch.patch_app(source)
+            self.assertNotIn(patch.MARK_APP, source)
 
     def test_generated_final_sources_with_v104(self):
         path=os.getenv("V104_PATCHED_LIVECONTAINER")
