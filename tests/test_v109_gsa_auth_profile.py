@@ -47,11 +47,11 @@ class ProfileTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp:
             p=Path(temp)/"main.swift"
             exe=Path(temp)/"profile-check"
-            body="import Foundation\\nstruct ProfileCheck {\\n"+helper+"\\nfunc run() {\\n"
+            body="import Foundation\nstruct ProfileCheck {\n"+helper+"\nfunc run() {\n"
             for line in profiles:
-                body+='precondition(nrgGrandSlamClientInfo("'+line+'") == "'+line+'")\\n'
-            body+='precondition(nrgGrandSlamClientInfo("invalid").contains("<Windows;"))\\n'
-            body+='print("V109_PROFILE_SWIFT_PASS")\\n}\\n}\\nProfileCheck().run()\\n'
+                body+='precondition(nrgGrandSlamClientInfo("'+line+'") == "'+line+'")\n'
+            body+='precondition(nrgGrandSlamClientInfo("invalid").contains("<Windows;"))\n'
+            body+='print("V109_PROFILE_SWIFT_PASS")\n}\n}\nProfileCheck().run()\n'
             p.write_text(body)
             subprocess.run([compiler,str(p),"-o",str(exe)],capture_output=True,
                            text=True,check=True,timeout=60)
