@@ -302,6 +302,11 @@ jobs:
             python3 builder/scripts/patch_v100_morph_guest_switcher.py work/LiveContainer
             python3 builder/scripts/patch_v100_morph_guest_switcher.py work/LiveContainer
             V100_PATCHED_LIVECONTAINER=work/LiveContainer python3 -m unittest discover -s builder/tests -p test_v100_morph_guest_switcher.py -v
+            # V100 LiveProcess uses the same one-tap morph; long hold now
+            # offers explicit Return/Collapse choices rather than auto-return.
+            python3 builder/scripts/patch_v100_native_guest_morph.py work/LiveContainer
+            python3 builder/scripts/patch_v100_native_guest_morph.py work/LiveContainer
+            V100_PATCHED_LIVECONTAINER=work/LiveContainer python3 -m unittest discover -s builder/tests -p test_v100_native_guest_morph.py -v
             # V88: V87's working implementation now lives IN the canonical
             # V72 selector and V76 Return control. The obsolete V87 overlay
             # file and extra rewrite step are deleted, not conditionally disabled.
