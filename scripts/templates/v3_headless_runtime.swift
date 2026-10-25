@@ -967,13 +967,23 @@ final class V3AuthCenter {
                 wire["kind"] = kind
                 let safeCause = v3SafeAuthCause(error)
                 let safeType = v3SafeAuthTypeID(error)
+                let safeCode = v3SafeAuthNumericCode(error)
+                // SCARLET_V113_TERMINAL_AUTH_DIAGNOSTICS: the intermediate
+                // prompt already carries these allowlisted fields; terminal
+                // failure must forward the same typed, payload-free evidence
+                // or the copyable failure summary loses an HTTP 503/-80045
+                // behind generic NSError code 0. Never expose Apple response
+                // text, email, credentials, device identity or Anisette blobs.
+                wire["diagnosticCategory"] = safeCause
+                wire["diagnosticCode"] = safeCode
+                wire["diagnosticType"] = safeType
                 // NRG_V29_SAFE_AUTH_CAUSE_V1: preserve an actionable, non-secret
                 // error family on screen even when NSError has a redacted domain.
                 let message = kind == "unknown"
                     ? failure.safeMessage + " [diagnostic: " + safeCause + ", code: " +
-                        String(v3SafeAuthNumericCode(error)) + ", type: " + safeType + "]"
+                        String(safeCode) + ", type: " + safeType + "]"
                     : V3AuthFailureDisplay.message(for: kind)
-                debugLog("[V3_AUTH_CAUSE] stage=authentication category=\(safeCause) kind=\(kind) code=\((error as NSError).code)")
+                debugLog("[V3_AUTH_CAUSE] stage=authentication category=\(safeCause) kind=\(kind) code=\(safeCode)")
                 let response: [String: Any] = ["state": "failed", "stage": failure.stage.rawValue,
                     "code": failure.code.rawValue, "failure": wire, "message": message,
                     "technicalDetails": failure.technicalDetails]

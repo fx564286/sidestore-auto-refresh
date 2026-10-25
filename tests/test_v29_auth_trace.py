@@ -47,6 +47,23 @@ class V29AuthenticationFailureTraceTests(unittest.TestCase):
         self.assertIn('stage=promptFailure', segment)
         self.assertNotIn('error.localizedDescription', segment)
 
+    def test_terminal_failure_copies_existing_bounded_diagnostics(self):
+        source = RUNTIME.read_text()
+        start = source.index('let failure = CombinedFailure.capture(error, operation: "signIn", stage: .authentication, id: id)')
+        end = source.index('func poll(id: String)', start)
+        branch = source[start:end]
+        self.assertIn("SCARLET_V113_TERMINAL_AUTH_DIAGNOSTICS", branch)
+        self.assertIn('wire["diagnosticCategory"] = safeCause', branch)
+        self.assertIn('wire["diagnosticCode"] = safeCode', branch)
+        self.assertIn('wire["diagnosticType"] = safeType', branch)
+        self.assertIn('let safeCode = v3SafeAuthNumericCode(error)', branch)
+        self.assertIn('debugLog("[V3_AUTH_CAUSE] stage=authentication', branch)
+        self.assertIn('code=\\(safeCode)', branch)
+        self.assertIn('"failure": wire, "message": message', branch)
+        self.assertNotIn('error.localizedDescription', branch)
+        self.assertNotIn('String(describing: error)', branch)
+        self.assertNotIn('wire["diagnosticResponseBody"]', branch)
+
     def test_prompt_diagnostic_category_is_bounded_and_visible(self):
         primitives = (ROOT / "scripts/templates/v3_behavioral_primitives.swift").read_text()
         shell = (ROOT / "scripts/templates/v3_unified_shell.swift").read_text()
