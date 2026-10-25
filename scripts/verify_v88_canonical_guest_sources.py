@@ -57,6 +57,8 @@ def check_file(root: Path, relative: Path, content: str, problems: list[str]):
     for token, wanted in REQUIRED.get(relative, {}).items():
         if relative == SCENE and token == "[self.button addGestureRecognizer:v76Hold]" and "SCARLET_V100_LIVEPROCESS_MORPH" in content:
             wanted = 0
+        if relative == WINDOW and token == "- (void)nrgV72WindowOverflowLongPress:" and "SCARLET_V102_UNIFIED_ACTION_SURFACE" in content:
+            wanted = 0
         found = content.count(token)
         if found != wanted:
             problems.append(f"{relative}: required final UI token {token!r} count={found}; wanted={wanted}")
@@ -64,7 +66,7 @@ def check_file(root: Path, relative: Path, content: str, problems: list[str]):
         if token in content:
             problems.append(f"{relative}: retired code still exists: {token}")
     if relative == SCENE:
-        if "SCARLET_V100_LIVEPROCESS_MORPH" in content:
+        if "SCARLET_V100_LIVEPROCESS_MORPH" in content and "SCARLET_V102_NATIVE_GESTURE_CLEANUP" not in content:
             for token in (
                 "v76Hold.enabled = NO",
                 "self.lcReturnControl.button.menu = [UIMenu menuWithChildren:",
@@ -73,14 +75,31 @@ def check_file(root: Path, relative: Path, content: str, problems: list[str]):
             ):
                 if content.count(token) != 1:
                     problems.append(f"{relative}: V100 required native menu token count invalid: {token}")
+        if "SCARLET_V102_NATIVE_GESTURE_CLEANUP" in content:
+            for token in ("lcV102NativeHoldActions:", "lcV102CollapseFloatingButton",
+                          "nrgV102PresentWindowActionsFrom:self"):
+                if content.count(token) != 1:
+                    problems.append(f"{relative}: V102 native action missing/duplicate: {token}")
+            for retired in ("v76Hold.enabled = NO", "lcV76HoldToSwitch:",
+                            "self.lcReturnControl.button.menu = [UIMenu"):
+                if retired in content:
+                    problems.append(f"{relative}: retired native gesture/menu survived: {retired}")
         for forbidden in ('UIApplicationStateActive', 'ignored=presenter_has_no_window'):
             if forbidden in content:
                 problems.append(f"{relative}: stale V76 hold guard {forbidden}")
     if relative == DOCK:
         if "DataManager.shared.model.apps" not in content:
             problems.append("Host installed-app registry missing from guest picker")
-        if 'lastLaunched' not in content or "48 * 60 * 60" not in content:
-            problems.append("Recent guest selection policy lost")
+        if 'lastLaunched' not in content:
+            problems.append("Last-usage fallback missing")
+        if "SCARLET_V102_RECENT_FOCUS_CLOCK" in content:
+            for expected in ("guard isRunning else { return nil }", "nrgV102NoteFocus(uuid)",
+                             "SCARLET_V102_UNIFIED_ACTION_SURFACE"):
+                if expected not in content: problems.append(f"V102 guest policy missing: {expected}")
+            if "48 * 60 * 60" in content:
+                problems.append("Legacy 48h installed-app shortcut survived")
+        elif "48 * 60 * 60" not in content:
+            problems.append("Pre-V102 48h recent policy lost")
 
 
 def audit(root: Path, source_repo: Path | None = None) -> dict:
