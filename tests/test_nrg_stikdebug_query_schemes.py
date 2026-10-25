@@ -39,7 +39,16 @@ class StikDebugQueriesTests(unittest.TestCase):
         self.assertEqual(after['CFBundleIdentifier'],'com.kdt.livecontainer')
         self.assertEqual(after['UnrelatedValue'],'kept')
         self.assertEqual(after['NRGOTASequence'],214)
-        self.assertEqual(after['CFBundleVersion'],'3.8.192')
+        # Check the real stamp and the packaging gate agree, rather than
+        # pinning this test to the previous release's patch number.
+        version = after['CFBundleVersion']
+        self.assertRegex(version, r'^3\.8\.[0-9]+$')
+        self.assertGreaterEqual(int(version.rsplit('.', 1)[-1]), 193)
+        self.assertIn(
+            "assert main.get('CFBundleVersion')=='" + version + "'",
+            WORKFLOW.read_text(),
+            "IPA provenance validation and host plist stamp diverged",
+        )
         self.assertEqual(after['CFBundleDisplayName'],'Scarlet Crystal')
         self.assertEqual(after['LSApplicationQueriesSchemes'],
                 ['sidestore','livecontainer','livecontainer2','livecontainer3','stikdebug','stikjit'])
