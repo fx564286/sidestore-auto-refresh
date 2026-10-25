@@ -27,6 +27,7 @@ def fixture():
         '        animateViewAppearance(targetView, from: center, in: window)\n'
         + old[:a]+v100.RENDER.rstrip('\n')+old[b:])
     window=('NRG_V73_APPLE_FLOATING_CONTROL\nNRG_V72_OVERFLOW_LONGPRESS\n'
+        +'    __weak typeof(self) weakOverflowSelf = self;\n'
         +v100.WINDOW_NEW+'\n'
         +'    overflow.menu = [UIMenu menuWithChildren:@[\n'
         +'        [UIAction actionWithTitle:@"Minimize" handler:^{ [weakOverflowSelf minimizeWindow]; }],\n'
