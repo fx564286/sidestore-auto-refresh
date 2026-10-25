@@ -79,6 +79,10 @@ class V105DeleteTests(unittest.TestCase):
         self.assertIn('[LCSharedUtils launchToGuestAppWithClassicMode:0]',a)
         self.assertIn('confirmation=accepted',a)
         self.assertIn('scrim.alpha = 0',a)
+        self.assertIn('portraitUI ? 44 : 28',a)
+        self.assertIn('root.safeAreaInsets',a)
+        self.assertIn('SCARLET_V105_DIRECT_UNIFIED_MORPH',a)
+        self.assertNotIn('홍수정',a)
         self.assertIn('button.hidden = YES',a)
         for forbidden in v.BANNED:self.assertNotIn(forbidden,a)
 

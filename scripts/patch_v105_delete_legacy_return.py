@@ -19,7 +19,7 @@ BANNED = ("LCReturnControl", "lcReturnControl", "LCDirectReturnControl",
           "LCGuestReturnStartsCollapsed", "LCGuestReturnCustomColors")
 
 DIRECT_CODE = r'''
-// SCARLET_V105_DIRECT_UNIFIED_MORPH: Figma 17:2 / 17:50 single control.
+// SCARLET_V105_DIRECT_UNIFIED_MORPH: one Direct guest control, not legacy overlay.
 // This presenter exists ONLY for a Classic/Direct guest; never LiveProcess.
 // The former Direct overlay and its runtime creation path were deleted.
 @interface SCGuestMorphWindow : UIWindow
@@ -142,8 +142,19 @@ DIRECT_CODE = r'''
     [root addSubview:scrim];
 
     CGFloat width = MIN(342, MAX(260, root.bounds.size.width - 48));
-    UIView *card = [[UIView alloc] initWithFrame:CGRectMake((root.bounds.size.width-width)/2,
-                 MAX(80, (root.bounds.size.height-206)/2), width, 206)];
+    // Only portrait receives additional safe-area/footer room. Landscape's
+    // known-good geometry stays exactly as before.
+    BOOL portraitUI = root.bounds.size.height > root.bounds.size.width;
+    CGFloat panelHeight = portraitUI ? 232 : 206;
+    UIEdgeInsets insets = root.safeAreaInsets;
+    CGFloat baseY = (root.bounds.size.height-panelHeight)/2;
+    CGFloat maxPortraitY = MAX(insets.top + 12,
+        root.bounds.size.height - insets.bottom - panelHeight - 12);
+    CGFloat panelY = portraitUI
+        ? MAX(insets.top + 12, MIN(maxPortraitY, baseY))
+        : MAX(80, baseY);
+    UIView *card = [[UIView alloc] initWithFrame:CGRectMake(
+        (root.bounds.size.width-width)/2, panelY, width, panelHeight)];
     card.tag = 10502;
     card.backgroundColor = [UIColor colorWithRed:33/255.0 green:43/255.0 blue:57/255.0 alpha:1];
     card.layer.cornerRadius = 28;
@@ -162,7 +173,7 @@ DIRECT_CODE = r'''
     title.textAlignment = NSTextAlignmentCenter;
     [card addSubview:title];
     UILabel *note = [[UILabel alloc] initWithFrame:CGRectMake(18, 56, width-36, 58)];
-    note.text = @"이 앱은 홍수정 프로세스에서 실행 중이야.\n복귀하면 앱이 다시 시작되고 미저장 진행 상황이 사라질 수 있어.";
+    note.text = @"이 앱은 Scarlet Crystal 게스트로 실행 중이야.\n복귀하면 앱이 다시 시작되고 미저장 진행 상황이 사라질 수 있어.";
     note.numberOfLines = 3;
     note.textAlignment = NSTextAlignmentCenter;
     note.font = [UIFont systemFontOfSize:13 weight:UIFontWeightMedium];
@@ -172,12 +183,13 @@ DIRECT_CODE = r'''
     returnButton.frame = CGRectMake(18, 128, width-36, 44);
     returnButton.layer.cornerRadius = 16;
     returnButton.backgroundColor = [UIColor colorWithRed:241/255.0 green:76/255.0 blue:112/255.0 alpha:1];
-    [returnButton setTitle:@"재시작 후 홍수정으로 복귀" forState:UIControlStateNormal];
+    [returnButton setTitle:@"재시작 후 Scarlet Crystal로 복귀" forState:UIControlStateNormal];
     [returnButton setTitleColor:UIColor.whiteColor forState:UIControlStateNormal];
     [returnButton addTarget:self action:@selector(confirmRestart:) forControlEvents:UIControlEventTouchUpInside];
     [card addSubview:returnButton];
     UIButton *cancel = [UIButton buttonWithType:UIButtonTypeSystem];
-    cancel.frame = CGRectMake(18, 174, width-36, 28);
+    // Accessible 44pt portrait hit target; preserve landscape behavior.
+    cancel.frame = CGRectMake(18, 174, width-36, portraitUI ? 44 : 28);
     [cancel setTitle:@"취소 · 게임 유지" forState:UIControlStateNormal];
     [cancel setTitleColor:UIColor.whiteColor forState:UIControlStateNormal];
     [cancel addTarget:self action:@selector(collapse:) forControlEvents:UIControlEventTouchUpInside];
@@ -274,7 +286,7 @@ def apply(root):
         raise ValueError("V105 non-idempotent")
     for p,a,b in zip(files,old,new):
         if a != b:p.write_text(b,encoding="utf-8")
-    print("[PASS] V105 deleted both obsolete controls, one Figma-based direct morph remains")
+    print("[PASS] V105 deleted both obsolete controls, one Direct morph owner remains")
 if __name__=="__main__":
     if len(sys.argv)!=2:raise SystemExit("usage: patch_v105_delete_legacy_return.py <LiveContainer>")
     apply(Path(sys.argv[1]))

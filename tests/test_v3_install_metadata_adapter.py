@@ -22,7 +22,7 @@ def pinned_source_root():
         ROOT.parent / "upstream/SideStore",
         ROOT / "work/EmbeddedSideStore",
         ROOT.parent.parent / "work/EmbeddedSideStore",
-        ROOT.parents[3] / ".audit/upstream/SideStore",
+        ROOT.parent / ".audit/upstream/SideStore",
     ]
     for candidate in candidates:
         if not (candidate / "AltStore/Managing Apps/AppManager.swift").is_file():

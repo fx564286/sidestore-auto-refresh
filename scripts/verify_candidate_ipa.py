@@ -44,6 +44,33 @@ REQUIRED_BACKGROUND_IDS = {
 }
 REQUIRED_BACKGROUND_MODES = {"processing", "fetch"}
 REQUIRED_DEAD10CC_MARKER = b"DEAD10CC_FIX_E98699A registered both observers in guest process"
+REQUIRED_EMBEDDED_AUTH_MARKERS = (
+    b"[SCARLET_V98_GSA] operation=",
+    b"[NRG_AUTH] terminal_transport_status=",
+)
+
+
+def verify_embedded_auth_markers(executable: bytes) -> None:
+    """Reject a release IPA that silently drops its safe GSA phase diagnostics."""
+    missing = [m.decode("ascii") for m in REQUIRED_EMBEDDED_AUTH_MARKERS
+               if m not in executable]
+    if missing:
+        raise ValueError("Embedded SideStore auth diagnostics missing: " + ", ".join(missing))
+
+
+
+OBSOLETE_WIDGET_EXTENSION_NAMES = frozenset({
+    "LiveWidgetExtension.appex", "AltWidgetExtension.appex",
+})
+
+
+def verify_no_obsolete_widget_extensions(member_names: list[str]) -> None:
+    """Never accept historical native-Island extensions from any build path."""
+    for member in member_names:
+        if OBSOLETE_WIDGET_EXTENSION_NAMES.intersection(member.split("/")):
+            raise ValueError("Obsolete WidgetKit extension survives in candidate IPA")
+
+
 REMOVED_SIDESTORE_ICON_NAMES = {
     "blueicon", "darkicon", "honeydewicon", "prideicon",
     "sandyicon", "skyicon", "snowicon", "starbursticon", "stormicon", "vistaicon", "wintericon",
@@ -978,6 +1005,7 @@ def verify(ipa: Path, provenance_path: Path, product: str,
     with zipfile.ZipFile(ipa) as archive:
         archive_infos = preflight_archive(archive, size)
         names = archive.namelist()
+        verify_no_obsolete_widget_extensions(names)
         lower_names = [name.lower() for name in names]
         if any(".audit" in name.split("/") or ".git" in name.split("/") for name in lower_names):
             raise ValueError("audit or repository implementation data is packaged")
@@ -1023,6 +1051,7 @@ def verify(ipa: Path, provenance_path: Path, product: str,
                              + ", ".join(legacy_resources[:8]))
         side_store_executable = side_store_path + "/" + side_store_info["CFBundleExecutable"]
         side_store_executable_data = archive.read(side_store_executable)
+        verify_embedded_auth_markers(side_store_executable_data)
         host_code = archive.read(BASE + "/Frameworks/LiveContainerSwiftUI.framework/LiveContainerSwiftUI")
         support_path = BASE + "/Frameworks/SideStoreSupport.framework"
         support_bundle = package_bundles[support_path]

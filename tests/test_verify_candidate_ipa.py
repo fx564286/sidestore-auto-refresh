@@ -209,6 +209,7 @@ class ExcludedSideStorePipelineUITests(unittest.TestCase):
             {"executable_present": True})
         ipa_info_path = verify_module.BASE + "/Info.plist"
         side_store_path = (verify_module.BASE + "/Frameworks/SideStoreApp.framework/SideStore")
+        auth_markers = b"\x00".join(verify_module.REQUIRED_EMBEDDED_AUTH_MARKERS)
         host_code_path = (verify_module.BASE +
                           "/Frameworks/LiveContainerSwiftUI.framework/LiveContainerSwiftUI")
 
@@ -218,7 +219,8 @@ class ExcludedSideStorePipelineUITests(unittest.TestCase):
                 archive.writestr(ipa_info_path, plistlib.dumps(host_info))
                 archive.writestr(side_store_path,
                                  thin_arm64_macho() +
-                                 b"V3SideStoreService\x00execute:reply:\x00authRespond")
+                                 b"V3SideStoreService\x00execute:reply:\x00authRespond\x00" +
+                                 auth_markers)
                 archive.writestr(host_code_path,
                                  thin_arm64_macho() +
                                  b"authRespond")
@@ -242,7 +244,7 @@ class ExcludedSideStorePipelineUITests(unittest.TestCase):
                     archive.writestr(side_store_path,
                                      thin_arm64_macho() +
                                      b"V3SideStoreService\x00execute:reply:\x00authRespond\x00" +
-                                     encoded_symbol)
+                                     auth_markers + b"\x00" + encoded_symbol)
                     archive.writestr(host_code_path,
                                      thin_arm64_macho() +
                                      b"authRespond")
@@ -267,6 +269,35 @@ class ExcludedSideStorePipelineUITests(unittest.TestCase):
                                  patch_v3_service.HEADLESS_SIDESTORE_HANDLER_UI_FILES)
                 self.assertEqual(inventory_check.call_args.kwargs["additional_source_roots"], {
                     "AltStore": patch_v3_service.HEADLESS_SIDESTORE_PIPELINE_UI_FILES})
+
+
+class EmbeddedAuthVerificationTests(unittest.TestCase):
+    def test_auth_marker_gate_rejects_v192_and_accepts_current(self):
+        markers = verify_module.REQUIRED_EMBEDDED_AUTH_MARKERS
+        self.assertEqual(len(markers), 2)
+        with self.assertRaisesRegex(ValueError, "Embedded SideStore auth diagnostics missing"):
+            verify_module.verify_embedded_auth_markers(b"NRG_AUTH old candidate")
+        verify_module.verify_embedded_auth_markers(b"\x00".join(markers))
+
+    def test_auth_marker_gate_rejects_each_missing_marker(self):
+        for marker in verify_module.REQUIRED_EMBEDDED_AUTH_MARKERS:
+            present = b"\x00".join(x for x in verify_module.REQUIRED_EMBEDDED_AUTH_MARKERS if x != marker)
+            with self.subTest(marker=marker):
+                with self.assertRaises(ValueError):
+                    verify_module.verify_embedded_auth_markers(present)
+
+
+class RetiredWidgetCandidateTests(unittest.TestCase):
+    def test_neither_native_island_widget_nor_embedded_alt_widget_allowed(self):
+        good = ["Payload/LiveContainer.app/PlugIns/LiveProcess.appex/Info.plist"]
+        verify_module.verify_no_obsolete_widget_extensions(good)
+        for widget in ("LiveWidgetExtension.appex", "AltWidgetExtension.appex"):
+            for prefix in ("Payload/LiveContainer.app/PlugIns/",
+                           "Payload/LiveContainer.app/Frameworks/SideStoreApp.framework/PlugIns/"):
+                with self.subTest(widget=widget, prefix=prefix):
+                    with self.assertRaisesRegex(ValueError, "Obsolete WidgetKit extension"):
+                        verify_module.verify_no_obsolete_widget_extensions(
+                            good + [prefix + widget + "/Info.plist"])
 
 
 class CandidateArchiveSizeReportTests(unittest.TestCase):

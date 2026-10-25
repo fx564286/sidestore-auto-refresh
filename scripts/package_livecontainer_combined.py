@@ -80,9 +80,27 @@ def verify_v105_direct_morph_binary(bootstrap_code):
     for marker in required:
         if marker not in bootstrap_code:
             raise ValueError("V105 compiled Direct morph missing: " + marker.decode())
-    for retired in (b'LCDirectReturnPresenter',b'LCDirectReturnControl'):
+    # The bootstrap framework owns Direct only; LiveProcess guest UI is in
+    # LiveContainerSwiftUI.framework and has its own independent verifier.
+    for retired in (b'LCDirectReturnPresenter', b'LCDirectReturnControl'):
         if retired in bootstrap_code:
-            raise ValueError("V105 obsolete Direct return class was compiled")
+            raise ValueError("V107 obsolete Direct guest control was compiled")
+
+
+def verify_v107_virtual_guest_control_binary(host_code):
+    """Look for the real host-owned guest control, not the removed native UI.
+
+    Use null-delimited Objective-C symbols; broad substring matches would
+    incorrectly reject harmless preference keys such as LCReturnControlPosition.
+    """
+    required = b'scarlet.v103.virtual.guest.control'
+    if required not in host_code:
+        raise ValueError("V107 host-owned virtual guest control missing")
+    import re
+    legacy = (b'LCReturnControl', b'lcReturnControl', b'lcReturnToHost')
+    for symbol in legacy:
+        if re.search(rb'(?<![A-Za-z0-9_])' + symbol + rb'\x00', host_code):
+            raise ValueError("V107 obsolete native guest return symbol compiled: " + symbol.decode())
 
 
 def replace_once(text, old, new):
@@ -112,31 +130,23 @@ echo "[NRG_V58_DYLIBIFY] macos_host_arch=$(uname -m) source_tag=1.0"''')
     # Drop it from the embedded framework rather than renaming it and creating
     # another free-team App ID. Keep SideStore's host App Intent wrappers.
     widget_copy = '# AltWidgetExtension\nmv ./Payload/LiveContainer.app/Frameworks/SideStoreApp.framework/PlugIns/AltWidgetExtension.appex ./Payload/LiveContainer.app/PlugIns/LiveWidgetExtension.appex\n/usr/libexec/PlistBuddy -c "Set :CFBundleIdentifier com.kdt.livecontainer.LiveWidget"  ./Payload/LiveContainer.app/PlugIns/LiveWidgetExtension.appex/Info.plist\n/usr/libexec/PlistBuddy -c "Set :CFBundleExecutable LiveWidgetExtension"  ./Payload/LiveContainer.app/PlugIns/LiveWidgetExtension.appex/Info.plist\nmv ./Payload/LiveContainer.app/PlugIns/LiveWidgetExtension.appex/AltWidgetExtension ./Payload/LiveContainer.app/PlugIns/LiveWidgetExtension.appex/LiveWidgetExtension\n'
+    # SCARLET_V107_RETIRE_WIDGET_PATH: no secondary widget App ID or
+    # historically retained native-Island packaging route is supported.
     if os.environ.get("NRG_V58_NATIVE_ISLAND") == "1":
-        # V58: reuse the same upstream WidgetKit target for the native Island.
-        # The extra LiveWidget App ID is explicitly opt-in at packaging time.
-        if text.count(widget_copy) != 1:
-            raise ValueError("Pinned WidgetKit copy anchor changed")
-        if text.count('ldid -S.github/sidelc/LiveWidgetExtension_adhoc.xml') != 1:
-            raise ValueError("Pinned WidgetKit signer anchor changed")
-        text = replace_once(text, '# package\n',
-            'test -f ./Payload/LiveContainer.app/PlugIns/LiveWidgetExtension.appex/LiveWidgetExtension\n'
-            'test ! -e ./Payload/LiveContainer.app/Frameworks/SideStoreApp.framework/PlugIns/AltWidgetExtension.appex\n'
-            '# package\n')
-    else:
-        if widget_copy in text:
-            text = replace_once(text, widget_copy,
-                '# NRG_WIDGETLESS_V46: do not install LiveWidget.\n'
-                'rm -rf ./Payload/LiveContainer.app/Frameworks/SideStoreApp.framework/PlugIns/AltWidgetExtension.appex\n')
-            text = replace_once(text,
-                'ldid -S.github/sidelc/LiveWidgetExtension_adhoc.xml ./Payload/LiveContainer.app/PlugIns/LiveWidgetExtension.appex/LiveWidgetExtension',
-                'test ! -e ./Payload/LiveContainer.app/PlugIns/LiveWidgetExtension.appex')
-        elif 'AltWidgetExtension' in text or 'LiveWidgetExtension' in text:
-            raise ValueError('Pinned widget packaging changed; refusing to include an unreviewed extension')
-        text = replace_once(text, '# package\n',
-            'test ! -e ./Payload/LiveContainer.app/PlugIns/LiveWidgetExtension.appex\n'
-            'test ! -e ./Payload/LiveContainer.app/Frameworks/SideStoreApp.framework/PlugIns/AltWidgetExtension.appex\n'
-            '# package\n')
+        raise ValueError("V107 rejects obsolete native-Island widget packaging")
+    if widget_copy in text:
+        text = replace_once(text, widget_copy,
+            '# NRG_WIDGETLESS_V46: do not install LiveWidget.\n'
+            'rm -rf ./Payload/LiveContainer.app/Frameworks/SideStoreApp.framework/PlugIns/AltWidgetExtension.appex\n')
+        text = replace_once(text,
+            'ldid -S.github/sidelc/LiveWidgetExtension_adhoc.xml ./Payload/LiveContainer.app/PlugIns/LiveWidgetExtension.appex/LiveWidgetExtension',
+            'test ! -e ./Payload/LiveContainer.app/PlugIns/LiveWidgetExtension.appex')
+    elif 'AltWidgetExtension' in text or 'LiveWidgetExtension' in text:
+        raise ValueError('Pinned widget packaging changed; refusing to include an unreviewed extension')
+    text = replace_once(text, '# package\n',
+        'test ! -e ./Payload/LiveContainer.app/PlugIns/LiveWidgetExtension.appex\n'
+        'test ! -e ./Payload/LiveContainer.app/Frameworks/SideStoreApp.framework/PlugIns/AltWidgetExtension.appex\n'
+        '# package\n')
     text = replace_once(text, 'rm -r .zsign_cache', '# No zsign cache exists in the fresh packaging workspace.')
     text = replace_once(text, 'find payloadlc/Payload -type d -name "_CodeSignature" -exec rm -r {} +',
                         'find Payload -type d -name "_CodeSignature" -prune -exec rm -r {} +')
@@ -314,21 +324,11 @@ def verify(path, side_product=None):
     # Hard-fail if upstream starts shipping the widget again under another path.
     with zipfile.ZipFile(path) as package:
         names = package.namelist()
-        native_island = os.environ.get("NRG_V58_NATIVE_ISLAND") == "1"
+        # SCARLET_V107_WIDGETLESS_RELEASE_ONLY: inspect the actual archive,
+        # never let an environment flag re-enable an abandoned extension.
         forbidden_widget = [name for name in names if
                             '/AltWidgetExtension.appex/' in name or
-                            (not native_island and '/LiveWidgetExtension.appex/' in name)]
-        if native_island:
-            widget = base + '/PlugIns/LiveWidgetExtension.appex'
-            if widget not in bundles or not bundles[widget]['executable_present']:
-                raise ValueError("V58 native Dynamic Island widget is not packaged")
-            wi = bundles[widget]['info']
-            if wi.get('CFBundleIdentifier') != 'com.kdt.livecontainer.LiveWidget':
-                raise ValueError("V58 widget bundle ID mismatch")
-            if wi.get('NSExtension', {}).get('NSExtensionPointIdentifier') != 'com.apple.widgetkit-extension':
-                raise ValueError("V58 widget is not a WidgetKit extension")
-            if host.get('NSSupportsLiveActivities') is not True:
-                raise ValueError("V58 host does not enable Live Activities")
+                            '/LiveWidgetExtension.appex/' in name]
     if forbidden_widget:
         raise ValueError('Widget extension leaked into packaged IPA: ' + forbidden_widget[0])
     live_process_path = base + '/PlugIns/LiveProcess.appex'
@@ -363,6 +363,7 @@ def verify(path, side_product=None):
         verify_auth_answer_transport(host_code, executable, support_code)
         assert b'Import Pairing File' in host_code, 'Unified pairing setup missing'
         verify_v105_direct_morph_binary(bootstrap_code)
+        verify_v107_virtual_guest_control_binary(host_code)
         assert b'finishRefresh:runID:verification:' in support_code, 'XPC result receiver missing'
         assert b'refreshAllAppsWithIdentifier:mangledTypeName:refreshRunID:' in support_code, 'XPC run identity missing'
         assert b'RESULT_RECEIVED' in support_code, 'Host result persistence missing'
@@ -416,9 +417,10 @@ def verify(path, side_product=None):
     result['semantic_verification'] = 'passed; device signing and runtime unverified'
     result['iloader_special_app'] = 'SideStoreLc'
     # V66: main-app AppIntent replaces Launcher, retaining the Island widget.
-    result['registration_targets_before_reuse'] = 4
+    # Zero additional LiveWidget registrations under every supported build.
     if os.environ.get('NRG_V58_NATIVE_ISLAND') == '1':
-        result['registration_targets_before_reuse'] = 5
+        raise ValueError('V107 obsolete native-Island registration is unsupported')
+    result['registration_targets_before_reuse'] = 4
     if os.environ.get('NRG_V66_4IDS') == '1':
         result['registration_targets_before_reuse'] -= 1
     if os.environ.get('NRG_V67_3IDS') == '1':
@@ -428,15 +430,14 @@ def verify(path, side_product=None):
         document_types = host.get('CFBundleDocumentTypes', [])
         assert any('public.item' in entry.get('LSItemContentTypes', []) for entry in document_types)
         assert host.get('LSSupportsOpeningDocumentsInPlace') is True
-        assert result['registration_targets_before_reuse'] == (3 if os.environ.get('NRG_V58_NATIVE_ISLAND') == '1' else 2)
+        assert result['registration_targets_before_reuse'] == 2
         with zipfile.ZipFile(path) as package:
             plug_infos = [x for x in package.namelist() if '/PlugIns/' in x and x.endswith('.appex/Info.plist')]
             expected = {'com.kdt.livecontainer.LiveProcess'}
-            if os.environ.get('NRG_V58_NATIVE_ISLAND') == '1': expected.add('com.kdt.livecontainer.LiveWidget')
             found = {plistlib.loads(package.read(x))['CFBundleIdentifier'] for x in plug_infos}
             assert found == expected, ('Unexpected App ID', found, expected)
     elif os.environ.get('NRG_V66_4IDS') == '1':
-        assert result['registration_targets_before_reuse'] == (4 if os.environ.get('NRG_V58_NATIVE_ISLAND') == '1' else 3)
+        assert result['registration_targets_before_reuse'] == 3
         with zipfile.ZipFile(path) as package:
             root_metadata = json.loads(package.read(base + '/Metadata.appintents/extract.actionsdata'))
         assert 'ScarletCrystalLaunchAppIntent' in root_metadata['actions'], 'Host shortcut missing'

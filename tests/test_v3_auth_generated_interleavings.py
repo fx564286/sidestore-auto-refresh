@@ -334,7 +334,7 @@ def declarations_for_harness(auth: str, sign_in: str, coalescer: str) -> str:
 def source_checkout() -> Path:
     return Path(os.environ.get("EMBEDDED_SIDESTORE_TEST_SOURCE") or
                 os.environ.get("SIDESTORE_TEST_SOURCE") or
-                str(ROOT.parents[2] / "v3-side-upstream"))
+                str(ROOT / "work/EmbeddedSideStore"))
 
 
 class GeneratedAuthInterleavingTests(unittest.TestCase):

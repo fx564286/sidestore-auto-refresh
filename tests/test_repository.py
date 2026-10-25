@@ -124,7 +124,7 @@ class RepositoryTests(unittest.TestCase):
                     "patch_v28_refresh_regression.py", "patch_v28_guest_lifecycle.py", "patch_v28_pip_audio.py",
                     "patch_v31_adi_45061.py", "patch_v32_jitless_diagnosis.py",
                     "patch_v33_sidesign_memory.py", "patch_v33_sidestore_memory.py",
-                    "patch_v34_display_profiles.py", "patch_v35_native_guest_default.py", "patch_v36_multitask_chrome.py", "patch_v37_window_overflow.py", "patch_v38_maximized_safe_area.py", "patch_v39_dock_app_switch_only.py", "patch_v41_remove_floating_return.py", "patch_v43_sidejit_dns_guard.py", "patch_v45_builtin_settings.py", "patch_v46_keyboard_window_scope.py", "patch_v46_jit_recovery.py", "patch_v46_jit_host_bundle.py",
+                    "patch_v34_display_profiles.py", "patch_v36_multitask_chrome.py", "patch_v37_window_overflow.py", "patch_v38_maximized_safe_area.py", "patch_v39_dock_app_switch_only.py", "patch_v41_remove_floating_return.py", "patch_v43_sidejit_dns_guard.py", "patch_v45_builtin_settings.py", "patch_v46_keyboard_window_scope.py", "patch_v46_jit_recovery.py", "patch_v46_jit_host_bundle.py",
                     "patch_v47_resume.py", "patch_v47_jit_transport.py", "patch_v47_portal_budget.py", "patch_v48_madeira_runtime_probe.py", "patch_v49_auto_jit.py", "patch_v50_stikdebug_protocol.py",
                     "patch_v55_rotation_geometry.py", "patch_v55_memory_probe.py", "patch_v56_notch_ui.py",
                     "patch_v57_ota_identity.py", "patch_v58_fullscreen.py",
@@ -149,7 +149,8 @@ class RepositoryTests(unittest.TestCase):
                     "patch_v103_single_guest_control.py",
                     "patch_v104_guest_scene_reactivation.py",
                     "patch_v105_delete_legacy_return.py",
-                    "audit_v102_final_source.py",
+                    "audit_v102_final_source.py", "audit_v107_active_guest_ui.py",
+                    "patch_v107_retire_dead_return_settings.py",
                     "verify_v88_canonical_guest_sources.py"},
         )
 

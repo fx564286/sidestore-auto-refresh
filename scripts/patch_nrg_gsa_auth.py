@@ -37,12 +37,16 @@ def patch_side_sign(src: str) -> str:
 
     # A private helper used for GrandSlam only; the original anisette state
     # and its identity remain intact for provisioning and developer operations.
-    helper = '''    // NRG_GSA_RECOVERY_V1: match proven Windows ADI identity across SRP and 2FA.
-    // Do not mutate Anisette machine IDs or re-provision existing identities.
+    helper = '''    // NRG_GSA_RECOVERY_V1: keep the established Windows/iTunes workaround.
+    // SCARLET_V106_MAC_ANISETTE_IDENTITY: with a Mac Anisette provider, send
+    // its own Mac AuthKit claim on SRP and 2FA rather than falsely claiming
+    // Windows. Never mutate ADI machine IDs, credentials, or OTP sessions.
     private func nrgGrandSlamClientInfo(_ original: String) -> String {
-        // NRG_GSA_80045_IDENTITY_V2: server reports a macOS/akd identity;
-        // keep its Anisette telemetry unchanged, advertise Android AuthKit
-        // consistently for both initial SRP and 2FA GrandSlam traffic.
+        if (original.contains("<Mac") || original.contains("<iMac"))
+            && original.contains("<macOS;") && original.contains("<com.apple.AuthKit/") {
+            return original
+        }
+        // Legacy Windows/iTunes fallback remains byte-for-byte unchanged.
         return "<PC> <Windows;6.2(0,0);9200> <com.apple.AuthKit/1 (com.apple.iTunes/12.12.4.1)>"
     }
 

@@ -16,7 +16,7 @@ import zipfile
 FEATURE_ROLES = {
     'guest_app_management': (),
     'independent_guest_process': ('LiveProcess',),
-    'native_dynamic_island': ('LiveWidget',),
+    'native_dynamic_island': (),  # retired in V107; explicit true is rejected
     'native_share_sheet_receiver': ('ShareExtension',),
     'app_shortcuts': (),
     'files_open_in': (),
@@ -24,7 +24,7 @@ FEATURE_ROLES = {
     'jit_orchestration': (),
     'custom_api_modules': (),
 }
-ROLE_ORDER = ('LiveProcess', 'LiveWidget', 'ShareExtension')
+ROLE_ORDER = ('LiveProcess', 'ShareExtension')
 BASE = 'com.kdt.livecontainer'
 
 
@@ -36,6 +36,8 @@ def select(features: dict) -> dict:
         raise ValueError('Unmapped Apple API / extension requirements: ' + ', '.join(sorted(unknown)))
     if any(type(flag) is not bool for flag in features.values()):
         raise ValueError('Every feature flag must be a boolean')
+    if features.get('native_dynamic_island', False):
+        raise ValueError('V107 native Dynamic Island WidgetKit path retired; no unsupported LiveWidget registration')
     required = {role for feature, enabled in features.items() if enabled
                 for role in FEATURE_ROLES[feature]}
     roles = ['host'] + [role for role in ROLE_ORDER if role in required]
@@ -73,8 +75,8 @@ def shell_environment(plan: dict) -> str:
     if not plan['build_supported_by_current_v67_source']:
         raise ValueError('Requested reduced layout requires an unimplemented guest source redesign')
     required = set(plan['installable_roles'])
-    # V72: package LiveWidget only if explicitly requested by a different policy.
-    return ('export NRG_V58_NATIVE_ISLAND=' + ('1' if 'LiveWidget' in required else '0') + '\n'
+    # V107: there is no alternate Widget packaging route in this product.
+    return ('export NRG_V58_NATIVE_ISLAND=0\n'
             'export NRG_V66_4IDS=1\n'
             'export NRG_V67_3IDS=' + ('0' if 'ShareExtension' in required else '1') + '\n')
 
@@ -93,14 +95,12 @@ def verify_archive(path: Path, plan: dict) -> dict:
         required = set(plan['expected_unsigned_bundle_ids'][1:])
         if found != required or len(infos) != len(required):
             raise ValueError(f'IPA bundle mismatch: expected {sorted(required)} got {sorted(found)}')
-        if plan['features'].get('native_dynamic_island') and host.get('NSSupportsLiveActivities') is not True:
-            raise ValueError('Native Live Activities disabled in host')
         if plan['features'].get('files_open_in'):
             types = host.get('CFBundleDocumentTypes', [])
             if not any('public.item' in entry.get('LSItemContentTypes', []) for entry in types):
                 raise ValueError('File Open In capability lost')
-        if not plan['features'].get('native_dynamic_island') and (BASE + '.LiveWidget' in found or host.get('NSSupportsLiveActivities')):
-            raise ValueError('Unrequested Live Activity capability remains in IPA')
+        if BASE + '.LiveWidget' in found or host.get('NSSupportsLiveActivities'):
+            raise ValueError('Retired Live Activity / WidgetKit capability remains in IPA')
         if not plan['features'].get('native_share_sheet_receiver') and BASE + '.ShareExtension' in found:
             raise ValueError('Unrequested ShareExtension is installed')
     return {'archive': str(path), 'verified_app_ids': len(required) + 1,

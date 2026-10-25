@@ -30,20 +30,19 @@ class V67ThreeAppIDsTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, 'documents-in-place'):
                 preflight(Path(d))
 
-    def test_packager_removes_share_and_launcher_only_under_v67(self):
+    def test_retired_native_widget_v67_path_is_rejected_but_host_shortcuts_still_work(self):
         target = os.getenv('LIVE_CONTAINER_TEST_SOURCE')
         if not target:
             self.skipTest('Needs upstream source')
         original = (Path(target) / '.github' / 'build_github.sh').read_text()
-        with patch.dict(os.environ, {'NRG_V66_4IDS': '1','NRG_V67_3IDS': '1','NRG_V58_NATIVE_ISLAND': '1'}):
+        with patch.dict(os.environ, {'NRG_V66_4IDS': '1','NRG_V67_3IDS': '1','NRG_V58_NATIVE_ISLAND': '1'}, clear=True):
+            with self.assertRaisesRegex(ValueError, "obsolete native-Island"):
+                adapt(original)
+        with patch.dict(os.environ, {'NRG_V66_4IDS': '1','NRG_V58_NATIVE_ISLAND': '0'}, clear=True):
             output = adapt(original)
-        self.assertIn('rm -rf ./Payload/LiveContainer.app/PlugIns/ShareExtension.appex',output)
         self.assertIn('rm -rf ./Payload/LiveContainer.app/PlugIns/LaunchAppExtension.appex',output)
-        self.assertIn('LiveWidgetExtension.appex', output)
+        self.assertNotIn('rm -rf ./Payload/LiveContainer.app/PlugIns/ShareExtension.appex',output)
         self.assertNotIn('rm -rf ./Payload/LiveContainer.app/PlugIns/LiveProcess.appex',output)
-        with patch.dict(os.environ, {'NRG_V66_4IDS': '1','NRG_V58_NATIVE_ISLAND': '1'}, clear=True):
-            baseline = adapt(original)
-        self.assertNotIn('rm -rf ./Payload/LiveContainer.app/PlugIns/ShareExtension.appex',baseline)
 
     def test_v67_rejects_missing_native_island_or_app_intent(self):
         for setting in [{'NRG_V67_3IDS': '1','NRG_V66_4IDS': '1'},
@@ -62,7 +61,7 @@ class V67ThreeAppIDsTests(unittest.TestCase):
             self.assertIn("('LiveProcess','LiveWidget')", workflow)
         self.assertIn("assert found==expected,(found,expected)", workflow)
         packager = (ROOT/'scripts/package_livecontainer_combined.py').read_text()
-        self.assertIn("assert result['registration_targets_before_reuse'] == (3 if os.environ.get('NRG_V58_NATIVE_ISLAND') == '1' else 2)",packager)
+        self.assertIn("assert result['registration_targets_before_reuse'] == 2",packager)
         self.assertIn("'public.item'", packager)
 
     def test_upstream_watch_never_floats_build_refs(self):

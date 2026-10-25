@@ -153,9 +153,9 @@ class V58PinnedTests(unittest.TestCase):
     def test_default_widgetless_packer_retained(self):
         packer=(ROOT/"scripts/package_livecontainer_combined.py").read_text()
         self.assertIn('if os.environ.get("NRG_V58_NATIVE_ISLAND") == "1":',packer)
-        self.assertIn("result['registration_targets_before_reuse'] = 5",packer)
+        self.assertIn('raise ValueError("V107 rejects obsolete native-Island widget packaging")',packer)
         self.assertIn("result['registration_targets_before_reuse'] = 4",packer)
-        self.assertIn("NSExtensionPointIdentifier",packer)
+        self.assertIn("SCARLET_V107_WIDGETLESS_RELEASE_ONLY",packer)
 
 if __name__=="__main__":
     unittest.main()

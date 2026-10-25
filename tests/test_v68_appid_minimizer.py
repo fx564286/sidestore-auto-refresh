@@ -32,12 +32,13 @@ class AdaptiveMinimalAppIDTests(unittest.TestCase):
         self.assertTrue(any('not identical' in x for x in plan['limitations']))
 
     def test_two_and_one_ids_are_not_falsely_reported_as_buildable(self):
-        for widgets, guests, expected in ((True,False,2),(False,False,1)):
-            plan = select({'native_dynamic_island': widgets, 'independent_guest_process': guests})
-            self.assertEqual(expected, plan['minimum_planned_app_ids'])
-            self.assertFalse(plan['build_supported_by_current_v67_source'])
-            with self.assertRaisesRegex(ValueError,'unimplemented'):
-                shell_environment(plan)
+        with self.assertRaisesRegex(ValueError, 'native Dynamic Island WidgetKit path retired'):
+            select({'native_dynamic_island': True, 'independent_guest_process': False})
+        plan = select({'native_dynamic_island': False, 'independent_guest_process': False})
+        self.assertEqual(1, plan['minimum_planned_app_ids'])
+        self.assertFalse(plan['build_supported_by_current_v67_source'])
+        with self.assertRaisesRegex(ValueError, 'unimplemented'):
+            shell_environment(plan)
 
     def test_unmapped_native_api_fails_closed(self):
         with self.assertRaisesRegex(ValueError, 'Unmapped Apple API'):
@@ -71,7 +72,7 @@ class AdaptiveMinimalAppIDTests(unittest.TestCase):
             self.sample_ipa(archive, ['LiveProcess'], activity=False)
             self.assertEqual(2, verify_archive(archive, compact)['verified_app_ids'])
 
-    def test_widget_forbidden_in_v72_and_native_still_valid_when_opted_in(self):
+    def test_widget_forbidden_and_previous_native_opt_in_rejected(self):
         user_plan=load_policy(ROOT / 'config/v68_required_features.json')
         with tempfile.TemporaryDirectory() as tmp:
             target=Path(tmp)/'sample.ipa'
@@ -80,9 +81,8 @@ class AdaptiveMinimalAppIDTests(unittest.TestCase):
                 verify_archive(target,user_plan)
             native=user_plan['features'].copy()
             native['native_dynamic_island']=True
-            old_plan=select(native)
-            self.assertEqual(4,verify_archive(target,old_plan)['verified_app_ids'])
-            self.assertIn('NRG_V58_NATIVE_ISLAND=1',shell_environment(old_plan))
+            with self.assertRaisesRegex(ValueError, 'native Dynamic Island WidgetKit path retired'):
+                select(native)
 
     def test_no_fixed_numeric_cap_in_current_feature_policy(self):
         registry = json.loads((ROOT / 'config/v67_api_modules.json').read_text())

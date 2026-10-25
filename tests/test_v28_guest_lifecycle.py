@@ -7,7 +7,7 @@ import tempfile
 import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
-SOURCE = Path(os.environ.get("LIVE_CONTAINER_TEST_SOURCE", "/shared/nrg-v27-upstream-livecontainer"))
+SOURCE = Path(os.environ.get("LIVE_CONTAINER_TEST_SOURCE", str(ROOT / "work/LiveContainer")))
 
 def load_patch():
     path = ROOT / "scripts" / "patch_v28_guest_lifecycle.py"

@@ -55,19 +55,20 @@ class V66FourAppIdsTests(unittest.TestCase):
             self.assertEqual(p.read_text().count("NRG_V66_FOUR_IDS"), 1)
             self.assertTrue((root / "LiveContainer" / self.script.NAME).is_file())
 
-    def test_packer_keeps_native_island_and_removes_launcher(self):
+    def test_packer_preserves_host_shortcuts_without_retired_native_widget(self):
         upstream = os.environ.get("LIVE_CONTAINER_TEST_SOURCE")
         if not upstream or not Path(upstream, ".github/build_github.sh").is_file():
             self.skipTest("Pinned upstream packaging script required")
         content = Path(upstream, ".github/build_github.sh").read_text()
-        with patch.dict(os.environ, {"NRG_V58_NATIVE_ISLAND": "1", "NRG_V66_4IDS": "1"}):
+        with patch.dict(os.environ, {"NRG_V58_NATIVE_ISLAND": "0", "NRG_V66_4IDS": "1"}):
             output = self.packager.adapt(content)
         self.assertIn("rm -rf ./Payload/LiveContainer.app/PlugIns/LaunchAppExtension.appex", output)
         self.assertIn("--merge-host-intents", output)
-        self.assertIn("LiveWidgetExtension.appex", output)
+        self.assertIn("test ! -e ./Payload/LiveContainer.app/PlugIns/LiveWidgetExtension.appex", output)
+        self.assertNotIn("mv ./Payload/LiveContainer.app/Frameworks/SideStoreApp.framework/PlugIns/AltWidgetExtension.appex", output)
         self.assertIn("'PlugIns/ShareExtension.appex': 'ShareExtension/ShareExtension.entitlements'",
                       (ROOT / 'scripts/package_livecontainer_combined.py').read_text())
-        with patch.dict(os.environ, {"NRG_V58_NATIVE_ISLAND": "1"}, clear=True):
+        with patch.dict(os.environ, {"NRG_V58_NATIVE_ISLAND": "0"}, clear=True):
             baseline = self.packager.adapt(content)
         self.assertNotIn("--merge-host-intents", baseline)
         self.assertNotIn("rm -rf ./Payload/LiveContainer.app/PlugIns/LaunchAppExtension.appex", baseline)

@@ -79,6 +79,13 @@ class CombinedPackagingTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "declares no packaged App Group fallback"):
                 share_packaged_app_groups(app)
 
+    def test_removed_native_widget_mode_is_rejected_not_repackaged(self):
+        import os
+        from unittest.mock import patch
+        with patch.dict(os.environ, {"NRG_V58_NATIVE_ISLAND": "1"}):
+            with self.assertRaisesRegex(ValueError, "obsolete native-Island"):
+                adapt((Path(__file__).resolve().parents[1] / "work/LiveContainer/.github/build_github.sh").read_text())
+
     def test_widgetless_registration_and_entitlement_policy(self):
         import inspect
         import package_livecontainer_combined as pkg
