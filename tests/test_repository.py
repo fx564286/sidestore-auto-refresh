@@ -143,6 +143,10 @@ class RepositoryTests(unittest.TestCase):
                     "patch_v84_asset_catalog.py", "patch_v86_verified_dead_guest_reconcile.py",
                     "patch_v97_retained_guest_host_rebind.py", "patch_v98_gsa_80046_trace.py",
                     "patch_v100_morph_guest_switcher.py", "patch_v100_native_guest_morph.py",
+                    "patch_v102_guest_recent_coherence.py",
+                    "patch_v102_unified_window_actions.py",
+                    "patch_v102_retire_native_gestures.py",
+                    "audit_v102_final_source.py",
                     "verify_v88_canonical_guest_sources.py"},
         )
 
