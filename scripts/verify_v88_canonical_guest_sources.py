@@ -78,8 +78,11 @@ def check_file(root: Path, relative: Path, content: str, problems: list[str]):
         if "SCARLET_V102_NATIVE_GESTURE_CLEANUP" in content:
             for token in ("lcV102NativeHoldActions:", "lcV102CollapseFloatingButton",
                           "nrgV102PresentWindowActionsFrom:self"):
-                if content.count(token) != 1:
-                    problems.append(f"{relative}: V102 native action missing/duplicate: {token}")
+                # A method definition and its gesture @selector each
+                # reference the same canonical hold handler.
+                expected = 2 if token == "lcV102NativeHoldActions:" else 1
+                if content.count(token) != expected:
+                    problems.append(f"{relative}: V102 action {token!r} count={content.count(token)} wanted={expected}")")
             for retired in ("v76Hold.enabled = NO", "lcV76HoldToSwitch:",
                             "self.lcReturnControl.button.menu = [UIMenu"):
                 if retired in content:
