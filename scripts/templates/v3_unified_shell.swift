@@ -6379,7 +6379,12 @@ struct V3SignInView: View {
                 HStack {
                     Text("Status")
                     Spacer()
-                    Text(statusText).foregroundColor(.secondary)
+                    // SCARLET_V99_PROMPT_STATUS: credentials are one active
+                    // prompt. The old failure is accessible only on expansion.
+                    Text(auth.state == "awaitingPrompt" &&
+                         (auth.prompt?["kind"] as? String) == "credentials"
+                         ? "Enter your Apple ID" : statusText)
+                        .foregroundColor(.secondary)
                 }
                 if auth.isSignedIn {
                     HStack {
@@ -6624,12 +6629,24 @@ struct V3SignInView: View {
                    let previousFailure = auth.previousFailure {
                     Section {
                         VStack(alignment: .leading, spacing: 8) {
-                            Text(V3AuthStore.failureMessage(from: previousFailure))
-                                .font(.footnote)
-                                .foregroundColor(.orange)
-                            Text(V3AuthStore.failureDetails(from: previousFailure))
-                                .font(.caption)
-                                .foregroundColor(.secondary)
+                            // SCARLET_V99_SINGLE_SIGNIN: the failure belongs
+                            // to the previous attempt, not the active prompt.
+                            // Preserve it for opt-in diagnostics, not as a
+                            // second visible sign-in error above credentials.
+                            DisclosureGroup("Previous sign-in attempt") {
+                                Text(V3AuthStore.failureMessage(from: previousFailure))
+                                    .font(.footnote)
+                                    .foregroundColor(.orange)
+                                Text(V3AuthStore.failureDetails(from: previousFailure))
+                                    .font(.caption2)
+                                    .foregroundColor(.secondary)
+                                    .textSelection(.enabled)
+                                Button("Copy previous diagnostics", systemImage: "doc.on.doc") {
+                                    UIPasteboard.general.string = V3AuthStore.failureDetails(from: previousFailure)
+                                }
+                            }
+                            .font(.footnote)
+                            .foregroundColor(.secondary)
                         }
                     }
                 }
