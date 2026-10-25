@@ -85,17 +85,28 @@ def transform(source: str) -> str:
         "    @objc public func minimizeAllWindows(",
         '''    // SCARLET_V111_CANONICAL_GUEST_SWITCH_OWNER: one registry, one picker.
     @objc public func addRunningAppWithInfo(_ appInfo: LCAppInfo?, appUUID: String, view: UIView?) {
+        // Registration must precede any same-turn switch/termination event.
+        // A queued stale registration could otherwise resurrect a dead app.
+        if !Thread.isMainThread {
+            DispatchQueue.main.async { [weak self] in
+                self?.addRunningAppWithInfo(appInfo, appUUID: appUUID, view: view)
+            }
+            return
+        }
         guard isDockEnabled(), !appUUID.isEmpty else { return }
         let appName = appInfo?.displayName() ?? "Unknown App"
-        let model = DockAppModel(appName: appName, appUUID: appUUID, appInfo: appInfo, view: view)
-        DispatchQueue.main.async {
-            if let index = self.apps.firstIndex(where: { $0.appUUID == appUUID }) {
-                self.apps[index] = model
-            } else {
-                self.apps.append(model)
+        if let index = apps.firstIndex(where: { $0.appUUID == appUUID }) {
+            // A background re-registration without a view must not replace
+            // an existing retained UIKit scene with a nil pointer.
+            if view != nil || apps[index].view == nil {
+                apps[index] = DockAppModel(appName: appName, appUUID: appUUID,
+                                           appInfo: appInfo, view: view)
             }
-            self.nrgV102NoteFocus(appUUID)
+        } else {
+            apps.append(DockAppModel(appName: appName, appUUID: appUUID,
+                                     appInfo: appInfo, view: view))
         }
+        nrgV102NoteFocus(appUUID)
     }
 
 ''')
