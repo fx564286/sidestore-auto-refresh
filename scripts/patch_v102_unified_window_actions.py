@@ -121,6 +121,9 @@ def patch_window(s):
     if not all(x in legacy for x in ('minimizeWindow','maximizeWindow','closeWindow')):
         raise ValueError("Unexpected V37 actions; do not remove")
     s=s[:a]+s[b:]
+    if s.count('    __weak typeof(self) weakOverflowSelf = self;') != 1:
+        raise ValueError('old V37 weak menu capture not found')
+    s=s.replace('    __weak typeof(self) weakOverflowSelf = self;', '', 1)
     s=one(s, '    overflow.showsMenuAsPrimaryAction = NO;',
           '''    // SCARLET_V102_UNIFIED_ACTION_SURFACE: no native UIMenu competing
     // with the custom morph on long-hold. Existing actions move into the
