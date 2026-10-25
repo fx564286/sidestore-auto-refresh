@@ -147,6 +147,7 @@ class RepositoryTests(unittest.TestCase):
                     "patch_v102_unified_window_actions.py",
                     "patch_v102_retire_native_gestures.py",
                     "patch_v103_single_guest_control.py",
+                    "patch_v104_guest_scene_reactivation.py",
                     "audit_v102_final_source.py",
                     "verify_v88_canonical_guest_sources.py"},
         )
