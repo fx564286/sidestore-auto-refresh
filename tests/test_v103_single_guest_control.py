@@ -30,6 +30,9 @@ def generated():
     return;
     if (!self.lcReturnControl) {
     }
+    [self.button setImage:[UIImage systemImageNamed:@"arrow.uturn.backward.circle.fill"] forState:UIControlStateNormal];
+    [self.button setImage:[UIImage systemImageNamed:self.collapsed ? (self.position.x < 0.5 ? @"chevron.compact.right" : @"chevron.compact.left") : @"arrow.uturn.backward.circle.fill"] forState:UIControlStateNormal];
+    self.button.tintColor = customColors ? LCGuestReturnColor(@"LCGuestReturnTintRGB", 0x007AFF) : nil;
     self.button.accessibilityLabel = @"Return to LiveContainer";
     self.button.accessibilityHint = @"Minimizes this guest without closing it";
     self.button.accessibilityLabel = self.collapsed ? @"Show Return to LiveContainer" : @"Return to LiveContainer";
@@ -61,6 +64,9 @@ class Tests(unittest.TestCase):
         self.assertIn('if (!self.lcReturnControl)',o)
         self.assertIn('restored_and_dispatched=1',o)
         self.assertNotIn('CONTROL_RESTORED");\n        return;',o)
+        self.assertIn('systemImageNamed:@"ellipsis"',o)
+        self.assertIn(' : @"ellipsis"] forState:UIControlStateNormal];',o)
+        self.assertIn(' : UIColor.labelColor;',o)
         self.assertNotIn('if ([NSUserDefaults.lcSharedDefaults boolForKey:@"LCGuestReturnStartsCollapsed"]) [self collapse];\n        self.action();',o)
 
     def test_virtual_button_has_unique_active_identifier(self):
