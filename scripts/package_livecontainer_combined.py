@@ -71,6 +71,28 @@ def verify_shared_secret_handoff_group(host_groups, live_process_groups):
     return shared[0]
 
 
+def verify_guest_return_control_binary_markers(host_code, bootstrap_code):
+    """Check the shipped Return control without demanding retired V41/V103 UI.
+
+    Each framework still contains the collapsible control. Legacy pre-V103
+    builds logged CONTROL_RESTORED, while V103 intentionally removes the
+    extra collapsed-state tap and instead logs restored_and_dispatched=1.
+    Insisting on CONTROL_RESTORED in both binaries rejects valid builds.
+    The final-source audit separately enforces exactly one control owner.
+    """
+    for name, binary in (("host", host_code), ("bootstrap", bootstrap_code)):
+        if b"CONTROL_COLLAPSED" not in binary:
+            raise ValueError(f"{name}: collapsible guest control missing")
+    legacy = all(b"CONTROL_RESTORED" in b for b in (host_code, bootstrap_code))
+    native_v103 = any(
+        b"[SCARLET_V103_CONTROL] restored_and_dispatched=1" in b
+        for b in (host_code, bootstrap_code)
+    )
+    if not (legacy or native_v103):
+        raise ValueError("Restorable guest control missing; neither legacy nor V103 marker found")
+    return "v103-single-control" if native_v103 else "legacy-restored"
+
+
 def replace_once(text, old, new):
     if text.count(old) != 1:
         raise ValueError(f'Upstream packaging anchor changed: {old}')
@@ -351,8 +373,10 @@ def verify(path, side_product=None):
         verify_host_intent_runtime_symbols(support_code)
         verify_auth_answer_transport(host_code, executable, support_code)
         assert b'Import Pairing File' in host_code, 'Unified pairing setup missing'
-        for code in (host_code, bootstrap_code):
-            assert b'CONTROL_COLLAPSED' in code and b'CONTROL_RESTORED' in code, 'Restorable Return control missing'
+        # V103 replaces the two-tap legacy restore with a direct switch.
+        # Do not require the obsolete CONTROL_RESTORED marker in a valid
+        # V103 single-owner control; reject missing collapse or restore code.
+        verify_guest_return_control_binary_markers(host_code, bootstrap_code)
         assert b'finishRefresh:runID:verification:' in support_code, 'XPC result receiver missing'
         assert b'refreshAllAppsWithIdentifier:mangledTypeName:refreshRunID:' in support_code, 'XPC run identity missing'
         assert b'RESULT_RECEIVED' in support_code, 'Host result persistence missing'
