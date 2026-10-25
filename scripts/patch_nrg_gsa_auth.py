@@ -38,18 +38,26 @@ def patch_side_sign(src: str) -> str:
     # A private helper used for GrandSlam only; the original anisette state
     # and its identity remain intact for provisioning and developer operations.
     helper = '''    // NRG_GSA_RECOVERY_V1: keep the established Windows/iTunes workaround.
-    // SCARLET_V106_MAC_ANISETTE_IDENTITY: with a Mac Anisette provider, send
-    // its own Mac AuthKit claim on SRP and 2FA rather than falsely claiming
-    // Windows. Never mutate ADI machine IDs, credentials, or OTP sessions.
+    // SCARLET_V109_GSA_PROFILE_PRESERVATION: respect explicit Android
+    // or Windows Anisette AuthKit identities. Apple -80045 can reject a
+    // virtualized Mac provider. Do not rewrite a chosen Android identity
+    // back to Windows. No ADI, credentials, or OTP mutation/replay.
     private func nrgGrandSlamClientInfo(_ original: String) -> String {
-        if (original.contains("<Mac") || original.contains("<iMac"))
-            && original.contains("<macOS;") && original.contains("<com.apple.AuthKit/") {
+        let hasAuthKit = original.contains("<com.apple.AuthKit/")
+        if hasAuthKit && original.contains("<Android;") {
             return original
         }
-        // Legacy Windows/iTunes fallback remains byte-for-byte unchanged.
+        if hasAuthKit && original.contains("<Windows;") {
+            return original
+        }
+        if hasAuthKit && (original.contains("<Mac") || original.contains("<iMac"))
+            && (original.contains("<macOS;") || original.contains("<Mac OS X;")) {
+            return original
+        }
+        // Keep the previously validated Windows/iTunes fallback for unknown
+        // source profiles only. Never auto-retry Apple's rejected request.
         return "<PC> <Windows;6.2(0,0);9200> <com.apple.AuthKit/1 (com.apple.iTunes/12.12.4.1)>"
     }
-
 '''
     src = one(src, 'public extension DeveloperPortal {\n', 'public extension DeveloperPortal {\n\n' + helper, 'GSA scoped client-info helper')
     src = one(src,
