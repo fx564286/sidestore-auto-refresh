@@ -82,6 +82,30 @@ def audit(host:Path,store:Path|None=None):
    if token not in s: problems.append(f'{rel}: required active source missing {token}')
   for token in rules['forbidden']:
    if token in s: problems.append(f'{rel}: obsolete implementation retained {token}')
+ # V103: ensure ownership is mode-exclusive in the FINAL compiled files,
+ # rather than accepting dead V41 early returns or delayed switch callbacks.
+ native_text=(host/NATIVE).read_text(encoding='utf-8') if (host/NATIVE).is_file() else ''
+ virtual_text=(host/WINDOW).read_text(encoding='utf-8') if (host/WINDOW).is_file() else ''
+ dock_text=(host/HOST).read_text(encoding='utf-8') if (host/HOST).is_file() else ''
+ if 'SCARLET_V103_SINGLE_CONTROL_OWNER' in native_text:
+  required={
+   NATIVE:('if (virtualWindowGuest)', 'scarlet.v103.native.guest.control',
+           'restored_and_dispatched=1'),
+   WINDOW:('SCARLET_V103_VIRTUAL_ONLY_CONTROL',
+           'scarlet.v103.virtual.guest.control'),
+   HOST:('SCARLET_V103_IMMEDIATE_GUEST_SWITCH','defer { dismissSelection() }')
+  }
+  for rel,tokens in required.items():
+   source=(host/rel).read_text(encoding='utf-8') if (host/rel).is_file() else ''
+   for t in tokens:
+    if t not in source:problems.append(f'{rel}: missing V103 mode-exclusive owner/switch {t}')
+  if 'return;\n    if (!self.lcReturnControl)' in native_text:
+   problems.append('V41 unconditional early return survived V103 Direct native guest path')
+  if 'item.addAction(UIAction { [weak self] _ in\n                collapse {' in dock_text:
+   problems.append('Guest switch still waits for close animation')
+ elif ('SCARLET_V103_IMMEDIATE_GUEST_SWITCH' in dock_text or
+       'SCARLET_V103_VIRTUAL_ONLY_CONTROL' in virtual_text):
+  problems.append('Partial V103 ownership migration; native controller missing')
  return {'status':'PASS' if not problems else 'FAIL',
          'scope':'all generated source languages, cross-file retired UI symbols, and four live UI owners',
          'trees':summary,'errors':problems}
