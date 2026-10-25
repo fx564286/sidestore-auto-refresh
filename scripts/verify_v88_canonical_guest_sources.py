@@ -64,6 +64,15 @@ def check_file(root: Path, relative: Path, content: str, problems: list[str]):
         if token in content:
             problems.append(f"{relative}: retired code still exists: {token}")
     if relative == SCENE:
+        if "SCARLET_V100_LIVEPROCESS_MORPH" in content:
+            for token in (
+                "v76Hold.enabled = NO",
+                "self.lcReturnControl.button.menu = [UIMenu menuWithChildren:",
+                "self.lcReturnControl.button.showsMenuAsPrimaryAction = NO;",
+                "self.lcReturnControl.action = ^{ [weakSelf lcV76ShowInstalledGuestSwitcher]; };",
+            ):
+                if content.count(token) != 1:
+                    problems.append(f"{relative}: V100 required native menu token count invalid: {token}")
         for forbidden in ('UIApplicationStateActive', 'ignored=presenter_has_no_window'):
             if forbidden in content:
                 problems.append(f"{relative}: stale V76 hold guard {forbidden}")
