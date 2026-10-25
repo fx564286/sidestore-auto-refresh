@@ -14,6 +14,7 @@ SHELL=Path('LiveContainerSwiftUI/Views/V3UnifiedShell.swift')
 ACTIVE_RULES={
  HOST:{
  'required':('SCARLET_V102_RECENT_FOCUS_CLOCK','SCARLET_V102_UNIFIED_ACTION_SURFACE',
+   'SCARLET_V108_NO_BLUE_COLLAPSED_DOCK',
    'nrgV102PresentWindowActionsFrom:sourceView:','guard isRunning else { return nil }',
    'nrgV102NoteFocus(uuid)','nrgV102FocusDates[folder]','dockView?.isHidden = true',
    'dockView?.isHidden = previousDockHidden'),
@@ -21,6 +22,9 @@ ACTIVE_RULES={
     'nrgV56RelayoutIsland','nrgV58RefreshNativeIsland',
     'UIAlertController(title: "홍수정 내부 앱 전환"',
     'lcReturnToHost', 'lcV102CollapseFloatingButton', '홍수정',
+    'struct CollapsedDockView: View', 'struct CollapseButtonView: View',
+    'CollapsedDockView(isHidden:', 'CollapseButtonView()',
+    'keyWindow.gestureRecognizers?.removeAll',
     '48 * 60 * 60'),
  },
  WINDOW:{

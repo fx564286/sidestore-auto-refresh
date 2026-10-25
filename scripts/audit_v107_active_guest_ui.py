@@ -36,6 +36,10 @@ def inspect(root: Path) -> dict:
         NATIVE: ("SCARLET_V105_LEGACY_RETURN_SOURCE_DELETED",),
         VIRTUAL: ("SCARLET_V103_VIRTUAL_ONLY_CONTROL", "scarlet.v103.virtual.guest.control"),
         DOCK: ("SCARLET_V103_IMMEDIATE_GUEST_SWITCH", "defer { dismissSelection() }",
+               "SCARLET_V108_NO_BLUE_COLLAPSED_DOCK",
+               "if dockManager.v3DockPresentationState.isReady &&",
+               "!dockManager.isDockHidden && !dockManager.apps.isEmpty",
+               "ForEach(dockManager.apps) { app in",
                "SCARLET_V107_LIVE_WINDOW_ACTIONS_ONLY",
                "guard controller is DecoratedAppSceneViewController",
                '("최소화", "minimizeWindow")',
@@ -69,6 +73,12 @@ def inspect(root: Path) -> dict:
         problems.append("Earlier floating/Island control code remains in final virtual host")
     if "NRGGuestActivityAttributes" in dock:
         problems.append("Removed ActivityKit widget route remains in final Dock")
+    for obsolete in ("struct CollapsedDockView: View", "struct CollapseButtonView: View",
+                     "CollapsedDockView(isHidden:", "CollapseButtonView()",
+                     'Image(systemName: "chevron.up")', "hideCollapsedDock",
+                     "keyWindow.gestureRecognizers?.removeAll"):
+        if obsolete in dock:
+            problems.append("V108 blue Dock implementation survived: " + obsolete)
     for stale in ("lcReturnToHost", "lcV102CollapseFloatingButton", "홍수정"):
         if stale in dock:
             problems.append("Retired Dock menu selector/branding survived: " + stale)

@@ -151,6 +151,7 @@ class RepositoryTests(unittest.TestCase):
                     "patch_v105_delete_legacy_return.py",
                     "audit_v102_final_source.py", "audit_v107_active_guest_ui.py",
                     "patch_v107_retire_dead_return_settings.py",
+                    "patch_v108_remove_blue_collapsed_dock.py",
                     "verify_v88_canonical_guest_sources.py"},
         )
 

@@ -31,6 +31,10 @@ class V107FinalUIAuditTests(unittest.TestCase):
             audit.VIRTUAL: "SCARLET_V103_VIRTUAL_ONLY_CONTROL scarlet.v103.virtual.guest.control",
             audit.DOCK: ('SCARLET_V103_IMMEDIATE_GUEST_SWITCH defer { dismissSelection() } '
                          'SCARLET_V107_LIVE_WINDOW_ACTIONS_ONLY '
+                         'SCARLET_V108_NO_BLUE_COLLAPSED_DOCK '
+                         'if dockManager.v3DockPresentationState.isReady && '
+                         '!dockManager.isDockHidden && !dockManager.apps.isEmpty '
+                         'ForEach(dockManager.apps) { app in '
                          'guard controller is DecoratedAppSceneViewController '
                          '("최소화", "minimizeWindow") '
                          '("최대화 / 복원", "maximizeWindow") '
@@ -78,7 +82,9 @@ class V107FinalUIAuditTests(unittest.TestCase):
             root = Path(tmp)
             self.fixtures(root)
             dock = root/audit.DOCK
-            for obsolete in ('lcReturnToHost', 'lcV102CollapseFloatingButton', '홍수정'):
+            for obsolete in ('lcReturnToHost', 'lcV102CollapseFloatingButton', '홍수정',
+                             'struct CollapsedDockView: View', 'struct CollapseButtonView: View',
+                             'CollapsedDockView(isHidden:', 'CollapseButtonView()'):
                 with self.subTest(obsolete=obsolete):
                     previous = dock.read_text()
                     dock.write_text(previous + obsolete)
