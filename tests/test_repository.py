@@ -153,6 +153,8 @@ class RepositoryTests(unittest.TestCase):
                     "patch_v107_retire_dead_return_settings.py",
                     "patch_v108_remove_blue_collapsed_dock.py",
                     "patch_v109_gsa_auth_guidance.py",
+                    "patch_v110_single_guest_dock.py",
+                    "patch_v110_gsa_http_phase.py",
                     "verify_v88_canonical_guest_sources.py"},
         )
 

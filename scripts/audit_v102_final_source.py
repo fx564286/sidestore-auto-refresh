@@ -15,6 +15,7 @@ ACTIVE_RULES={
  HOST:{
  'required':('SCARLET_V102_RECENT_FOCUS_CLOCK','SCARLET_V102_UNIFIED_ACTION_SURFACE',
    'SCARLET_V108_NO_BLUE_COLLAPSED_DOCK',
+   'SCARLET_V110_SINGLE_GUEST_DOCK_SUPPRESSED',
    'nrgV102PresentWindowActionsFrom:sourceView:','guard isRunning else { return nil }',
    'nrgV102NoteFocus(uuid)','nrgV102FocusDates[folder]','dockView?.isHidden = true',
    'dockView?.isHidden = previousDockHidden'),

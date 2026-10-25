@@ -2850,6 +2850,7 @@ class GsaPreparedTreeTests(unittest.TestCase):
                 "patch_nrg_gsa_http_v2.py": "NRG_GSA_HTTP_STATUS_V2",
                 "patch_nrg_gsa_client_v3.py": "NRG_GSA_CLIENT_IDENTITY_V3",
                 "patch_v98_gsa_80046_trace.py": "SCARLET_V98_GSA_PHASE_TRACE",
+                "patch_v110_gsa_http_phase.py": "SCARLET_V110_GSA_HTTP_PHASE",
             }
             if script.name in reviewed_nrg:
                 self.assertIn("DeveloperPortal/Authentication", content)
