@@ -106,6 +106,24 @@ def audit(host:Path,store:Path|None=None):
  elif ('SCARLET_V103_IMMEDIATE_GUEST_SWITCH' in dock_text or
        'SCARLET_V103_VIRTUAL_ONLY_CONTROL' in virtual_text):
   problems.append('Partial V103 ownership migration; native controller missing')
+ # V104: fail a partially deployed scene reactivation patch while leaving
+ # all guest/user data untouched. Presence checks only; no private-path reads.
+ v104_in_dock='SCARLET_V104_GUEST_PRESENT_BEFORE_FOREGROUND' in dock_text
+ v104_in_app='SCARLET_V104_SCENE_PROVENANCE' in native_text
+ if v104_in_dock != v104_in_app:
+  problems.append('V104 remote scene reactivation diagnostic was only half applied')
+ if v104_in_dock:
+  for token in ('bringViewToFront(view, in: window)',
+                'controller?.appSceneVC.view.layoutIfNeeded()',
+                '[SCARLET_V104_GUEST]'):
+   if token not in dock_text:problems.append(f'V104 missing retained scene {token}')
+  if dock_text.index('bringViewToFront(view, in: window)',dock_text.index('SCARLET_V104_GUEST_PRESENT_BEFORE_FOREGROUND')) > dock_text.index('controller?.lcResumeMinimizedGuest()',dock_text.index('SCARLET_V104_GUEST_PRESENT_BEFORE_FOREGROUND')):
+   problems.append('V104 returned to premature foreground activation')
+ if v104_in_app:
+  for token in ('[SCARLET_V104_CONTAINER]',
+                '[SCARLET_V104_SCENE]',
+                'if (!running || !presenterAvailable) return;'):
+   if token not in native_text:problems.append(f'V104 missing scene provenance {token}')
  return {'status':'PASS' if not problems else 'FAIL',
          'scope':'all generated source languages, cross-file retired UI symbols, and four live UI owners',
          'trees':summary,'errors':problems}
