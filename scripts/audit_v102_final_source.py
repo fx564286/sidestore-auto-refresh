@@ -30,11 +30,11 @@ ACTIVE_RULES={
     'nrgV72Hold', '[SCARLET_V100_MORPH] legacy_hold_not_installed=1'),
  },
  NATIVE:{
- 'required':('SCARLET_V102_NATIVE_GESTURE_CLEANUP','lcV102NativeHoldActions:',
-    'lcV102CollapseFloatingButton','nrgV102PresentWindowActionsFrom:self'),
- 'forbidden':('lcV76HoldToSwitch:','v76Hold.enabled = NO',
-    'self.lcReturnControl.button.menu = [UIMenu',
-    '(^switchAction)(void)'),
+ 'required':('SCARLET_V105_LEGACY_RETURN_SOURCE_DELETED',
+    'SCARLET_V104_SCENE_PROVENANCE'),
+ 'forbidden':('LCReturnControl','lcReturnControl','lcReturnToHost',
+    'lcV76HoldToSwitch:','lcV102NativeHoldActions:',
+    'viewDidLayoutSubviews {'),
  },
  SHELL:{
  'required':('V3SignInView',),
@@ -72,6 +72,22 @@ def audit(host:Path,store:Path|None=None):
     data=item.read_text(encoding='utf-8',errors='replace')
     for token in stale:
      if token in data:problems.append(f'{rel}: old guest UI symbol still referenced: {token}')
+ # V105 no legacy button class in ANY final live-source module.
+ legacy=('LCReturnControl','lcReturnControl','LCDirectReturnControl',
+         'LCDirectReturnWindow','LCDirectReturnPresenter')
+ for rel in (Path('MultitaskSupport/AppSceneViewController.m'),
+             Path('LiveContainer/LCBootstrap.m')):
+  target=host/rel
+  if not target.is_file():
+   problems.append(f'V105 missing compiled source {rel}')
+   continue
+  source=target.read_text(encoding='utf-8')
+  for token in legacy:
+   if token in source:problems.append(f'{rel}: obsolete control implementation {token}')
+  if rel.name=='LCBootstrap.m':
+   for required in ('SCARLET_V105_DIRECT_UNIFIED_MORPH',
+                    'SCGuestMorphPresenter','scarlet.v105.direct.morph'):
+    if required not in source:problems.append(f'{rel}: unified Direct morph missing {required}')
  for rel,rules in ACTIVE_RULES.items():
   target=host/rel
   if not target.is_file():
@@ -82,6 +98,15 @@ def audit(host:Path,store:Path|None=None):
    if token not in s: problems.append(f'{rel}: required active source missing {token}')
   for token in rules['forbidden']:
    if token in s: problems.append(f'{rel}: obsolete implementation retained {token}')
+ # V105 deliberately deleted the V103 native control. Preserve the
+ # still-active virtual guest switcher and reject a missing final owner.
+ if 'SCARLET_V105_LEGACY_RETURN_SOURCE_DELETED' in (host/NATIVE).read_text(encoding='utf-8'):
+  virtual=(host/WINDOW).read_text(encoding='utf-8')
+  dock=(host/HOST).read_text(encoding='utf-8')
+  for marker in ('SCARLET_V103_VIRTUAL_ONLY_CONTROL','scarlet.v103.virtual.guest.control'):
+   if marker not in virtual:problems.append(f'V105 preserved virtual owner missing {marker}')
+  for marker in ('SCARLET_V103_IMMEDIATE_GUEST_SWITCH','defer { dismissSelection() }'):
+   if marker not in dock:problems.append(f'V105 preserved native guest switch missing {marker}')
  # V103: ensure ownership is mode-exclusive in the FINAL compiled files,
  # rather than accepting dead V41 early returns or delayed switch callbacks.
  native_text=(host/NATIVE).read_text(encoding='utf-8') if (host/NATIVE).is_file() else ''
@@ -103,7 +128,8 @@ def audit(host:Path,store:Path|None=None):
    problems.append('V41 unconditional early return survived V103 Direct native guest path')
   if 'item.addAction(UIAction { [weak self] _ in\n                collapse {' in dock_text:
    problems.append('Guest switch still waits for close animation')
- elif ('SCARLET_V103_IMMEDIATE_GUEST_SWITCH' in dock_text or
+ elif 'SCARLET_V105_LEGACY_RETURN_SOURCE_DELETED' not in native_text and (
+       'SCARLET_V103_IMMEDIATE_GUEST_SWITCH' in dock_text or
        'SCARLET_V103_VIRTUAL_ONLY_CONTROL' in virtual_text):
   problems.append('Partial V103 ownership migration; native controller missing')
  # V104: fail a partially deployed scene reactivation patch while leaving
