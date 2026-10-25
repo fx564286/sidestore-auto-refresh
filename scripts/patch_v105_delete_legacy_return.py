@@ -19,15 +19,28 @@ BANNED = ("LCReturnControl", "lcReturnControl", "LCDirectReturnControl",
           "LCGuestReturnStartsCollapsed", "LCGuestReturnCustomColors")
 
 DIRECT_CODE = r'''
-// SCARLET_V105_DIRECT_UNIFIED_MORPH: one Direct guest control, not legacy overlay.
-// This presenter exists ONLY for a Classic/Direct guest; never LiveProcess.
-// The former Direct overlay and its runtime creation path were deleted.
+// SCARLET_V105_DIRECT_UNIFIED_MORPH: retain the smallest scene entry point.
+// SCARLET_V112_SHARED_GUEST_UI: the actual guest picker/panel is owned only
+// by MultitaskDockManager.nrgV72PresentGuestSwitcher in Swift. Direct does
+// NOT implement its own alert/card/rows or compete with the shared picker.
+#include <objc/message.h>
 @interface SCGuestMorphWindow : UIWindow
 @end
 @implementation SCGuestMorphWindow
 - (UIView *)hitTest:(CGPoint)point withEvent:(UIEvent *)event {
     UIView *hit = [super hitTest:point withEvent:event];
     return (hit == self || hit == self.rootViewController.view) ? nil : hit;
+}
+@end
+
+@interface SCGuestMorphController : UIViewController
+@end
+@implementation SCGuestMorphController
+- (void)nrgV112RestartDirectGuest {
+    // A row explicitly labeled "restart" is the one user-confirmed escape.
+    // Never close or overwrite a guest container silently.
+    NSLog(@"[SCARLET_V105_CONTROL] mode=direct confirmation=accepted route=shared_guest_picker");
+    [LCSharedUtils launchToGuestAppWithClassicMode:0];
 }
 @end
 
@@ -62,166 +75,84 @@ DIRECT_CODE = r'''
     NSString *idKey = scene.session.persistentIdentifier;
     if (self.windows[idKey]) return;
     SCGuestMorphWindow *window = [[SCGuestMorphWindow alloc] initWithWindowScene:scene];
-    UIViewController *vc = [UIViewController new];
+    SCGuestMorphController *vc = [SCGuestMorphController new];
     window.rootViewController = vc;
     vc.view.backgroundColor = UIColor.clearColor;
     window.backgroundColor = UIColor.clearColor;
     window.windowLevel = UIWindowLevelAlert + 1;
+
+    // Visually identical native thin-material ellipsis entry control.
+    // This host-controlled entry point is the only extra Direct UI;
+    // the popup itself is rendered by the existing shared Swift picker.
     UIButton *handle = [UIButton buttonWithType:UIButtonTypeSystem];
     handle.accessibilityIdentifier = @"scarlet.v105.direct.morph";
-    handle.accessibilityLabel = @"Scarlet Crystal controls";
-    handle.frame = CGRectMake(MAX(16, CGRectGetWidth(window.bounds)-64),
-                              MAX(90, CGRectGetMidY(window.bounds)-24), 48, 48);
+    handle.accessibilityLabel = @"Scarlet Crystal guest switching";
+    handle.accessibilityHint = @"Tap to open the shared guest controls. Drag to move.";
+    handle.frame = CGRectMake(8, MAX(66, CGRectGetMidY(window.bounds)-22), 44, 44);
     NSArray *savedPosition = [NSUserDefaults.lcSharedDefaults arrayForKey:@"SCGuestMorphPositionV105"];
     if (savedPosition.count == 2 &&
         [savedPosition[0] isKindOfClass:NSNumber.class] &&
         [savedPosition[1] isKindOfClass:NSNumber.class]) {
-        CGFloat edge = [savedPosition[0] doubleValue] < 0.5 ? 0 : 1;
+        CGFloat right = [savedPosition[0] doubleValue] >= 0.5;
         CGFloat yFraction = [savedPosition[1] doubleValue];
         if (isfinite(yFraction) && yFraction >= 0 && yFraction <= 1) {
-            handle.center = CGPointMake(edge == 0 ? 24 : window.bounds.size.width-24,
+            handle.center = CGPointMake(right ? window.bounds.size.width-22 : 22,
                 MAX(66, MIN(window.bounds.size.height-35, window.bounds.size.height*yFraction)));
         }
     }
     handle.autoresizingMask = UIViewAutoresizingFlexibleLeftMargin |
                               UIViewAutoresizingFlexibleTopMargin |
                               UIViewAutoresizingFlexibleBottomMargin;
-    handle.backgroundColor = [UIColor colorWithRed:33/255.0 green:43/255.0 blue:57/255.0 alpha:1];
-    handle.tintColor = UIColor.whiteColor;
-    handle.layer.cornerRadius = 24;
-    handle.layer.borderWidth = 1;
-    handle.layer.borderColor = [UIColor colorWithRed:58/255.0 green:70/255.0 blue:88/255.0 alpha:1].CGColor;
-    [handle setImage:[UIImage systemImageNamed:@"chevron.up"] forState:UIControlStateNormal];
-    [handle addTarget:self action:@selector(expand:) forControlEvents:UIControlEventTouchUpInside];
+    [handle setImage:[UIImage systemImageNamed:@"ellipsis"] forState:UIControlStateNormal];
+    handle.tintColor = UIColor.labelColor;
+    handle.backgroundColor = UIColor.clearColor;
+    handle.layer.cornerRadius = 22;
+    handle.clipsToBounds = YES;
+    UIVisualEffectView *material = [[UIVisualEffectView alloc]
+        initWithEffect:[UIBlurEffect effectWithStyle:UIBlurEffectStyleSystemThinMaterial]];
+    material.userInteractionEnabled = NO;
+    material.frame = handle.bounds;
+    material.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
+    [handle insertSubview:material atIndex:0];
+    [handle addTarget:self action:@selector(openShared:) forControlEvents:UIControlEventTouchUpInside];
     UIPanGestureRecognizer *drag = [[UIPanGestureRecognizer alloc]
         initWithTarget:self action:@selector(dragHandle:)];
     [handle addGestureRecognizer:drag];
-    UILongPressGestureRecognizer *hold = [[UILongPressGestureRecognizer alloc]
-        initWithTarget:self action:@selector(openOnHold:)];
-    hold.minimumPressDuration = .55;
-    [handle addGestureRecognizer:hold];
     [vc.view addSubview:handle];
     self.windows[idKey] = window;
-    window.hidden = NO;  // never become key, never interrupt the guest keyboard
-    NSLog(@"[SCARLET_V105_CONTROL] mode=direct owner=unified_morph count=1");
-}
-- (void)openOnHold:(UILongPressGestureRecognizer *)gesture {
-    if (gesture.state != UIGestureRecognizerStateBegan) return;
-    [self expand:(UIButton *)gesture.view];
+    window.hidden = NO; // never become key, never interrupt the guest keyboard
+    NSLog(@"[SCARLET_V112_UI] mode=direct renderer=common_morph trigger=thin_material_ellipsis");
 }
 - (void)dragHandle:(UIPanGestureRecognizer *)gesture {
     UIView *button = gesture.view;
     UIView *container = button.superview;
-    if (!container || [container viewWithTag:10501]) return;
+    if (!container) return;
     CGPoint delta = [gesture translationInView:container];
-    CGFloat horizontal = MAX(16, MIN(container.bounds.size.width-16, button.center.x+delta.x));
-    CGFloat vertical = MAX(66, MIN(container.bounds.size.height-35, button.center.y+delta.y));
-    button.center = CGPointMake(horizontal, vertical);
+    CGFloat x = MAX(22, MIN(container.bounds.size.width-22, button.center.x+delta.x));
+    CGFloat y = MAX(66, MIN(container.bounds.size.height-35, button.center.y+delta.y));
+    button.center = CGPointMake(x, y);
     [gesture setTranslation:CGPointZero inView:container];
     if (gesture.state == UIGestureRecognizerStateEnded ||
         gesture.state == UIGestureRecognizerStateCancelled) {
-        CGFloat edge = horizontal < CGRectGetMidX(container.bounds) ? 24 : container.bounds.size.width-24;
-        [UIView animateWithDuration:.18 animations:^{ button.center = CGPointMake(edge, vertical); }];
-        // Retain only position, never restore the removed legacy button.
+        BOOL right = x >= CGRectGetMidX(container.bounds);
+        CGFloat edge = right ? container.bounds.size.width-22 : 22;
+        [UIView animateWithDuration:.18 animations:^{ button.center = CGPointMake(edge, y); }];
         if (container.bounds.size.height > 100)
-            [NSUserDefaults.lcSharedDefaults setObject:@[@(horizontal < CGRectGetMidX(container.bounds) ? 0 : 1),
-                      @(vertical/container.bounds.size.height)] forKey:@"SCGuestMorphPositionV105"];
+            [NSUserDefaults.lcSharedDefaults setObject:@[@(right ? 1 : 0),
+                @(y/container.bounds.size.height)] forKey:@"SCGuestMorphPositionV105"];
     }
 }
-- (void)expand:(UIButton *)button {
-    UIView *root = button.superview;
-    if (!root || [root viewWithTag:10501]) return;
-    // The tap target occupies the original button; it is not visible while
-    // expanded. Empty-space taps fold the same panel without launching apps.
-    UIButton *scrim = [UIButton buttonWithType:UIButtonTypeCustom];
-    scrim.tag = 10501;
-    scrim.frame = root.bounds;
-    scrim.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
-    scrim.backgroundColor = [UIColor colorWithWhite:0 alpha:.67];
-    [scrim addTarget:self action:@selector(collapse:) forControlEvents:UIControlEventTouchUpInside];
-    [root addSubview:scrim];
-
-    CGFloat width = MIN(342, MAX(260, root.bounds.size.width - 48));
-    // Only portrait receives additional safe-area/footer room. Landscape's
-    // known-good geometry stays exactly as before.
-    BOOL portraitUI = root.bounds.size.height > root.bounds.size.width;
-    CGFloat panelHeight = portraitUI ? 232 : 206;
-    UIEdgeInsets insets = root.safeAreaInsets;
-    CGFloat baseY = (root.bounds.size.height-panelHeight)/2;
-    CGFloat maxPortraitY = MAX(insets.top + 12,
-        root.bounds.size.height - insets.bottom - panelHeight - 12);
-    CGFloat panelY = portraitUI
-        ? MAX(insets.top + 12, MIN(maxPortraitY, baseY))
-        : MAX(80, baseY);
-    UIView *card = [[UIView alloc] initWithFrame:CGRectMake(
-        (root.bounds.size.width-width)/2, panelY, width, panelHeight)];
-    card.tag = 10502;
-    card.backgroundColor = [UIColor colorWithRed:33/255.0 green:43/255.0 blue:57/255.0 alpha:1];
-    card.layer.cornerRadius = 28;
-    card.layer.borderWidth = 1;
-    card.layer.borderColor = [UIColor colorWithRed:58/255.0 green:70/255.0 blue:88/255.0 alpha:1].CGColor;
-    card.autoresizingMask = UIViewAutoresizingFlexibleLeftMargin |
-                            UIViewAutoresizingFlexibleRightMargin |
-                            UIViewAutoresizingFlexibleTopMargin |
-                            UIViewAutoresizingFlexibleBottomMargin;
-    [root addSubview:card];
-
-    UILabel *title = [[UILabel alloc] initWithFrame:CGRectMake(18, 17, width-36, 30)];
-    title.text = @"Scarlet Crystal · Direct";
-    title.font = [UIFont systemFontOfSize:18 weight:UIFontWeightBold];
-    title.textColor = UIColor.whiteColor;
-    title.textAlignment = NSTextAlignmentCenter;
-    [card addSubview:title];
-    UILabel *note = [[UILabel alloc] initWithFrame:CGRectMake(18, 56, width-36, 58)];
-    note.text = @"이 앱은 Scarlet Crystal 게스트로 실행 중이야.\n복귀하면 앱이 다시 시작되고 미저장 진행 상황이 사라질 수 있어.";
-    note.numberOfLines = 3;
-    note.textAlignment = NSTextAlignmentCenter;
-    note.font = [UIFont systemFontOfSize:13 weight:UIFontWeightMedium];
-    note.textColor = [UIColor colorWithRed:166/255.0 green:180/255.0 blue:200/255.0 alpha:1];
-    [card addSubview:note];
-    UIButton *returnButton = [UIButton buttonWithType:UIButtonTypeSystem];
-    returnButton.frame = CGRectMake(18, 128, width-36, 44);
-    returnButton.layer.cornerRadius = 16;
-    returnButton.backgroundColor = [UIColor colorWithRed:241/255.0 green:76/255.0 blue:112/255.0 alpha:1];
-    [returnButton setTitle:@"재시작 후 Scarlet Crystal로 복귀" forState:UIControlStateNormal];
-    [returnButton setTitleColor:UIColor.whiteColor forState:UIControlStateNormal];
-    [returnButton addTarget:self action:@selector(confirmRestart:) forControlEvents:UIControlEventTouchUpInside];
-    [card addSubview:returnButton];
-    UIButton *cancel = [UIButton buttonWithType:UIButtonTypeSystem];
-    // Accessible 44pt portrait hit target; preserve landscape behavior.
-    cancel.frame = CGRectMake(18, 174, width-36, portraitUI ? 44 : 28);
-    [cancel setTitle:@"취소 · 게임 유지" forState:UIControlStateNormal];
-    [cancel setTitleColor:UIColor.whiteColor forState:UIControlStateNormal];
-    [cancel addTarget:self action:@selector(collapse:) forControlEvents:UIControlEventTouchUpInside];
-    [card addSubview:cancel];
-    button.hidden = YES;
-    scrim.alpha = 0;
-    card.alpha = 0;
-    card.transform = CGAffineTransformMakeScale(.88, .88);
-    [UIView animateWithDuration:.23 delay:0 usingSpringWithDamping:.86
-          initialSpringVelocity:0 options:UIViewAnimationOptionAllowUserInteraction animations:^{
-        scrim.alpha = 1; card.alpha = 1; card.transform = CGAffineTransformIdentity;
-    } completion:nil];
-}
-- (void)collapse:(UIView *)sender {
-    UIView *root = sender;
-    while (root.superview && ![root isKindOfClass:UIWindow.class]) root = root.superview;
-    if ([root isKindOfClass:UIWindow.class]) root = ((UIWindow *)root).rootViewController.view;
-    UIView *scrim = [root viewWithTag:10501], *card = [root viewWithTag:10502];
-    [UIView animateWithDuration:.16 animations:^{
-        scrim.alpha = 0; card.alpha = 0; card.transform = CGAffineTransformMakeScale(.92, .92);
-    } completion:^(__unused BOOL finished) {
-        [card removeFromSuperview]; [scrim removeFromSuperview];
-        for (UIView *child in root.subviews) {
-            if ([child isKindOfClass:UIButton.class] && child != scrim) child.hidden = NO;
-        }
-    }];
-}
-- (void)confirmRestart:(UIButton *)button {
-    // This is an explicit destructive confirmation; no credentials or saved
-    // guest container data are deleted. Direct process must restart to exit.
-    NSLog(@"[SCARLET_V105_CONTROL] mode=direct confirmation=accepted");
-    [LCSharedUtils launchToGuestAppWithClassicMode:0];
+- (void)openShared:(UIButton *)sourceView {
+    if (!sourceView.window || !sourceView.superview) return;
+    Class bridge = NSClassFromString(@"SCUnifiedGuestUIBridge");
+    SEL route = NSSelectorFromString(@"presentFrom:sourceView:");
+    if (!bridge || ![bridge respondsToSelector:route]) {
+        NSLog(@"[SCARLET_V112_UI] mode=direct common_router_unavailable=1");
+        return;
+    }
+    UIViewController *controller = sourceView.window.rootViewController;
+    ((void (*)(id, SEL, UIViewController *, UIView *))objc_msgSend)(
+        bridge, route, controller, sourceView);
 }
 - (void)disconnect:(NSNotification *)notice {
     if ([notice.object isKindOfClass:UIWindowScene.class]) {

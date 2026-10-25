@@ -78,12 +78,16 @@ class V105DeleteTests(unittest.TestCase):
         self.assertIn('if (!isLiveProcess && !isSideStore)',a)
         self.assertIn('[LCSharedUtils launchToGuestAppWithClassicMode:0]',a)
         self.assertIn('confirmation=accepted',a)
-        self.assertIn('scrim.alpha = 0',a)
-        self.assertIn('portraitUI ? 44 : 28',a)
-        self.assertIn('root.safeAreaInsets',a)
+        self.assertIn('SCARLET_V112_SHARED_GUEST_UI',a)
         self.assertIn('SCARLET_V105_DIRECT_UNIFIED_MORPH',a)
+        self.assertIn('SCUnifiedGuestUIBridge',a)
+        self.assertIn('presentFrom:sourceView:',a)
+        self.assertIn('UIBlurEffectStyleSystemThinMaterial',a)
+        self.assertIn('nrgV112RestartDirectGuest',a)
         self.assertNotIn('홍수정',a)
-        self.assertIn('button.hidden = YES',a)
+        for token in ('UIButton *scrim', 'UIView *card', '- (void)expand:',
+                      'portraitUI ? 44 : 28', 'chevron.up'):
+            self.assertNotIn(token,a)
         for forbidden in v.BANNED:self.assertNotIn(forbidden,a)
 
     def test_no_layout_time_remount_and_user_data_changes(self):

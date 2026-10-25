@@ -31,7 +31,11 @@ class V107FinalUIAuditTests(unittest.TestCase):
             audit.VIRTUAL: "SCARLET_V103_VIRTUAL_ONLY_CONTROL scarlet.v103.virtual.guest.control",
             audit.DOCK: ('SCARLET_V103_IMMEDIATE_GUEST_SWITCH defer { dismissSelection() } '
                          'SCARLET_V107_LIVE_WINDOW_ACTIONS_ONLY '
-                         'SCARLET_V111_CANONICAL_GUEST_SWITCH_OWNER '
+                         'SCARLET_V111_CANONICAL_GUEST_SWITCH_OWNER ' 
+                         'SCARLET_V112_SHARED_GUEST_UI ' 
+                         '@objc(SCUnifiedGuestUIBridge) ' 
+                         'scarlet.v112.direct.restart '
+                         'public func nrgV72PresentGuestSwitcher( '
                          'nrgV72PresentGuestSwitcher(from: controller, sourceView: sourceView) '
                          'nrgV102NoteFocus(guest.folder) '
                          'guard controller is DecoratedAppSceneViewController '
@@ -52,7 +56,7 @@ class V107FinalUIAuditTests(unittest.TestCase):
             self.fixtures(Path(tmp))
             result = audit.inspect(Path(tmp))
             self.assertEqual(result["status"], "PASS", result["problems"])
-            self.assertEqual(len(result["owners"]), 2)
+            self.assertEqual(len(result["owners"]), 1)
             self.assertFalse(result["device_geometry_verified"])
 
     def test_old_label_or_obsolete_class_triggers_release_failure(self):
@@ -99,7 +103,7 @@ class V107FinalUIAuditTests(unittest.TestCase):
             root = Path(tmp)
             self.fixtures(root)
             direct = root/audit.DIRECT
-            direct.write_text(direct.read_text().replace("portraitUI ? 44 : 28", "28"))
+            direct.write_text(direct.read_text() + "UIView *card")
             self.assertEqual(audit.inspect(root)["status"], "FAIL")
             self.fixtures(root)
             virt = root/audit.VIRTUAL

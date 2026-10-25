@@ -15,6 +15,7 @@ ACTIVE_RULES={
  HOST:{
  'required':('SCARLET_V102_RECENT_FOCUS_CLOCK','SCARLET_V102_UNIFIED_ACTION_SURFACE',
    'SCARLET_V111_CANONICAL_GUEST_SWITCH_OWNER',
+   'SCARLET_V112_SHARED_GUEST_UI', '@objc(SCUnifiedGuestUIBridge)',
    'nrgV72PresentGuestSwitcher(from: controller, sourceView: sourceView)',
    'nrgV102PresentWindowActionsFrom:sourceView:','guard isRunning else { return nil }',
    'nrgV102NoteFocus(uuid)','nrgV102FocusDates[folder]',
@@ -94,8 +95,13 @@ def audit(host:Path,store:Path|None=None):
    if token in source:problems.append(f'{rel}: obsolete control implementation {token}')
   if rel.name=='LCBootstrap.m':
    for required in ('SCARLET_V105_DIRECT_UNIFIED_MORPH',
-                    'SCGuestMorphPresenter','scarlet.v105.direct.morph'):
+                    'SCARLET_V112_SHARED_GUEST_UI', 'SCUnifiedGuestUIBridge',
+                    'presentFrom:sourceView:', 'SCGuestMorphPresenter',
+                    'scarlet.v105.direct.morph'):
     if required not in source:problems.append(f'{rel}: unified Direct morph missing {required}')
+   for obsolete in ('UIButton *scrim','UIView *card','UILabel *note',
+                    '- (void)expand:', 'systemImageNamed:@"chevron.up"'):
+    if obsolete in source:problems.append(f'{rel}: separate Direct panel remains {obsolete}')
  for rel,rules in ACTIVE_RULES.items():
   target=host/rel
   if not target.is_file():

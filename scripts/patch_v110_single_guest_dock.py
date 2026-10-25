@@ -178,12 +178,147 @@ def transform(source: str) -> str:
     private weak var nrgV108RightEdgeGesture: UIScreenEdgePanGestureRecognizer?
 ''', "", "obsolete edge recognizers")
 
+    source = share_direct_guest_ui(source)
     audit(source)
+    return source
+
+def share_direct_guest_ui(source: str) -> str:
+    """Route Direct to the SAME existing V72 UIKit picker; no new panel."""
+    if "SCARLET_V112_SHARED_GUEST_UI" in source:
+        return source
+    source = unique(source,
+        '''    private var nrgV102WindowActionRequest = false
+''',
+        '''    private var nrgV102WindowActionRequest = false
+    // SCARLET_V112_SHARED_GUEST_UI: Direct and LiveProcess invoke one renderer.
+    // This flag changes only the available action (restart vs retained view).
+    private var nrgV112DirectGuestRequest = false
+    @objc(nrgV112PresentDirectGuestUIFrom:sourceView:)
+    public func nrgV112PresentDirectGuestUI(from controller: UIViewController,
+                                           sourceView: UIView) {
+        guard Thread.isMainThread else {
+            DispatchQueue.main.async { [weak self, weak controller, weak sourceView] in
+                guard let controller, let sourceView else { return }
+                self?.nrgV112PresentDirectGuestUI(from: controller, sourceView: sourceView)
+            }
+            return
+        }
+        nrgV112DirectGuestRequest = true
+        defer { nrgV112DirectGuestRequest = false }
+        nrgV72PresentGuestSwitcher(from: controller, sourceView: sourceView)
+    }
+''', "common Direct picker entry")
+    source = unique(source,
+        '''        let windowActions = nrgV102WindowActionRequest
+        let models = DataManager.shared.model.apps
+''',
+        '''        let windowActions = nrgV102WindowActionRequest
+        let directMode = nrgV112DirectGuestRequest
+        // No host DataManager/window registry is required inside a Classic
+        // guest process. The panel uses the same SwiftUI/UIKit renderer.
+        let models = directMode ? [] : DataManager.shared.model.apps
+''', "Direct does not assume host model is alive")
+    source = unique(source,
+        '''        if #available(iOS 16.1, *) {
+            nativeFolders = Set(MultitaskWindowManager.appDict.values.compactMap''',
+        '''        if #available(iOS 16.1, *), !directMode {
+            nativeFolders = Set(MultitaskWindowManager.appDict.values.compactMap''',
+        "Direct does not enumerate host window manager")
+    source = unique(source,
+        '''        heading.text = windowActions ? "창 관리" : "최근 실행 앱"
+''',
+        '''        heading.text = windowActions ? "창 관리" : "최근 실행 앱"
+''', "keep same picker heading")
+    source = unique(source,
+        '''        subtitle.text = windowActions ? "현재 게스트 창" : "Scarlet Crystal 내부 · 최근 활성화 순"
+''',
+        '''        subtitle.text = windowActions ? "현재 게스트 창"
+            : directMode ? "현재 게스트 · 다른 앱으로 전환하려면 재시작 필요"
+            : "Scarlet Crystal 내부 · 최근 활성화 순"
+''', "mode-specific factual subtitle")
+    source = unique(source,
+        '''        let listHeight = min(CGFloat(max(1, windowActions ? actionsCount : recent.count)) * 54, maxListHeight)
+''',
+        '''        let listHeight = min(CGFloat(max(1, directMode ? 2
+            : (windowActions ? actionsCount : recent.count))) * 54, maxListHeight)
+''', "shared panel height")
+    source = unique(source,
+        '''        if recent.isEmpty && !windowActions {
+''',
+        '''        if recent.isEmpty && !windowActions && !directMode {
+''', "hide misleading Direct empty-state")
+    source = unique(source,
+        '''        if !windowActions {
+        for guest in recent {
+''',
+        '''        if directMode {
+            // The same V100 row style and collapse animation for either mode.
+            // Direct cannot preserve its current process while switching apps.
+            // This is the only operation that differs, not a second UI.
+            let notice = UILabel()
+            notice.text = "현재 앱을 종료하면 미저장 진행 상황이 사라질 수 있어."
+            notice.font = UIFont.systemFont(ofSize: 12)
+            notice.numberOfLines = 2
+            notice.textAlignment = .center
+            notice.textColor = .secondaryLabel
+            rows.addArrangedSubview(notice)
+
+            let item = UIButton(type: .system)
+            item.accessibilityIdentifier = "scarlet.v112.direct.restart"
+            item.accessibilityLabel = "재시작 후 Scarlet Crystal로 복귀"
+            item.contentHorizontalAlignment = .center
+            item.titleLabel?.font = UIFont.systemFont(ofSize: 14, weight: .semibold)
+            item.layer.cornerRadius = 15
+            item.backgroundColor = UIColor.secondarySystemGroupedBackground
+            item.setTitle("재시작 후 Scarlet Crystal로 복귀", for: .normal)
+            item.setTitleColor(.label, for: .normal)
+            item.heightAnchor.constraint(equalToConstant: 47).isActive = true
+            item.addAction(UIAction { _ in
+                // This row states exactly what will restart; no implicit
+                // guest exit, credential change, or destructive storage action.
+                collapse {
+                    guard controller.view.window != nil,
+                          controller.responds(to: NSSelectorFromString("nrgV112RestartDirectGuest"))
+                    else {
+                        NSLog("[SCARLET_V112_UI] direct_restart_route_unavailable=1")
+                        return
+                    }
+                    _ = controller.perform(NSSelectorFromString("nrgV112RestartDirectGuest"))
+                }
+            }, for: .touchUpInside)
+            rows.addArrangedSubview(item)
+        } else if !windowActions {
+        for guest in recent {
+''', "Direct action in existing common renderer")
+    source = unique(source,
+        '''        footer.text = windowActions ? "바깥을 누르면 창 관리 닫기" : "바깥을 누르면 앱 전환 닫기"
+''',
+        '''        footer.text = windowActions ? "바깥을 누르면 창 관리 닫기"
+            : "바깥을 누르면 앱 전환 닫기"
+''', "same footer across modes")
+    # A runtime-visible ObjC bridge contains no screen or duplicate layout.
+    source += '''
+// One bridge to the ONE picker. This is not another presenter or view.
+@available(iOS 16.0, *)
+@objc(SCUnifiedGuestUIBridge)
+public final class SCUnifiedGuestUIBridge: NSObject {
+    @objc(presentFrom:sourceView:)
+    public class func present(from controller: UIViewController, sourceView: UIView) {
+        MultitaskDockManager.shared.nrgV112PresentDirectGuestUI(
+            from: controller, sourceView: sourceView)
+    }
+}
+'''
     return source
 
 def audit(source: str) -> None:
     for token in (
-        MARK, "public func nrgV72PresentGuestSwitcher(",
+        MARK, "SCARLET_V112_SHARED_GUEST_UI",
+        "@objc(SCUnifiedGuestUIBridge)",
+        "nrgV112PresentDirectGuestUI(from: controller, sourceView: sourceView)",
+        "scarlet.v112.direct.restart",
+        "controller.perform(NSSelectorFromString",
+        "public func nrgV72PresentGuestSwitcher(",
         "nrgV102PresentWindowActions(from: controller, sourceView: sourceView)",
         "func bringMultitaskViewToFront(uuid: String",
         "func prepareKeyboardForGuestSwitch(targetView:",

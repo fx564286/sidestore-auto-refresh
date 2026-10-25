@@ -37,6 +37,9 @@ def inspect(root: Path) -> dict:
         VIRTUAL: ("SCARLET_V103_VIRTUAL_ONLY_CONTROL", "scarlet.v103.virtual.guest.control"),
         DOCK: ("SCARLET_V103_IMMEDIATE_GUEST_SWITCH", "defer { dismissSelection() }",
                "SCARLET_V111_CANONICAL_GUEST_SWITCH_OWNER",
+               "SCARLET_V112_SHARED_GUEST_UI",
+               "@objc(SCUnifiedGuestUIBridge)",
+               "scarlet.v112.direct.restart",
                "nrgV72PresentGuestSwitcher(from: controller, sourceView: sourceView)",
                "nrgV102NoteFocus(guest.folder)",
                "SCARLET_V107_LIVE_WINDOW_ACTIONS_ONLY",
@@ -46,7 +49,8 @@ def inspect(root: Path) -> dict:
                '("창 닫기", "closeWindow")'),
         DIRECT: ("SCARLET_V105_DIRECT_UNIFIED_MORPH", "SCGuestMorphPresenter",
                  "SCGuestMorphWindow", "scarlet.v105.direct.morph",
-                 "root.safeAreaInsets", "portraitUI ? 44 : 28",
+                 "SCARLET_V112_SHARED_GUEST_UI", "SCUnifiedGuestUIBridge",
+                 "UIBlurEffectStyleSystemThinMaterial", "presentFrom:sourceView:",
                  "SCGuestMorphPositionV105", "confirmation=accepted"),
         SETTINGS: ("SCARLET_V107_RETIRE_DEAD_RETURN_SETTINGS",
                    "V3AccountSettings()", "LCJITLessDiagnoseView()",
@@ -58,6 +62,15 @@ def inspect(root: Path) -> dict:
                 problems.append(f"{rel}: missing required single-owner marker: {token}")
     if "홍수정" in direct:
         problems.append("Direct guest overlay still uses retired app branding")
+    for retired in ("UIButton *scrim", "UIView *card", "UILabel *title",
+                    "- (void)expand:", "portraitUI ? 44 : 28",
+                    'systemImageNamed:@"chevron.up"'):
+        if retired in direct:
+            problems.append("V112 separate Direct popup survived: " + retired)
+    if dock.count("public func nrgV72PresentGuestSwitcher(") != 1:
+        problems.append("V112 shared picker count is not one")
+    if dock.count("@objc(SCUnifiedGuestUIBridge)") != 1:
+        problems.append("V112 ObjC-to-Swift router count is not one")
     for removed in ("LCHideReturnControl", "LCGuestReturnStartsCollapsed",
                     "LCGuestReturnCustomColors", "LCGuestReturnTintRGB",
                     "LCGuestReturnBackgroundRGB", 'Toggle("Show Return Button"',
@@ -85,7 +98,7 @@ def inspect(root: Path) -> dict:
             problems.append("Retired Dock menu selector/branding survived: " + stale)
     return {"status": "FAIL" if problems else "PASS", "problems": problems,
             "scanned": [str(x) for x in files],
-            "owners": ["V102/V103 virtual-host morph", "V105 Direct morph"],
+            "owners": ["V112 common UIKit morph picker; Direct supplies the entry control only"],
             "source_only": True,
             "device_geometry_verified": False}
 
