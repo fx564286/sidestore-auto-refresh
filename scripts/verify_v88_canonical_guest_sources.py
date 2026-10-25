@@ -54,6 +54,11 @@ DEAD_OVERLAY = Path("scripts/patch_v87_guest_button_switcher.py")
 
 
 def check_file(root: Path, relative: Path, content: str, problems: list[str]):
+    if relative == SCENE and "SCARLET_V105_LEGACY_RETURN_SOURCE_DELETED" in content:
+        for token in ("LCReturnControl", "lcReturnControl", "lcReturnToHost",
+                      "lcV102NativeHoldActions:"):
+            if token in content: problems.append(f"{relative}: V105 legacy control survived: {token}")
+        return
     for token, wanted in REQUIRED.get(relative, {}).items():
         if relative == SCENE and token == "[self.button addGestureRecognizer:v76Hold]" and "SCARLET_V100_LIVEPROCESS_MORPH" in content:
             wanted = 0
