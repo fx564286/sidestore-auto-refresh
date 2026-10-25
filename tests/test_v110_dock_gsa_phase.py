@@ -37,6 +37,10 @@ class V110Tests(unittest.TestCase):
         self.assertEqual(dock.transform(source),source)
         self.assertIn("dockManager.apps.count > 1 {",source)
         self.assertIn(".allowsHitTesting(dockManager.apps.count > 1)",source)
+        view=source[source.index("public struct MultitaskDockSwiftView: View"):
+                    source.index("// MARK: - Minimize All Button View")]
+        self.assertLess(view.index(".gesture("), view.index(".allowsHitTesting("),
+                        "Hit testing must guard the outer gesture modifier")
         self.assertIn("ForEach(dockManager.apps) { app in",source)
         self.assertIn("if isDockHidden && apps.count > 1",source)
         other=(root/"MultitaskSupport/DecoratedAppSceneViewController.m").read_text()

@@ -33,12 +33,13 @@ def transform(src):
                 // SCARLET_V110_SINGLE_GUEST_DOCK_SUPPRESSED:
                 // one running guest has nothing to switch to.""",
         "one-guest rendering condition")
-    dock=one(dock,'''        .ignoresSafeArea()
-        .gesture(''',
-        '''        .ignoresSafeArea()
-        // Empty GeometryReader must not swallow touch input for a single guest.
+    dock=one(dock,'''        .animation(.spring(response: MultitaskDockManager.Constants.longAnimationDuration, dampingFraction: MultitaskDockManager.Constants.standardSpringDamping), value: dockManager.settingsChanged)
+    }''',
+        '''        .animation(.spring(response: MultitaskDockManager.Constants.longAnimationDuration, dampingFraction: MultitaskDockManager.Constants.standardSpringDamping), value: dockManager.settingsChanged)
+        // Place OUTSIDE the whole gesture stack, not beneath .gesture().
+        // A single guest icon is invisible AND cannot capture host input.
         .allowsHitTesting(dockManager.apps.count > 1)
-        .gesture(''', "one-guest touch shield")
+    }''', "outermost guest-only touch shield")
     src=left+dock+right
     src=one(src,
         '''        if isDockHidden {
