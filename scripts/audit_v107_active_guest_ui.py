@@ -35,7 +35,12 @@ def inspect(root: Path) -> dict:
     requirements = {
         NATIVE: ("SCARLET_V105_LEGACY_RETURN_SOURCE_DELETED",),
         VIRTUAL: ("SCARLET_V103_VIRTUAL_ONLY_CONTROL", "scarlet.v103.virtual.guest.control"),
-        DOCK: ("SCARLET_V103_IMMEDIATE_GUEST_SWITCH", "defer { dismissSelection() }"),
+        DOCK: ("SCARLET_V103_IMMEDIATE_GUEST_SWITCH", "defer { dismissSelection() }",
+               "SCARLET_V107_LIVE_WINDOW_ACTIONS_ONLY",
+               "guard controller is DecoratedAppSceneViewController",
+               '("최소화", "minimizeWindow")',
+               '("최대화 / 복원", "maximizeWindow")',
+               '("창 닫기", "closeWindow")'),
         DIRECT: ("SCARLET_V105_DIRECT_UNIFIED_MORPH", "SCGuestMorphPresenter",
                  "SCGuestMorphWindow", "scarlet.v105.direct.morph",
                  "root.safeAreaInsets", "portraitUI ? 44 : 28",
@@ -64,6 +69,9 @@ def inspect(root: Path) -> dict:
         problems.append("Earlier floating/Island control code remains in final virtual host")
     if "NRGGuestActivityAttributes" in dock:
         problems.append("Removed ActivityKit widget route remains in final Dock")
+    for stale in ("lcReturnToHost", "lcV102CollapseFloatingButton", "홍수정"):
+        if stale in dock:
+            problems.append("Retired Dock menu selector/branding survived: " + stale)
     return {"status": "FAIL" if problems else "PASS", "problems": problems,
             "scanned": [str(x) for x in files],
             "owners": ["V102/V103 virtual-host morph", "V105 Direct morph"],

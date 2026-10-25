@@ -29,7 +29,12 @@ class V107FinalUIAuditTests(unittest.TestCase):
         data = {
             audit.NATIVE: v105.native(fixture_module.NATIVE),
             audit.VIRTUAL: "SCARLET_V103_VIRTUAL_ONLY_CONTROL scarlet.v103.virtual.guest.control",
-            audit.DOCK: "SCARLET_V103_IMMEDIATE_GUEST_SWITCH defer { dismissSelection() }",
+            audit.DOCK: ('SCARLET_V103_IMMEDIATE_GUEST_SWITCH defer { dismissSelection() } '
+                         'SCARLET_V107_LIVE_WINDOW_ACTIONS_ONLY '
+                         'guard controller is DecoratedAppSceneViewController '
+                         '("최소화", "minimizeWindow") '
+                         '("최대화 / 복원", "maximizeWindow") '
+                         '("창 닫기", "closeWindow")'),
             audit.DIRECT: v105.direct(fixture_module.DIRECT),
             audit.SETTINGS: settings_module.patch(settings_fixture.OLD),
         }
@@ -67,6 +72,20 @@ class V107FinalUIAuditTests(unittest.TestCase):
             path = root/audit.SETTINGS
             path.write_text(path.read_text() + 'Toggle("Show Return Button"')
             self.assertEqual(audit.inspect(root)["status"], "FAIL")
+
+    def test_retired_dock_action_menu_is_rejected(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            self.fixtures(root)
+            dock = root/audit.DOCK
+            for obsolete in ('lcReturnToHost', 'lcV102CollapseFloatingButton', '홍수정'):
+                with self.subTest(obsolete=obsolete):
+                    previous = dock.read_text()
+                    dock.write_text(previous + obsolete)
+                    result = audit.inspect(root)
+                    self.assertEqual(result["status"], "FAIL")
+                    self.assertTrue(any(obsolete in problem for problem in result["problems"]))
+                    dock.write_text(previous)
 
     def test_missing_portrait_hit_target_and_old_virtual_control_rejected(self):
         with tempfile.TemporaryDirectory() as tmp:

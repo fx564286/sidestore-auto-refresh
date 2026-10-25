@@ -20,6 +20,7 @@ ACTIVE_RULES={
  'forbidden':('import ActivityKit','NRGV56IslandBar','NRGGuestActivityAttributes',
     'nrgV56RelayoutIsland','nrgV58RefreshNativeIsland',
     'UIAlertController(title: "홍수정 내부 앱 전환"',
+    'lcReturnToHost', 'lcV102CollapseFloatingButton', '홍수정',
     '48 * 60 * 60'),
  },
  WINDOW:{

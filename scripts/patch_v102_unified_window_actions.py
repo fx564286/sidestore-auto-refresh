@@ -20,6 +20,13 @@ def patch_dock(s):
     if MARK in s:
         if s.count(MARK)!=1 or 'nrgV102WindowActionRequest' not in s:
             raise ValueError("partial V102 morph")
+        # Previous V102 retained the pre-V105 Direct return/collapse
+        # selector branch in the *compiled* Swift Dock. V105 deletes those
+        # selectors. Reject old generated sources rather than accepting them
+        # as idempotent, and keep one owner for virtual window actions.
+        if any(stale in s for stale in ('lcReturnToHost', 'lcV102CollapseFloatingButton',
+                                       '홍수정', 'controller is DecoratedAppSceneViewController\n                    ?')):
+            raise ValueError("obsolete V102 window-action menu survived; regenerate source")
         return s
     if "SCARLET_V100_MORPH_PICKER" not in s or "SCARLET_V102_RECENT_FOCUS_CLOCK" not in s:
         raise ValueError("Requires V100 + V102 focus")
@@ -39,6 +46,13 @@ def patch_dock(s):
             }
             return
         }
+        // SCARLET_V107_LIVE_WINDOW_ACTIONS_ONLY: native Direct controls
+        // have their own SCGuestMorphPresenter. Never route an action into
+        // the V105-deleted Objective-C Return implementation.
+        guard controller is DecoratedAppSceneViewController else {
+            NSLog("[SCARLET_V107_ACTION] rejected non_window_controller=1")
+            return
+        }
         nrgV102WindowActionRequest = true
         defer { nrgV102WindowActionRequest = false }
         nrgV72PresentGuestSwitcher(from: controller, sourceView: sourceView)
@@ -50,11 +64,11 @@ def patch_dock(s):
     s=one(s, '        heading.text = "최근 실행 앱"',
           '        heading.text = windowActions ? "창 관리" : "최근 실행 앱"', "shared title")
     s=one(s, '        subtitle.text = "홍수정에 설치된 앱만 표시"',
-          '        subtitle.text = windowActions ? "현재 게스트 창" : "홍수정 내부 · 최근 활성화 순"', "shared subtitle")
+          '        subtitle.text = windowActions ? "현재 게스트 창" : "Scarlet Crystal 내부 · 최근 활성화 순"', "shared subtitle")
     s=one(s, '        scroll.showsVerticalScrollIndicator = recent.count > 5',
           '        scroll.showsVerticalScrollIndicator = !windowActions && recent.count > 5', "scroll")
     s=one(s, '        let listHeight = min(CGFloat(max(1, recent.count)) * 54, maxListHeight)',
-          '''        let actionsCount = controller is DecoratedAppSceneViewController ? 3 : 2
+          '''        let actionsCount = 3 // V107: virtual guest window actions only.
         let listHeight = min(CGFloat(max(1, windowActions ? actionsCount : recent.count)) * 54, maxListHeight)''', "list height")
     s=one(s, '        if recent.isEmpty {\n            let empty = UILabel()',
           '        if recent.isEmpty && !windowActions {\n            let empty = UILabel()', "empty state")
@@ -66,13 +80,14 @@ def patch_dock(s):
         } else {
             // Same native system-material panel as recents. Invoke only the
             // existing, verified window action selectors on this controller.
-            let actions: [(String, String)] =
-                controller is DecoratedAppSceneViewController
-                    ? [("최소화", "minimizeWindow"),
-                       ("최대화 / 복원", "maximizeWindow"),
-                       ("창 닫기", "closeWindow")]
-                    : [("홍수정으로 돌아가기", "lcReturnToHost"),
-                       ("버튼 접기", "lcV102CollapseFloatingButton")]
+            // Only DecoratedAppSceneViewController requests this mode;
+            // Direct guest Return is separately owned by SCGuestMorphPresenter.
+            // Remove legacy selector fallback, do not render nonfunctional rows.
+            let actions: [(String, String)] = [
+                ("최소화", "minimizeWindow"),
+                ("최대화 / 복원", "maximizeWindow"),
+                ("창 닫기", "closeWindow")
+            ]
             for (title, selectorName) in actions {
                 let item = UIButton(type: .system)
                 item.contentHorizontalAlignment = .center

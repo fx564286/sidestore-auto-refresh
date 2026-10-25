@@ -71,9 +71,21 @@ class V102MigrationTests(unittest.TestCase):
         d=action.patch_dock(focus.patch(fixture()[0]))
         for expected in ('nrgV102PresentWindowActionsFrom:sourceView:',
                          'windowActions ? "창 관리"', 'if !windowActions {',
-                         'closeWindow', 'lcReturnToHost', 'lcV102CollapseFloatingButton'):
+                         'closeWindow', 'minimizeWindow', 'maximizeWindow',
+                         'SCARLET_V107_LIVE_WINDOW_ACTIONS_ONLY',
+                         'guard controller is DecoratedAppSceneViewController'):
             self.assertIn(expected,d)
+        for retired in ('lcReturnToHost', 'lcV102CollapseFloatingButton', '홍수정',
+                        'controller is DecoratedAppSceneViewController\n                    ?'):
+            self.assertNotIn(retired,d)
         self.assertEqual(action.patch_dock(d),d)
+
+    def test_prior_v102_dead_direct_selector_branch_fails_closed(self):
+        d=action.patch_dock(focus.patch(fixture()[0]))
+        with self.assertRaisesRegex(ValueError, "obsolete V102 window-action menu"):
+            action.patch_dock(d.replace('"closeWindow"', '"lcReturnToHost"'))
+        with self.assertRaisesRegex(ValueError, "obsolete V102 window-action menu"):
+            action.patch_dock(d.replace('Scarlet Crystal 내부', '홍수정 내부'))
 
     def test_old_native_overflow_menu_is_deleted_not_hidden(self):
         w=action.patch_window(fixture()[1])
