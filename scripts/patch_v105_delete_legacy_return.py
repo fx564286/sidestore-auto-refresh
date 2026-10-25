@@ -143,16 +143,61 @@ DIRECT_CODE = r'''
     }
 }
 - (void)openShared:(UIButton *)sourceView {
-    if (!sourceView.window || !sourceView.superview) return;
-    Class bridge = NSClassFromString(@"SCUnifiedGuestUIBridge");
-    SEL route = NSSelectorFromString(@"presentFrom:sourceView:");
-    if (!bridge || ![bridge respondsToSelector:route]) {
-        NSLog(@"[SCARLET_V112_UI] mode=direct common_router_unavailable=1");
+    // SCARLET_V114_DIRECT_PICKER_REPAIR: a visible control must not become
+    // inert when UIKit launches a Classic guest before its Swift bridge is
+    // registered. Resolve the existing shared framework once on demand.
+    UIWindow *sourceWindow = sourceView.window;
+    UIViewController *controller = sourceWindow.rootViewController;
+    if (!controller || !sourceView.superview) {
+        NSLog(@"[SCARLET_V114_UI] tap=1 result=detached_control");
         return;
     }
-    UIViewController *controller = sourceView.window.rootViewController;
-    ((void (*)(id, SEL, UIViewController *, UIView *))objc_msgSend)(
-        bridge, route, controller, sourceView);
+    NSLog(@"[SCARLET_V114_UI] tap=1 mode=direct");
+    SEL route = NSSelectorFromString(@"presentFrom:sourceView:");
+    Class bridge = NSClassFromString(@"SCUnifiedGuestUIBridge");
+    if (!bridge || ![bridge respondsToSelector:route]) {
+        NSMutableArray<NSString *> *frameworkDirectories = [NSMutableArray array];
+        NSString *primary = NSBundle.mainBundle.privateFrameworksPath;
+        if (primary.length) [frameworkDirectories addObject:primary];
+        NSBundle *host = [NSBundle bundleForClass:LCSharedUtils.class];
+        NSString *hostParent = [host.bundlePath stringByDeletingLastPathComponent];
+        if (hostParent.length && ![frameworkDirectories containsObject:hostParent]) {
+            [frameworkDirectories addObject:hostParent];
+        }
+        for (NSString *directory in frameworkDirectories) {
+            NSString *candidate = [[directory stringByAppendingPathComponent:@"LiveContainerSwiftUI.framework"]
+                stringByStandardizingPath];
+            NSBundle *framework = [NSBundle bundleWithPath:candidate];
+            if (!framework) continue;
+            NSError *loadError = nil;
+            BOOL loaded = [framework loadAndReturnError:&loadError];
+            NSLog(@"[SCARLET_V114_UI] framework_loaded=%d error_code=%ld",
+                  loaded ? 1 : 0, (long)(loadError ? loadError.code : 0));
+            bridge = NSClassFromString(@"SCUnifiedGuestUIBridge");
+            if (bridge && [bridge respondsToSelector:route]) break;
+        }
+    }
+    if (bridge && [bridge respondsToSelector:route]) {
+        NSLog(@"[SCARLET_V114_UI] common_router=bridge");
+        ((void (*)(id, SEL, UIViewController *, UIView *))objc_msgSend)(
+            bridge, route, controller, sourceView);
+        return;
+    }
+    // MultitaskDockManager already owns the same picker; call it directly
+    // when the extra bridge class is unavailable. No duplicate panel/UI.
+    Class managerClass = NSClassFromString(@"MultitaskDockManager");
+    SEL getShared = NSSelectorFromString(@"shared");
+    SEL present = NSSelectorFromString(@"nrgV112PresentDirectGuestUIFrom:sourceView:");
+    if (managerClass && [managerClass respondsToSelector:getShared]) {
+        id manager = ((id (*)(id, SEL))objc_msgSend)(managerClass, getShared);
+        if (manager && [manager respondsToSelector:present]) {
+            NSLog(@"[SCARLET_V114_UI] common_router=manager");
+            ((void (*)(id, SEL, UIViewController *, UIView *))objc_msgSend)(
+                manager, present, controller, sourceView);
+            return;
+        }
+    }
+    NSLog(@"[SCARLET_V114_UI] common_router_unavailable=1 framework_loaded=0");
 }
 - (void)disconnect:(NSNotification *)notice {
     if ([notice.object isKindOfClass:UIWindowScene.class]) {

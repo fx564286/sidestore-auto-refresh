@@ -179,6 +179,7 @@ def transform(source: str) -> str:
 ''', "", "obsolete edge recognizers")
 
     source = share_direct_guest_ui(source)
+    source = repair_unresponsive_shared_picker(source)
     audit(source)
     return source
 
@@ -311,9 +312,109 @@ public final class SCUnifiedGuestUIBridge: NSObject {
 '''
     return source
 
+def repair_unresponsive_shared_picker(source: str) -> str:
+    """One common picker exposes both recent guests and window controls.
+
+    No additional UIViewController, window, floating icon, or independent
+    screen is created. The same UIKit material panel is reconfigured using
+    the existing V72/V102 actions. Direct can show the same controls but
+    cannot perform retained-window actions on a Classic guest process.
+    """
+    if "SCARLET_V114_PICKER_TABS" in source:
+        return source
+    source = unique(
+        source,
+        '''    private var nrgV112DirectGuestRequest = false
+''',
+        '''    private var nrgV112DirectGuestRequest = false
+    // SCARLET_V114_PICKER_TABS: both modes share the V72 picker and tabs.
+    private var nrgV114DirectWindowActionsRequest = false
+''', "Direct picker selection state")
+    source = unique(
+        source,
+        '''        let windowActions = nrgV102WindowActionRequest
+        let directMode = nrgV112DirectGuestRequest
+''',
+        '''        let directMode = nrgV112DirectGuestRequest
+        let windowActions = nrgV102WindowActionRequest ||
+            (directMode && nrgV114DirectWindowActionsRequest)
+''', "one picker handles both tab modes")
+    source = unique(
+        source,
+        '''        content.addArrangedSubview(subtitle)
+
+        let scroll = UIScrollView()
+''',
+        '''        content.addArrangedSubview(subtitle)
+
+        // The original V72 native panel provides both modes to Direct and
+        // LiveProcess. No secondary dock, sheet or alert is constructed.
+        let tabPicker = UISegmentedControl(items: ["최근 실행 앱", "창 관리"])
+        tabPicker.accessibilityIdentifier = "scarlet.v114.shared.guest.tabs"
+        tabPicker.selectedSegmentIndex = windowActions ? 1 : 0
+        tabPicker.setEnabled(directMode ||
+            (controller is DecoratedAppSceneViewController), forSegmentAt: 1)
+        content.addArrangedSubview(tabPicker)
+
+        let scroll = UIScrollView()
+''', "two entry modes within one common panel")
+    source = unique(
+        source,
+        '''        overlay.addAction(UIAction { _ in collapse({}) }, for: .touchUpInside)
+
+        if recent.isEmpty''',
+        '''        overlay.addAction(UIAction { _ in collapse({}) }, for: .touchUpInside)
+        tabPicker.addAction(UIAction { [weak self, weak controller, weak sourceView, weak tabPicker] _ in
+            guard let self, let controller, let sourceView, let tabPicker else { return }
+            let targetWindowActions = tabPicker.selectedSegmentIndex == 1
+            guard targetWindowActions != windowActions else { return }
+            collapse {
+                if directMode {
+                    self.nrgV114DirectWindowActionsRequest = targetWindowActions
+                    self.nrgV112PresentDirectGuestUI(from: controller, sourceView: sourceView)
+                } else if targetWindowActions {
+                    self.nrgV102PresentWindowActions(from: controller, sourceView: sourceView)
+                } else {
+                    self.nrgV72PresentGuestSwitcher(from: controller, sourceView: sourceView)
+                }
+            }
+        }, for: .valueChanged)
+
+        if recent.isEmpty''', "use the existing picker on tab switch")
+    source = unique(
+        source,
+        '''            notice.text = "현재 앱을 종료하면 미저장 진행 상황이 사라질 수 있어."
+''',
+        '''            notice.text = windowActions
+                ? "Direct 실행은 독립 창 조작을 지원하지 않아. 복귀 후 창을 관리할 수 있어."
+                : "Direct에서는 다른 앱으로 즉시 전환할 수 없어. 복귀 후 최근 앱을 확인할 수 있어."
+''', "accurate Direct mode feature availability")
+    source = unique(
+        source,
+        '''        guard let owner = sourceView.window,
+              owner.windowScene?.activationState == .foregroundActive,
+              (windowActions || controller.view.window != nil),
+              sourceView.isHidden == false else { return }
+''',
+        '''        guard let owner = sourceView.window,
+              owner.windowScene?.activationState == .foregroundActive,
+              (windowActions || controller.view.window != nil),
+              sourceView.isHidden == false else {
+            NSLog("[SCARLET_V114_UI] picker_guard_rejected source_window=%d root_window=%d hidden=%d",
+                  sourceView.window != nil ? 1 : 0,
+                  controller.view.window != nil ? 1 : 0,
+                  sourceView.isHidden ? 1 : 0)
+            return
+        }
+''', "log existing UIKit guard instead of silent no-op")
+    return source
+
 def audit(source: str) -> None:
     for token in (
         MARK, "SCARLET_V112_SHARED_GUEST_UI",
+        "SCARLET_V114_PICKER_TABS",
+        'tabPicker.accessibilityIdentifier = "scarlet.v114.shared.guest.tabs"',
+        "nrgV114DirectWindowActionsRequest = targetWindowActions",
         "@objc(SCUnifiedGuestUIBridge)",
         "nrgV112PresentDirectGuestUI(from: controller, sourceView: sourceView)",
         "scarlet.v112.direct.restart",
