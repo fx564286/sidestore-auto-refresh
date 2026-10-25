@@ -8,31 +8,22 @@ sys.path.insert(0,str(ROOT/'scripts'))
 spec=importlib.util.spec_from_file_location('packager',ROOT/'scripts'/'package_livecontainer_combined.py')
 mod=importlib.util.module_from_spec(spec)
 spec.loader.exec_module(mod)
-check=mod.verify_guest_return_control_binary_markers
-collapsed=b'[LC_RETURN] CONTROL_COLLAPSED'
-old=b'[LC_RETURN] CONTROL_RESTORED'
-new=b'[SCARLET_V103_CONTROL] restored_and_dispatched=1'
+check=mod.verify_v105_direct_morph_binary
 
 class GuestControlBinaryTests(unittest.TestCase):
-    def test_legacy_valid(self):
-        self.assertEqual(check(collapsed+old,collapsed+old),'legacy-restored')
-
-    def test_v103_valid_without_retired_marker(self):
-        self.assertEqual(check(collapsed+new,collapsed),'v103-single-control')
-        self.assertEqual(check(collapsed,collapsed+new),'v103-single-control')
-
-    def test_missing_collapse_rejected_in_either_library(self):
-        for first,second in ((old,collapsed+new),(collapsed+new,b'')):
-            with self.subTest(first=first,second=second):
-                with self.assertRaisesRegex(ValueError,'collapsible guest control missing'):
-                    check(first,second)
-
-    def test_missing_restoration_rejected(self):
-        with self.assertRaisesRegex(ValueError,'neither legacy nor V103'):
-            check(collapsed,collapsed)
-
-    def test_stale_legacy_half_build_is_rejected(self):
-        with self.assertRaisesRegex(ValueError,'neither legacy nor V103'):
-            check(collapsed+old,collapsed)
-
+    def test_current_v105_morph_present(self):
+        markers=b'SCGuestMorphPresenter scarlet.v105.direct.morph [SCARLET_V105_CONTROL]'
+        self.assertIsNone(check(markers))
+    def test_each_missing_owner_marker_fails(self):
+        markers=(b'SCGuestMorphPresenter',b'scarlet.v105.direct.morph',
+                 b'[SCARLET_V105_CONTROL]')
+        for i in range(len(markers)):
+            with self.subTest(i=i):
+                with self.assertRaisesRegex(ValueError,'missing'):
+                    check(b' '.join(v for j,v in enumerate(markers) if j!=i))
+    def test_old_control_must_not_exist_even_if_new_present(self):
+        markers=b'SCGuestMorphPresenter scarlet.v105.direct.morph [SCARLET_V105_CONTROL]'
+        for old in (b'LCDirectReturnPresenter',b'LCDirectReturnControl'):
+            with self.assertRaisesRegex(ValueError,'obsolete'):
+                check(markers+b' '+old)
 if __name__=='__main__':unittest.main()
