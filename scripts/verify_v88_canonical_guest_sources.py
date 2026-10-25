@@ -82,7 +82,7 @@ def check_file(root: Path, relative: Path, content: str, problems: list[str]):
                 # reference the same canonical hold handler.
                 expected = 2 if token == "lcV102NativeHoldActions:" else 1
                 if content.count(token) != expected:
-                    problems.append(f"{relative}: V102 action {token!r} count={content.count(token)} wanted={expected}")")
+                    problems.append(f"{relative}: V102 action {token!r} count={content.count(token)} wanted={expected}")
             for retired in ("v76Hold.enabled = NO", "lcV76HoldToSwitch:",
                             "self.lcReturnControl.button.menu = [UIMenu"):
                 if retired in content:
