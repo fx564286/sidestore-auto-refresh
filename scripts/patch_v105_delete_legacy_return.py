@@ -186,6 +186,11 @@ DIRECT_CODE = r'''
     // MultitaskDockManager already owns the same picker; call it directly
     // when the extra bridge class is unavailable. No duplicate panel/UI.
     Class managerClass = NSClassFromString(@"MultitaskDockManager");
+    if (!managerClass) {
+        // Swift @objc classes may be module-qualified unless explicitly
+        // renamed, unlike the SCUnifiedGuestUIBridge above.
+        managerClass = NSClassFromString(@"LiveContainerSwiftUI.MultitaskDockManager");
+    }
     SEL getShared = NSSelectorFromString(@"shared");
     SEL present = NSSelectorFromString(@"nrgV112PresentDirectGuestUIFrom:sourceView:");
     if (managerClass && [managerClass respondsToSelector:getShared]) {

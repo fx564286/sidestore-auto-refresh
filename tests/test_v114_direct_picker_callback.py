@@ -58,6 +58,7 @@ class DirectPickerRepair(unittest.TestCase):
                          'presentFrom:sourceView:',
                          'common_router=bridge',
                          'NSClassFromString(@"MultitaskDockManager")',
+                         'NSClassFromString(@"LiveContainerSwiftUI.MultitaskDockManager")',
                          'nrgV112PresentDirectGuestUIFrom:sourceView:',
                          'common_router=manager'):
             self.assertIn(required,code)
