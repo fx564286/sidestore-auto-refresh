@@ -2852,6 +2852,7 @@ class GsaPreparedTreeTests(unittest.TestCase):
                 "patch_v98_gsa_80046_trace.py": "SCARLET_V98_GSA_PHASE_TRACE",
                 "patch_v110_gsa_http_phase.py": "SCARLET_V110_GSA_HTTP_PHASE",
                 "patch_v116_sideinstaller_gsa.py": "SCARLET_V116_SIDEINSTALLER_PARITY",
+                "patch_v118_gsa_isolation.py": "SCARLET_V118_TRANSACTION_SESSION",
             }
             if script.name in reviewed_nrg:
                 self.assertIn("DeveloperPortal/Authentication", content)
