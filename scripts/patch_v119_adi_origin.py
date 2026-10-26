@@ -17,10 +17,13 @@ ROUTE = '''        // SCARLET_V119_ADI_ORIGIN: classify, never output server URL
         let v119OnDevice = UserDefaults.standard.useOnDeviceAnisette
         let v119RotationDisabled = UserDefaults.standard.disableAnisetteRotation
         let v119ExistingAdi = AnisetteConfigManager.shared.anisetteAdiBlob
-        let v119Config = await AnisetteConfigManager.shared.loadConfig()
-        let v119DeclaredClass = v119Config.clientInfo.contains("<Android;") ? "android"
-            : v119Config.clientInfo.contains("<Windows;") ? "windows"
-            : v119Config.clientInfo.contains("<Mac") ? "mac" : "other"
+        // Read override flags directly: AnisetteConfig is not Sendable.
+        // "unset" means inspect the server-supplied/default profile next.
+        let v119ClientOverride = UserDefaults.standard.customAnisetteClientInfo ?? ""
+        let v119DeclaredClass = v119ClientOverride.isEmpty ? "unset"
+            : (v119ClientOverride.contains("<Android;") ? "android"
+                : v119ClientOverride.contains("<Windows;") ? "windows"
+                : v119ClientOverride.contains("<Mac") ? "mac" : "other")
         let v119SelectedURL = UserDefaults.standard.menuAnisetteURL
         // Avoid passing non-Sendable catalog models across actor isolation.
         // A provider hostname is only an issuer hint, not an ADI origin proof.
@@ -29,7 +32,7 @@ ROUTE = '''        // SCARLET_V119_ADI_ORIGIN: classify, never output server URL
             : (v119ChosenHost == "sidestore.io" || v119ChosenHost.hasSuffix(".sidestore.io")
                 ? "sidestore_domain" : "other_domain")
         // Catalog names are only hints, not proof of native ADI library.
-        print("[SCARLET_V119_ADI_ORIGIN] stage=fetch mode=\(v119OnDevice ? "ondevice" : "remote") existing_adi=\(v119ExistingAdi?.isEmpty == false) rotation_disabled=\(v119RotationDisabled) config_family=\(v119DeclaredClass) server_catalog_hint=\(v119CatalogHint) routing_override=\(v119Config.customRoutingInfo?.isEmpty == false)")
+        print("[SCARLET_V119_ADI_ORIGIN] stage=fetch mode=\(v119OnDevice ? "ondevice" : "remote") existing_adi=\(v119ExistingAdi?.isEmpty == false) rotation_disabled=\(v119RotationDisabled) config_family=\(v119DeclaredClass) server_catalog_hint=\(v119CatalogHint) routing_override=\(UserDefaults.standard.customAnisetteRoutingInfo?.isEmpty == false)")
 '''
 REMOTE = '''        if let freshBlob = newAdiBlob {
             AnisetteConfigManager.shared.anisetteAdiBlob = freshBlob.base64EncodedString()
