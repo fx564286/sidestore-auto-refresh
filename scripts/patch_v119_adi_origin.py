@@ -55,7 +55,7 @@ REMOTE_NEW = '''        // SCARLET_V119_ADI_ORIGIN: successful header acquisitio
 
 def transform(source: str) -> str:
     if MARK in source:
-        if (source.count(MARK) != 2 or ROUTE not in source
+        if (source.count(MARK) != 3 or ROUTE not in source
                 or REMOTE_NEW not in source):
             raise ValueError('V119 partial provenance instrumentation')
         return source

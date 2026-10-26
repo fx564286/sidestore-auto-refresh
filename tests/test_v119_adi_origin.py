@@ -25,7 +25,7 @@ class Tests(unittest.TestCase):
     def test_patch_idempotent_and_two_markers(self):
         result=v119.transform(FIX)
         self.assertEqual(v119.transform(result),result)
-        self.assertEqual(result.count(v119.MARK),2)
+        self.assertEqual(result.count(v119.MARK),3)
         self.assertIn('SCARLET_V119_ADI_RESULT',result)
         self.assertIn('server_catalog_hint=',result)
         self.assertIn('routing_override=',result)
@@ -42,5 +42,5 @@ class Tests(unittest.TestCase):
         self.assertNotIn('serverURL.absoluteString',added)
     def test_label_is_explicitly_unverified_hint(self):
         self.assertIn('Catalog names are only hints',v119.ROUTE)
-        self.assertIn('not proof',v119.REMOTE_NEW)
+        self.assertIn('without proof',v119.REMOTE_NEW)
 if __name__=='__main__':unittest.main()
