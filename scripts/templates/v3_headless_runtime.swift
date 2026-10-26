@@ -2718,6 +2718,16 @@ enum V3BackendCommands {
             WidgetDataManager.shared.isVerboseLoggingEnabled = value
         } else if stringSettings.contains(key) {
             guard let value = payload["string"] as? String else { throw V3SideStoreServiceError.invalidRequest }
+            // V120: explicit catalog choice replaces stale custom-URL input.
+            if key == "menuAnisetteURL" {
+                guard let url = URL(string: value), url.scheme?.lowercased() == "https",
+                      let host = url.host, !host.isEmpty, url.user == nil,
+                      url.password == nil, url.query == nil, url.fragment == nil,
+                      url.path.isEmpty || url.path == "/" else {
+                    throw V3SideStoreServiceError.invalidRequest
+                }
+                UserDefaults.standard.removeObject(forKey: "textInputAnisetteURL")
+            }
             if value.isEmpty { UserDefaults.standard.removeObject(forKey: key) }
             else { UserDefaults.standard.set(value, forKey: key) }
         } else if intSettings.contains(key) {
@@ -2732,9 +2742,13 @@ enum V3BackendCommands {
 
     static func anisetteList() async -> [[String: Any]] {
         let items = await AnisetteServersManager.shared.loadLocalServers()
-        let active = await AnisetteServersManager.shared.getActiveServerURLs()
+        // V120: only the selected authentication target is active, not every
+        // non-hidden server in the catalogue.
+        let custom = (UserDefaults.standard.string(forKey: "textInputAnisetteURL") ?? "")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        let selected = custom.isEmpty ? UserDefaults.standard.menuAnisetteURL : custom
         return items.map { ["id": $0.id, "name": $0.name, "address": $0.address,
-                            "hidden": $0.isHidden, "active": active.contains($0.address)] }
+                            "hidden": $0.isHidden, "active": selected == $0.address] }
     }
 
     static func sidesignJSON() async throws -> String {

@@ -8044,6 +8044,7 @@ struct V3AnisetteView: View {
                                         message = store.message
                                         return
                                     }
+                                    await store.load()
                                     await reload()
                                 }
                             }
@@ -8067,6 +8068,8 @@ struct V3AnisetteView: View {
                 V3ToggleRow(store: store, title: "Disable Rotation", key: "disableAnisetteRotation")
                 V3ToggleRow(store: store, title: "On-Device Anisette", key: "useOnDeviceAnisette")
                 V3TextRow(store: store, title: "Custom Server URL", key: "textInputAnisetteURL")
+                Text("Custom URL is the login target when set. Choosing a server above clears the custom URL. HTTPS base URLs only.")
+                    .font(.caption).foregroundColor(.secondary)
                 V3TextRow(store: store, title: "Custom Anisette URL Override", key: "customAnisetteURL")
             }
         }
