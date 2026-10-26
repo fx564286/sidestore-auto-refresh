@@ -22,11 +22,12 @@ ROUTE = '''        // SCARLET_V119_ADI_ORIGIN: classify, never output server URL
             : v119Config.clientInfo.contains("<Windows;") ? "windows"
             : v119Config.clientInfo.contains("<Mac") ? "mac" : "other"
         let v119SelectedURL = UserDefaults.standard.menuAnisetteURL
-        let v119Names = await AnisetteServersManager.shared.loadLocalServers()
-        let v119SelectedName = v119Names.first(where: { $0.address == v119SelectedURL })?.name.lowercased() ?? ""
-        let v119CatalogHint = v119SelectedName.contains("mac")
-            || (v119SelectedName.contains("sidestore") && v119SelectedName.contains("new"))
-            ? "mac_named" : (v119SelectedName.contains("android") ? "android_named" : "unclassified")
+        // Avoid passing non-Sendable catalog models across actor isolation.
+        // A provider hostname is only an issuer hint, not an ADI origin proof.
+        let v119ChosenHost = URL(string: v119SelectedURL)?.host?.lowercased() ?? ""
+        let v119CatalogHint = v119ChosenHost.isEmpty ? "unset"
+            : (v119ChosenHost == "sidestore.io" || v119ChosenHost.hasSuffix(".sidestore.io")
+                ? "sidestore_domain" : "other_domain")
         // Catalog names are only hints, not proof of native ADI library.
         print("[SCARLET_V119_ADI_ORIGIN] stage=fetch mode=\(v119OnDevice ? "ondevice" : "remote") existing_adi=\(v119ExistingAdi?.isEmpty == false) rotation_disabled=\(v119RotationDisabled) config_family=\(v119DeclaredClass) server_catalog_hint=\(v119CatalogHint) routing_override=\(v119Config.customRoutingInfo?.isEmpty == false)")
 '''
@@ -39,11 +40,10 @@ REMOTE = '''        if let freshBlob = newAdiBlob {
 REMOTE_NEW = '''        // SCARLET_V119_ADI_ORIGIN: successful header acquisition is not
         // Apple acceptance. Do not claim matched provenance without proof.
         let v119ActiveURL = UserDefaults.standard.menuAnisetteURL
-        let v119KnownServers = await AnisetteServersManager.shared.loadLocalServers()
-        let v119ActiveName = v119KnownServers.first(where: { $0.address == v119ActiveURL })?.name.lowercased() ?? ""
-        let v119ActiveHint = v119ActiveName.contains("mac")
-            || (v119ActiveName.contains("sidestore") && v119ActiveName.contains("new"))
-            ? "mac_named" : (v119ActiveName.contains("android") ? "android_named" : "unclassified")
+        let v119ActiveHost = URL(string: v119ActiveURL)?.host?.lowercased() ?? ""
+        let v119ActiveHint = v119ActiveHost.isEmpty ? "unset"
+            : (v119ActiveHost == "sidestore.io" || v119ActiveHost.hasSuffix(".sidestore.io")
+                ? "sidestore_domain" : "other_domain")
         let v119ActualFamily = anisetteData.clientInfo.contains("<Android;") ? "android"
             : anisetteData.clientInfo.contains("<Windows;") ? "windows"
             : anisetteData.clientInfo.contains("<Mac") ? "mac" : "other"
