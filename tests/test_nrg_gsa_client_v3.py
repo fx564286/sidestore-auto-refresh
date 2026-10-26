@@ -17,6 +17,7 @@ public extension DeveloperPortal {
         let headers = [
             "Content-Type": "application/x-plist",
             "User-Agent": h.developerServices.userAgent,
+            "X-Xcode-Version": context.xcodeVersion,
             "X-MMe-Client-Info": a.clientInfo,
             "X-Apple-I-MD": a.oneTimePassword,
             "X-Mme-Device-Id": a.deviceID
@@ -32,7 +33,16 @@ class NRGClientConsistencyTests(unittest.TestCase):
         self.assertEqual(after.count('"X-MMe-Client-Info": nrgGrandSlamClientInfo(a.clientInfo)'), 2)
         self.assertIn('"X-Apple-I-MD": a.oneTimePassword', after)
         self.assertIn('"X-Mme-Device-Id": a.deviceID', after)
+        self.assertIn('"X-Xcode-Version": nrgGrandSlamUsesWindowsCompatibility(a.clientInfo)', after)
+        self.assertIn('"User-Agent": nrgGrandSlamUsesWindowsCompatibility(a.clientInfo)', after)
         self.assertNotIn('ani.jkcoxson.com', after)
+
+    def test_missing_xcode_header_rejected_before_patch(self):
+        without_header = FIXTURE.replace(
+            '            "X-Xcode-Version": context.xcodeVersion,\n', ''
+        )
+        with self.assertRaisesRegex(ValueError, "2FA Xcode version source drift"):
+            patch.transform(without_header)
 
     def test_idempotent(self):
         once = patch.transform(FIXTURE)
