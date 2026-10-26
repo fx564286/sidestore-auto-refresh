@@ -23,11 +23,14 @@ LEGACY_MAC_HELPER = r'''    // SCARLET_V116_SIDEINSTALLER_PARITY: SideInstaller'
         return major < 10 || (major == 10 && minor < 13)
     }
     private func nrgGrandSlamUserAgent(_ original: String, fallback: String) -> String {
-        if nrgGSAIsLegacyMac(original) {
-            return "AuthKit/1 (Macintosh; OS X 26.6) (com.apple.akd/1.0)"
-        }
+        // V117: classify the effective GSA profile before choosing the
+        // user agent. An unsupported legacy-Mac-shaped source can legitimately
+        // fall back to Windows; do not pair its Windows Client-Info with Mac UA.
         if nrgGrandSlamUsesWindowsCompatibility(original) {
             return "akd/1.0 CFNetwork/808.1.4"
+        }
+        if nrgGSAIsLegacyMac(original) {
+            return "AuthKit/1 (Macintosh; OS X 26.6) (com.apple.akd/1.0)"
         }
         return fallback
     }
