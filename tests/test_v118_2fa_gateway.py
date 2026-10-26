@@ -23,6 +23,11 @@ def v116_fixture():
     from test_v116_gsa_sideinstaller_parity import patched_fixture
     source = patched_fixture().replace(v116.OLD_2FA_UA,
         '            "Content-Type": "application/x-plist",\n' + v116.OLD_2FA_UA, 1)
+    # Both Apple request builders in pinned SideSign already send Connection:close.
+    source = source.replace(v116.OLD_GSA_ACCEPT,
+        v116.OLD_GSA_ACCEPT + '\n            "Connection": "close",', 1)
+    source = source.replace(v116.OLD_2FA_UA,
+        v116.OLD_2FA_UA + '\n            "Connection": "close",', 1)
     return v116.transform(source)
 
 class V118GatewayTests(unittest.TestCase):
@@ -33,7 +38,7 @@ class V118GatewayTests(unittest.TestCase):
         self.assertEqual(new.count(v118.MARK), 1)
         self.assertIn('<Mac15,7> <macOS;27.0;26A5378j>', new)
         self.assertIn('"Connection": "close"', new)
-        self.assertEqual(new.count('"Connection": "close"'), 1)
+        self.assertEqual(new.count('"Connection": "close"'), 2)
         for forbidden in ("AuthManager.shared.signOut()", "SecItemDelete(", "resetAnisette",
                           "adiPb =", "verificationHandler(.verificationCode", "autoSubmitCode"):
             self.assertNotIn(forbidden, v118.NEW_MAC + v118.NEW_UA + v118.NEW_ACCEPT)
@@ -41,7 +46,7 @@ class V118GatewayTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "expected exactly one"):
             v118.transform(old.replace(v118.OLD_ACCEPT, '"Accept": "anything",'))
         with self.assertRaisesRegex(ValueError, "missing pinned authentication invariant"):
-            v118.transform(new.replace(v118.NEW_ACCEPT, v118.OLD_ACCEPT))
+            v118.transform(new.replace(v118.NEW_UA, v118.OLD_UA))
 
     def test_mac_and_windows_profiles_match_auth_and_2fa(self):
         swiftc = shutil.which("swiftc")
