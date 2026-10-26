@@ -40,7 +40,7 @@ class V118GatewayTests(unittest.TestCase):
         self.assertNotIn("SCARLET_V118_2FA_GATEWAY", old)
         with self.assertRaisesRegex(ValueError, "expected exactly one"):
             v118.transform(old.replace(v118.OLD_ACCEPT, '"Accept": "anything",'))
-        with self.assertRaisesRegex(ValueError, "partial overlay"):
+        with self.assertRaisesRegex(ValueError, "missing pinned authentication invariant"):
             v118.transform(new.replace(v118.NEW_ACCEPT, v118.OLD_ACCEPT))
 
     def test_mac_and_windows_profiles_match_auth_and_2fa(self):
