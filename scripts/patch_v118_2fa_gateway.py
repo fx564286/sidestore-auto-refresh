@@ -36,11 +36,6 @@ NEW_UA = '''        // Use an akd UA for the normalized Mac and Windows AuthKit 
             return "akd/1.0 CFNetwork/808.1.4"
         }
         return fallback'''
-OLD_ACCEPT = '''            "Accept": "text/x-xml-plist",
-            "User-Agent": nrgGrandSlamUserAgent(anisetteData.clientInfo, fallback: h.grandSlam.userAgent),'''
-NEW_ACCEPT = '''            "Accept": "text/x-xml-plist",
-            "Connection": "close",
-            "User-Agent": nrgGrandSlamUserAgent(anisetteData.clientInfo, fallback: h.grandSlam.userAgent),'''
 def once(source: str, old: str, new: str, label: str) -> str:
     count = source.count(old)
     if count != 1:
@@ -49,8 +44,9 @@ def once(source: str, old: str, new: str, label: str) -> str:
 
 def audit(source: str) -> None:
     for required in ("SCARLET_V116_SIDEINSTALLER_PARITY", MARK, NEW_MAC,
-                     NEW_UA, NEW_ACCEPT,
+                     NEW_UA,
                      '"User-Agent": nrgGrandSlamUserAgent(a.clientInfo, fallback: h.developerServices.userAgent)',
+                     '"User-Agent": nrgGrandSlamUserAgent(anisetteData.clientInfo, fallback: h.grandSlam.userAgent)',
                      '"X-MMe-Client-Info": nrgGrandSlamClientInfo(anisetteData.clientInfo)',
                      '"X-MMe-Client-Info": nrgGrandSlamClientInfo(a.clientInfo)',
                      "NRG_GSA_RECOVERY_V1"):
@@ -58,7 +54,7 @@ def audit(source: str) -> None:
             raise ValueError("V118 missing pinned authentication invariant")
     if source.count(MARK) != 1:
         raise ValueError("V118 unexpected marker count")
-    for obsolete in (OLD_MAC, OLD_UA, OLD_ACCEPT):
+    for obsolete in (OLD_MAC, OLD_UA):
         if obsolete in source:
             raise ValueError("V118 partial overlay")
     if 'AuthManager.shared.signOut()' in source:
@@ -74,7 +70,6 @@ def transform(source: str) -> str:
             raise ValueError(f"V118 prerequisite absent: {needed}")
     result = once(source, OLD_MAC, NEW_MAC, "modern Mac request identity")
     result = once(result, OLD_UA, NEW_UA, "GSA/2FA User-Agent policy")
-    result = once(result, OLD_ACCEPT, NEW_ACCEPT, "GSA connection policy")
     audit(result)
     return result
 
