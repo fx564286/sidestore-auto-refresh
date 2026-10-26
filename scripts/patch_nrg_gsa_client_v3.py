@@ -26,11 +26,18 @@ def transform(source: str) -> str:
         raise ValueError("2FA request header source drift")
     new_tail = tail.replace(BEFORE, AFTER, 1)
     original_ua = '            "User-Agent": h.developerServices.userAgent,'
-    replacement_ua = ('            // NRG_GSA_WINDOWS_UA_V4: align 2FA with PC AuthKit identity.\n'
-                      '            "User-Agent": "akd/1.0 CFNetwork/808.1.4",')
+    replacement_ua = ('            // NRG_GSA_WINDOWS_UA_V4 / SCARLET_V115_GSA_PROFILE_COHERENCE:\n'
+                      '            // match 2FA User-Agent to the effective GrandSlam identity.\n'
+                      '            "User-Agent": nrgGrandSlamUsesWindowsCompatibility(a.clientInfo) ? "akd/1.0 CFNetwork/808.1.4" : h.developerServices.userAgent,')
     if new_tail.count(original_ua) != 1:
         raise ValueError("2FA User-Agent source drift")
     new_tail = new_tail.replace(original_ua, replacement_ua, 1)
+    original_xcode = '            "X-Xcode-Version": context.xcodeVersion,'
+    replacement_xcode = ('            // SCARLET_V115_GSA_PROFILE_COHERENCE: native version when not Windows.\n'
+                         '            "X-Xcode-Version": nrgGrandSlamUsesWindowsCompatibility(a.clientInfo) ? "14.2 (14C18)" : context.xcodeVersion,')
+    if new_tail.count(original_xcode) != 1:
+        raise ValueError("2FA Xcode version source drift")
+    new_tail = new_tail.replace(original_xcode, replacement_xcode, 1)
     return source[:cut] + new_tail
 def main():
     p = argparse.ArgumentParser()

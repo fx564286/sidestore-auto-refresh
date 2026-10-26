@@ -58,6 +58,11 @@ def patch_side_sign(src: str) -> str:
         // source profiles only. Never auto-retry Apple's rejected request.
         return "<PC> <Windows;6.2(0,0);9200> <com.apple.AuthKit/1 (com.apple.iTunes/12.12.4.1)>"
     }
+    // SCARLET_V115_GSA_PROFILE_COHERENCE: choose auxiliary headers from
+    // the effective GrandSlam client profile without changing Anisette/ADI.
+    private func nrgGrandSlamUsesWindowsCompatibility(_ original: String) -> Bool {
+        nrgGrandSlamClientInfo(original).contains("<Windows;")
+    }
 '''
     src = one(src, 'public extension DeveloperPortal {\n', 'public extension DeveloperPortal {\n\n' + helper, 'GSA scoped client-info helper')
     src = one(src,
@@ -69,10 +74,19 @@ def patch_side_sign(src: str) -> str:
     src = one(src,
         '            "Accept": "*/*",\n            "User-Agent": h.grandSlam.userAgent,\n',
         '            "Accept": "*/*",\n'
-        '            "User-Agent": "akd/1.0 CFNetwork/808.1.4",\n'
-        '            "X-Xcode-Version": "14.2 (14C18)",\n'
-        '            "X-Apple-App-Info": "com.apple.gs.xcode.auth",\n',
-        'GSA Windows header compatibility')
+        '            "User-Agent": nrgGrandSlamUsesWindowsCompatibility(anisetteData.clientInfo) ? "akd/1.0 CFNetwork/808.1.4" : h.grandSlam.userAgent,\n',
+        'GSA profile-coherent User-Agent')
+    src = one(src,
+        '        headers.forEach { request.setValue($1, forHTTPHeaderField: $0) }\n\n        if let allHeaders',
+        '''        headers.forEach { request.setValue($1, forHTTPHeaderField: $0) }
+        // SCARLET_V115_GSA_PROFILE_COHERENCE: legacy extra headers for Windows only.
+        if nrgGrandSlamUsesWindowsCompatibility(anisetteData.clientInfo) {
+            request.setValue("14.2 (14C18)", forHTTPHeaderField: "X-Xcode-Version")
+            request.setValue("com.apple.gs.xcode.auth", forHTTPHeaderField: "X-Apple-App-Info")
+        }
+
+        if let allHeaders''',
+        'GSA Windows-only auxiliary headers')
 
 
     # Early HTTP status classification. The existing upstream parser otherwise
