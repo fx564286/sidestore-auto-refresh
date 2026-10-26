@@ -20,7 +20,7 @@ class TestV120(unittest.TestCase):
     def test_pinned_patch_idempotent(self):
         result=v120.transform(FIX)
         self.assertEqual(v120.transform(result),result)
-        self.assertEqual(result.count(v120.MARK),2)
+        self.assertEqual(result.count(v120.MARK),3)
         self.assertIn('v120Custom.isEmpty ? v120Menu : v120Custom',result)
         self.assertIn('[preferred] + v120Catalog.filter',result)
         self.assertIn('servers: UserDefaults.standard.disableAnisetteRotation ? [servers[0]] : servers',result)

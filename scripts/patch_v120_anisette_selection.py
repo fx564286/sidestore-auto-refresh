@@ -76,7 +76,7 @@ NEW_SUCCESS='''            onSuccess: { successfulServer in
 '''
 def transform(src):
     if MARK in src or "SCARLET_V120_ANISETTE_ACTUAL" in src:
-        if src.count(MARK)!=2 or src.count("SCARLET_V120_ANISETTE_ACTUAL")!=2 or NEW_HEAD not in src or NEW_SUCCESS not in src or NEW_CALL not in src:
+        if src.count(MARK)!=3 or src.count("SCARLET_V120_ANISETTE_ACTUAL")!=2 or NEW_HEAD not in src or NEW_SUCCESS not in src or NEW_CALL not in src:
             raise ValueError("V120 incomplete or drifted patch")
         return src
     for anchor in (OLD_HEAD,OLD_CALL,OLD_SUCCESS):
