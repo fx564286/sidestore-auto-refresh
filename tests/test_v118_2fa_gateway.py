@@ -33,15 +33,15 @@ class V118GatewayTests(unittest.TestCase):
         self.assertEqual(new.count(v118.MARK), 1)
         self.assertIn('<Mac15,7> <macOS;27.0;26A5378j>', new)
         self.assertIn('"Connection": "close"', new)
-        self.assertEqual(new.count('"Connection": "close"'), 2)
+        self.assertEqual(new.count('"Connection": "close"'), 1)
         for forbidden in ("AuthManager.shared.signOut()", "SecItemDelete(", "resetAnisette",
                           "adiPb =", "verificationHandler(.verificationCode", "autoSubmitCode"):
-            self.assertNotIn(forbidden, v118.NEW_MAC + v118.NEW_UA + v118.NEW_ACCEPT + v118.NEW_2FA)
+            self.assertNotIn(forbidden, v118.NEW_MAC + v118.NEW_UA + v118.NEW_ACCEPT)
         self.assertNotIn("SCARLET_V118_2FA_GATEWAY", old)
         with self.assertRaisesRegex(ValueError, "expected exactly one"):
             v118.transform(old.replace(v118.OLD_ACCEPT, '"Accept": "anything",'))
         with self.assertRaisesRegex(ValueError, "partial overlay"):
-            v118.transform(new.replace(v118.NEW_2FA, v118.OLD_2FA))
+            v118.transform(new.replace(v118.NEW_ACCEPT, v118.OLD_ACCEPT))
 
     def test_mac_and_windows_profiles_match_auth_and_2fa(self):
         swiftc = shutil.which("swiftc")
