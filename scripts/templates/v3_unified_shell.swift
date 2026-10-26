@@ -6801,6 +6801,10 @@ struct V3CertificatesView: View {
                 }
                 .disabled(!busy.isEmpty || signingP12Token != nil)
                 if loading { ProgressView("Loading certificates...") }
+                if !loading && local.isEmpty {
+                    Text("Certificate list is empty. This does not prove a signing identity is absent from Keychain.")
+                        .font(.footnote).foregroundColor(.secondary)
+                }
                 ForEach(local) { cert in
                     VStack(alignment: .leading, spacing: 4) {
                         HStack {
@@ -6927,7 +6931,7 @@ struct V3CertificatesView: View {
         let fm = FileManager.default
         guard fm.fileExists(atPath: certificateURL.path),
               fm.fileExists(atPath: passwordURL.path) else {
-            message = "USB signing files not found in NRG Documents. Run the USB bootstrap again."
+            message = "USB import bundle is not staged in NRG Documents. This is separate from Keychain signing identity. Import a .p12 only if needed."
             return
         }
         // Never keep a plain-text password in the application Documents after
