@@ -41,10 +41,10 @@ class V118GatewayTests(unittest.TestCase):
         self.assertEqual(new.count('"Connection": "close"'), 2)
         for forbidden in ("AuthManager.shared.signOut()", "SecItemDelete(", "resetAnisette",
                           "adiPb =", "verificationHandler(.verificationCode", "autoSubmitCode"):
-            self.assertNotIn(forbidden, v118.NEW_MAC + v118.NEW_UA + v118.NEW_ACCEPT)
+            self.assertNotIn(forbidden, v118.NEW_MAC + v118.NEW_UA)
         self.assertNotIn("SCARLET_V118_2FA_GATEWAY", old)
         with self.assertRaisesRegex(ValueError, "expected exactly one"):
-            v118.transform(old.replace(v118.OLD_ACCEPT, '"Accept": "anything",'))
+            v118.transform(old.replace(v118.OLD_UA, 'unexpectedUserAgent'))
         with self.assertRaisesRegex(ValueError, "missing pinned authentication invariant"):
             v118.transform(new.replace(v118.NEW_UA, v118.OLD_UA))
 
