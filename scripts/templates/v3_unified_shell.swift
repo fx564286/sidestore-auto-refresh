@@ -6370,6 +6370,7 @@ struct V3SignInLink: View {
 }
 
 struct V3SignInView: View {
+    @Environment(\.dismiss) private var dismiss
     @EnvironmentObject private var status: V3SideStoreStatusStore
     @EnvironmentObject private var sharedModel: SharedModel
     @StateObject private var auth = V3AuthStore()
@@ -6603,7 +6604,9 @@ struct V3SignInView: View {
                         Text("Cancel the unconfirmed sign-in before retrying provisioning.")
                             .font(.caption).foregroundColor(.secondary)
                     }
-                    if recovery.showRetryProvisioning || auth.state != "resultUnknown" {
+                    // SCARLET_V123_REAUTH_RECOVERY: never replay an absent session.
+                    if !auth.provisioningSessionUnavailable &&
+                       (recovery.showRetryProvisioning || auth.state != "resultUnknown") {
                         Button {
                             auth.retryProvisioning()
                         } label: {
@@ -6612,8 +6615,18 @@ struct V3SignInView: View {
                         .disabled(!auth.canRetryProvisioning)
                     }
                     if auth.provisioningSessionUnavailable {
-                        Text("Finish Later, then reopen Account & Signing to sign in again before retrying provisioning.")
-                            .font(.caption).foregroundColor(.secondary)
+                        if auth.canBegin {
+                            Button {
+                                auth.begin()
+                            } label: {
+                                Label("Sign In Again to Complete Setup", systemImage: "person.badge.key.fill")
+                            }
+                            Text("The saved provisioning session is unavailable. Start a new interactive sign-in without deleting installed apps, stored certificates or App IDs.")
+                                .font(.caption).foregroundColor(.secondary)
+                        } else {
+                            Text("A new sign-in cannot start while an earlier attempt is unconfirmed. Cancel or reload the account status first.")
+                                .font(.caption).foregroundColor(.secondary)
+                        }
                     }
                     if recovery.blockedByActiveSession {
                         Text("Another sign-in or provisioning attempt is still active. Wait for it to finish, then reload status.")
@@ -6709,6 +6722,7 @@ struct V3SignInView: View {
     private func finishProvisioningLater() {
         auth.finishProvisioningLater()
         status.reload()
+        dismiss()
     }
 
     private func openJITLessSetup() {
