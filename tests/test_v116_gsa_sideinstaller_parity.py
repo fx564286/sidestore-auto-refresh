@@ -79,7 +79,11 @@ func validate() {
     let modern = "<MacBookPro18,3> <macOS;26.6;25F84> <com.apple.AuthKit/1 (com.apple.akd/1.0)>"
     let win = "<PC> <Windows;6.2(0,0);9200> <com.apple.AuthKit/1 (com.apple.iTunes/12.12.4.1)>"
     let android = "<Pixel 7> <Android;14> <com.apple.AuthKit/1 (com.apple.akd/1.0)>"
+    let malformedMac = "<MacBookPro13,3> <Mac OS X;10.12.6;16G29> <not-authkit>"
     precondition(nrgGSAIsLegacyMac(old))
+    precondition(nrgGSAIsLegacyMac(malformedMac))
+    precondition(nrgGrandSlamUsesWindowsCompatibility(malformedMac))
+    precondition(nrgGrandSlamUserAgent(malformedMac,fallback:"Xcode") == "akd/1.0 CFNetwork/808.1.4")
     precondition(nrgGrandSlamClientInfo(old) == modern)
     precondition(nrgGrandSlamClientInfo(modern) == modern)
     precondition(nrgGrandSlamClientInfo(win) == win)
