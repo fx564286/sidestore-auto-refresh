@@ -31,6 +31,12 @@ def decorated(s):
     # Guest media's orientation must request host geometry independently of
     # retained scene frame callbacks, otherwise the host remains portrait
     # with clipped black bars revealing the SwiftUI home to left and right.
+    s=one(s,
+        '@property(nonatomic) UIInterfaceOrientation nrgV55LastHostOrientation;',
+        '''@property(nonatomic) UIInterfaceOrientation nrgV55LastHostOrientation;
+@property(nonatomic) UIInterfaceOrientation nrgV139LastVideoOrientation;
+@property(nonatomic) CFAbsoluteTime nrgV139LastVideoOrientationRequest;''',
+        'bounded guest video orientation request state')
     anchor='''- (void)appSceneVC:(AppSceneViewController*)vc didUpdateFromSettings:(UIMutableApplicationSceneSettings *)baseSettings transitionContext:(id)newContext lifecycleActionType:(uint32_t)actionType {'''
     replacement='''// SCARLET_V139_VIDEO_LANDSCAPE_GEOMETRY: use the actual guest orientation
 // on media fullscreen transitions. Never coerce a portrait-only external app.
@@ -39,7 +45,15 @@ def decorated(s):
     UIWindowScene *scene = self.view.window.windowScene;
     if (!scene || scene.activationState != UISceneActivationStateForegroundActive) return;
     if (!UIInterfaceOrientationIsLandscape(requested) ||
-        scene.interfaceOrientation == requested) return;
+        scene.interfaceOrientation == requested) {
+        self.nrgV139LastVideoOrientation = UIInterfaceOrientationUnknown;
+        return;
+    }
+    // Avoid repeated UIKit geometry requests while a guest emits several
+    // frame updates during the same video fullscreen animation.
+    CFAbsoluteTime now = CFAbsoluteTimeGetCurrent();
+    if (self.nrgV139LastVideoOrientation == requested &&
+        now - self.nrgV139LastVideoOrientationRequest < 1.5) return;
     if (@available(iOS 16.0, *)) {
         UIDeviceOrientation device = UIDevice.currentDevice.orientation;
         // Do not rotate the user's phone just because an embedded UI emitted
@@ -50,6 +64,8 @@ def decorated(s):
         }
         UIInterfaceOrientationMask mask = requested == UIInterfaceOrientationLandscapeRight
             ? UIInterfaceOrientationMaskLandscapeRight : UIInterfaceOrientationMaskLandscapeLeft;
+        self.nrgV139LastVideoOrientation = requested;
+        self.nrgV139LastVideoOrientationRequest = now;
         UIWindowSceneGeometryPreferencesIOS *preferences =
             [[UIWindowSceneGeometryPreferencesIOS alloc] initWithInterfaceOrientations:mask];
         __weak typeof(self) weakSelf = self;
