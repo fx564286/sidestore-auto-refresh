@@ -154,7 +154,7 @@ class RepositoryTests(unittest.TestCase):
                     "patch_v108_remove_blue_collapsed_dock.py",
                     "patch_v109_gsa_auth_guidance.py",
                     "patch_v110_single_guest_dock.py",
-                    "patch_v129_jit_viewport.py", "patch_v131_reference_liquid_glass.py",
+                    "patch_v129_jit_viewport.py", "patch_v131_reference_liquid_glass.py", "patch_v132_glass_drag_one_owner.py",
                     "patch_v110_gsa_http_phase.py",
                     "patch_v116_sideinstaller_gsa.py", "patch_v118_gsa_isolation.py", "patch_v119_adi_origin.py", "patch_v120_anisette_selection.py", "patch_v121_anisette_v3_trace.py", "patch_v122_scoped_adi_reprovision.py",
                     "verify_v88_canonical_guest_sources.py"},
