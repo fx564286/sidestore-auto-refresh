@@ -166,15 +166,15 @@ def transform(s: str) -> str:
     )
     def row(m):
         ind=m.group(1)
-        return (ind+"if #available(iOS 26.0, *), !UIAccessibility.isReduceTransparencyEnabled {\\n"
-                +ind+"    // The panel owns Liquid Glass; rows remain translucent controls.\\n"
-                +ind+"    item.configuration = .plain()\\n"
-                +ind+"    item.backgroundColor = UIColor.white.withAlphaComponent(0.10)\\n"
-                +ind+"    item.layer.borderColor = UIColor.white.withAlphaComponent(0.23).cgColor\\n"
-                +ind+"    item.layer.borderWidth = 0.55\\n"
-                +ind+"    item.layer.cornerCurve = .continuous\\n"
-                +ind+"} else {\\n"
-                +ind+"    item.backgroundColor = UIColor.secondarySystemGroupedBackground\\n"
+        return (ind+"if #available(iOS 26.0, *), !UIAccessibility.isReduceTransparencyEnabled {\n"
+                +ind+"    // The panel owns Liquid Glass; rows remain translucent controls.\n"
+                +ind+"    item.configuration = .plain()\n"
+                +ind+"    item.backgroundColor = UIColor.white.withAlphaComponent(0.10)\n"
+                +ind+"    item.layer.borderColor = UIColor.white.withAlphaComponent(0.23).cgColor\n"
+                +ind+"    item.layer.borderWidth = 0.55\n"
+                +ind+"    item.layer.cornerCurve = .continuous\n"
+                +ind+"} else {\n"
+                +ind+"    item.backgroundColor = UIColor.secondarySystemGroupedBackground\n"
                 +ind+"}")
     s,n=pattern.subn(row,s)
     if n != 2:
