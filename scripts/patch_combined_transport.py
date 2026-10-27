@@ -567,6 +567,21 @@ def patch_v130_service_preflight(root: Path):
             "V130 service gate before signing")
         impl.write_text(source, encoding="utf-8")
 
+    # SCARLET_V130_CELLULAR_READINESS: the public wrapper already passes
+    # withNetworkCheck=false for cellular refresh. Skipping isReady entirely
+    # also bypasses the read-only misagent gate and wastes Apple operations.
+    runner = root.parent.parent / "SideStore/Core/Operations/PipelineRunner.swift"
+    source = runner.read_text(encoding="utf-8")
+    if "SCARLET_V130_CELLULAR_READINESS" not in source:
+        source = replace_once(source,
+            "        if !CellularRefreshManager.shared.isEnabled,\n           case .failure(let error) = await isMinimuxerReady()",
+            '''        // SCARLET_V130_CELLULAR_READINESS: always validate the
+        // selected device service before signing. isMinimuxerReady() already
+        // relaxes only the network-interface check in cellular mode.
+        if case .failure(let error) = await isMinimuxerReady()''',
+            "V130 cellular service readiness")
+        runner.write_text(source, encoding="utf-8")
+
 
 def verify(root):
     checks = {
