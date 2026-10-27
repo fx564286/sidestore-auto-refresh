@@ -487,7 +487,100 @@ def patch(minimuxer: Path):
         default:                                return .unknown(failureReason: self.localizedDescription)"""
             return replace_once(text, old, new, "transport and service error mapping")
         edit(wrapper, "createCoreDevice", error_mapping)
+    patch_v130_service_preflight(minimuxer)
     verify(minimuxer)
+
+
+def patch_v130_service_preflight(root: Path):
+    # V130: a read-only misagent service handshake, not a portal mutation.
+    api = root / "DeviceGateway/DeviceGatewayAPI.swift"
+    source = api.read_text(encoding="utf-8")
+    if "SCARLET_V130_MISAGENT_API" not in source:
+        source = replace_once(source,
+            "    func endTransportBatch() async\n",
+            "    func endTransportBatch() async\n    // SCARLET_V130_MISAGENT_API: read-only service connectivity.\n    func probeProvisioningTransport() async throws\n",
+            "V130 API contract")
+        source = replace_once(source,
+            "    func endTransportBatch() async {}\n",
+            "    func endTransportBatch() async {}\n    // Other backends preserve their existing readiness behavior.\n    func probeProvisioningTransport() async throws {}\n",
+            "V130 gateway compatibility")
+        api.write_text(source, encoding="utf-8")
+
+    gateway = root / "DeviceGateway/idevice/IdeviceGateway.swift"
+    source = gateway.read_text(encoding="utf-8")
+    if "SCARLET_V130_MISAGENT_PROBE" not in source:
+        source = replace_once(source,
+            "    public func configureCoreDeviceTransport(_ enabled: Bool) {",
+            '''    // SCARLET_V130_MISAGENT_PROBE: a read-only RSD/misagent handshake.
+    // No profile creation, deletion, enumeration or logging of credentials.
+    public func probeProvisioningTransport() async throws {
+        try await withFFIDispatch(on: self.ffiQueue) {
+            defer { if self.batchCount == 0 { self.releaseTransport() } }
+            try self.verifyInitialized()
+            try self.performWithEitherService(
+                connectRP: misagent_connect_rsd,
+                connectLockdown: misagent_connect,
+                cleanup: misagent_client_free,
+                serviceName: "misagent-preflight"
+            ) { _ in
+                debugLog("[SCARLET_V130_MISAGENT] service_connected=1 mutation=none")
+            }
+        }
+    }
+
+    public func configureCoreDeviceTransport(_ enabled: Bool) {''',
+            "V130 authenticated service probe")
+        gateway.write_text(source, encoding="utf-8")
+
+    impl = root / "Sources/MinimuxerImpl.swift"
+    source = impl.read_text(encoding="utf-8")
+    if "SCARLET_V130_PROVISIONING_GATE" not in source:
+        source = replace_once(source,
+            "        gateway.configureCoreDeviceTransport(decision.transport == .coreDevice)",
+            '''        gateway.configureCoreDeviceTransport(decision.transport == .coreDevice)
+        // V130: log only the presence of capability keys, never cert data.
+        let lockdownKeys = ["WiFiMACAddress", "SystemBUID", "RootPrivateKey",
+            "HostPrivateKey", "HostID", "RootCertificate", "UDID", "EscrowBag",
+            "HostCertificate", "DeviceCertificate"]
+        let completeLockdown = lockdownKeys.allSatisfy { gateway.pairingDataDict?[$0] != nil }
+        debugLog("[SCARLET_V130_PAIRING] mode=\(gateway.pairingFileType) lockdown_complete=\(completeLockdown) no_secrets=1")''',
+            "V130 pairing capabilities")
+        source = replace_once(source,
+            '''        guard deviceUDID != nil else {
+            return .failure(.invalidPairing(protocol: activeProtocol, reason: ".\(activeProtocol) UDID not found"))
+        }''',
+            '''        guard deviceUDID != nil else {
+            return .failure(.invalidPairing(protocol: activeProtocol, reason: ".\(activeProtocol) UDID not found"))
+        }
+        // SCARLET_V130_PROVISIONING_GATE: a UDID lookup, DNS-SD, or open TCP
+        // socket does not prove that the signing-install service is reachable.
+        // Probe misagent without installing or removing any profiles.
+        if gateway.hasActiveTransportBatch {
+            do {
+                try await gateway.probeProvisioningTransport()
+                debugLog("[SCARLET_V130_MISAGENT] preflight=passed")
+            } catch {
+                debugLog("[SCARLET_V130_MISAGENT] preflight=failed cause=pairing_transport_unavailable")
+                return .failure(.noService("Device provisioning service unavailable over the selected pairing transport. Check LocalDevVPN and import a compatible pairing record. Existing App IDs, profiles and certificates are preserved."))
+            }
+        }''',
+            "V130 service gate before signing")
+        impl.write_text(source, encoding="utf-8")
+
+    # SCARLET_V130_CELLULAR_READINESS: the public wrapper already passes
+    # withNetworkCheck=false for cellular refresh. Skipping isReady entirely
+    # also bypasses the read-only misagent gate and wastes Apple operations.
+    runner = root.parent.parent / "SideStore/Core/Operations/PipelineRunner.swift"
+    source = runner.read_text(encoding="utf-8")
+    if "SCARLET_V130_CELLULAR_READINESS" not in source:
+        source = replace_once(source,
+            "        if !CellularRefreshManager.shared.isEnabled,\n           case .failure(let error) = await isMinimuxerReady()",
+            '''        // SCARLET_V130_CELLULAR_READINESS: always validate the
+        // selected device service before signing. isMinimuxerReady() already
+        // relaxes only the network-interface check in cellular mode.
+        if case .failure(let error) = await isMinimuxerReady()''',
+            "V130 cellular service readiness")
+        runner.write_text(source, encoding="utf-8")
 
 
 def verify(root):

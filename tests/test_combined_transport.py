@@ -186,7 +186,8 @@ class CombinedTransportTests(SourceFixture):
         self.assertIn("public import MinimuxerCommon\n", text)
         self.assertNotIn("internal import MinimuxerCommon", text)
         self.assertGreaterEqual(len(calls), 10)
-        self.assertEqual(len(calls), self.original.count("withFFIDispatch {"))
+        self.assertEqual(len(calls), self.original.count("withFFIDispatch {") + 1)
+        self.assertIn("SCARLET_V130_MISAGENT_PROBE", text)
         self.assertTrue(all(call == "(on: self.ffiQueue)" for call in calls))
         self.assertEqual(text.count("defer { if self.batchCount == 0 { self.releaseTransport() } }"), len(calls))
         for name in ("setDeviceEndpointIp", "setPort", "invalidateConnection"):
@@ -226,6 +227,35 @@ class CombinedTransportTests(SourceFixture):
         self.assertLess(valid_udid, ddi_branch)
         self.assertLess(ddi_branch, readiness.index("return .success(true)"))
         self.assertEqual(readiness.count("return .success(true)"), 1)
+
+    def test_v130_misagent_probe_blocks_unverified_refresh(self):
+        patch(self.mux)
+        api = self.read("DeviceGateway/DeviceGatewayAPI.swift")
+        self.assertIn("SCARLET_V130_MISAGENT_API", api)
+        self.assertIn("func probeProvisioningTransport() async throws", api)
+        gateway = self.gateway.read_text(encoding="utf-8")
+        probe = function(gateway, "probeProvisioningTransport")
+        self.assertIn("SCARLET_V130_MISAGENT_PROBE", gateway)
+        self.assertIn("misagent_connect_rsd", probe)
+        self.assertIn("misagent_connect", probe)
+        self.assertIn("misagent_client_free", probe)
+        for forbidden in ("misagent_install(", "misagent_remove(", "misagent_copy_all("):
+            self.assertNotIn(forbidden, probe)
+        source = self.read("Sources/MinimuxerImpl.swift")
+        self.assertIn("SCARLET_V130_PAIRING", source)
+        self.assertIn("lockdown_complete=", source)
+        self.assertIn("no_secrets=1", source)
+        readiness = function(source, "isReady")
+        self.assertIn("SCARLET_V130_PROVISIONING_GATE", readiness)
+        self.assertIn("gateway.hasActiveTransportBatch", readiness)
+        self.assertIn("try await gateway.probeProvisioningTransport()", readiness)
+        self.assertIn("preflight=failed", readiness)
+        self.assertIn(".noService(", readiness)
+        self.assertLess(readiness.index("guard deviceUDID != nil"), readiness.index("probeProvisioningTransport()"))
+        self.assertLess(readiness.index("probeProvisioningTransport()"), readiness.index("return .success(true)"))
+        # V130 must not alter Apple certificate data, signing or installed apps.
+        for forbidden in ("SecItemDelete", "deleteAllCertificates", "deleteAppIDs"):
+            self.assertNotIn(forbidden, probe + readiness)
 
     def test_readiness_and_batch_lease(self):
         patch(self.mux)
@@ -267,7 +297,11 @@ class CombinedTransportTests(SourceFixture):
         self.assertEqual(runner.count("await transportCore.beginTransportBatch()"), 1)
         self.assertEqual(runner.count("await transportCore.endTransportBatch()"), 2)
         self.assertRegex(runner[end:], r"(?s)await transportCore.endTransportBatch\(\)\s*return group\s*\} catch \{\s*await transportCore.endTransportBatch\(\)\s*throw error")
-        self.assertIn("CellularRefreshManager.shared.isEnabled", runner[readiness:end])
+        self.assertIn("SCARLET_V130_CELLULAR_READINESS", runner[readiness:end])
+        self.assertIn("if case .failure(let error) = await isMinimuxerReady()", runner[readiness:end])
+        self.assertNotIn("if !CellularRefreshManager.shared.isEnabled,", runner[readiness:end])
+        wrapper = (self.side / "SideStore/Core/DeviceApi/MinimuxerWrapper.swift").read_text(encoding="utf-8")
+        self.assertIn("isReady(withNetworkCheck: !isEnabled)", wrapper)
         self.assertIn("await MainActor.run", runner[host:end])
         gateway = self.gateway.read_text(encoding="utf-8")
         self.assertIn("self.batchCount += 1", function(gateway, "beginTransportBatch"))
