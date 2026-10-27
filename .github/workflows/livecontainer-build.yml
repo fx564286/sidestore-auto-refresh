@@ -1089,20 +1089,20 @@ jobs:
 
       # Direct IPA is an additional verified deliverable. Keep the existing
       # multi-file ZIP artifact and download-based provenance gate unchanged.
-      - name: Stage verified V124 IPA for direct download
+      - name: Stage verified V126 IPA for direct download
         shell: bash
         run: |
           set -euo pipefail
           cp artifacts/downloaded-ipa/LiveContainer-SideStore-v3.0.3-rc.ipa \
-             artifacts/Scarlet-Crystal-V124-UNSIGNED.ipa
+             artifacts/Scarlet-Crystal-V126-UNSIGNED.ipa
           cmp artifacts/downloaded-ipa/LiveContainer-SideStore-v3.0.3-rc.ipa \
-              artifacts/Scarlet-Crystal-V124-UNSIGNED.ipa
-          shasum -a 256 artifacts/Scarlet-Crystal-V124-UNSIGNED.ipa
+              artifacts/Scarlet-Crystal-V126-UNSIGNED.ipa
+          shasum -a 256 artifacts/Scarlet-Crystal-V126-UNSIGNED.ipa
 
-      - name: Upload directly downloadable Scarlet Crystal V124 IPA
+      - name: Upload directly downloadable Scarlet Crystal V126 IPA
         uses: actions/upload-artifact@v7
         with:
-          path: artifacts/Scarlet-Crystal-V124-UNSIGNED.ipa
+          path: artifacts/Scarlet-Crystal-V126-UNSIGNED.ipa
           archive: false
           if-no-files-found: error
           retention-days: 7
