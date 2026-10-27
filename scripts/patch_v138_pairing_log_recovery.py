@@ -84,14 +84,14 @@ def boot(body):
         return body
     old='''            let deviceUDID = try await fetchUDID()
             debugLog("[AppBootManager] startMinimuxer(): Minimuxer fetchUDID() based connection test SUCCEEDED. UDID: \\(deviceUDID ?? "nil")")
-            self.needsPairingPrompt = false'''
+'''
     new='''            // SCARLET_V138_BOOT_VALIDATION: nil is NOT success and a missing
             // device is NOT a reason to remove/recreate valid pairing data.
             guard let deviceUDID = try await fetchUDID(), !deviceUDID.isEmpty else {
                 throw MinimuxerError.noDevice("RemotePairing did not return a verified UDID")
             }
             debugLog("[SCARLET_V138_RP] stage=boot result=verified_udid no_secret_logged=1")
-            self.needsPairingPrompt = false'''
+'''
     return one(body,old,new,'boot non-nil UDID requirement')
 
 
