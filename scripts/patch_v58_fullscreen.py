@@ -19,7 +19,19 @@ def one(s, old, new, what):
 
 def decorated(s):
     if MARK in s:
-        if s.count(MARK)!=4 or "settings.frame = CGRectMake" not in s:
+        # V139 replaces the stale portrait-size final settings.frame write
+        # with an atomic fullscreen viewport. Re-running the V58 audit on
+        # later generated sources must accept only this audited successor,
+        # not demand the obsolete two-branch CGRectMake assignment.
+        legacy_frame = "settings.frame = CGRectMake" in s
+        video_frame = (
+            "SCARLET_V139_VIDEO_LANDSCAPE_GEOMETRY" in s
+            and "nrgV139RequestGuestVideoOrientation:baseSettings.interfaceOrientation" in s
+            and "if (!self.isMaximized) {" in s
+            and "settings.frame = UIInterfaceOrientationIsLandscape(baseSettings.interfaceOrientation)" in s
+            and "settings.frame = UIInterfaceOrientationIsLandscape(orientation)" in s
+        )
+        if s.count(MARK)!=4 or not (legacy_frame or video_frame):
             raise RuntimeError("partial V58 decorated fullscreen")
         return s
     for dep in ("NRG_V36_MAXIMIZED_GUEST_CHROME",
