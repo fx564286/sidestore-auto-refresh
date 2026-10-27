@@ -47,6 +47,14 @@ class VirtualOwnerBinaryTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "virtual guest control missing"):
             check_virtual(b"random compiled bytes")
 
+    def test_v137_retires_old_virtual_owner_instead_of_requiring_it(self):
+        # The V137 owner lives in LiveContainerShared and is checked there.
+        check_virtual(b"no virtual owner in LiveContainerSwiftUI", v137=True)
+        with self.assertRaisesRegex(ValueError, "V137 obsolete virtual"):
+            check_virtual(b"scarlet.v103.virtual.guest.control", v137=True)
+        with self.assertRaisesRegex(ValueError, "obsolete native"):
+            check_virtual(b"LCReturnControl\x00", v137=True)
+
     def test_obsolete_native_class_and_selector_are_rejected(self):
         marker=b'scarlet.v103.virtual.guest.control'
         for symbol in (b'LCReturnControl\x00', b'lcReturnControl\x00',
