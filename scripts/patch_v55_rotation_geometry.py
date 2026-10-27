@@ -51,9 +51,11 @@ def decorated(s):
     // NRG_V61_LANDSCAPE_GUEST_RECOVERY: during UIKit rotation, the host
     // size can be correct while the retained guest is still portrait-sized.
     // Do not let a cached rotation token suppress a needed scene resize.
+    // V124: safe-area viewport is smaller than window bounds; avoid false stale geometry.
     CGSize guestSize = self.appSceneVC.view.bounds.size;
-    BOOL guestIsStale = fabs(guestSize.width - size.width) > 1.0 ||
-                        fabs(guestSize.height - size.height) > 1.0;
+    CGSize viewportSize = self.view.bounds.size;
+    BOOL guestIsStale = fabs(guestSize.width - viewportSize.width) > 1.0 ||
+                        fabs(guestSize.height - viewportSize.height) > 1.0;
     if (CGSizeEqualToSize(self.nrgV55LastHostSize, size) &&
         self.nrgV55LastHostOrientation == orientation && !guestIsStale) return;
     self.nrgV55LastHostSize = size;
