@@ -975,7 +975,8 @@ jobs:
           # Ensure brand survives Xcode's INFOPLIST_KEY_ build setting overrides.
           info['CFBundleDisplayName']='Scarlet Crystal'
           info['CFBundleName']='Scarlet Crystal'
-          info['CFBundleVersion']='3.8.201'
+          info['CFBundleVersion']='3.8.210'
+          info['ScarletBuildLabel']='V137'
           # NRG_STIKDEBUG_QUERY_SCHEMES: canOpenURL() must be declared by the
           # installed host, even when StikDebug is launched for a guest process.
           schemes=info.get('LSApplicationQueriesSchemes', [])
@@ -1004,7 +1005,8 @@ jobs:
               main=plistlib.loads(archive.read(prefix+'Info.plist'))
               assert main.get('NSSupportsLiveActivities') is not True
               assert main.get('CFBundleDisplayName')=='Scarlet Crystal'
-              assert main.get('CFBundleVersion')=='3.8.201'
+              assert main.get('CFBundleVersion')=='3.8.210'
+              assert main.get('ScarletBuildLabel')=='V137'
               query_schemes=main.get('LSApplicationQueriesSchemes', [])
               assert set(('stikdebug', 'stikjit')).issubset(query_schemes)
               assert len(query_schemes)==len(set(query_schemes)), 'duplicate URL schemes'
