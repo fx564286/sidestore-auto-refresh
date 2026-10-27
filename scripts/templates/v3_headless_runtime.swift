@@ -1581,20 +1581,16 @@ final class V3HeadlessPipelineHandler: PipelineExecutionHandler, PreflightChecks
     }
 
     func resolveBundleIDOverride(initialBundleID: String) async throws -> (customID: String, appendTeamID: Bool)? {
-        let answer = try await ask(kind: "bundleIDOverride", title: "Customize Bundle ID",
-                                   message: "Optionally customize the bundle identifier used for signing.",
-                                   fields: [["key": "customID", "label": "Bundle ID", "secure": "false", "value": initialBundleID],
-                                            ["key": "appendTeamID", "label": "appendTeamID", "secure": "false", "value": "true"]],
-                                   options: [["id": "custom", "label": "Use Custom ID"],
-                                             ["id": "default", "label": "Use Default"],
-                                             ["id": "cancel", "label": "Cancel"]])
-        switch answer["choice"] {
-        case "custom":
-            guard let customID = answer["customID"], !customID.isEmpty else { throw CancellationError() }
-            return (customID, answer["appendTeamID"] != "false")
-        case "default": return nil
-        default: throw CancellationError()
-        }
+        // SCARLET_V127_AUTO_SIGN_DEFAULT: a signed IPA and an unsigned IPA
+        // take the same SideStore install pipeline. This callback is solely
+        // an optional bundle-ID customization prompt, NOT a sign/no-sign choice.
+        // Selecting "Use Default" already returned nil; do that automatically
+        // so every install continues to the existing provisioning and signing
+        // stages without asking for a boolean "appendTeamID" field.
+        // Leave App ID creation/reuse and certificate validity to the real
+        // pipeline. Never strip old code signatures or claim success here.
+        debugLog("[SCARLET_V127_SIGN] bundle_override=default signing_pipeline=required")
+        return nil
     }
 
     func resolveAppGroupMismatch(originalGroup: String, correctedGroup: String) async throws -> AppGroupResolution {
@@ -2329,7 +2325,7 @@ final class V3OperationCenter {
         let built = V3InstallPipelineParity.makeOperation(route: route, app) {
             AppOperation.install($0)
         }
-        debugLog("[V3_INSTALL_ROUTE] input=\(built.route.rawValue) convergence=AppProtocol pipeline=.install")
+        debugLog("[V3_INSTALL_ROUTE] input=\(built.route.rawValue) convergence=AppProtocol pipeline=.install signing_pipeline=required")
         return V3OpDriver(kind: kind) {
             try await self.single(id: id, operation: built.operation, handler: handler, context: context)
         }

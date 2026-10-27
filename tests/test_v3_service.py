@@ -1222,7 +1222,8 @@ import Foundation
             self.assertIn("AppManager.shared.backgroundRefresh", intent)
             self.assertIn("RefreshAllAppsIntent(presentsNotifications: true)", widget)
             runtime = (ROOT / "scripts/templates/v3_headless_runtime.swift").read_text(encoding="utf-8")
-            self.assertIn('ask(kind: "bundleIDOverride"', runtime)
+            self.assertIn('SCARLET_V127_AUTO_SIGN_DEFAULT', runtime)
+            self.assertIn('signing_pipeline=required', runtime)
             self.assertIn('ask(kind: "appGroupMismatch"', runtime)
 
     def test_v31_generated_tree_fails_closed_without_mutation(self):
@@ -1601,9 +1602,9 @@ import Foundation
             self.assertNotIn("AppendTeamIDCheckboxView", pipeline_handler)
             self.assertIn("return (initialBundleID, true)", pipeline_handler)
             host_pipeline_handler = (ROOT / "scripts/templates/v3_headless_runtime.swift").read_text(encoding="utf-8")
-            self.assertIn('ask(kind: "bundleIDOverride"', host_pipeline_handler)
-            self.assertIn('"key": "appendTeamID"', host_pipeline_handler)
-            self.assertIn('answer["appendTeamID"] != "false"', host_pipeline_handler)
+            self.assertIn("SCARLET_V127_AUTO_SIGN_DEFAULT", host_pipeline_handler)
+            self.assertNotIn('ask(kind: "bundleIDOverride"', host_pipeline_handler)
+            self.assertIn('bundle_override=default signing_pipeline=required', host_pipeline_handler)
             legacy_connection_config = (side / "SideStore/Views/Settings/Advanced/Connection/ConnectionConfig.swift").read_text(encoding="utf-8")
             backend_connection_config = (side / "SideStore/Core/DeviceApi/ConnectionConfig.swift").read_text(encoding="utf-8")
             self.assertIn("V3_HEADLESS_CONNECTION_CONFIG_MOVED_V1", legacy_connection_config)
@@ -2201,7 +2202,7 @@ import Foundation
         kinds = set(re.findall(r'kind: "([a-zA-Z]+)"', runtime))
         expected = {"credentials", "twoFactor", "team", "accountRepair", "provisioningError",
                     "postAuth", "revocation", "resign", "anisetteOutdated", "bundleIDMismatch",
-                    "permissions", "extensions", "unsupportedVersion", "bundleIDOverride",
+                    "permissions", "extensions", "unsupportedVersion",
                     "appGroupMismatch"}
         self.assertEqual(kinds, expected)
         self.assertIn("V3PromptSection", host)
