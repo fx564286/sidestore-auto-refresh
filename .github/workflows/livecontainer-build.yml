@@ -378,14 +378,7 @@ jobs:
             grep -Fq 'SCARLET_V129_JIT_VIEWPORT' work/LiveContainer/MultitaskSupport/DecoratedAppSceneViewController.m
             grep -Fq '<string>3.8.202</string>' work/LiveContainer/LiveContainer/Info.plist
             # V130: unique device build label; keep V129 integration checks first.
-            python3 - <<'PYV130'
-            from pathlib import Path
-            p = Path("work/LiveContainer/LiveContainer/Info.plist")
-            text = p.read_text()
-            old = "<string>3.8.202</string>"
-            assert text.count(old) == 1
-            p.write_text(text.replace(old, "<string>3.8.203</string>", 1))
-            PYV130
+            python3 -c 'from pathlib import Path; p=Path("work/LiveContainer/LiveContainer/Info.plist"); value=p.read_text(); old="<string>3.8.202</string>"; n=value.count(old); assert n == 1, n; p.write_text(value.replace(old,"<string>3.8.203</string>",1))'
             grep -Fq '<string>3.8.203</string>' work/LiveContainer/LiveContainer/Info.plist
             grep -Fq 'SCARLET_V127_COMPLETE_GLASS' work/LiveContainer/MultitaskSupport/MultitaskDockView.swift
             grep -Fq 'SCARLET_V128_DIRECT_SCENE_RECOVERY' work/LiveContainer/LiveContainer/LCBootstrap.m
