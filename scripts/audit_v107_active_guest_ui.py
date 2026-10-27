@@ -32,9 +32,13 @@ def inspect(root: Path) -> dict:
         for old in OBSOLETE:
             if old in body:
                 problems.append(f"{rel}: retired executable guest control still present: {old}")
+    # V137 deliberately deletes the old virtual UI button source. The same
+    # shared bootstrap presenter owns Direct and LiveProcess after migration.
+    unified = "SCARLET_V137_UNIFIED_GUEST_ENTRY" in direct
     requirements = {
         NATIVE: ("SCARLET_V105_LEGACY_RETURN_SOURCE_DELETED",),
-        VIRTUAL: ("SCARLET_V103_VIRTUAL_ONLY_CONTROL", "scarlet.v103.virtual.guest.control"),
+        VIRTUAL: (("SCARLET_V137_UNIFIED_GUEST_ENTRY", "SCARLET_V137_TOUCH_SETTLE")
+                  if unified else ("SCARLET_V103_VIRTUAL_ONLY_CONTROL", "scarlet.v103.virtual.guest.control")),
         DOCK: ("SCARLET_V103_IMMEDIATE_GUEST_SWITCH", "defer { dismissSelection() }",
                "SCARLET_V111_CANONICAL_GUEST_SWITCH_OWNER",
                "SCARLET_V112_SHARED_GUEST_UI",
@@ -48,7 +52,8 @@ def inspect(root: Path) -> dict:
                '("최대화 / 복원", "maximizeWindow")',
                '("창 닫기", "closeWindow")'),
         DIRECT: ("SCARLET_V105_DIRECT_UNIFIED_MORPH", "SCGuestMorphPresenter",
-                 "SCGuestMorphWindow", "scarlet.v105.direct.morph",
+                  "SCGuestMorphWindow",
+                 "scarlet.v137.shared.guest.control" if unified else "scarlet.v105.direct.morph",
                  "SCARLET_V112_SHARED_GUEST_UI", "SCUnifiedGuestUIBridge",
                  "UIBlurEffectStyleSystemThinMaterial", "presentFrom:sourceView:",
                  "SCGuestMorphPositionV105", "confirmation=accepted"),
@@ -98,7 +103,8 @@ def inspect(root: Path) -> dict:
             problems.append("Retired Dock menu selector/branding survived: " + stale)
     return {"status": "FAIL" if problems else "PASS", "problems": problems,
             "scanned": [str(x) for x in files],
-            "owners": ["V112 common UIKit morph picker; Direct supplies the entry control only"],
+            "owners": ["V137 one bootstrap glass control / Direct+LiveProcess" if unified
+                       else "V112 common UIKit morph picker; Direct supplies the entry control only"],
             "source_only": True,
             "device_geometry_verified": False}
 
