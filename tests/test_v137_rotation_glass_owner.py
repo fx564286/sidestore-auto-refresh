@@ -24,6 +24,20 @@ class V137(unittest.TestCase):
             self.assertIn(token,s)
         for dangerous in ("SecItemDelete(", "setDeviceEndpointIp(", "kill(getpid()"):
             self.assertNotIn(dangerous,s)
+    def test_v137_never_calls_deleted_cross_scene_retirement(self):
+        # Exercise the genuine V105 -> V132 -> V137 transforms. V137 had
+        # deleted retireAllFallbacks: but omitted its new_active_scene call,
+        # producing a real Xcode Objective-C selector compile failure.
+        v105 = module("patch_v105_delete_legacy_return")
+        v132 = module("patch_v132_glass_drag_one_owner")
+        previous = v132.boot_patch(v105.DIRECT_CODE)
+        self.assertIn('[self retireAllFallbacks:@"new_active_scene"]', previous)
+        current = v137.boot(previous)
+        self.assertIn("SCARLET_V137_SCENE_OWNER", current)
+        self.assertNotIn("retireAllFallbacks:", current)
+        self.assertIn("[self retireFallbackInScene:scene", current)
+        self.assertEqual(v137.boot(current), current)
+
     def test_fail_closed(self):
         for fn in (v137.decorated,v137.dock,v137.boot,
                    shared.decorated,shared.boot):
