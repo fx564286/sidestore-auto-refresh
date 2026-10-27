@@ -58,6 +58,30 @@ class V58PinnedTests(unittest.TestCase):
         self.assertIn("NRG_V58_VIEWPORT",new)
         self.assertIn("UIUserInterfaceIdiomPhone",new)
 
+    def test_v139_successor_accepts_only_atomic_fullscreen_source(self):
+        # V139 intentionally removed V58's final old-portrait frame write.
+        # The V58 audit must accept the new verified implementation without
+        # permitting partially patched V58 or missing rotation safeguards.
+        markers = "\n".join(["// NRG_V58_EDGE_TO_EDGE_GUEST"] * 4)
+        current = markers + "\n" + "\n".join((
+            "// SCARLET_V139_VIDEO_LANDSCAPE_GEOMETRY",
+            "[self nrgV139RequestGuestVideoOrientation:baseSettings.interfaceOrientation];",
+            "if (!self.isMaximized) {",
+            "settings.frame = UIInterfaceOrientationIsLandscape(baseSettings.interfaceOrientation)",
+            "settings.frame = UIInterfaceOrientationIsLandscape(orientation)",
+        ))
+        self.assertEqual(v58.decorated(current), current)
+        for removed in (
+            "SCARLET_V139_VIDEO_LANDSCAPE_GEOMETRY",
+            "nrgV139RequestGuestVideoOrientation:baseSettings.interfaceOrientation",
+            "if (!self.isMaximized) {",
+            "settings.frame = UIInterfaceOrientationIsLandscape(orientation)",
+        ):
+            with self.subTest(removed=removed), self.assertRaisesRegex(RuntimeError, "partial V58"):
+                v58.decorated(current.replace(removed, ""))
+        with self.assertRaisesRegex(RuntimeError, "partial V58"):
+            v58.decorated(current + "\n// NRG_V58_EDGE_TO_EDGE_GUEST")
+
     def test_landscape_rotation_reconciles_real_window_scene_callback(self):
         delegate=v47.patch_delegate(v47.DELEGATE_ANCHOR)
         self.assertIn("func windowScene(_ windowScene: UIWindowScene, didUpdate",delegate)
