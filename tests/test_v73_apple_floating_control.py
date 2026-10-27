@@ -22,6 +22,11 @@ class V73FloatingControlTests(unittest.TestCase):
                          'overflow.accessibilityHint',
                          'nrgV73Material.userInteractionEnabled = NO'):
             self.assertIn(expected,text)
+        self.assertIn('SCARLET_V128_VIRTUAL_NATIVE_GLASS', text)
+        self.assertIn('[[UIGlassEffect alloc] init]', text)
+        self.assertIn('UIAccessibilityIsReduceTransparencyEnabled()', text)
+        self.assertIn('SCARLET_V128_VIRTUAL_RIGHT_DEFAULT', v73.METHODS)
+        self.assertIn('[prefs objectForKey:sideKey] == nil ? YES', v73.METHODS)
         self.assertNotIn('blackColor',text)
         self.assertNotIn('dynamicIsland',text)
 
