@@ -97,11 +97,15 @@ def audit(host:Path,store:Path|None=None):
    for required in ('SCARLET_V105_DIRECT_UNIFIED_MORPH',
                     'SCARLET_V112_SHARED_GUEST_UI', 'SCUnifiedGuestUIBridge',
                     'presentFrom:sourceView:', 'SCGuestMorphPresenter',
-                    'scarlet.v105.direct.morph'):
+                    'scarlet.v137.shared.guest.control' if unified else 'scarlet.v105.direct.morph'):
     if required not in source:problems.append(f'{rel}: unified Direct morph missing {required}')
    for obsolete in ('UIButton *scrim','UIView *card','UILabel *note',
                     '- (void)expand:', 'systemImageNamed:@"chevron.up"'):
     if obsolete in source:problems.append(f'{rel}: separate Direct panel remains {obsolete}')
+ # V137 moves the ONLY guest entry to shared bootstrap for both modes.
+ unified = 'SCARLET_V137_UNIFIED_GUEST_ENTRY' in (host/'LiveContainer/LCBootstrap.m').read_text(encoding='utf-8')
+ if unified:
+  ACTIVE_RULES[WINDOW]['required'] = ('SCARLET_V137_UNIFIED_GUEST_ENTRY', 'SCARLET_V137_TOUCH_SETTLE')
  for rel,rules in ACTIVE_RULES.items():
   target=host/rel
   if not target.is_file():
@@ -117,7 +121,8 @@ def audit(host:Path,store:Path|None=None):
  if 'SCARLET_V105_LEGACY_RETURN_SOURCE_DELETED' in (host/NATIVE).read_text(encoding='utf-8'):
   virtual=(host/WINDOW).read_text(encoding='utf-8')
   dock=(host/HOST).read_text(encoding='utf-8')
-  for marker in ('SCARLET_V103_VIRTUAL_ONLY_CONTROL','scarlet.v103.virtual.guest.control'):
+  for marker in (('SCARLET_V137_UNIFIED_GUEST_ENTRY','SCARLET_V137_TOUCH_SETTLE') if unified
+                 else ('SCARLET_V103_VIRTUAL_ONLY_CONTROL','scarlet.v103.virtual.guest.control')):
    if marker not in virtual:problems.append(f'V105 preserved virtual owner missing {marker}')
   for marker in ('SCARLET_V103_IMMEDIATE_GUEST_SWITCH','defer { dismissSelection() }'):
    if marker not in dock:problems.append(f'V105 preserved native guest switch missing {marker}')
@@ -130,8 +135,8 @@ def audit(host:Path,store:Path|None=None):
   required={
    NATIVE:('if (virtualWindowGuest)', 'scarlet.v103.native.guest.control',
            'restored_and_dispatched=1'),
-   WINDOW:('SCARLET_V103_VIRTUAL_ONLY_CONTROL',
-           'scarlet.v103.virtual.guest.control'),
+   WINDOW:(('SCARLET_V137_UNIFIED_GUEST_ENTRY','SCARLET_V137_TOUCH_SETTLE') if unified
+           else ('SCARLET_V103_VIRTUAL_ONLY_CONTROL','scarlet.v103.virtual.guest.control')),
    HOST:('SCARLET_V103_IMMEDIATE_GUEST_SWITCH','defer { dismissSelection() }')
   }
   for rel,tokens in required.items():
