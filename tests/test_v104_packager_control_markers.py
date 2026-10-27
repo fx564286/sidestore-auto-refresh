@@ -22,6 +22,18 @@ class GuestControlBinaryTests(unittest.TestCase):
             with self.subTest(i=i):
                 with self.assertRaisesRegex(ValueError,'missing'):
                     check(b' '.join(v for j,v in enumerate(markers) if j!=i))
+    def test_v137_requires_single_compiled_shared_finger_glass_button(self):
+        markers=(b'SCGuestMorphPresenter',
+                 b'scarlet.v137.shared.guest.control',
+                 b'[SCARLET_V137_FINGER_GLASS]')
+        self.assertIsNone(check(b' '.join(markers), v137=True))
+        for i in range(len(markers)):
+            with self.subTest(i=i):
+                with self.assertRaisesRegex(ValueError,'V137 compiled shared guest entry missing'):
+                    check(b' '.join(x for j,x in enumerate(markers) if i!=j), v137=True)
+        with self.assertRaisesRegex(ValueError,'obsolete Direct-only'):
+            check(b' '.join(markers) + b' scarlet.v105.direct.morph',v137=True)
+
     def test_old_control_must_not_exist_even_if_new_present(self):
         markers=b'SCGuestMorphPresenter scarlet.v105.direct.morph [SCARLET_V105_CONTROL]'
         for old in (b'LCDirectReturnPresenter', b'LCDirectReturnControl'):
