@@ -55,6 +55,9 @@ DIRECT_CODE = r'''
     [center addObserver:self selector:@selector(show:) name:UIWindowDidBecomeVisibleNotification object:nil];
     [center addObserver:self selector:@selector(show:) name:UISceneDidActivateNotification object:nil];
     [center addObserver:self selector:@selector(disconnect:) name:UISceneDidDisconnectNotification object:nil];
+    // SCARLET_V129_SINGLE_OWNER: native V73 can appear *after* the
+    // fallback was created. Retire the latter as soon as V73 is attached.
+    [center addObserver:self selector:@selector(virtualReady:) name:@"SCScarletVirtualHandleReady" object:nil];
     // SCARLET_V128_DIRECT_SCENE_RECOVERY: subscribe AND reconcile existing scenes.
     // Some guests finish scene activation before this presenter is initialized.
     dispatch_async(dispatch_get_main_queue(), ^{
@@ -69,11 +72,36 @@ DIRECT_CODE = r'''
 }
 - (void)dealloc { [NSNotificationCenter.defaultCenter removeObserver:self]; }
 - (BOOL)containsVirtualHandle:(UIView *)view {
-    if ([view.accessibilityIdentifier isEqualToString:@"scarlet.v103.virtual.guest.control"]) return YES;
+    if (view.hidden || view.alpha < 0.05) return NO;
+    if ([view.accessibilityIdentifier isEqualToString:@"scarlet.v103.virtual.guest.control"])
+        return view.userInteractionEnabled && view.window != nil;
     for (UIView *child in view.subviews) {
         if ([self containsVirtualHandle:child]) return YES;
     }
     return NO;
+}
+- (void)retireFallbackInScene:(UIWindowScene *)scene reason:(NSString *)reason {
+    NSString *key = scene.session.persistentIdentifier;
+    SCGuestMorphWindow *fallback = self.windows[key];
+    if (!fallback) return;
+    fallback.hidden = YES;
+    [self.windows removeObjectForKey:key];
+    NSLog(@"[SCARLET_V129_SINGLE_OWNER] fallback_retired=1 reason=%@", reason);
+}
+- (void)virtualReady:(NSNotification *)notice {
+    if (![NSThread isMainThread]) {
+        dispatch_async(dispatch_get_main_queue(), ^{ [self virtualReady:notice]; });
+        return;
+    }
+    UIWindowScene *scene = [notice.object isKindOfClass:UIWindowScene.class] ? notice.object : nil;
+    if (!scene) return;
+    // Verify the actual button, not just a speculative host notification.
+    for (UIWindow *window in scene.windows) {
+        if ([self containsVirtualHandle:window]) {
+            [self retireFallbackInScene:scene reason:@"native_V73_ready"];
+            return;
+        }
+    }
 }
 - (void)show:(NSNotification *)notice {
     if (!NSThread.isMainThread) {
@@ -89,9 +117,13 @@ DIRECT_CODE = r'''
         scene = notice.object;
     }
     if (!scene || ![scene.session.role isEqualToString:UIWindowSceneSessionRoleApplication]) return;
-    // SCARLET_V128_NO_DUPLICATE_LIVE_CONTROL: decorated scenes own their V73.
+    // SCARLET_V129_SINGLE_OWNER: never keep the fallback after a visible
+    // native V73 button attaches, regardless of UIKit event order.
     for (UIWindow *candidate in scene.windows) {
-        if ([self containsVirtualHandle:candidate]) return;
+        if ([self containsVirtualHandle:candidate]) {
+            [self retireFallbackInScene:scene reason:@"native_V73_exists"];
+            return;
+        }
     }
     NSString *idKey = scene.session.persistentIdentifier;
     if (scene.activationState != UISceneActivationStateForegroundActive) return;
@@ -187,6 +219,8 @@ DIRECT_CODE = r'''
         NSLog(@"[SCARLET_V114_UI] tap=1 result=detached_control");
         return;
     }
+    NSLog(@"[SCARLET_V129_SINGLE_OWNER] fallback_tap=1 attached=%d",
+          sourceWindow != nil ? 1 : 0);
     NSLog(@"[SCARLET_V114_UI] tap=1 mode=direct");
     SEL route = NSSelectorFromString(@"presentFrom:sourceView:");
     Class bridge = NSClassFromString(@"SCUnifiedGuestUIBridge");

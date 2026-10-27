@@ -39,8 +39,13 @@ class V58PinnedTests(unittest.TestCase):
         self.assertIn("UIInterfaceOrientationIsPortrait(orientation)",new)
         self.assertIn("UIEdgeInsetsInsetRect(physicalRect",new)
         self.assertIn("NRG_V70_PORTRAIT_BOTTOM_BLEED",new)
-        self.assertIn("UIEdgeInsetsMake(portraitTop, 0, 0, 0)",new)
-        self.assertIn("UIEdgeInsetsMake(0, 0, portraitBottom, 0), orientation",new)
+        if "SCARLET_V129_JIT_VIEWPORT" in new:
+            self.assertIn("UIEdgeInsetsMake(touchSafe ? portraitTop : 0, 0, 0, 0)",new)
+            self.assertIn("UIEdgeInsetsMake(touchSafe ? 0 : portraitTop, 0, portraitBottom, 0), orientation",new)
+            self.assertIn("ScarletGuestTouchSafe.",new)
+        else:
+            self.assertIn("UIEdgeInsetsMake(portraitTop, 0, 0, 0)",new)
+            self.assertIn("UIEdgeInsetsMake(0, 0, portraitBottom, 0), orientation",new)
         self.assertNotIn("UIEdgeInsetsMake(portraitTop, 0, portraitBottom, 0)",new)
         self.assertIn("settings.peripheryInsets = UIEdgeInsetsZero;",new)
         self.assertIn("if (portraitPhone)",new)

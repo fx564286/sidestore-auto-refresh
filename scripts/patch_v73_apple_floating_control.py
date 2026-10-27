@@ -111,6 +111,13 @@ METHODS = r'''
 - (void)viewDidLayoutSubviews {
     [super viewDidLayoutSubviews];
     [self nrgV73RestoreFloatingPosition];
+    // SCARLET_V129_SINGLE_OWNER: V73 becomes the sole entry control once
+    // attached. Tell the Direct/LiveProcess fallback to retire immediately.
+    UIWindowScene *scene = self.nrgWindowOverflow.window.windowScene;
+    if (scene && !self.nrgWindowOverflow.hidden && !self.view.hidden) {
+        [NSNotificationCenter.defaultCenter postNotificationName:@"SCScarletVirtualHandleReady"
+                                                           object:scene];
+    }
 }
 
 - (void)nrgV73DragFloatingOverflow:(UIPanGestureRecognizer *)pan {

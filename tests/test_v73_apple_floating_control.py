@@ -23,6 +23,8 @@ class V73FloatingControlTests(unittest.TestCase):
                          'nrgV73Material.userInteractionEnabled = NO'):
             self.assertIn(expected,text)
         self.assertIn('SCARLET_V128_VIRTUAL_NATIVE_GLASS', text)
+        self.assertIn('SCARLET_V129_SINGLE_OWNER', v73.METHODS)
+        self.assertIn('SCScarletVirtualHandleReady', v73.METHODS)
         self.assertIn('[[UIGlassEffect alloc] init]', text)
         self.assertIn('UIAccessibilityIsReduceTransparencyEnabled()', text)
         self.assertIn('SCARLET_V128_VIRTUAL_RIGHT_DEFAULT', v73.METHODS)

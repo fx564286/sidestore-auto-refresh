@@ -32,7 +32,14 @@ class V70PortraitBottomBleed(unittest.TestCase):
         source=candidate.read_text()
         self.assertIn('NRG_V70_PORTRAIT_BOTTOM_BLEED',source)
         self.assertEqual(v58.decorated(source), source)
-        self.assertIn('UIEdgeInsetsMake(portraitTop, 0, 0, 0)', source)
+        if 'SCARLET_V129_JIT_VIEWPORT' in source:
+            # V129 preserves the V70 no-bottom-physical-inset contract while
+            # allowing per-app top inset ownership to switch safely.
+            self.assertIn('UIEdgeInsetsMake(touchSafe ? portraitTop : 0, 0, 0, 0)', source)
+            self.assertIn('UIEdgeInsetsMake(touchSafe ? 0 : portraitTop, 0, portraitBottom, 0), orientation', source)
+            self.assertIn('ScarletGuestTouchSafe.', source)
+        else:
+            self.assertIn('UIEdgeInsetsMake(portraitTop, 0, 0, 0)', source)
         self.assertNotIn('UIEdgeInsetsMake(portraitTop, 0, portraitBottom, 0)',source)
 
 if __name__=='__main__': unittest.main()
