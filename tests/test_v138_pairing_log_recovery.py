@@ -25,6 +25,11 @@ class RPTraceTests(unittest.TestCase):
         self.assertIn('guard let deviceUDID = try await fetchUDID(), !deviceUDID.isEmpty',new)
         self.assertNotIn('SUCCEEDED. UDID:',new)
         self.assertEqual(mod.boot(new),new)
+        headless=old.replace('            self.needsPairingPrompt = false','')
+        generated=mod.boot(headless)
+        self.assertIn('SCARLET_V138_BOOT_VALIDATION',generated)
+        self.assertNotIn('needsPairingPrompt',generated)
+        self.assertEqual(mod.boot(generated),generated)
     def test_only_explicit_static_fallback(self):
         old='''    let result = try? await withRemotePairingRetry {
         try await minimuxer.core.fetchUDID()
