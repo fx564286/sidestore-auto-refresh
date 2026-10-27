@@ -89,11 +89,10 @@ def transform(s: str) -> str:
         // optical layers inform the edge highlight, not four stacked blurs.
         let material = UIVisualEffectView(effect: UIBlurEffect(style: .systemMaterial))
         if #available(iOS 26.0, *), !UIAccessibility.isReduceTransparencyEnabled {
-            let glass = UIGlassEffect(style: .clear)
-            glass.isInteractive = true
-            material.effect = glass
-            NSLog("[SCARLET_V129_GLASS] picker=native_UIGlassEffect reduceTransparency=0")
-            NSLog("[SCARLET_V131_GLASS] panel=clear interactive=1 rim=fresnel native=1")
+            // UIKit can skip native glass while its parent is alpha-zero.
+            // Defer installation until the surface is fully visible.
+            material.effect = nil
+            NSLog("[SCARLET_V131_GLASS] status=deferred_until_visible native=1")
         }''',
         "actual clear native glass effect")
     s = one(s,
@@ -215,6 +214,27 @@ def transform(s: str) -> str:
                 rim.select(tabPicker.selectedSegmentIndex)
             }''',
         "light follows tab selection")
+    s = one(s,
+        '''            overlay.alpha = 1
+            material.transform = .identity
+        })
+        NSLog("[SCARLET_V100_MORPH] action=expanded guests=%ld", recent.count)''',
+        '''            overlay.alpha = 1
+            material.transform = .identity
+        }, completion: { _ in
+            // SCARLET_V131_VISIBLE_GLASS_ACTIVATION: install only when visible.
+            guard overlay.superview != nil else { return }
+            if #available(iOS 26.0, *), !UIAccessibility.isReduceTransparencyEnabled {
+                let glass = UIGlassEffect(style: .clear)
+                glass.isInteractive = true
+                UIView.animate(withDuration: reduceMotion ? 0 : 0.20) {
+                    material.effect = glass
+                }
+                NSLog("[SCARLET_V131_GLASS] status=materialized_after_visible interactive=1")
+            }
+        })
+        NSLog("[SCARLET_V100_MORPH] action=expanded guests=%ld", recent.count)''',
+        "V131 effect installed after overlay fade finishes")
     return s
 
 def apply(root: Path):
