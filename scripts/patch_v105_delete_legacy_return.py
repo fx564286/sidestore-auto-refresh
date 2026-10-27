@@ -55,6 +55,16 @@ DIRECT_CODE = r'''
     [center addObserver:self selector:@selector(show:) name:UIWindowDidBecomeVisibleNotification object:nil];
     [center addObserver:self selector:@selector(show:) name:UISceneDidActivateNotification object:nil];
     [center addObserver:self selector:@selector(disconnect:) name:UISceneDidDisconnectNotification object:nil];
+    // SCARLET_V128_DIRECT_SCENE_RECOVERY: subscribe AND reconcile existing scenes.
+    // Some guests finish scene activation before this presenter is initialized.
+    dispatch_async(dispatch_get_main_queue(), ^{
+        for (UIScene *candidate in UIApplication.sharedApplication.connectedScenes) {
+            if (![candidate isKindOfClass:UIWindowScene.class]) continue;
+            UIWindowScene *active = (UIWindowScene *)candidate;
+            if (active.activationState != UISceneActivationStateForegroundActive) continue;
+            [self show:[NSNotification notificationWithName:UISceneDidActivateNotification object:active]];
+        }
+    });
     return self;
 }
 - (void)dealloc { [NSNotificationCenter.defaultCenter removeObserver:self]; }
@@ -73,7 +83,13 @@ DIRECT_CODE = r'''
     }
     if (!scene || ![scene.session.role isEqualToString:UIWindowSceneSessionRoleApplication]) return;
     NSString *idKey = scene.session.persistentIdentifier;
-    if (self.windows[idKey]) return;
+    if (scene.activationState != UISceneActivationStateForegroundActive) return;
+    SCGuestMorphWindow *existing = self.windows[idKey];
+    if (existing && existing.windowScene == scene) {
+        if (existing.isHidden) existing.hidden = NO;
+        return;
+    }
+    if (existing) [self.windows removeObjectForKey:idKey];
     SCGuestMorphWindow *window = [[SCGuestMorphWindow alloc] initWithWindowScene:scene];
     SCGuestMorphController *vc = [SCGuestMorphController new];
     window.rootViewController = vc;
@@ -88,7 +104,9 @@ DIRECT_CODE = r'''
     handle.accessibilityIdentifier = @"scarlet.v105.direct.morph";
     handle.accessibilityLabel = @"Scarlet Crystal guest switching";
     handle.accessibilityHint = @"Tap to open the shared guest controls. Drag to move.";
-    handle.frame = CGRectMake(8, MAX(66, CGRectGetMidY(window.bounds)-22), 44, 44);
+    // Default to the right edge; respect the user's saved drag position.
+    handle.frame = CGRectMake(MAX(8, CGRectGetWidth(window.bounds)-52),
+                              MAX(66, CGRectGetMidY(window.bounds)-22), 44, 44);
     NSArray *savedPosition = [NSUserDefaults.lcSharedDefaults arrayForKey:@"SCGuestMorphPositionV105"];
     if (savedPosition.count == 2 &&
         [savedPosition[0] isKindOfClass:NSNumber.class] &&
@@ -108,8 +126,14 @@ DIRECT_CODE = r'''
     handle.backgroundColor = UIColor.clearColor;
     handle.layer.cornerRadius = 22;
     handle.clipsToBounds = YES;
-    UIVisualEffectView *material = [[UIVisualEffectView alloc]
-        initWithEffect:[UIBlurEffect effectWithStyle:UIBlurEffectStyleSystemThinMaterial]];
+    // SCARLET_V128_DIRECT_NATIVE_GLASS: native UI material needs no JIT.
+    UIVisualEffect *effect = [UIBlurEffect effectWithStyle:UIBlurEffectStyleSystemThinMaterial];
+    if (@available(iOS 26.0, *)) {
+        if (!UIAccessibilityIsReduceTransparencyEnabled()) {
+            effect = [[UIGlassEffect alloc] init];
+        }
+    }
+    UIVisualEffectView *material = [[UIVisualEffectView alloc] initWithEffect:effect];
     material.userInteractionEnabled = NO;
     material.frame = handle.bounds;
     material.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
@@ -121,7 +145,7 @@ DIRECT_CODE = r'''
     [vc.view addSubview:handle];
     self.windows[idKey] = window;
     window.hidden = NO; // never become key, never interrupt the guest keyboard
-    NSLog(@"[SCARLET_V112_UI] mode=direct renderer=common_morph trigger=thin_material_ellipsis");
+    NSLog(@"[SCARLET_V112_UI] mode=direct renderer=common_morph trigger=native_glass_ellipsis");
 }
 - (void)dragHandle:(UIPanGestureRecognizer *)gesture {
     UIView *button = gesture.view;
