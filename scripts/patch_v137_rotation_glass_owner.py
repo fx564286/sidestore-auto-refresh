@@ -96,6 +96,12 @@ def boot(s):
     start=s.index('- (void)retireAllFallbacks:(NSString *)reason {')
     end=s.index('\n- (void)virtualReady:(NSNotification *)notice {',start)
     s=s[:start]+s[end+1:]
+    # V132 also inserted a cross-scene retire call into show() just before
+    # constructing the next fallback window. The retired selector cannot be
+    # left callable after deleting its implementation; it also erased Direct
+    # controls in unrelated active scenes. Remove that call at source.
+    s=replace(s, '    [self retireAllFallbacks:@"new_active_scene"];\n', '',
+              "remove orphaned cross-scene call to deleted method")
     s=replace(s,'''    // SCARLET_V132_ONE_HANDLE: never trust a speculative notification.
     // Cross-scene native handles also own the sole visible edge affordance.
     if ([self nativeAvailableInForeground])
