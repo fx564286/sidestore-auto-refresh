@@ -36,6 +36,8 @@ def transform(source: str) -> str:
         # Do not re-run V111 deletion or create any additional picker.
         if "SCARLET_V126_INPLACE_TAB_CONTENT" not in source:
             source = apply_in_place_tab_transition(source)
+        if "SCARLET_V127_COMPLETE_GLASS" not in source:
+            source = apply_complete_glass_surface(source)
         audit(source)
         return source
     required = (
@@ -186,6 +188,7 @@ def transform(source: str) -> str:
     source = repair_unresponsive_shared_picker(source)
     source = apply_native_glass_picker(source)
     source = apply_in_place_tab_transition(source)
+    source = apply_complete_glass_surface(source)
     audit(source)
     return source
 
@@ -554,11 +557,75 @@ def apply_in_place_tab_transition(source: str) -> str:
     source = source[:a] + footer_body + refresh + rows_body + callback + source[c:]
     return source
 
+def apply_complete_glass_surface(source: str) -> str:
+    # V127: One native glass panel, glass tabs, glass guest/window buttons.
+    # All controls retain their existing actions. iOS < 26 and accessibility
+    # Reduce Transparency use the original grouped materials.
+    if "SCARLET_V127_COMPLETE_GLASS" in source:
+        return source
+    source = unique(source,
+        "        overlay.backgroundColor = UIColor.black.withAlphaComponent(0.32)",
+        """        // SCARLET_V127_COMPLETE_GLASS: keep backdrop light for real glass.
+        overlay.backgroundColor = UIColor.black.withAlphaComponent(0.32)
+        if #available(iOS 26.0, *), !UIAccessibility.isReduceTransparencyEnabled {
+            overlay.backgroundColor = UIColor.black.withAlphaComponent(0.16)
+        }""", "lighten glass background")
+    source = unique(source, "        content.addArrangedSubview(tabPicker)",
+        """        // Existing segmented control, with a separate interactive glass
+        // housing. Do not create another dock or picker/controller.
+        let tabHousing = UIView()
+        tabHousing.translatesAutoresizingMaskIntoConstraints = false
+        content.addArrangedSubview(tabHousing)
+        tabHousing.heightAnchor.constraint(equalToConstant: 42).isActive = true
+        tabPicker.translatesAutoresizingMaskIntoConstraints = false
+        tabHousing.addSubview(tabPicker)
+        NSLayoutConstraint.activate([
+            tabPicker.leadingAnchor.constraint(equalTo: tabHousing.leadingAnchor),
+            tabPicker.trailingAnchor.constraint(equalTo: tabHousing.trailingAnchor),
+            tabPicker.topAnchor.constraint(equalTo: tabHousing.topAnchor),
+            tabPicker.bottomAnchor.constraint(equalTo: tabHousing.bottomAnchor)
+        ])
+        if #available(iOS 26.0, *), !UIAccessibility.isReduceTransparencyEnabled {
+            let tabGlass = UIVisualEffectView(effect: UIGlassEffect())
+            tabGlass.accessibilityIdentifier = "scarlet.v127.glass.tabs"
+            tabGlass.isUserInteractionEnabled = false
+            tabGlass.translatesAutoresizingMaskIntoConstraints = false
+            tabGlass.layer.cornerRadius = 20
+            tabGlass.clipsToBounds = true
+            tabHousing.insertSubview(tabGlass, belowSubview: tabPicker)
+            NSLayoutConstraint.activate([
+                tabGlass.leadingAnchor.constraint(equalTo: tabHousing.leadingAnchor),
+                tabGlass.trailingAnchor.constraint(equalTo: tabHousing.trailingAnchor),
+                tabGlass.topAnchor.constraint(equalTo: tabHousing.topAnchor),
+                tabGlass.bottomAnchor.constraint(equalTo: tabHousing.bottomAnchor)
+            ])
+            tabPicker.backgroundColor = .clear
+            tabPicker.selectedSegmentTintColor = .tertiarySystemFill
+            tabPicker.setBackgroundImage(UIImage(), for: .normal, barMetrics: .default)
+        }""", "glass segmented control housing")
+    opaque = "            item.backgroundColor = UIColor.secondarySystemGroupedBackground"
+    if source.count(opaque) != 3:
+        raise ValueError("V127 glass row source drift")
+    glass = """            if #available(iOS 26.0, *), !UIAccessibility.isReduceTransparencyEnabled {
+                var config = UIButton.Configuration.glass()
+                config.baseForegroundColor = .label
+                config.cornerStyle = .medium
+                item.configuration = config
+                item.backgroundColor = .clear
+            } else {
+                item.backgroundColor = UIColor.secondarySystemGroupedBackground
+            }"""
+    source = source.replace(opaque, glass)
+    return source
+
+
 def audit(source: str) -> None:
     for token in (
         MARK, "SCARLET_V112_SHARED_GUEST_UI",
         "SCARLET_V114_PICKER_TABS",
         "SCARLET_V126_INPLACE_TAB_CONTENT",
+        "SCARLET_V127_COMPLETE_GLASS",
+        'tabGlass.accessibilityIdentifier = "scarlet.v127.glass.tabs"',
         'tabPicker.accessibilityIdentifier = "scarlet.v114.shared.guest.tabs"',
         "nrgV114DirectWindowActionsRequest = targetWindowActions",
         "@objc(SCUnifiedGuestUIBridge)",
