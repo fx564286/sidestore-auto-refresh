@@ -225,9 +225,10 @@ def dock(s):
             NSLog("[SCARLET_V131_GLASS] status=deferred_until_visible native=1")''',
         '''            // SCARLET_V139_UNIFIED_GUEST_ACTION: sample live native
             // refraction from first layout through close; no mid-flight swap.
-            let steadyGlass = UIGlassEffect(style: .regular)
+            // Preserve the original transparent lens throughout its life:
+            // V137's later .regular swap produced the opaque grey/white flash.
+            let steadyGlass = UIGlassEffect(style: .clear)
             steadyGlass.isInteractive = true
-            steadyGlass.tintColor = UIColor.systemBackground.withAlphaComponent(0.12)
             material.effect = steadyGlass
             NSLog("[SCARLET_V139_GLASS] surface=panel material=persistent_native")''',
         'eliminate transition from nil to white/opaque glass')
