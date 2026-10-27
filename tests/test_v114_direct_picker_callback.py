@@ -78,11 +78,21 @@ class DirectPickerRepair(unittest.TestCase):
                          'UISegmentedControl(items: ["최근 실행 앱", "창 관리"])',
                          'tabPicker.accessibilityIdentifier = "scarlet.v114.shared.guest.tabs"',
                          'nrgV114DirectWindowActionsRequest = targetWindowActions',
-                         'self.nrgV102PresentWindowActions(from: controller, sourceView: sourceView)',
-                         'self.nrgV112PresentDirectGuestUI(from: controller, sourceView: sourceView)',
+                         'public func nrgV102PresentWindowActions(',
+                         'public func nrgV112PresentDirectGuestUI(',
+                         'SCARLET_V126_INPLACE_TAB_CONTENT',
+                         'let rebuildTabContent: () -> Void = {',
                          'picker_guard_rejected',
                          'windowActions ? "창 관리" : "최근 실행 앱"'):
             self.assertIn(required,s)
+        # V126 deliberately removes the old re-present calls from tab selection.
+        start = s.index('        tabPicker.addAction(')
+        end = s.index('        owner.layoutIfNeeded()', start)
+        tab_callback = s[start:end]
+        self.assertIn('rebuildTabContent()', tab_callback)
+        self.assertNotIn('self.nrgV102PresentWindowActions(from:', tab_callback)
+        self.assertNotIn('self.nrgV112PresentDirectGuestUI(from:', tab_callback)
+        self.assertNotIn('collapse {', tab_callback)
         self.assertNotIn("UIHostingController<AnyView>",s)
         self.assertNotIn("struct MultitaskDockSwiftView: View",s)
         self.assertNotIn("struct AppIconView: View",s)
@@ -96,7 +106,10 @@ class DirectPickerRepair(unittest.TestCase):
         self.assertIn('if directMode {',s)
         self.assertIn('scarlet.v112.direct.restart',s)
         self.assertIn('nrgV112RestartDirectGuest',s)
-        self.assertIn('[weak self, weak controller, weak sourceView, weak tabPicker]',s)
+        # V126 no longer dismisses/re-presents on tab change; it holds weak
+        # references to the current picker and its retained overlay.
+        self.assertIn('[weak self, weak tabPicker, weak overlay]',s)
+        self.assertIn('SCARLET_V126_INPLACE_TAB_CONTENT',s)
         self.assertNotIn('resetAdi',s)
 
     def test_upstream_changes_fail_closed(self):

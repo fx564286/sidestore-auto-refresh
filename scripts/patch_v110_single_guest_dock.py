@@ -32,6 +32,10 @@ def unique(source: str, old: str, new: str, label: str) -> str:
 
 def transform(source: str) -> str:
     if MARK in source:
+        # A previously generated V125 checkout is a supported upgrade input.
+        # Do not re-run V111 deletion or create any additional picker.
+        if "SCARLET_V126_INPLACE_TAB_CONTENT" not in source:
+            source = apply_in_place_tab_transition(source)
         audit(source)
         return source
     required = (
@@ -181,6 +185,7 @@ def transform(source: str) -> str:
     source = share_direct_guest_ui(source)
     source = repair_unresponsive_shared_picker(source)
     source = apply_native_glass_picker(source)
+    source = apply_in_place_tab_transition(source)
     audit(source)
     return source
 
@@ -441,10 +446,119 @@ def apply_native_glass_picker(source: str) -> str:
 ''', "glass tab background")
     return source
 
+def apply_in_place_tab_transition(source: str) -> str:
+    """V126: switch the existing panel's content, never tear down the surface.
+
+    Only the tab callback is replaced. Guest selection, Direct restart and
+    window-action callbacks still use their canonical prior paths.
+    """
+    marker = "SCARLET_V126_INPLACE_TAB_CONTENT"
+    if marker in source:
+        return source
+
+    source = unique(source,
+        '''        let windowActions = nrgV102WindowActionRequest ||
+            (directMode && nrgV114DirectWindowActionsRequest)
+''',
+        '''        var windowActions = nrgV102WindowActionRequest ||
+            (directMode && nrgV114DirectWindowActionsRequest)
+''', "V126 mutable tab state")
+    source = unique(source,
+        "        scroll.heightAnchor.constraint(equalToConstant: listHeight).isActive = true",
+        """        let tabListHeightConstraint = scroll.heightAnchor.constraint(equalToConstant: listHeight)
+        tabListHeightConstraint.isActive = true""", "V126 dynamic list height")
+
+    # The V125 callback is defective: both branches execute collapse,
+    # removing the backdrop and starting a new presentation. Eliminate it.
+    source = section(source,
+        "        tabPicker.addAction(UIAction { [weak self, weak controller, weak sourceView, weak tabPicker] _ in",
+        "        if recent.isEmpty && !windowActions && !directMode {")
+
+    begin = "        if recent.isEmpty && !windowActions && !directMode {"
+    end = "        let footer = UILabel()"
+    layout = "        owner.layoutIfNeeded()"
+    if source.count(begin) != 1 or source.count(end) != 1 or source.count(layout) != 1:
+        raise ValueError("V126 guest content structure drift")
+    a = source.index(begin)
+    b = source.index(end, a)
+    c = source.index(layout, b)
+    rows_body = source[a:b]
+    original_guest_action = "            item.addAction(UIAction { [weak self] _ in"
+    weak_guest_action = """            item.addAction(UIAction { [weak self, weak overlay, weak sourceView] _ in
+                guard let overlay, let sourceView else { return }"""
+    if rows_body.count(original_guest_action) != 1:
+        raise ValueError("V126 guest row lifecycle anchor drift")
+    rows_body = rows_body.replace(original_guest_action, weak_guest_action, 1)
+    footer_body = source[b:c]
+    # Do not duplicate any renderer/action code: move it into a single closure
+    # run at initial presentation and again when the picker selection changes.
+    refresh = '''        // SCARLET_V126_INPLACE_TAB_CONTENT: the overlay and glass are stable.
+        // Only text, accessible row controls and the list's height change.
+        let rebuildTabContent: () -> Void = {
+            [weak overlay, weak sourceView, weak controller, weak rows,
+             weak scroll, weak heading, weak subtitle, weak footer] in
+            guard let overlay, let sourceView, let controller, let rows,
+                  let scroll, let heading, let subtitle, let footer else { return }
+            heading.text = windowActions ? "창 관리" : "최근 실행 앱"
+            subtitle.text = windowActions ? "현재 게스트 창"
+                : directMode ? "현재 게스트 · 다른 앱으로 전환하려면 재시작 필요"
+                : "Scarlet Crystal 내부 · 최근 활성화 순"
+            footer.text = windowActions ? "바깥을 누르면 창 관리 닫기"
+                : "바깥을 누르면 앱 전환 닫기"
+            scroll.showsVerticalScrollIndicator = !windowActions && recent.count > 5
+            let count = directMode ? 2 : (windowActions ? actionsCount : recent.count)
+            tabListHeightConstraint.constant =
+                min(CGFloat(max(1, count)) * 54, maxListHeight)
+            for child in rows.arrangedSubviews {
+                rows.removeArrangedSubview(child)
+                child.removeFromSuperview()
+            }
+            scroll.setContentOffset(.zero, animated: false)
+'''
+    callback = '''        }
+        rebuildTabContent()
+
+        tabPicker.addAction(UIAction { [weak self, weak tabPicker, weak overlay] _ in
+            guard let self, let tabPicker, let overlay,
+                  overlay.superview != nil, overlay.isUserInteractionEnabled else { return }
+            let targetWindowActions = tabPicker.selectedSegmentIndex == 1
+            guard targetWindowActions != windowActions else { return }
+            windowActions = targetWindowActions
+            if directMode {
+                self.nrgV114DirectWindowActionsRequest = targetWindowActions
+            }
+            // Never call collapse or present another controller on tab change.
+            // Prevent rapid double taps from interleaving row reconstruction.
+            tabPicker.isUserInteractionEnabled = false
+            if UIAccessibility.isReduceMotionEnabled {
+                rebuildTabContent()
+                overlay.layoutIfNeeded()
+                tabPicker.isUserInteractionEnabled = true
+            } else {
+                overlay.layoutIfNeeded()
+                UIView.transition(with: rows, duration: 0.20,
+                                  options: [.transitionCrossDissolve, .beginFromCurrentState],
+                                  animations: {
+                    rebuildTabContent()
+                    overlay.layoutIfNeeded()
+                }, completion: { _ in
+                    tabPicker.isUserInteractionEnabled = true
+                })
+            }
+            UIAccessibility.post(notification: .layoutChanged, argument: heading)
+            NSLog("[SCARLET_V126_TAB] mode=%@ direct=%d overlay_retained=1",
+                  targetWindowActions ? "windows" : "recent", directMode ? 1 : 0)
+        }, for: .valueChanged)
+
+'''
+    source = source[:a] + footer_body + refresh + rows_body + callback + source[c:]
+    return source
+
 def audit(source: str) -> None:
     for token in (
         MARK, "SCARLET_V112_SHARED_GUEST_UI",
         "SCARLET_V114_PICKER_TABS",
+        "SCARLET_V126_INPLACE_TAB_CONTENT",
         'tabPicker.accessibilityIdentifier = "scarlet.v114.shared.guest.tabs"',
         "nrgV114DirectWindowActionsRequest = targetWindowActions",
         "@objc(SCUnifiedGuestUIBridge)",
