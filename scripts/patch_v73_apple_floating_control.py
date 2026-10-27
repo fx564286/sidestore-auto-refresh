@@ -22,8 +22,14 @@ MATERIAL = '''    // NRG_V73_APPLE_FLOATING_CONTROL: native system material and 
     overflow.backgroundColor = UIColor.clearColor;
     overflow.layer.cornerRadius = 22.0;
     overflow.clipsToBounds = YES;
-    UIVisualEffectView *nrgV73Material = [[UIVisualEffectView alloc]
-        initWithEffect:[UIBlurEffect effectWithStyle:UIBlurEffectStyleSystemThinMaterial]];
+    // SCARLET_V128_VIRTUAL_NATIVE_GLASS: native material requires no JIT.
+    UIVisualEffect *effect = [UIBlurEffect effectWithStyle:UIBlurEffectStyleSystemThinMaterial];
+    if (@available(iOS 26.0, *)) {
+        if (!UIAccessibilityIsReduceTransparencyEnabled()) {
+            effect = [[UIGlassEffect alloc] init];
+        }
+    }
+    UIVisualEffectView *nrgV73Material = [[UIVisualEffectView alloc] initWithEffect:effect];
     nrgV73Material.translatesAutoresizingMaskIntoConstraints = NO;
     nrgV73Material.userInteractionEnabled = NO;
     [overflow insertSubview:nrgV73Material atIndex:0];
@@ -91,14 +97,14 @@ METHODS = r'''
     NSString *fractionKey = [@"NRGV73GuestOverflowFraction." stringByAppendingString:suffix];
     NSString *sideKey = [@"NRGV73GuestOverflowRight." stringByAppendingString:suffix];
     id stored = [prefs objectForKey:fractionKey];
-    // First launch sits near the LEFT MIDDLE of the viewport, never over the
-    // typical top-right in-app nav/search/actions. Users choose final location.
+    // SCARLET_V128_VIRTUAL_RIGHT_DEFAULT: trailing edge by default.
+    // Existing saved left/right drag preference remains authoritative.
     CGFloat fraction = [stored isKindOfClass:NSNumber.class] ? [stored doubleValue] : 0.60;
     fraction = [self nrgV73Clamp:fraction minimum:0 maximum:1];
     CGFloat start = [self nrgV73MinY];
     CGFloat end = [self nrgV73MaxY];
     self.nrgV73FloatingTop.constant = start + (end - start) * fraction;
-    BOOL onRight = [prefs boolForKey:sideKey];
+    BOOL onRight = [prefs objectForKey:sideKey] == nil ? YES : [prefs boolForKey:sideKey];
     self.nrgV73FloatingLeading.constant = onRight ? MAX(8.0, size.width - 52.0) : 8.0;
 }
 
