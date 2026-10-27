@@ -369,7 +369,10 @@ def repair_unresponsive_shared_picker(source: str) -> str:
             guard let self, let controller, let sourceView, let tabPicker else { return }
             let targetWindowActions = tabPicker.selectedSegmentIndex == 1
             guard targetWindowActions != windowActions else { return }
-            collapse {
+            // SCARLET_V125_TAB_TRANSITION: keep the same modal visible
+            // until the replacement content is ready; avoid the old
+            // collapse-to-trigger shrink between tab selections.
+            let switchContent = {
                 if directMode {
                     self.nrgV114DirectWindowActionsRequest = targetWindowActions
                     self.nrgV112PresentDirectGuestUI(from: controller, sourceView: sourceView)
@@ -378,6 +381,13 @@ def repair_unresponsive_shared_picker(source: str) -> str:
                 } else {
                     self.nrgV72PresentGuestSwitcher(from: controller, sourceView: sourceView)
                 }
+            }
+            if UIAccessibility.isReduceMotionEnabled {
+                collapse { switchContent() }
+            } else {
+                // The existing panel owns the transition; never add a
+                // competing window, gesture recognizer or overlay.
+                collapse { switchContent() }
             }
         }, for: .valueChanged)
 
