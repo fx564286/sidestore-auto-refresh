@@ -81,6 +81,8 @@ def audit(host:Path,store:Path|None=None):
     data=item.read_text(encoding='utf-8',errors='replace')
     for token in stale:
      if token in data:problems.append(f'{rel}: old guest UI symbol still referenced: {token}')
+ # V137 moves the ONLY guest entry to shared bootstrap for both modes.
+ unified = 'SCARLET_V137_UNIFIED_GUEST_ENTRY' in (host/'LiveContainer/LCBootstrap.m').read_text(encoding='utf-8')
  # V105 no legacy button class in ANY final live-source module.
  legacy=('LCReturnControl','lcReturnControl','LCDirectReturnControl',
          'LCDirectReturnWindow','LCDirectReturnPresenter')
@@ -102,8 +104,6 @@ def audit(host:Path,store:Path|None=None):
    for obsolete in ('UIButton *scrim','UIView *card','UILabel *note',
                     '- (void)expand:', 'systemImageNamed:@"chevron.up"'):
     if obsolete in source:problems.append(f'{rel}: separate Direct panel remains {obsolete}')
- # V137 moves the ONLY guest entry to shared bootstrap for both modes.
- unified = 'SCARLET_V137_UNIFIED_GUEST_ENTRY' in (host/'LiveContainer/LCBootstrap.m').read_text(encoding='utf-8')
  if unified:
   ACTIVE_RULES[WINDOW]['required'] = ('SCARLET_V137_UNIFIED_GUEST_ENTRY', 'SCARLET_V137_TOUCH_SETTLE')
  for rel,rules in ACTIVE_RULES.items():
