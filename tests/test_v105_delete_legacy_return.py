@@ -76,7 +76,7 @@ class V105DeleteTests(unittest.TestCase):
         self.assertIn('SCGuestMorphPresenter',a)
         self.assertIn('scarlet.v105.direct.morph',a)
         self.assertIn('if (!isSideStore)',a)
-        self.assertIn('SCARLET_V128_LIVEPROCESS_FALLBACK', (ROOT/'scripts/patch_v105_delete_legacy_return.py').read_text())
+        self.assertIn('SCARLET_V128_LIVEPROCESS_FALLBACK', Path(v.__file__).read_text())
         self.assertIn('SCARLET_V128_DIRECT_SCENE_RECOVERY',a)
         self.assertIn('SCARLET_V128_NO_DUPLICATE_LIVE_CONTROL',a)
         self.assertIn('SCARLET_V128_DIRECT_NATIVE_GLASS',a)
