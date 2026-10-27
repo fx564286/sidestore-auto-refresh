@@ -385,9 +385,18 @@ def verify(path, side_product=None):
         build_label = host.get('ScarletBuildLabel')
         if version == '3.8.210' and build_label != 'V137':
             raise ValueError('V137 packaged version is missing its explicit build identity')
+        if version == '3.8.211' and build_label != 'V138':
+            raise ValueError('V138 packaged version is missing its explicit build identity')
         v137_package = version == '3.8.210' and build_label == 'V137'
         verify_v105_direct_morph_binary(bootstrap_code, v137=v137_package)
         verify_v107_virtual_guest_control_binary(host_code, v137=v137_package)
+        if version == '3.8.211':
+            # V138 must keep the functioning host-V73 compiled in SwiftUI
+            # and an actionable Direct fallback in LiveContainerShared.
+            if b'[SCARLET_V138_ACTION] fallback=host_link accepted=' not in bootstrap_code:
+                raise ValueError('V138 Direct action fallback missing from actual app binary')
+            if b'scarlet.v137.shared.guest.control' in bootstrap_code:
+                raise ValueError('V138 inert V137 guest-only handle was compiled')
         assert b'finishRefresh:runID:verification:' in support_code, 'XPC result receiver missing'
         assert b'refreshAllAppsWithIdentifier:mangledTypeName:refreshRunID:' in support_code, 'XPC run identity missing'
         assert b'RESULT_RECEIVED' in support_code, 'Host result persistence missing'
