@@ -68,6 +68,13 @@ DIRECT_CODE = r'''
     return self;
 }
 - (void)dealloc { [NSNotificationCenter.defaultCenter removeObserver:self]; }
+- (BOOL)containsVirtualHandle:(UIView *)view {
+    if ([view.accessibilityIdentifier isEqualToString:@"scarlet.v103.virtual.guest.control"]) return YES;
+    for (UIView *child in view.subviews) {
+        if ([self containsVirtualHandle:child]) return YES;
+    }
+    return NO;
+}
 - (void)show:(NSNotification *)notice {
     if (!NSThread.isMainThread) {
         dispatch_async(dispatch_get_main_queue(), ^{ [self show:notice]; });
@@ -82,6 +89,10 @@ DIRECT_CODE = r'''
         scene = notice.object;
     }
     if (!scene || ![scene.session.role isEqualToString:UIWindowSceneSessionRoleApplication]) return;
+    // SCARLET_V128_NO_DUPLICATE_LIVE_CONTROL: decorated scenes own their V73.
+    for (UIWindow *candidate in scene.windows) {
+        if ([self containsVirtualHandle:candidate]) return;
+    }
     NSString *idKey = scene.session.persistentIdentifier;
     if (scene.activationState != UISceneActivationStateForegroundActive) return;
     SCGuestMorphWindow *existing = self.windows[idKey];
@@ -276,6 +287,12 @@ def direct(src):
                 DIRECT_CODE+"\n", "old direct return implementation")
     src=src.replace("lcDirectReturnPresenter = [LCDirectReturnPresenter new];",
                     "scGuestMorphPresenter = [SCGuestMorphPresenter new];")
+    # SCARLET_V128_LIVEPROCESS_FALLBACK: add an escape handle for
+    # non-decorated LiveProcess guests while avoiding duplicate V73 buttons.
+    condition = "if (!isLiveProcess && !isSideStore) {"
+    if src.count(condition) != 1:
+        raise ValueError("V128 guest mode condition changed")
+    src=src.replace(condition, "if (!isSideStore) {", 1)
     if "scGuestMorphPresenter = [SCGuestMorphPresenter new];" not in src:
         raise ValueError("missing direct escape initialization")
     if any(t in src for t in BANNED):raise ValueError("V105 direct cleanup incomplete")
