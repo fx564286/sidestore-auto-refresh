@@ -50,6 +50,10 @@ class LiquidGlassReference(unittest.TestCase):
         self.assertEqual(source.count("UIButton.Configuration.glass()"), 0)
         self.assertNotIn("UIVisualEffectView(effect: UIGlassEffect())", source)
         self.assertIn("weak tabHousing", source)
+        self.assertIn("SCARLET_V131_VISIBLE_GLASS_ACTIVATION", source)
+        self.assertIn("status=deferred_until_visible", source)
+        self.assertIn("status=materialized_after_visible", source)
+        self.assertLess(source.index("overlay.alpha = 1"), source.index("material.effect = glass"))
         self.assertIn("SCARLET_V129_PICKER_RESILIENCE", source)
         self.assertIn("SCARLET_V127_COMPLETE_GLASS", source)
 
