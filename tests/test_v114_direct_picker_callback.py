@@ -96,7 +96,10 @@ class DirectPickerRepair(unittest.TestCase):
         self.assertIn('if directMode {',s)
         self.assertIn('scarlet.v112.direct.restart',s)
         self.assertIn('nrgV112RestartDirectGuest',s)
-        self.assertIn('[weak self, weak controller, weak sourceView, weak tabPicker]',s)
+        # V126 no longer dismisses/re-presents on tab change; it holds weak
+        # references to the current picker and its retained overlay.
+        self.assertIn('[weak self, weak tabPicker, weak overlay]',s)
+        self.assertIn('SCARLET_V126_INPLACE_TAB_CONTENT',s)
         self.assertNotIn('resetAdi',s)
 
     def test_upstream_changes_fail_closed(self):
