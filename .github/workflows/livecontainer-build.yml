@@ -779,6 +779,13 @@ jobs:
           cmp "$RUNNER_TEMP/combined-swift-first.txt" "$RUNNER_TEMP/combined-swift-second.txt"
           python3 builder/scripts/patch_combined_service_startup.py --transport "$MUX"
           python3 builder/scripts/patch_combined_service_startup.py --transport "$MUX"
+          # V138: RemotePairing connection-reset is transport failure, not
+          # invalid pairing; do not swallow verified-UDID errors at boot.
+          # Never mutate/recreate stored pairing, provisioning or certificate.
+          python3 builder/scripts/patch_v138_pairing_log_recovery.py work/EmbeddedSideStore "$MUX"
+          python3 builder/scripts/patch_v138_pairing_log_recovery.py work/EmbeddedSideStore "$MUX"
+          V138_PATCHED_MINIMUXER="$MUX" V138_PATCHED_SIDESTORE=work/EmbeddedSideStore \
+            python3 -m unittest discover -s builder/tests -p test_v138_pairing_log_recovery.py -v
           git -C "$MUX" diff --check
           while IFS= read -r -d '' source; do swiftc -frontend -parse "$source"; done < <(find "$MUX" -type f -name '*.swift' -not -path '*/.build/*' -print0)
           swift package --package-path "$MUX/DeviceGateway" dump-package >"$RUNNER_TEMP/combined-gateway-package.json"
