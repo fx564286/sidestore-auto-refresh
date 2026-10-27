@@ -387,6 +387,8 @@ def verify(path, side_product=None):
             raise ValueError('V137 packaged version is missing its explicit build identity')
         if version == '3.8.211' and build_label != 'V138':
             raise ValueError('V138 packaged version is missing its explicit build identity')
+        if version == '3.8.212' and build_label != 'V139':
+            raise ValueError('V139 packaged version is missing its explicit build identity')
         v137_package = version == '3.8.210' and build_label == 'V137'
         verify_v105_direct_morph_binary(bootstrap_code, v137=v137_package)
         verify_v107_virtual_guest_control_binary(host_code, v137=v137_package)
@@ -397,6 +399,21 @@ def verify(path, side_product=None):
                 raise ValueError('V138 Direct action fallback missing from actual app binary')
             if b'scarlet.v137.shared.guest.control' in bootstrap_code:
                 raise ValueError('V138 inert V137 guest-only handle was compiled')
+        if version == '3.8.212':
+            # Real compiled markers, not source-only assertions.
+            # Direct->host and LiveProcess->host terminate at the SAME picker.
+            for label, image, markers in (
+                ('Direct', bootstrap_code, (b'scarletcrystal251://nrg-guest-controls',
+                    b'scarlet.v139.direct.glass.touch',
+                    b'[SCARLET_V139_GLASS]')),
+                ('hosted', host_code, (b'scarlet.v139.hosted.glass.touch',
+                    b'[SCARLET_V139_GLASS]', b'SCARLET_V139_VIDEO')),
+            ):
+                for required in markers:
+                    if required not in image:
+                        raise ValueError(f'V139 compiled {label} action missing: {required!r}')
+            if b'scarlet.v137.shared.guest.control' in bootstrap_code:
+                raise ValueError('V139 obsolete unresponsive guest button compiled')
         assert b'finishRefresh:runID:verification:' in support_code, 'XPC result receiver missing'
         assert b'refreshAllAppsWithIdentifier:mangledTypeName:refreshRunID:' in support_code, 'XPC run identity missing'
         assert b'RESULT_RECEIVED' in support_code, 'Host result persistence missing'
