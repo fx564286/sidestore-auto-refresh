@@ -180,6 +180,7 @@ def transform(source: str) -> str:
 
     source = share_direct_guest_ui(source)
     source = repair_unresponsive_shared_picker(source)
+    source = apply_native_glass_picker(source)
     audit(source)
     return source
 
@@ -407,6 +408,27 @@ def repair_unresponsive_shared_picker(source: str) -> str:
             return
         }
 ''', "log existing UIKit guard instead of silent no-op")
+    return source
+
+def apply_native_glass_picker(source: str) -> str:
+    """V125: use system glass in the one existing UIKit picker."""
+    marker = "SCARLET_V125_NATIVE_GLASS"
+    if marker in source:
+        return source
+    source = unique(source,
+        "        let material = UIVisualEffectView(effect: UIBlurEffect(style: .systemMaterial))",
+        """        // SCARLET_V125_NATIVE_GLASS: native iOS glass; accessible fallback.
+        let material = UIVisualEffectView(effect: UIBlurEffect(style: .systemMaterial))
+        if #available(iOS 26.0, *), !UIAccessibility.isReduceTransparencyEnabled {
+            material.effect = UIGlassEffect()
+        }""", "native system glass")
+    source = unique(source,
+        '        tabPicker.selectedSegmentIndex = windowActions ? 1 : 0\n',
+        '''        tabPicker.selectedSegmentIndex = windowActions ? 1 : 0
+        if #available(iOS 26.0, *), !UIAccessibility.isReduceTransparencyEnabled {
+            tabPicker.backgroundColor = .clear
+        }
+''', "glass tab background")
     return source
 
 def audit(source: str) -> None:
