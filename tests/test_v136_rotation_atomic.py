@@ -22,6 +22,27 @@ class RotationAtomic(unittest.TestCase):
                     "removeFromSuperview]","setAffineTransform:",
                     "self.view.transform =","SecItemDelete"):
             self.assertNotIn(bad,code)
+    def test_handles_ci_canonical_v55_and_older_repro(self):
+        from tempfile import TemporaryDirectory
+        from shutil import copy2
+        root=Path('/tmp/scarlet-v133-validated-6mg_5o0j')
+        if not (root/v136.DECO).exists():return
+        old=(root/v136.DECO).read_text()
+        # Legacy repro contains the full-window comparison, whereas the CI
+        # applies the V55 canonical touch-safe viewport comparison.
+        anchor="""    BOOL guestIsStale = fabs(guestSize.width - size.width) > 1.0 ||
+                        fabs(guestSize.height - size.height) > 1.0;"""
+        fixed="""    CGSize viewportSize = self.view.bounds.size;
+    BOOL guestIsStale = fabs(guestSize.width - viewportSize.width) > 1.0 ||
+                        fabs(guestSize.height - viewportSize.height) > 1.0;"""
+        self.assertEqual(old.count(anchor),1)
+        for candidate in (old,old.replace(anchor,fixed,1)):
+            patched=v136.decorated(candidate)
+            self.assertEqual(v136.decorated(patched),patched)
+            self.assertIn("CGSize viewport = self.view.bounds.size;",patched)
+            self.assertNotIn("fabs(guestSize.width - size.width)",patched)
+            self.assertIn("nrgV136GeometryStable:window",patched)
+
     def test_fail_closed_if_pinned_sources_missing(self):
         for fn in (v136.decorated,v136.dock,v136.delegate):
             with self.assertRaises(ValueError):fn("unrelated")
