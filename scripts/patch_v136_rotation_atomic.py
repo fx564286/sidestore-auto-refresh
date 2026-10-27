@@ -63,16 +63,30 @@ def decorated(s):
     UIInterfaceOrientation orientation = window.windowScene.interfaceOrientation;
     // NRG_V61_LANDSCAPE_GUEST_RECOVERY:''',
         "reconcile when stable")
-    # V129 compared guest view bounds with full UIWindow bounds even when a
-    # portrait safety top inset was active; forced an unnecessary update on
-    # every subsequent reconcile (and can race with the rotating surface).
-    s=once(s,
-        '''    BOOL guestIsStale = fabs(guestSize.width - size.width) > 1.0 ||
-                        fabs(guestSize.height - size.height) > 1.0;''',
-        '''    CGSize viewport = self.view.bounds.size;
+    # V55's canonical build source already compares the guest to the
+    # physical decorated viewport (viewportSize). Some older generated
+    # snapshots still compare against the entire window (size). Accept ONLY
+    # these two pinned shapes; update the legacy shape but do not clobber the
+    # fixed version. Record a common 'viewport' variable for telemetry.
+    legacy = '''    BOOL guestIsStale = fabs(guestSize.width - size.width) > 1.0 ||
+                        fabs(guestSize.height - size.height) > 1.0;'''
+    canonical = '''    CGSize viewportSize = self.view.bounds.size;
+    BOOL guestIsStale = fabs(guestSize.width - viewportSize.width) > 1.0 ||
+                        fabs(guestSize.height - viewportSize.height) > 1.0;'''
+    if s.count(legacy) == 1 and canonical not in s:
+        s = once(s, legacy,
+                 '''    CGSize viewport = self.view.bounds.size;
     BOOL guestIsStale = fabs(guestSize.width - viewport.width) > 1.0 ||
                         fabs(guestSize.height - viewport.height) > 1.0;''',
-        "touch safe viewport stale check")
+                 "legacy stale check")
+    elif s.count(canonical) == 1 and legacy not in s:
+        s = once(s, canonical,
+                 '''    CGSize viewport = self.view.bounds.size;
+    BOOL guestIsStale = fabs(guestSize.width - viewport.width) > 1.0 ||
+                        fabs(guestSize.height - viewport.height) > 1.0;''',
+                 "canonical stale check")
+    else:
+        raise ValueError("V136 stale geometry: unrecognized or ambiguous pinned source")
     s=once(s,
         '''    [self.view setNeedsLayout];
     [self.appSceneVC.view setNeedsLayout];
