@@ -78,11 +78,21 @@ class DirectPickerRepair(unittest.TestCase):
                          'UISegmentedControl(items: ["최근 실행 앱", "창 관리"])',
                          'tabPicker.accessibilityIdentifier = "scarlet.v114.shared.guest.tabs"',
                          'nrgV114DirectWindowActionsRequest = targetWindowActions',
-                         'self.nrgV102PresentWindowActions(from: controller, sourceView: sourceView)',
-                         'self.nrgV112PresentDirectGuestUI(from: controller, sourceView: sourceView)',
+                         'public func nrgV102PresentWindowActions(',
+                         'public func nrgV112PresentDirectGuestUI(',
+                         'SCARLET_V126_INPLACE_TAB_CONTENT',
+                         'let rebuildTabContent: () -> Void = {',
                          'picker_guard_rejected',
                          'windowActions ? "창 관리" : "최근 실행 앱"'):
             self.assertIn(required,s)
+        # V126 deliberately removes the old re-present calls from tab selection.
+        start = s.index('        tabPicker.addAction(')
+        end = s.index('        owner.layoutIfNeeded()', start)
+        tab_callback = s[start:end]
+        self.assertIn('rebuildTabContent()', tab_callback)
+        self.assertNotIn('self.nrgV102PresentWindowActions(from:', tab_callback)
+        self.assertNotIn('self.nrgV112PresentDirectGuestUI(from:', tab_callback)
+        self.assertNotIn('collapse {', tab_callback)
         self.assertNotIn("UIHostingController<AnyView>",s)
         self.assertNotIn("struct MultitaskDockSwiftView: View",s)
         self.assertNotIn("struct AppIconView: View",s)
