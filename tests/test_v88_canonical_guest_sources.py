@@ -80,6 +80,21 @@ class CanonicalGuestTests(unittest.TestCase):
             self.assertEqual(bad["status"],"FAIL")
             self.assertTrue(any("import ActivityKit" in err for err in bad["errors"]))
 
+    def test_v137_shared_entry_replaces_obsolete_virtual_button_contract(self):
+        virtual = "SCARLET_V137_UNIFIED_GUEST_ENTRY\nSCARLET_V137_TOUCH_SETTLE\n" + (
+            "[self nrgV136GeometryStable:host]\n")
+        issues = []
+        audit.check_file(Path("/tmp"), audit.WINDOW, virtual, issues)
+        self.assertEqual(issues, [])
+        issues = []
+        audit.check_file(Path("/tmp"), audit.WINDOW,
+                         virtual + "\nnrgWindowOverflow", issues)
+        self.assertTrue(any("duplicated V137" in problem for problem in issues))
+        old_source = "- (void)nrgV72WindowOverflowLongPress:\nnrgV72PresentGuestSwitcherFrom:self"
+        issues = []
+        audit.check_file(Path("/tmp"), audit.WINDOW, old_source, issues)
+        self.assertEqual(issues, [])
+
     def test_compiled_final_source_when_available(self):
         source = os.environ.get("LIVE_CONTAINER_TEST_SOURCE")
         if not source or os.environ.get("V88_CANONICAL_SOURCE") != "1":

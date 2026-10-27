@@ -71,30 +71,47 @@ def verify_shared_secret_handoff_group(host_groups, live_process_groups):
     return shared[0]
 
 
-def verify_v105_direct_morph_binary(bootstrap_code):
-    """Only the V105 owner may create Direct's escape overlay.
-    Check actual compiled symbols, not source comments or retired markers.
+def verify_v105_direct_morph_binary(bootstrap_code, *, v137=False):
+    """Require the actual compiled entry control expected by the package.
+
+    V137 replaces the legacy Direct-only V105 button with one shared
+    Direct/LiveProcess control. Do not accept the old button marker in a
+    V137 archive and do not silently fall back to legacy checks.
     """
-    required=(b'SCGuestMorphPresenter', b'scarlet.v105.direct.morph',
-              b'[SCARLET_V105_CONTROL]')
-    for marker in required:
-        if marker not in bootstrap_code:
-            raise ValueError("V105 compiled Direct morph missing: " + marker.decode())
-    # The bootstrap framework owns Direct only; LiveProcess guest UI is in
-    # LiveContainerSwiftUI.framework and has its own independent verifier.
+    if v137:
+        required = (b'SCGuestMorphPresenter',
+                    b'scarlet.v137.shared.guest.control',
+                    b'[SCARLET_V137_FINGER_GLASS]')
+        for marker in required:
+            if marker not in bootstrap_code:
+                raise ValueError("V137 compiled shared guest entry missing: " + marker.decode())
+        if b'scarlet.v105.direct.morph' in bootstrap_code:
+            raise ValueError("V137 contains obsolete Direct-only guest button")
+    else:
+        required = (b'SCGuestMorphPresenter',
+                    b'scarlet.v105.direct.morph',
+                    b'[SCARLET_V105_CONTROL]')
+        for marker in required:
+            if marker not in bootstrap_code:
+                raise ValueError("V105 compiled Direct morph missing: " + marker.decode())
     for retired in (b'LCDirectReturnPresenter', b'LCDirectReturnControl'):
         if retired in bootstrap_code:
             raise ValueError("V107 obsolete Direct guest control was compiled")
 
 
-def verify_v107_virtual_guest_control_binary(host_code):
-    """Look for the real host-owned guest control, not the removed native UI.
+def verify_v107_virtual_guest_control_binary(host_code, *, v137=False):
+    """Reject retired controls in V137; require the historic owner before V137.
 
-    Use null-delimited Objective-C symbols; broad substring matches would
-    incorrectly reject harmless preference keys such as LCReturnControlPosition.
+    V137 uses the single compiled SCGuestMorphPresenter verified separately in
+    LiveContainerShared. The old V103 virtual marker must not be demanded in
+    LiveContainerSwiftUI after its source has been deleted.
+    Use null-delimited Objective-C symbols to avoid false positive preference keys.
     """
     required = b'scarlet.v103.virtual.guest.control'
-    if required not in host_code:
+    if v137:
+        if required in host_code:
+            raise ValueError("V137 obsolete virtual guest control was compiled")
+    elif required not in host_code:
         raise ValueError("V107 host-owned virtual guest control missing")
     import re
     legacy = (b'LCReturnControl', b'lcReturnControl', b'lcReturnToHost')
@@ -362,8 +379,15 @@ def verify(path, side_product=None):
         verify_host_intent_runtime_symbols(support_code)
         verify_auth_answer_transport(host_code, executable, support_code)
         assert b'Import Pairing File' in host_code, 'Unified pairing setup missing'
-        verify_v105_direct_morph_binary(bootstrap_code)
-        verify_v107_virtual_guest_control_binary(host_code)
+        # Use the installed host's stamped version, NOT a guessed marker,
+        # to choose fail-closed V137 versus historical V105 binary contracts.
+        version = str(host.get('CFBundleVersion', ''))
+        build_label = host.get('ScarletBuildLabel')
+        if version == '3.8.210' and build_label != 'V137':
+            raise ValueError('V137 packaged version is missing its explicit build identity')
+        v137_package = version == '3.8.210' and build_label == 'V137'
+        verify_v105_direct_morph_binary(bootstrap_code, v137=v137_package)
+        verify_v107_virtual_guest_control_binary(host_code, v137=v137_package)
         assert b'finishRefresh:runID:verification:' in support_code, 'XPC result receiver missing'
         assert b'refreshAllAppsWithIdentifier:mangledTypeName:refreshRunID:' in support_code, 'XPC run identity missing'
         assert b'RESULT_RECEIVED' in support_code, 'Host result persistence missing'

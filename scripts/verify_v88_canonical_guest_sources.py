@@ -59,7 +59,23 @@ def check_file(root: Path, relative: Path, content: str, problems: list[str]):
                       "lcV102NativeHoldActions:"):
             if token in content: problems.append(f"{relative}: V105 legacy control survived: {token}")
         return
+    # V137 removes the virtual V73 button and its legacy handlers at source.
+    # The sole floating handle is now produced by the common bootstrap path
+    # in Direct and LiveProcess. Keep old V88 contracts for earlier builds.
+    shared_v137 = relative == WINDOW and "SCARLET_V137_UNIFIED_GUEST_ENTRY" in content
+    if shared_v137:
+        for required in ("SCARLET_V137_TOUCH_SETTLE", "nrgV136GeometryStable:host"):
+            if required not in content:
+                problems.append(f"{relative}: V137 post-rotation requirement missing {required}")
+        for removed in ("nrgWindowOverflow", "nrgV73DragFloatingOverflow:",
+                        "nrgV72WindowOverflowLongPress:", "nrgV100TapMorph:",
+                        "nrgV102HoldWindowActions:"):
+            if removed in content:
+                problems.append(f"{relative}: duplicated V137 guest control still exists: {removed}")
     for token, wanted in REQUIRED.get(relative, {}).items():
+        if shared_v137 and token in ("- (void)nrgV72WindowOverflowLongPress:",
+                                     "nrgV72PresentGuestSwitcherFrom:self"):
+            wanted = 0
         if relative == SCENE and token == "[self.button addGestureRecognizer:v76Hold]" and "SCARLET_V100_LIVEPROCESS_MORPH" in content:
             wanted = 0
         if relative == WINDOW and token == "- (void)nrgV72WindowOverflowLongPress:" and "SCARLET_V102_UNIFIED_ACTION_SURFACE" in content:
