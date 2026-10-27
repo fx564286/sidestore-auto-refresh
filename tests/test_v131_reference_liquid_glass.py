@@ -40,6 +40,13 @@ class LiquidGlassReference(unittest.TestCase):
         self.assertEqual(source.count('overlay.accessibilityIdentifier = "scarlet.v100.morph.backdrop"'), 1)
         self.assertEqual(source.count("tabPicker.addAction("), 1)
         self.assertEqual(source.count("item.configuration = .plain()"), 3)
+        # Regression for V131 CI #40474821815: Python generated literal
+        # backslash-n tokens instead of real Swift statement boundaries.
+        self.assertNotIn(r"{\n                // The panel owns Liquid Glass", source)
+        self.assertNotIn(r".plain()\n", source)
+        self.assertNotIn(r".cornerCurve = .continuous\n", source)
+        self.assertEqual(source.count("// The panel owns Liquid Glass; rows remain translucent controls."), 2)
+        self.assertEqual(source.count("item.layer.cornerCurve = .continuous"), 3)
         self.assertEqual(source.count("UIButton.Configuration.glass()"), 0)
         self.assertNotIn("UIVisualEffectView(effect: UIGlassEffect())", source)
         self.assertIn("weak tabHousing", source)
