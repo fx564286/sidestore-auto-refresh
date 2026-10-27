@@ -216,6 +216,16 @@ def dock(s):
                      'SCARLET_V137_REGULAR_GLASS',
                      '@objc(SCUnifiedGuestUIBridge)'):
         if expected not in s: raise ValueError('V139 missing canonical Swift renderer: '+expected)
+    # V131 postponed the effect because a zero-opacity ancestor could
+    # suppress UIKit's native glass sampling. Establish a tiny nonzero
+    # presentation opacity before the spring expansion; the same native
+    # clear-glass instance remains installed for the whole interaction.
+    s=one(s,
+        '''        overlay.alpha = 0
+        owner.addSubview(overlay)''',
+        '''        overlay.alpha = 0.02
+        owner.addSubview(overlay)''',
+        'ensure initial glass has a visible compositing ancestor')
     # Make UIGlassEffect the first and only effect in the panel lifecycle.
     # V131 incorrectly set nil on creation and changed to glass 0.35s later.
     s=one(s,
