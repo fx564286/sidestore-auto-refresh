@@ -99,14 +99,19 @@ def verify_v105_direct_morph_binary(bootstrap_code, *, v137=False):
             raise ValueError("V107 obsolete Direct guest control was compiled")
 
 
-def verify_v107_virtual_guest_control_binary(host_code):
-    """Look for the real host-owned guest control, not the removed native UI.
+def verify_v107_virtual_guest_control_binary(host_code, *, v137=False):
+    """Reject retired controls in V137; require the historic owner before V137.
 
-    Use null-delimited Objective-C symbols; broad substring matches would
-    incorrectly reject harmless preference keys such as LCReturnControlPosition.
+    V137 uses the single compiled SCGuestMorphPresenter verified separately in
+    LiveContainerShared. The old V103 virtual marker must not be demanded in
+    LiveContainerSwiftUI after its source has been deleted.
+    Use null-delimited Objective-C symbols to avoid false positive preference keys.
     """
     required = b'scarlet.v103.virtual.guest.control'
-    if required not in host_code:
+    if v137:
+        if required in host_code:
+            raise ValueError("V137 obsolete virtual guest control was compiled")
+    elif required not in host_code:
         raise ValueError("V107 host-owned virtual guest control missing")
     import re
     legacy = (b'LCReturnControl', b'lcReturnControl', b'lcReturnToHost')
@@ -382,7 +387,7 @@ def verify(path, side_product=None):
             raise ValueError('V137 packaged version is missing its explicit build identity')
         v137_package = version == '3.8.210' and build_label == 'V137'
         verify_v105_direct_morph_binary(bootstrap_code, v137=v137_package)
-        verify_v107_virtual_guest_control_binary(host_code)
+        verify_v107_virtual_guest_control_binary(host_code, v137=v137_package)
         assert b'finishRefresh:runID:verification:' in support_code, 'XPC result receiver missing'
         assert b'refreshAllAppsWithIdentifier:mangledTypeName:refreshRunID:' in support_code, 'XPC run identity missing'
         assert b'RESULT_RECEIVED' in support_code, 'Host result persistence missing'
