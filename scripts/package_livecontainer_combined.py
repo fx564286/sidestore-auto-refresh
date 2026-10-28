@@ -28,6 +28,31 @@ REQUIRED_SIDESTORE_AUTH_ANSWER_MARKERS = (
 
 
 def verify_versioned_picker_markers(version, host_code, bootstrap_code):
+    if version == '3.8.228':
+        # V155 compiled one LiveProcess route and deleted the Direct handler.
+        required_host = (
+            b'[SCARLET_V144_GLASS_INSTALLED]',
+            b'[SCARLET_V149_TABS] style=system_native',
+            b'[SCARLET_V149_ACTION_GLASS] action=',
+            b'[SCARLET_V150_OUTSIDE] phase=touch_down',
+            b'[SCARLET_V154_OUTSIDE] stage=backdrop_touch',
+            b'[SCARLET_V155_SINGLE] stage=guest_launch route=LiveProcess',
+        )
+        for token in required_host:
+            if token not in host_code:
+                raise ValueError('V155 compiled LiveProcess marker missing: '+repr(token))
+        if b'[SCARLET_V155_SINGLE] stage=bootstrap result=direct_rejected' not in bootstrap_code:
+            raise ValueError('V155 Direct bootstrap rejection not compiled')
+        for old in (b'SCGuestMorphPresenter', b'scarlet.v105.direct.morph',
+                    b'scarletcrystal251://nrg-guest-controls',
+                    b'[SCARLET_V154_DIRECT_TAP_RECOGNIZER]'):
+            if old in bootstrap_code:
+                raise ValueError('V155 retired Direct backend still compiled: '+repr(old))
+        for old in (b'[SCARLET_V153_DIRECT] route=host mode=direct',
+                    b'[SCARLET_V154_DIRECT] stage=panel_visible'):
+            if old in host_code:
+                raise ValueError('V155 retired Direct host route compiled: '+repr(old))
+        return
     """Validate the compiled picker for each version's ACTUAL surviving routes.
 
     V149 replaces V147's one-time UIWindow observer with a dynamic window
@@ -480,6 +505,8 @@ def verify(path, side_product=None):
             raise ValueError('V143 packaged version is missing its explicit build identity')
         if version == '3.8.217' and build_label != 'V144':
             raise ValueError('V144 packaged version is missing its explicit build identity')
+        if version == '3.8.228' and build_label != 'V155':
+            raise ValueError('V155 build identity invalid')
         if version == '3.8.227' and build_label != 'V154':
             raise ValueError('V154 build identity invalid')
         if version == '3.8.226' and build_label != 'V153':
@@ -497,7 +524,8 @@ def verify(path, side_product=None):
         if version == '3.8.220' and build_label != 'V147':
             raise ValueError('V147 package identity invalid')
         v137_package = version == '3.8.210' and build_label == 'V137'
-        verify_v105_direct_morph_binary(bootstrap_code, v137=v137_package)
+        if version != '3.8.228':
+            verify_v105_direct_morph_binary(bootstrap_code, v137=v137_package)
         verify_v107_virtual_guest_control_binary(host_code, v137=v137_package)
         if version == '3.8.211':
             # V138 must keep the functioning host-V73 compiled in SwiftUI
@@ -521,21 +549,21 @@ def verify(path, side_product=None):
                         raise ValueError(f'V139 compiled {label} action missing: {required!r}')
             if b'scarlet.v137.shared.guest.control' in bootstrap_code:
                 raise ValueError('V139 obsolete unresponsive guest button compiled')
-        if version in ('3.8.213', '3.8.214', '3.8.215', '3.8.216', '3.8.217', '3.8.220', '3.8.221', '3.8.222', '3.8.223', '3.8.224', '3.8.225', '3.8.226', '3.8.227'):
+        if version in ('3.8.213', '3.8.214', '3.8.215', '3.8.216', '3.8.217', '3.8.220', '3.8.221', '3.8.222', '3.8.223', '3.8.224', '3.8.225', '3.8.226', '3.8.227', '3.8.228'):
             if b'[SCARLET_V140_GLASS] panel=anchored_to_source' not in host_code:
                 raise ValueError('V140 compiled host glass morph marker missing')
-        if version in ('3.8.214', '3.8.215', '3.8.216', '3.8.217', '3.8.220', '3.8.221', '3.8.222', '3.8.223', '3.8.224', '3.8.225', '3.8.226', '3.8.227'):
+        if version in ('3.8.214', '3.8.215', '3.8.216', '3.8.217', '3.8.220', '3.8.221', '3.8.222', '3.8.223', '3.8.224', '3.8.225', '3.8.226', '3.8.227', '3.8.228'):
             if b'[SCARLET_V141_PICKER] dismiss=outside_tap' not in host_code:
                 raise ValueError('V141 compiled outside-tap dismissal marker missing')
-        if version in ('3.8.216', '3.8.217', '3.8.220', '3.8.221', '3.8.222', '3.8.223', '3.8.224', '3.8.225', '3.8.226', '3.8.227'):
+        if version in ('3.8.216', '3.8.217', '3.8.220', '3.8.221', '3.8.222', '3.8.223', '3.8.224', '3.8.225', '3.8.226', '3.8.227', '3.8.228'):
             if b'[SCARLET_V143_WINDOW] phase=clamped_edge' not in host_code:
                 raise ValueError('V143 compiled edge-window guard missing')
-        if version in ('3.8.217', '3.8.220', '3.8.221', '3.8.222', '3.8.223', '3.8.224', '3.8.225', '3.8.226', '3.8.227'):
+        if version in ('3.8.217', '3.8.220', '3.8.221', '3.8.222', '3.8.223', '3.8.224', '3.8.225', '3.8.226', '3.8.227', '3.8.228'):
             if b'[SCARLET_V144_PICKER] outside_guard=window_attached' not in host_code:
                 raise ValueError('V144 compiled window-level outside dismissal missing')
             if b'[SCARLET_V144_GLASS] phase=finger_moved' not in host_code:
                 raise ValueError('V144 compiled finger-reactive glass missing')
-            if b'[SCARLET_V144_BUTTON] lens=finger_response' not in bootstrap_code:
+            if version != '3.8.228' and b'[SCARLET_V144_BUTTON] lens=finger_response' not in bootstrap_code:
                 raise ValueError('V144 compiled Direct button glass response missing')
             if b'[SCARLET_V144_BUTTON] lens=finger_response' not in host_code:
                 raise ValueError('V144 compiled hosted button glass response missing')

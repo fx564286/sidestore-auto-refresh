@@ -82,6 +82,20 @@ def verify(workflow: str, packager: str, root: Path) -> tuple[str, str]:
             in workflow, "Swift dock parser gate missing")
     require((root / "tests" / "test_v149_controls.py").is_file(),
             "V149 focused test script missing")
+    if label == 'V155':
+        require('patch_v155_single_liveprocess.py work/LiveContainer' in workflow,
+                'V155 single-path source elimination not applied')
+        require('test_v155_single_liveprocess.py -v' in workflow,
+                'V155 one-mode + recent/outside regressions missing')
+        for stale in ("grep -Fq 'SCARLET_V128_DIRECT_SCENE_RECOVERY'",
+                      "grep -Fq 'SCARLET_V114_DIRECT_PICKER_REPAIR'",
+                      "grep -Fq 'SCUnifiedGuestUIBridge'"):
+            require(stale not in workflow,
+                    'V155 release still demands deleted Direct source: '+stale)
+        require('audit_v107_active_guest_ui.py work/LiveContainer' in workflow
+                and 'audit_v102_final_source.py work/LiveContainer' in workflow,
+                'V155 source ownership audit missing')
+
     if label == 'V154':
         require('patch_v154_three_runtime_fixes.py work/LiveContainer' in workflow,
                 'V154 runtime source patch not applied')

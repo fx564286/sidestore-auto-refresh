@@ -32,6 +32,50 @@ def inspect(root: Path) -> dict:
         for old in OBSOLETE:
             if old in body:
                 problems.append(f"{rel}: retired executable guest control still present: {old}")
+    # SCARLET_V155_SINGLE_LIVEPROCESS: the sole retained guest entry is
+    # the native LiveProcess picker. Fail if the deleted Direct presenter,
+    # bridge, URL handoff or restart row comes back.
+    if "SCARLET_V155_NO_DIRECT_PRESENTER" in direct:
+        requirements = {
+            NATIVE: ("SCARLET_V105_LEGACY_RETURN_SOURCE_DELETED",),
+            VIRTUAL: ("SCARLET_V103_VIRTUAL_ONLY_CONTROL",
+                      "scarlet.v103.virtual.guest.control"),
+            DOCK: ("SCARLET_V155_DOCK_SINGLE_MODE", "SCARLET_V151_TAB_NATIVE_PRESS",
+                   "nrgV72PresentGuestSwitcher(from: controller, sourceView: sourceView)",
+                   "nrgV102NoteFocus(guest.folder)",
+                   '("최소화", "minimizeWindow")',
+                   '("최대화 / 복원", "maximizeWindow")',
+                   '("앱 닫기", "closeWindow")'),
+            DIRECT: ("SCARLET_V155_NO_DIRECT_PRESENTER",
+                     "SCARLET_V155_SINGLE"),
+            SETTINGS: ("SCARLET_V107_RETIRE_DEAD_RETURN_SETTINGS",
+                       "V3AccountSettings()", "LCJITLessDiagnoseView()",
+                       "LCEmbeddedSideStoreRefreshView()"),
+        }
+        for rel,tokens in requirements.items():
+            for token in tokens:
+                if token not in source[rel]:
+                    problems.append(f"{rel}: V155 required single-owner marker missing: {token}")
+        for token in ("@interface SCGuestMorphPresenter", "scGuestMorphPresenter",
+                      "scarlet.v105.direct.morph",
+                      "scarletcrystal251://nrg-guest-controls"):
+            if token in direct:
+                problems.append(f"V155 Direct route survives in bootstrap: {token}")
+        for token in ("@objc(SCUnifiedGuestUIBridge)", "nrgV112PresentDirectGuestUI",
+                      "scarlet.v112.direct.restart"):
+            if token in dock:
+                problems.append(f"V155 Direct UI path survives in dock: {token}")
+        for token in ("LCHideReturnControl", "LCGuestReturnStartsCollapsed",
+                      "LCGuestReturnCustomColors", 'Toggle("Show Return Button"'):
+            if token in settings:
+                problems.append(f"V155 retired return setting retained: {token}")
+        if dock.count("public func nrgV72PresentGuestSwitcher(") != 1:
+            problems.append("V155 shared picker must have one owner")
+        return {"status": "FAIL" if problems else "PASS", "problems": problems,
+                "scanned": [str(x) for x in files],
+                "owners": ["V155 LiveProcess native guest picker; no Direct presenter"],
+                "source_only": True, "device_geometry_verified": False}
+
     # V137 deliberately deletes the old virtual UI button source. The same
     # shared bootstrap presenter owns Direct and LiveProcess after migration.
     unified = "SCARLET_V137_UNIFIED_GUEST_ENTRY" in direct

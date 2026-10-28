@@ -81,6 +81,8 @@ def audit(host:Path,store:Path|None=None):
     data=item.read_text(encoding='utf-8',errors='replace')
     for token in stale:
      if token in data:problems.append(f'{rel}: old guest UI symbol still referenced: {token}')
+ single=('SCARLET_V155_NO_DIRECT_PRESENTER' in
+         (host/'LiveContainer/LCBootstrap.m').read_text(encoding='utf-8'))
  # V137 moves the ONLY guest entry to shared bootstrap for both modes.
  unified = 'SCARLET_V137_UNIFIED_GUEST_ENTRY' in (host/'LiveContainer/LCBootstrap.m').read_text(encoding='utf-8')
  # V105 no legacy button class in ANY final live-source module.
@@ -95,7 +97,7 @@ def audit(host:Path,store:Path|None=None):
   source=target.read_text(encoding='utf-8')
   for token in legacy:
    if token in source:problems.append(f'{rel}: obsolete control implementation {token}')
-  if rel.name=='LCBootstrap.m':
+  if rel.name=='LCBootstrap.m' and not single:
    for required in ('SCARLET_V105_DIRECT_UNIFIED_MORPH',
                     'SCARLET_V112_SHARED_GUEST_UI', 'SCUnifiedGuestUIBridge',
                     'presentFrom:sourceView:', 'SCGuestMorphPresenter',
@@ -104,6 +106,18 @@ def audit(host:Path,store:Path|None=None):
    for obsolete in ('UIButton *scrim','UIView *card','UILabel *note',
                     '- (void)expand:', 'systemImageNamed:@"chevron.up"'):
     if obsolete in source:problems.append(f'{rel}: separate Direct panel remains {obsolete}')
+ if single:
+  boot=(host/'LiveContainer/LCBootstrap.m').read_text(encoding='utf-8')
+  if 'SCARLET_V155_NO_DIRECT_PRESENTER' not in boot:
+   problems.append('V155 bootstrap owner marker missing')
+  for old in ('SCGuestMorphPresenter','SCGuestMorphWindow',
+              'scarletcrystal251://nrg-guest-controls'):
+   if old in boot:problems.append(f'V155 Direct code survived: {old}')
+  doc=(host/HOST).read_text(encoding='utf-8')
+  if 'SCARLET_V155_DOCK_SINGLE_MODE' not in doc:
+   problems.append('V155 native LiveProcess picker missing')
+  if '@objc(SCUnifiedGuestUIBridge)' in doc:
+   problems.append('V155 removed Direct bridge survived')
  if unified:
   ACTIVE_RULES[WINDOW]['required'] = ('SCARLET_V137_UNIFIED_GUEST_ENTRY', 'SCARLET_V137_TOUCH_SETTLE')
  for rel,rules in ACTIVE_RULES.items():
@@ -112,7 +126,11 @@ def audit(host:Path,store:Path|None=None):
    problems.append(f'Missing active guest target {rel}')
    continue
   s=target.read_text(encoding='utf-8')
-  for token in rules['required']:
+  required=rules['required']
+  if single and rel==HOST:
+   required=tuple(x for x in required if x not in
+     ('SCARLET_V112_SHARED_GUEST_UI','@objc(SCUnifiedGuestUIBridge)'))
+  for token in required:
    if token not in s: problems.append(f'{rel}: required active source missing {token}')
   for token in rules['forbidden']:
    if token in s: problems.append(f'{rel}: obsolete implementation retained {token}')
