@@ -1,0 +1,117 @@
+#!/usr/bin/env python3
+"""Scarlet CI fast fail-closed checks: catch YAML/version drift before Xcode.
+
+Runs on an unmodified repository checkout in seconds. It doesn't skip the
+release regression suite; that remains a separate required release profile.
+"""
+import argparse
+from pathlib import Path
+import re
+
+WORKFLOW = ".github/workflows/livecontainer-build.yml"
+PACKAGER = "scripts/package_livecontainer_combined.py"
+
+
+class PreflightError(ValueError):
+    pass
+
+
+def require(condition, reason):
+    if not condition:
+        raise PreflightError(reason)
+
+
+def one(regex, text, label):
+    hits = re.findall(regex, text)
+    require(len(hits) == 1, f"{label}: expected exactly one, found {len(hits)}")
+    return hits[0]
+
+
+def verify(workflow: str, packager: str, root: Path) -> tuple[str, str]:
+    version = one(r"info\['CFBundleVersion'\]\s*=\s*'(3\.8\.\d+)'", workflow,
+                  "packaged CFBundleVersion")
+    label = one(r"info\['ScarletBuildLabel'\]\s*=\s*'(V\d+)'", workflow,
+                "packaged ScarletBuildLabel")
+    require(
+        f'info[\'ScarletBuildLabel\']=\'{label}\'' in workflow
+        and f"main.get('CFBundleVersion')=='{version}'" in workflow
+        and f"main.get('ScarletBuildLabel')=='{label}'" in workflow,
+        "IPA packaging metadata/assertions drift"
+    )
+    require(
+        f'p.write_text(t.replace("<string>3.8.209</string>","<string>{version}</string>",1)'
+        in workflow,
+        "Info.plist version stamping does not match packaging"
+    )
+    require(
+        f'.replace("<string>V136</string>","<string>{label}</string>",1)' in workflow,
+        "Info.plist label stamping does not match packaging"
+    )
+    require(
+        f"grep -Fq '<string>{label}</string>' work/LiveContainer/LiveContainer/Info.plist"
+        in workflow,
+        "stale Info.plist label grep: fix the release gate before building"
+    )
+    require(
+        f"grep -Fq '<string>{version}</string>' work/LiveContainer/LiveContainer/Info.plist"
+        in workflow,
+        "stale Info.plist version grep: fix the release gate before building"
+    )
+    require(
+        f"if version == '{version}' and build_label != '{label}'" in packager,
+        "packager version/label identity guard missing"
+    )
+    require(
+        f"Scarlet-Crystal-{label}-UNSIGNED.ipa" in workflow,
+        "final IPA filename disagrees with build label"
+    )
+
+    old_checks = re.findall(
+        r"grep -Fq '<string>(V\d+)</string>' work/LiveContainer/LiveContainer/Info\.plist",
+        workflow
+    )
+    require(old_checks and old_checks[-1] == label,
+            f"last Info.plist grep is stale: {old_checks[-1:]}, expected {label}")
+
+    # The source owner's invariant requires all three actions and exactly
+    # one existing host picker; this test must remain a compile-stage gate.
+    require("test_v149_controls.py -v" in workflow, "focused V149 generated UI QA missing")
+    require("patch_v149_controls.py work/LiveContainer" in workflow,
+            "V149 patch missing")
+    require("swiftc -frontend -parse work/LiveContainer/MultitaskSupport/MultitaskDockView.swift"
+            in workflow, "Swift dock parser gate missing")
+    require((root / "tests" / "test_v149_controls.py").is_file(),
+            "V149 focused test script missing")
+
+    # Accuracy: release cannot become fast mode automatically on other
+    # branches; release retains full historical skip-allowlist suite.
+    require("SCARLET_CI_PROFILE:" in workflow and "'release'" in workflow,
+            "CI profile must default to release")
+    require("name: Run repository checks before patches" in workflow,
+            "release full suite must remain present")
+    require("run_required_tests.py" in workflow
+            and "required_test_skip_allowlist.json" in workflow,
+            "release full suite and skip accounting must be retained")
+    require("name: Fast focused checks before patches" in workflow,
+            "fast smoke suite required")
+    require("name: V78 Gate 1 unsigned archive and Mach-O verification" in workflow,
+            "Mach-O archive verification must remain on both profiles")
+    require("CODE_SIGNING_ALLOWED=NO" in workflow,
+            "unsigned IPA signing contract changed")
+    require("concurrency:" in workflow and "github.ref" in workflow,
+            "separate-branch concurrency isolation missing")
+    print(f"SCARLET_CI_FAST_PREFLIGHT=PASS version={version} label={label}"
+          " profiles=fast,release archive_gate=present")
+    return version, label
+
+
+def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--root", type=Path, default=Path(__file__).resolve().parents[1])
+    a = parser.parse_args()
+    verify((a.root / WORKFLOW).read_text(),
+           (a.root / PACKAGER).read_text(), a.root)
+
+
+if __name__ == "__main__":
+    main()

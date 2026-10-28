@@ -1,0 +1,40 @@
+name: Scarlet Crystal fast CI preflight
+
+on:
+  push:
+    branches:
+      - ci/scarlet-quality-speed-20261028
+    paths:
+      - '.github/workflows/livecontainer-build.yml'
+      - '.github/workflows/scarlet-ci-preflight.yml'
+      - 'scripts/scarlet_ci_preflight.py'
+      - 'scripts/package_livecontainer_combined.py'
+      - 'tests/test_ci_preflight.py'
+      - 'tests/test_repository.py'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: scarlet-preflight-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate profile definitions and release identity before Xcode
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 scripts/scarlet_ci_preflight.py
+          python3 -m unittest \
+            tests.test_ci_preflight \
+            tests.test_repository.RepositoryTests.test_current_files_exist \
+            tests.test_v147_from_v144 \
+            tests.test_v148_action_glass \
+            tests.test_v149_controls -v
+          echo '[SCARLET_CI] status=PRECHECK_PASS no_xcode_build_started=1'
