@@ -34,6 +34,21 @@ def patch(s):
         return useStatic ? PairingFileManager.shared.pairingUDID : nil
     }
     // SCARLET_V138_RP_TYPED_UDID: do not swallow transport failure into nil''',"do not probe nil RP peer")
+    s=one(s,
+'''    } catch {
+        if useStatic {
+            debugLog("[SCARLET_V138_RP] stage=udid fallback=static requested=true verified=false")''',
+r'''    } catch {
+        // V146: distinguish a TCP port accepting probes from a successful
+        // authenticated RemotePairing handshake, without logging secrets.
+        let transportDescription = String(describing: error).lowercased()
+        let peerReset = transportDescription.contains("connectionreset") ||
+                        transportDescription.contains("connection reset") ||
+                        transportDescription.contains("code: 54")
+        debugLog("[SCARLET_V146_RP] handshake=failed reset=\(peerReset) transport_verified=false")
+        if useStatic {
+            debugLog("[SCARLET_V138_RP] stage=udid fallback=static requested=true verified=false")''',
+        "typed RP reset diagnostic on failed UDID")
     return s
 
 def apply(root):

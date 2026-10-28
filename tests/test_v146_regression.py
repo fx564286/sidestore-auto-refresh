@@ -31,6 +31,7 @@ class V146Regression(unittest.TestCase):
         s=(Path(root)/rp.FILE).read_text()
         self.assertEqual(rp.patch(s),s)
         self.assertIn("state=route_missing transport_verified=false",s)
+        self.assertIn("handshake=failed reset=",s)
         self.assertIn("SCARLET_V142_NETWORK_GENERATION_GUARD",s)
         self.assertIn("return useStatic ? PairingFileManager.shared.pairingUDID : nil",s)
 
