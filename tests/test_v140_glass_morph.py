@@ -28,6 +28,8 @@ let steadyGlass = UIGlassEffect(style: .clear)
         material.transform = .identity
         })
         // SCARLET_V131_VISIBLE_GLASS_ACTIVATION retired by V139
+        owner.layoutIfNeeded()
+        overlay.layoutIfNeeded()
     func followPoint(x: CGFloat, y: CGFloat) {
         CATransaction.begin()
         highlight.endPoint = CGPoint(x: min(1, x + 0.22), y: min(1, y + 0.23))
