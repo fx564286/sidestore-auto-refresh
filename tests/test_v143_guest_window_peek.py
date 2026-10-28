@@ -15,6 +15,7 @@ class WindowPeekTests(unittest.TestCase):
         return '''// SCARLET_V141_INSET_AWARE_SETTLE
     CGFloat oobOffset = MAX(30, frame.size.width - 30);
     frame.origin.x = MAX(maxFrame.origin.x - oobOffset, MIN(CGRectGetMaxX(maxFrame) - frame.size.width + oobOffset, center.x - frame.size.width / 2));
+    self.view.alpha = 0;
     } completion:^(BOOL finished) {
         if (!finished) return;
         self.view.hidden = YES;
@@ -38,7 +39,32 @@ class WindowPeekTests(unittest.TestCase):
     def test_reject_unknown_or_partial_code(self):
         with self.assertRaises(ValueError):v.patch('unrelated original')
         with self.assertRaises(ValueError):
-            v.patch(self.fixture().replace('if (!finished) return;', ''))
+            v.patch(self.fixture().replace('self.view.hidden = YES;', ''))
+
+    def test_preserves_existing_keyboard_rotation_and_completion_callbacks(self):
+        source=self.fixture().replace(
+            '        self.view.hidden = YES;',
+            '        // Existing guest lifecycle instrumentation must survive.\\n'
+            '        NSLog(@"[SCARLET_V133_KEYBOARD] minimize=done");\\n'
+            '        self.view.hidden = YES;'
+        ).replace(
+            '    }];\\n}\\n\\n- (void)minimizeWindowPiP',
+            '    }];\\n}\\n\\n// Existing V46/V133 lifecycle separation.\\n'
+            '- (void)minimizeWindowPiP'
+        )
+        patched=v.patch(source)
+        self.assertIn('SCARLET_V133_KEYBOARD',patched)
+        self.assertIn('Existing V46/V133 lifecycle separation',patched)
+        self.assertEqual(v.patch(patched),patched)
+        self.assertEqual(patched.count('SCARLET_V143_INTERRUPTED_MINIMIZE'),1)
+        self.assertNotIn('if (!finished) return;',patched)
+        self.assertIn('if (!finished && self.view.alpha >= 0.95) return;',patched)
+
+    def test_no_prior_completion_guard_still_patches_bounded_method(self):
+        source=self.fixture().replace('        if (!finished) return;\\n','')
+        patched=v.patch(source)
+        self.assertIn('SCARLET_V143_INTERRUPTED_MINIMIZE',patched)
+        self.assertEqual(v.patch(patched),patched)
 
     def test_no_guest_data_mutation(self):
         src=(ROOT/'scripts/patch_v143_guest_window_peek.py').read_text()
