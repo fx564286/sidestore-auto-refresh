@@ -89,5 +89,9 @@ func presentGlass() {
         self.assertEqual(code.count(v.MARK),1)
         self.assertIn('SCARLET_V144_LENS_DRAG',code)
         self.assertIn('dismissed=window_outside_tap',code)
+        for relative in ('LiveContainer/LCBootstrap.m',
+                         'MultitaskSupport/DecoratedAppSceneViewController.m'):
+            button=(Path(root)/relative).read_text()
+            self.assertEqual(button.count('SCARLET_V144_BUTTON_LENS'),1)
 
 if __name__=='__main__':unittest.main()
