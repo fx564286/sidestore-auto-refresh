@@ -24,7 +24,7 @@ def patch(s):
         raise ValueError("V146 requires prior route generation guard")
     s=one(s,
 '''    debugLog("[SideStore] fetchUDID() invoked")
-    let result = try? await withRemotePairingRetry {''',
+    // SCARLET_V138_RP_TYPED_UDID: do not swallow transport failure into nil''',
 '''    debugLog("[SideStore] fetchUDID() invoked")
     // SCARLET_V146_RP_HANDSHAKE_DIAGNOSTICS: before the VPN route exists, a probe cannot succeed.
     // Do not interpret a pairing file's cached UDID as live validation.
@@ -33,7 +33,7 @@ def patch(s):
         debugLog("[SCARLET_V146_RP] state=route_missing transport_verified=false")
         return useStatic ? PairingFileManager.shared.pairingUDID : nil
     }
-    let result = try? await withRemotePairingRetry {''',"do not probe nil RP peer")
+    // SCARLET_V138_RP_TYPED_UDID: do not swallow transport failure into nil''',"do not probe nil RP peer")
     return s
 
 def apply(root):
