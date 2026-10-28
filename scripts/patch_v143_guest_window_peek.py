@@ -25,31 +25,35 @@ def patch(source):
     if source.count(old)!=1:
         raise ValueError('V143 windowed frame source mismatch')
     source=source.replace(old,new,1)
-    # An interrupted minimize previously left the guest partially visible.
-    old_close='''    } completion:^(BOOL finished) {
-        if (!finished) return;
-        self.view.hidden = YES;
-        self.view.transform = CGAffineTransformIdentity;
-        [self.view.superview sendSubviewToBack:self.view];
-    }];
-}
-
-- (void)minimizeWindowPiP'''
-    new_close='''    } completion:^(BOOL finished) {
+    # Patch the exact minimizeWindow implementation rather than assuming
+    # adjacent lifecycle/keyboard/rotation patches left the entire completion
+    # block byte-for-byte identical. Preserve all pre-existing statements.
+    method='- (void)minimizeWindow {'
+    next_method='- (void)minimizeWindowPiP'
+    if source.count(method)!=1 or source.count(next_method)!=1:
+        raise ValueError('V143 minimize method boundaries mismatch')
+    before,rest=source.split(method,1)
+    body,after=rest.split(next_method,1)
+    completion='    } completion:^(BOOL finished) {'
+    hidden='        self.view.hidden = YES;'
+    expected=('self.view.alpha = 0;', 'self.view.transform = CGAffineTransformIdentity;',
+              '[self.view.superview sendSubviewToBack:self.view];')
+    if (body.count(completion)!=1 or body.count(hidden)!=1 or
+        any(body.count(token)!=1 for token in expected)):
+        raise ValueError('V143 minimize lifecycle source mismatch')
+    previous='        if (!finished) return;'
+    if body.count(previous)>1:
+        raise ValueError('V143 ambiguous old completion guard')
+    if previous in body:
+        body=body.replace(previous+'\n','',1)
+    # Do not erase V46/V133 keyboard ownership or any later lifecycle code.
+    body=body.replace(completion,completion+'''
         // SCARLET_V143_INTERRUPTED_MINIMIZE: dismiss a fading guest after
         // interrupted rotation, but do not hide an opaque reactivated scene.
-        if (!finished && self.view.alpha >= 0.95) return;
-        self.view.hidden = YES;
-        self.view.alpha = 1.0;
-        self.view.transform = CGAffineTransformIdentity;
-        [self.view.superview sendSubviewToBack:self.view];
-    }];
-}
-
-- (void)minimizeWindowPiP'''
-    if source.count(old_close)!=1:
-        raise ValueError('V143 minimize completion source mismatch')
-    return source.replace(old_close,new_close,1)
+        if (!finished && self.view.alpha >= 0.95) return;''',1)
+    if '        self.view.alpha = 1.0;' not in body:
+        body=body.replace(hidden,hidden+'\n        self.view.alpha = 1.0;',1)
+    return before+method+body+next_method+after
 
 def apply(root):
     path=root/SOURCE
