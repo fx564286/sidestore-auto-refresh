@@ -37,8 +37,12 @@ def patch_dock(src):
     src = src[:init_start] + init_block + src[init_end:]
     src = replace_once(src,
         "        let anchor = root.subviews.first(where: { $0 !== windowHostingView }) ?? root",
-        "        guard root.window === window, !root.bounds.isEmpty,\n"
-        "              let anchor = root\n"
+        "        // SCARLET_V141_FULL_ROOT_HITTEST: avoid inset child clipping.\n"
+        "        guard let liveWindow = root.window, liveWindow === window,\n"
+        "              !root.bounds.isEmpty else { return }\n"
+        "        let rootFrame = root.convert(root.bounds, to: liveWindow)\n"
+        "        let coversWindow = rootFrame.contains(liveWindow.bounds.insetBy(dx: 1, dy: 1))\n"
+        "        let anchor: UIView = coversWindow ? root : liveWindow\n"
         "        guard anchor !== windowHostingView else { return }",
         "attach only to live UIKit root child")
     return src
