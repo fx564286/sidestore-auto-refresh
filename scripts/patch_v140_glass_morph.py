@@ -115,9 +115,8 @@ def patch(s):
         CATransaction.commit()
         UIView.animate(withDuration: UIAccessibility.isReduceMotionEnabled ? 0 : 0.22,
                        delay: 0, usingSpringWithDamping: 0.85,
-                       initialSpringVelocity: 0, options: [.beginFromCurrentState]) {
-            self.transform = .identity
-        }
+                       initialSpringVelocity: 0, options: [.beginFromCurrentState],
+                       animations: { self.transform = .identity }, completion: nil)
     }''',
         'return refraction to rest when finger lifts')
     return s
