@@ -18,7 +18,10 @@ def patch(source):
     new='''    // SCARLET_V143_NO_EDGE_PEEK: no ~30pt edge sliver.
     CGFloat minX = CGRectGetMinX(maxFrame);
     CGFloat maxX = MAX(minX, CGRectGetMaxX(maxFrame) - frame.size.width);
-    frame.origin.x = MAX(minX, MIN(maxX, center.x - frame.size.width / 2));'''
+    frame.origin.x = MAX(minX, MIN(maxX, center.x - frame.size.width / 2));
+    if (fabs(frame.origin.x - (center.x - frame.size.width / 2)) > 1.0) {
+        NSLog(@"[SCARLET_V143_WINDOW] phase=clamped_edge x=%.1f width=%.1f", frame.origin.x, frame.size.width);
+    }'''
     if source.count(old)!=1:
         raise ValueError('V143 windowed frame source mismatch')
     source=source.replace(old,new,1)
