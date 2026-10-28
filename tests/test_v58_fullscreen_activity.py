@@ -51,7 +51,13 @@ class V58PinnedTests(unittest.TestCase):
         self.assertIn("if (portraitPhone)",new)
         self.assertIn("if (portraitTop < 32.0) portraitTop = 59.0;",new)
         self.assertIn("if (portraitBottom < 10.0) portraitBottom = 34.0;",new)
-        self.assertIn("settings.frame = UIInterfaceOrientationIsLandscape(orientation)",new)
+        # V151 switches MAXIMIZED frame serialization to the guest's actual
+        # scene orientation. Keep historical V58 proof for older versions.
+        if "SCARLET_V151_UNIFIED_GUEST_GEOMETRY" in new:
+            self.assertIn("settings.frame = UIInterfaceOrientationIsLandscape(guestOrientation)",new)
+            self.assertIn("SCARLET_V151_FRAME_TOUCH_PARITY",new)
+        else:
+            self.assertIn("settings.frame = UIInterfaceOrientationIsLandscape(orientation)",new)
         self.assertIn("return UIEdgeInsetsZero;",new)
         self.assertIn("settings.peripheryInsets = UIEdgeInsetsZero;",new)
         self.assertIn("self.view.layer.cornerRadius = 0;",new)

@@ -82,6 +82,13 @@ def verify(workflow: str, packager: str, root: Path) -> tuple[str, str]:
             in workflow, "Swift dock parser gate missing")
     require((root / "tests" / "test_v149_controls.py").is_file(),
             "V149 focused test script missing")
+    if label == 'V152':
+        require('V152_PATCHED_LIVECONTAINER=work/LiveContainer' in workflow,
+                'V152 all-guest postpatch source audit must run')
+        require('test_v152_universal_guest_parity.py -v' in workflow,
+                'V152 universal geometry regression gate missing')
+        require('test_v58_fullscreen_activity.py -v' in workflow,
+                'V152 historical V58 fullscreen regression gate missing')
     if label == 'V151':
         for script in ('patch_v151_glass_polish.py', 'patch_v151_geometry.py'):
             require(f'{script} work/LiveContainer' in workflow,

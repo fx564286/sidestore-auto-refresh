@@ -24,12 +24,24 @@ def decorated(s):
         # later generated sources must accept only this audited successor,
         # not demand the obsolete two-branch CGRectMake assignment.
         legacy_frame = "settings.frame = CGRectMake" in s
+        # V151+ keeps V139's unchanged non-maximized path, but changes the
+        # maximized frame conversion to the REMOTE guest's orientation.
+        # Do not require the removed V139 host-orientation write, and do not
+        # accept a partial V151 successor that dropped real frame ownership.
+        v151_frame = (
+            "SCARLET_V151_UNIFIED_GUEST_GEOMETRY" in s
+            and "SCARLET_V151_ORIENTATION_PARITY" in s
+            and "SCARLET_V151_FRAME_TOUCH_PARITY" in s
+            and "UIInterfaceOrientation guestOrientation = settings.interfaceOrientation;" in s
+            and "settings.frame = UIInterfaceOrientationIsLandscape(guestOrientation)" in s
+        )
         video_frame = (
             "SCARLET_V139_VIDEO_LANDSCAPE_GEOMETRY" in s
             and "nrgV139RequestGuestVideoOrientation:baseSettings.interfaceOrientation" in s
             and "if (!self.isMaximized) {" in s
             and "settings.frame = UIInterfaceOrientationIsLandscape(baseSettings.interfaceOrientation)" in s
-            and "settings.frame = UIInterfaceOrientationIsLandscape(orientation)" in s
+            and ("settings.frame = UIInterfaceOrientationIsLandscape(orientation)" in s
+                 or v151_frame)
         )
         if s.count(MARK)!=4 or not (legacy_frame or video_frame):
             raise RuntimeError("partial V58 decorated fullscreen")
