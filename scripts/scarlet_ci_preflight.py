@@ -82,7 +82,7 @@ def verify(workflow: str, packager: str, root: Path) -> tuple[str, str]:
             in workflow, "Swift dock parser gate missing")
     require((root / "tests" / "test_v149_controls.py").is_file(),
             "V149 focused test script missing")
-    if label == 'V150':
+    if label in ('V150', 'V151'):
         require('patch_v150_touch_glass.py work/LiveContainer' in workflow,
                 'V150 source patch missing from release flow')
         require('test_v150_touch_glass.py -v' in workflow and
@@ -99,6 +99,14 @@ def verify(workflow: str, packager: str, root: Path) -> tuple[str, str]:
     require("run_required_tests.py" in workflow
             and "required_test_skip_allowlist.json" in workflow,
             "release full suite and skip accounting must be retained")
+    if label == 'V151':
+        require('patch_v151_geometry.py work/LiveContainer' in workflow,
+                'V151 native geometry patch missing from build')
+        require('test_v151_package_parity.py -v' in workflow,
+                'V151 compiled geometry IPA gate missing')
+        require('test_v151_geometry.py -v' in workflow and
+                (root / 'tests' / 'test_v151_geometry.py').is_file(),
+                'V151 orientation and hit-testing parity test missing')
     require("name: Fast focused checks before patches" in workflow,
             "fast smoke suite required")
     require("name: V78 Gate 1 unsigned archive and Mach-O verification" in workflow,
