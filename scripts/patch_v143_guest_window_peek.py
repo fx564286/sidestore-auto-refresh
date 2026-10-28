@@ -8,7 +8,7 @@ MARK='SCARLET_V143_NO_EDGE_PEEK'
 
 def patch(source):
     if MARK in source:
-        if source.count(MARK)!=1:
+        if source.count(MARK)!=1 or 'SCARLET_V143_INTERRUPTED_MINIMIZE' not in source:
             raise ValueError('V143 duplicate frame repair')
         return source
     if 'SCARLET_V141_INSET_AWARE_SETTLE' not in source:
