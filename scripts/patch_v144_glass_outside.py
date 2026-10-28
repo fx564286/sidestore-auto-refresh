@@ -175,6 +175,8 @@ def apply(root):
     new=patch(old)
     if patch(new)!=new:raise ValueError('V144 picker patch not idempotent')
     if new!=old:file.write_text(new,encoding='utf-8')
+    from patch_v144_button_glass import apply as apply_buttons
+    apply_buttons(root)
     print('[PASS] V144 window-scoped outside dismiss and native interactive glass lens')
 
 if __name__=='__main__':
