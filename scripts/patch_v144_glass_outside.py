@@ -149,11 +149,16 @@ def patch(s):
             if let outsideTap { owner?.removeGestureRecognizer(outsideTap) }
             guard let backdrop = overlay''',
           'remove window gesture when picker collapses')
+    # The V141 action is the stable anchor. Later host-level layout
+    # bookkeeping can sit between it and the recent-apps presentation.
+    # Never require adjacency to 'if recent.isEmpty'.
     s=one(s,
-          '''        }, for: .touchDown)
-
-        if recent.isEmpty {''',
-          '''        }, for: .touchDown)
+          '''            NSLog("[SCARLET_V141_PICKER] dismiss=outside_tap")
+            collapse({})
+        }, for: .touchDown)''',
+          '''            NSLog("[SCARLET_V141_PICKER] dismiss=outside_tap")
+            collapse({})
+        }, for: .touchDown)
         let outsideObserver = SCOutsideGlassTapObserver(
             owner: owner, panel: material, dismiss: { collapse({}) })
         outsideTap.addTarget(outsideObserver,
@@ -162,10 +167,9 @@ def patch(s):
         objc_setAssociatedObject(overlay, UnsafeRawPointer(bitPattern: 0x144)!,
             outsideObserver, .OBJC_ASSOCIATION_RETAIN_NONATOMIC)
         owner.addGestureRecognizer(outsideTap)
-        NSLog("[SCARLET_V144_PICKER] outside_guard=window_attached")
+        NSLog("[SCARLET_V144_PICKER] outside_guard=window_attached")''',
+          'attach outside tap after existing V141 backdrop action')
 
-        if recent.isEmpty {''',
-          'attach outside tap to stable UIWindow rather than backdrop hit-test')
     return s
 
 def apply(root):
