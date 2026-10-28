@@ -70,6 +70,22 @@ func presentGlass() {
         self.assertIn('let material = UIVisualEffectView(effect: UIGlassEffect(style: .clear))',patched)
         self.assertEqual(patched.count('owner.addGestureRecognizer(outsideTap)'),1)
 
+    def test_v141_layout_between_outside_action_and_recent_list(self):
+        # V141 inserts layout between the backdrop action and the recents list.
+        source=self.fixture().replace(
+            '        }, for: .touchDown)\n\n        if recent.isEmpty {',
+            '        }, for: .touchDown)\n'
+            '        owner.layoutIfNeeded()\n'
+            '        overlay.layoutIfNeeded()\n'
+            '        owner.bringSubviewToFront(overlay)\n\n'
+            '        if recent.isEmpty {'
+        )
+        self.assertIn('owner.bringSubviewToFront(overlay)', source)
+        patched=v.patch(source)
+        self.assertEqual(v.patch(patched), patched)
+        self.assertEqual(patched.count('owner.addGestureRecognizer(outsideTap)'), 1)
+        self.assertIn('owner.bringSubviewToFront(overlay)', patched)
+
     def test_preserves_existing_owner(self):
         src=(ROOT/'scripts/patch_v144_glass_outside.py').read_text()
         for bad in ('UIWindow(frame:', 'UIButton(type:', 'SecItemDelete(',
