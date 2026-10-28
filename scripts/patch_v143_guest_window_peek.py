@@ -21,7 +21,32 @@ def patch(source):
     frame.origin.x = MAX(minX, MIN(maxX, center.x - frame.size.width / 2));'''
     if source.count(old)!=1:
         raise ValueError('V143 windowed frame source mismatch')
-    return source.replace(old,new,1)
+    source=source.replace(old,new,1)
+    # An interrupted minimize previously left the guest partially visible.
+    old_close='''    } completion:^(BOOL finished) {
+        if (!finished) return;
+        self.view.hidden = YES;
+        self.view.transform = CGAffineTransformIdentity;
+        [self.view.superview sendSubviewToBack:self.view];
+    }];
+}
+
+- (void)minimizeWindowPiP'''
+    new_close='''    } completion:^(BOOL finished) {
+        // SCARLET_V143_INTERRUPTED_MINIMIZE: dismiss a fading guest after
+        // interrupted rotation, but do not hide an opaque reactivated scene.
+        if (!finished && self.view.alpha >= 0.95) return;
+        self.view.hidden = YES;
+        self.view.alpha = 1.0;
+        self.view.transform = CGAffineTransformIdentity;
+        [self.view.superview sendSubviewToBack:self.view];
+    }];
+}
+
+- (void)minimizeWindowPiP'''
+    if source.count(old_close)!=1:
+        raise ValueError('V143 minimize completion source mismatch')
+    return source.replace(old_close,new_close,1)
 
 def apply(root):
     path=root/SOURCE
