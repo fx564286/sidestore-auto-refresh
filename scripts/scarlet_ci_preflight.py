@@ -82,6 +82,13 @@ def verify(workflow: str, packager: str, root: Path) -> tuple[str, str]:
             in workflow, "Swift dock parser gate missing")
     require((root / "tests" / "test_v149_controls.py").is_file(),
             "V149 focused test script missing")
+    if label == 'V150':
+        require('patch_v150_touch_glass.py work/LiveContainer' in workflow,
+                'V150 source patch missing from release flow')
+        require('test_v150_touch_glass.py -v' in workflow and
+                'test_v150_package_parity.py -v' in workflow,
+                'V150 real glass/outside/source and binary checks missing')
+
 
     # Accuracy: release cannot become fast mode automatically on other
     # branches; release retains full historical skip-allowlist suite.

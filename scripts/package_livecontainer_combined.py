@@ -36,7 +36,7 @@ def verify_versioned_picker_markers(version, host_code, bootstrap_code):
     require their own old observer marker. Do not infer a live UI pass from
     compiled marker presence alone.
     """
-    if version not in ('3.8.220', '3.8.221', '3.8.222'):
+    if version not in ('3.8.220', '3.8.221', '3.8.222', '3.8.223'):
         return
     common_host = (
         b'[SCARLET_V147_GLASS] panel=clear tabs=native rows=native',
@@ -51,7 +51,7 @@ def verify_versioned_picker_markers(version, host_code, bootstrap_code):
     if version in ('3.8.220', '3.8.221'):
         if b'[SCARLET_V147_OUTSIDE] monitors=' not in host_code:
             raise ValueError('V147/V148 compiled original outside observer missing')
-    if version in ('3.8.221', '3.8.222'):
+    if version in ('3.8.221', '3.8.222', '3.8.223'):
         if b'[SCARLET_V148_ACTION_GLASS] action=' not in host_code:
             raise ValueError('V148 compiled native window-action glass missing')
     if version == '3.8.222':
@@ -63,6 +63,20 @@ def verify_versioned_picker_markers(version, host_code, bootstrap_code):
         ):
             if marker not in host_code:
                 raise ValueError('V149 compiled picker control/observer missing: '+repr(marker))
+    if version == '3.8.223':
+        # V150 replaces old observer's attachment log and preserves V149
+        # count. Demand ACTIVE long press and first-contact observations.
+        for marker in (
+            b'[SCARLET_V149_TABS] style=system_native',
+            b'[SCARLET_V149_ACTION_GLASS] action=',
+            b'[SCARLET_V149_OUTSIDE] scene_monitor_count=',
+            b'[SCARLET_V150_LONG_PRESS] phase=bulge',
+            b'[SCARLET_V150_LONG_PRESS] phase=release',
+            b'[SCARLET_V150_OUTSIDE] phase=touch_down',
+            b'[SCARLET_V150_TABS_UNIFIED] tint=translucent',
+        ):
+            if marker not in host_code:
+                raise ValueError('V150 compiled touch/glass control missing: '+repr(marker))
 
 
 def verify_side_store_intent_runtime_symbols(executable):
@@ -437,6 +451,8 @@ def verify(path, side_product=None):
             raise ValueError('V143 packaged version is missing its explicit build identity')
         if version == '3.8.217' and build_label != 'V144':
             raise ValueError('V144 packaged version is missing its explicit build identity')
+        if version == '3.8.223' and build_label != 'V150':
+            raise ValueError('V150 build identity invalid')
         if version == '3.8.222' and build_label != 'V149':
             raise ValueError('V149 build identity invalid')
         if version == '3.8.221' and build_label != 'V148':
@@ -453,7 +469,7 @@ def verify(path, side_product=None):
                 raise ValueError('V138 Direct action fallback missing from actual app binary')
             if b'scarlet.v137.shared.guest.control' in bootstrap_code:
                 raise ValueError('V138 inert V137 guest-only handle was compiled')
-        if version in ('3.8.212', '3.8.213', '3.8.214', '3.8.215', '3.8.216', '3.8.217', '3.8.220', '3.8.221', '3.8.222'):
+        if version in ('3.8.212', '3.8.213', '3.8.214', '3.8.215', '3.8.216', '3.8.217', '3.8.220', '3.8.221', '3.8.222', '3.8.223'):
             # Real compiled markers, not source-only assertions.
             # Direct->host and LiveProcess->host terminate at the SAME picker.
             for label, image, markers in (
@@ -468,16 +484,16 @@ def verify(path, side_product=None):
                         raise ValueError(f'V139 compiled {label} action missing: {required!r}')
             if b'scarlet.v137.shared.guest.control' in bootstrap_code:
                 raise ValueError('V139 obsolete unresponsive guest button compiled')
-        if version in ('3.8.213', '3.8.214', '3.8.215', '3.8.216', '3.8.217', '3.8.220', '3.8.221', '3.8.222'):
+        if version in ('3.8.213', '3.8.214', '3.8.215', '3.8.216', '3.8.217', '3.8.220', '3.8.221', '3.8.222', '3.8.223'):
             if b'[SCARLET_V140_GLASS] panel=anchored_to_source' not in host_code:
                 raise ValueError('V140 compiled host glass morph marker missing')
-        if version in ('3.8.214', '3.8.215', '3.8.216', '3.8.217', '3.8.220', '3.8.221', '3.8.222'):
+        if version in ('3.8.214', '3.8.215', '3.8.216', '3.8.217', '3.8.220', '3.8.221', '3.8.222', '3.8.223'):
             if b'[SCARLET_V141_PICKER] dismiss=outside_tap' not in host_code:
                 raise ValueError('V141 compiled outside-tap dismissal marker missing')
-        if version in ('3.8.216', '3.8.217', '3.8.220', '3.8.221', '3.8.222'):
+        if version in ('3.8.216', '3.8.217', '3.8.220', '3.8.221', '3.8.222', '3.8.223'):
             if b'[SCARLET_V143_WINDOW] phase=clamped_edge' not in host_code:
                 raise ValueError('V143 compiled edge-window guard missing')
-        if version in ('3.8.217', '3.8.220', '3.8.221', '3.8.222'):
+        if version in ('3.8.217', '3.8.220', '3.8.221', '3.8.222', '3.8.223'):
             if b'[SCARLET_V144_PICKER] outside_guard=window_attached' not in host_code:
                 raise ValueError('V144 compiled window-level outside dismissal missing')
             if b'[SCARLET_V144_GLASS] phase=finger_moved' not in host_code:

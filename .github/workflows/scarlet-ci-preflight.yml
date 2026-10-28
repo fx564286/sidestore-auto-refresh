@@ -5,6 +5,7 @@ on:
     branches:
       - ci/scarlet-quality-speed-20261028
       - fix/scarlet-v149-package-gate-20261028
+      - fix/scarlet-v150-touch-glass-outside-20261028
     paths:
       - '.github/workflows/livecontainer-build.yml'
       - '.github/workflows/scarlet-ci-preflight.yml'
@@ -12,6 +13,9 @@ on:
       - 'scripts/package_livecontainer_combined.py'
       - 'tests/test_ci_preflight.py'
       - 'tests/test_v149_package_marker_parity.py'
+      - 'scripts/patch_v150_touch_glass.py'
+      - 'tests/test_v150_touch_glass.py'
+      - 'tests/test_v150_package_parity.py'
       - 'tests/test_repository.py'
   workflow_dispatch:
 
@@ -39,5 +43,7 @@ jobs:
             tests.test_v147_from_v144 \
             tests.test_v148_action_glass \
             tests.test_v149_controls \
-            tests.test_v149_package_marker_parity -v
+            tests.test_v149_package_marker_parity \
+            tests.test_v150_touch_glass \
+            tests.test_v150_package_parity -v
           echo '[SCARLET_CI] status=PRECHECK_PASS no_xcode_build_started=1'
