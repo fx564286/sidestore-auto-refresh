@@ -399,6 +399,8 @@ def verify(path, side_product=None):
             raise ValueError('V143 packaged version is missing its explicit build identity')
         if version == '3.8.217' and build_label != 'V144':
             raise ValueError('V144 packaged version is missing its explicit build identity')
+        if version == '3.8.221' and build_label != 'V148':
+            raise ValueError('V148 package identity invalid')
         if version == '3.8.220' and build_label != 'V147':
             raise ValueError('V147 package identity invalid')
         v137_package = version == '3.8.210' and build_label == 'V137'
@@ -411,7 +413,7 @@ def verify(path, side_product=None):
                 raise ValueError('V138 Direct action fallback missing from actual app binary')
             if b'scarlet.v137.shared.guest.control' in bootstrap_code:
                 raise ValueError('V138 inert V137 guest-only handle was compiled')
-        if version in ('3.8.212', '3.8.213', '3.8.214', '3.8.215', '3.8.216', '3.8.217', '3.8.220'):
+        if version in ('3.8.212', '3.8.213', '3.8.214', '3.8.215', '3.8.216', '3.8.217', '3.8.220', '3.8.221'):
             # Real compiled markers, not source-only assertions.
             # Direct->host and LiveProcess->host terminate at the SAME picker.
             for label, image, markers in (
@@ -426,16 +428,16 @@ def verify(path, side_product=None):
                         raise ValueError(f'V139 compiled {label} action missing: {required!r}')
             if b'scarlet.v137.shared.guest.control' in bootstrap_code:
                 raise ValueError('V139 obsolete unresponsive guest button compiled')
-        if version in ('3.8.213', '3.8.214', '3.8.215', '3.8.216', '3.8.217', '3.8.220'):
+        if version in ('3.8.213', '3.8.214', '3.8.215', '3.8.216', '3.8.217', '3.8.220', '3.8.221'):
             if b'[SCARLET_V140_GLASS] panel=anchored_to_source' not in host_code:
                 raise ValueError('V140 compiled host glass morph marker missing')
-        if version in ('3.8.214', '3.8.215', '3.8.216', '3.8.217', '3.8.220'):
+        if version in ('3.8.214', '3.8.215', '3.8.216', '3.8.217', '3.8.220', '3.8.221'):
             if b'[SCARLET_V141_PICKER] dismiss=outside_tap' not in host_code:
                 raise ValueError('V141 compiled outside-tap dismissal marker missing')
-        if version in ('3.8.216', '3.8.217', '3.8.220'):
+        if version in ('3.8.216', '3.8.217', '3.8.220', '3.8.221'):
             if b'[SCARLET_V143_WINDOW] phase=clamped_edge' not in host_code:
                 raise ValueError('V143 compiled edge-window guard missing')
-        if version in ('3.8.217', '3.8.220'):
+        if version in ('3.8.217', '3.8.220', '3.8.221'):
             if b'[SCARLET_V144_PICKER] outside_guard=window_attached' not in host_code:
                 raise ValueError('V144 compiled window-level outside dismissal missing')
             if b'[SCARLET_V144_GLASS] phase=finger_moved' not in host_code:
@@ -444,7 +446,7 @@ def verify(path, side_product=None):
                 raise ValueError('V144 compiled Direct button glass response missing')
             if b'[SCARLET_V144_BUTTON] lens=finger_response' not in host_code:
                 raise ValueError('V144 compiled hosted button glass response missing')
-        if version == '3.8.220':
+        if version in ('3.8.220', '3.8.221'):
             for token in (b'[SCARLET_V147_GLASS] panel=clear tabs=native rows=native',
                           b'[SCARLET_V147_OUTSIDE] monitors=',
                           b'[SCARLET_V147_DIRECT] route=host result=presented'):
@@ -454,6 +456,9 @@ def verify(path, side_product=None):
                 raise ValueError('V147 compiled native glass window action missing')
             if b'[SCARLET_V147_DIRECT] event=tap' not in bootstrap_code:
                 raise ValueError('V147 compiled Direct button marker missing')
+        if version == '3.8.221':
+            if b'[SCARLET_V148_ACTION_GLASS] action=' not in host_code:
+                raise ValueError('V148 native window action glass not compiled')
         assert b'finishRefresh:runID:verification:' in support_code, 'XPC result receiver missing'
         assert b'refreshAllAppsWithIdentifier:mangledTypeName:refreshRunID:' in support_code, 'XPC run identity missing'
         assert b'RESULT_RECEIVED' in support_code, 'Host result persistence missing'
