@@ -75,6 +75,13 @@ def patch(s):
         // SCARLET_V131_VISIBLE_GLASS_ACTIVATION retired by V139''',
         'verify and preserve native animated glass expansion')
     s=one(s,
+        '''        owner.layoutIfNeeded()
+        overlay.layoutIfNeeded()''',
+        '''        owner.layoutIfNeeded()
+        overlay.layoutIfNeeded()
+        NSLog("[SCARLET_V140_GLASS] panel=anchored_to_source surface=native_clear touch=2d")''',
+        'visible version marker for actual compiled host')
+    s=one(s,
         '''    func followPoint(x: CGFloat, y: CGFloat) {
         CATransaction.begin()''',
         '''    // SCARLET_V140_FINGER_DEFORMATION: the rim optics follow the
