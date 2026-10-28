@@ -31,6 +31,7 @@ MORPH='''    // SCARLET_V144_BUTTON_LENS: the existing button is stationary for 
                 1.065, 1.065);
         }
     }
+    NSLog(@"[SCARLET_V144_BUTTON] lens=finger_response phase=%ld", (long)touch.phase);
 '''
 
 def once(s,a,b,label):
