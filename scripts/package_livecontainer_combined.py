@@ -27,6 +27,44 @@ REQUIRED_SIDESTORE_AUTH_ANSWER_MARKERS = (
 )
 
 
+def verify_versioned_picker_markers(version, host_code, bootstrap_code):
+    """Validate the compiled picker for each version's ACTUAL surviving routes.
+
+    V149 replaces V147's one-time UIWindow observer with a dynamic window
+    observer. Requiring the removed V147 log was causing otherwise successful
+    Xcode builds to fail packaging. Do not make V147/V148 weaker: both still
+    require their own old observer marker. Do not infer a live UI pass from
+    compiled marker presence alone.
+    """
+    if version not in ('3.8.220', '3.8.221', '3.8.222'):
+        return
+    common_host = (
+        b'[SCARLET_V147_GLASS] panel=clear tabs=native rows=native',
+        b'[SCARLET_V147_DIRECT] route=host result=presented',
+        b'[SCARLET_V147_ACTION_GLASS] button=',
+    )
+    for marker in common_host:
+        if marker not in host_code:
+            raise ValueError('Picker compiled host marker missing: '+repr(marker))
+    if b'[SCARLET_V147_DIRECT] event=tap' not in bootstrap_code:
+        raise ValueError('V147 compiled Direct button marker missing')
+    if version in ('3.8.220', '3.8.221'):
+        if b'[SCARLET_V147_OUTSIDE] monitors=' not in host_code:
+            raise ValueError('V147/V148 compiled original outside observer missing')
+    if version in ('3.8.221', '3.8.222'):
+        if b'[SCARLET_V148_ACTION_GLASS] action=' not in host_code:
+            raise ValueError('V148 compiled native window-action glass missing')
+    if version == '3.8.222':
+        for marker in (
+            b'[SCARLET_V149_TABS] style=system_native',
+            b'[SCARLET_V149_ACTION_GLASS] action=',
+            b'[SCARLET_V149_OUTSIDE] monitor_attached',
+            b'[SCARLET_V149_OUTSIDE] scene_monitor_count=',
+        ):
+            if marker not in host_code:
+                raise ValueError('V149 compiled picker control/observer missing: '+repr(marker))
+
+
 def verify_side_store_intent_runtime_symbols(executable):
     missing = [symbol.decode("ascii") for symbol in REQUIRED_SIDESTORE_INTENT_SYMBOLS
                if symbol not in executable]
@@ -448,25 +486,7 @@ def verify(path, side_product=None):
                 raise ValueError('V144 compiled Direct button glass response missing')
             if b'[SCARLET_V144_BUTTON] lens=finger_response' not in host_code:
                 raise ValueError('V144 compiled hosted button glass response missing')
-        if version in ('3.8.220', '3.8.221', '3.8.222'):
-            for token in (b'[SCARLET_V147_GLASS] panel=clear tabs=native rows=native',
-                          b'[SCARLET_V147_OUTSIDE] monitors=',
-                          b'[SCARLET_V147_DIRECT] route=host result=presented'):
-                if token not in host_code:
-                    raise ValueError('V147 compiled host marker missing: '+repr(token))
-            if b'[SCARLET_V147_ACTION_GLASS] button=' not in host_code:
-                raise ValueError('V147 compiled native glass window action missing')
-            if b'[SCARLET_V147_DIRECT] event=tap' not in bootstrap_code:
-                raise ValueError('V147 compiled Direct button marker missing')
-        if version in ('3.8.221', '3.8.222'):
-            if b'[SCARLET_V148_ACTION_GLASS] action=' not in host_code:
-                raise ValueError('V148 native window action glass not compiled')
-        if version == '3.8.222':
-            for marker in (b'[SCARLET_V149_TABS] style=system_native',
-                           b'[SCARLET_V149_ACTION_GLASS] action=',
-                           b'[SCARLET_V149_OUTSIDE] scene_monitor_count='):
-                if marker not in host_code:
-                    raise ValueError('V149 compiled control or outside marker missing: '+repr(marker))
+        verify_versioned_picker_markers(version, host_code, bootstrap_code)
         assert b'finishRefresh:runID:verification:' in support_code, 'XPC result receiver missing'
         assert b'refreshAllAppsWithIdentifier:mangledTypeName:refreshRunID:' in support_code, 'XPC run identity missing'
         assert b'RESULT_RECEIVED' in support_code, 'Host result persistence missing'

@@ -4,12 +4,14 @@ on:
   push:
     branches:
       - ci/scarlet-quality-speed-20261028
+      - fix/scarlet-v149-package-gate-20261028
     paths:
       - '.github/workflows/livecontainer-build.yml'
       - '.github/workflows/scarlet-ci-preflight.yml'
       - 'scripts/scarlet_ci_preflight.py'
       - 'scripts/package_livecontainer_combined.py'
       - 'tests/test_ci_preflight.py'
+      - 'tests/test_v149_package_marker_parity.py'
       - 'tests/test_repository.py'
   workflow_dispatch:
 
@@ -36,5 +38,6 @@ jobs:
             tests.test_repository.RepositoryTests.test_current_files_exist \
             tests.test_v147_from_v144 \
             tests.test_v148_action_glass \
-            tests.test_v149_controls -v
+            tests.test_v149_controls \
+            tests.test_v149_package_marker_parity -v
           echo '[SCARLET_CI] status=PRECHECK_PASS no_xcode_build_started=1'
