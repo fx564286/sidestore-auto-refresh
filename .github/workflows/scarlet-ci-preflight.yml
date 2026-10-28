@@ -8,6 +8,7 @@ on:
       - fix/scarlet-v150-touch-glass-outside-20261028
       - fix/scarlet-v151-polish-geometry-20261028
       - fix/scarlet-v152-universal-geometry-20261028
+      - fix/scarlet-v153-three-controls-20261029
     paths:
       - '.github/workflows/livecontainer-build.yml'
       - '.github/workflows/scarlet-ci-preflight.yml'
@@ -24,6 +25,9 @@ on:
       - 'tests/test_v151_glass_polish.py'
       - 'tests/test_v151_package_parity.py'
       - 'tests/test_v152_universal_guest_parity.py'
+      - 'scripts/patch_v153_three_fixes.py'
+      - 'tests/test_v153_three_fixes.py'
+      - 'tests/test_v153_package_parity.py'
       - 'scripts/patch_v58_fullscreen.py'
       - 'tests/test_v58_fullscreen_activity.py'
       - 'tests/test_repository.py'
@@ -60,5 +64,7 @@ jobs:
             tests.test_v151_glass_polish \
             tests.test_v151_package_parity \
             tests.test_v152_universal_guest_parity \
+            tests.test_v153_three_fixes \
+            tests.test_v153_package_parity \
             tests.test_v58_fullscreen_activity -v
           echo '[SCARLET_CI] status=PRECHECK_PASS no_xcode_build_started=1'
