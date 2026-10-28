@@ -19,7 +19,7 @@ let steadyGlass = UIGlassEffect(style: .clear)
         // SCARLET_V127_COMPLETE_GLASS: keep backdrop light for real glass.
         overlay.backgroundColor = UIColor.black.withAlphaComponent(0.32)
         if #available(iOS 26.0, *), !UIAccessibility.isReduceTransparencyEnabled {
-            overlay.backgroundColor = UIColor.black.withAlphaComponent(0.16)
+            overlay.backgroundColor = UIColor.black.withAlphaComponent(0.19)
         }
         let panelWidth = min(352, availableWidth)
         material.layer.cornerRadius = 26
@@ -52,6 +52,7 @@ let steadyGlass = UIGlassEffect(style: .clear)
         self.assertIn('UIGlassEffect(style: .clear)',changed)
         self.assertIn('self.transform = CGAffineTransform(translationX: dx, y: dy)',changed)
         self.assertNotIn('material.centerYAnchor.constraint(equalTo: overlay.centerYAnchor),',changed)
+        self.assertNotIn('overlay.backgroundColor = UIColor.black.withAlphaComponent(0.19)',changed)
     def test_no_extra_controls_and_no_unsafe_modifications(self):
         src=(ROOT/'scripts/patch_v140_glass_morph.py').read_text()
         for marker in ('UIWindow(frame:', 'UIButton(type:', 'SecItemDelete(',
