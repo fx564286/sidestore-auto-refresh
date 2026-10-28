@@ -99,6 +99,27 @@ class SingleLiveProcess(unittest.TestCase):
         self.assertEqual(a107.inspect(source)["status"],"PASS")
         self.assertEqual(a102.audit(source)["status"],"PASS")
 
+    def test_release_post_patch_ui_greps_match_generated_sources(self):
+        # Catches the V155 CI #40785340429 failure: deleted V114 tab marker.
+        root=os.environ.get("V155_PATCHED_LIVECONTAINER")
+        if not root:return
+        import re
+        flow=(ROOT/".github/workflows/livecontainer-build.yml").read_text()
+        start=flow.index("            V155_PATCHED_LIVECONTAINER=work/LiveContainer")
+        end=flow.index("            python3 builder/scripts/audit_v107_active_guest_ui.py",start)
+        checks=flow[start:end]
+        source=Path(root)
+        positive=re.findall(
+            r"(?m)^\s*grep -Fq '([^']+)' work/LiveContainer/(\S+)\s*$",checks)
+        self.assertGreaterEqual(len(positive),13)
+        for needle,rel in positive:
+            if rel=="LiveContainer/Info.plist":
+                continue  # version label stamped after the UI patch
+            file=source/rel
+            self.assertTrue(file.is_file(),rel)
+            with self.subTest(marker=needle,path=rel):
+                self.assertIn(needle,file.read_text(),rel)
+
     def test_user_persisted_settings_not_deleted(self):
         code=(ROOT/"scripts/patch_v155_single_liveprocess.py").read_text()
         for bad in ("removePersistentDomain", "removeItem(", "deleteApp(",

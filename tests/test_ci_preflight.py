@@ -27,6 +27,17 @@ class CIPreflightTests(unittest.TestCase):
         with self.assertRaisesRegex(module.PreflightError,"stale Info.plist label"):
             module.verify(broken,self.packager,ROOT)
 
+    def test_deleted_direct_tab_marker_is_rejected(self):
+        old_check = ("grep -Fq 'SCARLET_V151_TAB_NATIVE_PRESS' "
+                     "work/LiveContainer/MultitaskSupport/MultitaskDockView.swift")
+        stale_check = ("grep -Fq 'SCARLET_V114_PICKER_TABS' "
+                       "work/LiveContainer/MultitaskSupport/MultitaskDockView.swift")
+        self.assertIn(old_check,self.workflow)
+        self.assertNotIn(stale_check,self.workflow)
+        with self.assertRaisesRegex(module.PreflightError,"native top-tab"):
+            module.verify(self.workflow.replace(old_check,stale_check),
+                          self.packager,ROOT)
+
     def test_package_version_mismatch_fails(self):
         broken=self.packager.replace("if version == '3.8.228' and build_label != 'V155'",
                                     "if version == '3.8.228' and build_label != 'V154'")

@@ -87,8 +87,12 @@ def verify(workflow: str, packager: str, root: Path) -> tuple[str, str]:
                 'V155 single-path source elimination not applied')
         require('test_v155_single_liveprocess.py -v' in workflow,
                 'V155 one-mode + recent/outside regressions missing')
+        require("grep -Fq 'SCARLET_V151_TAB_NATIVE_PRESS' "
+                "work/LiveContainer/MultitaskSupport/MultitaskDockView.swift" in workflow,
+                "V155 surviving native top-tab UI marker gate missing")
         for stale in ("grep -Fq 'SCARLET_V128_DIRECT_SCENE_RECOVERY'",
                       "grep -Fq 'SCARLET_V114_DIRECT_PICKER_REPAIR'",
+                      "grep -Fq 'SCARLET_V114_PICKER_TABS'",
                       "grep -Fq 'SCUnifiedGuestUIBridge'"):
             require(stale not in workflow,
                     'V155 release still demands deleted Direct source: '+stale)

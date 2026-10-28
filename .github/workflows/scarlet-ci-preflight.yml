@@ -11,6 +11,7 @@ on:
       - fix/scarlet-v153-three-controls-20261029
       - fix/scarlet-v154-three-runtime-fixes-20261029
       - fix/scarlet-v155-one-liveprocess-20261029
+      - fix/scarlet-v155-retired-tabs-ci-20261029
     paths:
       - '.github/workflows/livecontainer-build.yml'
       - '.github/workflows/scarlet-ci-preflight.yml'
