@@ -438,6 +438,10 @@ def verify(path, side_product=None):
                 raise ValueError('V144 compiled window-level outside dismissal missing')
             if b'[SCARLET_V144_GLASS] phase=finger_moved' not in host_code:
                 raise ValueError('V144 compiled finger-reactive glass missing')
+            if b'[SCARLET_V144_BUTTON] lens=finger_response' not in bootstrap_code:
+                raise ValueError('V144 compiled Direct button glass response missing')
+            if b'[SCARLET_V144_BUTTON] lens=finger_response' not in host_code:
+                raise ValueError('V144 compiled hosted button glass response missing')
         assert b'finishRefresh:runID:verification:' in support_code, 'XPC result receiver missing'
         assert b'refreshAllAppsWithIdentifier:mangledTypeName:refreshRunID:' in support_code, 'XPC run identity missing'
         assert b'RESULT_RECEIVED' in support_code, 'Host result persistence missing'
