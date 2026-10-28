@@ -18,7 +18,7 @@ def once(s, old, new, label):
 
 def patch(s):
     if MARK in s:
-        if s.count(MARK)!=1 or s.count('"scarlet.v147.row.glass"')!=3:
+        if s.count(MARK)!=1 or s.count("item.configuration = .glass()")!=3 or "SCARLET_V147_WINDOW_ACTION_NATIVE_GLASS" not in s:
             raise ValueError("V147 partial or duplicate implementation")
         return s
     for prereq in ("SCARLET_V144_WINDOW_OUTSIDE_TAP","SCARLET_V144_GLASS_INSTALLED",
@@ -63,6 +63,27 @@ def patch(s):
             tabPicker.selectedSegmentTintColor = UIColor.white.withAlphaComponent(0.12)''',
         "native tab glass")
 
+    # The ACTION BUTTON ITSELF must be Liquid Glass. An effectView below
+    # UIButton.Configuration.plain() can be visually occluded by UIKit.
+    # The public iOS 26 .glass() configuration supplies native per-button
+    # interaction, touch response, and surface material.
+    if s.count("item.configuration = .plain()")!=3:
+        raise ValueError("V147 expected exact Direct, recent and window action UIButton paths")
+    s=s.replace("item.configuration = .plain()","item.configuration = .glass()")
+
+    s=once(s,
+        'let actionsCount = 4 // V129: three window controls + per-app viewport switch.',
+        'let actionsCount = 3 // V147: minimize, maximize/restore, app close only.',
+        "remove accidental debug control")
+    s=once(s,
+        '("앱 닫기", "closeWindow"),\n                ("화면 표시 방식 전환", "nrgV129ToggleViewportMode")',
+        '("앱 닫기", "closeWindow")',
+        "remove hidden viewport toggle from window action menu")
+    s=once(s,
+        '            for (title, selectorName) in actions {',
+        '            // SCARLET_V147_WINDOW_ACTION_NATIVE_GLASS: all three action buttons use native UIButton.Configuration.glass().\n            for (title, selectorName) in actions {',
+        "identify right-hand window action button generation")
+
     # Two rows are indented 12 spaces (Direct + recent), and window actions
     # one level deeper. V147 patches all three, not just the panel.
     old='''                item.backgroundColor = UIColor.secondarySystemBackground.withAlphaComponent(0.56)
@@ -73,22 +94,9 @@ def patch(s):
                 item.layer.borderColor = UIColor.white.withAlphaComponent(0.25).cgColor
                 item.layer.borderWidth = 0.5
                 item.layer.cornerCurve = .continuous
-                let rowEffect = UIGlassEffect(style: .regular)
-                rowEffect.isInteractive = true
-                let rowLens = UIVisualEffectView(effect: rowEffect)
-                rowLens.accessibilityIdentifier = "scarlet.v147.row.glass"
-                rowLens.isUserInteractionEnabled = false
-                rowLens.clipsToBounds = true
-                rowLens.layer.cornerRadius = 15
-                rowLens.layer.cornerCurve = .continuous
-                rowLens.translatesAutoresizingMaskIntoConstraints = false
-                item.insertSubview(rowLens, at: 0)
-                NSLayoutConstraint.activate([
-                    rowLens.leadingAnchor.constraint(equalTo: item.leadingAnchor),
-                    rowLens.trailingAnchor.constraint(equalTo: item.trailingAnchor),
-                    rowLens.topAnchor.constraint(equalTo: item.topAnchor),
-                    rowLens.bottomAnchor.constraint(equalTo: item.bottomAnchor)
-                ])'''
+                // Native Liquid Glass is owned by UIButton.Configuration.glass()
+                // and responds to touch; do NOT put a separate static
+                // UIVisualEffectView behind a plain UIButton.'''
     if s.count(old)!=2:raise ValueError("V147 direct/recent glass rows mismatch")
     s=s.replace(old,repl)
     deeper_old="\n".join("    "+line for line in old.split("\n"))
