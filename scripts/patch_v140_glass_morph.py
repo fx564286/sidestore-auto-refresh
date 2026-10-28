@@ -33,7 +33,7 @@ def patch(s):
         '''        // SCARLET_V127_COMPLETE_GLASS: keep backdrop light for real glass.
         overlay.backgroundColor = UIColor.black.withAlphaComponent(0.32)
         if #available(iOS 26.0, *), !UIAccessibility.isReduceTransparencyEnabled {
-            overlay.backgroundColor = UIColor.black.withAlphaComponent(0.16)
+            overlay.backgroundColor = UIColor.black.withAlphaComponent(0.19)
         }''',
         '''        // SCARLET_V127_COMPLETE_GLASS: keep V127 evidence for source audit.
         // SCARLET_V140_MORPH_ANCHOR: no dimming scrim over actual content.
