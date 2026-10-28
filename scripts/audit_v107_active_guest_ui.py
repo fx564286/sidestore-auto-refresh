@@ -50,7 +50,9 @@ def inspect(root: Path) -> dict:
                "guard controller is DecoratedAppSceneViewController",
                '("최소화", "minimizeWindow")',
                '("최대화 / 복원", "maximizeWindow")',
-               '("창 닫기", "closeWindow")'),
+               ('("앱 닫기", "closeWindow")'
+                if "SCARLET_V147_FROM_V144_GLASS_OWNER" in dock
+                else '("창 닫기", "closeWindow")')),
         DIRECT: ("SCARLET_V105_DIRECT_UNIFIED_MORPH", "SCGuestMorphPresenter",
                   "SCGuestMorphWindow",
                  "scarlet.v137.shared.guest.control" if unified else "scarlet.v105.direct.morph",
