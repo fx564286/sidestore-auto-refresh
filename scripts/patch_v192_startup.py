@@ -38,7 +38,7 @@ def patch_dock(src):
     src = replace_once(src,
         "        let anchor = root.subviews.first(where: { $0 !== windowHostingView }) ?? root",
         "        guard root.window === window, !root.bounds.isEmpty,\n"
-        "              let anchor = root.subviews.first(where: { !$0.bounds.isEmpty }) else { return }\n"
+        "              let anchor = root\n"
         "        guard anchor !== windowHostingView else { return }",
         "attach only to live UIKit root child")
     return src
