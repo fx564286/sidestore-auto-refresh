@@ -370,9 +370,16 @@ def shell(s):
                     NSLog("[SCARLET_V139_ACTION] route=host_picker result=deferred_unavailable")
                     return
                 }
-                MultitaskDockManager.shared.nrgV72PresentGuestSwitcher(
-                    from: root, sourceView: root.view)
-                NSLog("[SCARLET_V139_ACTION] route=host_picker result=dispatched")
+                // The project still has a pre-iOS-16 deployment target;
+                // MultitaskDockManager is annotated @available(iOS 16, *).
+                // Do not weaken the target or invent another picker route.
+                if #available(iOS 16.0, *) {
+                    MultitaskDockManager.shared.nrgV72PresentGuestSwitcher(
+                        from: root, sourceView: root.view)
+                    NSLog("[SCARLET_V139_ACTION] route=host_picker result=dispatched")
+                } else {
+                    NSLog("[SCARLET_V139_ACTION] route=host_picker result=unsupported_os")
+                }
             }
             return
         }
