@@ -82,6 +82,11 @@ def verify(workflow: str, packager: str, root: Path) -> tuple[str, str]:
             in workflow, "Swift dock parser gate missing")
     require((root / "tests" / "test_v149_controls.py").is_file(),
             "V149 focused test script missing")
+    if label == 'V154':
+        require('patch_v154_three_runtime_fixes.py work/LiveContainer' in workflow,
+                'V154 runtime source patch not applied')
+        require('test_v154_runtime_three_fixes.py -v' in workflow,
+                'V154 recent/outside/Direct source regression missing')
     if label == 'V153':
         require('patch_v153_three_fixes.py work/LiveContainer' in workflow,
                 'V153 three-fix source patch missing from release')
