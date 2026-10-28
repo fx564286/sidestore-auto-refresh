@@ -15,7 +15,10 @@ class WindowPeekTests(unittest.TestCase):
         return '''// SCARLET_V141_INSET_AWARE_SETTLE
     CGFloat oobOffset = MAX(30, frame.size.width - 30);
     frame.origin.x = MAX(maxFrame.origin.x - oobOffset, MIN(CGRectGetMaxX(maxFrame) - frame.size.width + oobOffset, center.x - frame.size.width / 2));
-    self.view.alpha = 0;
+- (void)minimizeWindow {
+    if (self.view.hidden) return;
+    [UIView animateWithDuration:0.3 animations:^{
+        self.view.alpha = 0;
     } completion:^(BOOL finished) {
         if (!finished) return;
         self.view.hidden = YES;
@@ -44,12 +47,12 @@ class WindowPeekTests(unittest.TestCase):
     def test_preserves_existing_keyboard_rotation_and_completion_callbacks(self):
         source=self.fixture().replace(
             '        self.view.hidden = YES;',
-            '        // Existing guest lifecycle instrumentation must survive.\\n'
-            '        NSLog(@"[SCARLET_V133_KEYBOARD] minimize=done");\\n'
+            '        // Existing guest lifecycle instrumentation must survive.\n'
+            '        NSLog(@"[SCARLET_V133_KEYBOARD] minimize=done");\n'
             '        self.view.hidden = YES;'
         ).replace(
-            '    }];\\n}\\n\\n- (void)minimizeWindowPiP',
-            '    }];\\n}\\n\\n// Existing V46/V133 lifecycle separation.\\n'
+            '    }];\n}\n\n- (void)minimizeWindowPiP',
+            '    }];\n}\n\n// Existing V46/V133 lifecycle separation.\n'
             '- (void)minimizeWindowPiP'
         )
         patched=v.patch(source)
@@ -61,7 +64,7 @@ class WindowPeekTests(unittest.TestCase):
         self.assertIn('if (!finished && self.view.alpha >= 0.95) return;',patched)
 
     def test_no_prior_completion_guard_still_patches_bounded_method(self):
-        source=self.fixture().replace('        if (!finished) return;\\n','')
+        source=self.fixture().replace('        if (!finished) return;\n','')
         patched=v.patch(source)
         self.assertIn('SCARLET_V143_INTERRUPTED_MINIMIZE',patched)
         self.assertEqual(v.patch(patched),patched)
