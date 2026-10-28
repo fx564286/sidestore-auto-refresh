@@ -391,6 +391,8 @@ def verify(path, side_product=None):
             raise ValueError('V139 packaged version is missing its explicit build identity')
         if version == '3.8.213' and build_label != 'V140':
             raise ValueError('V140 packaged version is missing its explicit build identity')
+        if version == '3.8.214' and build_label != 'V141':
+            raise ValueError('V141 packaged version is missing its explicit build identity')
         v137_package = version == '3.8.210' and build_label == 'V137'
         verify_v105_direct_morph_binary(bootstrap_code, v137=v137_package)
         verify_v107_virtual_guest_control_binary(host_code, v137=v137_package)
@@ -401,7 +403,7 @@ def verify(path, side_product=None):
                 raise ValueError('V138 Direct action fallback missing from actual app binary')
             if b'scarlet.v137.shared.guest.control' in bootstrap_code:
                 raise ValueError('V138 inert V137 guest-only handle was compiled')
-        if version in ('3.8.212', '3.8.213'):
+        if version in ('3.8.212', '3.8.213', '3.8.214'):
             # Real compiled markers, not source-only assertions.
             # Direct->host and LiveProcess->host terminate at the SAME picker.
             for label, image, markers in (
@@ -416,9 +418,12 @@ def verify(path, side_product=None):
                         raise ValueError(f'V139 compiled {label} action missing: {required!r}')
             if b'scarlet.v137.shared.guest.control' in bootstrap_code:
                 raise ValueError('V139 obsolete unresponsive guest button compiled')
-        if version == '3.8.213':
+        if version in ('3.8.213', '3.8.214'):
             if b'[SCARLET_V140_GLASS] panel=anchored_to_source' not in host_code:
                 raise ValueError('V140 compiled host glass morph marker missing')
+        if version == '3.8.214':
+            if b'[SCARLET_V141_PICKER] dismiss=outside_tap' not in host_code:
+                raise ValueError('V141 compiled outside-tap dismissal marker missing')
         assert b'finishRefresh:runID:verification:' in support_code, 'XPC result receiver missing'
         assert b'refreshAllAppsWithIdentifier:mangledTypeName:refreshRunID:' in support_code, 'XPC run identity missing'
         assert b'RESULT_RECEIVED' in support_code, 'Host result persistence missing'
