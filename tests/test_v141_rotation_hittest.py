@@ -48,7 +48,7 @@ class RotationHitTest(unittest.TestCase):
         self.assertEqual(v141.delegate(new),new)
 
     def test_no_guest_reset_or_extra_window(self):
-        code=(ROOT/'scripts/patch_v141_rotation_hittest.py').read_text()
+        code=(ROOT/'scripts/patch_v141_inset_settle.py').read_text()
         for banned in ('UIWindow(frame:', 'SecItemDelete(', 'deleteGuest(',
                        'application:terminate', 'removeGuest', 'clearPairing('):
             self.assertNotIn(banned,code)
