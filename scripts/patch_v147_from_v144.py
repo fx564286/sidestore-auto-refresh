@@ -102,6 +102,12 @@ def patch(s):
     deeper_old="\n".join("    "+line for line in old.split("\n"))
     deeper_repl="\n".join("    "+line for line in repl.split("\n"))
     s=once(s,deeper_old,deeper_repl,"window action native glass")
+    s=once(s,
+        '                    item.configuration = .glass()\n                    item.backgroundColor = .clear',
+        '                    item.configuration = .glass()\n                    NSLog("[SCARLET_V147_ACTION_GLASS] button=%@", selectorName)\n                    item.backgroundColor = .clear',
+        "log native glass creation for right-hand action buttons")
+
+
 
     # V144's owner-window recognizer misses touches delivered to a guest
     # UIWindow re-ordered above the picker. Reuse the observer and keep

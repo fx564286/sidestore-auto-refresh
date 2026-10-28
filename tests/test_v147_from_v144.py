@@ -74,6 +74,7 @@ class V147Regression(unittest.TestCase):
         action_part=action_part.split("rows.addArrangedSubview(item)",1)[0]
         self.assertIn("for (title, selectorName) in actions",action_part)
         self.assertIn("item.configuration = .glass()",action_part)
+        self.assertIn("[SCARLET_V147_ACTION_GLASS] button=",action_part)
         self.assertNotIn("item.configuration = .plain()",action_part)
         self.assertNotIn("let rowLens =",action_part)
         self.assertIn('("앱 닫기", "closeWindow")',dock)

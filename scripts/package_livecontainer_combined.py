@@ -450,6 +450,8 @@ def verify(path, side_product=None):
                           b'[SCARLET_V147_DIRECT] route=host result=presented'):
                 if token not in host_code:
                     raise ValueError('V147 compiled host marker missing: '+repr(token))
+            if b'[SCARLET_V147_ACTION_GLASS] button=' not in host_code:
+                raise ValueError('V147 compiled native glass window action missing')
             if b'[SCARLET_V147_DIRECT] event=tap' not in bootstrap_code:
                 raise ValueError('V147 compiled Direct button marker missing')
         assert b'finishRefresh:runID:verification:' in support_code, 'XPC result receiver missing'
