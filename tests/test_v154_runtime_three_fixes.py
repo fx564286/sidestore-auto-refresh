@@ -58,4 +58,11 @@ class V154SourceTests(unittest.TestCase):
         self.assertIn('if visible {\n                            delivered = true',block)
         self.assertIn('stage=panel_visible result=0 retry=1',block)
         self.assertNotIn('delivered = true\n                        //',block)
+        # Regression for CI #40778017938: Xcode 27.2 type-checking
+        # stalls on chained connectedScenes compactMap/filter/flatMap.
+        self.assertIn('SCARLET_V154_DIRECT_XCODE_SIMPLE_LOOP',block)
+        self.assertIn('for candidateScene in UIApplication.shared.connectedScenes',block)
+        self.assertIn('for candidateWindow in activeScene.windows',block)
+        self.assertNotIn('.flatMap { $0.windows }',block)
+        self.assertNotIn('let windows = UIApplication.shared.connectedScenes',block)
 if __name__=="__main__":unittest.main()

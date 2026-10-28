@@ -84,16 +84,41 @@ def shell(s):
                         $0.rootViewController != nil && $0.alpha > 0.01
                     }), let root = hostWindow.rootViewController,
                     root.view.window === hostWindow else {''',
-'''                    // SCARLET_V154_DIRECT_VISIBLE_CHECK: prioritize attached key host.
-                    let windows = UIApplication.shared.connectedScenes
-                        .compactMap { $0 as? UIWindowScene }
-                        .filter { $0.activationState == .foregroundActive }
-                        .flatMap { $0.windows }
-                        .filter { !$0.isHidden && $0.windowLevel == .normal &&
-                            $0.rootViewController != nil && $0.alpha > 0.01 &&
-                            $0.rootViewController?.view.window === $0 }
-                    let hostWindow = windows.first(where: { $0.isKeyWindow }) ?? windows.first
-                    guard let hostWindow, let root = hostWindow.rootViewController else {''',"host")
+'''                    // SCARLET_V154_DIRECT_VISIBLE_CHECK: priority is the
+                    // *attached* foreground key host window. Xcode 27.2
+                    // cannot type-check the previous chained Set<UIScene>
+                    // compactMap/filter/flatMap/filter expression.
+                    // SCARLET_V154_DIRECT_XCODE_SIMPLE_LOOP: avoid generic
+                    // inference and keep each UIKit guard explicit.
+                    var keyHostWindow: UIWindow? = nil
+                    var firstHostWindow: UIWindow? = nil
+                    for candidateScene in UIApplication.shared.connectedScenes {
+                        guard let activeScene = candidateScene as? UIWindowScene else {
+                            continue
+                        }
+                        guard activeScene.activationState == .foregroundActive else {
+                            continue
+                        }
+                        for candidateWindow in activeScene.windows {
+                            guard !candidateWindow.isHidden else { continue }
+                            guard candidateWindow.windowLevel == .normal else { continue }
+                            guard candidateWindow.alpha > 0.01 else { continue }
+                            guard let candidateRoot = candidateWindow.rootViewController else {
+                                continue
+                            }
+                            guard candidateRoot.view.window === candidateWindow else { continue }
+                            if firstHostWindow == nil {
+                                firstHostWindow = candidateWindow
+                            }
+                            if candidateWindow.isKeyWindow {
+                                keyHostWindow = candidateWindow
+                                break
+                            }
+                        }
+                        if keyHostWindow != nil { break }
+                    }
+                    guard let hostWindow = keyHostWindow ?? firstHostWindow,
+                          let root = hostWindow.rootViewController else {''',"host")
     s=replace(s,'                        delivered = true\n                        // SCARLET_V153_DIRECT_HOST_PICKER:',
                    '                        // SCARLET_V153_DIRECT_HOST_PICKER:',"early success")
     s=replace(s,'''                        NSLog("[SCARLET_V147_DIRECT] route=host result=presented")
