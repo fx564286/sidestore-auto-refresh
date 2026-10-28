@@ -53,6 +53,13 @@ class UnifiedTouchGlass(unittest.TestCase):
         self.assertEqual(final.count('SCARLET_V139_UNIFIED_GUEST_ACTION'),1)
         self.assertIn('nrgV72PresentGuestSwitcher(',final)
         self.assertIn('nrg-guest-controls',final)
+        # Xcode 27.2 reported this exact API is iOS-16+ only. A Swift parse
+        # check alone does not enforce SDK availability annotations.
+        self.assertIn('if #available(iOS 16.0, *) {',final)
+        self.assertIn('route=host_picker result=unsupported_os',final)
+        self.assertEqual(final.count('nrgV72PresentGuestSwitcher('),1)
+        self.assertLess(final.index('if #available(iOS 16.0, *) {'),
+                        final.index('MultitaskDockManager.shared.nrgV72PresentGuestSwitcher('))
         self.assertNotIn('UIWindow(frame:',final)
         self.assertEqual(p.shell(final),final)
 
