@@ -106,8 +106,14 @@ class SingleLiveProcess(unittest.TestCase):
         import re
         flow=(ROOT/".github/workflows/livecontainer-build.yml").read_text()
         start=flow.index("            V155_PATCHED_LIVECONTAINER=work/LiveContainer")
-        end=flow.index("            python3 builder/scripts/audit_v107_active_guest_ui.py",start)
-        checks=flow[start:end]
+        # This test runs immediately after V155 patching. Later V156/V157
+        # patch markers are intentionally absent at this checkpoint, even
+        # though the final source will eventually contain them.
+        boundary=flow.index("            # V156: keep large window-management panel",start)
+        after_later=flow.index("            grep -Fq 'UIButton.Configuration.clearGlass()'",boundary)
+        end=flow.index("            python3 builder/scripts/audit_v107_active_guest_ui.py",
+                       after_later)
+        checks=flow[start:boundary]+flow[after_later:end]
         source=Path(root)
         positive=re.findall(
             r"(?m)^\s*grep -Fq '([^']+)' work/LiveContainer/(\S+)\s*$",checks)

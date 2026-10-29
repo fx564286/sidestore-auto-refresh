@@ -28,7 +28,7 @@ REQUIRED_SIDESTORE_AUTH_ANSWER_MARKERS = (
 
 
 def verify_versioned_picker_markers(version, host_code, bootstrap_code):
-    if version in ('3.8.228', '3.8.229'):
+    if version in ('3.8.228', '3.8.229', '3.8.230'):
         # V155 compiled one LiveProcess route and deleted the Direct handler.
         required_host = (
             b'[SCARLET_V144_GLASS_INSTALLED]',
@@ -52,7 +52,7 @@ def verify_versioned_picker_markers(version, host_code, bootstrap_code):
                     b'[SCARLET_V154_DIRECT] stage=panel_visible'):
             if old in host_code:
                 raise ValueError('V155 retired Direct host route compiled: '+repr(old))
-        if version == '3.8.229':
+        if version in ('3.8.229', '3.8.230'):
             for marker in (
                 b'[SCARLET_V156_OUTSIDE_TOUCH_TRACE] stage=backdrop_received',
                 b'[SCARLET_V156_OUTSIDE_TOUCH_TRACE] stage=window_should_receive',
@@ -60,6 +60,9 @@ def verify_versioned_picker_markers(version, host_code, bootstrap_code):
             ):
                 if marker not in host_code:
                     raise ValueError('V156 compiled outside touch trace missing: '+repr(marker))
+        if version == '3.8.230':
+            if b'[SCARLET_V157_WIDTH] viewport=' not in host_code:
+                raise ValueError('V157 compiled wide-panel geometry absent')
         return
     """Validate the compiled picker for each version's ACTUAL surviving routes.
 
@@ -513,6 +516,8 @@ def verify(path, side_product=None):
             raise ValueError('V143 packaged version is missing its explicit build identity')
         if version == '3.8.217' and build_label != 'V144':
             raise ValueError('V144 packaged version is missing its explicit build identity')
+        if version == '3.8.230' and build_label != 'V157':
+            raise ValueError('V157 build identity invalid')
         if version == '3.8.229' and build_label != 'V156':
             raise ValueError('V156 build identity invalid')
         if version == '3.8.228' and build_label != 'V155':
@@ -534,7 +539,7 @@ def verify(path, side_product=None):
         if version == '3.8.220' and build_label != 'V147':
             raise ValueError('V147 package identity invalid')
         v137_package = version == '3.8.210' and build_label == 'V137'
-        if version not in ('3.8.228','3.8.229'):
+        if version not in ('3.8.228','3.8.229','3.8.230'):
             verify_v105_direct_morph_binary(bootstrap_code, v137=v137_package)
         verify_v107_virtual_guest_control_binary(host_code, v137=v137_package)
         if version == '3.8.211':
