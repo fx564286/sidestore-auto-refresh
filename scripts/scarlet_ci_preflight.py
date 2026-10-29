@@ -82,6 +82,17 @@ def verify(workflow: str, packager: str, root: Path) -> tuple[str, str]:
             in workflow, "Swift dock parser gate missing")
     require((root / "tests" / "test_v149_controls.py").is_file(),
             "V149 focused test script missing")
+    if label == 'V158':
+        for required in ('patch_v158_unified_action_glass.py work/LiveContainer',
+                         'test_v158_unified_action_glass.py -v',
+                         'test_v158_package_parity.py -v',
+                         'SCARLET_V158_EQUAL_TAB_FRAME',
+                         'SCARLET_V158_ACTION_UNCLIPPED'):
+            require(required in workflow,
+                    'V158 stable panel and action optical glass gate missing: '+required)
+        require("grep -Fq 'SCARLET_V151_TAB_NATIVE_PRESS' "
+                "work/LiveContainer/MultitaskSupport/MultitaskDockView.swift" in workflow,
+                "V158 surviving native top-tab UI marker gate missing")
     if label == 'V157':
         for required in ('patch_v157_panel_width.py work/LiveContainer',
                          'test_v157_wide_panel.py -v',

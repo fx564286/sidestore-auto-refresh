@@ -14,6 +14,7 @@ on:
       - fix/scarlet-v155-retired-tabs-ci-20261029
       - fix/scarlet-v156-stable-glass-outside-20261029
       - fix/scarlet-v157-wider-panel-20261029
+      - fix/scarlet-v158-tab-size-action-glass-20261029
     paths:
       - '.github/workflows/livecontainer-build.yml'
       - '.github/workflows/scarlet-ci-preflight.yml'
@@ -43,6 +44,9 @@ on:
       - 'scripts/patch_v157_panel_width.py'
       - 'tests/test_v157_wide_panel.py'
       - 'tests/test_v157_package_parity.py'
+      - 'scripts/patch_v158_unified_action_glass.py'
+      - 'tests/test_v158_unified_action_glass.py'
+      - 'tests/test_v158_package_parity.py'
       - 'scripts/patch_v58_fullscreen.py'
       - 'tests/test_v58_fullscreen_activity.py'
       - 'tests/test_repository.py'
@@ -87,5 +91,7 @@ jobs:
             tests.test_v156_package_parity \
             tests.test_v157_wide_panel \
             tests.test_v157_package_parity \
+            tests.test_v158_unified_action_glass \
+            tests.test_v158_package_parity \
             tests.test_v58_fullscreen_activity -v
           echo '[SCARLET_CI] status=PRECHECK_PASS no_xcode_build_started=1'

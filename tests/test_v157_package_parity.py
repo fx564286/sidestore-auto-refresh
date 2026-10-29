@@ -3,7 +3,14 @@
 This does not claim iPhone visual acceptance; it rejects a stale built IPA.
 """
 import unittest
-from tests.test_v156_package_parity import COMMON, CURRENT, BOOT
+# unittest discover -s tests imports test_* as top-level modules, whereas
+# python -m unittest tests.test_* uses package-style imports.
+try:
+    from tests.test_v156_package_parity import COMMON, CURRENT, BOOT
+except ModuleNotFoundError as e:
+    if e.name != "tests":
+        raise
+    from test_v156_package_parity import COMMON, CURRENT, BOOT
 from scripts.package_livecontainer_combined import verify_versioned_picker_markers
 
 WIDTH=b'[SCARLET_V157_WIDTH] viewport='
