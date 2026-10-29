@@ -89,8 +89,9 @@ def patch(src):
     # Outside taps must be recognized at touch-down in the ORIGINAL owner
     # window as well as guest UIWindow instances. The former UITap awaited
     # touch-up while video/scroll gestures claimed the sequence.
-    src=once(src,'''            guard let gesture: UIGestureRecognizer = window === owner
-                    ? primaryTap : SCOutsideTouchDownRecognizer() else { continue }
+    src=once(src,'''            // Also monitor owner and guest windows: all use touchBegan.
+            // dismissQueued prevents duplicate animation and touch steals.
+            let gesture: UIGestureRecognizer = SCOutsideTouchDownRecognizer()
             gesture.cancelsTouchesInView = false''',
 '''            // SCARLET_V158_OWNER_TOUCH_DOWN: one dismiss recognizer per
             // receiving window, including the picker owner's UIWindow.
