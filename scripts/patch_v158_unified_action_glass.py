@@ -15,7 +15,7 @@ def once(s,old,new,why):
 
 def patch(src):
     if MARK in src:
-        for x in ("SCARLET_V158_ACTION_UNCLIPPED","SCARLET_V158_ACTION_INSETS",
+        for x in ("SCARLET_V158_ACTION_UNCLIPPED","SCARLET_V158_EQUAL_ROW_GEOMETRY",
                   "SCARLET_V157_WIDE_PANEL","SCARLET_V156_OUTSIDE_TOUCH_TRACE"):
             if x not in src:raise ValueError("partial V158 patch "+x)
         if src.count(MARK)!=1:raise ValueError("duplicate V158")
