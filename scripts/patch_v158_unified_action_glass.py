@@ -62,25 +62,20 @@ def patch(src):
     src=once(src,'''            scroll.clipsToBounds = windowActions
             rows.isLayoutMarginsRelativeArrangement = !windowActions''',
 '''            scroll.clipsToBounds = false
-            rows.isLayoutMarginsRelativeArrangement = !windowActions
-            // SCARLET_V158_ACTION_INSETS: preserve V157's full-size pills;
-            // window actions have no added margins, unlike recent rows.
-            rows.layoutMargins = windowActions
-                ? .zero
-                : UIEdgeInsets(top: 12, left: 18, bottom: 12, right: 18)
+            rows.isLayoutMarginsRelativeArrangement = true
+            // SCARLET_V158_EQUAL_ROW_GEOMETRY: same button geometry in both tabs.
+            rows.layoutMargins = UIEdgeInsets(top: 12, left: 18, bottom: 12, right: 18)
             NSLog("[SCARLET_V158_ACTION_UNCLIPPED] actions=%d clips=0 inset=0",
                   windowActions ? 1 : 0)''',
         "tab-switch action insets and clipping")
-    src=once(src,'''        rows.isLayoutMarginsRelativeArrangement = !windowActions
+    src=once(src,'''        rows.isLayoutMarginsRelativeArrangement = true
         // SCARLET_V156_ROW_OPTICAL_PAD:''',
 '''        rows.isLayoutMarginsRelativeArrangement = !windowActions
         // SCARLET_V156_ROW_OPTICAL_PAD:''',
         "initial action margins enabled")
     src=once(src,'''        rows.layoutMargins = UIEdgeInsets(top: 12, left: 18, bottom: 12, right: 18)
         scroll.addSubview(rows)''',
-'''        rows.layoutMargins = windowActions
-            ? .zero
-            : UIEdgeInsets(top: 12, left: 18, bottom: 12, right: 18)
+'''        rows.layoutMargins = UIEdgeInsets(top: 12, left: 18, bottom: 12, right: 18)
         scroll.addSubview(rows)''',
         "initial action horizontal insets")
 
