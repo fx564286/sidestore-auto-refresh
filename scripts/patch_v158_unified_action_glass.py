@@ -68,16 +68,12 @@ def patch(src):
             NSLog("[SCARLET_V158_ACTION_UNCLIPPED] actions=%d clips=0 inset=0",
                   windowActions ? 1 : 0)''',
         "tab-switch action insets and clipping")
-    src=once(src,'''        rows.isLayoutMarginsRelativeArrangement = true
+    src=once(src,'''        rows.isLayoutMarginsRelativeArrangement = !windowActions
         // SCARLET_V156_ROW_OPTICAL_PAD:''',
-'''        rows.isLayoutMarginsRelativeArrangement = !windowActions
+'''        rows.isLayoutMarginsRelativeArrangement = true
         // SCARLET_V156_ROW_OPTICAL_PAD:''',
         "initial action margins enabled")
-    src=once(src,'''        rows.layoutMargins = UIEdgeInsets(top: 12, left: 18, bottom: 12, right: 18)
-        scroll.addSubview(rows)''',
-'''        rows.layoutMargins = UIEdgeInsets(top: 12, left: 18, bottom: 12, right: 18)
-        scroll.addSubview(rows)''',
-        "initial action horizontal insets")
+
 
     # Ensure the scroll and rounded outer pane remain the same object and
     # confirm visual optical clearance without claiming device verification.
