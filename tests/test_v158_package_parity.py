@@ -8,7 +8,14 @@ try:
 except ModuleNotFoundError as e:
     if e.name != "tests": raise
     from test_v157_package_parity import BASE, BOOT, WIDTH
-from scripts.package_livecontainer_combined import verify_versioned_picker_markers
+import sys
+from pathlib import Path
+
+# unittest discovery from a parent directory does not add builder/ to sys.path.
+# Match V156 and earlier marker tests without weakening the import gate.
+ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT / "scripts"))
+from package_livecontainer_combined import verify_versioned_picker_markers
 
 EQUAL=b'[SCARLET_V158_FRAME_HEIGHT] list_height='
 ACTIONS=b'[SCARLET_V158_ACTION_UNCLIPPED] actions='

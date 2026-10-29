@@ -46,11 +46,11 @@ def patch(src):
             tabListHeightConstraint.constant = listHeight''',
         "tab-switch shared action-panel viewport")
 
-    # V156 recent list padded itself (12v/18h); but window actions explicitly
-    # had 0 margins, and scroll.clipsToBounds was true in windowActions mode.
-    # Their native clearGlass + SCGlassControlPress scales beyond the scroll's
-    # bounds when held and gets sheared. Insets are *inside* existing scroll,
-    # so the outer glass panel is NOT shrunk or repositioned.
+    # Window actions in V157 had ZERO extra layout margins, so adding 18pt
+    # here makes the original three pills 36pt narrower. The actual crop is
+    # scroll.clipsToBounds in windowActions mode. Allow overflow there while
+    # retaining the original action button width and parent panel geometry.
+    # Keep recent-row padding unchanged.
     src=once(src,'''        scroll.clipsToBounds = windowActions
         scroll.showsVerticalScrollIndicator''',
 '''        // SCARLET_V158_ACTION_UNCLIPPED: UIKit's optical long-press
@@ -62,25 +62,24 @@ def patch(src):
     src=once(src,'''            scroll.clipsToBounds = windowActions
             rows.isLayoutMarginsRelativeArrangement = !windowActions''',
 '''            scroll.clipsToBounds = false
-            rows.isLayoutMarginsRelativeArrangement = true
-            // SCARLET_V158_ACTION_INSETS: preserve action-row heights.
-            // Only the inner horizontal clearance changes for all 3
-            // native clear-glass action buttons. Recent rows retain V156.
+            rows.isLayoutMarginsRelativeArrangement = !windowActions
+            // SCARLET_V158_ACTION_INSETS: preserve V157's full-size pills;
+            // window actions have no added margins, unlike recent rows.
             rows.layoutMargins = windowActions
-                ? UIEdgeInsets(top: 0, left: 18, bottom: 0, right: 18)
+                ? .zero
                 : UIEdgeInsets(top: 12, left: 18, bottom: 12, right: 18)
-            NSLog("[SCARLET_V158_ACTION_UNCLIPPED] actions=%d clips=0 inset=18",
+            NSLog("[SCARLET_V158_ACTION_UNCLIPPED] actions=%d clips=0 inset=0",
                   windowActions ? 1 : 0)''',
         "tab-switch action insets and clipping")
     src=once(src,'''        rows.isLayoutMarginsRelativeArrangement = !windowActions
         // SCARLET_V156_ROW_OPTICAL_PAD:''',
-'''        rows.isLayoutMarginsRelativeArrangement = true
+'''        rows.isLayoutMarginsRelativeArrangement = !windowActions
         // SCARLET_V156_ROW_OPTICAL_PAD:''',
         "initial action margins enabled")
     src=once(src,'''        rows.layoutMargins = UIEdgeInsets(top: 12, left: 18, bottom: 12, right: 18)
         scroll.addSubview(rows)''',
 '''        rows.layoutMargins = windowActions
-            ? UIEdgeInsets(top: 0, left: 18, bottom: 0, right: 18)
+            ? .zero
             : UIEdgeInsets(top: 12, left: 18, bottom: 12, right: 18)
         scroll.addSubview(rows)''',
         "initial action horizontal insets")
@@ -90,8 +89,8 @@ def patch(src):
     src=once(src,
 '''                SCGlassControlPress.attach(to: item)
                 item.addAction(UIAction { _ in''',
-'''                // SCARLET_V158_ACTION_UNCLIPPED: same elastic press, but
-                // now has 18pt inner clearance and no scroll clipping.
+'''                // SCARLET_V158_ACTION_UNCLIPPED: full-size V157 capsule;
+                // no viewport clipping while held, no button width change.
                 SCGlassControlPress.attach(to: item)
                 item.addAction(UIAction { _ in''',
         "action row gesture preserved")
@@ -104,7 +103,7 @@ def apply(root):
     new=patch(old)
     if patch(new)!=new:raise ValueError("V158 idempotence failed")
     if new!=old:f.write_text(new,encoding="utf-8")
-    print("[PASS] V158 identical tab frames; action caps unclipped and 18pt optical insets")
+    print("[PASS] V158 identical tab frames; action caps unclipped, button widths untouched")
 
 if __name__=="__main__":
     if len(sys.argv)!=2:raise SystemExit("usage: patch_v158_unified_action_glass.py <LC>")
