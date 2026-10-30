@@ -1,4 +1,5 @@
 name: LiveContainer embedded SideStore build
+# V159: rerun full IPA integration after correcting the V158 row geometry assertion.
 
 on:
   workflow_dispatch:
