@@ -18,6 +18,7 @@ on:
       - fix/scarlet-v159-fixed-panel-native-actions-20261030
       - fix/scarlet-v160-outside-glass-parity-20261031
       - fix/scarlet-v161-compact-outside-20261031
+      - fix/scarlet-v162-smaller-panel-20261031
     paths:
       - '.github/workflows/livecontainer-build.yml'
       - '.github/workflows/scarlet-ci-preflight.yml'
@@ -53,12 +54,15 @@ on:
       - 'scripts/patch_v159_panel_height_native_action.py'
       - 'scripts/patch_v160_outside_visual_parity.py'
       - 'scripts/patch_v161_compact_outside.py'
+      - 'scripts/patch_v162_panel_scale.py'
       - 'tests/test_v159_panel_action_press.py'
       - 'tests/test_v160_outside_visual_parity.py'
       - 'tests/test_v161_compact_outside.py'
+      - 'tests/test_v162_panel_scale.py'
       - 'tests/test_v159_package_parity.py'
       - 'tests/test_v160_package_parity.py'
       - 'tests/test_v161_package_parity.py'
+      - 'tests/test_v162_package_parity.py'
       - 'scripts/patch_v58_fullscreen.py'
       - 'tests/test_v58_fullscreen_activity.py'
       - 'tests/test_repository.py'
@@ -111,5 +115,7 @@ jobs:
             tests.test_v160_package_parity \
             tests.test_v161_compact_outside \
             tests.test_v161_package_parity \
+            tests.test_v162_panel_scale \
+            tests.test_v162_package_parity \
             tests.test_v58_fullscreen_activity -v
           echo '[SCARLET_CI] status=PRECHECK_PASS no_xcode_build_started=1'
