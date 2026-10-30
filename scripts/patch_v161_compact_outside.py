@@ -25,10 +25,12 @@ def patch(src):
                   'SCARLET_V159_PINNED_OUTER_FRAME','SCARLET_V158_EQUAL_TAB_FRAME'):
         if label not in src:raise ValueError('V161 missing V160 prerequisite: '+label)
 
-    src=one(src, '''        return !panelOnScreen.contains(onScreen)
+    src=one(src, '''        let outside = !panelOnScreen.contains(onScreen)
+        NSLog("[SCARLET_V160_GUEST_WINDOW_COORDS] outside=%d", outside ? 1 : 0)
+        return outside
     }
 
-    func gestureRecognizer(_ recognizer: UIGestureRecognizer,''', '''        if !panelOnScreen.contains(onScreen) { return true }
+    func gestureRecognizer(_ recognizer: UIGestureRecognizer,''', '''        if outside { return true }
         // SCARLET_V161_BLANK_PANEL_DISMISS: an empty portion *inside*
         // the large native glass is a dismissal surface, not a dead zone.
         // Preserve real controls, long-presses and scrollable lists.
