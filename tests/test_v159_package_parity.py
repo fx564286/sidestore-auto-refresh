@@ -1,7 +1,13 @@
 """V159 compiled marker gate for fixed frame and native-only glass press."""
 import unittest
-from tests.test_v158_package_parity import BOOT
-from scripts.package_livecontainer_combined import verify_versioned_picker_markers
+try:
+    from tests.test_v158_package_parity import BOOT
+except ModuleNotFoundError as exc:
+    if exc.name != 'tests':
+        raise
+    # unittest discover -s tests imports test modules as top-level names.
+    from test_v158_package_parity import BOOT
+from package_livecontainer_combined import verify_versioned_picker_markers
 
 BASE=(
     b'[SCARLET_V144_GLASS_INSTALLED]\x00'
