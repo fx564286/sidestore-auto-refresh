@@ -116,8 +116,8 @@ def patch(s):
         UIView.animate(withDuration: UIAccessibility.isReduceMotionEnabled ? 0 : 0.20,''',
         "skip secondary transform on release")
     s=change(s,
-'''                // SCARLET_V158_ACTION_UNCLIPPED: same elastic press, but
-                // now has 18pt inner clearance and no scroll clipping.
+'''                // SCARLET_V158_ACTION_UNCLIPPED: full-size V157 capsule;
+                // no viewport clipping while held, no button width change.
                 SCGlassControlPress.attach(to: item)''',
 '''                // SCARLET_V158_ACTION_UNCLIPPED: native clearGlass has
                 // 18pt horizontal optical clearance and no scroll clipping.
