@@ -21,6 +21,9 @@ class V161CompactOutside(unittest.TestCase):
         self.assertEqual(mod.patch(src),src)
         for required in (
             'SCARLET_V161_BLANK_PANEL_DISMISS',
+            'let outside = !panelOnScreen.contains(onScreen)',
+            'NSLog("[SCARLET_V160_GUEST_WINDOW_COORDS] outside=%d", outside ? 1 : 0)',
+            'if outside { return true }',
             'let nextListHeight = min(CGFloat((windowActions ? actionsCount :',
             'max(1, min(3, recent.count))) * 54)',
             'frozenHeight?.constant = stablePanelHeight - listHeight + nextListHeight',
@@ -33,6 +36,8 @@ class V161CompactOutside(unittest.TestCase):
             if required == 'return !panelOnScreen.contains(onScreen)':
                 self.assertNotIn(required,src)
             else:self.assertIn(required,src)
+        self.assertLess(src.index('let outside = !panelOnScreen.contains(onScreen)'),
+                        src.index('if outside { return true }'))
         self.assertEqual(src.count('let overlay = SCOutsideDismissBackdrop(frame: owner.bounds)'),1)
         self.assertEqual(src.count('let tabPicker = UISegmentedControl(items:'),1)
         self.assertEqual(src.count('let material = UIVisualEffectView(effect:'),1)

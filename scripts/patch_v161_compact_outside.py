@@ -30,7 +30,9 @@ def patch(src):
         return outside
     }
 
-    func gestureRecognizer(_ recognizer: UIGestureRecognizer,''', '''        if outside { return true }
+    func gestureRecognizer(_ recognizer: UIGestureRecognizer,''', '''        let outside = !panelOnScreen.contains(onScreen)
+        NSLog("[SCARLET_V160_GUEST_WINDOW_COORDS] outside=%d", outside ? 1 : 0)
+        if outside { return true }
         // SCARLET_V161_BLANK_PANEL_DISMISS: an empty portion *inside*
         // the large native glass is a dismissal surface, not a dead zone.
         // Preserve real controls, long-presses and scrollable lists.
