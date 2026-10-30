@@ -24,7 +24,7 @@ class V159NoActionClipping(unittest.TestCase):
         self.assertEqual(new[new.index(a):new.index(b)],
                          old[old.index(a):old.index(b)])
         for x in ("SCARLET_V157_WIDE_PANEL", "SCARLET_V158_EQUAL_TAB_FRAME",
-                  "SCARLET_V158_ACTION_INSETS","SCARLET_V156_OUTSIDE_TOUCH_TRACE",
+                  "SCARLET_V158_EQUAL_ROW_GEOMETRY","SCARLET_V156_OUTSIDE_TOUCH_TRACE",
                   "SCARLET_V155_DOCK_SINGLE_MODE"):
             self.assertIn(x,new)
         self.assertEqual(m.patch(new),new)
