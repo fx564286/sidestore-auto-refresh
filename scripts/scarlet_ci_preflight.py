@@ -82,6 +82,21 @@ def verify(workflow: str, packager: str, root: Path) -> tuple[str, str]:
             in workflow, "Swift dock parser gate missing")
     require((root / "tests" / "test_v149_controls.py").is_file(),
             "V149 focused test script missing")
+    if label == 'V164':
+        for required in ('patch_v164_rp_handshake_recovery.py work/EmbeddedSideStore',
+                         'test_v164_rp_handshake_recovery.py -v',
+                         'verify_v164_embedded_rp.py artifacts/LiveContainer-SideStore-v3.0.3-rc.ipa',
+                         'SCARLET_V164_TRANSPORT_RESYNC',
+                         'SCARLET_V142_NETWORK_GENERATION_GUARD',
+                         'patch_v163_button_size_native.py work/LiveContainer'):
+            require(required in workflow, 'V164 RP transport/unchanged UI gate missing: '+required)
+        require((root/'scripts'/'patch_v164_rp_handshake_recovery.py').is_file(),
+                'V164 bounded RP repair source missing')
+        require((root/'scripts'/'verify_v164_embedded_rp.py').is_file(),
+                'V164 embedded SideStore verifier missing')
+        require("grep -Fq 'SCARLET_V151_TAB_NATIVE_PRESS' "
+                "work/LiveContainer/MultitaskSupport/MultitaskDockView.swift" in workflow,
+                'V164 native top-tab marker gate missing')
     if label == 'V163':
         for required in ('patch_v163_button_size_native.py work/LiveContainer',
                          'test_v163_button_size_native.py -v',

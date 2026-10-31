@@ -20,6 +20,7 @@ on:
       - fix/scarlet-v161-compact-outside-20261031
       - fix/scarlet-v162-smaller-panel-20261031
       - fix/scarlet-v163-bigger-native-buttons-20261031
+      - fix/scarlet-v164-rp-reset-port-recovery-20261101
     paths:
       - '.github/workflows/livecontainer-build.yml'
       - '.github/workflows/scarlet-ci-preflight.yml'
@@ -57,6 +58,8 @@ on:
       - 'scripts/patch_v161_compact_outside.py'
       - 'scripts/patch_v162_panel_scale.py'
       - 'scripts/patch_v163_button_size_native.py'
+      - 'scripts/verify_v164_embedded_rp.py'
+      - 'scripts/patch_v164_rp_handshake_recovery.py'
       - 'tests/test_v159_panel_action_press.py'
       - 'tests/test_v160_outside_visual_parity.py'
       - 'tests/test_v161_compact_outside.py'
@@ -67,6 +70,9 @@ on:
       - 'tests/test_v161_package_parity.py'
       - 'tests/test_v162_package_parity.py'
       - 'tests/test_v163_package_parity.py'
+      - 'tests/test_v164_package_parity.py'
+      - 'tests/test_v164_embedded_rp.py'
+      - 'tests/test_v164_rp_handshake_recovery.py'
       - 'scripts/patch_v58_fullscreen.py'
       - 'tests/test_v58_fullscreen_activity.py'
       - 'tests/test_repository.py'
@@ -123,5 +129,8 @@ jobs:
             tests.test_v162_package_parity \
             tests.test_v163_button_size_native \
             tests.test_v163_package_parity \
+            tests.test_v164_rp_handshake_recovery \
+            tests.test_v164_embedded_rp \
+            tests.test_v164_package_parity \
             tests.test_v58_fullscreen_activity -v
           echo '[SCARLET_CI] status=PRECHECK_PASS no_xcode_build_started=1'
