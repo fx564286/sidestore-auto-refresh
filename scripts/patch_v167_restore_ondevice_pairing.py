@@ -113,15 +113,13 @@ UI = r'''
                 // authenticated RemotePairing handshake. Keep explicit re-pair
                 // accessible even when the cached status claims satisfaction.
                 // Only user activation starts pairing; no records are deleted.
-                if true {
-                    Button("Pair on This iPhone", systemImage: "iphone.gen3.radiowaves.left.and.right") {
+                Button("Pair on This iPhone", systemImage: "iphone.gen3.radiowaves.left.and.right") {
                         Task { await onDevicePairCommand("wirelessPairStart") }
                     }
                     .disabled(working || onDevicePairPhase == "waiting" || onDevicePairPhase == "pin")
                     .accessibilityIdentifier("scarletV167OnDevicePair")
                     Text("Open iOS Settings > Privacy & Security > Developer Mode > Pair with a device. Select the advertised host and approve Apple's pairing request.")
                         .font(.footnote).foregroundColor(.secondary)
-                }
                 if onDevicePairPhase == "waiting" || onDevicePairPhase == "pin" {
                     Text("Pairing host: SideStore").font(.caption)
                     Label("Waiting for iPhone pairing approval", systemImage: "antenna.radiowaves.left.and.right")
