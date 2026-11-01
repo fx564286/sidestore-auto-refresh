@@ -2971,6 +2971,23 @@ def verify_headless_ui_adapters(side, pinned_ref):
                 '                // V3_SIDESTORE_STATUS_SNAPSHOT_V1: retired in favor of live XPC reads.\n')
             expected = redact_external_url_logs(expected, relative)
         actual = (side / relative).read_text(encoding="utf-8")
+        # V167 restores only the pre-existing upstream WirelessPair backend.
+        # The original pinned-byte verifier stays strict. Its two allowlisted
+        # changes are reproduced from exact transforms, then the entire file
+        # must match: a marker alone NEVER exempts arbitrary mutations.
+        if (relative == "AltStore/AppDelegate.swift" and
+                "final class V3OriginalOnDevicePairingSession" in actual) or (relative == "SideStore/Core/Pairing/PairingFileManager.swift" and
+                "SCARLET_V167_ATOMIC_PAIRING_PRESERVE" in actual):
+            module_path = Path(__file__).with_name("patch_v167_restore_ondevice_pairing.py")
+            spec = importlib.util.spec_from_file_location("scarlet_v167_verified_restore", module_path)
+            if spec is None or spec.loader is None:
+                raise SystemExit("v3 service: cannot verify V167 exact-source restore")
+            verifier = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(verifier)
+            if relative == "AltStore/AppDelegate.swift":
+                expected = verifier.patch_service(verifier.patch_wire(expected))
+            else:
+                expected = verifier.patch_pairing_storage(expected)
         if actual != expected:
             raise SystemExit(f"v3 service: {relative} differs from its exact pinned headless UI patch")
     backend_config = side / "SideStore/Core/DeviceApi/ConnectionConfig.swift"

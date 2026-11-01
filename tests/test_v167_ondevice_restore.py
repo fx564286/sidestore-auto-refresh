@@ -47,6 +47,72 @@ class V167OriginalPath(unittest.TestCase):
         change=m.patch_wireless_log(text)
         self.assertNotIn('pinString)',change)
         self.assertIn('pin=redacted',change)
+    def test_original_exact_source_verifier_accepts_only_v167_changes(self):
+        import subprocess
+        import tempfile
+        from unittest.mock import patch as mock
+        pinned=pathlib.Path(os.environ.get('EMBEDDED_SIDESTORE_TEST_SOURCE', '/tmp/v138-pinned/sidestore'))
+        if not (pinned / '.git').exists():
+            self.skipTest('pinned SideStore checkout is unavailable')
+        import sys
+        sys.path.insert(0,str(ROOT/'scripts'))
+        try:
+            import patch_v3_service as svc
+            class Side:
+                pass
+            with tempfile.TemporaryDirectory() as temp:
+                side=pathlib.Path(temp)
+                adapters=(
+                    ('AltStore/AppDelegate.swift',svc.headless_sidestore_app_delegate),
+                    ('SideStore/Core/Auth/AuthManager.swift',
+                     lambda src: svc.patch_auth_identity_generation(
+                       svc.apply_embedded_credential_snapshot_patch(svc.headless_auth_manager(src), 'patch_auth_manager'))),
+                    ('SideStore/Core/Auth/DeveloperPortalProxy.swift',svc.patch_developer_portal_proxy),
+                    ('AltStore/Managing Apps/AppManager.swift',svc.headless_app_manager),
+                    ('AltStore/Core/Model/RefreshAttempt.swift',svc.headless_refresh_attempt_error_privacy),
+                    ('AltStore/Intents/App Intents/RefreshAllAppsIntent.swift',
+                     lambda src: svc.headless_app_intents(src,'RefreshAllAppsIntent.swift')),
+                    ('SideStore/AppBootManager.swift',svc.headless_app_boot_manager),
+                    ('SideStore/Core/JIT/SideJITManager.swift',svc.headless_sidejit_manager),
+                    ('SideStore/Core/Pairing/PairingFileManager.swift',svc.headless_pairing_file_manager),
+                    ('SideStore/Handlers/PipelineHandler.swift',svc.headless_pipeline_handler),
+                    ('SideStore/Core/Operations/StandaloneOperations/ClearAppCacheOperation.swift',svc.headless_clear_cache_operation),
+                    ('SideStore/Views/Settings/Advanced/Connection/ConnectionConfig.swift',svc.headless_connection_config),
+                    ('SideStore/Core/DeviceApi/MinimuxerWrapper.swift',svc.headless_minimuxer_connection_binding),
+                )
+                for relative,transform in adapters:
+                    src=subprocess.check_output(['git','-C',str(pinned),'show',f'{svc.PINS[1]}:{relative}'],text=True)
+                    expected=transform(src)
+                    if relative=='AltStore/AppDelegate.swift':
+                        expected=svc.replace(expected,
+                            '                debugLog("Started DatabaseManager.")\n',
+                            '                debugLog("Started DatabaseManager.")\n'
+                            '                // V3_SIDESTORE_STATUS_SNAPSHOT_V1: retired in favor of live XPC reads.\n')
+                        expected=svc.redact_external_url_logs(expected,relative)
+                        expected=m.patch_service(m.patch_wire(expected))
+                    elif relative=='SideStore/Core/Pairing/PairingFileManager.swift':
+                        expected=m.patch_pairing_storage(expected)
+                    f=side/relative
+                    f.parent.mkdir(parents=True,exist_ok=True)
+                    f.write_text(expected)
+                generated=side/'SideStore/Core/DeviceApi/ConnectionConfig.swift'
+                generated.parent.mkdir(parents=True,exist_ok=True)
+                generated.write_text(svc.HEADLESS_BACKEND_CONNECTION_CONFIG+'\n')
+                original_check_output=svc.subprocess.check_output
+                def pinned_git(args,**kwargs):
+                    if args[0:3]==['git','-C',str(side)]:
+                        args=['git','-C',str(pinned),*args[3:]]
+                    return original_check_output(args,**kwargs)
+                with mock.object(svc.subprocess,'check_output',side_effect=pinned_git), \
+                     mock.object(svc,'verify_headless_anisette_models',return_value=None):
+                    svc.verify_headless_ui_adapters(side,svc.PINS[1])
+                    tamper=side/'AltStore/AppDelegate.swift'
+                    tamper.write_text(tamper.read_text()+'\n// unexpected legacy code\n')
+                    with self.assertRaisesRegex(SystemExit,'exact pinned headless UI patch'):
+                        svc.verify_headless_ui_adapters(side,svc.PINS[1])
+        finally:
+            sys.path.remove(str(ROOT/'scripts'))
+
     def test_running_source_boundaries(self):
         lc=os.getenv('V167_LIVE_ROOT')
         sidestore=os.getenv('V167_SIDESTORE_ROOT')
