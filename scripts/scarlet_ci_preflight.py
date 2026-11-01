@@ -82,6 +82,21 @@ def verify(workflow: str, packager: str, root: Path) -> tuple[str, str]:
             in workflow, "Swift dock parser gate missing")
     require((root / "tests" / "test_v149_controls.py").is_file(),
             "V149 focused test script missing")
+    if label == 'V166':
+        for required in ('patch_v166_integrated_rp.py work/LiveContainer',
+                         'test_v166_integrated_rp.py -v',
+                         'test_v166_package_parity.py -v',
+                         'SCARLET_V166_AUTOMATIC_RP_HANDOFF',
+                         'SCARLET_V166_AUTO_IMPORT_ONCE',
+                         'patch_v165_first_install_flow.py work/LiveContainer',
+                         'patch_v164_rp_handshake_recovery.py work/EmbeddedSideStore'):
+            require(required in workflow,'V166 integrated setup gate missing: '+required)
+        for part in ('installer/scarlet_oneclick.py', 'installer/install_integration.py',
+                     'tests/test_integrated_setup.py', 'scripts/patch_v166_integrated_rp.py'):
+            require((root/part).is_file(),'V166 integrated installer missing: '+part)
+        require("grep -Fq 'SCARLET_V151_TAB_NATIVE_PRESS' "
+                "work/LiveContainer/MultitaskSupport/MultitaskDockView.swift" in workflow,
+                'V166 native top-tab marker gate missing')
     if label == 'V165':
         for required in ('patch_v165_first_install_flow.py work/LiveContainer',
                          'test_v165_first_install_flow.py -v',
