@@ -33,6 +33,8 @@ class V167OriginalPath(unittest.TestCase):
         self.assertIn('"wirelessPairStatus"',s)
         self.assertIn('"wirelessPairStop"',s)
         self.assertIn('scarletV167OnDevicePair',s)
+        self.assertNotIn('if V3PairingPresentationPolicy.state(statusConnected:',s)
+        self.assertIn('Only user activation starts pairing',s)
         self.assertIn('[SCARLET_V167_ONDEVICE_UI] action=start',s)
         self.assertIn('@Environment(\\.scenePhase)',s)
         self.assertNotIn('@Environment(\\\\.scenePhase)',s)
