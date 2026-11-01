@@ -82,6 +82,21 @@ def verify(workflow: str, packager: str, root: Path) -> tuple[str, str]:
             in workflow, "Swift dock parser gate missing")
     require((root / "tests" / "test_v149_controls.py").is_file(),
             "V149 focused test script missing")
+    if label == 'V167':
+        for required in ('patch_v167_restore_ondevice_pairing.py work/LiveContainer work/EmbeddedSideStore',
+                         'test_v167_ondevice_restore.py -v',
+                         'SCARLET_V167_ONDEVICE_HOST', 'SCARLET_V167_ONDEVICE_UI',
+                         'SCARLET_V167_ATOMIC_PAIRING_PRESERVE',
+                         'SCARLET_V167_PIN_LOG_REDACTION',
+                         'wirelessPairing.start(outPath: out.path)',
+                         'patch_v166_integrated_rp.py work/LiveContainer',
+                         'patch_v164_rp_handshake_recovery.py work/EmbeddedSideStore'):
+            require(required in workflow,'V167 native pairing restoration gate missing: '+required)
+        require((root/'scripts'/'patch_v167_restore_ondevice_pairing.py').is_file(),
+                'V167 original pairing backend adapter missing')
+        require("grep -Fq 'SCARLET_V151_TAB_NATIVE_PRESS' "
+                "work/LiveContainer/MultitaskSupport/MultitaskDockView.swift" in workflow,
+                'V167 native top-tab marker gate missing')
     if label == 'V166':
         for required in ('patch_v166_integrated_rp.py work/LiveContainer',
                          'test_v166_integrated_rp.py -v',

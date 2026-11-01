@@ -23,6 +23,7 @@ on:
       - fix/scarlet-v164-rp-reset-port-recovery-20261101
       - fix/scarlet-v165-first-install-20261101
       - fix/scarlet-v166-integrated-setup-20261101
+      - fix/scarlet-v167-restore-ondevice-pairing-20261101
     paths:
       - '.github/workflows/livecontainer-build.yml'
       - '.github/workflows/scarlet-ci-preflight.yml'
@@ -64,6 +65,7 @@ on:
       - 'scripts/patch_v164_rp_handshake_recovery.py'
       - 'scripts/patch_v165_first_install_flow.py'
       - 'scripts/patch_v166_integrated_rp.py'
+      - 'scripts/patch_v167_restore_ondevice_pairing.py'
       - 'installer/**'
       - 'tests/test_v159_panel_action_press.py'
       - 'tests/test_v160_outside_visual_parity.py'
@@ -79,6 +81,7 @@ on:
       - 'tests/test_v165_package_parity.py'
       - 'tests/test_v166_integrated_rp.py'
       - 'tests/test_v166_package_parity.py'
+      - 'tests/test_v167_ondevice_restore.py'
       - 'tests/test_integrated_setup.py'
       - 'tests/test_v165_first_install_flow.py'
       - 'tests/test_v164_embedded_rp.py'
@@ -146,6 +149,7 @@ jobs:
             tests.test_v165_package_parity \
             tests.test_v166_integrated_rp \
             tests.test_v166_package_parity \
+            tests.test_v167_ondevice_restore \
             tests.test_integrated_setup \
             tests.test_v58_fullscreen_activity -v
           echo '[SCARLET_CI] status=PRECHECK_PASS no_xcode_build_started=1'
