@@ -109,8 +109,11 @@ UI = r'''
             // SCARLET_V167_ORIGINAL_ONDEVICE_PAIR_RESTORE: reuse the original
             // SideStore WirelessPair API, not an external PC pairing tool.
             Section("Pair on This iPhone") {
-                if V3PairingPresentationPolicy.state(statusConnected: status.connected,
-                    pairingStatus: status.pairing) != .satisfied {
+                // V168: a syntactically valid saved record can still fail the
+                // authenticated RemotePairing handshake. Keep explicit re-pair
+                // accessible even when the cached status claims satisfaction.
+                // Only user activation starts pairing; no records are deleted.
+                if true {
                     Button("Pair on This iPhone", systemImage: "iphone.gen3.radiowaves.left.and.right") {
                         Task { await onDevicePairCommand("wirelessPairStart") }
                     }
