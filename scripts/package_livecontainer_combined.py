@@ -28,7 +28,7 @@ REQUIRED_SIDESTORE_AUTH_ANSWER_MARKERS = (
 
 
 def verify_versioned_picker_markers(version, host_code, bootstrap_code):
-    if version in ('3.8.228', '3.8.229', '3.8.230', '3.8.231', '3.8.232', '3.8.233', '3.8.234', '3.8.235', '3.8.236', '3.8.237', '3.8.238', '3.8.239', '3.8.240', '3.8.241', '3.8.244', '3.8.245'):
+    if version in ('3.8.228', '3.8.229', '3.8.230', '3.8.231', '3.8.232', '3.8.233', '3.8.234', '3.8.235', '3.8.236', '3.8.237', '3.8.238', '3.8.239', '3.8.240', '3.8.241', '3.8.244', '3.8.245', '3.8.246'):
         # V155 compiled one LiveProcess route and deleted the Direct handler.
         required_host = (
             b'[SCARLET_V144_GLASS_INSTALLED]',
@@ -52,7 +52,7 @@ def verify_versioned_picker_markers(version, host_code, bootstrap_code):
                     b'[SCARLET_V154_DIRECT] stage=panel_visible'):
             if old in host_code:
                 raise ValueError('V155 retired Direct host route compiled: '+repr(old))
-        if version in ('3.8.229', '3.8.230', '3.8.231', '3.8.232', '3.8.233', '3.8.234', '3.8.235', '3.8.236', '3.8.237', '3.8.238', '3.8.239', '3.8.240', '3.8.241', '3.8.244', '3.8.245'):
+        if version in ('3.8.229', '3.8.230', '3.8.231', '3.8.232', '3.8.233', '3.8.234', '3.8.235', '3.8.236', '3.8.237', '3.8.238', '3.8.239', '3.8.240', '3.8.241', '3.8.244', '3.8.245', '3.8.246'):
             for marker in (
                 b'[SCARLET_V156_OUTSIDE_TOUCH_TRACE] stage=backdrop_received',
                 b'[SCARLET_V156_OUTSIDE_TOUCH_TRACE] stage=window_should_receive',
@@ -60,43 +60,43 @@ def verify_versioned_picker_markers(version, host_code, bootstrap_code):
             ):
                 if marker not in host_code:
                     raise ValueError('V156 compiled outside touch trace missing: '+repr(marker))
-        if version in ('3.8.230', '3.8.231', '3.8.232', '3.8.233', '3.8.234', '3.8.235', '3.8.236', '3.8.237', '3.8.238', '3.8.239', '3.8.240', '3.8.241', '3.8.244', '3.8.245'):
+        if version in ('3.8.230', '3.8.231', '3.8.232', '3.8.233', '3.8.234', '3.8.235', '3.8.236', '3.8.237', '3.8.238', '3.8.239', '3.8.240', '3.8.241', '3.8.244', '3.8.245', '3.8.246'):
             if b'[SCARLET_V157_WIDTH] viewport=' not in host_code:
                 raise ValueError('V157 compiled wide-panel geometry absent')
-        if version in ('3.8.231', '3.8.232', '3.8.233', '3.8.234', '3.8.235', '3.8.236', '3.8.237', '3.8.238', '3.8.239', '3.8.240', '3.8.241', '3.8.244', '3.8.245'):
+        if version in ('3.8.231', '3.8.232', '3.8.233', '3.8.234', '3.8.235', '3.8.236', '3.8.237', '3.8.238', '3.8.239', '3.8.240', '3.8.241', '3.8.244', '3.8.245', '3.8.246'):
             for marker in (b'[SCARLET_V158_FRAME_HEIGHT] list_height=',
                            b'[SCARLET_V158_ACTION_UNCLIPPED] actions='):
                 if marker not in host_code:
                     raise ValueError('V158 compiled equal tab/action glass missing: '+repr(marker))
-        if version in ('3.8.232', '3.8.233', '3.8.234', '3.8.235', '3.8.236', '3.8.237', '3.8.238', '3.8.239', '3.8.240', '3.8.241', '3.8.244', '3.8.245'):
+        if version in ('3.8.232', '3.8.233', '3.8.234', '3.8.235', '3.8.236', '3.8.237', '3.8.238', '3.8.239', '3.8.240', '3.8.241', '3.8.244', '3.8.245', '3.8.246'):
             for marker in (b'[SCARLET_V159_PANEL_EQUAL] height=',
                            b'[SCARLET_V159_ACTION_NATIVE_PRESS] phase=began'):
                 if marker not in host_code:
                     raise ValueError('V159 compiled stable panel/native action code absent: '+repr(marker))
-        if version in ('3.8.233', '3.8.234', '3.8.235', '3.8.236', '3.8.237', '3.8.238', '3.8.239', '3.8.240', '3.8.241', '3.8.244', '3.8.245'):
+        if version in ('3.8.233', '3.8.234', '3.8.235', '3.8.236', '3.8.237', '3.8.238', '3.8.239', '3.8.240', '3.8.241', '3.8.244', '3.8.245', '3.8.246'):
             for marker in (b'[SCARLET_V160_OUTSIDE_RETURN] phase=outside_down',
                            b'[SCARLET_V160_GUEST_WINDOW_COORDS] outside=',
                            b'[SCARLET_V160_GLASS_CONTRAST] mode=adaptive'):
                 if marker not in host_code:
                     raise ValueError('V160 compiled geometry/outside/glass code absent: '+repr(marker))
-        if version in ('3.8.234', '3.8.235', '3.8.236', '3.8.237', '3.8.238', '3.8.239', '3.8.240', '3.8.241', '3.8.244', '3.8.245'):
+        if version in ('3.8.234', '3.8.235', '3.8.236', '3.8.237', '3.8.238', '3.8.239', '3.8.240', '3.8.241', '3.8.244', '3.8.245', '3.8.246'):
             for marker in (b'[SCARLET_V161_BLANK_PANEL_DISMISS] phase=blank_accepted',
                            b'[SCARLET_V161_RESIZE_TAB] list='):
                 if marker not in host_code:
                     raise ValueError('V161 compiled compact/outside code absent: '+repr(marker))
-        if version in ('3.8.235', '3.8.236', '3.8.237', '3.8.238', '3.8.239', '3.8.240', '3.8.241', '3.8.244', '3.8.245'):
+        if version in ('3.8.235', '3.8.236', '3.8.237', '3.8.238', '3.8.239', '3.8.240', '3.8.241', '3.8.244', '3.8.245', '3.8.246'):
             if b'[SCARLET_V162_SIXTH_SMALLER] panel=' not in host_code:
                 raise ValueError('V162 compiled reduced panel geometry absent')
-        if version in ('3.8.236', '3.8.237', '3.8.238', '3.8.239', '3.8.240', '3.8.241', '3.8.244', '3.8.245'):
+        if version in ('3.8.236', '3.8.237', '3.8.238', '3.8.239', '3.8.240', '3.8.241', '3.8.244', '3.8.245', '3.8.246'):
             if b'[SCARLET_V163_BUTTON_FOOTPRINT] width_delta=14 native_only=1' not in host_code:
                 raise ValueError('V163 compiled native button size marker absent')
         if version == '3.8.238':
             if b'[SCARLET_V165_FIRST_INSTALL] action=reload_confirmed' not in host_code:
                 raise ValueError('V165 compiled initial setup UI not in host')
-        if version in ('3.8.239', '3.8.240', '3.8.241', '3.8.244', '3.8.245'):
+        if version in ('3.8.239', '3.8.240', '3.8.241', '3.8.244', '3.8.245', '3.8.246'):
             if b'[SCARLET_V166_AUTOMATIC_RP_HANDOFF] phase=import_requested keys=redacted' not in host_code:
                 raise ValueError('V166 compiled RP handoff absent from host')
-        if version in ('3.8.240', '3.8.241', '3.8.244', '3.8.245'):
+        if version in ('3.8.240', '3.8.241', '3.8.244', '3.8.245', '3.8.246'):
             if b'[SCARLET_V167_ONDEVICE_UI] action=start' not in host_code:
                 raise ValueError('V167 compiled on-device wireless pairing UI absent from host')
         return
@@ -560,6 +560,8 @@ def verify(path, side_product=None):
             raise ValueError('V170 unified build identity invalid')
         if version == '3.8.245' and build_label != 'V171':
             raise ValueError('V171 unified build identity invalid')
+        if version == '3.8.246' and build_label != 'V172':
+            raise ValueError('V172 unified build identity invalid')
         if version == '3.8.240' and build_label != 'V167':
             raise ValueError('V167 build identity invalid')
         if version == '3.8.239' and build_label != 'V166':
@@ -603,7 +605,7 @@ def verify(path, side_product=None):
         if version == '3.8.220' and build_label != 'V147':
             raise ValueError('V147 package identity invalid')
         v137_package = version == '3.8.210' and build_label == 'V137'
-        if version not in ('3.8.228','3.8.229','3.8.230','3.8.231','3.8.232','3.8.233','3.8.234', '3.8.235', '3.8.236', '3.8.237', '3.8.238', '3.8.239', '3.8.240', '3.8.241', '3.8.244', '3.8.245'):
+        if version not in ('3.8.228','3.8.229','3.8.230','3.8.231','3.8.232','3.8.233','3.8.234', '3.8.235', '3.8.236', '3.8.237', '3.8.238', '3.8.239', '3.8.240', '3.8.241', '3.8.244', '3.8.245', '3.8.246'):
             verify_v105_direct_morph_binary(bootstrap_code, v137=v137_package)
         verify_v107_virtual_guest_control_binary(host_code, v137=v137_package)
         if version == '3.8.211':
