@@ -9404,6 +9404,16 @@ final class V3SetupStore: ObservableObject {
     // refresh failure.
     func runTestRefresh(status: V3SideStoreStatusStore) {
         guard !testRunning else { return }
+        // SCARLET_V176_REFRESH_UNKNOWN_BLOCK: clicking Test Refresh while
+        // the service snapshot is still pending must never launch an install
+        // against assumed empty Apple ID/pairing/certificate credentials.
+        guard setupSnapshotPhase == "observed" else {
+            verification = V3SetupStepState(state: "checking",
+                detail: "Current setup status has not been verified.")
+            verificationGuidance = "No refresh was started. Existing settings remain unchanged."
+            NSLog("[SCARLET_V176_SETUP] test_refresh=blocked reason=status_unobserved")
+            return
+        }
         let disposition = testRequestDisposition()
         let requestID: String
         let shouldPostRequest: Bool
@@ -9905,6 +9915,10 @@ struct V3SetupAssistantView: View {
                 }
                 if setup.testRunning {
                     Button("Stop Waiting", role: .cancel) { setup.cancelTest() }
+                } else if setup.setupSnapshotPhase != "observed" {
+                    Text("Test Refresh is unavailable until existing setup status is verified.")
+                        .font(.footnote)
+                        .foregroundColor(.secondary)
                 } else if setup.verification.state != "complete" && setup.pairing.state == "actionRequired" {
                     Text("Complete Pairing Setup before testing refresh.")
                         .font(.footnote)
