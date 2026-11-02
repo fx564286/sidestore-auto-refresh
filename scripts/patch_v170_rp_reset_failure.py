@@ -44,8 +44,8 @@ def patch(source: str) -> str:
             NSLog("[SCARLET_V170_RP] stage=transport outcome=reset_after_bounded_retry record=preserved")
             throw NSError(domain: NSPOSIXErrorDomain, code: 54, userInfo: [
                 NSLocalizedDescriptionKey: "RemotePairing handshake reset before device identity verification.",
-                "LCStructuredFailureStageV1": CombinedFailure.Stage.pairing.rawValue,
-                "LCStructuredFailureCauseV1": CombinedFailure.SafeCause.remotePairingHandshakeReset.rawValue
+                "LCStructuredFailureStageV1": "pairing",
+                "LCStructuredFailureCauseV1": "remotePairingHandshakeReset"
             ])
         }
         throw lastError
