@@ -64,6 +64,23 @@ portraitBottom = MAX(physicalInsets.bottom, self.view.superview.safeAreaInsets.b
             self.assertIn(required, generated)
         self.assertEqual(v169.pairing(generated), generated)
 
+    def test_dualstack_utun_keeps_ipv4_pairing_candidate(self):
+        before = '''                 $0.tunnelType == .utun && 
+                !$0.interfaceAddresses.v4.isEmpty && $0.interfaceAddresses.v6.isEmpty 
+        guard !candidates.isEmpty else { return (nil, nil, false) }
+        return (nil, nil, false)
+    }
+
+    private func isValidCandidatePeer
+                debugLog("[minimuxer] [iface] using the first uTun vpn interface info")'''
+        after = v169.tunnel(before)
+        self.assertIn('SCARLET_V169_DUALSTACK_TUNNEL_DISCOVERY', after)
+        self.assertIn('!$0.interfaceAddresses.v4.isEmpty', after)
+        self.assertNotIn('$0.interfaceAddresses.v6.isEmpty', after)
+        self.assertIn('no_reachable_ipv4_peer', after)
+        self.assertIn('no_ipv4_peer_candidate', after)
+        self.assertEqual(v169.tunnel(after), after)
+
     def test_no_mutation_of_private_credentials_or_user_data(self):
         source = (ROOT / 'scripts/patch_v169_event_geometry_transport.py').read_text()
         for forbidden in ('SecItemDelete(', 'removePairingFile(', 'clearAllData(',
