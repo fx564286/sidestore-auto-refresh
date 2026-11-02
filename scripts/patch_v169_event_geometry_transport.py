@@ -78,16 +78,21 @@ def decorated(s):
 }
 
 '''
-    # V137 already provides this UIKit lifecycle method. Augment that
-    # single owner rather than declaring a duplicate Objective-C selector.
-    old_layout = '''- (void)viewDidLayoutSubviews {
-    [super viewDidLayoutSubviews];
-    UIWindow *host = self.view.window;'''
-    new_layout = '''- (void)viewDidLayoutSubviews {
-    [super viewDidLayoutSubviews];
-    [self nrgV169ScheduleGeometry];
-    UIWindow *host = self.view.window;'''
-    s = one(s, old_layout, new_layout, 'reuse V137 UIKit layout owner')
+    # V137 already provides viewDidLayoutSubviews. Its body changes with
+    # later instrumentation; anchor only the unique method declaration and
+    # its superclass call, never on a particular next line.
+    layout_method = '- (void)viewDidLayoutSubviews {'
+    if s.count(layout_method) != 1:
+        raise ValueError('V169 existing UIKit layout method count must be one')
+    start = s.index(layout_method)
+    super_call = '[super viewDidLayoutSubviews];'
+    next_method = s.find('\n- (void)', start + len(layout_method))
+    body_end = next_method if next_method >= 0 else len(s)
+    body = s[start:body_end]
+    if body.count(super_call) != 1 or '[self nrgV169ScheduleGeometry];' in body:
+        raise ValueError('V169 original layout method changed or already patched')
+    body = body.replace(super_call, super_call + '\n    [self nrgV169ScheduleGeometry];', 1)
+    s = s[:start] + body + s[body_end:]
     return one(s, '- (void)nrgV55ReconcileRotationGeometry {',
                hook + '- (void)nrgV55ReconcileRotationGeometry {',
                'UIKit callbacks')
