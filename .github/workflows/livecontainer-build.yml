@@ -704,6 +704,13 @@ jobs:
             V167_LIVE_ROOT=work/LiveContainer V167_SIDESTORE_ROOT=work/EmbeddedSideStore python3 -m unittest discover -s builder/tests -p test_v167_ondevice_restore.py -v
             grep -Fq '[SCARLET_V167_ONDEVICE_HOST] phase=start pin=redacted' work/EmbeddedSideStore/AltStore/AppDelegate.swift
             grep -Fq '[SCARLET_V167_ONDEVICE_UI] action=start' work/LiveContainer/LiveContainerSwiftUI/Views/V3UnifiedShell.swift
+
+            # V170: preserve the originating on-device pairing command when
+            # the bridge yields an untyped error. No rotation code changes.
+            python3 builder/scripts/patch_v170_pairing_ui_context.py work/LiveContainer
+            python3 builder/scripts/patch_v170_pairing_ui_context.py work/LiveContainer
+            python3 -m unittest discover -s builder/tests -p test_v170_pairing_ui_context.py -v
+            grep -Fq 'SCARLET_V170_PAIR_COMMAND_CONTEXT' work/LiveContainer/LiveContainerSwiftUI/Views/V3UnifiedShell.swift
             grep -Fq 'wirelessPairing.start(outPath: out.path)' work/EmbeddedSideStore/AltStore/AppDelegate.swift
             grep -Fq 'SCARLET_V167_ATOMIC_PAIRING_PRESERVE' work/EmbeddedSideStore/SideStore/Core/Pairing/PairingFileManager.swift
             grep -Fq 'SCARLET_V167_PIN_LOG_REDACTION' work/EmbeddedSideStore/Dependencies/minimuxer/Sources/Services/WirelessPairService.swift
