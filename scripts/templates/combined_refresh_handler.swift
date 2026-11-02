@@ -526,7 +526,19 @@ class RefreshHandler: NSObject {
             if let defaults = V3SharedAppGroup.sharedUserDefaults() {
                 CombinedVerification.clearUncertainty(defaults, runID: runID)
             }
-            finishRefreshContinuation(.failure(CombinedFailure.fromEncodedString(error, expectedID: runID) ??
+            // SCARLET_V170_REFRESH_ENVELOPE_DIAG: classify the XPC callback
+            // envelope without ever logging an error string, token, path,
+            // account, private NSError domain or raw server response.
+            // A genuine structured failure must survive unchanged.
+            let decodedFailure = CombinedFailure.fromEncodedString(error, expectedID: runID)
+            let envelopeKind = error == "LCFAILURE1:invalid" ? "encoder_failed" :
+                (error.hasPrefix("LCFAILURE1:") ? "structured_invalid_or_mismatched" :
+                    (error.isEmpty ? "empty" : "legacy_or_unstructured"))
+            NSLog("[SCARLET_V170_REFRESH_ENVELOPE] run_id=%@ envelope=%@ bytes=%ld decoded=%d classified=%d",
+                  runID, envelopeKind, error.utf8.count,
+                  decodedFailure == nil ? 0 : 1,
+                  decodedFailure?.safeCause == nil ? 0 : 1)
+            finishRefreshContinuation(.failure(decodedFailure ??
                 CombinedFailure(operation: "refresh", stage: .command, id: runID)))
             return
         }
