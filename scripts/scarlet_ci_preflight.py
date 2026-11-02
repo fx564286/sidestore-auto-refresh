@@ -82,6 +82,22 @@ def verify(workflow: str, packager: str, root: Path) -> tuple[str, str]:
             in workflow, "Swift dock parser gate missing")
     require((root / "tests" / "test_v149_controls.py").is_file(),
             "V149 focused test script missing")
+    if label == 'V169':
+        for required in (
+            'patch_v169_event_geometry_transport.py work/LiveContainer layout',
+            'patch_v169_event_geometry_transport.py work/EmbeddedSideStore pairing',
+            'test_v169_geometry_transport.py -v',
+            'SCARLET_V169_EVENT_DRIVEN_VIEWPORT',
+            'SCARLET_V169_DEFERRED_ROTATION_RETIRED',
+            'SCARLET_V169_NO_VPN_PEER_FALLBACK',
+            'patch_v167_restore_ondevice_pairing.py work/LiveContainer work/EmbeddedSideStore',
+            'patch_v164_rp_handshake_recovery.py work/EmbeddedSideStore',
+        ):
+            require(required in workflow, 'V169 core patch gate missing: ' + required)
+        require((root/'scripts'/'patch_v169_event_geometry_transport.py').is_file(),
+                'V169 geometry/transport patch missing')
+        require((root/'tests'/'test_v169_geometry_transport.py').is_file(),
+                'V169 regression tests missing')
     if label == 'V167':
         for required in ('patch_v167_restore_ondevice_pairing.py work/LiveContainer work/EmbeddedSideStore',
                          'test_v167_ondevice_restore.py -v',
