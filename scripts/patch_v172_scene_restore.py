@@ -50,7 +50,12 @@ CACHE='''    if (CGRectEqualToRect(measured, self.nrgV169LastMeasuredViewport) &
         UIEdgeInsetsEqualToEdgeInsets(insets, self.nrgV169LastMeasuredInsets) &&
         orientation == self.nrgV169LastMeasuredOrientation &&
         (!nrgV170LandscapeNeedsRepair || self.nrgV170LandscapeRepairAttempted)) return;'''
-CACHE_NEW='''    BOOL nrgV172PortraitRestorePending =
+CACHE_NEW='''    BOOL nrgV172LandscapePromotionPending =
+        !self.nrgV172LandscapeWasForced &&
+        UIInterfaceOrientationIsLandscape(orientation) &&
+        size.width > size.height + 1.0 &&
+        UIInterfaceOrientationIsPortrait(self.appSceneVC.presenter.scene.settings.interfaceOrientation);
+    BOOL nrgV172PortraitRestorePending =
         self.nrgV172LandscapeWasForced &&
         UIInterfaceOrientationIsPortrait(orientation) &&
         size.height > size.width + 1.0;
@@ -59,11 +64,34 @@ CACHE_NEW='''    BOOL nrgV172PortraitRestorePending =
         UIEdgeInsetsEqualToEdgeInsets(insets, self.nrgV169LastMeasuredInsets) &&
         orientation == self.nrgV169LastMeasuredOrientation &&
         (!nrgV170LandscapeNeedsRepair || self.nrgV170LandscapeRepairAttempted) &&
-        !nrgV172PortraitRestorePending) return;'''
+        !nrgV172PortraitRestorePending &&
+        !nrgV172LandscapePromotionPending) return;'''
 QUEUE='''        owner.nrgV169GeometryQueued = NO;
         // Never enter this branch in portrait. Repair at most once per stale'''
 QUEUE_NEW='''        owner.nrgV169GeometryQueued = NO;
         UIWindow *settledWindow = owner.view.window;
+        if (!owner.nrgV172LandscapeWasForced && owner.isMaximized &&
+            settledWindow && [owner nrgV136GeometryStable:settledWindow] &&
+            UIInterfaceOrientationIsLandscape(settledWindow.windowScene.interfaceOrientation) &&
+            settledWindow.bounds.size.width > settledWindow.bounds.size.height + 1.0 &&
+            UIInterfaceOrientationIsPortrait(owner.appSceneVC.presenter.scene.settings.interfaceOrientation)) {
+            // UIKit settled landscape after the guest's previous callback.
+            // Correct the retained portrait scene without waiting for a timer.
+            owner.nrgV172LandscapeWasForced = YES;
+            UIInterfaceOrientation committedLandscape = settledWindow.windowScene.interfaceOrientation;
+            owner.appSceneVC.shouldSkipDebounceOnce = YES;
+            [owner.appSceneVC updateFrameWithSettingsBlock:^(UIMutableApplicationSceneSettings *settings) {
+                if (owner.isMaximized &&
+                    UIInterfaceOrientationIsLandscape(owner.view.window.windowScene.interfaceOrientation)) {
+                    settings.interfaceOrientation = committedLandscape;
+                    settings.deviceOrientation =
+                        committedLandscape == UIInterfaceOrientationLandscapeLeft
+                            ? UIDeviceOrientationLandscapeRight : UIDeviceOrientationLandscapeLeft;
+                    [owner updateMaximizedFrameWithSettings:settings];
+                }
+            }];
+            NSLog(@"[SCARLET_V172_ORIENTATION] stage=layout_landscape_promote");
+        }
         if (owner.nrgV172LandscapeWasForced && owner.isMaximized &&
             settledWindow && [owner nrgV136GeometryStable:settledWindow] &&
             UIInterfaceOrientationIsPortrait(settledWindow.windowScene.interfaceOrientation) &&
@@ -72,6 +100,7 @@ QUEUE_NEW='''        owner.nrgV169GeometryQueued = NO;
             // rotation, so resolve the V171-forced orientation on UIKit layout.
             // Do not change the physical portrait safe-area calculation.
             owner.nrgV172LandscapeWasForced = NO;
+            owner.appSceneVC.shouldSkipDebounceOnce = YES;
             UIInterfaceOrientation settledPortrait = settledWindow.windowScene.interfaceOrientation;
             [owner.appSceneVC updateFrameWithSettingsBlock:^(UIMutableApplicationSceneSettings *settings) {
                 if (owner.isMaximized &&
@@ -92,7 +121,7 @@ def once(s,a,b,label):
 
 def patch(s):
     if MARK in s:
-        if s.count(MARK)!=1 or "nrgV172PortraitRestorePending" not in s:raise ValueError("V172 partial patch")
+        if s.count(MARK)!=1 or "nrgV172PortraitRestorePending" not in s or "nrgV172LandscapePromotionPending" not in s:raise ValueError("V172 partial patch")
         return s
     for need in ("SCARLET_V171_LANDSCAPE_SCENE_FRAME","SCARLET_V170_LANDSCAPE_ONLY",
                  "SCARLET_V169_EVENT_DRIVEN_VIEWPORT","SCARLET_V151_UNIFIED_GUEST_GEOMETRY"):
