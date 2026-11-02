@@ -1123,6 +1123,11 @@ jobs:
           python3 builder/scripts/patch_v169_event_geometry_transport.py work/EmbeddedSideStore pairing
           python3 builder/scripts/patch_v169_event_geometry_transport.py work/EmbeddedSideStore pairing
           grep -Fq 'SCARLET_V169_NO_VPN_PEER_FALLBACK' work/EmbeddedSideStore/SideStore/Core/DeviceApi/MinimuxerWrapper.swift
+          # V169: iOS 27 dual-stack utun may carry the active IPv4 LocalDevVPN
+          # endpoint; don't discard it merely for having an IPv6 address.
+          python3 builder/scripts/patch_v169_event_geometry_transport.py "$MUX" tunnel
+          python3 builder/scripts/patch_v169_event_geometry_transport.py "$MUX" tunnel
+          grep -Fq 'SCARLET_V169_DUALSTACK_TUNNEL_DISCOVERY' "$MUX/Sources/Services/DeviceConnectionManager.swift"
           git -C "$MUX" diff --check
           while IFS= read -r -d '' source; do swiftc -frontend -parse "$source"; done < <(find "$MUX" -type f -name '*.swift' -not -path '*/.build/*' -print0)
           swift package --package-path "$MUX/DeviceGateway" dump-package >"$RUNNER_TEMP/combined-gateway-package.json"
