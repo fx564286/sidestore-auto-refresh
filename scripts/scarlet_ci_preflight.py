@@ -103,8 +103,11 @@ def verify(workflow: str, packager: str, root: Path) -> tuple[str, str]:
                 'V169 geometry/transport patch missing')
         require((root/'tests'/'test_v169_geometry_transport.py').is_file(),
                 'V169 regression tests missing')
-    if label == 'V170' and version == '3.8.243':
+    if label == 'V170' and version == '3.8.244':
         for required in ('patch_v170_rp_reset_failure.py work/EmbeddedSideStore',
+                         'patch_v170_landscape_only.py work/LiveContainer',
+                         'test_v170_landscape_only.py -v',
+                         'SCARLET_V170_LANDSCAPE_ONLY',
                          'patch_v170_pairing_ui_context.py work/LiveContainer',
                          'test_v170_rp_reset_failure.py -v',
                          'test_v170_pairing_ui_context.py -v',
