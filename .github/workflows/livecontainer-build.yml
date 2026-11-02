@@ -720,6 +720,11 @@ jobs:
             python3 builder/scripts/patch_v169_event_geometry_transport.py work/LiveContainer layout
             V169_LIVE_ROOT=work/LiveContainer python3 -m unittest discover -s builder/tests -p test_v169_geometry_transport.py -v
             grep -Fq 'SCARLET_V169_EVENT_DRIVEN_VIEWPORT' work/LiveContainer/MultitaskSupport/DecoratedAppSceneViewController.m
+            # V170 unified: repair ONLY LANDSCAPE guest viewport; unchanged portrait code.
+            python3 builder/scripts/patch_v170_landscape_only.py work/LiveContainer
+            python3 builder/scripts/patch_v170_landscape_only.py work/LiveContainer
+            python3 -m unittest discover -s builder/tests -p test_v170_landscape_only.py -v
+            grep -Fq 'SCARLET_V170_LANDSCAPE_ONLY' work/LiveContainer/MultitaskSupport/DecoratedAppSceneViewController.m
             grep -Fq 'SCARLET_V169_DEFERRED_ROTATION_RETIRED' work/LiveContainer/LiveContainerSwiftUI/App/AppDelegate.swift
             swiftc -frontend -parse work/LiveContainer/LiveContainerSwiftUI/Views/V3UnifiedShell.swift
             swiftc -frontend -parse work/LiveContainer/SideStoreSupport/SideStore.swift
@@ -755,8 +760,8 @@ jobs:
             swiftc -frontend -parse work/LiveContainer/MultitaskSupport/MultitaskDockView.swift
             grep -Fq 'SCARLET_V103_VIRTUAL_ONLY_CONTROL' work/LiveContainer/MultitaskSupport/DecoratedAppSceneViewController.m
             ! grep -Fq 'SCARLET_V137_UNIFIED_GUEST_ENTRY' work/LiveContainer/MultitaskSupport/DecoratedAppSceneViewController.m
-            python3 -c 'from pathlib import Path; p=Path("work/LiveContainer/LiveContainer/Info.plist"); t=p.read_text(); assert t.count("<string>3.8.209</string>")==1; assert t.count("<string>V136</string>")==1; p.write_text(t.replace("<string>3.8.209</string>","<string>3.8.243</string>",1).replace("<string>V136</string>","<string>V170</string>",1))'
-            grep -Fq '<string>3.8.243</string>' work/LiveContainer/LiveContainer/Info.plist
+            python3 -c 'from pathlib import Path; p=Path("work/LiveContainer/LiveContainer/Info.plist"); t=p.read_text(); assert t.count("<string>3.8.209</string>")==1; assert t.count("<string>V136</string>")==1; p.write_text(t.replace("<string>3.8.209</string>","<string>3.8.244</string>",1).replace("<string>V136</string>","<string>V170</string>",1))'
+            grep -Fq '<string>3.8.244</string>' work/LiveContainer/LiveContainer/Info.plist
             grep -Fq '<string>V170</string>' work/LiveContainer/LiveContainer/Info.plist
             grep -Fq 'SCARLET_V127_COMPLETE_GLASS' work/LiveContainer/MultitaskSupport/MultitaskDockView.swift
             grep -Fq 'SCARLET_V151_TAB_NATIVE_PRESS' work/LiveContainer/MultitaskSupport/MultitaskDockView.swift
@@ -1343,7 +1348,7 @@ jobs:
           # Ensure brand survives Xcode's INFOPLIST_KEY_ build setting overrides.
           info['CFBundleDisplayName']='Scarlet Crystal'
           info['CFBundleName']='Scarlet Crystal'
-          info['CFBundleVersion']='3.8.243'
+          info['CFBundleVersion']='3.8.244'
           info['ScarletBuildLabel']='V170'
           # NRG_STIKDEBUG_QUERY_SCHEMES: canOpenURL() must be declared by the
           # installed host, even when StikDebug is launched for a guest process.
@@ -1373,7 +1378,7 @@ jobs:
               main=plistlib.loads(archive.read(prefix+'Info.plist'))
               assert main.get('NSSupportsLiveActivities') is not True
               assert main.get('CFBundleDisplayName')=='Scarlet Crystal'
-              assert main.get('CFBundleVersion')=='3.8.243'
+              assert main.get('CFBundleVersion')=='3.8.244'
               assert main.get('ScarletBuildLabel')=='V170'
               query_schemes=main.get('LSApplicationQueriesSchemes', [])
               assert set(('stikdebug', 'stikjit')).issubset(query_schemes)
@@ -1589,7 +1594,7 @@ jobs:
       - name: Upload directly downloadable Scarlet Crystal V170 REFRESH DIAG IPA
         uses: actions/upload-artifact@v7
         with:
-          name: Scarlet-Crystal-V170-REFRESH-DIAG-${{ env.SCARLET_CI_PROFILE }}-UNSIGNED
+          name: Scarlet-Crystal-V170-UNIFIED-${{ env.SCARLET_CI_PROFILE }}-UNSIGNED
           path: artifacts/Scarlet-Crystal-V170-UNSIGNED.ipa
           archive: false
           if-no-files-found: error
