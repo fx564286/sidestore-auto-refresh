@@ -166,16 +166,57 @@ def pairing(s):
         let initialPort = gateway.getPort(for: .rppairing)'''
     return one(s, old, new, 'no usable utun peer')
 
+def tunnel(s):
+    marker = 'SCARLET_V169_DUALSTACK_TUNNEL_DISCOVERY'
+    if marker in s:
+        if s.count(marker) != 1 or 'no_reachable_ipv4_peer' not in s:
+            raise ValueError('V169 partial dualstack scanner')
+        return s
+    # The pinned minimuxer excluded all utun interfaces with any IPv6
+    # address. iOS 27 can expose both families on one LocalDevVPN interface.
+    # Keep IPv4 service probing and authentication unchanged.
+    old = '''                 $0.tunnelType == .utun && 
+                !$0.interfaceAddresses.v4.isEmpty && $0.interfaceAddresses.v6.isEmpty '''
+    new = '''                 // SCARLET_V169_DUALSTACK_TUNNEL_DISCOVERY: a valid IPv4
+                 // RemotePairing peer is still usable on a dual-stack utun.
+                 $0.tunnelType == .utun &&
+                 !$0.interfaceAddresses.v4.isEmpty '''
+    s = one(s, old, new, 'dual-stack utun eligibility')
+    s = one(s,
+        '        guard !candidates.isEmpty else { return (nil, nil, false) }',
+        '''        guard !candidates.isEmpty else {
+            debugLog("[SCARLET_V169_VPN] stage=discovery reason=no_ipv4_peer_candidate")
+            return (nil, nil, false)
+        }''',
+        'missing candidate diagnostic')
+    s = one(s,
+        '''        return (nil, nil, false)
+    }
+
+    private func isValidCandidatePeer''',
+        '''        debugLog("[SCARLET_V169_VPN] stage=probe reason=no_reachable_ipv4_peer")
+        return (nil, nil, false)
+    }
+
+    private func isValidCandidatePeer''',
+        'unreachable candidate diagnostic')
+    s = one(s, 'debugLog("[minimuxer] [iface] using the first uTun vpn interface info")',
+        'debugLog("[SCARLET_V169_VPN] stage=route source=validated_ipv4_utun_candidate")',
+        'remove misleading first utun diagnostic')
+    return s
+
 def apply(root, mode):
     if mode == 'layout':
         transforms = [
             (root / 'MultitaskSupport/DecoratedAppSceneViewController.m', decorated),
             (root / 'LiveContainerSwiftUI/App/AppDelegate.swift', delegate),
         ]
+    elif mode == 'tunnel':
+        transforms = [(root / 'Sources/Services/DeviceConnectionManager.swift', tunnel)]
     elif mode == 'pairing':
         transforms = [(root / 'SideStore/Core/DeviceApi/MinimuxerWrapper.swift', pairing)]
     else:
-        raise ValueError('mode must be layout or pairing')
+        raise ValueError('mode must be layout, pairing, or tunnel')
     pending = []
     for path, transform in transforms:
         if not path.is_file() or path.is_symlink():
@@ -192,5 +233,5 @@ def apply(root, mode):
 
 if __name__ == '__main__':
     if len(sys.argv) != 3:
-        raise SystemExit('usage: patch_v169_event_geometry_transport.py <root> <layout|pairing>')
+        raise SystemExit('usage: patch_v169_event_geometry_transport.py <root> <layout|pairing|tunnel>')
     apply(Path(sys.argv[1]), sys.argv[2])
