@@ -90,6 +90,8 @@ def verify(workflow: str, packager: str, root: Path) -> tuple[str, str]:
             'SCARLET_V169_EVENT_DRIVEN_VIEWPORT',
             'SCARLET_V169_DEFERRED_ROTATION_RETIRED',
             'SCARLET_V169_NO_VPN_PEER_FALLBACK',
+            'patch_v169_event_geometry_transport.py "$MUX" tunnel',
+            'SCARLET_V169_DUALSTACK_TUNNEL_DISCOVERY',
             'patch_v167_restore_ondevice_pairing.py work/LiveContainer work/EmbeddedSideStore',
             'patch_v164_rp_handshake_recovery.py work/EmbeddedSideStore',
         ):
