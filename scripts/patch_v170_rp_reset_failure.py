@@ -16,7 +16,7 @@ RELATIVE = Path("SideStore/Core/DeviceApi/MinimuxerWrapper.swift")
 
 def patch(source: str) -> str:
     if MARKER in source:
-        if source.count(MARKER) != 1 or "remotePairingHandshakeReset" not in source or "SCARLET_V171_RP_RESET_CONTAINMENT" not in source:
+        if source.count(MARKER) != 1 or "remotePairingHandshakeReset" not in source:
             raise ValueError("V170 RemotePairing patch partially applied")
         return source
     for required in ("SCARLET_V164_TRANSPORT_RESYNC",
@@ -52,54 +52,7 @@ def patch(source: str) -> str:
     }
 }
 """
-    # V171: a persistent RST must not spawn an endless sequence of repeated
-    # handshakes. Gate only terminal resets for 15 seconds; all original
-    # authenticated transport paths remain available after the cooldown.
-    # No pairing, VPN, signing, or container state is changed.
-    v171_gate = """
-// SCARLET_V171_RP_RESET_CONTAINMENT: temporary process-local RST cooldown.
-private final class ScarletV171RPResetGate: @unchecked Sendable {
-    static let shared = ScarletV171RPResetGate()
-    private let lock = NSLock()
-    private var retryAfter = Date.distantPast
-    func shouldBackOff() -> Bool {
-        lock.lock()
-        defer { lock.unlock() }
-        return Date() < retryAfter
-    }
-    func noteTerminalReset() {
-        lock.lock()
-        defer { lock.unlock() }
-        retryAfter = Date().addingTimeInterval(15)
-    }
-}
-
-"""
-    # Match the stable function declaration, not the presence of an
-    # immediate do/catch. Unit fixtures and real generated source differ.
-    v171_entry = "private func withRemotePairingRetry<T>(_ operation: () async throws -> T) async throws -> T {"
-    v171_entry_new = """private func withRemotePairingRetry<T>(_ operation: () async throws -> T) async throws -> T {
-    if ScarletV171RPResetGate.shared.shouldBackOff() {
-        NSLog("[SCARLET_V171_RP] stage=transport decision=backoff record=preserved")
-        throw NSError(domain: NSPOSIXErrorDomain, code: 54, userInfo: [
-            NSLocalizedDescriptionKey: "RemotePairing reset. Use Pair on This iPhone if it persists.",
-            "LCStructuredFailureStageV1": "pairing",
-            "LCStructuredFailureCauseV1": "remotePairingHandshakeReset"
-        ])
-    }"""
-    result = source[:start] + segment.replace(old, new, 1) + source[end:]
-    if result.count(v171_entry) != 1:
-        raise ValueError("V171 expected one RP function entry")
-    result = result.replace(v171_entry, v171_entry_new, 1)
-    v171_terminal = '            NSLog("[SCARLET_V170_RP] stage=transport outcome=reset_after_bounded_retry record=preserved")'
-    if result.count(v171_terminal) != 1:
-        raise ValueError("V171 expected one terminal RP reset")
-    result = result.replace(v171_terminal,
-        '            ScarletV171RPResetGate.shared.noteTerminalReset()\n' + v171_terminal, 1)
-    gate_anchor = "\npublic var minimuxerStatusPublisher:"
-    if result.count(gate_anchor) != 1:
-        raise ValueError("V171 missing source declaration anchor")
-    return result.replace(gate_anchor, "\n" + v171_gate + "public var minimuxerStatusPublisher:", 1)
+    return source[:start] + segment.replace(old, new, 1) + source[end:]
 
 
 def apply(root: Path):
