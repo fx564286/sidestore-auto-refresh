@@ -32,7 +32,9 @@ certificate, pairing-record, guest-container or iPad/windowed-guest changes.
    surface clears. This avoids an unbounded layout feedback loop.
 2. On iOS 27 only, the maximized attached rendered contentView uses
    the actual on-screen AppSceneVC bounds as its geometry, after UIKit
-   commits matching window orientation and dimensions. Never resize
+   commits matching window orientation and dimensions. Skip identical
+   contentView.frame assignments so routine UIKit layout does not repeatedly
+   perturb a remote video layer. Never resize
    the parent view, never overwrite portrait system exclusion, never
    affect windowed guest/PiP rendering or force an app's orientation.
 3. Preserve guest FBS foreground lifecycle (V28/V104), upstream event
