@@ -190,7 +190,7 @@ def tunnel(s):
     new = '''                 // SCARLET_V169_DUALSTACK_TUNNEL_DISCOVERY: a valid IPv4
                  // RemotePairing peer is still usable on a dual-stack utun.
                  $0.tunnelType == .utun &&
-                 !$0.interfaceAddresses.v4.isEmpty '''
+                 !$0.interfaceAddresses.v4.isEmpty'''
     s = one(s, old, new, 'dual-stack utun eligibility')
     s = one(s,
         '        guard !candidates.isEmpty else { return (nil, nil, false) }',
