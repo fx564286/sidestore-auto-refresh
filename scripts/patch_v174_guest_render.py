@@ -58,7 +58,15 @@ NEW_RENDER='''    // SCARLET_V174_RENDER_SURFACE: iOS 27 remote scene hosting ca
                  physical.width >= physical.height - 1.0);
             if (decorated.isMaximized && hostWindow && committedDimensions &&
                 self.view.window == hostWindow && !CGRectIsEmpty(self.view.bounds)) {
+                // Use the committed host window size when the guest view
+                // bounds are stale relative to the committed orientation.
                 CGRect renderedBounds = self.view.bounds;
+                if ((UIInterfaceOrientationIsLandscape(committed) &&
+                     renderedBounds.size.width < renderedBounds.size.height) ||
+                    (UIInterfaceOrientationIsPortrait(committed) &&
+                     renderedBounds.size.height < renderedBounds.size.width)) {
+                    renderedBounds.size = physical;
+                }
                 renderedBounds.origin = CGPointZero;
                 if (fabs(frame.size.width - renderedBounds.size.width) > 1.0 ||
                     fabs(frame.size.height - renderedBounds.size.height) > 1.0) {
