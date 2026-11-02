@@ -34,6 +34,13 @@ class V176SetupAuthorityTests(unittest.TestCase):
         self.assertNotIn('removePersistentDomain', self.view)
         self.assertNotIn('clearPairingFile', self.view)
 
+    def test_refresh_cannot_mutate_during_unverified_setup(self):
+        self.assertIn('SCARLET_V176_REFRESH_UNKNOWN_BLOCK', self.store)
+        self.assertIn('guard setupSnapshotPhase == "observed" else {', self.store)
+        self.assertIn('test_refresh=blocked reason=status_unobserved', self.store)
+        self.assertIn('} else if setup.setupSnapshotPhase != "observed" {', self.view)
+        self.assertIn('Test Refresh is unavailable until existing setup status is verified.', self.view)
+
     def test_diagnostics_never_claim_wifi_or_account_success_when_unknown(self):
         self.assertIn('lines.append("Setup snapshot: " + setupSnapshotPhase)', self.store)
         self.assertIn('Pairing: unknown (status not observed)', self.store)
