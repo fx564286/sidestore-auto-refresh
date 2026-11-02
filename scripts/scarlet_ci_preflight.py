@@ -94,6 +94,9 @@ def verify(workflow: str, packager: str, root: Path) -> tuple[str, str]:
             'patch_v164_rp_handshake_recovery.py work/EmbeddedSideStore',
         ):
             require(required in workflow, 'V169 core patch gate missing: ' + required)
+        require("grep -Fq 'SCARLET_V151_TAB_NATIVE_PRESS' "
+                "work/LiveContainer/MultitaskSupport/MultitaskDockView.swift" in workflow,
+                'V169 native top-tab marker gate missing')
         require((root/'scripts'/'patch_v169_event_geometry_transport.py').is_file(),
                 'V169 geometry/transport patch missing')
         require((root/'tests'/'test_v169_geometry_transport.py').is_file(),
