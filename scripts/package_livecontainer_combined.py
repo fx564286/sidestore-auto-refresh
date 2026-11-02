@@ -554,6 +554,8 @@ def verify(path, side_product=None):
             raise ValueError('V144 packaged version is missing its explicit build identity')
         if version == '3.8.241' and build_label != 'V169':
             raise ValueError('V169 build identity invalid')
+        if version == '3.8.242' and build_label != 'V170':
+            raise ValueError('V170 build identity invalid')
         if version == '3.8.240' and build_label != 'V167':
             raise ValueError('V167 build identity invalid')
         if version == '3.8.239' and build_label != 'V166':
