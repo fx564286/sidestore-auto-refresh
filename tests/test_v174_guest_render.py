@@ -16,7 +16,8 @@ class GeometryMediaReview(unittest.TestCase):
         self.assertIn("owner.nrgV174RepairAttempted = YES;",result)
         self.assertNotIn("settings.safeAreaInsetsPortrait =",result)
     def test_onscreen_ios27_surface_preserves_portrait_parent(self):
-        source="\n".join(("// SCARLET_V104_SCENE_PROVENANCE",
+        source="\n".join(('#import "UIKitPrivate+MultitaskSupport.h"',
+                          "// SCARLET_V104_SCENE_PROVENANCE",
                           "// NRG_V28_GUEST_LIFECYCLE",
                           "self.contentView = self.hostingController.sceneViewController.view;",
                           m.OLD_RENDER,
