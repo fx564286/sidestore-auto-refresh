@@ -82,7 +82,7 @@ def verify(workflow: str, packager: str, root: Path) -> tuple[str, str]:
             in workflow, "Swift dock parser gate missing")
     require((root / "tests" / "test_v149_controls.py").is_file(),
             "V149 focused test script missing")
-    if label in ('V169', 'V170', 'V171'):
+    if label in ('V169', 'V170', 'V171', 'V172'):
         for required in (
             'patch_v169_event_geometry_transport.py work/LiveContainer layout',
             'patch_v169_event_geometry_transport.py work/EmbeddedSideStore pairing',
@@ -125,6 +125,18 @@ def verify(workflow: str, packager: str, root: Path) -> tuple[str, str]:
             require(required in workflow, 'V171 unified patch gate missing: ' + required)
         for required in ('patch_v171_landscape_scene_frame.py', 'patch_v171_rp_refresh_xpc.py'):
             require((root/'scripts'/required).is_file(), 'V171 patch missing: '+required)
+    if label == 'V172' and version == '3.8.246':
+        for required in ('patch_v170_landscape_only.py work/LiveContainer',
+                         'patch_v171_landscape_scene_frame.py work/LiveContainer',
+                         'patch_v172_scene_restore.py work/LiveContainer',
+                         'patch_v172_media_evidence.py work/LiveContainer',
+                         'test_v172_scene_restore.py -v',
+                         'test_v172_media_evidence.py -v',
+                         'SCARLET_V172_RESTORE_PORTRAIT',
+                         'SCARLET_V172_MEDIA_EVIDENCE'):
+            require(required in workflow, 'V172 unified source/test gate missing: ' + required)
+        for required in ('patch_v172_scene_restore.py', 'patch_v172_media_evidence.py'):
+            require((root/'scripts'/required).is_file(), 'V172 source missing: ' + required)
     if label == 'V167':
         for required in ('patch_v167_restore_ondevice_pairing.py work/LiveContainer work/EmbeddedSideStore',
                          'test_v167_ondevice_restore.py -v',
