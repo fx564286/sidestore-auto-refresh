@@ -1126,6 +1126,12 @@ jobs:
           python3 builder/scripts/patch_v169_event_geometry_transport.py work/EmbeddedSideStore pairing
           python3 builder/scripts/patch_v169_event_geometry_transport.py work/EmbeddedSideStore pairing
           grep -Fq 'SCARLET_V169_NO_VPN_PEER_FALLBACK' work/EmbeddedSideStore/SideStore/Core/DeviceApi/MinimuxerWrapper.swift
+          # V170: classify repeated authenticated RP tunnel resets. Never re-pair
+          # automatically, mutate the saved record, or change orientation.
+          python3 builder/scripts/patch_v170_rp_reset_failure.py work/EmbeddedSideStore
+          python3 builder/scripts/patch_v170_rp_reset_failure.py work/EmbeddedSideStore
+          python3 -m unittest discover -s builder/tests -p test_v170_rp_reset_failure.py -v
+          grep -Fq 'SCARLET_V170_RP_HANDSHAKE_RESET' work/EmbeddedSideStore/SideStore/Core/DeviceApi/MinimuxerWrapper.swift
           # V169: iOS 27 dual-stack utun may carry the active IPv4 LocalDevVPN
           # endpoint; don't discard it merely for having an IPv6 address.
           python3 builder/scripts/patch_v169_event_geometry_transport.py "$MUX" tunnel
