@@ -15,6 +15,10 @@ class V169Regressions(unittest.TestCase):
 // SCARLET_V141_INSET_AWARE_SETTLE
 // SCARLET_V151_UNIFIED_GUEST_GEOMETRY
 @property(nonatomic) UIInterfaceOrientation nrgV55LastHostOrientation;
+- (void)viewDidLayoutSubviews {
+    [super viewDidLayoutSubviews];
+    UIWindow *host = self.view.window;
+}
 portraitTop = MAX(physicalInsets.top, self.view.superview.safeAreaInsets.top);
 portraitBottom = MAX(physicalInsets.bottom, self.view.superview.safeAreaInsets.bottom);
 - (void)nrgV55ReconcileRotationGeometry {"""
@@ -22,6 +26,8 @@ portraitBottom = MAX(physicalInsets.bottom, self.view.superview.safeAreaInsets.b
         self.assertIn('portraitTop = physicalInsets.top;', generated)
         self.assertNotIn('MAX(physicalInsets.top, self.view.superview.safeAreaInsets.top)', generated)
         self.assertIn('viewDidLayoutSubviews', generated)
+        self.assertEqual(generated.count('- (void)viewDidLayoutSubviews {'), 1)
+        self.assertIn('[self nrgV169ScheduleGeometry];', generated)
         self.assertIn('viewSafeAreaInsetsDidChange', generated)
         self.assertIn('nrgV136GeometryStable:window', generated)
         self.assertIn('CGRectEqualToRect(measured, self.nrgV169LastMeasuredViewport)', generated)
