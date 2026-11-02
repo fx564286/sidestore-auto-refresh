@@ -578,6 +578,7 @@ enum V3ServiceReadinessReply: Equatable {
         "knownSourcePolicyNetworkFailure", "knownSourcePolicyInvalidResponse",
         "catalogUnavailable", "catalogSourceUnavailable", "responseEncodingFailed",
         "responseTooLarge", "pairingRequired", "invalidPairingFile",
+        "remotePairingHandshakeReset",
         "pairingFilePreparationFailed", "authAttemptNotDispatched",
         "authProvisioningRetryNotDispatched", "authSessionUnavailable",
         "authResponseCapacityUnavailable", "operationPersistenceFailed", "keychainSignOutFailed",
