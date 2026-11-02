@@ -75,9 +75,9 @@ private final class ScarletV171RPResetGate: @unchecked Sendable {
 }
 
 """
-    v171_entry = """private func withRemotePairingRetry<T>(_ operation: () async throws -> T) async throws -> T {
-    do {
-"""
+    # Match the stable function declaration, not the presence of an
+    # immediate do/catch. Unit fixtures and real generated source differ.
+    v171_entry = "private func withRemotePairingRetry<T>(_ operation: () async throws -> T) async throws -> T {"
     v171_entry_new = """private func withRemotePairingRetry<T>(_ operation: () async throws -> T) async throws -> T {
     if ScarletV171RPResetGate.shared.shouldBackOff() {
         NSLog("[SCARLET_V171_RP] stage=transport decision=backoff record=preserved")
@@ -86,9 +86,7 @@ private final class ScarletV171RPResetGate: @unchecked Sendable {
             "LCStructuredFailureStageV1": "pairing",
             "LCStructuredFailureCauseV1": "remotePairingHandshakeReset"
         ])
-    }
-    do {
-"""
+    }"""
     result = source[:start] + segment.replace(old, new, 1) + source[end:]
     if result.count(v171_entry) != 1:
         raise ValueError("V171 expected one RP function entry")
