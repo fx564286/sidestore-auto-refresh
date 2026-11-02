@@ -96,6 +96,10 @@ def guest(s):
         if req not in s:raise ValueError("V174 missing foreground source: "+req)
     if "self.hostingController.sceneViewController.view" not in s:
         raise ValueError("V174 missing pinned remote host rendering API")
+    s=once(s,
+        '#import "UIKitPrivate+MultitaskSupport.h"',
+        '#import "UIKitPrivate+MultitaskSupport.h"\n#include <math.h>',
+        "explicit geometry arithmetic header")
     s=once(s,OLD_RENDER,NEW_RENDER,"iOS27 renderer")
     # Pinned iOS 27 source writes contentView.frame on every layout.
     # Rewriting an identical remote layer frame can disrupt media rendering.
