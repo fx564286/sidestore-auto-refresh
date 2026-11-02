@@ -1333,7 +1333,7 @@ jobs:
           info['CFBundleDisplayName']='Scarlet Crystal'
           info['CFBundleName']='Scarlet Crystal'
           info['CFBundleVersion']='3.8.242'
-          info['ScarletBuildLabel']='V169'
+          info['ScarletBuildLabel']='V170'
           # NRG_STIKDEBUG_QUERY_SCHEMES: canOpenURL() must be declared by the
           # installed host, even when StikDebug is launched for a guest process.
           schemes=info.get('LSApplicationQueriesSchemes', [])
@@ -1363,7 +1363,7 @@ jobs:
               assert main.get('NSSupportsLiveActivities') is not True
               assert main.get('CFBundleDisplayName')=='Scarlet Crystal'
               assert main.get('CFBundleVersion')=='3.8.242'
-              assert main.get('ScarletBuildLabel')=='V169'
+              assert main.get('ScarletBuildLabel')=='V170'
               query_schemes=main.get('LSApplicationQueriesSchemes', [])
               assert set(('stikdebug', 'stikjit')).issubset(query_schemes)
               assert len(query_schemes)==len(set(query_schemes)), 'duplicate URL schemes'
@@ -1570,16 +1570,16 @@ jobs:
         run: |
           set -euo pipefail
           cp artifacts/downloaded-ipa/LiveContainer-SideStore-v3.0.3-rc.ipa \
-             artifacts/Scarlet-Crystal-V170-LANDSCAPE-UNSIGNED.ipa
+             artifacts/Scarlet-Crystal-V170-UNSIGNED.ipa
           cmp artifacts/downloaded-ipa/LiveContainer-SideStore-v3.0.3-rc.ipa \
-              artifacts/Scarlet-Crystal-V170-LANDSCAPE-UNSIGNED.ipa
-          shasum -a 256 artifacts/Scarlet-Crystal-V170-LANDSCAPE-UNSIGNED.ipa
+              artifacts/Scarlet-Crystal-V170-UNSIGNED.ipa
+          shasum -a 256 artifacts/Scarlet-Crystal-V170-UNSIGNED.ipa
 
       - name: Upload directly downloadable Scarlet Crystal V170 LANDSCAPE IPA
         uses: actions/upload-artifact@v7
         with:
           name: Scarlet-Crystal-V170-LANDSCAPE-${{ env.SCARLET_CI_PROFILE }}-UNSIGNED
-          path: artifacts/Scarlet-Crystal-V170-LANDSCAPE-UNSIGNED.ipa
+          path: artifacts/Scarlet-Crystal-V170-UNSIGNED.ipa
           archive: false
           if-no-files-found: error
           retention-days: 7
