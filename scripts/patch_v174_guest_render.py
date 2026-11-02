@@ -96,7 +96,17 @@ def guest(s):
         if req not in s:raise ValueError("V174 missing foreground source: "+req)
     if "self.hostingController.sceneViewController.view" not in s:
         raise ValueError("V174 missing pinned remote host rendering API")
-    return once(s,OLD_RENDER,NEW_RENDER,"iOS27 renderer")
+    s=once(s,OLD_RENDER,NEW_RENDER,"iOS27 renderer")
+    # Pinned iOS 27 source writes contentView.frame on every layout.
+    # Rewriting an identical remote layer frame can disrupt media rendering.
+    s=once(s,
+        "        self.contentView.frame = frame;",
+        """        // SCARLET_V174_RENDER_FRAME_DEDUP: skip no-op remote
+        // layer geometry writes on layout, rotation and media callbacks.
+        if (!CGRectEqualToRect(self.contentView.frame, frame))
+            self.contentView.frame = frame;""",
+        "remote hosted video frame no-op write")
+    return s
 def apply(root):
     outputs=[]
     for rel,transform in ((HOST,decorated),(GUEST,guest)):
