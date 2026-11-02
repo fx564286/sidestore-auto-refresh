@@ -50,6 +50,12 @@ def patch(s: str) -> str:
     BOOL nrgV170LandscapeNeedsRepair = NO;
     if (UIInterfaceOrientationIsLandscape(orientation) &&
         size.width > size.height + 1.0) {
+        // Rearm only when ENTERING landscape or its committed dimensions change.
+        // No portrait layout/state path is modified.
+        if (self.nrgV169LastMeasuredOrientation != orientation ||
+            !CGSizeEqualToSize(size, self.nrgV169LastMeasuredSize)) {
+            self.nrgV170LandscapeRepairAttempted = NO;
+        }
         CGFloat usableWidth = size.width - insets.left - insets.right;
         CGFloat usableHeight = size.height - insets.top - insets.bottom;
         CGSize guestSize = self.appSceneVC.view.bounds.size;
@@ -69,7 +75,7 @@ def patch(s: str) -> str:
     s = once(s,
         """        orientation == self.nrgV169LastMeasuredOrientation) return;""",
         """        orientation == self.nrgV169LastMeasuredOrientation &&
-        !nrgV170LandscapeNeedsRepair) return;""",
+        (!nrgV170LandscapeNeedsRepair || self.nrgV170LandscapeRepairAttempted)) return;""",
         "bypass geometry cache only when stale landscape")
 
     s = once(s,
