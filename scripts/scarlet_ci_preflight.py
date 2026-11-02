@@ -82,7 +82,7 @@ def verify(workflow: str, packager: str, root: Path) -> tuple[str, str]:
             in workflow, "Swift dock parser gate missing")
     require((root / "tests" / "test_v149_controls.py").is_file(),
             "V149 focused test script missing")
-    if label in ('V169', 'V170', 'V171', 'V172', 'V173'):
+    if label in ('V169', 'V170', 'V171', 'V172', 'V173', 'V174'):
         for required in (
             'patch_v169_event_geometry_transport.py work/LiveContainer layout',
             'patch_v169_event_geometry_transport.py work/EmbeddedSideStore pairing',
@@ -146,6 +146,16 @@ def verify(workflow: str, packager: str, root: Path) -> tuple[str, str]:
                 'V173 geometry patch missing')
         require((root/'tests'/'test_v173_single_scene_owner.py').is_file(),
                 'V173 geometry regression test missing')
+    if label == 'V174' and version == '3.8.248':
+        for required in ('patch_v174_guest_render.py work/LiveContainer',
+                         'test_v174_guest_render.py -v',
+                         'SCARLET_V174_RENDER_SURFACE',
+                         'SCARLET_V174_BOUNDED_GEOMETRY'):
+            require(required in workflow, 'V174 render and scene gate missing: '+required)
+        for rel in ('scripts/patch_v174_guest_render.py',
+                    'tests/test_v174_guest_render.py',
+                    'reports/V174_REVIEW_PLAN.md'):
+            require((root/rel).is_file(), 'V174 source/review missing: '+rel)
     if label == 'V167':
         for required in ('patch_v167_restore_ondevice_pairing.py work/LiveContainer work/EmbeddedSideStore',
                          'test_v167_ondevice_restore.py -v',
