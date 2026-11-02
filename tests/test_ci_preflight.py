@@ -17,11 +17,11 @@ class CIPreflightTests(unittest.TestCase):
 
     def test_real_workflow(self):
         self.assertEqual(module.verify(self.workflow,self.packager,ROOT),
-                         ("3.8.250","V176"))
+                         ("3.8.251","V177"))
 
     def test_stale_label_fails_before_xcode(self):
         broken=self.workflow.replace(
-            "grep -Fq '<string>V176</string>' work/LiveContainer/LiveContainer/Info.plist",
+            "grep -Fq '<string>V177</string>' work/LiveContainer/LiveContainer/Info.plist",
             "grep -Fq '<string>V167</string>' work/LiveContainer/LiveContainer/Info.plist")
         self.assertNotEqual(broken,self.workflow)
         with self.assertRaisesRegex(module.PreflightError,"stale Info.plist label"):
@@ -39,8 +39,8 @@ class CIPreflightTests(unittest.TestCase):
                           self.packager,ROOT)
 
     def test_package_version_mismatch_fails(self):
-        broken=self.packager.replace("if version == '3.8.250' and build_label != 'V176'",
-                                    "if version == '3.8.250' and build_label != 'V168'")
+        broken=self.packager.replace("if version == '3.8.251' and build_label != 'V177'",
+                                    "if version == '3.8.251' and build_label != 'V168'")
         self.assertNotEqual(broken,self.packager)
         with self.assertRaisesRegex(module.PreflightError,"packager version"):
             module.verify(self.workflow,broken,ROOT)
