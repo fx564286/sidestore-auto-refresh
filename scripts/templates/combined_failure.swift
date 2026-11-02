@@ -210,6 +210,9 @@ public struct CombinedFailure: Error, LocalizedError {
         case responseTooLarge
         case pairingRequired
         case invalidPairingFile
+        // V170: RP socket reset even though TCP probe reported an open port.
+        // Neither pairing identity nor provisioning is proven invalid.
+        case remotePairingHandshakeReset
         case pairingFilePreparationFailed
         case authAttemptNotDispatched
         case authProvisioningRetryNotDispatched
@@ -282,6 +285,8 @@ public struct CombinedFailure: Error, LocalizedError {
             case .invalidPairingFile:
                 return false
             case .pairingFilePreparationFailed:
+                return false
+            case .remotePairingHandshakeReset:
                 return false
             case .authAttemptNotDispatched:
                 return true
@@ -593,6 +598,7 @@ public struct CombinedFailure: Error, LocalizedError {
             case .responseTooLarge: return "SideStore produced a response that is too large to transfer."
             case .pairingRequired: return "A pairing file is required before this device can be refreshed."
             case .invalidPairingFile: return "SideStore could not read or validate the pairing file."
+            case .remotePairingHandshakeReset: return "The device reset the RemotePairing tunnel before device identity could be verified. TCP port reachability is not a successful pairing."
             case .pairingFilePreparationFailed: return "LiveContainer could not read or prepare the selected pairing file."
             case .authAttemptNotDispatched: return "SideStore did not start this sign-in attempt, so Apple authentication was not submitted."
             case .authProvisioningRetryNotDispatched: return "SideStore did not start the provisioning retry; the saved authentication session was not changed by this request."
@@ -821,6 +827,8 @@ public struct CombinedFailure: Error, LocalizedError {
                 return "Add the pairing file, then retry the refresh."
             case .invalidPairingFile:
                 return "Open Pairing File and replace the saved pairing file with a valid one, then retry."
+            case .remotePairingHandshakeReset:
+                return "Do not erase saved pairing or signing data. Open on-device pairing and verify the trusted device session, LocalDevVPN, and connection state before starting another refresh."
             case .pairingFilePreparationFailed:
                 return "Choose the pairing file again and make sure it is accessible to LiveContainer."
             case .authAttemptNotDispatched:
