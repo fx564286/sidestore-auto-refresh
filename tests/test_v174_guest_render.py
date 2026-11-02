@@ -19,7 +19,8 @@ class GeometryMediaReview(unittest.TestCase):
         source="\n".join(("// SCARLET_V104_SCENE_PROVENANCE",
                           "// NRG_V28_GUEST_LIFECYCLE",
                           "self.contentView = self.hostingController.sceneViewController.view;",
-                          m.OLD_RENDER))
+                          m.OLD_RENDER,
+                          "        self.contentView.frame = frame;"))
         result=m.guest(source)
         self.assertEqual(m.guest(result),result)
         self.assertEqual(result.count("SCARLET_V174_RENDER_SURFACE"),1)
@@ -27,6 +28,8 @@ class GeometryMediaReview(unittest.TestCase):
         self.assertIn("decorated.isMaximized",result)
         self.assertIn("self.view.window == hostWindow",result)
         self.assertNotIn("self.view.frame =",result)
+        self.assertIn("SCARLET_V174_RENDER_FRAME_DEDUP",result)
+        self.assertIn("if (!CGRectEqualToRect(self.contentView.frame, frame))",result)
         self.assertNotIn("AVAudioSession sharedInstance",result)
     def test_not_applicable_to_incompatible_source(self):
         for fn in (m.decorated,m.guest):
