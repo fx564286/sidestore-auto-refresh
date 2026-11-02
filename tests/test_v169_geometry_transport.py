@@ -31,6 +31,11 @@ portraitBottom = MAX(physicalInsets.bottom, self.view.superview.safeAreaInsets.b
         self.assertIn('viewSafeAreaInsetsDidChange', generated)
         self.assertIn('nrgV136GeometryStable:window', generated)
         self.assertIn('CGRectEqualToRect(measured, self.nrgV169LastMeasuredViewport)', generated)
+        # Later patches may add tracing or guards immediately after super.
+        changed_owner = source.replace('UIWindow *host = self.view.window;', 'UIView *host = self.view;')
+        changed = v169.decorated(changed_owner)
+        self.assertEqual(changed.count('- (void)viewDidLayoutSubviews {'), 1)
+        self.assertEqual(changed.count('[self nrgV169ScheduleGeometry];'), 2)
         self.assertEqual(v169.decorated(generated), generated)
 
     def test_all_four_delayed_reflows_removed(self):
