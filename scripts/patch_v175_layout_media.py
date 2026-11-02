@@ -39,7 +39,7 @@ OLD_LATE = '''        [NSLayoutConstraint activateConstraints:self.activatedVert
 NEW_LATE = '''        [NSLayoutConstraint activateConstraints:self.activatedVerticalConstraints];
 
         [self.view layoutIfNeeded];
-        if (self.isMaximized && self.appSceneVC.isAppRunning && self.view.window) {
+        if (self.isMaximized && self.view.window) {
             // Reconcile against the new constrained content dimensions. This
             // method runs only when a window bar's layout actually changes.
             self.appSceneVC.shouldSkipDebounceOnce = YES;
