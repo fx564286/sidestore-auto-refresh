@@ -9046,6 +9046,10 @@ struct V3SetupStepState: Equatable {
 
 @MainActor
 final class V3SetupStore: ObservableObject {
+    // SCARLET_V176_SETUP_SNAPSHOT_AUTHORITY: "checking" is not "missing".
+    // The previous Still Needed block marked all eight prerequisites missing
+    // even while the initial service-status request had not finished.
+    @Published private(set) var setupSnapshotPhase = "checking"
     @Published var device = V3SetupStepState()
     @Published var pairing = V3SetupStepState()
     @Published var account = V3SetupStepState()
@@ -9181,13 +9185,19 @@ final class V3SetupStore: ObservableObject {
 
     @discardableResult
     func reloadAndRecalculate(status: V3SideStoreStatusStore) async -> Bool {
+        // A delayed SideStore XPC snapshot is not evidence that the Apple ID,
+        // pairing file or certificate were removed. Never publish the default
+        // zero-value status as actionable setup steps while fetching.
+        setupSnapshotPhase = "checking"
         let outcome = await status.reloadAndWait()
         guard V3SetupReloadRecomputePolicy.mayRecompute(outcome: outcome.setupSnapshotOutcome) else {
             preserveUnknownStatusFacts(status: status)
+            setupSnapshotPhase = "unavailable"
+            NSLog("[SCARLET_V176_SETUP] snapshot=unavailable action=preserve_existing_material")
             return false
         }
         await recalculate(status: status)
-        return true
+        return setupSnapshotPhase == "observed"
     }
 
     private func preserveUnknownStatusFacts(status: V3SideStoreStatusStore) {
@@ -9199,6 +9209,7 @@ final class V3SetupStore: ObservableObject {
     }
 
     func recalculate(status: V3SideStoreStatusStore) async {
+        setupSnapshotPhase = "checking"
         // If the root auth observer already started a fresh readiness read,
         // join it before taking a new fact revision or opening another health
         // snapshot. This is the Setup Assistant's return-from-sign-in path.
@@ -9331,6 +9342,8 @@ final class V3SetupStore: ObservableObject {
         NSLog("[V3_SETUP] STATUS step=schedule state=\(schedule.state)")
         refreshVerificationRow()
         NSLog("[V3_SETUP] STATUS step=account state=\(account.state) step=pairing state=\(pairing.state)")
+        setupSnapshotPhase = "observed"
+        NSLog("[SCARLET_V176_SETUP] snapshot=observed")
     }
 
     private func verificationManifest() -> [String: Any]? {
@@ -9672,11 +9685,20 @@ final class V3SetupStore: ObservableObject {
         var lines: [String] = ["Setup Assistant"]
         lines.append("Product: " + (Bundle.main.object(forInfoDictionaryKey: "LCProductLine") as? String ?? "unknown"))
         lines.append("iOS: " + UIDevice.current.systemVersion)
-        lines.append("Pairing: " + V3SetupStore.describePairing(V3PairingPresentationPolicy.state(
-            statusConnected: status.connected, pairingStatus: status.pairing)))
-        lines.append("Account: " + (status.needsSignIn ? "signed out" : "signed in"))
-        lines.append("Team: " + status.team)
-        lines.append("Wi-Fi: " + (network.state == "failed" ? "unavailable" : "available"))
+        lines.append("Setup snapshot: " + setupSnapshotPhase)
+        if setupSnapshotPhase == "observed" {
+            lines.append("Pairing: " + V3SetupStore.describePairing(V3PairingPresentationPolicy.state(
+                statusConnected: status.connected, pairingStatus: status.pairing)))
+            lines.append("Account: " + (status.needsSignIn ? "signed out" : "signed in"))
+            lines.append("Team: " + status.team)
+        } else {
+            lines.append("Pairing: unknown (status not observed)")
+            lines.append("Account: unknown (status not observed)")
+            lines.append("Team: unknown (status not observed)")
+        }
+        let wifiText = network.state == "complete" ? "available" :
+            (network.state == "failed" ? "unavailable" : "unknown")
+        lines.append("Wi-Fi: " + wifiText)
         lines.append("VPN interface: " + (LiveContainerNetworkPreflight.hasTunnelInterface() ? "present" : "absent"))
         lines.append("CoreDevice: " + (verification.state == "complete" ? "verified" : "not checked"))
         switch UIApplication.shared.backgroundRefreshStatus {
@@ -9903,7 +9925,27 @@ struct V3SetupAssistantView: View {
             // V3_SETUP_COMPLETION_POLICY_V1: when setup is not complete, name
             // the outstanding items from the one shared policy, so the assistant
             // and the Home banner can never disagree about what is left.
-            if !setup.outstandingSetup(status: status).isEmpty {
+            // SCARLET_V176_SETUP_VISIBLE_STATUS: incomplete facts while
+            // an authoritative status query is pending are not missing setup.
+            // This is particularly important when a RemotePairing handshake
+            // fails and the embedded SideStore snapshot cannot settle.
+            if setup.setupSnapshotPhase != "observed" {
+                Section("Setup Status") {
+                    Label(
+                        setup.setupSnapshotPhase == "unavailable"
+                            ? "Existing setup could not be verified. No settings were reset."
+                            : "Checking existing setup. Nothing needs to be reconfigured yet.",
+                        systemImage: setup.setupSnapshotPhase == "unavailable"
+                            ? "questionmark.circle" : "clock.arrow.circlepath")
+                        .font(.footnote)
+                        .foregroundColor(.secondary)
+                    if setup.setupSnapshotPhase == "unavailable" {
+                        Button("Re-check Setup Status") {
+                            Task { await setup.reloadAndRecalculate(status: status) }
+                        }
+                    }
+                }
+            } else if !setup.outstandingSetup(status: status).isEmpty {
                 Section("Still Needed") {
                     ForEach(setup.outstandingSetup(status: status), id: \.self) { item in
                         Label(item.title, systemImage: V3StatusSeverity.warning.icon)
