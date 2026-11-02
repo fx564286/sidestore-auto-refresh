@@ -100,6 +100,11 @@ jobs:
           git clone --filter=blob:none https://github.com/LiveContainer/SideStore.git work/EmbeddedSideStore
           git -C work/EmbeddedSideStore checkout --detach "$EMBEDDED_SIDESTORE_REF"
           git -C work/EmbeddedSideStore submodule update --init --recursive --depth=1
+          # V172: upgrade ONLY the minimuxer submodule to the upstream
+          # audited 2026-09-20 revision (bundles idevice FFI v0.1.68).
+          # Keep SideStore, signing and LiveContainer sources pinned.
+          git -C work/EmbeddedSideStore/Dependencies/minimuxer fetch --depth=1 origin "$MINIMUXER_REF"
+          git -C work/EmbeddedSideStore/Dependencies/minimuxer checkout --detach "$MINIMUXER_REF"
 
       - name: Checkout pinned idevice
         uses: actions/checkout@v4
@@ -1593,16 +1598,16 @@ jobs:
         run: |
           set -euo pipefail
           cp artifacts/downloaded-ipa/LiveContainer-SideStore-v3.0.3-rc.ipa \
-             artifacts/Scarlet-Crystal-V172-UNSIGNED.ipa
+             artifacts/Scarlet-Crystal-V170-UNSIGNED.ipa
           cmp artifacts/downloaded-ipa/LiveContainer-SideStore-v3.0.3-rc.ipa \
-              artifacts/Scarlet-Crystal-V172-UNSIGNED.ipa
-          shasum -a 256 artifacts/Scarlet-Crystal-V172-UNSIGNED.ipa
+              artifacts/Scarlet-Crystal-V170-UNSIGNED.ipa
+          shasum -a 256 artifacts/Scarlet-Crystal-V170-UNSIGNED.ipa
 
       - name: Upload compiled Scarlet Crystal V172 REA candidate IPA
         uses: actions/upload-artifact@v7
         with:
           name: Scarlet-Crystal-V172-REA-${{ env.SCARLET_CI_PROFILE }}-UNSIGNED
-          path: artifacts/Scarlet-Crystal-V172-UNSIGNED.ipa
+          path: artifacts/Scarlet-Crystal-V170-UNSIGNED.ipa
           archive: false
           if-no-files-found: error
           retention-days: 7
