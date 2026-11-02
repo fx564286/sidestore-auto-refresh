@@ -72,17 +72,22 @@ def decorated(s):
     });
 }
 
-- (void)viewDidLayoutSubviews {
-    [super viewDidLayoutSubviews];
-    [self nrgV169ScheduleGeometry];
-}
-
 - (void)viewSafeAreaInsetsDidChange {
     [super viewSafeAreaInsetsDidChange];
     [self nrgV169ScheduleGeometry];
 }
 
 '''
+    # V137 already provides this UIKit lifecycle method. Augment that
+    # single owner rather than declaring a duplicate Objective-C selector.
+    old_layout = '''- (void)viewDidLayoutSubviews {
+    [super viewDidLayoutSubviews];
+    UIWindow *host = self.view.window;'''
+    new_layout = '''- (void)viewDidLayoutSubviews {
+    [super viewDidLayoutSubviews];
+    [self nrgV169ScheduleGeometry];
+    UIWindow *host = self.view.window;'''
+    s = one(s, old_layout, new_layout, 'reuse V137 UIKit layout owner')
     return one(s, '- (void)nrgV55ReconcileRotationGeometry {',
                hook + '- (void)nrgV55ReconcileRotationGeometry {',
                'UIKit callbacks')
