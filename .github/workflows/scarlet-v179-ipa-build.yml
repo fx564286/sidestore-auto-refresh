@@ -76,34 +76,9 @@ jobs:
           git -C work/EmbeddedSideStore status --porcelain >artifacts/logs/v178-side-clean.txt
           printf 'V178 latest upstream parent SHA checks passed\n'
 
-      - name: Build both latest upstream parents without altering source
-        shell: bash
-        timeout-minutes: 80
-        run: |
-          set -uo pipefail
-          mkdir -p artifacts/logs
-          python3 builder/scripts/run_bounded_build.py \
-            --log artifacts/logs/v178-livecontainer-upstream-build.log --timeout-seconds 2200 -- \
-            xcodebuild -project work/LiveContainer/LiveContainer.xcodeproj \
-              -scheme LiveContainer -sdk iphoneos -configuration Release -jobs 2 \
-              -derivedDataPath "$RUNNER_TEMP/v178-lc" \
-              CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO \
-              COMPILER_INDEX_STORE_ENABLE=NO build
-          lc=$?
-          python3 builder/scripts/run_bounded_build.py \
-            --log artifacts/logs/v178-sidestore-upstream-build.log --timeout-seconds 2200 -- \
-            xcodebuild -project work/EmbeddedSideStore/AltStore.xcodeproj \
-              -scheme SideStore -sdk iphoneos -configuration Release -jobs 2 \
-              -derivedDataPath "$RUNNER_TEMP/v178-sidestore" \
-              CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO \
-              COMPILER_INDEX_STORE_ENABLE=NO build
-          ss=$?
-          printf 'LIVE_CONTAINER=%s\nEMBEDDED_SIDESTORE=%s\n' "$lc" "$ss" | tee artifacts/logs/v178-upstream-build-status.txt
-          if [ "$lc" -ne 0 ] || [ "$ss" -ne 0 ]; then
-            echo '[V178] upstream build failed: diagnose primary errors; NEVER downgrade parent sources'
-            exit 1
-          fi
-
+      # V178 and the first V179 run compiled these exact parent SHAs.
+      # Compile only the integrated app now; building parents twice per run
+      # previously wasted seven minutes before detecting Swift bridge errors.
       - name: Apply verified Scarlet Crystal host and SideStore overlays
         shell: bash
         run: |
@@ -111,6 +86,8 @@ jobs:
           {
             python3 builder/scripts/patch_livecontainer_autorefresh.py work/LiveContainer
             python3 builder/scripts/patch_embedded_sidestore_startup.py work/LiveContainer work/EmbeddedSideStore
+            python3 builder/scripts/patch_v179_refresh_compat.py work/LiveContainer
+            python3 builder/scripts/patch_v179_refresh_compat.py work/LiveContainer
             git -C work/LiveContainer diff --check
             git -C work/EmbeddedSideStore diff --check
             echo '[V179] Source overlays applied on current upstream parents'
@@ -168,16 +145,17 @@ jobs:
         run: |
           python3 - <<'PY'
           from pathlib import Path
-          for name in ("v178-livecontainer-upstream-build.log",
-                       "v178-sidestore-upstream-build.log",
-                       "v178-overlay-compatibility.txt"):
+          for name in ("v179-livecontainer-integrated.log",
+                       "v179-sidestore-integrated.log",
+                       "v179-overlay-compatibility.txt",
+                       "v179-package.log"):
               file=Path("artifacts/logs")/name
               if not file.exists():
                   continue
               lines=file.read_text(errors="replace").splitlines()
               hits=[i for i,line in enumerate(lines) if "error:" in line.lower()
                     or "expected one anchor" in line or "revision mismatch" in line]
-              print(f"[V178] {name} lines={len(lines)} errors={len(hits)}")
+              print(f"[V179] {name} lines={len(lines)} errors={len(hits)}")
               for i in hits[:12]:
                   for line in lines[max(0,i-2):i+3]:
                       print(line[:1200])
