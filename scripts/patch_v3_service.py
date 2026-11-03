@@ -2837,9 +2837,23 @@ def patch(live, side):
 '''))
     def host(s):
         # Shared startup/refresh responsibilities are installed by the combined startup adapter.
+        # V179 already installs the canonical request/correlation declarations
+        # in a dedicated file for SideStoreSupport. Do not compile the same
+        # declarations a second time inside SideStore.swift.
+        primitive = (TEMPLATES / "v3_behavioral_primitives.swift").read_text(encoding="utf-8")
+        begin = "public struct V3ShortcutRefreshRequest: Equatable {"
+        finish = "\nenum V3RefreshIntentStartPolicy {"
+        if primitive.count(begin) != 1 or primitive.count(finish) != 1:
+            raise SystemExit("v3 service: shared request source slice drifted")
+        request_file = live / "SideStoreSupport/V3ShortcutRefreshRequest.swift"
+        if not request_file.is_file():
+            raise SystemExit("v3 service: previously generated shared request source missing")
+        expected_request = "import Foundation\n\n" + primitive[primitive.index(begin):primitive.index(finish)] + "\n"
+        if request_file.read_text(encoding="utf-8") != expected_request:
+            raise SystemExit("v3 service: SideStoreSupport request/correlation declaration drifted")
+        primitive = primitive[:primitive.index(begin)] + primitive[primitive.index(finish):]
         return s + (TEMPLATES / "v3_wire_contract.swift").read_text(encoding="utf-8") + \
-            (TEMPLATES / "v3_behavioral_primitives.swift").read_text(encoding="utf-8") + \
-            (TEMPLATES / "v3_service_bridge.swift").read_text(encoding="utf-8")
+            primitive + (TEMPLATES / "v3_service_bridge.swift").read_text(encoding="utf-8")
     edit(live, "SideStoreSupport/SideStore.swift", host)
     # The shared combined-startup adapter owns structured refresh error/result encoding.
     edit(side, "AltStore/AppDelegate.swift", headless_sidestore_app_delegate)
