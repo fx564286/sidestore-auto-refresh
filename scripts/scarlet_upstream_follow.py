@@ -47,6 +47,11 @@ def sha(value):
 
 
 def pinned(text, key):
+    if text.lstrip().startswith("{"):
+        config = json.loads(text)
+        if not isinstance(config, dict) or set(config) != {*UPSTREAMS, *SUBMODULES}:
+            raise ValueError("Invalid four-key upstream source configuration")
+        return sha(config[key])
     found = re.findall(r"^  " + re.escape(key) + r": ([0-9a-f]{40})$", text, re.M)
     if len(found) != 1:
         raise ValueError(f"{key}: expected one exact immutable pin; got {len(found)}")
@@ -54,10 +59,19 @@ def pinned(text, key):
 
 
 def propose(text, new):
+    allowed = {*UPSTREAMS, *SUBMODULES}
+    if set(new) != allowed:
+        raise ValueError("Refusing incomplete or unauthorized source graph update")
+    if text.lstrip().startswith("{"):
+        config = json.loads(text)
+        if not isinstance(config, dict) or set(config) != allowed:
+            raise ValueError("Invalid upstream config schema")
+        for key in allowed:
+            pinned(text, key)
+            config[key] = sha(new[key])
+        return json.dumps(config, indent=2) + "\n"
     result = text
     for key, value in new.items():
-        if key not in {*UPSTREAMS, *SUBMODULES}:
-            raise ValueError(f"Refusing unauthorized key: {key}")
         before = pinned(result, key)
         result = result.replace(f"  {key}: {before}\n", f"  {key}: {sha(value)}\n", 1)
     return result
@@ -114,12 +128,17 @@ def make_report(workflow_text, found, advisory_sha):
 
 def main(argv=None):
     parser = argparse.ArgumentParser()
-    parser.add_argument("--workflow", type=Path, required=True)
+    input_group = parser.add_mutually_exclusive_group(required=True)
+    input_group.add_argument("--workflow", type=Path,
+                             help="legacy pinned workflow source")
+    input_group.add_argument("--config", type=Path,
+                             help="four-key JSON source of truth; preferred")
     parser.add_argument("--report", type=Path, required=True)
     parser.add_argument("--write", action="store_true",
                         help="stage verified source ref changes locally only")
     args = parser.parse_args(argv)
-    original = args.workflow.read_text(encoding="utf-8")
+    source = args.config or args.workflow
+    original = source.read_text(encoding="utf-8")
     found, advisory = discover()
     report = make_report(original, found, advisory)
     args.report.parent.mkdir(parents=True, exist_ok=True)
@@ -128,7 +147,7 @@ def main(argv=None):
         candidate = propose(original, found)
         if {key: pinned(candidate, key) for key in found} != found:
             raise ValueError("Pin rewrite failed verification")
-        args.workflow.write_text(candidate, encoding="utf-8")
+        source.write_text(candidate, encoding="utf-8")
         print("[V177_UPSTREAM] staged verified paired GitHub refs; CI/review required")
     for name, entry in report["refs"].items():
         print(f"[V177_UPSTREAM] {name} {entry['current'][:12]} -> "
