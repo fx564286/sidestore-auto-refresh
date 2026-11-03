@@ -116,6 +116,8 @@ jobs:
           set -euo pipefail
           python3 -m unittest discover -s builder/tests -p test_v182_p00_pairing.py -v \
             2>&1 | tee artifacts/logs/v182-p00-pairing-tests.log
+          python3 -m unittest discover -s builder/tests -p test_v182_p00_auth_cancel.py -v \
+            2>&1 | tee artifacts/logs/v182-p00-auth-cancel-tests.log
 
       - name: Forward-port user's original dock and unified shell instead of replacing with stock
         shell: bash
@@ -136,6 +138,10 @@ jobs:
           grep -q SCARLET_V182_P00_PAIRING work/LiveContainer/LiveContainerSwiftUI/Views/V3UnifiedShell.swift
           grep -q SCARLET_V182_P00_PAIRING work/EmbeddedSideStore/AltStore/AppDelegate.swift
           grep -q scarletV182PairingStatusPoll work/LiveContainer/LiveContainerSwiftUI/Views/V3UnifiedShell.swift
+          grep -q SCARLET_V182_P00_AUTH_CANCEL_LIVENESS work/LiveContainer/LiveContainerSwiftUI/Views/V3UnifiedShell.swift
+          if grep -q 'await oldTask?.value' work/LiveContainer/LiveContainerSwiftUI/Views/V3UnifiedShell.swift; then
+            echo '[P00] unbounded auth cancellation wait remains' >&2; exit 1
+          fi
           grep -q 'lastNotifiedPairingPIN' work/EmbeddedSideStore/AltStore/AppDelegate.swift
           echo '[P00] pairing and 2FA source overlay verified; device handshake and Apple 2FA pending'
 
