@@ -93,6 +93,15 @@ jobs:
             echo '[V179] Source overlays applied on current upstream parents'
           } 2>&1 | tee artifacts/logs/v179-overlay-compatibility.txt
 
+      - name: Forward-port user's original dock and unified shell instead of replacing with stock
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 builder/scripts/port_v180_design.py \
+            work/LiveContainer work/EmbeddedSideStore \
+            builder/config/scarlet-upstream-pins.json \
+            2>&1 | tee artifacts/logs/v180-original-design-port.log
+
       # The V179 IPA was compiled from latest parents but omitted the user's
       # distinctive Liquid Glass/scene UI. Never publish such a result again.
       - name: Gate on user-authored Scarlet Crystal design preservation
