@@ -65,12 +65,12 @@ def patch(root, template):
     primitive_file = Path(__file__).resolve().parent / "templates/v3_behavioral_primitives.swift"
     primitive = primitive_file.read_text()
     begin = "public struct V3ShortcutRefreshRequest: Equatable {"
-    finish = "\\nenum V3RefreshIntentStartPolicy {"
+    finish = "\nenum V3RefreshIntentStartPolicy {"
     if primitive.count(begin) != 1 or primitive.count(finish) != 1:
         raise ValueError("canonical V3 request declarations changed")
-    request_types = "import Foundation\\n\\n" + primitive[
+    request_types = "import Foundation\n\n" + primitive[
         primitive.index(begin):primitive.index(finish)
-    ] + "\\n"
+    ] + "\n"
     host_request = root / "LiveContainerSwiftUI/Utilities/V3ShortcutRefreshRequest.swift"
     support_request = support / "V3ShortcutRefreshRequest.swift"
     for request_file in (host_request, support_request):
