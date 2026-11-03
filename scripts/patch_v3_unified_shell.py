@@ -121,6 +121,35 @@ def replace_once(text: str, old: str, new: str, label: str) -> str:
     return text.replace(old, new, 1)
 
 
+def _behavior_with_shared_contracts_in_utilities() -> str:
+    """Keep the canonical host policies once: V179 owns their Swift files.
+
+    V3UnifiedShell retains all other behavioral code and the original user UI.
+    V179 has already verified these exact slices against the sources installed
+    as standalone LiveContainerSwiftUI/Utilities declarations.
+    """
+    behavior = BEHAVIOR_TEMPLATE.read_text(encoding="utf-8")
+    slices = (
+        ("public struct V3ShortcutRefreshRequest: Equatable {",
+         "\nenum V3RefreshIntentStartPolicy {"),
+        ("enum V3DirectRefreshRunClaimPolicy {",
+         "\nenum V3RequestRetirementPolicy {"),
+        ("enum V3RefreshTerminalRecoveryPolicy {",
+         "\nstruct V3RefreshRunIdentitySelection: Equatable {"),
+        ("enum V3RefreshPrerequisiteState: String, Equatable {",
+         "\nenum V3IssueActionOutcomePolicy {"),
+    )
+    for begin, end in slices:
+        if behavior.count(begin) != 1 or behavior.count(end) != 1:
+            die("shared host policy declaration drifted: " + begin)
+        i = behavior.index(begin)
+        j = behavior.index(end, i + len(begin))
+        if j <= i:
+            die("invalid canonical host policy slice: " + begin)
+        behavior = behavior[:i] + behavior[j:]
+    return behavior
+
+
 def patch_host(root: Path) -> None:
     shared = root / "LiveContainerSwiftUI/Utilities/Shared.swift"
     text = shared.read_text(encoding="utf-8")
@@ -140,7 +169,7 @@ def patch_host(root: Path) -> None:
         app.write_text(text, encoding="utf-8")
 
     shell = root / "LiveContainerSwiftUI/Views/V3UnifiedShell.swift"
-    expected = (BEHAVIOR_TEMPLATE.read_text(encoding="utf-8") + "\n" +
+    expected = (_behavior_with_shared_contracts_in_utilities() + "\n" +
                 SECRET_HANDOFF_TEMPLATE.read_text(encoding="utf-8") + "\n" +
                 IPA_STAGING_TEMPLATE.read_text(encoding="utf-8") + "\n" +
                 TEMPLATE.read_text(encoding="utf-8"))
