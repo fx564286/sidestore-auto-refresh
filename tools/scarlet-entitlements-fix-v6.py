@@ -110,9 +110,9 @@ def scarlet_prepare_fresh_entitlements(source, state, ids):
     ent['application-identifier'] = expected_id
     ent['com.apple.developer.team-identifier'] = TEAM
     output = state / 'verified-scarlet-entitlements.xml'
-    require(not output.exists(), '생성할 entitlements 파일이 이미 존재함')
-    private_write(output, plistlib.dumps(ent, fmt=plistlib.FMT_XML, sort_keys=False))
-    require(plistlib.loads(output.read_bytes()) == ent, '새 entitlement 파일 직렬화 확인 실패')
+    if not output.exists():
+        private_write(output, plistlib.dumps(ent, fmt=plistlib.FMT_XML, sort_keys=False))
+    require(plistlib.loads(output.read_bytes()) == ent, '기존에 생성된 entitlement 파일과 현재 권한이 다름')
     note('[PASS] Apple 프로파일 기준 application-identifier 자동 보정')
     note('[PRESERVE] 기존 Keychain/App Group 권한 삭제·축소 없음')
     return output
