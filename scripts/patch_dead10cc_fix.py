@@ -129,6 +129,14 @@ def patch_dead10cc(live_root: Path) -> None:
     NSLog(@"[LC_GUEST_LIFECYCLE] PROCESS_INTERRUPTED pid=%d", getpid());
     NSLog(@"[LC] _handleTaskCompletionAndTerminate");'''
 
+    # LiveContainer/main 9108ae6 already comments out the obsolete
+    # UIApplication termination NSLog. Preserve upstream's decision while
+    # adding only the Scarlet process diagnostic; do not pin an older source.
+    if old_terminate not in text:
+        original = '    NSLog(@"[LC] _handleTaskCompletionAndTerminate");'
+        upstream = '//    NSLog(@"[LC] _handleTaskCompletionAndTerminate");'
+        old_terminate = old_terminate.replace(original, upstream)
+        new_terminate = new_terminate.replace(original, upstream)
     text = replace_once(text, old_terminate, new_terminate, "diagnostics process interrupted")
 
     path.write_text(text, encoding="utf-8")
