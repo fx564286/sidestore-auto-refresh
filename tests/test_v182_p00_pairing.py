@@ -67,7 +67,7 @@ final class V3OriginalOnDevicePairingSession {
         phase = "waiting"
         pin = ""
         // Called by WirelessPairService
-        self.detail = "Enter the displayed code in iOS Settings"
+                self.detail = "Enter the displayed code in iOS Settings"
     }
 }
 '''
