@@ -79,9 +79,38 @@ def patch(root, template):
         if not request_file.exists():
             request_file.write_text(request_types)
 
+    # Restore the canonical typed failure vocabulary used by the scheduler.
+    # This is the same fully-defined contract from the older Scarlet overlay,
+    # not a fabricated placeholder or an untyped NSError fallback.
+    canonical_failure = Path(__file__).resolve().parent / "templates/combined_failure.swift"
+    failure_file = root / "LiveContainerSwiftUI/Utilities/CombinedFailure.swift"
+    failure_body = canonical_failure.read_text()
+    if "public struct CombinedFailure: Error, LocalizedError {" not in failure_body:
+        raise ValueError("canonical CombinedFailure contract unavailable")
+    if failure_file.exists() and failure_file.read_text() != failure_body:
+        raise ValueError("different failure contract already exists in host")
+    if not failure_file.exists():
+        failure_file.write_text(failure_body)
+
+    # The scheduler also requires the real direct-run ownership policy.
+    direct_start = "enum V3DirectRefreshRunClaimPolicy {"
+    direct_end = "\nenum V3RequestRetirementPolicy {"
+    if primitive.count(direct_start) != 1 or primitive.count(direct_end) != 1:
+        raise ValueError("canonical direct-run ownership declaration changed")
+    direct_body = "import Foundation\n\n" + primitive[
+        primitive.index(direct_start):primitive.index(direct_end)
+    ] + "\n"
+    direct_file = root / "LiveContainerSwiftUI/Utilities/V3DirectRefreshRunClaimPolicy.swift"
+    if direct_file.exists() and direct_file.read_text() != direct_body:
+        raise ValueError("different direct-run ownership code already exists in host")
+    if not direct_file.exists():
+        direct_file.write_text(direct_body)
+
     result = (app_group.read_text() == main_shared.read_text()
               and MARKER in bridge.read_text()
               and host_request.read_text() == support_request.read_text()
+              and failure_file.read_text() == failure_body
+              and direct_file.read_text() == direct_body
               and "V3RefreshRunCorrelation" in host_request.read_text())
     if not result:
         raise ValueError("refresh compatibility adapter verification failed")
