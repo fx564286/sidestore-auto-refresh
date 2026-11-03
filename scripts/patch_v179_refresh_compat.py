@@ -81,6 +81,9 @@ def patch_v181_refresh_service_lifecycle(source):
         "            throw NSError(domain: \"ScarletCrystal.Connection\", code: 1)\n")
     if "        let uuid = await ext.beginRequest" not in original_launch:
         raise ValueError("upstream SideStore launch handshake incomplete")
+    # The extracted upstream block contains whitespace-only lines. Normalize
+    # those copied lines so git diff --check accepts the generated adapter.
+    original_launch = "\n".join(line.rstrip(" \t") for line in original_launch.split("\n"))
     extra = """
     // SCARLET_V181_REFRESH_SERVICE_LIFECYCLE:
     // ownership corresponds to the actual live guest process, not an
