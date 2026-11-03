@@ -247,33 +247,9 @@ def patch(root, template):
         if not destination.exists():
             destination.write_text(exact)
 
-    # The full legacy V3 shell normally injects a live service snapshot into
-    # SwiftUI's environment. That shell is not yet forward-ported. Preserve the
-    # view's explicitly supported nil/unknown default rather than fabricating
-    # pairing success or using an old cached pairing record as authority.
-    status_env = """import SwiftUI
-
-struct ScarletV179StatusSnapshot {
-    let connected: Bool
-    let pairing: String?
-}
-
-private struct ScarletV179StatusEnvironmentKey: EnvironmentKey {
-    static let defaultValue: ScarletV179StatusSnapshot? = nil
-}
-
-extension EnvironmentValues {
-    var v3StatusStore: ScarletV179StatusSnapshot? {
-        get { self[ScarletV179StatusEnvironmentKey.self] }
-        set { self[ScarletV179StatusEnvironmentKey.self] = newValue }
-    }
-}
-"""
-    env_file = host_utilities / "V3StatusStoreEnvironment.swift"
-    if env_file.exists() and env_file.read_text() != status_env:
-        raise ValueError("another V3 status environment provider already exists")
-    if not env_file.exists():
-        env_file.write_text(status_env)
+    # The original V3UnifiedShell owns the typed v3StatusStore environment key.
+    # Do not generate the obsolete V179 placeholder with the same property.
+    # It changes the type and produces invalid Swift redeclarations.
 
     result = (app_group.read_text() == main_shared.read_text()
               and MARKER in bridge.read_text()
