@@ -10,6 +10,7 @@ from pathlib import Path
 import importlib
 import json
 import subprocess
+import shutil
 import sys
 
 
@@ -82,7 +83,15 @@ def main():
             raise ValueError("old SideStore icon archive already exists")
         archived_icons.parent.mkdir(parents=True, exist_ok=True)
         old_icons.rename(archived_icons)
-        print("[SCARLET_V181] relocated unused embedded SideStore alternate icons without deleting assets", flush=True)
+        # Standalone SideStore still requires one named AppIcon catalog. Keep
+        # the *original* AppIcon.appiconset byte-for-byte, without importing
+        # the alternate image/icon sets that flatten to duplicate output paths.
+        primary = archived_icons / "AppIcon.appiconset"
+        if not primary.is_dir() or primary.is_symlink():
+            raise ValueError("original SideStore AppIcon.appiconset is unavailable")
+        old_icons.mkdir(parents=True, exist_ok=False)
+        shutil.copytree(primary, old_icons / "AppIcon.appiconset")
+        print("[SCARLET_V181] retained original AppIcon only; archived all alternate icons", flush=True)
     elif archived_icons.is_dir() and not old_icons.exists():
         print("[SCARLET_V181] embedded SideStore stock icons already retained", flush=True)
     else:
