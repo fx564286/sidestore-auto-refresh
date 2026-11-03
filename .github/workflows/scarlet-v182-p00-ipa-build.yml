@@ -1,0 +1,261 @@
+name: Scarlet Crystal V182 - P00 iOS IPA build
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - fix/scarlet-v182-p00-pairing-auth-refresh-20261104
+    paths:
+      - ".github/workflows/scarlet-v182-p00-ipa-build.yml"
+      - ".github/workflows/scarlet-v181-design-auth-build.yml"
+      - "scripts/**"
+      - "tests/**"
+      - "config/**"
+  pull_request:
+    paths:
+      - ".github/workflows/scarlet-v182-p00-ipa-build.yml"
+      - ".github/workflows/scarlet-v181-design-auth-build.yml"
+      - "scripts/**"
+      - "tests/**"
+      - "config/**"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: scarlet-v182-p00-integrated-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  latest-parent-compile-and-overlay-audit:
+    runs-on: xcode-27
+    timeout-minutes: 115
+    steps:
+      - name: Checkout Scarlet fork
+        uses: actions/checkout@v4
+        with:
+          path: builder
+          persist-credentials: false
+
+      - name: Select Xcode 27.2
+        uses: maxim-lobanov/setup-xcode@v1.6.0
+        with:
+          xcode-version: "27.2"
+
+      - name: Verify exact upstream pairing and pins
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts/logs
+          python3 -m unittest discover -s builder/tests -p test_v177_upstream_follow.py -v
+          python3 builder/scripts/scarlet_upstream_follow.py \
+            --config builder/config/scarlet-upstream-pins.json \
+            --report artifacts/logs/v178-parent-pins.json
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          d=json.loads(Path("artifacts/logs/v178-parent-pins.json").read_text())
+          assert not d["needs_rebase"], "upstream changed; regenerate reviewed fork base"
+          assert not d["auto_release"], "never auto-release an unverified fork"
+          print("[PASS] LiveContainer main and LiveContainerSupport fork refs matched")
+          PY
+          xcodebuild -version
+          xcrun --sdk iphoneos --show-sdk-version
+
+      - name: Checkout current upstream LiveContainer and SideStore source trees
+        shell: bash
+        run: |
+          set -euo pipefail
+          eval "$(python3 - <<'PY'
+          import json
+          d=json.load(open("builder/config/scarlet-upstream-pins.json"))
+          for k,v in d.items():
+              print(f"export {k}={v}")
+          PY
+          )"
+          git clone --filter=blob:none https://github.com/LiveContainer/LiveContainer.git work/LiveContainer
+          git -C work/LiveContainer checkout --detach "$LIVE_CONTAINER_REF"
+          git -C work/LiveContainer submodule update --init --recursive --depth=1
+          git clone --filter=blob:none https://github.com/LiveContainer/SideStore.git work/EmbeddedSideStore
+          git -C work/EmbeddedSideStore checkout --detach "$EMBEDDED_SIDESTORE_REF"
+          git -C work/EmbeddedSideStore submodule update --init --recursive --depth=1
+          test "$(git -C work/LiveContainer rev-parse HEAD)" = "$LIVE_CONTAINER_REF"
+          test "$(git -C work/EmbeddedSideStore rev-parse HEAD)" = "$EMBEDDED_SIDESTORE_REF"
+          test "$(git -C work/EmbeddedSideStore/Dependencies/minimuxer rev-parse HEAD)" = "$MINIMUXER_REF"
+          test "$(git -C work/EmbeddedSideStore/Dependencies/SideSign rev-parse HEAD)" = "$SIDESIGN_REF"
+          git -C work/LiveContainer status --porcelain >artifacts/logs/v178-lc-clean.txt
+          git -C work/EmbeddedSideStore status --porcelain >artifacts/logs/v178-side-clean.txt
+          printf 'V178 latest upstream parent SHA checks passed\n'
+
+      # V178 and the first V179 run compiled these exact parent SHAs.
+      # Compile only the integrated app now; building parents twice per run
+      # previously wasted seven minutes before detecting Swift bridge errors.
+      - name: Apply verified Scarlet Crystal host and SideStore overlays
+        shell: bash
+        run: |
+          set -euo pipefail
+          {
+            python3 builder/scripts/patch_livecontainer_autorefresh.py work/LiveContainer
+            python3 builder/scripts/patch_embedded_sidestore_startup.py work/LiveContainer work/EmbeddedSideStore
+            python3 builder/scripts/patch_v182_p00_defer_app_group_probe.py work/LiveContainer
+            python3 builder/scripts/patch_v179_refresh_compat.py work/LiveContainer
+            python3 builder/scripts/patch_v179_refresh_compat.py work/LiveContainer
+            git -C work/LiveContainer diff --check
+            git -C work/EmbeddedSideStore diff --check
+            echo '[V179] Source overlays applied on current upstream parents'
+          } 2>&1 | tee artifacts/logs/v179-overlay-compatibility.txt
+
+      - name: Verify and apply nondestructive -80045 Anisette/SideSign compatibility
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m unittest discover -s builder/tests -p test_v181_auth80045.py -v \
+            2>&1 | tee artifacts/logs/v181-auth80045-tests.log
+          python3 builder/scripts/patch_v181_auth80045.py work/EmbeddedSideStore \
+            2>&1 | tee artifacts/logs/v181-auth80045-patch.log
+          python3 builder/scripts/patch_v181_auth80045.py work/EmbeddedSideStore \
+            2>&1 | tee -a artifacts/logs/v181-auth80045-patch.log
+          swiftc -frontend -parse \
+            work/EmbeddedSideStore/Dependencies/SideSign/Sources/DeveloperPortal/Authentication.swift
+          swiftc -frontend -parse \
+            work/EmbeddedSideStore/SideStore/Handlers/SignInFlowHandler.swift
+          echo '[V181_AUTH80045] source and Swift syntax PASS; live Apple 2FA unverified'
+
+      - name: P00 pairing and Apple 2FA source contract tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m unittest discover -s builder/tests -p test_v182_p00_pairing.py -v \
+            2>&1 | tee artifacts/logs/v182-p00-pairing-tests.log
+          python3 -m unittest discover -s builder/tests -p test_v182_p00_auth_cancel.py -v \
+            2>&1 | tee artifacts/logs/v182-p00-auth-cancel-tests.log
+
+      - name: Forward-port user's original dock and unified shell instead of replacing with stock
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m unittest discover -s builder/tests -p test_v181_settings_port.py -v
+          python3 builder/scripts/port_v180_design.py \
+            work/LiveContainer work/EmbeddedSideStore \
+            builder/config/scarlet-upstream-pins.json \
+            2>&1 | tee artifacts/logs/v181-original-design-port.log
+
+      # The V179 IPA was compiled from latest parents but omitted the user's
+      # distinctive Liquid Glass/scene UI. Never publish such a result again.
+      - name: Verify pairing and 2FA P00 patch is in both compiled source trees
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -q SCARLET_V182_P00_PAIRING work/LiveContainer/LiveContainerSwiftUI/Views/V3UnifiedShell.swift
+          grep -q SCARLET_V182_P00_DEFER_EARLY_GROUP_PROBE work/LiveContainer/SideStoreSupport/SideStoreHooks.m
+          grep -q SCARLET_V182_P00_PAIRING work/EmbeddedSideStore/AltStore/AppDelegate.swift
+          grep -q scarletV182PairingStatusPoll work/LiveContainer/LiveContainerSwiftUI/Views/V3UnifiedShell.swift
+          grep -q SCARLET_V182_P00_AUTH_CANCEL_LIVENESS work/LiveContainer/LiveContainerSwiftUI/Views/V3UnifiedShell.swift
+          python3 -c "from pathlib import Path; s=Path('work/LiveContainer/LiveContainerSwiftUI/Views/V3UnifiedShell.swift').read_text(); a=s.index('func cancel() {', s.index('final class V3AuthStore')); b=s.index('struct V3SignInLink', a); assert 'await oldTask?.value' not in s[a:b], 'unbounded auth cancellation wait remains'"
+          grep -q 'lastNotifiedPairingPIN' work/EmbeddedSideStore/AltStore/AppDelegate.swift
+          echo '[P00] pairing and 2FA source overlay verified; device handshake and Apple 2FA pending'
+
+      - name: Gate on source-only Scarlet UI markers (device and Figma parity pending)
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m unittest discover -s builder/tests -p test_scarlet_design.py -v
+          python3 builder/scripts/verify_scarlet_design.py \
+            --source work/LiveContainer \
+            --contract builder/config/scarlet-ui-preservation.json \
+            --report artifacts/logs/v181-design-preservation.json
+
+      - name: Upload independent user-design comparison report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: scarlet-v181-design-preservation-verdict
+          path: artifacts/logs/v181-design-preservation.json
+          if-no-files-found: ignore
+          retention-days: 30
+
+      - name: Rebuild both latest parent apps with Scarlet Crystal integration
+        shell: bash
+        timeout-minutes: 35
+        run: |
+          set -euo pipefail
+          python3 builder/scripts/run_bounded_build.py \
+            --log artifacts/logs/v181-livecontainer-integrated.log --timeout-seconds 1000 -- \
+            xcodebuild -project work/LiveContainer/LiveContainer.xcodeproj \
+              -scheme LiveContainer -sdk iphoneos -configuration Release -jobs 2 \
+              -derivedDataPath "$RUNNER_TEMP/v178-lc" \
+              CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO \
+              COMPILER_INDEX_STORE_ENABLE=NO build
+          python3 builder/scripts/run_bounded_build.py \
+            --log artifacts/logs/v181-sidestore-integrated.log --timeout-seconds 1000 -- \
+            xcodebuild -project work/EmbeddedSideStore/AltStore.xcodeproj \
+              -scheme SideStore -sdk iphoneos -configuration Release -jobs 2 \
+              -derivedDataPath "$RUNNER_TEMP/v178-sidestore" \
+              CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO \
+              ASSETCATALOG_COMPILER_APPICON_NAME= \
+              COMPILER_INDEX_STORE_ENABLE=NO build
+
+      - name: Package Scarlet Crystal V182 P00 unsigned IPA (source-checked, device-unverified)
+        shell: bash
+        timeout-minutes: 15
+        run: |
+          set -euo pipefail
+          if ! command -v ldid >/dev/null; then brew install ldid; fi
+          python3 builder/scripts/v182_package_fork.py \
+            --root work/LiveContainer \
+            --host "$RUNNER_TEMP/v178-lc/Build/Products/Release-iphoneos/LiveContainer.app" \
+            --side "$RUNNER_TEMP/v178-sidestore/Build/Products/Release-iphoneos/SideStore.app" \
+            --pin-file builder/config/scarlet-upstream-pins.json \
+            --output "$GITHUB_WORKSPACE/artifacts/Scarlet-Crystal-V182-P00-UPSTREAM-FORK-UNSIGNED.ipa" \
+            2>&1 | tee artifacts/logs/v181-package.log
+          test -s artifacts/Scarlet-Crystal-V182-P00-UPSTREAM-FORK-UNSIGNED.ipa
+          test -s artifacts/Scarlet-Crystal-V182-P00-UPSTREAM-FORK-UNSIGNED.json
+
+      - name: Upload compiled Scarlet Crystal V182 P00 IPA (unsigned, Figma and iPhone unverified)
+        uses: actions/upload-artifact@v4
+        with:
+          name: Scarlet-Crystal-V182-P00-UPSTREAM-FORK-UNSIGNED
+          path: |
+            artifacts/Scarlet-Crystal-V182-P00-UPSTREAM-FORK-UNSIGNED.ipa
+            artifacts/Scarlet-Crystal-V182-P00-UPSTREAM-FORK-UNSIGNED.json
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Report primary compiler and overlay failures
+        if: ${{ failure() }}
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          for name in ("v181-livecontainer-integrated.log",
+                       "v181-sidestore-integrated.log",
+                       "v179-overlay-compatibility.txt",
+                       "v181-package.log"):
+              file=Path("artifacts/logs")/name
+              if not file.exists():
+                  continue
+              lines=file.read_text(errors="replace").splitlines()
+              hits=[i for i,line in enumerate(lines) if "error:" in line.lower()
+                    or "expected one anchor" in line or "revision mismatch" in line]
+              print(f"[V179] {name} lines={len(lines)} errors={len(hits)}")
+              unique=set()
+              for i in hits:
+                  entry=lines[i].strip()
+                  if entry in unique:
+                      continue
+                  unique.add(entry)
+                  print("[PRIMARY_COMPILER_ERROR] " + entry[:1600])
+                  if len(unique) >= 80:
+                      break
+          PY
+
+      - name: Upload latest parent compilation and overlay diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: scarlet-v181-integrated-ipa-build-evidence
+          path: artifacts/logs/
+          retention-days: 30
+          if-no-files-found: ignore
