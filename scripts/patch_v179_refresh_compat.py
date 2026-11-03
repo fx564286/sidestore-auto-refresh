@@ -60,7 +60,7 @@ def patch_v181_refresh_service_lifecycle(source):
         required = ("func ensureServiceConnected() async throws",
                     "func v3_stopService()",
                     "var v3RefreshToken: String?",
-                    "var v3ServiceIdentity:")
+                    "var v3ServiceIdentity: UUID")
         if any(token not in source for token in required):
             raise ValueError("partial V181 refresh service host bridge")
         return source
@@ -90,7 +90,7 @@ def patch_v181_refresh_service_lifecycle(source):
     // optimistic persisted pairing or a completed XPC request.
     var v3RefreshToken: String? = nil
     var v3RefreshAdmissionRunID: String? = nil
-    var v3ServiceIdentity: String = UUID().uuidString
+    var v3ServiceIdentity: UUID = UUID()
 
     @MainActor
     func ensureServiceConnected() async throws {
@@ -100,7 +100,7 @@ def patch_v181_refresh_service_lifecycle(source):
             }
             return
         }
-        v3ServiceIdentity = UUID().uuidString
+        v3ServiceIdentity = UUID()
         client = nil
 """ + original_launch + """
         guard client != nil, sideStorePid > 0 && getpgid(sideStorePid) > 0 else {
@@ -125,7 +125,7 @@ def patch_v181_refresh_service_lifecycle(source):
         sideStorePid = 0
         v3RefreshToken = nil
         v3RefreshAdmissionRunID = nil
-        v3ServiceIdentity = UUID().uuidString
+        v3ServiceIdentity = UUID()
     }
 """
     needle = "    func updateProgress(_ value: Double) {\n"
