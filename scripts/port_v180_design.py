@@ -14,6 +14,116 @@ import shutil
 import sys
 
 
+
+def port_current_sidestore_service_primitives(side: Path) -> None:
+    """Restore exact upstream types and the canonical credential transaction.
+
+    No stored credentials, provisioning profiles, guest containers or user
+    preference values are modified. Patch the disposable build checkout only.
+    """
+    key = side / "AltStore/Core/Components/Keychain.swift"
+    prefs = side / "AltStore/Core/Extensions/UserDefaults+AltStore.swift"
+    source_dialog = side / "SideStore/DeepLinks/InstallAppDialog.swift"
+    app = side / "AltStore/AppDelegate.swift"
+    for file in (key, prefs, source_dialog, app):
+        if not file.is_file():
+            raise ValueError("V181 SideStore runtime source missing: " + str(file))
+
+    canonical = importlib.import_module("patch_embedded_keychain")
+    key_text = key.read_text()
+    source_marker = "LC_EMBEDDED_SHARED_KEYCHAIN_V1"
+    if source_marker not in key_text:
+        fixes = [
+            ("import Foundation\n",
+             "import Foundation\nimport Security\n#if canImport(Darwin)\nimport Darwin\n#elseif canImport(Glibc)\nimport Glibc\n#endif\n"),
+            ("KeychainAccess.Keychain(service: Bundle.Info.appbundleIdentifier)\n"
+             "                                            .accessibility(.afterFirstUnlock)\n"
+             "                                            .synchronizable(true)",
+             "LCEmbeddedSharedKeychain.makeClient()"),
+            ("case is Data.Type: return try? Keychain.shared.keychain.getData(self.key) as? Value",
+             "case is Data.Type: return LCEmbeddedSharedKeychain.read(self.key, client: Keychain.shared.keychain) as? Value"),
+            ("case is String.Type: return try? Keychain.shared.keychain.getString(self.key) as? Value",
+             "case is String.Type: return LCEmbeddedSharedKeychain.readString(self.key, client: Keychain.shared.keychain) as? Value"),
+            ("case is Data.Type: Keychain.shared.keychain[data: self.key] = newValue as? Data",
+             "case is Data.Type: LCEmbeddedSharedKeychain.write(self.key, data: newValue as? Data, client: Keychain.shared.keychain)"),
+            ("case is String.Type: Keychain.shared.keychain[self.key] = newValue as? String",
+             "case is String.Type: LCEmbeddedSharedKeychain.write(self.key, data: (newValue as? String).map { Data($0.utf8) }, client: Keychain.shared.keychain)"),
+            ("        self.migrateLegacyKeychainItems()",
+             "        LCEmbeddedSharedKeychain.prepare(self.keychain)\n"
+             "        if LCEmbeddedSharedKeychain.isReady(self.keychain) { self.migrateLegacyKeychainItems() }"),
+            ('get { try? self.keychain.getData("importedCert_" + serial) }',
+             'get { LCEmbeddedSharedKeychain.read("importedCert_" + serial, client: self.keychain) }'),
+            ('            if let data = newValue {\n'
+             '                try? self.keychain.set(data, key: "importedCert_" + serial)\n'
+             '            } else {\n'
+             '                try? self.keychain.remove("importedCert_" + serial)\n'
+             '            }',
+             '            LCEmbeddedSharedKeychain.write("importedCert_" + serial, data: newValue, client: self.keychain)'),
+            ("        try? self.keychain.removeAll()",
+             "        LCEmbeddedSharedKeychain.clearAll(self.keychain)"),
+        ]
+        for before, after in fixes:
+            key_text = canonical.once(key_text, before, after)
+        key_text += ("\n" + canonical.TEMPLATE.read_text()
+                     + "\n" + canonical.KEYCHAIN_ACCESS_ADAPTER + "\n")
+    elif (canonical.TEMPLATE.read_text() not in key_text or
+          canonical.KEYCHAIN_ACCESS_ADAPTER not in key_text):
+        raise ValueError("V181 shared Keychain adapter was only partially restored")
+
+    # The original enum resides in InstallAppDialog, a deliberately excluded
+    # UI file. Preserve every original preference case and exact raw value.
+    dialog_text = source_dialog.read_text()
+    enum_start = "public enum AppImportSourceMode: String, CaseIterable, Identifiable, Sendable {"
+    enum_end = "\n@MainActor\npublic enum InstallAppDialog"
+    if dialog_text.count(enum_start) != 1 or dialog_text.count(enum_end) != 1:
+        raise ValueError("SideStore import-source enum changed upstream")
+    enum_body = dialog_text[dialog_text.index(enum_start):dialog_text.index(enum_end)]
+    pref_text = prefs.read_text()
+    enum_marker = "// SCARLET_V181_RETAIN_IMPORT_SOURCE_ENUM"
+    if enum_marker not in pref_text:
+        if "public enum AppImportSourceMode:" in pref_text:
+            raise ValueError("AppImportSourceMode already defined in retained settings")
+        pref_text += "\n" + enum_marker + "\n" + enum_body + "\n"
+    elif enum_body not in pref_text:
+        raise ValueError("partially retained original import-source enum")
+
+    # Current CoreData requires an explicit managed-object context.
+    # Only the source getter changes, never the active team or account.
+    app_text = app.read_text()
+    team_before = "DatabaseManager.shared.activeTeam()?.identifier"
+    team_after = ("DatabaseManager.shared.activeTeam(in: "
+                  "DatabaseManager.shared.persistentContainer.viewContext)?.identifier")
+    if team_before in app_text:
+        if app_text.count(team_before) != 1:
+            raise ValueError("multiple embedded active-team accessors")
+        app_text = app_text.replace(team_before, team_after)
+    elif team_after not in app_text:
+        raise ValueError("embedded active-team lookup drifted")
+
+    # Modern ImportExport.importAccount became async; maintain exact source
+    # import semantics instead of skipping or silently reporting success.
+    import_before = "static func accountImport(token: String, password: String) throws -> [String: Any]"
+    import_after = "static func accountImport(token: String, password: String) async throws -> [String: Any]"
+    call_before = "let account = try ImportExport.importAccount(data, filePassword: password)"
+    call_after = "let account = try await ImportExport.importAccount(data, filePassword: password)"
+    if import_before in app_text:
+        if app_text.count(import_before) != 1 or app_text.count(call_before) != 1:
+            raise ValueError("embedded account import changed upstream")
+        app_text = app_text.replace(import_before, import_after)
+        app_text = app_text.replace(call_before, call_after)
+    elif import_after not in app_text or call_after not in app_text:
+        raise ValueError("embedded account import async forwarding missing")
+
+    # Validate all pending edits before writing any file to the checkout.
+    expected = ("LCEmbeddedAuthenticationSnapshot", "func authenticationSnapshot() throws",
+                "LCEmbeddedSharedKeychain.makeClient()")
+    if any(term not in key_text for term in expected) or enum_body not in pref_text:
+        raise ValueError("V181 preserved credential/preference type is incomplete")
+    key.write_text(key_text)
+    prefs.write_text(pref_text)
+    app.write_text(app_text)
+
+
 def main():
     if len(sys.argv) != 4:
         raise SystemExit("usage: port_v180_design.py <LiveContainer> <EmbeddedSideStore> <pins.json>")
@@ -123,6 +233,9 @@ def main():
             arguments.append("layout")
         report(script, lambda name=script, args=arguments: subprocess.run(
             [sys.executable, str(path / (name + ".py")), *args], check=True))
+
+    report("latest SideStore credential/import compatibility",
+           lambda: port_current_sidestore_service_primitives(side))
 
     print("[SCARLET_V180] full source-preserving visual patch chain applied")
 
