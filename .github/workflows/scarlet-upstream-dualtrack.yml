@@ -1,0 +1,79 @@
+name: Scarlet Crystal - track LiveContainer and SideStore upstream
+
+on:
+  schedule:
+    - cron: '41 0,12 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: scarlet-upstream-dualtrack
+  cancel-in-progress: false
+
+jobs:
+  stage-reviewed-upstream:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout Scarlet upstream-integration branch
+        uses: actions/checkout@v4
+        with:
+          ref: refactor/scarlet-v177-upstream-dualtrack-20261103
+          fetch-depth: 0
+          persist-credentials: true
+
+      - name: Verify synchronized upstreams and stage source refs
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          python3 -m unittest discover -s tests -p test_v177_upstream_follow.py -v
+          python3 scripts/scarlet_upstream_follow.py \
+            --workflow .github/workflows/livecontainer-build.yml \
+            --report upstream-status.json --write
+          python3 -m json.tool upstream-status.json >/dev/null
+
+      - name: Check whether newer verified parent revisions exist
+        id: pending
+        run: |
+          if git diff --quiet -- .github/workflows/livecontainer-build.yml; then
+            echo "changed=false" >>"$GITHUB_OUTPUT"
+          else
+            echo "changed=true" >>"$GITHUB_OUTPUT"
+          fi
+
+      # This is only a proposed update; NEVER auto-merge, sign or release.
+      - name: Propose dual-upstream source sync PR
+        if: steps.pending.outputs.changed == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          base="refactor/scarlet-v177-upstream-dualtrack-20261103"
+          head="sync/scarlet-dual-upstream"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git checkout -B "$head"
+          git add .github/workflows/livecontainer-build.yml
+          git commit -m "chore: stage newer LiveContainer and SideStore fork heads and matching gitlinks"
+          git push --force-with-lease --set-upstream origin "$head"
+          body="Automated proposal only. Both upstream sources and the SideStore nested gitlinks are staged together. SideStore/develop is advisory. Review Scarlet overlays, Rust/Swift ABI, 1600+ tests, IPA metadata, actual device pairing, guest UI and data preservation before promoting. This job does not auto-merge, sign, release or install."
+          if gh pr view "$head" --repo "$GITHUB_REPOSITORY" --json number --jq .number >/dev/null 2>&1; then
+            gh pr edit "$head" --repo "$GITHUB_REPOSITORY" --body "$body"
+          else
+            gh pr create --repo "$GITHUB_REPOSITORY" --base "$base" --head "$head" \
+              --title "chore: follow LiveContainer and embedded SideStore upstream" \
+              --body "$body"
+          fi
+
+      - name: Upload immutable upstream comparison
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: scarlet-dual-upstream-status
+          path: upstream-status.json
+          if-no-files-found: ignore
+          retention-days: 30
