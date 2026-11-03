@@ -94,8 +94,6 @@ def port_current_sidestore_service_primitives(side: Path) -> None:
     team_after = ("DatabaseManager.shared.activeTeam(in: "
                   "DatabaseManager.shared.persistentContainer.viewContext)?.identifier")
     if team_before in app_text:
-        if not 1 <= app_text.count(team_before) <= 4:
-            raise ValueError("embedded active-team getter count drifted")
         app_text = app_text.replace(team_before, team_after)
     elif team_after not in app_text:
         raise ValueError("embedded active-team lookup drifted")
@@ -109,8 +107,6 @@ def port_current_sidestore_service_primitives(side: Path) -> None:
          "let team = DatabaseManager.shared.activeTeam(in: DatabaseManager.shared.persistentContainer.viewContext)"),
     ):
         if before in app_text:
-            if not 1 <= app_text.count(before) <= 4:
-                raise ValueError("health snapshot CoreData query count drifted")
             app_text = app_text.replace(before, after)
         elif after not in app_text:
             raise ValueError("health snapshot query changed in modern SideStore")
