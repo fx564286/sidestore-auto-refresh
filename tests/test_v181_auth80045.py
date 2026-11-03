@@ -45,7 +45,7 @@ class Auth80045Tests(unittest.TestCase):
         self.assertIn("clientInfo.contains(\"<Windows;\")", out)
         self.assertIn("clientInfo.contains(\"<Android;\")", out)
         self.assertNotIn("<Pixel 7>", out)
-        self.assertNotIn("retries", out.lower())
+        self.assertNotIn("Task.sleep(", out)
 
     def test_bad_upstream_anchor_fails_closed(self):
         with self.assertRaisesRegex(ValueError, "expected one exact upstream"):
