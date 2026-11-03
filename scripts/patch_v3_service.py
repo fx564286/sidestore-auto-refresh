@@ -57,6 +57,7 @@ HEADLESS_SIDESTORE_VIEW_FILES = (
     "Views/Settings/Advanced/Certificates/CertificatesListView.swift",
     "Views/Settings/Advanced/Certificates/CertificatesView.swift",
     "Views/Settings/Advanced/Certificates/CertificatesViewModel.swift",
+    "Views/Settings/Advanced/Profiles/ProfileManagementView.swift",
     "Views/Settings/Advanced/Certificates/PrivateKeyTextEditor.swift",
     "Views/Settings/Advanced/Certificates/PrivateKeyTextInputView.swift",
     "Views/Settings/Advanced/Certificates/RevokeAlertViewController.swift",
