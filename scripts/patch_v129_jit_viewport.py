@@ -56,10 +56,25 @@ def jit(s):
         "modern transport or legacy routing")
     # Retarget subsequent branching and URL scheme to the actual selected
     # transport. The saved user preference remains unchanged.
-    s = replace_once(s,
-        '                components.scheme = jitEnabler == .StikJITLC ? "stikjit" : "stikdebug"',
-        '                components.scheme = effectiveEnabler == .StikJITLC ? "stikjit" : "stikdebug"',
-        "real helper URL scheme")
+    # Modern upstream LiveContainer/main 9108ae6 no longer builds
+    # URLComponents.scheme. It directly constructs a stikjit:// URL. Keep
+    # external StikDebug and embedded StikJITLC routes distinct, without
+    # forcing the old source layout or changing the saved user preference.
+    old_scheme = '                components.scheme = jitEnabler == .StikJITLC ? "stikjit" : "stikdebug"'
+    if old_scheme in s:
+        s = replace_once(s, old_scheme,
+            '                components.scheme = effectiveEnabler == .StikJITLC ? "stikjit" : "stikdebug"',
+            "legacy helper URL scheme")
+    else:
+        modern = '                if let url = URL(string: "stikjit://enable-jit?bundle-id=\\(Bundle.main.bundleIdentifier!)&pid=\\(pid)\\(encoded)") {'
+        if s.count(modern) != 1 or 'components.scheme =' in s:
+            raise ValueError("V129 unexpected modern helper URL construction")
+        converted = (
+            '                // SCARLET_V129_JIT_UPSTREAM_DIRECT_SCHEME: use the real selected transport.\\n'
+            '                let helperScheme = effectiveEnabler == .StikJITLC ? "stikjit" : "stikdebug"\\n'
+            '                if let url = URL(string: "\\(helperScheme)://enable-jit?bundle-id=\\(Bundle.main.bundleIdentifier!)&pid=\\(pid)\\(encoded)") {'
+        )
+        s = replace_once(s, modern, converted, "latest upstream direct helper URL scheme")
     s = replace_once(s,
         '                    if jitEnabler == .StikJITLC {',
         '                    if effectiveEnabler == .StikJITLC {',
