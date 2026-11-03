@@ -1339,6 +1339,39 @@ jobs:
             CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO \
             COMPILER_INDEX_STORE_ENABLE=NO build
 
+      # V176: the bounded wrapper prints only Xcode's last 120 summary lines.
+      # On compiler failure preserve the FIRST primary Swift errors too.
+      - name: Report actual Swift compiler diagnostics
+        if: ${{ failure() }}
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+          p = Path("artifacts/logs/embedded-sidestore-build.log")
+          if not p.is_file():
+              print("[V176_DIAG] embedded SideStore build log was not produced")
+          else:
+              lines = p.read_text(errors="replace").splitlines()
+              matches = [i for i, line in enumerate(lines) if re.search(
+                  r"(?:^|\\s)(?:error:|fatal error:)|\\bIdeviceGateway\\.swift:\\d+",
+                  line, re.I)]
+              print(f"[V176_DIAG] lines={len(lines)} primary_errors={len(matches)}")
+              for i in matches[:30]:
+                  print(f"[V176_DIAG] context line={i+1}")
+                  for line in lines[max(0, i-3):min(len(lines), i+5)]:
+                      print(line[:1400])
+          PY
+
+      - name: Upload full Swift compiler diagnostics on failure
+        if: ${{ failure() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: scarlet-v176-swift-compiler-errors
+          path: artifacts/logs/embedded-sidestore-build.log
+          if-no-files-found: ignore
+          retention-days: 7
+
       - name: Package and verify combined LiveContainer plus SideStore
         shell: bash
         run: |
