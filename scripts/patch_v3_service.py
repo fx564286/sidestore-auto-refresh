@@ -2228,14 +2228,14 @@ def patch_auth_identity_generation(text):
     # Current SideStore changes signOut to async. Carry over the original
     # V3 identity-transition guard without turning async sign-out back into
     # its obsolete synchronous declaration.
-    old_signout = "    ) {\\n        self.session = nil\\n"
+    old_signout = "    ) {\n        self.session = nil\n"
     if old_signout not in text:
-        old_signout = "    ) async {\\n        self.session = nil\\n"
+        old_signout = "    ) async {\n        self.session = nil\n"
     new_signout = old_signout.replace(
-        "        self.session = nil\\n",
-        "        self.v3BeginIdentityTransition()\\n"
-        "        defer { self.v3CompleteIdentityTransition() }\\n"
-        "        self.session = nil\\n",
+        "        self.session = nil\n",
+        "        self.v3BeginIdentityTransition()\n"
+        "        defer { self.v3CompleteIdentityTransition() }\n"
+        "        self.session = nil\n",
         1)
     text = replace(text, old_signout, new_signout)
     text = replace(text,
