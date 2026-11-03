@@ -79,8 +79,8 @@ enum ScarletV183HostLog {
                 try? handle.close()
                 throw error
             }
-            let size = (try? FileManager.default.attributesOfItem(atPath: url.path)
-                [.size] as? NSNumber)?.intValue ?? 0
+            let attributes = try? FileManager.default.attributesOfItem(atPath: url.path)
+            let size = (attributes?[.size] as? NSNumber)?.intValue ?? 0
             if size > maxBytes {
                 let bytes = try Data(contentsOf: url)
                 // Trim at the next newline so no partial event is presented.
@@ -310,11 +310,9 @@ def patch(source: str) -> str:
         "auth state transitions")
 
     source = replace_one(source,
-        '''        if operation == "wirelessPairStart" {
-            NSLog("[SCARLET_V167_ONDEVICE_UI] action=start")
+        '''            NSLog("[SCARLET_V167_ONDEVICE_UI] action=start")
 ''',
-        '''        if operation == "wirelessPairStart" {
-            ScarletV183HostLog.record(.pairingStarted)
+        '''            ScarletV183HostLog.record(.pairingStarted)
             NSLog("[SCARLET_V167_ONDEVICE_UI] action=start")
 ''',
         "pairing initiation")
