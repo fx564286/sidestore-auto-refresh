@@ -84,6 +84,7 @@ HEADLESS_SIDESTORE_VIEW_FILES = (
     "Views/Settings/Advanced/WirelessPair/WirelessPairTargetDialog.swift",
     "Views/Settings/Advanced/WirelessPair/WirelessPairView.swift",
     "Views/Settings/Advanced/WirelessPair/WirelessPairViewModel.swift",
+    "Views/Settings/Auth/AccountVerificationRow.swift",
     "Views/Settings/Auth/ExportAccountAlertViewController.swift",
     "Views/Settings/Auth/ImportAccountAlertController.swift",
     "Views/Settings/Auth/ResetAdiAlertViewController.swift",
