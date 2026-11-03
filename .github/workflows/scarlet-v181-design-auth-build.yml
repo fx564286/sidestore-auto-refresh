@@ -5,6 +5,7 @@ on:
   push:
     branches:
       - fix/scarlet-v181-figma-design-auth80045-20261103
+      - fix/scarlet-v182-p00-pairing-auth-refresh-20261104
 
 permissions:
   contents: read
@@ -109,6 +110,13 @@ jobs:
             work/EmbeddedSideStore/SideStore/Handlers/SignInFlowHandler.swift
           echo '[V181_AUTH80045] source and Swift syntax PASS; live Apple 2FA unverified'
 
+      - name: P00 pairing and Apple 2FA source contract tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m unittest discover -s builder/tests -p test_v182_p00_pairing.py -v \
+            2>&1 | tee artifacts/logs/v182-p00-pairing-tests.log
+
       - name: Forward-port user's original dock and unified shell instead of replacing with stock
         shell: bash
         run: |
@@ -121,6 +129,16 @@ jobs:
 
       # The V179 IPA was compiled from latest parents but omitted the user's
       # distinctive Liquid Glass/scene UI. Never publish such a result again.
+      - name: Verify pairing and 2FA P00 patch is in both compiled source trees
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -q SCARLET_V182_P00_PAIRING work/LiveContainer/LiveContainerSwiftUI/Views/V3UnifiedShell.swift
+          grep -q SCARLET_V182_P00_PAIRING work/EmbeddedSideStore/AltStore/AppDelegate.swift
+          grep -q scarletV182PairingStatusPoll work/LiveContainer/LiveContainerSwiftUI/Views/V3UnifiedShell.swift
+          grep -q 'lastNotifiedPairingPIN' work/EmbeddedSideStore/AltStore/AppDelegate.swift
+          echo '[P00] pairing and 2FA source overlay verified; device handshake and Apple 2FA pending'
+
       - name: Gate on user-authored Scarlet Crystal design preservation
         shell: bash
         run: |
