@@ -214,11 +214,19 @@ func lcPortalSigningRequest<T>(
     # Upstream PipelineRunner now expects the already-existing CoreData
     # context, rather than a legacy StandaloneOperationContext wrapper.
     # Keep the exact same transaction and cancellation gate.
-    single_before = "handler: handler, context: context"
-    single_after = "handler: handler, dbContext: context.dbBackgroundContext"
-    if app_text.count(single_before) != 2 and single_after not in app_text:
-        raise ValueError("V181 headless pipeline call signatures changed")
-    app_text = app_text.replace(single_before, single_after)
+    pipeline_call_fixes = (
+        ("performSingleOperation(operation, handler: handler, context: context)",
+         "performSingleOperation(operation, handler: handler, dbContext: context.dbBackgroundContext)"),
+        (".deleteApp(app), handler: handler, context: context",
+         ".deleteApp(app), handler: handler, dbContext: context.dbBackgroundContext"),
+    )
+    for before, after in pipeline_call_fixes:
+        if before in app_text:
+            if app_text.count(before) != 1:
+                raise ValueError("multiple headless pipeline operation call sites")
+            app_text = app_text.replace(before, after)
+        elif after not in app_text:
+            raise ValueError("V181 headless pipeline operation source drifted")
 
     # File-import notifications belong to the old standalone UI. Their
     # payload constants remain stable without depending on stripped AppDelegate.
