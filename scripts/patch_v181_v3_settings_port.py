@@ -30,7 +30,13 @@ def patch(source: str, shell: str) -> str:
             raise ValueError("partial V3 account-settings port")
         return source
     if "V3AccountSettings()" in source:
-        raise ValueError("other account-settings installation detected; manual review required")
+        # The original V3 command integration installs this exact account
+        # settings row itself. Accept one real row, not a duplicate or
+        # placeholder. Preserve the original V3 service output unchanged.
+        original_row = "            Form {\\n                V3AccountSettings()"
+        if source.count("V3AccountSettings()") != 1 or original_row not in source:
+            raise ValueError("V3 account-settings row duplicate or relocated")
+        return source
     if source.count(OLD) != 1:
         raise ValueError("original host settings Form structure drifted")
     output = source.replace(OLD, NEW, 1)
