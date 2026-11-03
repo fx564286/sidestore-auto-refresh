@@ -158,6 +158,7 @@ jobs:
               -scheme SideStore -sdk iphoneos -configuration Release -jobs 2 \
               -derivedDataPath "$RUNNER_TEMP/v178-sidestore" \
               CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO \
+              ASSETCATALOG_COMPILER_APPICON_NAME= \
               COMPILER_INDEX_STORE_ENABLE=NO build
 
       - name: Create verified user-designed Scarlet Crystal V181 unsigned IPA
