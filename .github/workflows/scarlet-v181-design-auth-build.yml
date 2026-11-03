@@ -121,7 +121,7 @@ jobs:
 
       # The V179 IPA was compiled from latest parents but omitted the user's
       # distinctive Liquid Glass/scene UI. Never publish such a result again.
-      - name: Gate on user-authored Scarlet Crystal design preservation
+      - name: Gate on source-level Scarlet UI markers (Figma and device parity pending)
         shell: bash
         run: |
           set -euo pipefail
@@ -177,7 +177,7 @@ jobs:
           test -s artifacts/Scarlet-Crystal-V181-UPSTREAM-FORK-UNSIGNED.ipa
           test -s artifacts/Scarlet-Crystal-V181-UPSTREAM-FORK-UNSIGNED.json
 
-      - name: Upload fully UI-verified Scarlet Crystal V181 compiled unsigned IPA
+      - name: Upload source-checked Scarlet Crystal V181 unsigned IPA (device and Figma unverified)
         uses: actions/upload-artifact@v4
         with:
           name: Scarlet-Crystal-V181-UPSTREAM-FORK-UNSIGNED
