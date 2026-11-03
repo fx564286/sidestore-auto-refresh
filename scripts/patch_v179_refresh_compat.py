@@ -57,7 +57,32 @@ def patch(root, template):
         app_group.write_text(body)
     if not bridge.exists():
         bridge.write_text(REFRESH_COMPAT)
-    result = app_group.read_text() == main_shared.read_text() and MARKER in bridge.read_text()
+
+    # V3ShortcutRefreshRequest was defined in the old full V3 overlay,
+    # which cannot be applied wholesale to the latest two upstream trees.
+    # Extract its exact tested request/correlation declarations for both
+    # independent Swift modules: the host receives and SideStoreSupport sends.
+    primitive_file = Path(__file__).resolve().parent / "templates/v3_behavioral_primitives.swift"
+    primitive = primitive_file.read_text()
+    begin = "public struct V3ShortcutRefreshRequest: Equatable {"
+    finish = "\\nenum V3RefreshIntentStartPolicy {"
+    if primitive.count(begin) != 1 or primitive.count(finish) != 1:
+        raise ValueError("canonical V3 request declarations changed")
+    request_types = "import Foundation\\n\\n" + primitive[
+        primitive.index(begin):primitive.index(finish)
+    ] + "\\n"
+    host_request = root / "LiveContainerSwiftUI/Utilities/V3ShortcutRefreshRequest.swift"
+    support_request = support / "V3ShortcutRefreshRequest.swift"
+    for request_file in (host_request, support_request):
+        if request_file.exists() and request_file.read_text() != request_types:
+            raise ValueError(f"conflicting V3 request contract: {request_file}")
+        if not request_file.exists():
+            request_file.write_text(request_types)
+
+    result = (app_group.read_text() == main_shared.read_text()
+              and MARKER in bridge.read_text()
+              and host_request.read_text() == support_request.read_text()
+              and "V3RefreshRunCorrelation" in host_request.read_text())
     if not result:
         raise ValueError("refresh compatibility adapter verification failed")
 
