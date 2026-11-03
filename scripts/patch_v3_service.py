@@ -313,7 +313,6 @@ def headless_project(text):
 				"Settings/tvOS/Settings.storyboard",
 				"Settings/tvOS/SettingsHeaderFooterView.xib",
 				"Resources/AltIcons.plist",
-				"Resources/Icons.xcassets",
 				"Resources/Icons.xcassets/Modern/BlueIcon.appiconset",
 				"Resources/Icons.xcassets/Modern/DarkIcon.appiconset",
 				"Resources/Icons.xcassets/Modern/HoneydewIcon.appiconset",
