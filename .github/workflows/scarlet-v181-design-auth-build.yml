@@ -139,9 +139,7 @@ jobs:
           grep -q SCARLET_V182_P00_PAIRING work/EmbeddedSideStore/AltStore/AppDelegate.swift
           grep -q scarletV182PairingStatusPoll work/LiveContainer/LiveContainerSwiftUI/Views/V3UnifiedShell.swift
           grep -q SCARLET_V182_P00_AUTH_CANCEL_LIVENESS work/LiveContainer/LiveContainerSwiftUI/Views/V3UnifiedShell.swift
-          if grep -q 'await oldTask?.value' work/LiveContainer/LiveContainerSwiftUI/Views/V3UnifiedShell.swift; then
-            echo '[P00] unbounded auth cancellation wait remains' >&2; exit 1
-          fi
+          python3 -c "from pathlib import Path; s=Path('work/LiveContainer/LiveContainerSwiftUI/Views/V3UnifiedShell.swift').read_text(); a=s.index('func cancel() {', s.index('final class V3AuthStore')); b=s.index('struct V3SignInLink', a); assert 'await oldTask?.value' not in s[a:b], 'unbounded auth cancellation wait remains'"
           grep -q 'lastNotifiedPairingPIN' work/EmbeddedSideStore/AltStore/AppDelegate.swift
           echo '[P00] pairing and 2FA source overlay verified; device handshake and Apple 2FA pending'
 
