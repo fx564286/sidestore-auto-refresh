@@ -73,8 +73,12 @@ class V183HostLogTests(unittest.TestCase):
         self.assertIn("ScarletV183HostLog.contents()",logview)
 
     def test_glass_and_unrelated_views_unchanged(self):
-        self.assertEqual(self.base[self.base.index("struct V3ExperimentalView: View"):],
-                         self.after[self.after.index("struct V3ExperimentalView: View"):])
+        # The synthetic V167 command appended after the last view is expected
+        # to gain logger calls. The actual surrounding original views do not.
+        fixture = "// Fixture from the actual V167 backend pairing command source."
+        self.assertEqual(
+            self.base[self.base.index("struct V3ExperimentalView: View"):self.base.index(fixture)],
+            self.after[self.after.index("struct V3ExperimentalView: View"):self.after.index(fixture)])
         self.assertIn("SCARLET_V144_GLASS",self.base) if "SCARLET_V144_GLASS" in self.base else None
         self.assertEqual(self.base.count("struct V3SignInView: View"),
                          self.after.count("struct V3SignInView: View"))
