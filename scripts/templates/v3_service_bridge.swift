@@ -848,7 +848,7 @@ public final class V3ServiceBridge {
         let response: Data
         do {
             response = try await withTaskCancellationHandler(operation: {
-            try await withCheckedThrowingContinuation { continuation in
+            try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Data, Error>) in
                 if Task.isCancelled { continuation.resume(throwing: CancellationError()); return }
                 pending[id] = continuation
                 pendingOperations[id] = operation
