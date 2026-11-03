@@ -31,7 +31,7 @@ env:
   MINIMUXER_REF: 98c3c79982f813878e922ab42f9545314a700f0c
   SIDESIGN_REF: a731c0d5a9a6617c7b385ae493e07ffb7f81cd5d
   SIDESIGN_GSA_FIX: 35993d7f68950ce00d6bf1fd0fbcaa7bef51dc9c
-  IDEVICE_REF: 3e55c8486b2057e40c1f74aaaa1155c82341cf76
+  IDEVICE_REF: ebd7dadfc55d1c4facee3d11ecf5b28e20548b57
   JKTCP_REF: e674e1eee6d5943e13b1eba0bd24a9dd0b2fa020
 
 jobs:
@@ -1072,7 +1072,7 @@ jobs:
           test -f target/aarch64-apple-ios/release/libidevice_ffi.a
           test -f ffi/idevice.h
           grep -Fq 'tunnel_create_usb' ffi/idevice.h
-          # V176: preserve the FFI symbols required for the installed RPPairing route.
+          # V176: verify the existing FFI RPPairing ABI, preserving proven toolchain compatibility.
           grep -Fq 'tunnel_create_rppairing' ffi/idevice.h
           grep -Fq 'rp_pairing_file_read' ffi/idevice.h
           grep -Fq 'tunnel_heartbeat_is_active' ffi/idevice.h
