@@ -61,9 +61,18 @@
       "key": "single_route_shell",
       "path": "LiveContainerSwiftUI/Views/V3UnifiedShell.swift",
       "all": [
-        "SCARLET_V155_NO_DIRECT_PRESENTER"
+        "SCARLET_V155_NO_DIRECT_URL_ROUTE"
       ],
       "purpose": "Preserve the customized unified shell"
+    },
+    {
+      "key": "no_direct_bootstrap",
+      "path": "LiveContainer/LCBootstrap.m",
+      "all": [
+        "SCARLET_V155_NO_DIRECT_PRESENTER",
+        "SCARLET_V155_ONLY_LIVEPROCESS"
+      ],
+      "purpose": "Verify the original Direct UIWindow presenter and alternate launch were removed"
     },
     {
       "key": "rotation",
