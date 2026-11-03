@@ -599,6 +599,11 @@ def main():
                sys.executable, str(path / "patch_v182_p00_ondevice_pairing.py"),
                str(live), str(side)], check=True))
 
+    report("P00 bounded auth cancellation and unknown-safe recovery",
+           lambda: subprocess.run([
+               sys.executable, str(path / "patch_v182_p00_auth_cancel_liveness.py"),
+               str(live)], check=True))
+
     report("latest SideStore credential/import compatibility",
            lambda: port_current_sidestore_service_primitives(side))
 
