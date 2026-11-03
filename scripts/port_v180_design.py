@@ -100,6 +100,21 @@ def port_current_sidestore_service_primitives(side: Path) -> None:
     elif team_after not in app_text:
         raise ValueError("embedded active-team lookup drifted")
 
+    # The same modern context signature applies to health snapshots.
+    # Never fabricate an account/team when the persisted CoreData object is absent.
+    for before, after in (
+        ("DatabaseManager.shared.activeAccount()?.appleID",
+         "DatabaseManager.shared.activeAccount(in: DatabaseManager.shared.persistentContainer.viewContext)?.appleID"),
+        ("let team = DatabaseManager.shared.activeTeam()",
+         "let team = DatabaseManager.shared.activeTeam(in: DatabaseManager.shared.persistentContainer.viewContext)"),
+    ):
+        if before in app_text:
+            if app_text.count(before) != 1:
+                raise ValueError("ambiguous health snapshot CoreData query")
+            app_text = app_text.replace(before, after)
+        elif after not in app_text:
+            raise ValueError("health snapshot query changed in modern SideStore")
+
     # Modern ImportExport.importAccount became async; maintain exact source
     # import semantics instead of skipping or silently reporting success.
     import_before = "static func accountImport(token: String, password: String) throws -> [String: Any]"
