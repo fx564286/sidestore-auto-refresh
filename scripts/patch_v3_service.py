@@ -998,6 +998,37 @@ def headless_app_manager_ui(text):
         "func deactivateApps(for appBundle: ALTApplication, presentingViewController: UIViewController?, "
         "completion: @escaping (Result<Void, Error>) -> Void)")
     pairing_marker = "V3_TYPED_PAIRING_FAILURE_PROPAGATION_V1"
+    modern_marker = "V3_HEADLESS_APP_MANAGER_CURRENT_PIPELINE_V1"
+    # Latest SideStore eliminated the signIn/deactivateApps UIKit wrappers
+    # while keeping a single makePipelineHandler(presentingViewController:).
+    # Convert only this exact remaining presenter to the headless default,
+    # preserving modern app install/refresh logic rather than resurrecting
+    # old wrapper methods that no longer exist upstream.
+    modern = (
+        "func signIn(presentingViewController:" not in text
+        and "func deactivateApps(for appBundle:" not in text
+        and "private func makePipelineHandler(presentingViewController: UIViewController?)" in text
+    )
+    if modern:
+        if modern_marker in text:
+            if text.count(modern_marker) != 1 or "return PipelineHandler()" not in text:
+                raise SystemExit("v3 service: modern AppManager headless route drifted")
+            return text
+        old_handler = (
+            "return PipelineHandler(\n"
+            "            isResignActive: presentingViewController is ResignAltStoreViewController,\n"
+            "            presenterProvider: { [weak presentingViewController] in\n"
+            "                presentingViewController?.presentedViewController ?? presentingViewController\n"
+            "            }\n"
+            "        )"
+        )
+        text = replace(text, old_handler,
+            "// " + modern_marker + ": host V3 service owns UI confirmations.\n"
+            "        return PipelineHandler()")
+        text = replace(text, "        let nsError = error as NSError",
+            "        // " + pairing_marker + ": preserve typed pairing diagnostic.\n"
+            "        let nsError = V3HeadlessPairingFailure.tagIfInvalidPairing(error) as NSError")
+        return text
     if marker in text:
         if ("AuthManager.shared.signIn(\n                    presentingViewController:" in text
                 or "import Intents\n" in text
