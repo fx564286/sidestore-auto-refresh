@@ -949,14 +949,14 @@ def headless_scene_open(text):
               and "func exportPairingFile(" not in text)
     if modern:
         if marker in text:
-            if "    var window: UIWindow?\n" in text or "URLHandler.shared.handle(context.url)\n" in text:
+            if "    var window: UIWindow?\n" in text or "\n        URLHandler.shared.handle(context.url)\n" in text:
                 raise SystemExit("v3 service: modern scene URL guard drifted")
             return text
         if text.count("    var window: UIWindow?\n") != 1:
             raise SystemExit("v3 service: modern scene window changed")
         if text.count("            URLHandler.shared.handle(context.url)\n") != 1:
             raise SystemExit("v3 service: modern startup callback changed")
-        if text.count("        URLHandler.shared.handle(context.url)\n") != 1:
+        if text.count("\n        URLHandler.shared.handle(context.url)\n") != 1:
             raise SystemExit("v3 service: modern foreground URL callback changed")
         text = replace(text, "    var window: UIWindow?\n",
                        "    // " + marker + ": embedded service delegates scene ownership to LiveContainer.\n")
