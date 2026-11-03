@@ -135,7 +135,10 @@ def install():
             # Preserve the original Figma controller but prevent V2/V5/V8
             # rebinders from running after us.
             if not getattr(win, '_scarlet_figma_controller', None):
-                win._scarlet_figma_controller = Responsive(win)
+                try:
+                    win._scarlet_figma_controller = Responsive(win)
+                except Exception as exc:
+                    _scarlet_v9_report('RESPONSIVE_INIT_ERROR ' + str(exc))
             try:
                 button.clicked.disconnect()
             except (TypeError, RuntimeError):
