@@ -102,8 +102,11 @@ def main():
     for root in roots:
         count = native_connections(root/'scarlet_gui.py')
         print('[GUI]', root, '[native both_btn handlers]', count, flush=True)
-        if count != 1:
-            raise ValueError('원래 버튼 연결을 하나로 확인하지 못함; 변경하지 않음')
+        if count > 1:
+            raise ValueError('원래 버튼 연결이 여러 개여서 중복 설치 위험; 변경하지 않음')
+        if count == 0:
+            print('[INFO] 버튼 연결이 make_button 팩토리에서 이루어질 수 있음;'
+                  ' 기존 연결을 절대 해제하지 않음')
         backups = root/'.scarlet-native-v4-backups'
         if rollback:
             folders = sorted((x for x in backups.iterdir() if x.is_dir()), reverse=True) if backups.exists() else []
