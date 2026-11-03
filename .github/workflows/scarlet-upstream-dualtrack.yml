@@ -32,14 +32,14 @@ jobs:
           set -euo pipefail
           python3 -m unittest discover -s tests -p test_v177_upstream_follow.py -v
           python3 scripts/scarlet_upstream_follow.py \
-            --workflow .github/workflows/livecontainer-build.yml \
+            --config config/scarlet-upstream-pins.json \
             --report upstream-status.json --write
           python3 -m json.tool upstream-status.json >/dev/null
 
       - name: Check whether newer verified parent revisions exist
         id: pending
         run: |
-          if git diff --quiet -- .github/workflows/livecontainer-build.yml; then
+          if git diff --quiet -- config/scarlet-upstream-pins.json; then
             echo "changed=false" >>"$GITHUB_OUTPUT"
           else
             echo "changed=true" >>"$GITHUB_OUTPUT"
@@ -57,8 +57,8 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git checkout -B "$head"
-          git add .github/workflows/livecontainer-build.yml
-          git commit -m "chore: stage newer LiveContainer and SideStore fork heads and matching gitlinks"
+          git add config/scarlet-upstream-pins.json
+          git commit -m "chore: stage paired upstream head and nested gitlink source config"
           git push --force-with-lease --set-upstream origin "$head"
           body="Automated proposal only. Both upstream sources and the SideStore nested gitlinks are staged together. SideStore/develop is advisory. Review Scarlet overlays, Rust/Swift ABI, 1600+ tests, IPA metadata, actual device pairing, guest UI and data preservation before promoting. This job does not auto-merge, sign, release or install."
           if gh pr view "$head" --repo "$GITHUB_REPOSITORY" --json number --jq .number >/dev/null 2>&1; then
