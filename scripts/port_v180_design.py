@@ -125,6 +125,92 @@ def port_current_sidestore_service_primitives(side: Path) -> None:
     elif import_after not in app_text or call_after not in app_text:
         raise ValueError("embedded account import async forwarding missing")
 
+    # SideStore and SideStoreSupport are separate Swift modules; the
+    # identical typed, privacy-filtered failure contract must compile in each.
+    failure_path = side / "SideStore/Core/CombinedFailure.swift"
+    failure_body = (Path(__file__).resolve().parent /
+                    "templates/combined_failure.swift").read_text()
+    if "public struct CombinedFailure: Error, LocalizedError {" not in failure_body:
+        raise ValueError("canonical typed failure contract unavailable")
+    if failure_path.exists() and failure_path.read_text() != failure_body:
+        raise ValueError("different SideStore typed failure contract already exists")
+
+    # Current SideStore portal API is intentionally identity-bound in
+    # patch_v3_service.py. Add the scoped tracing adapters referenced there,
+    # without embedding account/team/bundle IDs or provider text in the wire.
+    portal_path = side / "SideStore/Core/Auth/LCDeveloperPortalSigningContext.swift"
+    portal_body = """// SCARLET_V181_TYPED_PORTAL_SIGNING_CONTEXT
+import Foundation
+import CryptoKit
+
+private func lcPortalFingerprint(_ value: String) -> String {
+    SHA256.hash(data: Data(value.utf8))
+        .map { String(format: "%02x", $0) }.joined()
+}
+
+func lcPortalSigningContext(
+    teamID: String, generation: UInt64,
+    bundleID: String? = nil, features: [String: Any]? = nil,
+    groupCount: Int? = nil, groupID: String? = nil,
+    profileMode: String? = nil
+) -> [String: String] {
+    var facts: [String: String] = ["session_generation": String(generation)]
+    if !teamID.isEmpty { facts["team_sha256"] = lcPortalFingerprint(teamID) }
+    if let bundleID, !bundleID.isEmpty {
+        facts["requested_bundle_sha256"] = lcPortalFingerprint(bundleID)
+    }
+    if let groupID, !groupID.isEmpty {
+        facts["requested_app_group_sha256"] = lcPortalFingerprint(groupID)
+    }
+    if let groupCount, groupCount >= 0 {
+        facts["app_group_count"] = String(groupCount)
+    }
+    if let features {
+        facts["capability_count"] = String(features.count)
+        let names = features.keys.sorted()
+        if names.count <= 32, Set(names).isSubset(of: CombinedFailure.signingCapabilityNames) {
+            facts["capability_names"] = names.joined(separator: ",")
+        }
+    }
+    if let profileMode, ["team", "manual"].contains(profileMode) {
+        facts["profile_mode"] = profileMode
+    }
+    return CombinedFailure.validatedSigningContext(facts) ?? [:]
+}
+
+func lcPortalSigningRequest<T>(
+    sourceStep: String,
+    facts: [String: String],
+    operation: () async throws -> T
+) async throws -> T {
+    do {
+        return try await operation()
+    } catch {
+        if error is CancellationError { throw error }
+        if let known = error as? CombinedFailure { throw known }
+        let native = error as NSError
+        let metadata: [String: Any] = [
+            "LCStructuredFailureStageV1": CombinedFailure.Stage.signing.rawValue,
+            "LCStructuredFailureSourceV1": sourceStep,
+            "LCStructuredSigningContextV1":
+                CombinedFailure.validatedSigningContext(facts) ?? [:],
+            NSUnderlyingErrorKey: native
+        ]
+        // Original domain/code remain available to the fixed-classifier.
+        // Only explicitly allowlisted structured fields enter the wire.
+        let classified = NSError(domain: native.domain, code: native.code,
+                                 userInfo: metadata)
+        throw CombinedFailure.capture(classified, operation: "sign",
+                                      stage: .signing, id: UUID().uuidString)
+    }
+}
+"""
+    if portal_path.exists() and portal_path.read_text() != portal_body:
+        raise ValueError("existing SideStore portal signing adapter differs")
+    if ("func lcPortalSigningRequest<T>(" not in portal_body or
+            "CombinedFailure.validatedSigningContext(facts)" not in portal_body):
+        raise ValueError("incomplete typed portal helper")
+
     # Validate all pending edits before writing any file to the checkout.
     expected = ("LCEmbeddedAuthenticationSnapshot", "func authenticationSnapshot() throws",
                 "LCEmbeddedSharedKeychain.makeClient()")
@@ -133,6 +219,10 @@ def port_current_sidestore_service_primitives(side: Path) -> None:
     key.write_text(key_text)
     prefs.write_text(pref_text)
     app.write_text(app_text)
+    failure_path.parent.mkdir(parents=True, exist_ok=True)
+    portal_path.parent.mkdir(parents=True, exist_ok=True)
+    failure_path.write_text(failure_body)
+    portal_path.write_text(portal_body)
 
 
 def main():
