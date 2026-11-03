@@ -604,6 +604,14 @@ def main():
                sys.executable, str(path / "patch_v182_p00_auth_cancel_liveness.py"),
                str(live)], check=True))
 
+    # P00: own app-private logs are readable even with a failed LiveProcess/XPC.
+    # This only touches the canonical V3UnifiedShell.swift source and never
+    # modifies Liquid Glass, MultitaskDockView or Figma color tokens.
+    report("V183 host-owned diagnostic logs independent of SideStore XPC",
+           lambda: subprocess.run([
+               sys.executable, str(path / "patch_v183_host_diagnostic_logs.py"),
+               str(live)], check=True))
+
     report("latest SideStore credential/import compatibility",
            lambda: port_current_sidestore_service_primitives(side))
 
