@@ -1,6 +1,7 @@
 """V177: pinned composition follows both actual upstreams, not a mixed SHA."""
 from pathlib import Path
 import importlib.util
+import json
 import unittest
 from unittest.mock import patch
 
@@ -54,6 +55,27 @@ class UpstreamFollowTests(unittest.TestCase):
             self.assertEqual(module.pinned(changed, key), value)
         with self.assertRaises(ValueError):
             module.propose(BASE, {"IDEVICE_REF": e})
+
+    def test_json_source_of_truth_changes_only_verified_four_refs(self):
+        original = json.dumps({
+            "LIVE_CONTAINER_REF": a,
+            "EMBEDDED_SIDESTORE_REF": b,
+            "MINIMUXER_REF": c,
+            "SIDESIGN_REF": d
+        }) + "\n"
+        next_refs = {"LIVE_CONTAINER_REF": e,
+                     "EMBEDDED_SIDESTORE_REF": d,
+                     "MINIMUXER_REF": c,
+                     "SIDESIGN_REF": b}
+        changed = module.propose(original, next_refs)
+        self.assertEqual(module.propose(changed, next_refs), changed)
+        self.assertEqual(json.loads(changed), next_refs)
+        for key, value in next_refs.items():
+            self.assertEqual(module.pinned(changed, key), value)
+        with self.assertRaises(ValueError):
+            module.propose(original, {"LIVE_CONTAINER_REF": e})
+        with self.assertRaises(ValueError):
+            module.pinned(json.dumps({"LIVE_CONTAINER_REF": a}), "LIVE_CONTAINER_REF")
 
     def test_advisory_not_integrated(self):
         record = module.make_report(BASE, {
