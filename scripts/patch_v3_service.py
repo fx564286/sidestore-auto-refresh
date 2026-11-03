@@ -1593,8 +1593,8 @@ def headless_pipeline_handler(text):
     # no-presenter fallbacks, preserving input data and installed profiles.
     # Leave the real interactive UI in the standalone parent unchanged.
     modern_ui_anchors = (
-        "func resolveInfoPlistCustomization(\\n        targets: [InfoPlistTarget],",
-        "func resolveEntitlementsCustomization(\\n        targets: [EntitlementsTarget],",
+        "func resolveInfoPlistCustomization(\n        targets: [InfoPlistTarget],",
+        "func resolveEntitlementsCustomization(\n        targets: [EntitlementsTarget],",
         "func resolveAppIconCustomization(appName: String) async throws -> URL?",
         "func resolveProvisioningProfileCustomization(appName: String, bundleID: String) async throws -> ProfileCustomizationChoice?",
     )
