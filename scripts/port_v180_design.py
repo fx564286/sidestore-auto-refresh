@@ -70,6 +70,23 @@ def main():
     v3_service.PINS = (pins["LIVE_CONTAINER_REF"], pins["EMBEDDED_SIDESTORE_REF"])
     report("V3 account/refresh/command service and pairing RPC", lambda:
            v3_service.patch(live, side))
+    # The modern SideStore standalone Xcode target treats every nested
+    # *.imageset/*.appiconset file in the obsolete Icons.xcassets tree as a
+    # flat copied resource, producing duplicate PNG and Contents.json outputs.
+    # This is the *embedded SideStore* checkout, not LiveContainer's host.
+    # Keep original bytes in a non-target directory instead of deleting them.
+    old_icons = side / "AltStore/Resources/Icons.xcassets"
+    archived_icons = side / ".scarlet-retained-upstream-icons/Icons.xcassets"
+    if old_icons.is_dir() and not old_icons.is_symlink():
+        if archived_icons.exists():
+            raise ValueError("old SideStore icon archive already exists")
+        archived_icons.parent.mkdir(parents=True, exist_ok=True)
+        old_icons.rename(archived_icons)
+        print("[SCARLET_V181] relocated unused embedded SideStore alternate icons without deleting assets", flush=True)
+    elif archived_icons.is_dir() and not old_icons.exists():
+        print("[SCARLET_V181] embedded SideStore stock icons already retained", flush=True)
+    else:
+        raise ValueError("expected embedded SideStore stock icon catalog is missing or unsafe")
     # This exact original account Form row was previously installed by the
     # large pinned V3 command patch; preserve it without replaying obsolete
     # SideStore auth transport against the newer selected sources.
