@@ -2078,7 +2078,90 @@ def apply_embedded_credential_snapshot_patch(text, transform_name):
     return getattr(module, transform_name)(text)
 
 
+def patch_modern_sign_in_operation(text):
+    """Forward-port V3 provisioning retry to current standalone SignInOperation.
+
+    The modern upstream has no silentSignIn/provisioningLoop, so the
+    historical transformer cannot be replayed. Reuse its current authenticated
+    session/team APIs only for explicit resume, with identity guards.
+    """
+    marker = "V3_MODERN_SIGNIN_FORCE_PROVISIONING_V1"
+    if marker in text:
+        required = ("let v3ForceProvisioningRetry: Bool",
+                    "v3ForceProvisioningRetry: Bool = false,",
+                    "self.v3ForceProvisioningRetry = v3ForceProvisioningRetry",
+                    "V3_AUTH_FAILURE_PRESERVES_ACCOUNT_STATE_V1",
+                    "v3CachedSessionMatchesCurrentRoute(session)")
+        if any(token not in text for token in required):
+            raise SystemExit("v3 service: incomplete modern SignInOperation authentication port")
+        return text
+
+    if (text.count("        skipResign: Bool = false,\n") != 1 or
+            text.count("    private func startAuthentication(reportProgress:") != 1 or
+            text.count("        let (account, session) = try await self.authenticationLoop()\n") != 1):
+        raise SystemExit("v3 service: unsupported modern SignInOperation shape")
+
+    text = replace(text,
+        "    let skipCertificateProvisioning: Bool\n",
+        "    let skipCertificateProvisioning: Bool\n"
+        "    // " + marker + ": cached provisioning retry is explicit.\n"
+        "    let v3ForceProvisioningRetry: Bool\n")
+    text = replace(text,
+        "        skipCertificateProvisioning: Bool = false,\n",
+        "        skipCertificateProvisioning: Bool = false,\n"
+        "        v3ForceProvisioningRetry: Bool = false,\n")
+    text = replace(text,
+        "        self.skipCertificateProvisioning = skipCertificateProvisioning\n",
+        "        self.skipCertificateProvisioning = skipCertificateProvisioning\n"
+        "        self.v3ForceProvisioningRetry = v3ForceProvisioningRetry\n")
+
+    start = "    private func startAuthentication(reportProgress: @escaping @Sendable (Int64) -> Void) async throws -> SignInResult {\n"
+    resumed = """
+        if self.v3ForceProvisioningRetry {
+            // Use only the currently authenticated identity; never prompt
+            // for unrelated credentials or rebuild the developer account.
+            let before = AuthManager.shared.v3IdentityStamp
+            let generation = AuthManager.shared.v3IdentityGeneration
+            guard AuthManager.shared.v3IdentityIsStable,
+                  let credentials = AuthManager.shared.authenticationSnapshot,
+                  credentials.isAuthenticated else {
+                throw V3ProvisioningResumeUnavailableError()
+            }
+            let session = try await AuthManager.shared.getAuthenticatedSession()
+            let team = try await AuthManager.shared.getAuthenticatedTeam()
+            guard before == AuthManager.shared.v3IdentityStamp,
+                  generation == AuthManager.shared.v3IdentityGeneration,
+                  AuthManager.shared.v3CachedSessionMatchesCurrentRoute(session),
+                  credentials.appleIDEmailAddress == AuthManager.shared.authenticationSnapshot?.appleIDEmailAddress else {
+                throw V3ProvisioningResumeUnavailableError()
+            }
+            let stepWeight: Int64 = self.skipDeviceRegistration ? 33 : 25
+            reportProgress(stepWeight * 2)
+            return try await self.provision(team: team, session: session,
+                                            stepWeight: stepWeight,
+                                            reportProgress: reportProgress)
+        }
+"""
+    text = replace(text, start, start + resumed)
+
+    text = replace(text,
+        """            if !AuthManager.shared.hasStoredPassword &&
+               !AuthManager.shared.hasStoredXcodeToken
+            {
+                await AuthManager.shared.signOut()
+            }
+""",
+        """            // V3_AUTH_FAILURE_PRESERVES_ACCOUNT_STATE_V1:
+            // a failed authentication is not a user-requested sign-out.
+            // Keep existing certificates, credentials and pairing records.
+""")
+    return text
+
+
 def patch_sign_in_operation(text):
+    if ("        skipResign: Bool = false,\n" in text and
+            "    private func startAuthentication(reportProgress:" in text):
+        return patch_modern_sign_in_operation(text)
     marker = "V3_PROVISIONING_RETRY_BYPASSES_CACHED_SIGNIN_V1"
     if marker in text:
         required = (
