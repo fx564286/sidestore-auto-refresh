@@ -211,6 +211,48 @@ func lcPortalSigningRequest<T>(
             "CombinedFailure.validatedSigningContext(facts)" not in portal_body):
         raise ValueError("incomplete typed portal helper")
 
+    # Upstream PipelineRunner now expects the already-existing CoreData
+    # context, rather than a legacy StandaloneOperationContext wrapper.
+    # Keep the exact same transaction and cancellation gate.
+    single_before = "handler: handler, context: context"
+    single_after = "handler: handler, dbContext: context.dbBackgroundContext"
+    if app_text.count(single_before) != 2 and single_after not in app_text:
+        raise ValueError("V181 headless pipeline call signatures changed")
+    app_text = app_text.replace(single_before, single_after)
+
+    # File-import notifications belong to the old standalone UI. Their
+    # payload constants remain stable without depending on stripped AppDelegate.
+    file_import = side / "SideStore/DeepLinks/FileImportHandler.swift"
+    file_import_text = file_import.read_text()
+    notification_substitutions = (
+        ("AppDelegate.importAppDeepLinkNotification",
+         "Notification.Name(Bundle.Info.appbundleIdentifier + \".ImportAppDeepLinkNotification\")"),
+        ("AppDelegate.importAppDeepLinkURLKey", "\"fileURL\""),
+    )
+    for before, after in notification_substitutions:
+        if before in file_import_text:
+            file_import_text = file_import_text.replace(before, after)
+        elif after not in file_import_text:
+            raise ValueError("headless file-import notification drifted")
+
+    # The standalone onboarding screen still exists upstream but the single
+    # host-owned login flow is V3HeadlessAuthHandler, not the removed legacy
+    # UIKit sign-in API. Explicitly reject this unreachable obsolete entry.
+    onboarding = side / "SideStore/Views/Onboarding/OnboardingView.swift"
+    onboarding_text = onboarding.read_text()
+    legacy_login = """_ = try await AuthManager.shared.signIn(
+                                presentingViewController: UIApplication.shared.topViewController(),
+                                skipResign: true,
+                                skipHowTos: true
+                            )"""
+    headless_login = """throw V3SideStoreServiceError.unsupported // Headless: use host-owned auth flow"""
+    if legacy_login in onboarding_text:
+        if onboarding_text.count(legacy_login) != 1:
+            raise ValueError("ambiguous onboarding old auth entry")
+        onboarding_text = onboarding_text.replace(legacy_login, headless_login)
+    elif headless_login not in onboarding_text:
+        raise ValueError("unrecognized standalone onboarding auth entry")
+
     # Validate all pending edits before writing any file to the checkout.
     expected = ("LCEmbeddedAuthenticationSnapshot", "func authenticationSnapshot() throws",
                 "LCEmbeddedSharedKeychain.makeClient()")
@@ -219,6 +261,8 @@ func lcPortalSigningRequest<T>(
     key.write_text(key_text)
     prefs.write_text(pref_text)
     app.write_text(app_text)
+    file_import.write_text(file_import_text)
+    onboarding.write_text(onboarding_text)
     failure_path.parent.mkdir(parents=True, exist_ok=True)
     portal_path.parent.mkdir(parents=True, exist_ok=True)
     failure_path.write_text(failure_body)
