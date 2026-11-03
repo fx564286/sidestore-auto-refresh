@@ -37,7 +37,12 @@ def main():
     # Historical dependency order; do not rebuild UI from stock.
     report("host guest return", lambda: importlib.import_module("patch_guest_return").patch(live))
     report("user dock geometry", lambda: importlib.import_module("patch_multitask_dock").patch(live))
-    report("user app grid", lambda: importlib.import_module("patch_app_layout").patch_livecontainer(live, v3_grid=True))
+    # Legacy layout transformer uses a fixed pin for its generated manifest.
+    # Rebind only that provenance constant to the separately verified current
+    # parent; ALL visual source/anchor checks in the transformer still run.
+    app_layout = importlib.import_module("patch_app_layout")
+    app_layout.LIVE_CONTAINER_REVISION = pins["LIVE_CONTAINER_REF"]
+    report("user app grid", lambda: app_layout.patch_livecontainer(live, v3_grid=True))
     report("user unified shell", lambda: importlib.import_module("patch_v3_unified_shell").patch(live, side))
     print("[SCARLET_V180] initial source-preserving UI port anchor checks completed")
 
