@@ -36,6 +36,23 @@ class ScarletDesignTests(unittest.TestCase):
             self.assertFalse(r["can_publish_as_design_preserved"])
             self.assertIn("outside_tap",[x["feature"] for x in r["checks"] if not x["pass"]])
 
+    def test_source_markers_never_claim_figma_or_device_parity(self):
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            files = {}
+            for item in CONTRACT["requirements"]:
+                files.setdefault(item["path"], set()).update(item["all"])
+            for relative, markers in files.items():
+                target = root / relative
+                target.parent.mkdir(parents=True, exist_ok=True)
+                target.write_text("\n".join(sorted(markers)))
+            result = module.check(root, CONTRACT)
+            self.assertTrue(result["user_authored_design_source_preserved"])
+            self.assertFalse(result["runtime_design_verified"])
+            self.assertFalse(result["figma_visual_parity_verified"])
+            self.assertEqual(result["visual_parity_status"], "SOURCE_ONLY")
+            self.assertFalse(result["can_publish_as_design_preserved"])
+
     def test_no_source_escape(self):
         with tempfile.TemporaryDirectory() as d:
             contract=json.loads(json.dumps(CONTRACT))
