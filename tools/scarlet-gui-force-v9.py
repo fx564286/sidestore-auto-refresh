@@ -27,15 +27,16 @@ def _scarlet_v9_report(message):
     try:
         log('V9 ' + message)
     except Exception:
-        from pathlib import Path as _P
-        import datetime as _D
-        p = _P.home() / '.local/state/scarlet-crystal-installer/gui-force-v9.log'
-        try:
-            p.parent.mkdir(parents=True, exist_ok=True)
-            with p.open('a', encoding='utf-8') as stream:
-                stream.write(_D.datetime.now().astimezone().isoformat() + ' ' + message + '\n')
-        except OSError:
-            pass
+        pass
+    from pathlib import Path as _P
+    import datetime as _D
+    p = _P.home() / '.local/state/scarlet-crystal-installer/gui-force-v9.log'
+    try:
+        p.parent.mkdir(parents=True, exist_ok=True)
+        with p.open('a', encoding='utf-8') as stream:
+            stream.write(_D.datetime.now().astimezone().isoformat() + ' ' + message + '\n')
+    except OSError:
+        pass
 
 
 def _scarlet_v9_run(window):
