@@ -116,6 +116,34 @@ class Responsive(QObject):
     def __init__(self,w):
         super().__init__(w);self.w=w;self.tabs=None;self.last=None;self.busy=False
         w.installEventFilter(self)
+        # Figma-derived surface and control tokens; don't rewrite operational widgets.
+        css = """
+        /* SCARLET_FIGMA_V2 */
+        QFrame#metadata_card, QFrame#signing_card, QFrame#deviceCard,
+        QFrame#actionPanel { background: #162132; border: 1px solid #334258;
+                             border-radius: 16px; }
+        QTabWidget#scarletResponsiveTabs::pane {
+          background: #162132; border: 1px solid #334258; border-radius: 13px; }
+        QTabWidget#scarletResponsiveTabs QTabBar::tab {
+          background: #1e2c40; color: #a4b3cc; border-radius: 9px;
+          margin-right: 7px; padding: 6px 16px; }
+        QTabWidget#scarletResponsiveTabs QTabBar::tab:selected {
+          background: #f17994; color: #22131a; }
+        """
+        if "SCARLET_FIGMA_V2" not in w.styleSheet():
+            w.setStyleSheet(w.styleSheet() + css)
+        for field in ("metadata_card","signing_card"):
+            widget=getattr(w,field,None)
+            if widget is not None:widget.setObjectName(field)
+        action=getattr(w,"both_btn",None)
+        if action is not None:
+            action.setStyleSheet(action.styleSheet() + """
+                QPushButton { background: #f17994; color: #22131a;
+                              border: none; border-radius: 11px;
+                              font-weight: bold; padding: 6px 16px; }
+                QPushButton:hover { background: #fb91a7; }
+                QPushButton:disabled { background: #334258; color: #a4b3cc; }
+            """)
         for key in ("kicker","subheading","sectionKicker"):
             item=w.findChild(QLabel,key)
             if item is not None:item.hide()
@@ -240,7 +268,14 @@ def main():
         folders.sort(key=lambda p:0 if str(p) in src else 1)
     app=folders[0]
     gui=app/"scarlet_gui.py";helper=app/"scarlet_figma_bridge.py"
-    data=gui.read_text(encoding="utf-8-sig");updated=patch(data)
+    data=gui.read_text(encoding="utf-8-sig")
+    if "--rollback" in sys.argv:
+        candidates=sorted((app/".scarlet-oneclick-backups").glob("*/scarlet_gui.py"),reverse=True)
+        if not candidates:raise RuntimeError("복원할 백업이 없음")
+        shutil.copy2(candidates[0],gui)
+        print("[RESTORED] original GUI",candidates[0])
+        return
+    updated=patch(data)
     if updated==data:print("[PASS] 이미 통합됨");return
     compile(updated,str(gui),"exec");compile(RUNTIME,str(helper),"exec")
     if not (home/".local/bin/scy-auto").is_file():raise RuntimeError("검증된 scy-auto 갱신기가 없음")
