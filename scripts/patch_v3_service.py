@@ -1587,6 +1587,63 @@ def headless_pipeline_handler(text):
 }''',
     }
 
+
+    # Current SideStore added additional interactive customization entrypoints.
+    # The embedded V3 service has no presenter; match SideStore's existing
+    # no-presenter fallbacks, preserving input data and installed profiles.
+    # Leave the real interactive UI in the standalone parent unchanged.
+    modern_ui_anchors = (
+        "func resolveInfoPlistCustomization(\\n        targets: [InfoPlistTarget],",
+        "func resolveEntitlementsCustomization(\\n        targets: [EntitlementsTarget],",
+        "func resolveAppIconCustomization(appName: String) async throws -> URL?",
+        "func resolveProvisioningProfileCustomization(appName: String, bundleID: String) async throws -> ProfileCustomizationChoice?",
+    )
+    modern_ui_marker = "V3_HEADLESS_CURRENT_CUSTOMIZATIONS_V1"
+    if modern_ui_marker not in text and any(anchor in text for anchor in modern_ui_anchors):
+        if not all(text.count(anchor) == 1 for anchor in modern_ui_anchors):
+            raise SystemExit("v3 service: incomplete current SideStore customization interface")
+        replacements = {
+            modern_ui_anchors[0]: '''func resolveInfoPlistCustomization(
+        targets: [InfoPlistTarget],
+        initialBundleID: String,
+        appendTeamID: Bool,
+        installedAppIdentities: [String: String],
+        teamID: String
+    ) async throws -> (modifiedPlists: [String: [String: any Sendable]], appendTeamID: Bool)? {
+        // V3_HEADLESS_CURRENT_CUSTOMIZATIONS_V1: retain every original plist.
+        var unchanged: [String: [String: any Sendable]] = [:]
+        for target in targets { unchanged[target.id] = target.initialPlist }
+        return (unchanged, appendTeamID)
+    }''',
+            modern_ui_anchors[1]: '''func resolveEntitlementsCustomization(
+        targets: [EntitlementsTarget],
+        teamType: ALTTeamType
+    ) async throws -> [String: [String: any Sendable]]? {
+        // V3_HEADLESS_CURRENT_CUSTOMIZATIONS_V1: retain original entitlements.
+        var unchanged: [String: [String: any Sendable]] = [:]
+        for target in targets { unchanged[target.id] = target.initialEntitlements }
+        return unchanged
+    }''',
+            modern_ui_anchors[2]: '''func resolveAppIconCustomization(appName: String) async throws -> URL? {
+        // V3_HEADLESS_CURRENT_CUSTOMIZATIONS_V1: keep the source icon.
+        return nil
+    }''',
+            modern_ui_anchors[3]: '''func resolveProvisioningProfileCustomization(appName: String, bundleID: String) async throws -> ProfileCustomizationChoice? {
+        // V3_HEADLESS_CURRENT_CUSTOMIZATIONS_V1: use SideStore's existing
+        // default-profile fallback, never silently select or delete a local key.
+        return .defaultProfile
+    }''',
+        }
+        for signature, replacement in replacements.items():
+            text = replace_swift_function(text, signature, replacement,
+                                          "current SideStore headless customization")
+    if modern_ui_marker in text:
+        if any(token in text for token in ("InfoPlistCustomizationSheetView.present(",
+                                           "EntitlementsCustomizationSheetView.present(",
+                                           "ImagePickerDelegateHandler {",
+                                           "ProfileManager.shared.getAllLocalProfiles()")):
+            raise SystemExit("v3 service: current customization UI not fully detached")
+
     presenter_marker = "V3_HEADLESS_PIPELINE_PRESENTER_REMOVED_V1"
     presenter_block = '''    let isResignActive: Bool
     private let presenterProvider: PresenterProvider?
