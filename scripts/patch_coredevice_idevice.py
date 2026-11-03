@@ -391,12 +391,17 @@ def patch_jktcp_dependency(root: Path, jktcp_root: Path) -> None:
     relative = os.path.relpath(jktcp_root, path.parent).replace("\\", "/")
     local = f'jktcp = {{ path = "{relative}", optional = true, default-features = false }}'
     if local not in text:
-        text = replace_once(
-            text,
+        # V176: official idevice 0.1.68 declares jktcp from crates.io
+        # (0.1.7), unlike the pinned 0.1.65 git dependency. Preserve
+        # the same locally audited jktcp dependency in either case.
+        candidates = (
             'jktcp = { git = "https://github.com/SideStore/jktcp", branch = "master", optional = true, default-features = false }',
-            local,
-            "local jktcp dependency",
+            'jktcp = { version = "0.1.7", optional = true, default-features = false }',
         )
+        hits = [candidate for candidate in candidates if candidate in text]
+        if len(hits) != 1:
+            die(f"local jktcp dependency: expected one supported anchor, found {len(hits)}")
+        text = replace_once(text, hits[0], local, "local jktcp dependency")
         path.write_text(text, encoding="utf-8")
 
 
