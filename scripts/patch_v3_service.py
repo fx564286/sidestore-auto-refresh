@@ -1454,6 +1454,24 @@ def headless_sidejit_manager(text):
 def headless_pairing_file_manager(text):
     marker = "V3_HEADLESS_PAIRING_FILE_UI_REMOVED_V1"
     ui_start = "#if !os(tvOS)\nextension PairingFileManager: UIDocumentPickerDelegate {"
+    # Latest LiveContainerSupport split the native picker into its own
+    # PairingViewController. PairingFileManager itself is already backend-only
+    # and now tracks multiple protocols. Preserve its parser, persisted
+    # protocol, atomic file write and UTType metadata; no old picker code
+    # must be removed or reintroduced in this newer source.
+    modern_backend = (
+        "import Foundation" in text
+        and "final class PairingFileManager: NSObject" in text
+        and "nonisolated func fetchPairingFile(preferred: PairingProtocol? = nil)" in text
+        and "func savePairingFile(contents: String, preferred: PairingProtocol? = nil)" in text
+        and "PairingViewController" not in text
+        and "presentPairingFileAlert" not in text
+        and "UIDocumentPicker" not in text
+        and "UIViewController" not in text
+        and "import UIKit" not in text
+    )
+    if modern_backend:
+        return text
     if marker in text:
         if ("UIViewController" in text or "UIDocumentPicker" in text or "UIAlertController" in text or
                 "UniformTypeIdentifiers" in text or "import UIKit" in text or
