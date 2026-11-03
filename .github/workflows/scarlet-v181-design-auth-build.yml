@@ -143,7 +143,7 @@ jobs:
           grep -q 'lastNotifiedPairingPIN' work/EmbeddedSideStore/AltStore/AppDelegate.swift
           echo '[P00] pairing and 2FA source overlay verified; device handshake and Apple 2FA pending'
 
-      - name: Gate on user-authored Scarlet Crystal design preservation
+      - name: Gate on source-only Scarlet UI markers (device and Figma parity pending)
         shell: bash
         run: |
           set -euo pipefail
@@ -199,7 +199,7 @@ jobs:
           test -s artifacts/Scarlet-Crystal-V181-UPSTREAM-FORK-UNSIGNED.ipa
           test -s artifacts/Scarlet-Crystal-V181-UPSTREAM-FORK-UNSIGNED.json
 
-      - name: Upload fully UI-verified Scarlet Crystal V181 compiled unsigned IPA
+      - name: Upload source-checked Scarlet Crystal unsigned IPA (Figma and iPhone unverified)
         uses: actions/upload-artifact@v4
         with:
           name: Scarlet-Crystal-V181-UPSTREAM-FORK-UNSIGNED
