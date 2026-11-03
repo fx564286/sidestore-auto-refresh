@@ -133,6 +133,9 @@ jobs:
             "$EMBEDDED_SIDESTORE_REF" "$MINIMUXER_REF" "$SIDESIGN_REF" "$SIDESIGN_GSA_FIX" \
             | tee artifacts/logs/upstream-auth-provenance.txt
           test "$(git -C idevice rev-parse HEAD)" = "$IDEVICE_REF"
+          # Never silently downgrade the V176 idevice integration after a
+          # compiler error; repair the Swift/Rust interface at the selected pin.
+          test "$IDEVICE_REF" = "3e55c8486b2057e40c1f74aaaa1155c82341cf76"
           test "$(git -C jktcp rev-parse HEAD)" = "$JKTCP_REF"
 
       - name: Select Xcode 27.2
