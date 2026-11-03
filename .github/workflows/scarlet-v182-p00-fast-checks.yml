@@ -42,6 +42,7 @@ jobs:
           python3 -m py_compile \
             scripts/patch_v182_p00_ondevice_pairing.py \
             scripts/patch_v182_p00_auth_cancel_liveness.py \
+            scripts/patch_v182_p00_defer_app_group_probe.py \
             scripts/port_v180_design.py \
             scripts/verify_scarlet_design.py
 
@@ -69,6 +70,7 @@ jobs:
           scripts = [
               Path("scripts/patch_v182_p00_ondevice_pairing.py"),
               Path("scripts/patch_v182_p00_auth_cancel_liveness.py"),
+              Path("scripts/patch_v182_p00_defer_app_group_probe.py"),
           ]
           forbidden = [
               "MultitaskDockView.swift",
