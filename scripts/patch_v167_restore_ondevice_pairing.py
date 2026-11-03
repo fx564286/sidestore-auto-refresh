@@ -233,7 +233,19 @@ def patch_pairing_storage(src):
     new = '''        // SCARLET_V167_ATOMIC_PAIRING_PRESERVE: never delete a previous
         // working record before atomically installing its replacement.
         try contents.write(to: documentsPath, atomically: true, encoding: .utf8)'''
-    return replace_exact(src,old,new,'atomic upstream pairing save')
+    if old in src:
+        return replace_exact(src,old,new,'atomic upstream pairing save')
+    # Current LiveContainerSupport uses destinationURL per parsed pairing mode.
+    # It still deletes the current record before an atomic replacement:
+    # preserve the exact previous record until the new write succeeds.
+    modern_old = '''        if fm.fileExists(atPath: destinationURL.path) {
+            try? fm.removeItem(at: destinationURL)
+        }
+        try contents.write(to: destinationURL, atomically: true, encoding: .utf8)'''
+    modern_new = '''        // SCARLET_V167_ATOMIC_PAIRING_PRESERVE: keep a working
+        // protocol-specific record until replacement is committed.
+        try contents.write(to: destinationURL, atomically: true, encoding: .utf8)'''
+    return replace_exact(src,modern_old,modern_new,'modern atomic pairing save')
 
 def patch_wireless_log(src):
     marker = 'SCARLET_V167_PIN_LOG_REDACTION'
