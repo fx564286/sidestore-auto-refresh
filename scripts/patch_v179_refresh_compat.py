@@ -106,6 +106,31 @@ def patch(root, template):
     if not direct_file.exists():
         direct_file.write_text(direct_body)
 
+    # Preserve the scheduler's terminal-state and pairing-admission
+    # policies exactly as supplied by the older tested fork. These are
+    # needed by the generated latest-upstream host UI and have no external
+    # UI/transport dependencies.
+    host_utilities = root / "LiveContainerSwiftUI/Utilities"
+    primitives = (
+        ("V3RefreshTerminalRecoveryPolicy.swift",
+         "enum V3RefreshTerminalRecoveryPolicy {",
+         "\nstruct V3RefreshRunIdentitySelection: Equatable {"),
+        ("V3RefreshPrerequisites.swift",
+         "enum V3RefreshPrerequisiteState: String, Equatable {",
+         "\nenum V3IssueActionOutcomePolicy {"),
+    )
+    for file_name, first, last in primitives:
+        if primitive.count(first) != 1 or primitive.count(last) != 1:
+            raise ValueError("required V3 policy contract changed: " + file_name)
+        exact = "import Foundation\n\n" + primitive[
+            primitive.index(first):primitive.index(last)
+        ] + "\n"
+        destination = host_utilities / file_name
+        if destination.exists() and destination.read_text() != exact:
+            raise ValueError("conflicting tested V3 refresh policy: " + file_name)
+        if not destination.exists():
+            destination.write_text(exact)
+
     result = (app_group.read_text() == main_shared.read_text()
               and MARKER in bridge.read_text()
               and host_request.read_text() == support_request.read_text()
