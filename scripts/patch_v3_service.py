@@ -1579,7 +1579,7 @@ def headless_pipeline_handler(text):
         "func reviewPermissions(_ permissions: [ALTEntitlement], for app: AppProtocol, mode: PermissionReviewMode) async throws":
             '''func reviewPermissions(_ permissions: [ALTEntitlement], for app: AppProtocol, mode: PermissionReviewMode) async throws {
     // ''' + decisions_marker + ''': permission review cannot be approved headlessly.
-    throw OperationError.invalidOperationContext("PipelineHandler: Cannot review permissions because presenting view controller is unavailable")
+    throw OperationError.invalidParameters("PipelineHandler: Cannot review permissions because presenting view controller is unavailable")
 }''',
         "func selectAppExtensionsToRemove(":
             '''func selectAppExtensionsToRemove(
