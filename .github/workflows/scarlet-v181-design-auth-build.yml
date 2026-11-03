@@ -204,9 +204,15 @@ jobs:
               hits=[i for i,line in enumerate(lines) if "error:" in line.lower()
                     or "expected one anchor" in line or "revision mismatch" in line]
               print(f"[V179] {name} lines={len(lines)} errors={len(hits)}")
-              for i in hits[:12]:
-                  for line in lines[max(0,i-2):i+3]:
-                      print(line[:1200])
+              unique=set()
+              for i in hits:
+                  entry=lines[i].strip()
+                  if entry in unique:
+                      continue
+                  unique.add(entry)
+                  print("[PRIMARY_COMPILER_ERROR] " + entry[:1600])
+                  if len(unique) >= 80:
+                      break
           PY
 
       - name: Upload latest parent compilation and overlay diagnostics
