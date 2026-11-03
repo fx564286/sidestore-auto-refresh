@@ -92,6 +92,15 @@ def patch(root, template):
     if not failure_file.exists():
         failure_file.write_text(failure_body)
 
+    # SideStoreSupport is its own Swift module. Both the host and embedded
+    # refresh bridge use the same typed failure vocabulary, but SwiftUI's
+    # internal source file cannot satisfy SideStoreSupport compilation.
+    support_failure = support / "CombinedFailure.swift"
+    if support_failure.exists() and support_failure.read_text() != failure_body:
+        raise ValueError("conflicting typed failure contract in SideStoreSupport")
+    if not support_failure.exists():
+        support_failure.write_text(failure_body)
+
     # The scheduler also requires the real direct-run ownership policy.
     direct_start = "enum V3DirectRefreshRunClaimPolicy {"
     direct_end = "\nenum V3RequestRetirementPolicy {"
@@ -163,6 +172,7 @@ extension EnvironmentValues {
               and MARKER in bridge.read_text()
               and host_request.read_text() == support_request.read_text()
               and failure_file.read_text() == failure_body
+              and support_failure.read_text() == failure_body
               and direct_file.read_text() == direct_body
               and "V3RefreshRunCorrelation" in host_request.read_text())
     if not result:
