@@ -494,9 +494,11 @@ for modern in [false, true] {
 class CombinedWorkflowTests(unittest.TestCase):
     def test_fixed_upstream_authentication_pins_and_no_override(self):
         workflow = (ROOT / ".github/workflows/livecontainer-build.yml").read_text()
-        for pin in ("ff25922e5c13ccfafd83bda5092910d848ebd409",
-                    "98c3c79982f813878e922ab42f9545314a700f0c",
-                    "a731c0d5a9a6617c7b385ae493e07ffb7f81cd5d",
+        # V177: paired upstream-head and nested SideStore gitlink pins.
+        for pin in ("9108ae624ea001f7d7696d48407f890b48fa2653",
+                    "ee3cc16a67f9fed766f79a0ed70938f0f8ad5a07",
+                    "12be70dc2627307a16bfd2dc7a009080d5bec909",
+                    "752d1ef602aa792a432ffa1e71646dc1ecf7363c",
                     "35993d7f68950ce00d6bf1fd0fbcaa7bef51dc9c"):
             self.assertIn(pin, workflow)
         self.assertIn('merge-base --is-ancestor "$SIDESIGN_GSA_FIX" HEAD', workflow)
