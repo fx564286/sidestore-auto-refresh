@@ -228,6 +228,22 @@ func lcPortalSigningRequest<T>(
         elif after not in app_text:
             raise ValueError("V181 headless pipeline operation source drifted")
 
+    # Upstream RefreshGroup now owns a CoreData context directly and keeps
+    # its failure in group.error. Preserve the exact refresh transaction,
+    # cancellation hook, outcome verification and existing persisted data.
+    refresh_group_fixes = (
+        ("let group = RefreshGroup(context: baseContext)",
+         "let group = RefreshGroup(dbContext: baseContext.dbBackgroundContext)"),
+        ("group.context.error = error", "group.error = error"),
+    )
+    for before, after in refresh_group_fixes:
+        if before in app_text:
+            if app_text.count(before) != 1:
+                raise ValueError("ambiguous headless refresh-group compatibility patch")
+            app_text = app_text.replace(before, after)
+        elif app_text.count(after) != 1:
+            raise ValueError("headless refresh-group API drifted from reviewed upstream")
+
     # File-import notifications belong to the old standalone UI. Their
     # payload constants remain stable without depending on stripped AppDelegate.
     file_import = side / "SideStore/DeepLinks/FileImportHandler.swift"
