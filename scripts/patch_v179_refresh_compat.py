@@ -292,6 +292,24 @@ extension LCUtils {
     # Do not generate the obsolete V179 placeholder with the same property.
     # It changes the type and produces invalid Swift redeclarations.
 
+    # Xcode 27's synchronized-folder resource rule copies every nested
+    # PNG/Contents.json from this old SideStore icon catalog as flat resources.
+    # Its imageset/appiconset pairs produce duplicate output paths. Move only
+    # this unused *stock embedded* catalog outside the synchronized AltStore
+    # source group, retaining every source byte in the CI checkout. Scarlet's
+    # real app icon and user-authored host design are untouched.
+    original_icons = root / "AltStore/Resources/Icons.xcassets"
+    retained_icons = root / ".scarlet-noncompiled-upstream-resources/Icons.xcassets"
+    if original_icons.is_dir() and not original_icons.is_symlink():
+        if retained_icons.exists():
+            raise ValueError("cannot replace already retained upstream icon catalog")
+        retained_icons.parent.mkdir(parents=True, exist_ok=True)
+        original_icons.rename(retained_icons)
+    elif retained_icons.exists() and retained_icons.is_dir():
+        pass  # idempotent second compatibility verification
+    elif original_icons.exists():
+        raise ValueError("unsafe SideStore icon catalog source type")
+
     result = (app_group.read_text() == main_shared.read_text()
               and MARKER in bridge.read_text()
               and host_request.read_text() == support_request.read_text()
