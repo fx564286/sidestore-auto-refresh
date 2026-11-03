@@ -100,8 +100,16 @@ def jit_classic(s):
     if b<0:
         b=len(s)
     section=s[a:b]
-    if section.count('jitEnabler ==') != 10:
-        raise ValueError(f"V129 classic JIT branch drift {section.count('jitEnabler ==')}")
+    # Verified against both historical and latest LiveContainer upstream:
+    # askForJIT has nine native provider comparisons at 12377cf3 and
+    # 9108ae6. Older generated overlays may add a tenth. Retain strict
+    # provider coverage rather than requiring a nonexistent tenth branch.
+    branches = section.count('jitEnabler ==')
+    required = ('.SideJITServer', '.JITStreamerEBLegacy', '.StosDebug',
+                '.StosDebugLC', '.StikJIT', '.StikJITLC', '.SideStore')
+    if branches not in (9, 10) or any(
+            ('jitEnabler == ' + item) not in section for item in required):
+        raise ValueError(f"V129 classic JIT branch drift {branches}: provider set changed")
     section=section.replace('jitEnabler ==','effectiveEnabler ==')
     preflight = '''        // SCARLET_V129_CLASSIC_JIT_ROUTE: reroute obsolete StosDebug
         // to current external StikDebug on modern iOS; never change the
