@@ -19,12 +19,27 @@ import Foundation
 // Preserve it. This adapter only binds the scheduler's recorded runID
 // to the same entitled App Group store used by the embedded service.
 extension RefreshHandler {
+    @MainActor
     func startScheduledRefresh(identifier: String, mangledName: String,
                                runID: String) async throws {
         guard UUID(uuidString: runID) != nil else {
             throw NSError(domain: "ScarletCrystal.Refresh", code: 2,
                           userInfo: [NSLocalizedDescriptionKey:
                             "The scheduled refresh run identifier is invalid."])
+        }
+        guard v3RefreshToken == nil else {
+            throw NSError(domain: "ScarletCrystal.Refresh", code: 4,
+                          userInfo: [NSLocalizedDescriptionKey:
+                            "Another verified refresh run owns the service."])
+        }
+        let token = UUID().uuidString
+        v3RefreshToken = token
+        v3RefreshAdmissionRunID = runID
+        defer {
+            if v3RefreshToken == token {
+                v3RefreshToken = nil
+                v3RefreshAdmissionRunID = nil
+            }
         }
         let defaults = try V3SharedAppGroup.requireSharedUserDefaults()
         defaults.set(runID, forKey: "liveContainerAutoRefreshExpectedRunID")
