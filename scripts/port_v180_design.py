@@ -61,6 +61,15 @@ def main():
     app_layout.LIVE_CONTAINER_REVISION = pins["LIVE_CONTAINER_REF"]
     report("user app grid", lambda: app_layout.patch_livecontainer(live, v3_grid=True))
     report("user unified shell", lambda: importlib.import_module("patch_v3_unified_shell").patch(live, side))
+    # The original V3 service owns account/refresh commands and on-device
+    # WirelessPair RPC. Use audited parent SHAs and fail on source drift.
+    report("original V3 JIT-Less certificate diagnosis", lambda: subprocess.run(
+        [sys.executable, str(path / "patch_v32_jitless_diagnosis.py"), str(live)],
+        check=True))
+    v3_service = importlib.import_module("patch_v3_service")
+    v3_service.PINS = (pins["LIVE_CONTAINER_REF"], pins["EMBEDDED_SIDESTORE_REF"])
+    report("V3 account/refresh/command service and pairing RPC", lambda:
+           v3_service.patch(live, side))
     # This exact original account Form row was previously installed by the
     # large pinned V3 command patch; preserve it without replaying obsolete
     # SideStore auth transport against the newer selected sources.
