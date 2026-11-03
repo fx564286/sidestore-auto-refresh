@@ -113,6 +113,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          python3 -m unittest discover -s builder/tests -p test_v181_settings_port.py -v
           python3 builder/scripts/port_v180_design.py \
             work/LiveContainer work/EmbeddedSideStore \
             builder/config/scarlet-upstream-pins.json \
