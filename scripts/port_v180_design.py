@@ -36,7 +36,24 @@ def main():
 
     # Historical dependency order; do not rebuild UI from stock.
     report("host guest return", lambda: importlib.import_module("patch_guest_return").patch(live))
+    for name in (
+        "patch_v76_native_guest_switcher",
+        "patch_v75_retained_guest_reconcile",
+        "patch_v86_verified_dead_guest_reconcile",
+        "patch_dead10cc_fix",
+    ):
+        report(name, lambda n=name: subprocess.run(
+            [sys.executable, str(path / (n + ".py")), str(live)], check=True))
     report("user dock geometry", lambda: importlib.import_module("patch_multitask_dock").patch(live))
+    for name in (
+        "patch_v27_guest_switch",
+        "patch_v28_guest_lifecycle",
+        "patch_v46_keyboard_window_scope",
+        "patch_v47_resume",
+        "patch_v28_pip_audio",
+    ):
+        report(name, lambda n=name: subprocess.run(
+            [sys.executable, str(path / (n + ".py")), str(live)], check=True))
     # Legacy layout transformer uses a fixed pin for its generated manifest.
     # Rebind only that provenance constant to the separately verified current
     # parent; ALL visual source/anchor checks in the transformer still run.
