@@ -12,6 +12,7 @@ import json
 import subprocess
 import shutil
 import sys
+import re
 
 
 
@@ -277,6 +278,193 @@ func lcPortalSigningRequest<T>(
     elif headless_login not in onboarding_text:
         raise ValueError("unrecognized standalone onboarding auth entry")
 
+    # Match the actual SideStore Nov-2026 async and CoreData contracts.
+    # Sign-out still preserves the same user-requested signing certificate
+    # and anisette data, and import retains its transactional identity fence.
+    modern_service_calls = (
+        ("AuthManager.shared.signOut(keepCertificate: true, keepAnisetteData: true)",
+         "await AuthManager.shared.signOut(keepCertificate: true, keepAnisetteData: true)"),
+        ("return try V3BackendCommands.accountImport(token: target, password: password)",
+         "return try await V3BackendCommands.accountImport(token: target, password: password)"),
+        ("let storedTeam = DatabaseManager.shared.activeTeam()",
+         "let storedTeam = DatabaseManager.shared.activeTeam(in: context)"),
+        ("let storedAccount = DatabaseManager.shared.activeAccount()",
+         "let storedAccount = DatabaseManager.shared.activeAccount(in: context)"),
+    )
+    for before, after in modern_service_calls:
+        if before in app_text:
+            if app_text.count(before) != 1:
+                raise ValueError("multiple SideStore async/managed-context API call sites")
+            app_text = app_text.replace(before, after)
+        elif app_text.count(after) != 1:
+            raise ValueError("SideStore async/managed-context API drift")
+
+    # The new Apple 2FA flow reports an optional error string on
+    # TwoFactorRequest, not the removed TwoFactorVerificationFailure type.
+    # Never forward Apple-controlled raw error text across the XPC bridge.
+    two_factor_fixes = (
+        ("failure: TwoFactorVerificationFailure?) async throws -> TwoFactorResponse",
+         "failure: String?) async throws -> TwoFactorResponse"),
+        ("failure?.userMessage ?? V3TwoFactorRetryPolicy.recoveryMessage(authFailureKind: priorKind) ?? acknowledgement",
+         '(failure != nil ? "The verification code was not accepted. Enter a new code." : ' +
+         '(V3TwoFactorRetryPolicy.recoveryMessage(authFailureKind: priorKind) ?? acknowledgement))'),
+        ("failure: .unknown)", 'failure: "missing_code")'),
+    )
+    for before, after in two_factor_fixes:
+        if before in app_text:
+            if app_text.count(before) != 1:
+                raise ValueError("ambiguous V3 two-factor API migration")
+            app_text = app_text.replace(before, after)
+        elif app_text.count(after) != 1:
+            raise ValueError("SideStore 2FA signature changed upstream")
+    two_factor_old = "failure: request.verificationFailure"
+    two_factor_new = "failure: request.error"
+    if two_factor_old in app_text:
+        if app_text.count(two_factor_old) != 3:
+            raise ValueError("unexpected number of V3 2FA delivery arms")
+        app_text = app_text.replace(two_factor_old, two_factor_new)
+    elif app_text.count(two_factor_new) != 3:
+        raise ValueError("new SideStore two-factor error projection missing")
+
+    # AuthManager intentionally keeps the live session and team private.
+    # Only this read-only, same-file adapter lets V3 verify that provisioning
+    # retry belongs to the saved account. It never synthesizes a token.
+    auth_file = side / "SideStore/Core/Auth/AuthManager.swift"
+    auth_source = auth_file.read_text()
+    auth_adapter = """
+// SCARLET_V181_READONLY_AUTH_IDENTITY_V1
+extension AuthManager {
+    var v3CachedSessionForResume: ALTAppleAPISession? { self.session }
+    var v3CachedTeamAppleIDForResume: String? { self.team?.account?.appleID }
+}
+"""
+    if "SCARLET_V181_READONLY_AUTH_IDENTITY_V1" not in auth_source:
+        if auth_source.count("private var session: ALTAppleAPISession?") != 1 or (
+                auth_source.count("private var team: ALTTeam?") != 1):
+            raise ValueError("private SideStore live auth state moved")
+        auth_source += auth_adapter
+    elif auth_adapter not in auth_source:
+        raise ValueError("partial auth read adapter")
+    private_auth_refs = (
+        ("let session = auth.session", "let session = auth.v3CachedSessionForResume"),
+        ("let teamOwner = auth.team?.account?.appleID",
+         "let teamOwner = auth.v3CachedTeamAppleIDForResume"),
+        ("let teamAppleID = AuthManager.shared.team?.account?.appleID",
+         "let teamAppleID = AuthManager.shared.v3CachedTeamAppleIDForResume"),
+    )
+    for before, after in private_auth_refs:
+        if before in app_text:
+            if app_text.count(before) != 1:
+                raise ValueError("ambiguous V3 identity read")
+            app_text = app_text.replace(before, after)
+        elif app_text.count(after) != 1:
+            raise ValueError("V3 identity retry binding changed")
+
+    # Four historic OperationError enum cases disappeared in the modern
+    # SideStore API. Remove impossible switch arms, retain the typed cases
+    # that still exist, and conservatively return the existing unknown case.
+    operation_guidance = "func v3OperationErrorGuidance(_ error: OperationError)"
+    if app_text.count(operation_guidance) != 1:
+        raise ValueError("typed operation guidance missing")
+    start = app_text.index(operation_guidance)
+    finish = app_text.index("\n}\n", start) + 2
+    guidance = app_text[start:finish]
+    obsolete_operation_cases = (
+        "certificateChanged", "provisioningError",
+        "maximumAppIDLimitReached", "connectionFailed"
+    )
+    for member in obsolete_operation_cases:
+        pattern = (r"(?m)^    case \." + member +
+                   r":\n        return \([^\n]+\n                [^\n]+\n")
+        guidance, removed = re.subn(pattern, "", guidance)
+        if removed != 1:
+            raise ValueError("SideStore operation enum changed for " + member)
+    app_text = app_text[:start] + guidance + app_text[finish:]
+
+    # Current SignInHandler adds explicit skip notices and a device retry
+    # decision. Route notices through the already-supported host dialog;
+    # a device-registration failure may retry/cancel, never silently skip.
+    auth_methods = """
+    // SCARLET_V181_CURRENT_SIGNIN_PROTOCOL_V1
+    func resolveDeviceRegistrationErrors(_ error: Error) async -> ProvisioningErrorDecision {
+        return await resolveProvisioningError(error)
+    }
+
+    func showCertificateSkipAcknowledgment() async {
+        _ = try? await ask(kind: "postAuth", title: "Certificate Provisioning Skipped",
+                           message: "No signing certificate was installed. Installing or refreshing apps requires a usable signing certificate.",
+                           options: [["id": "continue", "label": "Continue"]])
+    }
+
+    func showDeviceRegistrationSkipAcknowledgment() async {
+        _ = try? await ask(kind: "postAuth", title: "Device Registration Skipped",
+                           message: "This device has not been registered. App provisioning may not work until registration succeeds.",
+                           options: [["id": "continue", "label": "Continue"]])
+    }
+
+"""
+    auth_end = "    func complete() async {}\n"
+    if "SCARLET_V181_CURRENT_SIGNIN_PROTOCOL_V1" not in app_text:
+        if app_text.count(auth_end) != 1:
+            raise ValueError("V3 headless authentication protocol extension anchor changed")
+        app_text = app_text.replace(auth_end, auth_methods + auth_end)
+    elif auth_methods not in app_text:
+        raise ValueError("partial SignInHandler protocol migration")
+
+    # New profile/plist/icon/entitlement callbacks are optional user choices.
+    # nil means exactly 'do not alter the signed app' on current SideStore,
+    # preserving the original install, signing and profile pipeline.
+    customization_methods = """
+    // SCARLET_V181_CURRENT_CUSTOMIZATION_PROTOCOL_V1
+    func resolveInfoPlistCustomization(
+        targets: [InfoPlistTarget], initialBundleID: String,
+        appendTeamID: Bool, installedAppIdentities: [String: String],
+        teamID: String
+    ) async throws -> (modifiedPlists: [String: [String: any Sendable]], appendTeamID: Bool)? {
+        return nil
+    }
+
+    func resolveInfoPlistCustomization(
+        initialPlist: [String: any Sendable], initialBundleID: String,
+        appendTeamID: Bool, installedAppIdentities: [String: String],
+        teamID: String
+    ) async throws -> (modifiedPlist: [String: any Sendable], appendTeamID: Bool)? {
+        return nil
+    }
+
+    func resolveEntitlementsCustomization(
+        targets: [EntitlementsTarget], teamType: ALTTeamType
+    ) async throws -> [String: [String: any Sendable]]? {
+        return nil
+    }
+
+    func resolveEntitlementsCustomization(
+        initialEntitlements: [String: any Sendable], bundleID: String,
+        teamType: ALTTeamType
+    ) async throws -> [String: any Sendable]? {
+        return nil
+    }
+
+    func resolveAppIconCustomization(appName: String) async throws -> URL? {
+        return nil
+    }
+
+    func resolveProvisioningProfileCustomization(
+        appName: String, bundleID: String
+    ) async throws -> ProfileCustomizationChoice? {
+        return nil
+    }
+
+"""
+    customization_anchor = "    func resolveAppGroupMismatch(originalGroup: String, correctedGroup: String) async throws -> AppGroupResolution {"
+    if "SCARLET_V181_CURRENT_CUSTOMIZATION_PROTOCOL_V1" not in app_text:
+        if app_text.count(customization_anchor) != 1:
+            raise ValueError("V3 headless pipeline customization source changed")
+        app_text = app_text.replace(customization_anchor,
+                                    customization_methods + customization_anchor)
+    elif customization_methods not in app_text:
+        raise ValueError("partial user customization compatibility")
+
     # Validate all pending edits before writing any file to the checkout.
     expected = ("LCEmbeddedAuthenticationSnapshot", "func authenticationSnapshot() throws",
                 "LCEmbeddedSharedKeychain.makeClient()")
@@ -285,6 +473,7 @@ func lcPortalSigningRequest<T>(
     key.write_text(key_text)
     prefs.write_text(pref_text)
     app.write_text(app_text)
+    auth_file.write_text(auth_source)
     file_import.write_text(file_import_text)
     onboarding.write_text(onboarding_text)
     failure_path.parent.mkdir(parents=True, exist_ok=True)
