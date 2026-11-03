@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Fail release if V164 RemotePairing repair is absent from embedded SideStore Mach-O."""
+"""Fail release if V164/V172/V175 RemotePairing repair is absent from embedded SideStore Mach-O."""
 from pathlib import Path
 import sys
 import zipfile
@@ -12,7 +12,11 @@ REQUIRED=(
     b'[SCARLET_V164_TRANSPORT_RESYNC] stage=recovery decision=all_failed',
     b'vpn_peer_discovered_port',
     b'transient_same_endpoint',
-    b'bonjour_service_endpoint',
+    # V172 removed unsafe Wi-Fi-host dialing. Verify the compiled
+    # own-iPhone service filter instead of the retired candidate.
+    b'[SCARLET_V172_RP] stage=discovery own_host=false candidate=discarded',
+    # V175 resolves the listener's advertised port before the first RPC.
+    b'[SCARLET_V175_RP] stage=preflight advertised_port=selected record=preserved',
 )
 
 def verify(executable):
