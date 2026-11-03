@@ -87,6 +87,7 @@ jobs:
           {
             python3 builder/scripts/patch_livecontainer_autorefresh.py work/LiveContainer
             python3 builder/scripts/patch_embedded_sidestore_startup.py work/LiveContainer work/EmbeddedSideStore
+            python3 builder/scripts/patch_v182_p00_defer_app_group_probe.py work/LiveContainer
             python3 builder/scripts/patch_v179_refresh_compat.py work/LiveContainer
             python3 builder/scripts/patch_v179_refresh_compat.py work/LiveContainer
             git -C work/LiveContainer diff --check
@@ -136,6 +137,7 @@ jobs:
         run: |
           set -euo pipefail
           grep -q SCARLET_V182_P00_PAIRING work/LiveContainer/LiveContainerSwiftUI/Views/V3UnifiedShell.swift
+          grep -q SCARLET_V182_P00_DEFER_EARLY_GROUP_PROBE work/LiveContainer/SideStoreSupport/SideStoreHooks.m
           grep -q SCARLET_V182_P00_PAIRING work/EmbeddedSideStore/AltStore/AppDelegate.swift
           grep -q scarletV182PairingStatusPoll work/LiveContainer/LiveContainerSwiftUI/Views/V3UnifiedShell.swift
           grep -q SCARLET_V182_P00_AUTH_CANCEL_LIVENESS work/LiveContainer/LiveContainerSwiftUI/Views/V3UnifiedShell.swift
