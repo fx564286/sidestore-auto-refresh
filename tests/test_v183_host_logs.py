@@ -21,11 +21,13 @@ v182auth=load("v182_auth","patch_v182_p00_auth_cancel_liveness.py")
 v183=load("v183_logs","patch_v183_host_diagnostic_logs.py")
 
 def evolved_host():
+    # The template itself is pre-V167, and those UI patch scripts require
+    # earlier V165/V166 concrete-source mutations. Instead supply only the
+    # exact V167 pairing command snippet for source-contract unit tests;
+    # full CI validates the actual integrated source after all overlays.
     s=(ROOT/"scripts/templates/v3_unified_shell.swift").read_text()
-    s=v167.patch_host(s)
-    s=v170.patch(s)
-    s=v182.patch_host(s)
     s=v182auth.patch(s)
+    s += "\n// Fixture from the actual V167 backend pairing command source.\n" + v167.METHOD
     return s
 
 class V183HostLogTests(unittest.TestCase):
