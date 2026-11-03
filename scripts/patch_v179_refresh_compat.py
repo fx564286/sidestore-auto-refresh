@@ -173,8 +173,10 @@ extension LCUtils {
         let options = [kSecImportExportPassphrase as String: password] as CFDictionary
         guard SecPKCS12Import(data as CFData, options, &items) == errSecSuccess,
               let objects = items as? [[String: Any]],
-              let identity = objects.first?[kSecImportItemIdentity as String] as? SecIdentity
+              let identityObject = objects.first?[kSecImportItemIdentity as String],
+              CFGetTypeID(identityObject as CFTypeRef) == SecIdentityGetTypeID()
         else { return nil }
+        let identity = unsafeBitCast(identityObject as AnyObject, to: SecIdentity.self)
         var extracted: SecCertificate?
         guard SecIdentityCopyCertificate(identity, &extracted) == errSecSuccess,
               let certificate = extracted else { return nil }
