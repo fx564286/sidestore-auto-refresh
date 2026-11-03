@@ -2225,10 +2225,19 @@ def patch_auth_identity_generation(text):
         "    func v3AdvanceIdentityGeneration() {\n"
         "        v3IdentityStampState.advanceGeneration()\n"
         "    }\n")
-    text = replace(text, "    ) {\n        self.session = nil\n", "    ) {\n"
-        "        self.v3BeginIdentityTransition()\n"
-        "        defer { self.v3CompleteIdentityTransition() }\n"
-        "        self.session = nil\n")
+    # Current SideStore changes signOut to async. Carry over the original
+    # V3 identity-transition guard without turning async sign-out back into
+    # its obsolete synchronous declaration.
+    old_signout = "    ) {\\n        self.session = nil\\n"
+    if old_signout not in text:
+        old_signout = "    ) async {\\n        self.session = nil\\n"
+    new_signout = old_signout.replace(
+        "        self.session = nil\\n",
+        "        self.v3BeginIdentityTransition()\\n"
+        "        defer { self.v3CompleteIdentityTransition() }\\n"
+        "        self.session = nil\\n",
+        1)
+    text = replace(text, old_signout, new_signout)
     text = replace(text,
         '        return try await TaskChainCoalescer.shared.coalesce(key: "apple_auth_session") {\n',
         "        let identityAtStart = v3IdentityStampState.snapshot\n"
