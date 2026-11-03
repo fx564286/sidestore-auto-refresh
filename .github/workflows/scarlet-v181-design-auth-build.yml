@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
   push:
     branches:
-      - fix/scarlet-v181-preserve-custom-design-20261103
+      - fix/scarlet-v181-figma-design-auth80045-20261103
 
 permissions:
   contents: read
@@ -113,7 +113,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          python3 builder/scripts/port_v181_design.py \
+          python3 builder/scripts/port_v180_design.py \
             work/LiveContainer work/EmbeddedSideStore \
             builder/config/scarlet-upstream-pins.json \
             2>&1 | tee artifacts/logs/v181-original-design-port.log
