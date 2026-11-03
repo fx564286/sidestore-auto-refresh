@@ -34,6 +34,88 @@ extension RefreshHandler {
 """
 
 
+def patch_v181_refresh_service_lifecycle(source):
+    """Carry the original LiveProcess/XPC launch handshake into the V3 host.
+
+    Do not fake an existing connection and never trigger Refresh All merely
+    to establish the command channel. Keep the original refresh path intact.
+    """
+    mark = "SCARLET_V181_REFRESH_SERVICE_LIFECYCLE"
+    if mark in source:
+        required = ("func ensureServiceConnected() async throws",
+                    "func v3_stopService()",
+                    "var v3RefreshToken: String?",
+                    "var v3ServiceIdentity:")
+        if any(token not in source for token in required):
+            raise ValueError("partial V181 refresh service host bridge")
+        return source
+    begin = "        if listener == nil {\n"
+    finish = "        self.client?.refreshAllApps(withIdentifier: identifier, mangledTypeName: mangledName)\n"
+    if source.count(begin) != 1 or source.count(finish) != 1:
+        raise ValueError("latest native refresh launch path drifted")
+    start = source.index(begin)
+    end = source.index(finish, start)
+    original_launch = source[start:end]
+    # A connection-only entrypoint must *throw* for unavailable listener or
+    # missing extension rather than quietly claiming it is connected.
+    original_launch = original_launch.replace(
+        "                return\n",
+        "                throw NSError(domain: \"ScarletCrystal.Connection\", code: 1)\n")
+    original_launch = original_launch.replace(
+        "            return\n",
+        "            throw NSError(domain: \"ScarletCrystal.Connection\", code: 1)\n")
+    if "        let uuid = await ext.beginRequest" not in original_launch:
+        raise ValueError("upstream SideStore launch handshake incomplete")
+    extra = """
+    // SCARLET_V181_REFRESH_SERVICE_LIFECYCLE:
+    // ownership corresponds to the actual live guest process, not an
+    // optimistic persisted pairing or a completed XPC request.
+    var v3RefreshToken: String? = nil
+    var v3RefreshAdmissionRunID: String? = nil
+    var v3ServiceIdentity: String = UUID().uuidString
+
+    @MainActor
+    func ensureServiceConnected() async throws {
+        if sideStorePid > 0 && getpgid(sideStorePid) > 0 {
+            guard client != nil else {
+                throw NSError(domain: "ScarletCrystal.Connection", code: 2)
+            }
+            return
+        }
+        v3ServiceIdentity = UUID().uuidString
+        client = nil
+""" + original_launch + """
+        guard client != nil, sideStorePid > 0 && getpgid(sideStorePid) > 0 else {
+            throw NSError(domain: "ScarletCrystal.Connection", code: 3)
+        }
+    }
+
+    @MainActor
+    func v3_stopService() {
+        // Caller must first establish an explicit retirement decision.
+        // Never delete the paired device record, certificates, or accounts.
+        if let c { c.resume(throwing: CancellationError()); self.c = nil }
+        if let launchContinuation {
+            launchContinuation.resume(throwing: CancellationError())
+            self.launchContinuation = nil
+        }
+        ext?._kill(9)
+        ext = nil
+        client = nil
+        listener?.invalidate()
+        listener = nil
+        sideStorePid = 0
+        v3RefreshToken = nil
+        v3RefreshAdmissionRunID = nil
+        v3ServiceIdentity = UUID().uuidString
+    }
+"""
+    needle = "    func updateProgress(_ value: Double) {\n"
+    if source.count(needle) != 1:
+        raise ValueError("current native RefreshHandler body changed")
+    return source.replace(needle, extra + "\n" + needle, 1)
+
+
 def patch(root, template):
     support = root / "SideStoreSupport"
     swift = support / "SideStore.swift"
@@ -44,6 +126,13 @@ def patch(root, template):
         raise ValueError("Scarlet host overlay must be applied before refresh compatibility")
     if "class RefreshHandler" not in swift.read_text():
         raise ValueError("upstream RefreshHandler definition unavailable")
+    current_service = swift.read_text()
+    updated_service = patch_v181_refresh_service_lifecycle(current_service)
+    if patch_v181_refresh_service_lifecycle(updated_service) != updated_service:
+        raise ValueError("non-idempotent latest V181 refresh service lifecycle")
+    if updated_service != current_service:
+        swift.write_text(updated_service)
+
     if "func startScheduledRefresh(" in swift.read_text():
         raise ValueError("upstream now implements scheduled refresh; re-review before adding adapter")
     body = template.read_text()
