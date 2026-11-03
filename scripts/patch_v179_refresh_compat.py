@@ -44,7 +44,7 @@ def patch(root, template):
         raise ValueError("Scarlet host overlay must be applied before refresh compatibility")
     if "class RefreshHandler" not in swift.read_text():
         raise ValueError("upstream RefreshHandler definition unavailable")
-    if "startScheduledRefresh(" in swift.read_text():
+    if "func startScheduledRefresh(" in swift.read_text():
         raise ValueError("upstream now implements scheduled refresh; re-review before adding adapter")
     body = template.read_text()
     if body != main_shared.read_text():
