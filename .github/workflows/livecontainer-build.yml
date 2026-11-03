@@ -47,6 +47,31 @@ jobs:
           path: builder
           persist-credentials: false
 
+      # Runtime source of truth: a reviewed, four-key JSON commit graph.
+      # Workflow-level refs are bootstrap snapshots for legacy tests only.
+      # This makes future auto-staged upstream PRs edit JSON, never a workflow.
+      - name: Load paired upstream refs from reviewed JSON
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          import json, os, re
+          p=Path("builder/config/scarlet-upstream-pins.json")
+          refs=json.loads(p.read_text())
+          keys={"LIVE_CONTAINER_REF","EMBEDDED_SIDESTORE_REF",
+                "MINIMUXER_REF","SIDESIGN_REF"}
+          if set(refs)!=keys:
+              raise SystemExit("[V177] incomplete or unauthorized source graph")
+          with Path(os.environ["GITHUB_ENV"]).open("a") as env:
+              for key in sorted(keys):
+                  value=refs[key]
+                  if not isinstance(value,str) or not re.fullmatch(r"[a-f0-9]{40}",value):
+                      raise SystemExit("[V177] invalid immutable ref "+key)
+                  print(f"{key}={value}",file=env)
+                  print(f"[V177] source={key} sha={value[:12]}")
+          PY
+
       # V177: independently resolve both *actual* LiveContainer parents.
       # Prevent mixing an embedded SideStore head with unrelated minimuxer
       # and SideSign gitlinks. SideStore/develop remains advisory only.
@@ -59,7 +84,7 @@ jobs:
           mkdir -p artifacts/logs
           python3 -m unittest discover -s builder/tests -p test_v177_upstream_follow.py -v
           python3 builder/scripts/scarlet_upstream_follow.py \
-            --workflow builder/.github/workflows/livecontainer-build.yml \
+            --config builder/config/scarlet-upstream-pins.json \
             --report artifacts/logs/v177-upstream-provenance.json
           python3 - <<'PY'
           import json
