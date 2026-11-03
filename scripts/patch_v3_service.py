@@ -1384,8 +1384,16 @@ def headless_app_boot_manager(text):
         "    // " + state_marker + ": prompt state belongs to the excluded launch controller.\n", 1)
     if text.count(prompt_signature) != 1:
         raise SystemExit("v3 service: AppBootManager pairing presenter changed")
-    if "PairingFileManager.shared.presentPairingFileAlert" not in text:
-        raise SystemExit("v3 service: AppBootManager pairing presenter no longer uses the pairing picker")
+    # LiveContainer/SideStore's current LiveContainerSupport fork moved the
+    # visual pairing picker to PairingViewController and added a protocol-
+    # mismatch retry in that UI method. The combined host owns this visual
+    # flow; strip only the presenter, not the minimuxer boot backend.
+    pairing_picker_names = (
+        "PairingFileManager.shared.presentPairingFileAlert",
+        "PairingViewController.shared.presentPairingFileAlert",
+    )
+    if sum(name in text for name in pairing_picker_names) != 1:
+        raise SystemExit("v3 service: unknown or duplicate upstream pairing picker route")
     text = remove_swift_function_with_actor(text, prompt_signature, pairing_marker,
                                             "AppBootManager pairing presenter")
     for assignment, expected_count in (("self.needsPairingPrompt = false", 1),
