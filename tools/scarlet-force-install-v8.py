@@ -273,8 +273,21 @@ def main():
     parser.add_argument('--ipa', type=Path, required=True,
                         help='GUI에서 사용자가 직접 선택한 V181 등 원본 unsigned IPA')
     args = parser.parse_args()
+    import fcntl
+    lock_dir = Path.home() / '.local/state/scarlet-crystal-installer'
+    lock_dir.mkdir(parents=True, exist_ok=True, mode=0o700)
+    lockfile = lock_dir / 'force-v8-active.lock'
     try:
-        return execute(args.install, args.ipa)
+        with lockfile.open('a+') as handle:
+            try:
+                fcntl.flock(handle.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+            except BlockingIOError:
+                print('[STOP] 이미 다른 Scarlet Crystal 설치가 실행 중이야.', file=sys.stderr, flush=True)
+                return 2
+            try:
+                return execute(args.install, args.ipa)
+            finally:
+                fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
     except (Halt, OSError, ValueError, subprocess.CalledProcessError) as exc:
         print('[STOP]',type(exc).__name__,str(exc),file=sys.stderr,flush=True)
         return 2
