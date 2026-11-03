@@ -65,7 +65,7 @@ def patch_v181_refresh_service_lifecycle(source):
             raise ValueError("partial V181 refresh service host bridge")
         return source
     begin = "        if listener == nil {\n"
-    finish = "        self.client?.refreshAllApps(withIdentifier: identifier, mangledTypeName: mangledName)\n"
+    finish = "        guard let client = self.client else {\n"
     if source.count(begin) != 1 or source.count(finish) != 1:
         raise ValueError("latest native refresh launch path drifted")
     start = source.index(begin)
