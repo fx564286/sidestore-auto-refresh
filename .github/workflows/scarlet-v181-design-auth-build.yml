@@ -5,6 +5,7 @@ on:
   push:
     branches:
       - fix/scarlet-v181-figma-design-auth80045-20261103
+      - fix/scarlet-v182-p00-pairing-auth-refresh-20261104
 
 permissions:
   contents: read
@@ -86,6 +87,7 @@ jobs:
           {
             python3 builder/scripts/patch_livecontainer_autorefresh.py work/LiveContainer
             python3 builder/scripts/patch_embedded_sidestore_startup.py work/LiveContainer work/EmbeddedSideStore
+            python3 builder/scripts/patch_v182_p00_defer_app_group_probe.py work/LiveContainer
             python3 builder/scripts/patch_v179_refresh_compat.py work/LiveContainer
             python3 builder/scripts/patch_v179_refresh_compat.py work/LiveContainer
             git -C work/LiveContainer diff --check
@@ -109,6 +111,15 @@ jobs:
             work/EmbeddedSideStore/SideStore/Handlers/SignInFlowHandler.swift
           echo '[V181_AUTH80045] source and Swift syntax PASS; live Apple 2FA unverified'
 
+      - name: P00 pairing and Apple 2FA source contract tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m unittest discover -s builder/tests -p test_v182_p00_pairing.py -v \
+            2>&1 | tee artifacts/logs/v182-p00-pairing-tests.log
+          python3 -m unittest discover -s builder/tests -p test_v182_p00_auth_cancel.py -v \
+            2>&1 | tee artifacts/logs/v182-p00-auth-cancel-tests.log
+
       - name: Forward-port user's original dock and unified shell instead of replacing with stock
         shell: bash
         run: |
@@ -121,7 +132,20 @@ jobs:
 
       # The V179 IPA was compiled from latest parents but omitted the user's
       # distinctive Liquid Glass/scene UI. Never publish such a result again.
-      - name: Gate on user-authored Scarlet Crystal design preservation
+      - name: Verify pairing and 2FA P00 patch is in both compiled source trees
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -q SCARLET_V182_P00_PAIRING work/LiveContainer/LiveContainerSwiftUI/Views/V3UnifiedShell.swift
+          grep -q SCARLET_V182_P00_DEFER_EARLY_GROUP_PROBE work/LiveContainer/SideStoreSupport/SideStoreHooks.m
+          grep -q SCARLET_V182_P00_PAIRING work/EmbeddedSideStore/AltStore/AppDelegate.swift
+          grep -q scarletV182PairingStatusPoll work/LiveContainer/LiveContainerSwiftUI/Views/V3UnifiedShell.swift
+          grep -q SCARLET_V182_P00_AUTH_CANCEL_LIVENESS work/LiveContainer/LiveContainerSwiftUI/Views/V3UnifiedShell.swift
+          python3 -c "from pathlib import Path; s=Path('work/LiveContainer/LiveContainerSwiftUI/Views/V3UnifiedShell.swift').read_text(); a=s.index('func cancel() {', s.index('final class V3AuthStore')); b=s.index('struct V3SignInLink', a); assert 'await oldTask?.value' not in s[a:b], 'unbounded auth cancellation wait remains'"
+          grep -q 'lastNotifiedPairingPIN' work/EmbeddedSideStore/AltStore/AppDelegate.swift
+          echo '[P00] pairing and 2FA source overlay verified; device handshake and Apple 2FA pending'
+
+      - name: Gate on source-only Scarlet UI markers (device and Figma parity pending)
         shell: bash
         run: |
           set -euo pipefail
@@ -177,7 +201,7 @@ jobs:
           test -s artifacts/Scarlet-Crystal-V181-UPSTREAM-FORK-UNSIGNED.ipa
           test -s artifacts/Scarlet-Crystal-V181-UPSTREAM-FORK-UNSIGNED.json
 
-      - name: Upload fully UI-verified Scarlet Crystal V181 compiled unsigned IPA
+      - name: Upload source-checked Scarlet Crystal unsigned IPA (Figma and iPhone unverified)
         uses: actions/upload-artifact@v4
         with:
           name: Scarlet-Crystal-V181-UPSTREAM-FORK-UNSIGNED

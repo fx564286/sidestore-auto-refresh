@@ -592,6 +592,18 @@ def main():
         report(script, lambda name=script, args=arguments: subprocess.run(
             [sys.executable, str(path / (name + ".py")), *args], check=True))
 
+    # P00: after V167+V170 provide pairing PIN notification,
+    # foreground status polling and existing 2FA entry. Do not touch Glass.
+    report("P00 pairing-first and inline Apple 2FA integration",
+           lambda: subprocess.run([
+               sys.executable, str(path / "patch_v182_p00_ondevice_pairing.py"),
+               str(live), str(side)], check=True))
+
+    report("P00 bounded auth cancellation and unknown-safe recovery",
+           lambda: subprocess.run([
+               sys.executable, str(path / "patch_v182_p00_auth_cancel_liveness.py"),
+               str(live)], check=True))
+
     report("latest SideStore credential/import compatibility",
            lambda: port_current_sidestore_service_primitives(side))
 

@@ -35,12 +35,18 @@ def check(root, contract):
                    or not marker.startswith("SCARLET_V") or marker not in src]
         results.append({"feature": key, "source": relative, "source_exists": valid_source,
                         "missing": missing, "pass": valid_source and not missing})
+    source_markers_passed = all(v["pass"] for v in results)
+    # Source markers cannot establish exact Figma colors, geometry or physical-device
+    # behavior. A separate reference-bound visual/device acceptance gate must own
+    # publication approval. Preserve the diagnostic source-only gate for building.
     return {
         "schema": 1,
         "product": "Scarlet Crystal",
-        "user_authored_design_source_preserved": all(v["pass"] for v in results),
+        "user_authored_design_source_preserved": source_markers_passed,
         "runtime_design_verified": False,
-        "can_publish_as_design_preserved": all(v["pass"] for v in results),
+        "figma_visual_parity_verified": False,
+        "visual_parity_status": "SOURCE_ONLY" if source_markers_passed else "SOURCE_INCOMPLETE",
+        "can_publish_as_design_preserved": False,
         "checks": results,
     }
 

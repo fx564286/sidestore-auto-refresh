@@ -1,0 +1,97 @@
+name: Scarlet Crystal P00 - pairing/auth/refresh fast source tests
+
+on:
+  push:
+    branches:
+      - fix/scarlet-v182-p00-pairing-auth-refresh-20261104
+  pull_request:
+    paths:
+      - "scripts/patch_v182_p00_*.py"
+      - "scripts/port_v180_design.py"
+      - "scripts/verify_scarlet_design.py"
+      - "tests/test_v182_p00_*.py"
+      - "tests/test_scarlet_design.py"
+      - ".github/workflows/scarlet-v182-p00-fast-checks.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: scarlet-p00-fast-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  source-contract-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - name: Checkout exact reviewed Scarlet source
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Compile P00 patch scripts
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m py_compile \
+            scripts/patch_v182_p00_ondevice_pairing.py \
+            scripts/patch_v182_p00_auth_cancel_liveness.py \
+            scripts/patch_v182_p00_defer_app_group_probe.py \
+            scripts/port_v180_design.py \
+            scripts/verify_scarlet_design.py
+
+      - name: Run actual pairing and authentication source tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts
+          python3 -m unittest discover -s tests -p 'test_v182_p00_*.py' -v \
+            2>&1 | tee artifacts/p00-tests.log
+
+      - name: Verify design markers never imply device/Figma success
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m unittest discover -s tests -p 'test_scarlet_design.py' -v \
+            2>&1 | tee artifacts/p00-design-contract-tests.log
+
+      - name: Reject accidental Liquid Glass patch references
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          scripts = [
+              Path("scripts/patch_v182_p00_ondevice_pairing.py"),
+              Path("scripts/patch_v182_p00_auth_cancel_liveness.py"),
+              Path("scripts/patch_v182_p00_defer_app_group_probe.py"),
+          ]
+          forbidden = [
+              "MultitaskDockView.swift",
+              "DecoratedAppSceneViewController.m",
+              "SCARLET_V144_GLASS_INSTALLED",
+              "SCARLET_V160_GLASS_CONTRAST",
+              "SCARLET_V159_ACTION_NATIVE_PRESS",
+          ]
+          for path in scripts:
+              source = path.read_text()
+              for symbol in forbidden:
+                  if symbol in source:
+                      raise SystemExit(f"P00 protected Glass reference in {path}: {symbol}")
+          print("[P00] no frozen Liquid Glass or multitask-dock patch targets")
+          PY
+
+      - name: Collect test report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: scarlet-p00-source-contract-checks
+          path: artifacts/*.log
+          retention-days: 30
+          if-no-files-found: ignore
