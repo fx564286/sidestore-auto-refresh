@@ -151,6 +151,45 @@ def patch(root, template):
     if updated_service != current_service:
         swift.write_text(updated_service)
 
+    # Restore the canonical local certificate identity facts used by the
+    # user's V32 JIT-Less diagnostics and V3 certificate import checks.
+    # Only the cert's public DER fingerprint is returned. Never log or
+    # persist PKCS12 bytes, passwords or private keys.
+    lc_utils = root / "LiveContainerSwiftUI/Utilities/LCUtilsExtensions.swift"
+    if not lc_utils.is_file():
+        raise ValueError("original LCUtils extensions not present")
+    facts_marker = "SCARLET_V181_CERTIFICATE_FACTS_V1"
+    facts_extension = """
+// SCARLET_V181_CERTIFICATE_FACTS_V1
+import Security
+import CryptoKit
+
+extension LCUtils {
+    @nonobjc static func certificateFacts(withKeyData data: Data,
+                                           password: String) -> [String: String]? {
+        guard let teamID = LCUtils.getCertTeamId(withKeyData: data, password: password),
+              !teamID.isEmpty else { return nil }
+        var items: CFArray?
+        let options = [kSecImportExportPassphrase as String: password] as CFDictionary
+        guard SecPKCS12Import(data as CFData, options, &items) == errSecSuccess,
+              let objects = items as? [[String: Any]],
+              let identity = objects.first?[kSecImportItemIdentity as String] as? SecIdentity
+        else { return nil }
+        var extracted: SecCertificate?
+        guard SecIdentityCopyCertificate(identity, &extracted) == errSecSuccess,
+              let certificate = extracted else { return nil }
+        let digest = SHA256.hash(data: SecCertificateCopyData(certificate) as Data)
+        let fingerprint = digest.map { String(format: "%02x", $0) }.joined()
+        return ["teamIdentifier": teamID, "identitySHA256": fingerprint]
+    }
+}
+"""
+    lc_source = lc_utils.read_text()
+    if facts_marker not in lc_source:
+        lc_utils.write_text(lc_source + "\n" + facts_extension)
+    elif lc_source.count(facts_marker) != 1 or facts_extension not in lc_source:
+        raise ValueError("certificate facts bridge is incomplete or drifted")
+
     if "func startScheduledRefresh(" in swift.read_text():
         raise ValueError("upstream now implements scheduled refresh; re-review before adding adapter")
     body = template.read_text()
