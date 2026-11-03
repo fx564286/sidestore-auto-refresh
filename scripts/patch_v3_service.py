@@ -942,6 +942,30 @@ def patch_crash_log_privacy(text):
 
 def headless_scene_open(text):
     marker = "V3_HEADLESS_SCENE_URLS_V1"
+    # Current SideStore has already removed the pending .ipa import UI and
+    # legacy open/export functions. Preserve only the non-file URL callback.
+    modern = ("func scene(_ scene: UIScene, openURLContexts URLContexts: Set<UIOpenURLContext>)" in text
+              and "pendingImportIPAURL" not in text
+              and "func exportPairingFile(" not in text)
+    if modern:
+        if marker in text:
+            if "    var window: UIWindow?\n" in text or "URLHandler.shared.handle(context.url)\n" in text:
+                raise SystemExit("v3 service: modern scene URL guard drifted")
+            return text
+        if text.count("    var window: UIWindow?\n") != 1:
+            raise SystemExit("v3 service: modern scene window changed")
+        if text.count("            URLHandler.shared.handle(context.url)\n") != 1:
+            raise SystemExit("v3 service: modern startup callback changed")
+        if text.count("        URLHandler.shared.handle(context.url)\n") != 1:
+            raise SystemExit("v3 service: modern foreground URL callback changed")
+        text = replace(text, "    var window: UIWindow?\n",
+                       "    // " + marker + ": embedded service delegates scene ownership to LiveContainer.\n")
+        text = replace(text, "            URLHandler.shared.handle(context.url)\n",
+                       "            if !context.url.isFileURL { _ = URLHandler.shared.handle(context.url) }\n")
+        text = replace(text, "        URLHandler.shared.handle(context.url)\n",
+                       "        guard !context.url.isFileURL else { return }\n"
+                       "        _ = URLHandler.shared.handle(context.url)\n")
+        return text
     if marker in text:
         if ("pendingImportIPAURL" in text or "uniqueTemporaryURL()" in text or
                 "importAppDeepLinkNotification" in text or "    var window: UIWindow?\n" in text):
