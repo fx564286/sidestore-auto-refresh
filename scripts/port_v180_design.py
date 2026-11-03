@@ -67,6 +67,14 @@ def main():
     report("original V3 account + JIT settings", lambda: subprocess.run(
         [sys.executable, str(path / "patch_v181_v3_settings_port.py"), str(live)],
         check=True))
+    # The canonical V129/V134 JIT scripts were authored against the
+    # verified V49/V50 PID URLComponents and base64 wire-format adapters.
+    # Restore these actual earlier transformations before the V55–V170 UI
+    # chain; otherwise later scripts have no matching source and cannot
+    # distinguish script-name from executable script-data.
+    for name in ("patch_v49_auto_jit", "patch_v50_stikdebug_protocol"):
+        report(name, lambda n=name: subprocess.run(
+            [sys.executable, str(path / (n + ".py")), str(live)], check=True))
 
     # The historical user's visual/interaction layer, reapplied in dependency
     # order as recorded in the original V176 combined build. This is NOT stock
