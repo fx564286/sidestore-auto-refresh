@@ -61,6 +61,12 @@ def main():
     app_layout.LIVE_CONTAINER_REVISION = pins["LIVE_CONTAINER_REF"]
     report("user app grid", lambda: app_layout.patch_livecontainer(live, v3_grid=True))
     report("user unified shell", lambda: importlib.import_module("patch_v3_unified_shell").patch(live, side))
+    # This exact original account Form row was previously installed by the
+    # large pinned V3 command patch; preserve it without replaying obsolete
+    # SideStore auth transport against the newer selected sources.
+    report("original V3 account + JIT settings", lambda: subprocess.run(
+        [sys.executable, str(path / "patch_v181_v3_settings_port.py"), str(live)],
+        check=True))
 
     # The historical user's visual/interaction layer, reapplied in dependency
     # order as recorded in the original V176 combined build. This is NOT stock
