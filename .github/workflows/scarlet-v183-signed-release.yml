@@ -1,0 +1,17 @@
+name: Prepare Scarlet V183 signed upload release
+on:
+  push:
+    branches: [gh-pages]
+    paths: ['.github/workflows/scarlet-v183-signed-release.yml']
+permissions:
+  contents: write
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Create release placeholder
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release view scarlet-v183-usb-signed-20261104 -R "$GITHUB_REPOSITORY" ||
+          gh release create scarlet-v183-usb-signed-20261104 -R "$GITHUB_REPOSITORY" --target 20ea8f8871e4005126ebe54d3bde65fca3a06c88 --title "Scarlet Crystal V183 (signed IPA upload pending)" --notes "Pending upload of signed IPA with SHA256 dc9fbd0b0d20d7d469040bca573949a68be9162354d92e1f2de62c75a8b1afef. USB install passed. App Groups entitlement removed. Safari OTA not yet verified." --prerelease
