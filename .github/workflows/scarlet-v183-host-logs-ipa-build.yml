@@ -1,4 +1,4 @@
-name: Scarlet Crystal V183 - host diagnostics + P00 iOS IPA build
+name: Scarlet Crystal V184 - auth cancellation outcomes + V183 host logs iOS IPA
 
 on:
   workflow_dispatch:
@@ -163,7 +163,10 @@ jobs:
           set -euo pipefail
           python3 -m unittest discover -s builder/tests -p test_v183_host_logs.py -v \
             2>&1 | tee artifacts/logs/v183-host-log-unit-tests.log
+          python3 -m unittest discover -s builder/tests -p test_v184_auth_cancel_outcomes.py -v \
+            2>&1 | tee artifacts/logs/v184-auth-cancel-outcome-tests.log
           grep -q SCARLET_V183_HOST_LOG_FALLBACK work/LiveContainer/LiveContainerSwiftUI/Views/V3UnifiedShell.swift
+          grep -q SCARLET_V184_AUTH_CANCEL_OUTCOMES work/LiveContainer/LiveContainerSwiftUI/Views/V3UnifiedShell.swift
           grep -q ScarletCrystalDiagnostics work/LiveContainer/LiveContainerSwiftUI/Views/V3UnifiedShell.swift
           grep -q 'Share Log File' work/LiveContainer/LiveContainerSwiftUI/Views/V3UnifiedShell.swift
           swiftc -frontend -parse work/LiveContainer/LiveContainerSwiftUI/Views/V3UnifiedShell.swift
@@ -215,23 +218,23 @@ jobs:
         run: |
           set -euo pipefail
           if ! command -v ldid >/dev/null; then brew install ldid; fi
-          python3 builder/scripts/v183_package_fork.py \
+          python3 builder/scripts/v184_package_fork.py \
             --root work/LiveContainer \
             --host "$RUNNER_TEMP/v178-lc/Build/Products/Release-iphoneos/LiveContainer.app" \
             --side "$RUNNER_TEMP/v178-sidestore/Build/Products/Release-iphoneos/SideStore.app" \
             --pin-file builder/config/scarlet-upstream-pins.json \
-            --output "$GITHUB_WORKSPACE/artifacts/Scarlet-Crystal-V183-LOG-RECOVERY-UNSIGNED.ipa" \
+            --output "$GITHUB_WORKSPACE/artifacts/Scarlet-Crystal-V184-AUTH-CANCEL-UNSIGNED.ipa" \
             2>&1 | tee artifacts/logs/v181-package.log
-          test -s artifacts/Scarlet-Crystal-V183-LOG-RECOVERY-UNSIGNED.ipa
-          test -s artifacts/Scarlet-Crystal-V183-LOG-RECOVERY-UNSIGNED.json
+          test -s artifacts/Scarlet-Crystal-V184-AUTH-CANCEL-UNSIGNED.ipa
+          test -s artifacts/Scarlet-Crystal-V184-AUTH-CANCEL-UNSIGNED.json
 
-      - name: Upload compiled Scarlet Crystal V183 Log Recovery IPA (unsigned, Figma and iPhone unverified)
+      - name: Upload compiled Scarlet Crystal V184 Authentication Cancellation IPA (unsigned, iPhone unverified)
         uses: actions/upload-artifact@v4
         with:
-          name: Scarlet-Crystal-V183-LOG-RECOVERY-UNSIGNED
+          name: Scarlet-Crystal-V184-AUTH-CANCEL-UNSIGNED
           path: |
-            artifacts/Scarlet-Crystal-V183-LOG-RECOVERY-UNSIGNED.ipa
-            artifacts/Scarlet-Crystal-V183-LOG-RECOVERY-UNSIGNED.json
+            artifacts/Scarlet-Crystal-V184-AUTH-CANCEL-UNSIGNED.ipa
+            artifacts/Scarlet-Crystal-V184-AUTH-CANCEL-UNSIGNED.json
           if-no-files-found: error
           retention-days: 30
 
