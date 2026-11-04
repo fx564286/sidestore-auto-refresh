@@ -46,9 +46,11 @@ class V184AuthCancelOutcomeTests(unittest.TestCase):
 
     def test_signin_ui_preserved(self):
         # No settings, dock, glass buttons or auth presentation changes.
-        ui = "\nstruct V3SignInLink: View"
-        self.assertEqual(self.v183[self.v183.index(ui):],
-                         self.patched[self.patched.index(ui):])
+        start = "struct V3SignInLink: View"
+        end = "// SCARLET_V183_HOST_LOG_FALLBACK"
+        self.assertEqual(
+            self.v183[self.v183.index(start):self.v183.index(end)],
+            self.patched[self.patched.index(start):self.patched.index(end)])
 
     def test_secret_values_never_enter_host_events(self):
         enum = self.patched[self.patched.index("enum ScarletV183Event"):
