@@ -612,6 +612,13 @@ def main():
                sys.executable, str(path / "patch_v183_host_diagnostic_logs.py"),
                str(live)], check=True))
 
+    # V184: terminal auth cancellation must be journaled by the auth store
+    # even after its SwiftUI sign-in view has been dismissed.
+    report("V184 auth cancellation final outcome evidence",
+           lambda: subprocess.run([
+               sys.executable, str(path / "patch_v184_auth_cancel_outcomes.py"),
+               str(live)], check=True))
+
     report("latest SideStore credential/import compatibility",
            lambda: port_current_sidestore_service_primitives(side))
 
