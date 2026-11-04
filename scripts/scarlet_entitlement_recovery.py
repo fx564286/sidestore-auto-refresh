@@ -221,9 +221,12 @@ def main(argv):
     profiles=sorted(profile_dir.glob("*.mobileprovision"))
     sources = None
     if opts.source:
-        selected = opts.source.expanduser().resolve(strict=True)
-        if not selected.is_file() or selected.is_symlink() or selected.suffix.lower() not in (".ipa", ".xml", ".plist"):
-            raise Halt("selected historical source is not a regular IPA or entitlement plist")
+        original = opts.source.expanduser()
+        if original.is_symlink() or not original.is_file():
+            raise Halt("selected historical source must be an existing non-symlink file")
+        selected = original.resolve()
+        if selected.suffix.lower() not in (".ipa", ".xml", ".plist"):
+            raise Halt("selected historical source must be an IPA or entitlement plist")
         sources = [selected]
     keychains,groups=recover(Path.home(),profiles,opts.output.expanduser(),possible=sources)
     print(f"[PASS] Historical host entitlements recovered, Keychain={keychains}, AppGroups={groups}")
