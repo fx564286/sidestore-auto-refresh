@@ -86,7 +86,7 @@ class SignedIpaAuditTests(unittest.TestCase):
             with zipfile.ZipFile(ipa,"w") as z:
                 z.writestr("Payload/LiveContainer.app/Info.plist",plistlib.dumps({
                     "CFBundleIdentifier":core.MAIN,"CFBundleExecutable":"LiveContainer"}))
-            with self.assertRaisesRegex(core.Halt,"four"):
+            with self.assertRaisesRegex(core.Halt,"three extensions"):
                 mod.audit(ipa,baseline_file,b"cert","test-udid")
 
 if __name__=="__main__":
