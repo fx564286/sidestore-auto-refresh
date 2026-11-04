@@ -1,10 +1,10 @@
-name: Scarlet Crystal V185 - persistent auth owner and App Group preflight iOS IPA
+name: Scarlet Crystal V186 - auth start cancellation classification and pending evidence iOS IPA
 
 on:
   workflow_dispatch:
   push:
     branches:
-      - fix/scarlet-v185-auth-owner-preflight-20261104
+      - fix/scarlet-v186-auth-start-outcome-20261104
     paths:
       - ".github/workflows/scarlet-v183-host-logs-ipa-build.yml"
       - ".github/workflows/scarlet-v181-design-auth-build.yml"
@@ -23,7 +23,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: scarlet-v185-host-auth-integrated-${{ github.ref }}
+  group: scarlet-v186-host-auth-integrated-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -170,6 +170,10 @@ jobs:
           python3 -m unittest discover -s builder/tests -p test_v185_auth_owner_preflight.py -v \
             2>&1 | tee artifacts/logs/v185-auth-owner-unit-tests.log
           grep -q SCARLET_V185_AUTH_HOST_OWNER_PREFLIGHT work/LiveContainer/LiveContainerSwiftUI/Views/V3UnifiedShell.swift
+          python3 -m unittest discover -s builder/tests -p test_v186_auth_start_outcome.py -v \
+            2>&1 | tee artifacts/logs/v186-auth-outcome-unit-tests.log
+          grep -q SCARLET_V186_AUTH_BEGIN_OUTCOME work/LiveContainer/LiveContainerSwiftUI/Views/V3UnifiedShell.swift
+          grep -q 'auth.begin_locally_cancelled' work/LiveContainer/LiveContainerSwiftUI/Views/V3UnifiedShell.swift
           grep -q 'V3AuthStore.shared' work/LiveContainer/LiveContainerSwiftUI/Views/V3UnifiedShell.swift
           grep -q ScarletCrystalDiagnostics work/LiveContainer/LiveContainerSwiftUI/Views/V3UnifiedShell.swift
           grep -q 'Share Log File' work/LiveContainer/LiveContainerSwiftUI/Views/V3UnifiedShell.swift
@@ -216,29 +220,29 @@ jobs:
               ASSETCATALOG_COMPILER_APPICON_NAME= \
               COMPILER_INDEX_STORE_ENABLE=NO build
 
-      - name: Package Scarlet Crystal V185 unsigned IPA (source-checked, device-unverified)
+      - name: Package Scarlet Crystal V186 unsigned IPA (source-checked, device-unverified)
         shell: bash
         timeout-minutes: 15
         run: |
           set -euo pipefail
           if ! command -v ldid >/dev/null; then brew install ldid; fi
-          python3 builder/scripts/v185_package_fork.py \
+          python3 builder/scripts/v186_package_fork.py \
             --root work/LiveContainer \
             --host "$RUNNER_TEMP/v178-lc/Build/Products/Release-iphoneos/LiveContainer.app" \
             --side "$RUNNER_TEMP/v178-sidestore/Build/Products/Release-iphoneos/SideStore.app" \
             --pin-file builder/config/scarlet-upstream-pins.json \
-            --output "$GITHUB_WORKSPACE/artifacts/Scarlet-Crystal-V185-AUTH-OWNER-UNSIGNED.ipa" \
+            --output "$GITHUB_WORKSPACE/artifacts/Scarlet-Crystal-V186-AUTH-OUTCOME-UNSIGNED.ipa" \
             2>&1 | tee artifacts/logs/v181-package.log
-          test -s artifacts/Scarlet-Crystal-V185-AUTH-OWNER-UNSIGNED.ipa
-          test -s artifacts/Scarlet-Crystal-V185-AUTH-OWNER-UNSIGNED.json
+          test -s artifacts/Scarlet-Crystal-V186-AUTH-OUTCOME-UNSIGNED.ipa
+          test -s artifacts/Scarlet-Crystal-V186-AUTH-OUTCOME-UNSIGNED.json
 
-      - name: Upload compiled Scarlet Crystal V185 Auth Owner IPA (unsigned, iPhone unverified)
+      - name: Upload compiled Scarlet Crystal V186 Auth Outcome IPA (unsigned, iPhone unverified)
         uses: actions/upload-artifact@v4
         with:
-          name: Scarlet-Crystal-V185-AUTH-OWNER-UNSIGNED
+          name: Scarlet-Crystal-V186-AUTH-OUTCOME-UNSIGNED
           path: |
-            artifacts/Scarlet-Crystal-V185-AUTH-OWNER-UNSIGNED.ipa
-            artifacts/Scarlet-Crystal-V185-AUTH-OWNER-UNSIGNED.json
+            artifacts/Scarlet-Crystal-V186-AUTH-OUTCOME-UNSIGNED.ipa
+            artifacts/Scarlet-Crystal-V186-AUTH-OUTCOME-UNSIGNED.json
           if-no-files-found: error
           retention-days: 30
 

@@ -626,6 +626,13 @@ def main():
                sys.executable, str(path / "patch_v185_auth_owner_preflight.py"),
                str(live)], check=True))
 
+    # V186: distinguish user-initiated cancellation from a true SideStore
+    # authBegin transport failure; allowlisted host diagnostic events only.
+    report("V186 auth begin pending and cancel outcome classification",
+           lambda: subprocess.run([
+               sys.executable, str(path / "patch_v186_auth_start_outcome.py"),
+               str(live)], check=True))
+
     report("latest SideStore credential/import compatibility",
            lambda: port_current_sidestore_service_primitives(side))
 
