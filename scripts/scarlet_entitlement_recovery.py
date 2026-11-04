@@ -181,14 +181,29 @@ def recover(home,profiles,out,possible=None):
         dest.write(plistlib.dumps(ent,fmt=plistlib.FMT_XML))
     return len(ent[KEYCHAINS]),len(ent[GROUPS])
 
+def latest_profile_dir(home):
+    base=home/".local/state/scarlet-crystal-installer/auto-renew"
+    if not base.is_dir():
+        raise Halt("no local Apple provisioning cache; existing 4 profile files required")
+    found=[]
+    for folder in base.iterdir():
+        if folder.is_dir() and not folder.is_symlink():
+            profiles=sorted(folder.glob("*.mobileprovision"))
+            if len(profiles)==4:
+                found.append((folder.stat().st_mtime,folder))
+    if not found:
+        raise Halt("no complete four-profile renewal directory found")
+    return max(found,key=lambda pair:pair[0])[1]
+
 def main(argv):
     ap=argparse.ArgumentParser(description="Recover eligible Scarlet Crystal historic entitlement file without changing app or certificate")
-    ap.add_argument("--profiles-dir",type=Path,required=True)
+    ap.add_argument("--profiles-dir",type=Path,required=False,help="optional override of auto-detected 4-profile cache")
     ap.add_argument("--output",type=Path,default=Path.home()/".local/state/scarlet-crystal-installer/recovery/entitlements.xml")
     opts=ap.parse_args(argv)
     if os.geteuid()==0:
         raise Halt("do not run as root")
-    profiles=sorted(opts.profiles_dir.expanduser().glob("*.mobileprovision"))
+    profile_dir=opts.profiles_dir.expanduser() if opts.profiles_dir else latest_profile_dir(Path.home())
+    profiles=sorted(profile_dir.glob("*.mobileprovision"))
     keychains,groups=recover(Path.home(),profiles,opts.output.expanduser())
     print(f"[PASS] Historical host entitlements recovered, Keychain={keychains}, AppGroups={groups}")
     print("[OUTPUT]",opts.output.expanduser())
