@@ -1808,7 +1808,11 @@ final class V3SideStoreService: NSObject {
                 groupDiscovered: true, tokenWellFormed: true))
             return reply
         case "authCancel":
-            guard await V3HeadlessRuntime.shared.auth.cancelAndWait(id: target) else { throw ServiceError.invalidRequest }
+            // Requesting cancellation is never proof of a terminal Apple reply.
+            // The private auth session remains owned until its real task unwinds.
+            guard V3HeadlessRuntime.shared.auth.requestCancellation(id: target) else {
+                throw ServiceError.invalidRequest
+            }
             guard let reply = V3HeadlessRuntime.shared.auth.poll(id: target) else { throw ServiceError.invalidRequest }
             return reply
         case "opRecoveryPrepare":
