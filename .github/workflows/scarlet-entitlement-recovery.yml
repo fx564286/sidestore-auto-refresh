@@ -5,12 +5,16 @@ on:
       - fix/scarlet-entitlement-recovery-20261104
     paths:
       - 'scripts/scarlet_entitlement_recovery.py'
+      - 'scripts/scarlet_signed_ipa_audit.py'
       - 'tests/test_scarlet_entitlement_recovery.py'
+      - 'tests/test_scarlet_signed_ipa_audit.py'
       - '.github/workflows/scarlet-entitlement-recovery.yml'
   pull_request:
     paths:
       - 'scripts/scarlet_entitlement_recovery.py'
+      - 'scripts/scarlet_signed_ipa_audit.py'
       - 'tests/test_scarlet_entitlement_recovery.py'
+      - 'tests/test_scarlet_signed_ipa_audit.py'
       - '.github/workflows/scarlet-entitlement-recovery.yml'
 permissions:
   contents: read
@@ -22,8 +26,9 @@ jobs:
       - uses: actions/checkout@v4
       - name: Syntax and all offline regression tests
         run: |
-          python3 -m py_compile scripts/scarlet_entitlement_recovery.py
+          python3 -m py_compile scripts/scarlet_entitlement_recovery.py scripts/scarlet_signed_ipa_audit.py
           python3 -m unittest discover -s tests -p 'test_scarlet_entitlement_recovery.py' -v
+          python3 -m unittest discover -s tests -p 'test_scarlet_signed_ipa_audit.py' -v
       - name: Verify no downgrade or external signing capability
         shell: bash
         run: |
