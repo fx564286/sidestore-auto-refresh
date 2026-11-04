@@ -198,7 +198,7 @@ def latest_profile_dir(home):
 def main(argv):
     ap=argparse.ArgumentParser(description="Recover eligible Scarlet Crystal historic entitlement file without changing app or certificate")
     ap.add_argument("--profiles-dir",type=Path,required=False,help="optional override of auto-detected 4-profile cache")
-    ap.add_argument("--output",type=Path,default=Path.home()/".local/state/scarlet-crystal-installer/recovery/entitlements.xml")
+    ap.add_argument("--output",type=Path,default=Path.home()/"다운로드/NRG-IPA/SCARLET-CRYSTAL-251-MEMORY-RESTORE-20261022/entitlements.xml")
     opts=ap.parse_args(argv)
     if os.geteuid()==0:
         raise Halt("do not run as root")
