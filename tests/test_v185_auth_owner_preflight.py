@@ -42,8 +42,9 @@ class V185AuthOwnerPreflightTests(unittest.TestCase):
 
     def test_appgroup_is_os_entitlement_preflight(self):
         src=self.patched
-        assert 'SecTaskCopyValueForEntitlement(' in src
-        assert '"com.apple.security.application-groups" as CFString' in src
+        assert 'LCSharedUtils.appGroupID()' in src
+        assert 'containerURL(' in src
+        assert 'forSecurityApplicationGroupIdentifier: group' in src
         store=src[src.index("final class V3AuthStore"):src.index("struct V3SignInLink")]
         self.assertLess(store.index("guard Self.hasRequiredHostAppGroup"),
                         store.index('session = requestedSession'))
