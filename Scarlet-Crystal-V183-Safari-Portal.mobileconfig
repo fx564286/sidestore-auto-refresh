@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0"><dict>
+<key>PayloadType</key><string>Configuration</string>
+<key>PayloadVersion</key><integer>1</integer>
+<key>PayloadIdentifier</key><string>app.scarletcrystal.v183.safari.portal.20261104</string>
+<key>PayloadUUID</key><string>9D062E61-4AF9-4621-AEEB-6F487B7AE9BC</string>
+<key>PayloadDisplayName</key><string>Scarlet Crystal V183 Safari Portal</string>
+<key>PayloadDescription</key><string>Home Screen shortcut to a web distribution portal. This profile does not contain or install the Scarlet Crystal iOS app.</string>
+<key>PayloadOrganization</key><string>Scarlet Crystal</string>
+<key>PayloadRemovalDisallowed</key><false/>
+<key>PayloadContent</key><array><dict>
+<key>PayloadType</key><string>com.apple.webClip.managed</string>
+<key>PayloadVersion</key><integer>1</integer>
+<key>PayloadIdentifier</key><string>app.scarletcrystal.v183.safari.portal.20261104.webclip</string>
+<key>PayloadUUID</key><string>A44B992E-0D86-46A7-92DE-45CF3590B2AD</string>
+<key>PayloadDisplayName</key><string>Scarlet V183</string>
+<key>Label</key><string>Scarlet V183</string>
+<key>URL</key><string>https://fx564286.github.io/sidestore-auto-refresh/</string>
+<key>FullScreen</key><false/>
+<key>IsRemovable</key><true/>
+</dict></array>
+</dict></plist>
