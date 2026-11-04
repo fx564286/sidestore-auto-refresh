@@ -25,8 +25,7 @@ def patch(source: str) -> str:
         if (source.count(MARK) != 1
                 or source.count("ScarletV183HostLog.record(.authCancelWatchdog)") != 1
                 or source.count("ScarletV183HostLog.record(.authCancelTransportFailed)") != 1
-                or source.count("ScarletV183HostLog.record(" +
-                                "cancellationConfirmed ? .authCancelTerminal : .authCancelUnconfirmed)") != 1):
+                or source.count("cancellationConfirmed ? .authCancelTerminal : .authCancelUnconfirmed") != 1):
             raise ValueError("V184 auth cancellation instrumentation is incomplete")
         return source
 
