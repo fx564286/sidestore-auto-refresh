@@ -619,6 +619,13 @@ def main():
                sys.executable, str(path / "patch_v184_auth_cancel_outcomes.py"),
                str(live)], check=True))
 
+    # V185: retain in-flight sign-in state across SwiftUI navigation and
+    # diagnose the OS App Group entitlement removed by unsafe force signing.
+    report("V185 persistent auth owner and App Group preflight",
+           lambda: subprocess.run([
+               sys.executable, str(path / "patch_v185_auth_owner_preflight.py"),
+               str(live)], check=True))
+
     report("latest SideStore credential/import compatibility",
            lambda: port_current_sidestore_service_primitives(side))
 
