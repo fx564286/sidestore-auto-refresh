@@ -28,6 +28,8 @@ concurrency:
 
 jobs:
   latest-parent-compile-and-overlay-audit:
+    # V187 uses its own integrated build. Avoid obsolete duplicate macOS ARM runner allocation for PR #40.
+    if: github.head_ref != 'fix/scarlet-v187-service-auth-cancel-nonblocking-20261105'
     runs-on: xcode-27
     timeout-minutes: 115
     steps:
