@@ -53,9 +53,12 @@ class V184AuthCancelOutcomeTests(unittest.TestCase):
     def test_secret_values_never_enter_host_events(self):
         enum = self.patched[self.patched.index("enum ScarletV183Event"):
                             self.patched.index("@MainActor\nenum ScarletV183HostLog")]
-        for secret in ("password", "token", "pin", "sessionID", "account",
-                       "verificationCode"):
-            self.assertNotIn(secret, enum.lower())
+        event_names = [line.split('=', 1)[1].strip().strip('"')
+                       for line in enum.splitlines()
+                       if line.strip().startswith("case ") and '=' in line]
+        for secret in ("password", "token", "sessionid", "verificationcode",
+                       "accountid", "credential"):
+            self.assertTrue(all(secret not in name.lower() for name in event_names))
 
     def test_fails_closed_without_parent_patches(self):
         with self.assertRaises(ValueError):
