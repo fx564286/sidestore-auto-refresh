@@ -90,6 +90,48 @@ class ScarletEntitlementRecoveryTests(unittest.TestCase):
                     m.recover(root,profiles,out,possible=[ent])
             self.assertFalse(out.exists())
 
+    def test_historical_missing_memory_rejected(self):
+        ent=original_entitlements()
+        ent.pop(m.MEMORY)
+        with self.assertRaisesRegex(m.Halt, "increased-memory"):
+            m.historical_host(ent)
+
+    def test_conflicting_candidates_fail_without_output(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root=Path(tmp)
+            first=original_entitlements()
+            second=original_entitlements()
+            second[m.KEYCHAINS]=[m.TEAM+".groupA",m.TEAM+".groupC"]
+            p1=root/"first-entitlements.plist";p1.write_bytes(plistlib.dumps(first))
+            p2=root/"second-entitlements.plist";p2.write_bytes(plistlib.dumps(second))
+            profiles=[];loaded={}
+            for number,bundle in enumerate(sorted(m.BUNDLES)):
+                file=root/("profile-%03d.mobileprovision"%number)
+                file.write_bytes(str(number).encode())
+                loaded[str(number).encode()]=profile(bundle)
+                profiles.append(file)
+            out=root/"safe"/"entitlements.xml"
+            with patch.object(m,"cms_profile",side_effect=lambda file:loaded[file.read_bytes()]):
+                with self.assertRaisesRegex(m.Halt,"conflicting historic entitlement sources"):
+                    m.recover(root,profiles,out,possible=[p1,p2])
+            self.assertFalse(out.exists())
+
+    def test_explicit_source_allows_disambiguation(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root=Path(tmp)
+            ent=root/"known-entitlements.plist"
+            ent.write_bytes(plistlib.dumps(original_entitlements()))
+            profiles=[];loaded={}
+            for number,bundle in enumerate(sorted(m.BUNDLES)):
+                file=root/("profile-%03d.mobileprovision"%number)
+                file.write_bytes(str(number).encode())
+                loaded[str(number).encode()]=profile(bundle)
+                profiles.append(file)
+            out=root/"safe"/"entitlements.xml"
+            with patch.object(m,"cms_profile",side_effect=lambda file:loaded[file.read_bytes()]):
+                self.assertEqual(m.recover(root,profiles,out,possible=[ent]),(2,1))
+            self.assertTrue(out.is_file())
+
     def test_expiry_check(self):
         p=profile(m.MAIN)
         p["ExpirationDate"]=dt.datetime(2020,1,1)
