@@ -95,7 +95,12 @@ def patch(src: str) -> str:
             }
 """,
         "25s bounded authBegin service roundtrip")
-    src = once(src,
+    # Both authBegin and retryProvisioning contain the same session/poll
+    # transition. Only the real authBegin response is an auth.begin_accepted.
+    begin_start = src.index("    private func run(sessionID requestedSession: String) async {")
+    begin_end = src.index("    private func pollLoop(id:", begin_start)
+    begin_source = src[begin_start:begin_end]
+    begin_source = once(begin_source,
         """            session = id
             try await pollLoop(id: id, sessionDeadline: sessionDeadline)
 """,
@@ -103,7 +108,8 @@ def patch(src: str) -> str:
             ScarletV183HostLog.record(.authBeginAccepted)
             try await pollLoop(id: id, sessionDeadline: sessionDeadline)
 """,
-        "session ownership transition")
+        "authBegin session ownership transition")
+    src = src[:begin_start] + begin_source + src[begin_end:]
     src = once(src,
         "    @StateObject private var auth = V3AuthStore()\n",
         "    @ObservedObject private var auth = V3AuthStore.shared\n",
