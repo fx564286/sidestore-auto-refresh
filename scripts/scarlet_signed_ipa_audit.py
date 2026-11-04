@@ -33,9 +33,14 @@ def match_declared_entitlements(bundle, signed, profile, original=None):
         if original is None:
             raise core.Halt("historic host entitlements required")
         core.historical_host(original)
-        for key in (core.KEYCHAINS,core.GROUPS,core.MEMORY):
-            if signed.get(key)!=original.get(key):
+        for key in (core.KEYCHAINS, core.GROUPS):
+            actual, expected = signed.get(key), original.get(key)
+            if (not isinstance(actual, list)
+                    or len(actual) != len(expected)
+                    or set(actual) != set(expected)):
                 raise core.Halt("host entitlement changed from historical baseline: "+key)
+        if signed.get(core.MEMORY) is not True:
+            raise core.Halt("host memory grant changed from historical baseline")
     for key in (core.KEYCHAINS,core.GROUPS):
         actual=signed.get(key,[])
         if not isinstance(actual,list):
