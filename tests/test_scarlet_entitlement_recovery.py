@@ -86,7 +86,7 @@ class ScarletEntitlementRecoveryTests(unittest.TestCase):
                 profiles.append(file)
             out=root/"safe"/"entitlements.xml"
             with patch.object(m,"cms_profile",side_effect=lambda file:loaded[file.read_bytes()]):
-                with self.assertRaisesRegex(m.Halt,"application-groups"):
+                with self.assertRaisesRegex(m.Halt,"App Group"):
                     m.recover(root,profiles,out,possible=[ent])
             self.assertFalse(out.exists())
 
