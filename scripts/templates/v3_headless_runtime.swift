@@ -1117,13 +1117,17 @@ final class V3AuthCenter {
         return cancelledBeforeBegin.cancelBeforeStart(id)
     }
 
-    func cancelAndWait(id: String) async -> Bool {
+    // SCARLET_V187_AUTH_CANCEL_NONBLOCKING: a native SignInOperation may
+    // ignore Swift Task cancellation until Apple/network callbacks return.
+    // Never await its Task.value inside the authCancel XPC RPC: the host
+    // would time out waiting for the very cancellation acknowledgement.
+    // A successful return here means only the cancel request was recorded,
+    // NOT that a native authentication session has terminated. poll(id:)
+    // retains the real state until run(id:) finishes and emits a terminal.
+    func requestCancellation(id: String) -> Bool {
         guard let parsed = UUID(uuidString: id), parsed.uuidString == id else { return false }
-        guard let session = sessions[id] else { return cancelBeforeBegin(id: id) }
-        let task = session.task
-        guard cancel(id: id) else { return false }
-        if let task { await task.value }
-        return true
+        guard sessions[id] != nil else { return cancelBeforeBegin(id: id) }
+        return cancel(id: id)
     }
 
     @discardableResult
