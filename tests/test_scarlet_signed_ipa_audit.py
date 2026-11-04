@@ -28,6 +28,23 @@ class SignedIpaAuditTests(unittest.TestCase):
     def test_host_rights_match(self):
         mod.match_declared_entitlements(core.MAIN,baseline(),profile(core.MAIN),baseline())
 
+    def test_permuted_historical_group_order_is_equivalent(self):
+        original=baseline()
+        original[core.KEYCHAINS]=[core.TEAM+".com.scarlet",core.TEAM+".second"]
+        original[core.GROUPS]=["group.scarlet","group.second"]
+        actual=dict(original)
+        actual[core.KEYCHAINS]=list(reversed(original[core.KEYCHAINS]))
+        actual[core.GROUPS]=list(reversed(original[core.GROUPS]))
+        p=profile(core.MAIN)
+        p[core.GROUPS]=["group.scarlet","group.second"]
+        mod.match_declared_entitlements(core.MAIN,actual,p,original)
+
+    def test_missing_signed_host_memory_is_rejected(self):
+        actual=baseline()
+        actual.pop(core.MEMORY)
+        with self.assertRaisesRegex(core.Halt,"memory grant changed"):
+            mod.match_declared_entitlements(core.MAIN,actual,profile(core.MAIN),baseline())
+
     def test_host_entitlements_must_match_existing(self):
         changed=baseline();changed[core.KEYCHAINS]=[core.TEAM+".other"]
         with self.assertRaisesRegex(core.Halt,"historical baseline"):
