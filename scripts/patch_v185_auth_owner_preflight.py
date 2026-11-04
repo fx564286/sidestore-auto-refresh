@@ -57,9 +57,10 @@ def patch(src: str) -> str:
 """,
         "shared host owner and installed entitlements")
     src = once(src,
-        "    func begin() {\n        guard canBegin else { return }\n        task?.cancel()\n",
+        "    func begin() {\n        guard canBegin else { return }\n        ScarletV183HostLog.record(.authStarted)\n        task?.cancel()\n",
         """    func begin() {
         guard canBegin else { return }
+        ScarletV183HostLog.record(.authStarted)
         // Detect actual OS-granted rights, never infer grants from an XML
         // profile or the fact that a USB installer returned 100%.
         // This failure must be repaired at Apple App ID/profile signing time.
