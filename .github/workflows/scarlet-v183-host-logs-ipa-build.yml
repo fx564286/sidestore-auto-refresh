@@ -11,20 +11,14 @@ on:
       - "scripts/**"
       - "tests/**"
       - "config/**"
-  pull_request:
-    paths:
-      - ".github/workflows/scarlet-v183-host-logs-ipa-build.yml"
-      - ".github/workflows/scarlet-v181-design-auth-build.yml"
-      - "scripts/**"
-      - "tests/**"
-      - "config/**"
 
 permissions:
   contents: read
 
+# One push build only, avoiding PR + push duplicate runner acquisition.
 concurrency:
   group: scarlet-v187-host-auth-integrated-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 jobs:
   latest-parent-compile-and-overlay-audit:
