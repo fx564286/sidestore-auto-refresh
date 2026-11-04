@@ -44,6 +44,8 @@ def historical_host(ent):
         raise Halt("historic application-identifier mismatch")
     if ent.get("com.apple.developer.team-identifier") != TEAM:
         raise Halt("historic Team ID mismatch")
+    if ent.get(MEMORY) is not True:
+        raise Halt("historic increased-memory entitlement absent; refuse accidental downgrade")
     for key in (KEYCHAINS, GROUPS):
         groups=ent.get(key)
         if not isinstance(groups,list) or not groups or not all(isinstance(g,str) and g for g in groups):
@@ -63,8 +65,11 @@ def authorized(old, profile):
             raise Halt("Apple profile does not grant "+key+"; capability/profile renewal required")
         if not all(grants(v, values) for v in old[key]):
             raise Halt("Apple profile does not authorize preserved "+key+"; cannot force sign")
-    if old.get(MEMORY) is True and profile.get(MEMORY) is not True:
+    if profile.get(MEMORY) is not True:
         raise Halt("Apple profile lacks existing increased-memory entitlement")
+    for entitlement in ("get-task-allow",):
+        if entitlement in old and old[entitlement] != profile.get(entitlement):
+            raise Halt("Apple profile disagrees with historical "+entitlement+" entitlement")
 
 def cms_profile(path):
     if not path.is_file():
@@ -124,7 +129,7 @@ def signed_archive_host(ipa):
 
 def candidates(home):
     result=[]
-    for root in (home/"다운로드",home/"Downloads",home/".local/state/scarlet-crystal-installer"):
+    for root in (home/"다운로드",home/"Downloads",home/".local/state/scarlet-crystal-installer",home/"NRG-Tools"):
         if not root.is_dir():
             continue
         for directory, dirs, names in os.walk(root,followlinks=False):
@@ -171,6 +176,15 @@ def recover(home,profiles,out,possible=None):
         if any("increased-memory" in msg for msg in blocked):
             raise Halt("existing Apple profiles do not authorize historic memory entitlement")
         raise Halt(f"no eligible historic entitlement source found; checked {checked} candidate(s)")
+    # When multiple old candidates have different group memberships, the
+    # largest or newest candidate is not evidence of the current app's rights.
+    # Requiring agreement avoids silently replacing a user's Keychain identity.
+    signatures = {
+        (tuple(sorted(ent[KEYCHAINS])), tuple(sorted(ent[GROUPS])), ent[MEMORY])
+        for _, _, _, ent in matches
+    }
+    if len(signatures) > 1:
+        raise Halt("conflicting historic entitlement sources; select a verified original with --source")
     matches.sort(key=lambda x:x[:3],reverse=True)
     ent=matches[0][3]
     if out.exists() or out.is_symlink():
@@ -198,13 +212,20 @@ def latest_profile_dir(home):
 def main(argv):
     ap=argparse.ArgumentParser(description="Recover eligible Scarlet Crystal historic entitlement file without changing app or certificate")
     ap.add_argument("--profiles-dir",type=Path,required=False,help="optional override of auto-detected 4-profile cache")
+    ap.add_argument("--source",type=Path,required=False,help="explicit known historic entitlement XML/plist or previously signed IPA")
     ap.add_argument("--output",type=Path,default=Path.home()/"다운로드/NRG-IPA/SCARLET-CRYSTAL-251-MEMORY-RESTORE-20261022/entitlements.xml")
     opts=ap.parse_args(argv)
     if os.geteuid()==0:
         raise Halt("do not run as root")
     profile_dir=opts.profiles_dir.expanduser() if opts.profiles_dir else latest_profile_dir(Path.home())
     profiles=sorted(profile_dir.glob("*.mobileprovision"))
-    keychains,groups=recover(Path.home(),profiles,opts.output.expanduser())
+    sources = None
+    if opts.source:
+        selected = opts.source.expanduser().resolve(strict=True)
+        if not selected.is_file() or selected.is_symlink() or selected.suffix.lower() not in (".ipa", ".xml", ".plist"):
+            raise Halt("selected historical source is not a regular IPA or entitlement plist")
+        sources = [selected]
+    keychains,groups=recover(Path.home(),profiles,opts.output.expanduser(),possible=sources)
     print(f"[PASS] Historical host entitlements recovered, Keychain={keychains}, AppGroups={groups}")
     print("[OUTPUT]",opts.output.expanduser())
     print("[NEXT] Signer must verify signed entitlements for all 4 bundles before any upgrade")
