@@ -1,0 +1,59 @@
+name: Publish Scarlet Crystal V183 GitHub download (unsigned)
+on:
+  push:
+    branches: [gh-pages]
+    paths:
+      - '.github/workflows/scarlet-v183-github-release.yml'
+  workflow_dispatch:
+permissions:
+  contents: write
+  actions: read
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout distribution branch
+        uses: actions/checkout@v4
+      - name: Download existing verified V183 build
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -Eeuo pipefail
+          gh run download 41738867796 -R "${GITHUB_REPOSITORY}" \
+            --name Scarlet-Crystal-V183-LOG-RECOVERY-UNSIGNED --dir public-build
+          test -s public-build/Scarlet-Crystal-V183-LOG-RECOVERY-UNSIGNED.ipa
+          python3 - <<'PY'
+          from zipfile import ZipFile
+          from pathlib import Path
+          ipa=Path("public-build/Scarlet-Crystal-V183-LOG-RECOVERY-UNSIGNED.ipa")
+          with ZipFile(ipa) as z:
+              names=z.namelist()
+              assert any(n.startswith("Payload/") and n.endswith(".app/Info.plist") for n in names)
+              assert not any(n.endswith("/embedded.mobileprovision") for n in names), "Unexpected embedded profile: inspect and release separately"
+          print("[PASS] Unsigned V183 IPA is a valid archive; no provisioning profile")
+          PY
+          (cd public-build && sha256sum Scarlet-Crystal-V183-LOG-RECOVERY-UNSIGNED.ipa > Scarlet-Crystal-V183-LOG-RECOVERY-UNSIGNED.ipa.sha256)
+      - name: Publish separately labeled GitHub pre-release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -Eeuo pipefail
+          tag="scarlet-v183-unsigned-20261104"
+          cat > /tmp/scarlet-release-notes.md <<'EOF'
+          Scarlet Crystal V183: compiled iOS build from PR #35 at commit 20ea8f8871e4005126ebe54d3bde65fca3a06c88.
+
+          IMPORTANT: The attached IPA is UNSIGNED and CANNOT be installed directly on an iPhone via Safari, OTA, or a mobileconfig profile. It requires a valid Apple signing identity and profiles for the host and all extensions. Do not remove the existing installed app as a workaround.
+
+          Source build: https://github.com/fx564286/sidestore-auto-refresh/actions/runs/41738867796
+          EOF
+          if ! gh release view "$tag" -R "${GITHUB_REPOSITORY}" >/dev/null 2>&1; then
+            gh release create "$tag" \
+              --repo "${GITHUB_REPOSITORY}" --title "Scarlet Crystal V183 (UNSIGNED · download only)" \
+              --notes-file /tmp/scarlet-release-notes.md --prerelease --target "20ea8f8871e4005126ebe54d3bde65fca3a06c88"
+          fi
+          gh release upload "$tag" public-build/Scarlet-Crystal-V183-LOG-RECOVERY-UNSIGNED.ipa public-build/Scarlet-Crystal-V183-LOG-RECOVERY-UNSIGNED.ipa.sha256 \
+            -R "${GITHUB_REPOSITORY}" --clobber
+          gh release view "$tag" -R "${GITHUB_REPOSITORY}" --json assets,url,isPrerelease
