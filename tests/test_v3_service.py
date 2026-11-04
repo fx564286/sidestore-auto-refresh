@@ -2869,8 +2869,8 @@ class GsaPreparedTreeTests(unittest.TestCase):
         self.assertIn("mayLaunchCreatedSession", runtime)
         self.assertIn("if let oldTask { await oldTask.value }", runtime)
         auth = runtime.split("final class V3OperationCenter")[0]
-        self.assertIn("func cancelAndWait(id: String) async -> Bool", auth)
-        self.assertIn("func cancelAndWait(id: String) async -> Bool", runtime)
+        self.assertIn("func requestCancellation(id: String) -> Bool", auth)
+        self.assertIn("func requestCancellation(id: String) -> Bool", runtime)
         auth = runtime.split("final class V3OperationCenter")[0]
         self.assertNotRegex(auth, r"(?m)^\s*while\s")
         for marker in ("[V3_AUTH] BEGIN", "[V3_AUTH] PROMPT", "[V3_AUTH] TERMINAL",
