@@ -39,6 +39,14 @@ jobs:
           cd builder
           python3 -m unittest discover -s tests -p test_v188_apple_profile_reconcile.py -v
 
+      - name: Test one-shot Apple certificate enrollment and App Group preservation
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m py_compile builder/scripts/scarlet_v188_enroll_signing_certificate.py
+          cd builder
+          python3 -m unittest discover -s tests -p test_v188_enroll_signing_certificate.py -v
+
       - name: Select Xcode 27.2
         uses: maxim-lobanov/setup-xcode@v1.6.0
         with:
