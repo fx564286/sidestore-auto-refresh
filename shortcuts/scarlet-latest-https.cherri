@@ -1,0 +1,7 @@
+/* Wi-Fi, LTE, 5G: open real signed Scarlet Crystal OTA install page.
+   No SSH or NAS port. Never creates an iOS WebClip configuration profile. */
+#define name "Scarlet Crystal 최신 앱 설치"
+#define color purple
+#define glyph smileyFace
+#include 'actions/web'
+openURL("https://fx564286.github.io/sidestore-auto-refresh/scarlet-latest.html")
