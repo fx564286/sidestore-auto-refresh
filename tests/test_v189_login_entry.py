@@ -16,7 +16,9 @@ def fixture():
 final class V3AuthStore: ObservableObject {
     private var promptResponseGeneration: UInt64 = 0
     func begin() {}
-    var canBegin: Bool { true }
+    var canBegin: Bool {
+        true
+    }
     private func run(sessionID requestedSession: String) async {
         let sessionDeadline = Date()
     }
