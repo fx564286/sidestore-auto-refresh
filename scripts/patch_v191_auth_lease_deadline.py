@@ -30,7 +30,7 @@ def patch_bridge(s: str) -> str:
             "private func timeoutStatusLeaseWaiter",
             'traceAuthPhase(operation: operation, phase: "lease_unavailable")',
             'traceAuthPhase(operation: operation, phase: "lease_cancelled")',
-            "requestDeadline: requestDeadline",
+            "deadline: requestDeadline",
         )
         if s.count(MARK) != 1 or any(x not in s for x in required):
             raise ValueError("V191 bridge is only partially patched")
