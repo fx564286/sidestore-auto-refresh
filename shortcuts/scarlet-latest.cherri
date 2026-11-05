@@ -1,0 +1,18 @@
+/* Scarlet Crystal universal signing + real IPA release Shortcut.
+   On import, enter SSH address/user/password locally. No Apple ID, P12, key
+   or GitHub token is sent to the shortcut signing service. */
+#define name "Scarlet Crystal 최신 자동 서명 배포"
+#define color purple
+#define glyph arrow.up.circle
+#include 'actions/network'
+#include 'actions/scripting'
+#include 'actions/web'
+
+#question sshHost "CachyOS PC SSH 주소" "cachyos-x8664.local"
+#question sshUser "CachyOS PC 사용자" "hanabi"
+#question sshPassword "CachyOS PC SSH 비밀번호 (Apple ID 아님)" ""
+
+@empty = nothing()
+@script = "set -eu; D=\"$HOME/.local/share/scarlet-crystal/latest-publisher\"; mkdir -p \"$D\"; curl -fLSs --retry 3 --connect-timeout 15 --max-time 60 'https://raw.githubusercontent.com/fx564286/sidestore-auto-refresh/feat/scarlet-universal-shortcut-publisher-20261105/tools/scarlet_latest_publish.py' -o \"$D/latest.py.tmp\"; python3 -m py_compile \"$D/latest.py.tmp\"; mv -f \"$D/latest.py.tmp\" \"$D/latest.py\"; python3 \"$D/latest.py\" 2>> \"$D/last-run.log\""
+@result = runSSHScript(@script, @empty, sshHost, "22", sshUser, "Password", sshPassword)
+openURL("\(@result)")
