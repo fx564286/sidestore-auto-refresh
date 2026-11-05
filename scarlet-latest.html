@@ -1,0 +1,42 @@
+<!doctype html><html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><title>Scarlet Crystal · 최신 실제 앱 설치</title><style>
+body{margin:0;padding:calc(36px + env(safe-area-inset-top)) 18px;font:16px/1.65 -apple-system,sans-serif;color:#f6f3ff;background:radial-gradient(at 0% 0%,#61509a,#151a2d 66%);min-height:100dvh}main{max-width:550px;margin:auto}h1{font-size:32px;line-height:1.3}section{background:#ffffff1a;border:1px solid #ffffff40;border-radius:24px;padding:22px;margin:20px 0;backdrop-filter:blur(25px)}p{color:#d8d8e8}.btn{display:block;text-decoration:none;text-align:center;padding:16px 12px;border-radius:16px;background:#d1c8ff;color:#151331;font-weight:700;margin:14px 0}.secondary{background:#ffffff16;color:#fff}.disabled{opacity:.42;pointer-events:none}.caption{font-size:13px;color:#cbc8e1}
+</style></head><body><main><p class="caption">SCARLET CRYSTAL · SIGNED RELEASES</p><h1>Scarlet Crystal<br>최신 앱 설치</h1><p>Wi-Fi·5G에서 동일한 HTTPS 페이지. 별도 SSH 앱이나 홈 화면 바로가기 프로파일을 사용하지 않아.</p><section><h2 id="version">서명된 앱 확인 중</h2><p id="status" role="status">서명 IPA, 설치 매니페스트, SHA-256 검사 중…</p><a id="install" href="#" class="btn disabled" aria-disabled="true">Scarlet Crystal 실제 앱 설치</a><a id="download" href="#" class="btn secondary disabled" aria-disabled="true">서명 IPA 파일 보기</a><p class="caption" id="meta">정상 검증 후 설치 버튼이 활성화돼.</p></section>
+<section><h2>설치 조건</h2><p>기존 Scarlet Crystal 앱을 삭제하지 마. 동일한 Bundle ID와 App Group을 보존해야 앱 데이터가 유지될 수 있어.</p><p>Apple Development 서명은 Safari OTA 설치가 거부될 수 있어. IPA 배포와 아이폰 설치 성공은 별개야.</p></section></main>
+<script>
+(async()=>{
+ const repo="fx564286/sidestore-auto-refresh",base="https://fx564286.github.io/sidestore-auto-refresh/";
+ const title=document.getElementById("version"),status=document.getElementById("status"),install=document.getElementById("install"),download=document.getElementById("download");
+ try {
+  const res=await fetch("https://api.github.com/repos/"+repo+"/releases?per_page=100",{cache:"no-store"});
+  if(!res.ok)throw new Error("API "+res.status);
+  const records=await res.json(),choices=[];
+  for(const rel of records){
+   const match=/^scarlet-v([0-9]+)-device-signed-[0-9]{8}$/.exec(rel.tag_name||"");
+   if(!match||rel.draft)continue;
+   const v=Number(match[1]),name="Scarlet-Crystal-V"+v+"-SIGNED-DEVELOPMENT.ipa";
+   const asset=(rel.assets||[]).find(a=>a.name===name&&a.state==="uploaded"&&a.size>1000000&&/^sha256:[a-f0-9]{64}$/i.test(a.digest||""));
+   if(asset&&asset.browser_download_url&&asset.browser_download_url.startsWith("https://github.com/"+repo+"/releases/download/"+rel.tag_name+"/"))choices.push({v,name,asset});
+  }
+  choices.sort((a,b)=>b.v-a.v);
+  for(const c of choices){
+    const manifest=base+"Scarlet-V"+c.v+"-SIGNED-manifest.plist",checksum=base+"Scarlet-V"+c.v+"-SIGNED.sha256";
+    const [mr,cr]=await Promise.all([fetch(manifest,{cache:"no-store"}),fetch(checksum,{cache:"no-store"})]);
+    if(!mr.ok||!cr.ok)continue;
+    const [xml,sha]=await Promise.all([mr.text(),cr.text()]);
+    const hex=sha.trim().split(/\s+/)[0].toLowerCase();
+    if(!/^[a-f0-9]{64}$/.test(hex)||c.asset.digest.toLowerCase()!=="sha256:"+hex)continue;
+    if(!xml.includes(c.name)||!xml.includes("com.kdt.livecontainer.P8EZT3U5N4")||!xml.includes(c.asset.browser_download_url)||!xml.includes("software-package"))continue;
+    title.textContent="Scarlet Crystal V"+c.v;
+    status.textContent="서명 IPA·매니페스트·SHA-256 일치";
+    install.href="itms-services://?action=download-manifest&url="+encodeURIComponent(manifest);
+    download.href=c.asset.browser_download_url;
+    install.classList.remove("disabled");download.classList.remove("disabled");
+    install.removeAttribute("aria-disabled");download.removeAttribute("aria-disabled");
+    document.getElementById("meta").textContent="서명 IPA "+c.asset.size.toLocaleString()+"바이트 · 실제 아이폰 설치는 별도 확인";
+    return;
+  }
+  title.textContent="검증된 서명 릴리스 없음";
+  status.textContent="설치 IPA와 매니페스트가 모두 확인될 때까지 설치 버튼 비활성화";
+ }catch(e){title.textContent="조회 실패";status.textContent="HTTPS 연결을 확인하고 새로고침해."}
+})();
+</script></body></html>
