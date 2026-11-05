@@ -1,0 +1,33 @@
+name: V188 real signed IPA OTA publisher validation
+on:
+  push:
+    branches:
+      - gh-pages
+    paths:
+      - scripts/publish-scarlet-v188-actual-ota.py
+      - scarlet-v188.html
+      - index.html
+      - .github/workflows/v188-ota-publisher-static-tests.yml
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Confirm real IPA OTA flow, no WebClip shortcut
+        run: |
+          set -euo pipefail
+          python3 -m py_compile scripts/publish-scarlet-v188-actual-ota.py
+          python3 - <<'PY'
+          from pathlib import Path
+          s=Path("scripts/publish-scarlet-v188-actual-ota.py").read_text()
+          h=Path("scarlet-v188.html").read_text()
+          for val in ("Scarlet-Crystal-V188-SIGNED-DEVELOPMENT.ipa","itms-services://", "Scarlet-V188-SIGNED-manifest.plist"):
+              assert val in h+s, val
+          assert "com.apple.webClip.managed" not in h
+          assert "scarlet-v188-device-signed-20261105" in h and "scarlet-v188-device-signed-20261105" in s
+          assert "releases/tags/" in h
+          assert "profile(" in s and "application-identifier" in s and "GROUP in" in s
+          print("[PASS] SIGNED_IPA_PUBLICATION_AND_REAL_OTA_PAGE_CONTRACT")
+          PY
