@@ -1,0 +1,52 @@
+name: Scarlet Crystal CLEAN CORE - standalone behavioral tests
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - rebuild/scarlet-clean-core-20261106
+    paths:
+      - 'rebuild/**'
+      - '.github/workflows/scarlet-clean-core.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  standalone-core:
+    runs-on: macos-15
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify clean-room scope and pinned project identities
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          s=Path("rebuild/Sources/ScarletCleanCore/ScarletActionCoordinator.swift").read_text()
+          t=Path("rebuild/Tests/ScarletCleanCoreContract.swift").read_text()
+          # The new core must never import or call the old V3 bridge directly.
+          assert "V3ServiceBridge" not in s
+          assert "LiveContainer" not in s
+          assert "Keychain" not in s
+          assert "ScarletLocalActionDriver" in s and "ScarletServiceActionDriver" in s
+          assert "serviceUnavailable" in s and "signInRequired" in s
+          assert "SCARLET_CLEAN_CORE_LOCAL_CONTROLS_WORK_WITHOUT_SERVICE" in t
+          print("[PASS] CLEAN_CORE_ISOLATED_FROM_LEGACY_V3")
+          PY
+      - name: Compile pure Swift 6 source and run executable behavioral contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          swiftc -version
+          swiftc -swift-version 6 -parse-as-library \
+            rebuild/Sources/ScarletCleanCore/ScarletActionCoordinator.swift \
+            rebuild/Tests/ScarletCleanCoreContract.swift \
+            -o "${RUNNER_TEMP}/scarlet-clean-core-contract"
+          "${RUNNER_TEMP}/scarlet-clean-core-contract"
+      - name: Save actual test output
+        if: failure()
+        shell: bash
+        run: |
+          echo "[FAIL] Clean-room integration cannot be promoted until tests pass."
