@@ -1,10 +1,10 @@
-name: Scarlet Crystal V187 - native auth cancellation unblock (iOS IPA)
+name: Scarlet Crystal V188 - native auth cancellation unblock (iOS IPA)
 
 on:
   workflow_dispatch:
   push:
     branches:
-      - fix/scarlet-v187-service-auth-cancel-nonblocking-20261105
+      - fix/scarlet-v188-native-renewal-guard-20261105
     paths:
       - ".github/workflows/scarlet-v183-host-logs-ipa-build.yml"
       - ".github/workflows/scarlet-v181-design-auth-build.yml"
@@ -17,7 +17,7 @@ permissions:
 
 # One push build only, avoiding PR + push duplicate runner acquisition.
 concurrency:
-  group: scarlet-v187-host-auth-integrated-${{ github.ref }}
+  group: scarlet-v188-host-auth-integrated-${{ github.ref }}
   cancel-in-progress: false
 
 jobs:
@@ -117,6 +117,19 @@ jobs:
             work/EmbeddedSideStore/SideStore/Handlers/SignInFlowHandler.swift
           echo '[V181_AUTH80045] source and Swift syntax PASS; live Apple 2FA unverified'
 
+      - name: Apply native V188 App Group + Apple profile/certificate preservation
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m unittest discover -s builder/tests -p test_v188_native_refresh.py -v
+          python3 builder/scripts/patch_v188_native_refresh.py work/EmbeddedSideStore
+          python3 builder/scripts/patch_v188_native_refresh.py work/EmbeddedSideStore
+          swiftc -frontend -parse \
+            work/EmbeddedSideStore/SideStore/Core/Operations/PipelineOperations/FetchProvisioningProfilesOperation.swift
+          grep -q SCARLET_V188_APP_GROUP_PROFILE_PREFLIGHT \
+            work/EmbeddedSideStore/SideStore/Core/Operations/PipelineOperations/FetchProvisioningProfilesOperation.swift
+          echo '[V188] Native SideStore refresh path patched; live Apple profile and device upgrade unverified'
+
       - name: P00 pairing and Apple 2FA source contract tests
         shell: bash
         run: |
@@ -169,8 +182,8 @@ jobs:
           grep -q SCARLET_V186_AUTH_BEGIN_OUTCOME work/LiveContainer/LiveContainerSwiftUI/Views/V3UnifiedShell.swift
           python3 -m unittest discover -s builder/tests -p test_v187_service_auth_cancel_nonblocking.py -v \
             2>&1 | tee artifacts/logs/v187-service-auth-cancel-tests.log
-          grep -q SCARLET_V187_AUTH_CANCEL_NONBLOCKING work/EmbeddedSideStore/SideStore/Core/Service/V3HeadlessRuntime.swift 2>/dev/null || \
-            grep -R -q SCARLET_V187_AUTH_CANCEL_NONBLOCKING work/EmbeddedSideStore/AltStore work/EmbeddedSideStore/SideStore
+          grep -q SCARLET_V188_AUTH_CANCEL_NONBLOCKING work/EmbeddedSideStore/SideStore/Core/Service/V3HeadlessRuntime.swift 2>/dev/null || \
+            grep -R -q SCARLET_V188_AUTH_CANCEL_NONBLOCKING work/EmbeddedSideStore/AltStore work/EmbeddedSideStore/SideStore
           grep -R -q 'auth.requestCancellation(id: target)' work/EmbeddedSideStore/AltStore work/EmbeddedSideStore/SideStore
           grep -q 'auth.begin_locally_cancelled' work/LiveContainer/LiveContainerSwiftUI/Views/V3UnifiedShell.swift
           grep -q 'V3AuthStore.shared' work/LiveContainer/LiveContainerSwiftUI/Views/V3UnifiedShell.swift
@@ -219,29 +232,29 @@ jobs:
               ASSETCATALOG_COMPILER_APPICON_NAME= \
               COMPILER_INDEX_STORE_ENABLE=NO build
 
-      - name: Package Scarlet Crystal V187 unsigned IPA (source-checked, device-unverified)
+      - name: Package Scarlet Crystal V188 unsigned IPA (source-checked, device-unverified)
         shell: bash
         timeout-minutes: 15
         run: |
           set -euo pipefail
           if ! command -v ldid >/dev/null; then brew install ldid; fi
-          python3 builder/scripts/v187_package_fork.py \
+          python3 builder/scripts/v188_package_fork.py \
             --root work/LiveContainer \
             --host "$RUNNER_TEMP/v178-lc/Build/Products/Release-iphoneos/LiveContainer.app" \
             --side "$RUNNER_TEMP/v178-sidestore/Build/Products/Release-iphoneos/SideStore.app" \
             --pin-file builder/config/scarlet-upstream-pins.json \
-            --output "$GITHUB_WORKSPACE/artifacts/Scarlet-Crystal-V187-AUTH-CANCEL-FIX-UNSIGNED.ipa" \
+            --output "$GITHUB_WORKSPACE/artifacts/Scarlet-Crystal-V188-NATIVE-RENEWAL-UNSIGNED.ipa" \
             2>&1 | tee artifacts/logs/v181-package.log
-          test -s artifacts/Scarlet-Crystal-V187-AUTH-CANCEL-FIX-UNSIGNED.ipa
-          test -s artifacts/Scarlet-Crystal-V187-AUTH-CANCEL-FIX-UNSIGNED.json
+          test -s artifacts/Scarlet-Crystal-V188-NATIVE-RENEWAL-UNSIGNED.ipa
+          test -s artifacts/Scarlet-Crystal-V188-NATIVE-RENEWAL-UNSIGNED.json
 
-      - name: Upload compiled Scarlet Crystal V187 Auth Cancel Fix IPA (unsigned, iPhone unverified)
+      - name: Upload compiled Scarlet Crystal V188 Auth Cancel Fix IPA (unsigned, iPhone unverified)
         uses: actions/upload-artifact@v4
         with:
-          name: Scarlet-Crystal-V187-AUTH-CANCEL-FIX-UNSIGNED
+          name: Scarlet-Crystal-V188-NATIVE-RENEWAL-UNSIGNED
           path: |
-            artifacts/Scarlet-Crystal-V187-AUTH-CANCEL-FIX-UNSIGNED.ipa
-            artifacts/Scarlet-Crystal-V187-AUTH-CANCEL-FIX-UNSIGNED.json
+            artifacts/Scarlet-Crystal-V188-NATIVE-RENEWAL-UNSIGNED.ipa
+            artifacts/Scarlet-Crystal-V188-NATIVE-RENEWAL-UNSIGNED.json
           if-no-files-found: error
           retention-days: 30
 
