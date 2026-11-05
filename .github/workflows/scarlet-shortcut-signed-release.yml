@@ -1,0 +1,63 @@
+name: Scarlet Crystal universal iOS Shortcut build and sign
+on:
+  push:
+    branches:
+      - feat/scarlet-universal-shortcut-publisher-20261105
+    paths:
+      - tools/build_scarlet_latest_shortcut.py
+      - tools/scarlet_latest_publish.py
+      - .github/workflows/scarlet-shortcut-signed-release.yml
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  build-sign-shortcut:
+    runs-on: macos-15
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build real unsigned Shortcuts binary plist
+        run: |
+          set -euo pipefail
+          mkdir -p dist
+          python3 -m py_compile tools/build_scarlet_latest_shortcut.py tools/scarlet_latest_publish.py
+          python3 tools/build_scarlet_latest_shortcut.py dist/Scarlet-Crystal-Latest-UNSIGNED.shortcut
+          plutil -lint dist/Scarlet-Crystal-Latest-UNSIGNED.shortcut
+      - name: Verify macOS Apple Shortcuts signing tool and sign
+        shell: bash
+        run: |
+          set -euo pipefail
+          command -v shortcuts
+          shortcuts sign --mode anyone \
+            --input dist/Scarlet-Crystal-Latest-UNSIGNED.shortcut \
+            --output dist/Scarlet-Crystal-Latest.shortcut
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path("dist/Scarlet-Crystal-Latest.shortcut")
+          assert p.exists() and p.stat().st_size>4096
+          assert p.read_bytes()[:4] == b"AEA1", "NOT_APPLE_SIGNED_SHORTCUT"
+          print("[PASS] APPLE_SIGNED_IMPORTABLE_SHORTCUT",p.stat().st_size)
+          PY
+      - name: Publish downloadable signed Shortcut
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          TAG=scarlet-universal-shortcut-v1
+          if gh release view "$TAG" -R "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "[STOP] SHORTCUT_RELEASE_ALREADY_EXISTS; avoid destructive overwrite"
+            exit 4
+          fi
+          gh release create "$TAG" -R "$GITHUB_REPOSITORY" \
+            --target "$GITHUB_SHA" \
+            --title "Scarlet Crystal - latest-version iOS Shortcuts automation" \
+            --notes "Import signed .shortcut in iOS Shortcuts. On import, configure PC SSH host, user and password once. No certificate/Apple ID/GitHub PAT in Shortcut. On execution it locates the newest successful owner's integrated Xcode IPA, verifies build and SHA256, signs on CachyOS using existing local key, uploads real signed IPA, creates OTA manifest and opens the Safari latest install page. Apple Development signing may be rejected by Safari; genuine device install is not claimed." \
+            dist/Scarlet-Crystal-Latest.shortcut
+          echo "[PASS] SIGNED_SHORTCUT_RELEASE_PUBLISHED"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: scarlet-shortcut-source-and-result
+          path: dist/
+          if-no-files-found: warn
