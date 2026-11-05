@@ -3,7 +3,7 @@
    or GitHub token is sent to the shortcut signing service. */
 #define name "Scarlet Crystal 최신 자동 서명 배포"
 #define color purple
-#define glyph arrow.up.circle
+#define glyph smileyFace
 #include 'actions/network'
 #include 'actions/web'
 
