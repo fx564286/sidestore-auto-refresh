@@ -39,6 +39,9 @@ class ScarletOTAIdentityTests(unittest.TestCase):
         source=p.read_text()
         ast.parse(source)
         self.assertIn('EXPECTED_VERSION = "V189"',source)
+        self.assertIn('data["CFBundleVersion"] = "3.8.203"',source)
+        self.assertIn('data["ScarletUpdateChannel"] = "scarlet-device-signed"',source)
+        self.assertIn('if data.get("CFBundleVersion") != "3.8.202":',source)
         self.assertIn('value["ScarletBuildLabel"] = EXPECTED_VERSION',
                       (ROOT/"scripts/v181_package_fork.py").read_text())
 
