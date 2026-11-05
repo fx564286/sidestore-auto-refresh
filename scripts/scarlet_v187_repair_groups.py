@@ -94,7 +94,7 @@ def main():
     state = HOME / ".local/state/scarlet-v187-apple"
     state.mkdir(parents=True, exist_ok=True, mode=0o700)
     os.chmod(state, 0o700)
-    anisette, gs = api.connect_anisette(None, str(state / "anisette.json"))
+    anisette, gs = api.connect_anisette(api.FALLBACK_ANISETTE, str(state / "anisette.json"))
     account = api.AppleAccount(email, gs, anisette)
     def ask_code(prompt):
         return re.sub(r"\D", "", getpass.getpass(prompt + " (hidden): "))
