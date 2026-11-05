@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>items</key>
+	<array>
+		<dict>
+			<key>assets</key>
+			<array>
+				<dict>
+					<key>kind</key>
+					<string>software-package</string>
+					<key>url</key>
+					<string>https://github.com/fx564286/sidestore-auto-refresh/releases/download/scarlet-v190-device-signed-20261105/Scarlet-Crystal-V190-SIGNED-DEVELOPMENT.ipa</string>
+				</dict>
+			</array>
+			<key>metadata</key>
+			<dict>
+				<key>bundle-identifier</key>
+				<string>com.kdt.livecontainer.P8EZT3U5N4</string>
+				<key>bundle-version</key>
+				<string>3.8.204</string>
+				<key>kind</key>
+				<string>software</string>
+				<key>title</key>
+				<string>Scarlet Crystal V190</string>
+			</dict>
+		</dict>
+	</array>
+</dict>
+</plist>
