@@ -38,7 +38,7 @@ jobs:
           assert p.is_file() and p.stat().st_size>4000
           assert p.read_bytes()[:4]==b"AEA1"
           for item in ('#question githubToken', '"POST"', 'Bearer {@token}',
-                       'scarlet-sign-request.yml/dispatches', 'getFileDetail(@response, "File Size")',
+                       'scarlet-sign-request.yml/dispatches', 'getFileDetail(@response, "File Size")', 'number(@sizeDetail)',
                        'if !@token', 'stop()', 'scarlet-sign-install.html'):
             assert item in s,item
           assert 'if @bytes > 0' in s
@@ -56,7 +56,7 @@ jobs:
           set -euo pipefail
           TAG=scarlet-sign-to-safari-shortcut-v3
           if gh release view "$TAG" -R "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
-            echo "[STOP] Existing v2 shortcut preserved"
+            echo "[STOP] Existing v3 Shortcut preserved"
             exit 4
           fi
           gh release create "$TAG" -R "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --title "Scarlet Crystal - iPhone sign then Safari installer v3" --notes "Signed iPhone Shortcut. GitHub HTTP 204 empty 0-byte result is not treated as a file to open in Scarlet Crystal. Non-empty GitHub API error is shown; successful request opens Safari view with independently verified signed IPA OTA installation button. A development-signed IPA may not be accepted by Safari OTA. No key or PAT embedded. Device installation not validated." dist/Scarlet-Crystal-Sign-Then-Safari.shortcut
