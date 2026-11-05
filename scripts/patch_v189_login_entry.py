@@ -33,7 +33,7 @@ def patch(src: str) -> str:
         "    private var promptResponseGeneration: UInt64 = 0\n",
         "    private var promptResponseGeneration: UInt64 = 0\n"
         "    // " + MARK + ": one-shot credentials, memory-only until exact service prompt.\n"
-        "    private var queuedLogin: (appleID: String, password: String)?\n",
+        "    private var queuedLogin: (sessionID: String, appleID: String, password: String)?\n",
         "one-shot memory-only credential storage")
     src = once(src,
         "    var canBegin: Bool {\n",
@@ -45,7 +45,7 @@ def patch(src: str) -> str:
         begin()
         // begin() schedules the actual XPC request on the next actor turn.
         // No credentials ever travel in authBegin; wait for the exact prompt.
-        if state == "working" { queuedLogin = (normalized, password) }
+        if state == "working", let session { queuedLogin = (session, normalized, password) }
     }
 
     var canBegin: Bool {
@@ -56,7 +56,7 @@ def patch(src: str) -> str:
         """    private func run(sessionID requestedSession: String) async {
         defer {
             // Cancel/timeouts cannot retain a password for a future session.
-            if session == requestedSession { queuedLogin = nil }
+            if queuedLogin?.sessionID == requestedSession { queuedLogin = nil }
         }
 """,
         "release queued secret at auth end")
@@ -80,7 +80,7 @@ def patch(src: str) -> str:
            let fields = currentPrompt["fields"] as? [[String: Any]],
            fields.contains(where: { $0["key"] as? String == "appleID" }),
            fields.contains(where: { $0["key"] as? String == "password" }),
-           let queued = queuedLogin, !isCancelling {
+           let queued = queuedLogin, queued.sessionID == session, !isCancelling {
             queuedLogin = nil
             answer(promptID: promptID,
                    answer: ["appleID": queued.appleID, "password": queued.password])
@@ -96,14 +96,13 @@ def patch(src: str) -> str:
         raise ValueError("following SwiftUI struct not found")
     ui = src[ui_start:ui_stop]
     ui = once(ui,
-        "    @StateObject private var auth = V3AuthStore()\n",
-        "    @StateObject private var auth = V3AuthStore()\n"
+        "    @ObservedObject private var auth = V3AuthStore.shared\n",
+        "    @ObservedObject private var auth = V3AuthStore.shared\n"
         "    @State private var showCredentialEntry = true\n"
         "    @State private var preparedAppleID = \"\"\n"
         "    @State private var preparedPassword = \"\"\n",
         "sign-in view memory-only input state")
-    # V185 later replaces @StateObject with @ObservedObject; V189 integration
-    # already ran that patch. Accept either exact compiled source spelling.
+    # Runs after the V185 host-owned authentication session overlay.
     entry = """                if showCredentialEntry && auth.canBegin && !auth.isSignedIn {
                     TextField("Apple ID", text: $preparedAppleID)
                         .textInputAutocapitalization(.never)
