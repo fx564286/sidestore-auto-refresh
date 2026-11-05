@@ -31,6 +31,14 @@ jobs:
           path: builder
           persist-credentials: false
 
+      - name: Validate Apple profile and restored-key reconciliation
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m py_compile builder/scripts/scarlet_v188_apple_profile_reconcile.py
+          cd builder
+          python3 -m unittest discover -s tests -p test_v188_apple_profile_reconcile.py -v
+
       - name: Select Xcode 27.2
         uses: maxim-lobanov/setup-xcode@v1.6.0
         with:
