@@ -228,7 +228,7 @@ def sign(host,exts,staging):
         executable_name=meta.get("CFBundleExecutable")
         require(isinstance(executable_name,str) and executable_name
                 and executable_name not in (".","..")
-                and "/" not in executable_name and "\\\\" not in executable_name,
+                and "/" not in executable_name and chr(92) not in executable_name,
                 "SIGNED_BUNDLE_EXECUTABLE_NAME_INVALID_"+label)
         executable=bundle/executable_name
         require(executable.is_file()
