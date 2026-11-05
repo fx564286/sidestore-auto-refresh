@@ -29,19 +29,22 @@ private struct CleanCoreContract {
         // 1. Service outage must NOT disable native container settings.
         let initial = await app.tap(.localTapProbe)
         precondition(initial.state == .succeeded && initial.localTapCount == 1)
-        precondition(await awaitValue({ await local.called(.localTapProbe) }) == 1)
+        let initialLocalProbeCalls = await local.called(.localTapProbe)
+        precondition(initialLocalProbeCalls == 1)
 
         let preference = await app.tap(.localAppearance)
         precondition(preference.state == .succeeded)
         let notifications = await app.tap(.localClearNotifications)
         precondition(notifications.state == .succeeded)
-        precondition(await awaitValue({ await local.called(.localClearNotifications) }) == 1)
+        let localNotificationCalls = await local.called(.localClearNotifications)
+        precondition(localNotificationCalls == 1)
 
         // 2. Service-driven controls fail closed and explain the reason.
         let blocked = await app.tap(.serviceReadSettings)
         precondition(blocked.state == .rejected &&
                      blocked.problem == .serviceUnavailable)
-        precondition(await awaitValue({ await remote.called(.serviceReadSettings) }) == 0)
+        let blockedSettingsCalls = await remote.called(.serviceReadSettings)
+        precondition(blockedSettingsCalls == 0)
         precondition(blocked.message.contains("SideStore service unavailable"))
 
         // 3. Merely connecting does not grant Apple authentication.
@@ -52,20 +55,23 @@ private struct CleanCoreContract {
         precondition(login.state == .succeeded)
         let syncBlocked = await app.tap(.serviceSyncAppIDs)
         precondition(syncBlocked.problem == .signInRequired)
-        precondition(await awaitValue({ await remote.called(.serviceSyncAppIDs) }) == 0)
+        let blockedSyncCalls = await remote.called(.serviceSyncAppIDs)
+        precondition(blockedSyncCalls == 0)
 
         // 4. Authenticated service mutations call the service once.
         await app.updateAvailability(serviceReady: true, signedIn: true)
         let sync = await app.tap(.serviceSyncAppIDs)
         precondition(sync.state == .succeeded)
-        precondition(await awaitValue({ await remote.called(.serviceSyncAppIDs) }) == 1)
+        let authorizedSyncCalls = await remote.called(.serviceSyncAppIDs)
+        precondition(authorizedSyncCalls == 1)
 
         // 5. Unknown service errors never appear as successful installs.
         await remote.fail(.serviceInstallIPA)
         let install = await app.tap(.serviceInstallIPA)
         precondition(install.state == .failed &&
                      install.problem == .actionFailed)
-        precondition(await awaitValue({ await remote.called(.serviceInstallIPA) }) == 1)
+        let failedInstallCalls = await remote.called(.serviceInstallIPA)
+        precondition(failedInstallCalls == 1)
 
         // 6. Availability regressions do not poison local action routing.
         await app.updateAvailability(serviceReady: false, signedIn: true)
@@ -90,8 +96,4 @@ private struct CleanCoreContract {
         print("[PASS] SCARLET_CLEAN_CORE_LOCAL_ISOLATION_AND_11_ACTION_CLASSES")
     }
 
-    // The test is an async main; this helper keeps actor reads explicit.
-    private static func awaitValue(_ read: () async -> Int) async -> Int {
-        await read()
-    }
 }
