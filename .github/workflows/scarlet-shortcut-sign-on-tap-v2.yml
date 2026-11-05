@@ -1,0 +1,65 @@
+name: Scarlet Crystal on-tap diagnostic Shortcut v2
+on:
+  push:
+    branches:
+      - feat/scarlet-universal-shortcut-publisher-20261105
+    paths:
+      - shortcuts/scarlet-sign-on-tap-v2.cherri
+      - .github/workflows/scarlet-shortcut-sign-on-tap-v2.yml
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  shortcut:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download pinned Cherri compiler
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/cherri dist
+          curl -fLsS --retry 3 https://github.com/electrikmilk/cherri/releases/download/v2.3.0/cherri_linux-x86_64.zip -o /tmp/cherri.zip
+          unzip -oq /tmp/cherri.zip -d /tmp/cherri
+          CHERRI=$(find /tmp/cherri -type f -name cherri | head -1)
+          test -n "$CHERRI"
+          chmod +x "$CHERRI"
+          echo "CHERRI=$CHERRI" >> "$GITHUB_ENV"
+      - name: Build iOS-importable diagnostic Shortcut
+        shell: bash
+        run: |
+          set -euo pipefail
+          "$CHERRI" shortcuts/scarlet-sign-on-tap-v2.cherri --hubsign --share=anyone --output=dist/Scarlet-Crystal-Sign-on-Tap-Diagnostic.shortcut
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path("dist/Scarlet-Crystal-Sign-on-Tap-Diagnostic.shortcut")
+          s=Path("shortcuts/scarlet-sign-on-tap-v2.cherri").read_text()
+          assert p.is_file() and p.stat().st_size>4000
+          assert p.read_bytes()[:4]==b"AEA1"
+          for item in ('#question githubToken', '"POST"', 'Bearer {@token}',
+                       'scarlet-sign-request.yml/dispatches', 'quicklook(@sent)',
+                       'if !@token', 'stop()', 'scarlet-sign.html'):
+            assert item in s,item
+          assert 'runSSHScript' not in s and 'github_pat_' not in s
+          print("[PASS] SIGNED_SHORTCUT_ERROR_VISIBLE",p.stat().st_size)
+          PY
+      - name: Publish verified diagnostic Shortcut
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          TAG=scarlet-sign-on-tap-shortcut-v2
+          if gh release view "$TAG" -R "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "[STOP] Existing v2 shortcut preserved"
+            exit 4
+          fi
+          gh release create "$TAG" -R "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --title "Scarlet Crystal - iPhone sign on tap diagnostic v2" --notes "Native signed Shortcut. Shows GitHub API errors instead of silently opening the result page. Import with user-owned fine-grained Actions read/write PAT for this repository. Does not embed any token or signing key. Signing and iPhone installation are not verified by Shortcut creation." dist/Scarlet-Crystal-Sign-on-Tap-Diagnostic.shortcut
+          echo '[PASS] SCARLET_SHORTCUT_V2_PUBLISHED'
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: scarlet-sign-on-tap-diagnostic-v2
+          path: dist/
+          if-no-files-found: warn
