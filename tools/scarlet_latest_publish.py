@@ -13,6 +13,7 @@ The last stdout line is an install-page HTTPS URL ONLY after every step passes.
 """
 from __future__ import annotations
 import base64
+import contextlib
 import datetime as dt
 import hashlib
 import importlib.util
@@ -238,8 +239,11 @@ def signing(ipa,version,build,digest):
         signer.SRC=ipa
         signer.RESULT=result
         signer.EXPECTED_SHA256=digest
-        # All original certificate / entitlement checks remain in the signer.
-        signer.main()
+        # The iOS Shortcuts SSH result MUST be one valid HTTPS URL only.
+        # Send all progress from the reused signer to stderr, never stdout.
+        # The shell wrapper stores stderr in last-run.log.
+        with contextlib.redirect_stdout(sys.stderr):
+            signer.main()
     require(result.is_file() and result.stat().st_size>1_000_000,"SIGNED_IPA_NOT_CREATED")
     info=inspect_signed(result,version,build)
     sha_path=OUT/(result.name+".sha256")
