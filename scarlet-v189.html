@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#111529">
+<title>Scarlet Crystal V189 — 실제 앱 설치</title>
+<style>
+*{box-sizing:border-box}
+html{background:#101326;color-scheme:dark}
+body{margin:0;color:#f6f4ff;font:15px/1.6 -apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo",sans-serif;background:radial-gradient(ellipse at 15% 8%,#9c8df063,transparent 43%),radial-gradient(ellipse at 92% 55%,#93aaff27,transparent 54%),#101326;min-height:100svh;padding:calc(26px + env(safe-area-inset-top)) 16px calc(42px + env(safe-area-inset-bottom))}
+main{max-width:520px;margin:0 auto}
+.eyebrow{color:#bcb5f8;letter-spacing:.12em;font-size:12px;font-weight:700}
+h1{font-size:32px;letter-spacing:-1.05px;line-height:1.22;margin:10px 0}
+h2{font-size:18px;margin:0 0 7px}
+p{color:#d2d7e9;margin:10px 0}
+section{border-radius:25px;background:linear-gradient(130deg,#ffffff25,#ffffff09 49%,#ffffff19);border:1px solid #ffffff4d;box-shadow:0 16px 35px #080a254e,inset 0 1px 0 #ffffff4d;backdrop-filter:blur(30px) saturate(175%);-webkit-backdrop-filter:blur(30px) saturate(175%);padding:22px;margin:18px 0}
+a.btn{display:block;border-radius:15px;text-align:center;text-decoration:none;padding:15px 9px;margin-top:14px;font-weight:750;color:#141329;background:linear-gradient(140deg,#d6c8ff,#8a84ef)}
+a.outline{background:#ffffff10;color:#f6f4ff;border:1px solid #ffffff46}
+a.disabled{opacity:.50;pointer-events:none;cursor:default}
+.status{font-size:13px;color:#ffe3b8;font-weight:700}
+code{font-size:12px;overflow-wrap:anywhere;color:#e5defe}
+.note{color:#d9d3ee}
+small{display:block;margin-top:10px;color:#c1c3dc}
+summary{cursor:pointer;color:#dfd9ff}
+ol{padding-left:23px;color:#d2d7e9}
+li{margin:9px 0}
+</style>
+</head>
+<body><main>
+<header><div class="eyebrow">SCARLET CRYSTAL · V189 · IOS APP</div>
+<h1>Scarlet Crystal<br>V189 설치</h1>
+<p>홍수정 앱 자체를 설치하는 Safari OTA 페이지. 홈 화면 바로가기나 WebClip 프로파일이 아니야.</p></header>
+<section>
+<h2>기존 앱 유지 · V189 서명본</h2>
+<p id="status" class="status" aria-live="polite">서명 IPA 공개 상태 확인 중…</p>
+<p>버튼을 누르면 iOS의 <code>itms-services</code> 설치 경로가 열리고 실제 Scarlet Crystal 앱 설치를 요청해.</p>
+<a class="btn disabled" id="ota" aria-disabled="true" href="#">Scarlet Crystal V189 앱 설치</a>
+<a class="btn outline disabled" id="ipa" aria-disabled="true" href="#">서명된 V189 IPA 확인</a>
+<small>기존 설치 앱을 삭제하지 마. 동일한 Bundle ID 및 App Group으로 업데이트해야 앱 데이터가 유지될 수 있어.</small>
+</section>
+<section>
+<h2>서명·설치 조건</h2>
+<p>V189 서명본은 <strong>Apple Development 인증서</strong>와 기존 iPhone 등록 프로파일로 만들어졌어. 서명은 성공했지만 Safari OTA 배포용 Ad Hoc 서명이 아니므로 기기에서 설치가 거부될 수 있어.</p>
+<p class="note">설치 버튼이 앱 다운로드를 시작해도 실제 설치·실행 성공은 별도로 확인해야 해. Apple이 설치를 거부하면 개발용 서명 IPA는 페어링된 PC 또는 적합한 Ad Hoc 배포 방식으로 설치해야 해.</p>
+</section>
+<section>
+<h2>앱 데이터·Liquid Glass</h2>
+<p>기존 Team ID <code>P8EZT3U5N4</code>, Bundle ID <code>com.kdt.livecontainer.P8EZT3U5N4</code>, App Group은 유지했어. UI 시각적 동작과 앱 데이터 보존은 설치 후 아이폰에서 확인해야 해.</p>
+<details><summary>OTA 설치가 진행되지 않을 때</summary>
+<ol><li>설정 프로파일을 추가 설치해도 개발용 IPA가 Ad Hoc 서명으로 바뀌지는 않아.</li><li>PC와 아이폰의 기존 페어링을 사용해 서명 IPA로 덮어 설치할 수 있어.</li><li>App Group·Keychain 상태를 확인하기 전 기존 앱을 제거하지 마.</li></ol>
+</details>
+</section>
+<footer style="padding:12px 4px;font-size:12px;color:#bec2d5">실제 설치 대상은 GitHub에 게시된 서명 IPA야. 개인키·P12·Apple ID 비밀번호는 웹페이지로 업로드하지 않아.</footer>
+</main>
+<script>
+(()=>{
+  const owner="fx564286/sidestore-auto-refresh";
+  const tag="scarlet-v189-device-signed-20261105";
+  const file="Scarlet-Crystal-V189-SIGNED-DEVELOPMENT.ipa";
+  const api="https://api.github.com/repos/"+owner+"/releases/tags/"+tag;
+  const manifest="https://fx564286.github.io/sidestore-auto-refresh/Scarlet-V189-SIGNED-manifest.plist";
+  const ota=document.getElementById("ota");
+  const ipa=document.getElementById("ipa");
+  const status=document.getElementById("status");
+  fetch(api,{cache:"no-store"}).then(r=>{if(!r.ok)throw new Error("release pending");return r.json()})
+  .then(async release=>{
+    const asset=(release.assets||[]).find(a=>a.name===file && a.state==="uploaded" && a.size>1000000);
+    if(!asset)throw new Error("signed asset pending");
+    const checksum="https://fx564286.github.io/sidestore-auto-refresh/Scarlet-V189-SIGNED.sha256";
+    const [manifestResponse,checksumResponse]=await Promise.all([
+      fetch(manifest,{cache:"no-store"}),fetch(checksum,{cache:"no-store"})
+    ]);
+    if(!manifestResponse.ok || !checksumResponse.ok)throw new Error("manifest pending");
+    const [xml,shaText]=await Promise.all([manifestResponse.text(),checksumResponse.text()]);
+    if(!xml.includes("Scarlet-Crystal-V189-SIGNED-DEVELOPMENT.ipa") ||
+       !xml.includes("com.kdt.livecontainer.P8EZT3U5N4") ||
+       !xml.includes("3.8.203")) throw new Error("manifest mismatch");
+    const expected=shaText.trim().split(/\s+/)[0].toLowerCase();
+    if(asset.digest!=="sha256:"+expected)throw new Error("checksum mismatch");
+    ipa.href=asset.browser_download_url;
+    ipa.classList.remove("disabled");
+    ipa.removeAttribute("aria-disabled");
+    ota.href="itms-services://?action=download-manifest&url="+encodeURIComponent(manifest);
+    ota.classList.remove("disabled");
+    ota.removeAttribute("aria-disabled");
+    status.textContent="V189 서명 IPA·매니페스트·SHA-256 일치 확인 · Safari 설치 요청 가능";
+    status.style.color="#bdedcc";
+  }).catch(()=>{
+    status.textContent="V189 서명 IPA 또는 OTA 매니페스트 미게시/불일치. 실제 앱 설치 버튼은 비활성화 상태.";
+  });
+})();
+</script></body></html>
