@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#101424">
+<title>Scarlet Crystal V188 | iPhone 설치</title>
+<style>
+:root{color-scheme:dark}
+*{box-sizing:border-box}
+html{background:#101424}
+body{margin:0;min-height:100svh;font:15px/1.65 -apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo",sans-serif;color:#f5f5ff;background:radial-gradient(ellipse at 18% 3%,#7462ae55,transparent 42%),radial-gradient(ellipse at 94% 45%,#8e9ac72c,transparent 52%),#101424;padding:calc(env(safe-area-inset-top) + 26px) 16px calc(env(safe-area-inset-bottom) + 40px)}
+main{max-width:540px;margin:auto}
+header{padding:16px 4px 6px}
+.eyebrow{font-size:12px;letter-spacing:.12em;font-weight:700;color:#c8c4ff}
+h1{font-size:30px;letter-spacing:-1.1px;margin:7px 0}
+h2{font-size:17px;margin:0 0 8px}
+p{margin:7px 0;color:#d4daeb}
+.glass{background:linear-gradient(135deg,#ffffff1c,#c5c2ff08 52%,#ffffff0e);border:1px solid #ffffff45;box-shadow:inset 0 1px 0 #ffffff45,0 18px 30px #04071655;backdrop-filter:blur(26px) saturate(170%);-webkit-backdrop-filter:blur(26px) saturate(170%);border-radius:25px;margin:17px 0;padding:21px}
+a.button{display:block;text-align:center;padding:14px 12px;border-radius:15px;text-decoration:none;background:linear-gradient(140deg,#c7b8ff,#8073ef);color:#0d1025;font-weight:800;margin-top:12px}
+a.button.secondary{background:#ffffff15;color:#f1edff;border:1px solid #ffffff53}
+a.button.disabled{pointer-events:none;background:#ffffff12;color:#aeb4cb;border:1px solid #ffffff29}
+a.inline{color:#d1c9ff}
+small{color:#c5c9da}
+strong{color:#fff}
+.status{color:#b9f0ce;font-weight:750}
+.caution{color:#ffd1ba}
+ol{padding-left:23px;color:#d8d9e6}
+li{margin:8px 0}
+code{overflow-wrap:anywhere;font-size:12px}
+.footer{font-size:12px;color:#b7bfd0;padding:10px 2px}
+</style>
+</head>
+<body><main>
+<header>
+<div class="eyebrow">SCARLET CRYSTAL · IOS 27 · V188</div>
+<h1>홍수정 V188 설치</h1>
+<p>Liquid Glass UI를 유지한 V188 빌드를 아이폰에서 서명·설치하는 경로야. 기존 앱과 데이터는 삭제하지 마.</p>
+</header>
+<section class="glass">
+<h2>① Safari 설치 포털 프로파일</h2>
+<p>설정 프로파일을 설치하면 홈 화면에 <strong>Scarlet V188</strong> 설치 페이지가 추가돼. 이 프로파일은 앱, DNS, VPN, 인증서를 설치하지 않아.</p>
+<a class="button secondary" href="./Scarlet-Crystal-V188-Install-Portal.mobileconfig">Scarlet V188 설치 포털 프로파일 받기</a>
+<small>Safari에서 다운로드 허용 → 설정 → 프로파일 다운로드됨 → 설치.</small>
+</section>
+<section class="glass">
+<h2>② SideInstaller에서 원터치 설치</h2>
+<p class="status">V188 미서명 IPA 공개 · GitHub SHA-256 확인</p>
+<p>기존 SideInstaller가 설치되어 있다면, 다음 버튼을 탭해 IPA를 불러오고 <strong>아이폰에서 Apple ID로 서명</strong>할 수 있어.</p>
+<a class="button" id="sideinstall" href="#">SideInstaller로 V188 서명·설치</a>
+<a class="button secondary" href="https://sideinstaller.net/">SideInstaller 공식 설치 사이트</a>
+<small>원터치 링크는 SideInstaller의 <code>sideinstaller://install?url=</code> 기능을 사용해. 설치 전 SideInstaller가 표시하는 앱 ID·Team·프로파일을 확인해.</small>
+<p class="caution"><strong>기존 앱 업데이트 주의:</strong> 현재 기존 P12가 새 Apple 프로비저닝 프로파일에서 승인되지 않았어. SideInstaller가 다른 Bundle ID, Team ID, App Group 또는 Keychain 권한으로 서명한다면 업데이트를 중단해. 앱을 삭제하지 마.</p>
+</section>
+<section class="glass">
+<h2>③ 서명 IPA 없이 Safari 단독 OTA 설치</h2>
+<p><strong>아직 불가.</strong> Safari에서 단독으로 설치하려면 해당 기기에 배포 가능한 정식 서명 IPA와 Apple이 승인한 프로비저닝 프로파일이 필요해.</p>
+<a class="button disabled" aria-disabled="true">서명 IPA 확보 대기</a>
+<small>미서명 IPA나 WebClip 프로파일만으로 iOS 앱이 설치되는 것처럼 표시하지 않아.</small>
+</section>
+<section class="glass">
+<h2>V188 검증 정보</h2>
+<p>GitHub Actions Xcode 27.2 빌드 성공 · 통합 갱신 소스 반영 · 실기기 UI/앱 업데이트 시험은 별도 필요.</p>
+<a class="button secondary" href="https://github.com/fx564286/sidestore-auto-refresh/releases/tag/scarlet-v188-unsigned-20261105">V188 공개 릴리스 확인</a>
+<a class="button secondary" href="https://github.com/fx564286/sidestore-auto-refresh/releases/download/scarlet-v188-unsigned-20261105/Scarlet-Crystal-V188-NATIVE-RENEWAL-UNSIGNED.ipa">V188 미서명 IPA 다운로드</a>
+<small>SHA-256: <code>5b57a212c29b29a0c74c9387bbd0c875375b34ee1b1cad92af6458b329bacc68</code></small>
+</section>
+<div class="footer">이 페이지는 공개된 미서명 V188 IPA를 신뢰할 수 있는 설치 도구에 전달할 뿐, Apple 서명을 우회하지 않아. Apple ID 암호·개인키 업로드를 요구하지 않아.</div>
+</main>
+<script>
+(function(){
+var ipa="https://github.com/fx564286/sidestore-auto-refresh/releases/download/scarlet-v188-unsigned-20261105/Scarlet-Crystal-V188-NATIVE-RENEWAL-UNSIGNED.ipa";
+document.getElementById("sideinstall").href="sideinstaller://install?url="+encodeURIComponent(ipa);
+})();
+</script>
+</body></html>
