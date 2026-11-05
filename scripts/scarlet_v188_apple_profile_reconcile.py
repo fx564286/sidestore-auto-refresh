@@ -175,6 +175,7 @@ def main():
                +"-"+secrets.token_hex(3))
     dest.mkdir(parents=True,exist_ok=False,mode=0o700)
     all_good=True
+    consistent_identities=[]
     for bundle in BUNDLES:
         a=selected[bundle]
         features=a.get("features",{})
@@ -189,10 +190,12 @@ def main():
         label="Main" if bundle==APP else bundle.rsplit(".",1)[-1]
         file=dest/(label+".mobileprovision")
         file.write_bytes(raw);file.chmod(0o600)
+        shared_identities=set(result["profile_matches"]) & set(result["apple_matches"])
         ok=(result["bundle_ok"] and result["group_ok"] and result["live"] and
-            result["device"] and bool(result["profile_matches"]) and
-            bool(result["apple_matches"]))
+            result["device"] and bool(shared_identities))
         all_good=all_good and ok
+        if ok:
+            consistent_identities.append(shared_identities)
         print(("[PASS]" if ok else "[BLOCKED]")+" APPLE_PROFILE "+
               "bundle="+bundle+" live=%d appid=%d group=%d device=%d certs=%d "
               "locally_authorized=%s apple_registry_match=%s" %
@@ -203,7 +206,7 @@ def main():
         print("[PROFILE_DATES] %s created=%s expires=%s" %
               (label,str(result["created"]),str(result["expires"])),flush=True)
     print("[CANDIDATE_PROFILES]",dest,flush=True)
-    if all_good:
+    if all_good and consistent_identities and set.intersection(*consistent_identities):
         print("[PASS] FOUR_APPLE_PROFILES_AUTHORIZE_SAME_RECOVERED_IDENTITY",flush=True)
         print("[NEXT] Verify actual IPA entitlements + existing Team ID before signing",flush=True)
         return 0
