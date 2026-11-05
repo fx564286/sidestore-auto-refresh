@@ -86,7 +86,7 @@ def patch_bridge(s: str) -> str:
         statusLeaseWaiterOrder.remove(waiterID)
         guard let index = statusLeaseWaiters.firstIndex(where: { $0.id == waiterID }) else { return }
         let waiter = statusLeaseWaiters.remove(at: index)
-        // No statusWriteAuthority.complete(), retireService() or service restart:
+        // No status-authority completion, service retirement or service restart:
         // another owner's active or unresolved mutation remains authoritative.
         waiter.continuation.resume(throwing: CombinedFailure(
             operation: "signIn", stage: .command, code: .timedOut,
