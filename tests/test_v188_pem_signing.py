@@ -58,7 +58,7 @@ class PemSigningTests(TestCase):
                 return b""
             with mock.patch.object(m,"RC",fake),mock.patch.object(m,"command",side_effect=command):
                 m.sign(path,exts,Path(d))
-            commands=[x for x in requests if len(x)>1 and x[1]=="sign"]
+            commands=[x for x in requests if len(x)>1 and x[1]=="sign" and "--help" not in x]
             self.assertEqual(len(commands),5)
             for c in commands:
                 self.assertIn("--pem-file",c)
