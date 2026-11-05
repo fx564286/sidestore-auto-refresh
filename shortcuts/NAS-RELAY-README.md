@@ -1,0 +1,1 @@
+Scarlet Crystal shortcut: iOS built-in SSH action connects to user's NAS first. NAS relays to CachyOS. No external SSH app is needed. See source in the same repository.
