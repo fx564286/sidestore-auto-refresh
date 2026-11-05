@@ -8,7 +8,6 @@
 #define color purple
 #define glyph smileyFace
 #include 'actions/web'
-#include 'actions/basic'
 #question githubToken "GitHub 토큰 (이 저장소 Actions: Read and write 권한)" ""
 @token = text(githubToken)
 @authorization = "Bearer {@token}"
