@@ -9,10 +9,12 @@
 #define glyph smileyFace
 #include 'actions/web'
 #question githubToken "GitHub 토큰 (이 저장소 Actions: Read and write 권한)" ""
+@authorization = "Bearer "
+@authorization += githubToken
 @sent = jsonRequest(
   "https://api.github.com/repos/fx564286/sidestore-auto-refresh/actions/workflows/scarlet-sign-request.yml/dispatches",
   "POST",
   {"ref": "main"},
-  {"Authorization": "Bearer {githubToken}", "Accept": "application/vnd.github+json", "X-GitHub-Api-Version": "2022-11-28"}
+  {"Authorization": @authorization, "Accept": "application/vnd.github+json", "X-GitHub-Api-Version": "2022-11-28"}
 )
 openURL("https://fx564286.github.io/sidestore-auto-refresh/scarlet-sign.html")
