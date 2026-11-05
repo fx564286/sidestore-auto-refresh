@@ -1,0 +1,71 @@
+name: Scarlet Crystal NAS-relayed iOS Shortcut signed build
+on:
+  push:
+    branches:
+      - feat/scarlet-universal-shortcut-publisher-20261105
+    paths:
+      - shortcuts/scarlet-nas-shortcut.cherri
+      - .github/workflows/scarlet-shortcut-nas-hubsign.yml
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  sign-nas-shortcut:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download pinned Cherri 2.3.0 binary
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/cherri dist
+          curl -fLsS --retry 3 https://github.com/electrikmilk/cherri/releases/download/v2.3.0/cherri_linux-x86_64.zip -o /tmp/cherri.zip
+          unzip -oq /tmp/cherri.zip -d /tmp/cherri
+          CHERRI=$(find /tmp/cherri -type f -name cherri | head -1)
+          test -n "$CHERRI"
+          chmod +x "$CHERRI"
+          echo "CHERRI=$CHERRI" >> "$GITHUB_ENV"
+      - name: Compile and sign genuine iOS Shortcut with NAS hop
+        shell: bash
+        run: |
+          set -euo pipefail
+          "$CHERRI" shortcuts/scarlet-nas-shortcut.cherri --hubsign \
+            --share=anyone --output=dist/Scarlet-Crystal-NAS-Latest.shortcut
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path("dist/Scarlet-Crystal-NAS-Latest.shortcut")
+          assert p.is_file() and p.stat().st_size>4000
+          assert p.read_bytes()[:4]==b"AEA1", "NOT_SIGNED_SHORTCUT"
+          source=Path("shortcuts/scarlet-nas-shortcut.cherri").read_text()
+          assert source.count("#question")==4
+          assert "runSSHScript" in source
+          assert "192.168.50.59" in source and "NAS_TO_PC_SSH_KEY_MISSING" in source
+          assert "scarlet_latest_publish.py" in source
+          assert "openURL" in source
+          assert "sshpass" not in source and "StrictHostKeyChecking=no" not in source
+          print("[PASS] SIGNED_NAS_RELAY_SHORTCUT",p.stat().st_size)
+          PY
+      - name: Publish signed NAS Shortcut as separate release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          TAG=scarlet-nas-shortcut-v1
+          if gh release view "$TAG" -R "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo '[STOP] EXISTING_RELEASE_PRESERVED'
+            exit 4
+          fi
+          gh release create "$TAG" -R "$GITHUB_REPOSITORY" \
+            --target "$GITHUB_SHA" \
+            --title "Scarlet Crystal - iPhone Shortcut via NAS" \
+            --notes "Native iOS Shortcuts app. Connects via built-in Run SSH Script to NAS, then via pre-authorized NAS SSH key to CachyOS to verify/sign/publish newest Scarlet IPA and open Safari install page. No Termius. On import, user supplies NAS external SSH host/port/user/password. NAS-to-PC SSH key trust must already work; no secret key exported. Apple Development OTA may be rejected; no on-device install verified." \
+            dist/Scarlet-Crystal-NAS-Latest.shortcut
+          echo '[PASS] SIGNED_NAS_SHORTCUT_RELEASE_PUBLISHED'
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: scarlet-nas-shortcut-binary
+          path: dist/
+          if-no-files-found: warn
