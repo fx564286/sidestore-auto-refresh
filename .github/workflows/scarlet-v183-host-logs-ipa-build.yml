@@ -188,10 +188,16 @@ jobs:
           python3 -m unittest discover -s builder/tests -p test_v189_login_entry.py -v
           python3 builder/scripts/patch_v189_login_entry.py work/LiveContainer
           python3 builder/scripts/patch_v189_login_entry.py work/LiveContainer
+          python3 -m unittest discover -s builder/tests -p test_v189_auth_bridge_trace.py -v
+          python3 builder/scripts/patch_v189_auth_bridge_trace.py work/LiveContainer
+          python3 builder/scripts/patch_v189_auth_bridge_trace.py work/LiveContainer
+          swiftc -frontend -parse work/LiveContainer/SideStoreSupport/SideStore.swift
           swiftc -frontend -parse work/LiveContainer/LiveContainerSwiftUI/Views/V3UnifiedShell.swift
           grep -q SCARLET_V189_VERIFIABLE_UPDATE_IDENTITY work/LiveContainer/LiveContainerSwiftUI/Views/V3UnifiedShell.swift
           grep -q SCARLET_V189_CANCEL_INTENT_PER_SESSION work/LiveContainer/LiveContainerSwiftUI/Views/V3UnifiedShell.swift
           grep -q SCARLET_V189_VISIBLE_LOGIN_ENTRY work/LiveContainer/LiveContainerSwiftUI/Views/V3UnifiedShell.swift
+          grep -q SCARLET_V189_AUTH_TRANSPORT_PHASE_TRACE work/LiveContainer/LiveContainerSwiftUI/Views/V3UnifiedShell.swift
+          grep -q SCARLET_V189_AUTH_TRANSPORT_PHASE_TRACE work/LiveContainer/SideStoreSupport/SideStore.swift
           if grep -q 'NRGOTASequence' work/LiveContainer/LiveContainerSwiftUI/Views/V3UnifiedShell.swift; then exit 12; fi
           if grep -q 'nrg-ota-v' work/LiveContainer/LiveContainerSwiftUI/Views/V3UnifiedShell.swift; then exit 13; fi
           echo '[PASS] V189_INSTALLED_BUILD_PROVENANCE_AND_CANCEL_DIAGNOSTICS'
