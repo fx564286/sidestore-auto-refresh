@@ -1,0 +1,64 @@
+name: Signed Scarlet on-tap request Shortcut
+on:
+  push:
+    branches:
+      - feat/scarlet-universal-shortcut-publisher-20261105
+    paths:
+      - shortcuts/scarlet-sign-on-tap.cherri
+      - .github/workflows/scarlet-shortcut-sign-on-tap.yml
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  signed-shortcut:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download pinned Cherri
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/cherri dist
+          curl -fLsS --retry 3 https://github.com/electrikmilk/cherri/releases/download/v2.3.0/cherri_linux-x86_64.zip -o /tmp/cherri.zip
+          unzip -oq /tmp/cherri.zip -d /tmp/cherri
+          CHERRI=$(find /tmp/cherri -type f -name cherri | head -1)
+          test -n "$CHERRI"
+          chmod +x "$CHERRI"
+          echo "CHERRI=$CHERRI" >> "$GITHUB_ENV"
+      - name: Compile and sign actual signing-trigger Shortcut
+        shell: bash
+        run: |
+          set -euo pipefail
+          "$CHERRI" shortcuts/scarlet-sign-on-tap.cherri --hubsign --share=anyone --output=dist/Scarlet-Crystal-Sign-on-Tap.shortcut
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path("dist/Scarlet-Crystal-Sign-on-Tap.shortcut")
+          s=Path("shortcuts/scarlet-sign-on-tap.cherri").read_text()
+          assert p.is_file() and p.stat().st_size>4000
+          assert p.read_bytes()[:4]==b"AEA1"
+          assert "jsonRequest(" in s and '"POST"' in s
+          assert "scarlet-sign-request.yml/dispatches" in s
+          assert "githubToken" in s and "runSSHScript" not in s
+          assert "openURL(" in s and "scarlet-sign.html" in s
+          print("[PASS] SIGNED_ON_TAP_GITHUB_DISPATCH_SHORTCUT",p.stat().st_size)
+          PY
+      - name: Publish iPhone signing Shortcut
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          TAG=scarlet-sign-on-tap-shortcut-v1
+          if gh release view "$TAG" -R "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "[STOP] Existing Shortcut release preserved"
+            exit 4
+          fi
+          gh release create "$TAG" -R "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --title "Scarlet Crystal - iPhone tap triggers local signing" --notes "iPhone native Shortcut. Upon tap, POSTs workflow_dispatch over HTTPS to GitHub, which the owner's CachyOS listener recognizes and uses to sign and publish the latest verified IPA with its existing local Apple key. No NAS port, SSH app, certificate or key is stored in Shortcut. On import, provide a fine-grained GitHub PAT with Actions write for this repository. PC agent must be installed once. Apple Development IPA OTA install may still be refused by iOS." dist/Scarlet-Crystal-Sign-on-Tap.shortcut
+          echo "[PASS] SIGNED_TRIGGER_SHORTCUT_RELEASED"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: scarlet-sign-on-tap-shortcut
+          path: dist/
+          if-no-files-found: warn
