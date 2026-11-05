@@ -100,7 +100,7 @@ class AuthLeaseDeadlineTests(unittest.TestCase):
         self.assertEqual(lease.patch_host(patched),patched)
         self.assertEqual(patched.count(lease.MARK),1)
         self.assertEqual(len(lease.PHASES),6)
-        for offset,(phase,event) in enumerate(lease.PHASES,start=15):
+        for offset,(phase,event) in enumerate(lease.PHASES,start=16):
             self.assertIn(f'case trace{offset} = "{event}"',patched)
             self.assertIn(f'case "{phase}": ScarletV183HostLog.record(.trace{offset})',patched)
         self.assertNotIn("Apple ID",patched)
