@@ -1,0 +1,38 @@
+/* Scarlet Crystal: signing request -> Safari install, no file handoff to app.
+   GitHub HTTP 204 is a zero-byte response, NOT an error attachment.
+   The Safari page independently checks signed IPA, manifest and SHA-256.
+   User-supplied GitHub PAT (Actions: read/write) stays on their iPhone.
+*/
+#define name "Scarlet Crystal 서명 후 Safari 설치"
+#define color purple
+#define glyph smileyFace
+#include 'actions/web'
+#include 'actions/documents'
+#question githubToken "GitHub Fine-grained PAT (Actions: Read and write)" ""
+@token = text(githubToken)
+if !@token {
+  alert("GitHub 인증 토큰이 없습니다. 저장소 이름이 아닌 PAT를 등록하세요.", "요청 중단")
+  stop()
+}
+if @token == "fx564286/sidestore-auto-refresh" {
+  alert("저장소 주소가 아닌 GitHub PAT가 필요합니다.", "요청 중단")
+  stop()
+}
+@response = jsonRequest(
+  "https://api.github.com/repos/fx564286/sidestore-auto-refresh/actions/workflows/scarlet-sign-request.yml/dispatches",
+  "POST",
+  {"ref": "main"},
+  {"Authorization": "Bearer {@token}", "Accept": "application/vnd.github+json", "X-GitHub-Api-Version": "2022-11-28"}
+)
+/* Cherri's GET URL Contents may return an empty file named dispatches for
+   HTTP 204. Check the BYTE SIZE, not whether the file reference exists.
+   Never show Quick Look / Open In / Copy to Scarlet Crystal for zero bytes. */
+@bytes = getFileDetail(@response, "File Size")
+if @bytes > 0 {
+  alert("GitHub가 오류 본문을 반환했습니다. 아래의 진단을 확인하세요. 토큰은 출력하지 않습니다.", "요청 오류")
+  quicklook(@response)
+  stop()
+}
+/* Present a Safari web view, not an iOS document Open-In sheet or
+   a URL targeting the installed Scarlet Crystal app. */
+showWebpage("https://fx564286.github.io/sidestore-auto-refresh/scarlet-sign-install.html")
