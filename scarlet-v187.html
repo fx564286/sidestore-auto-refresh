@@ -1,29 +1,25 @@
 <!doctype html>
-<html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#10131d">
-<title>Scarlet Crystal V187 — iPhone 설치</title>
-<style>
-:root{color-scheme:dark}*{box-sizing:border-box}body{margin:0;background:#10131d;color:#eff3ff;font:15px/1.65 -apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo",sans-serif;padding:calc(env(safe-area-inset-top) + 44px) 18px calc(env(safe-area-inset-bottom) + 40px)}
-main{max-width:570px;margin:auto}header{margin-bottom:26px}.badge{display:inline-block;padding:5px 10px;border:1px solid #40536f;border-radius:20px;color:#a4cef6;font-size:12px}h1{margin:14px 0 5px;font-size:29px;line-height:1.25}p{margin:9px 0;color:#c6cbdb}.card{background:#1b2131;border:1px solid #37425b;border-radius:18px;padding:20px;margin:14px 0}h2{font-size:18px;line-height:1.3;margin:0 0 12px}a.action{display:block;text-align:center;text-decoration:none;padding:13px 14px;border-radius:12px;font-weight:700;margin:13px 0;color:#fff;background:#766bf8}a.alt{background:transparent;border:1px solid #70809c;color:#d9def5}small{color:#9faac1}ol{padding-left:24px;margin:10px 0}li{margin:10px 0}.notice{border-left:3px solid #f2bc86;padding-left:14px;color:#e6c0a4}.footer{font-size:12px;color:#a6aec1;margin:24px 0;overflow-wrap:anywhere}a{color:#afaaff}code{color:#f0c7e6}
-</style></head><body><main>
-<header><span class="badge">Scarlet Crystal · iPhone 전용 설치 가이드</span><h1>Scarlet Crystal V187</h1><p>PC·NAS 없이 iPhone 사파리에서 V187을 가져오는 경로입니다.</p></header>
-<div class="card"><h2>① SideInstaller가 이미 설치된 경우</h2>
-<p>아래 링크를 누르면 SideInstaller가 공개된 V187 IPA를 내려받아, 사용자의 Apple 계정으로 서명·설치를 진행합니다. 앱에서 URL을 확인한 후 승인하세요.</p>
-<a class="action" href="sideinstaller://install?url=https%3A%2F%2Fgithub.com%2Ffx564286%2Fsidestore-auto-refresh%2Freleases%2Fdownload%2Fscarlet-v187-unsigned-20261105%2FScarlet-Crystal-V187-AUTH-CANCEL-FIX-UNSIGNED.ipa">SideInstaller에서 V187 열기</a>
-<small>SideInstaller 1.6.5 등의 <code>sideinstaller://install?url=</code> 지원 버전이 필요합니다. 연결할 앱이 없으면 ②를 진행하세요.</small>
-</div>
-<div class="card"><h2>② SideInstaller가 없는 경우</h2>
-<ol><li>아이폰 사파리에서 SideInstaller 공식 설치 페이지를 여세요.</li><li>페이지의 <strong>DNS Profile</strong> 설치 → 설정 → 일반 → VPN 및 기기 관리에서 DNS 설정을 완료하세요.</li><li>페이지에서 <strong>유효한 인증서</strong>가 있는 경우에만 설치를 누르세요.</li><li>개발자 신뢰를 허용한 뒤 SideInstaller를 열고, 이 페이지로 돌아와 ①을 누르세요.</li></ol>
-<a class="action alt" href="https://sideinstaller.net/">SideInstaller 설치 페이지</a>
-<p class="notice">SideInstaller 공개 인증서가 모두 취소되었을 수 있습니다. 유효한 서명 인증서가 없으면 새로 설치할 수 없습니다. DNS 프로파일만으로 Scarlet Crystal이 설치되지는 않습니다.</p>
-</div>
-<div class="card"><h2>③ V187 IPA 직접 다운로드</h2>
-<p>SideInstaller에서 ‘사용자 지정 IPA’ → 파일 가져오기로 설치할 수도 있습니다.</p>
-<a class="action alt" href="https://github.com/fx564286/sidestore-auto-refresh/releases/download/scarlet-v187-unsigned-20261105/Scarlet-Crystal-V187-AUTH-CANCEL-FIX-UNSIGNED.ipa">V187 IPA 받기 (24.2 MB, 미서명)</a>
-<small>빌드: 41861123589 · SHA-256: <code>f4f24e0e6c218048bc64c3c1edcd038bced1491dd467df67ab353fdfd37a74ae</code></small>
-</div>
-<div class="card"><h2>중요: 설치 전 확인</h2>
-<p class="notice">V187은 <strong>미서명</strong> 빌드입니다. 기존 Scarlet Crystal의 데이터·인증서·App Group을 유지하려면 현재 설치된 앱과 동일한 App ID, 팀 및 권한을 사용하는지 설치 전에 확인해야 합니다. 불일치하면 기존 앱을 삭제하거나 덮어쓰지 마세요.</p>
-<p>SideInstaller에서도 서명, 프로비저닝, 페어링, Apple 로그인 단계가 실패할 수 있으며, 이 경로의 V187 실기기 설치 성공은 아직 검증되지 않았습니다.</p>
-</div>
-<p class="footer"><a href="https://github.com/fx564286/sidestore-auto-refresh/releases/tag/scarlet-v187-unsigned-20261105">V187 공개 배포 검증 정보</a> · <a href="https://github.com/fx564286/sidestore-auto-refresh/actions/runs/41861123589">CI 빌드</a></p>
-</main></body></html>
+<html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#121522"><title>Scarlet Crystal V187 | Safari OTA</title>
+<style>:root{color-scheme:dark}*{box-sizing:border-box}body{margin:0;padding:calc(env(safe-area-inset-top) + 40px) 18px calc(env(safe-area-inset-bottom) + 45px);font:15px/1.6 -apple-system,BlinkMacSystemFont,'Apple SD Gothic Neo',sans-serif;color:#f1f2fc;background:#121522}main{max-width:540px;margin:auto}h1{font-size:29px;margin:13px 0 4px;line-height:1.25}h2{font-size:18px;margin:0 0 8px}p{color:#c9d0df}.label{font-size:12px;color:#a5baff;letter-spacing:.05em}section{background:#1c2334;border:1px solid #38455d;border-radius:20px;padding:20px;margin:18px 0}a.button{display:block;text-align:center;text-decoration:none;padding:14px 10px;border-radius:12px;background:#716af6;color:#fff;font-weight:700;margin:14px 0}a.secondary{border:1px solid #7582a0;color:#f1f2fc;background:none}a.disabled{background:#4b5264;color:#c5cada;pointer-events:none;cursor:not-allowed}small{color:#aeb7cb}li{margin:8px 0}.warn{color:#ffc49c}.status{font-weight:700;color:#f5c7a1}.footer{color:#aeb7cb;font-size:12px}a{color:#b7b3ff}code{overflow-wrap:anywhere;color:#efd7fc}</style></head><body><main>
+<span class="label">SCARLET CRYSTAL · iOS SAFARI</span><h1>V187 직접 설치</h1><p>V116과 동일한 사파리 OTA 구조. PC · NAS · SideInstaller 없이 사용할 설치 경로를 준비했습니다.</p>
+<section><h2>① 서명본 배포 상태</h2><p class="status" id="status">서명된 V187 IPA 확인 중…</p><a class="button disabled" id="install" aria-disabled="true" href="itms-services://?action=download-manifest&url=https%3A%2F%2Ffx564286.github.io%2Fsidestore-auto-refresh%2FScarlet-V187-SIGNED-manifest.plist">사파리에서 Scarlet Crystal V187 설치</a><p class="warn" id="note">서명본이 확인되기 전에는 설치 버튼이 비활성화됩니다. 미서명 IPA나 프로파일 바로가기만으로 앱을 설치할 수 없습니다.</p></section>
+<section><h2>② 설치 절차</h2><ol><li>아이폰 Safari에서 이 페이지를 엽니다.</li><li>위 버튼이 활성화되면 탭해 iOS 설치 확인창을 엽니다.</li><li>Apple이 허용하는 배포 서명·프로비저닝이 있으면 iOS가 앱을 설치합니다.</li><li>기존 설치 앱의 App ID, Team, Keychain 및 App Group 권한이 다르면 설치를 중단하고 기존 앱을 삭제하지 마세요.</li></ol></section>
+<section><h2>③ 빌드 파일 및 검증</h2><p>V187 컴파일 완료, 미서명 원본 IPA는 아래 GitHub Releases에서 확인할 수 있습니다.</p><a class="button secondary" href="https://github.com/fx564286/sidestore-auto-refresh/releases/download/scarlet-v187-unsigned-20261105/Scarlet-Crystal-V187-AUTH-CANCEL-FIX-UNSIGNED.ipa">V187 미서명 IPA 다운로드</a><small>소스 SHA 12d1ed652e82fc7fbfdf6fd78f404b6901db8316 · 빌드 실행 41861123589 · 설치 테스트 미완료</small></section>
+<p class="footer">OTA 매니페스트: <a href="https://fx564286.github.io/sidestore-auto-refresh/Scarlet-V187-SIGNED-manifest.plist">Scarlet-V187-SIGNED-manifest.plist</a><br>현재 유효한 프로파일과 Apple Distribution/Ad Hoc 등 OTA 허용 배포 조건을 충족해야 하며 실제 설치 성공을 보장하지 않습니다.</p>
+<script>
+(async()=>{
+ const status=document.getElementById('status'),note=document.getElementById('note'),btn=document.getElementById('install');
+ try{
+  const response=await fetch('https://api.github.com/repos/fx564286/sidestore-auto-refresh/releases/tags/scarlet-v187-ota-signed-20261105',{cache:'no-store'});
+  if(!response.ok){status.textContent='미준비: 서명된 V187 IPA가 아직 게시되지 않았습니다.';return;}
+  const data=await response.json();
+  const asset=(data.assets||[]).find(x=>x.name==='Scarlet-Crystal-V187-SIGNED.ipa' && x.state==='uploaded' && x.size>1000000);
+  if(!asset){status.textContent='미준비: V187 서명 IPA 업로드 대기 중';return;}
+  status.textContent='V187 서명 IPA 게시 확인 — iOS 설치 검증은 별도 필요';
+  status.style.color='#b6ecd8';
+  note.textContent='설치하기 전 기존 Bundle ID와 App Group/Keychain 권한을 확인하세요. 기존 앱 삭제 금지. 실제 iOS 설치 여부는 검증되지 않았습니다.';
+  btn.classList.remove('disabled');btn.removeAttribute('aria-disabled');
+ }catch(e){status.textContent='GitHub 배포 상태 확인에 실패했습니다. 새로고침해 확인하세요.';}
+})();
+</script></main></body></html>
