@@ -1,4 +1,4 @@
-name: Scarlet Crystal V188 - native auth cancellation unblock (iOS IPA)
+name: Scarlet Crystal V188 - native App Group and profile-aware refresh (iOS IPA)
 
 on:
   workflow_dispatch:
@@ -182,8 +182,8 @@ jobs:
           grep -q SCARLET_V186_AUTH_BEGIN_OUTCOME work/LiveContainer/LiveContainerSwiftUI/Views/V3UnifiedShell.swift
           python3 -m unittest discover -s builder/tests -p test_v187_service_auth_cancel_nonblocking.py -v \
             2>&1 | tee artifacts/logs/v187-service-auth-cancel-tests.log
-          grep -q SCARLET_V188_AUTH_CANCEL_NONBLOCKING work/EmbeddedSideStore/SideStore/Core/Service/V3HeadlessRuntime.swift 2>/dev/null || \
-            grep -R -q SCARLET_V188_AUTH_CANCEL_NONBLOCKING work/EmbeddedSideStore/AltStore work/EmbeddedSideStore/SideStore
+          grep -q SCARLET_V187_AUTH_CANCEL_NONBLOCKING work/EmbeddedSideStore/SideStore/Core/Service/V3HeadlessRuntime.swift 2>/dev/null || \
+            grep -R -q SCARLET_V187_AUTH_CANCEL_NONBLOCKING work/EmbeddedSideStore/AltStore work/EmbeddedSideStore/SideStore
           grep -R -q 'auth.requestCancellation(id: target)' work/EmbeddedSideStore/AltStore work/EmbeddedSideStore/SideStore
           grep -q 'auth.begin_locally_cancelled' work/LiveContainer/LiveContainerSwiftUI/Views/V3UnifiedShell.swift
           grep -q 'V3AuthStore.shared' work/LiveContainer/LiveContainerSwiftUI/Views/V3UnifiedShell.swift
