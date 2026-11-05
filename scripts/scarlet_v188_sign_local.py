@@ -219,9 +219,23 @@ def sign(host,exts,staging):
     command(args+["--shallow","--entitlements-xml-file",
                   staging/"Main.entitlements.plist",host])
     print("[PASS] HOST_APP_SIGNED",flush=True)
-    for label,path in [("Main",host),*[(x,exts[x]) for x in exts]]:
-        command([RC,"verify",path])
-        print("[PASS] RCODESIGN_VERIFY",label,flush=True)
+    # rcodesign 0.29.0 'verify' accepts a Mach-O file, NOT a .app/.appex
+    # bundle. Resolve each signed bundle's CFBundleExecutable safely.
+    for label,bundle in [("Main",host),*[(x,exts[x]) for x in exts]]:
+        info=bundle/"Info.plist"
+        require(info.is_file(),"SIGNED_BUNDLE_INFO_MISSING_"+label)
+        meta=plistlib.loads(info.read_bytes())
+        executable_name=meta.get("CFBundleExecutable")
+        require(isinstance(executable_name,str) and executable_name
+                and executable_name not in (".","..")
+                and "/" not in executable_name and "\\\\" not in executable_name,
+                "SIGNED_BUNDLE_EXECUTABLE_NAME_INVALID_"+label)
+        executable=bundle/executable_name
+        require(executable.is_file()
+                and executable.resolve().is_relative_to(bundle.resolve()),
+                "SIGNED_BUNDLE_MACHO_NOT_FOUND_"+label)
+        command([RC,"verify",executable])
+        print("[PASS] RCODESIGN_VERIFY_MACHO",label,flush=True)
 
 def package(staging):
     temp=RESULT.with_name(RESULT.name+".partial")
