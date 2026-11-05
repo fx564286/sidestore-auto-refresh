@@ -1,0 +1,69 @@
+name: Scarlet Crystal on-tap Safari installer Shortcut v3
+on:
+  push:
+    branches:
+      - feat/scarlet-universal-shortcut-publisher-20261105
+    paths:
+      - shortcuts/scarlet-sign-to-safari-v3.cherri
+      - .github/workflows/scarlet-shortcut-sign-to-safari-v3.yml
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  shortcut:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download pinned Cherri compiler
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/cherri dist
+          curl -fLsS --retry 3 https://github.com/electrikmilk/cherri/releases/download/v2.3.0/cherri_linux-x86_64.zip -o /tmp/cherri.zip
+          unzip -oq /tmp/cherri.zip -d /tmp/cherri
+          CHERRI=$(find /tmp/cherri -type f -name cherri | head -1)
+          test -n "$CHERRI"
+          chmod +x "$CHERRI"
+          echo "CHERRI=$CHERRI" >> "$GITHUB_ENV"
+      - name: Build iOS-importable Safari install Shortcut
+        shell: bash
+        run: |
+          set -euo pipefail
+          "$CHERRI" shortcuts/scarlet-sign-to-safari-v3.cherri --hubsign --share=anyone --output=dist/Scarlet-Crystal-Sign-Then-Safari.shortcut
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path("dist/Scarlet-Crystal-Sign-Then-Safari.shortcut")
+          s=Path("shortcuts/scarlet-sign-to-safari-v3.cherri").read_text()
+          assert p.is_file() and p.stat().st_size>4000
+          assert p.read_bytes()[:4]==b"AEA1"
+          for item in ('#question githubToken', '"POST"', 'Bearer {@token}',
+                       'scarlet-sign-request.yml/dispatches', 'getFileDetail(@response, "File Size")',
+                       'if !@token', 'stop()', 'scarlet-sign-install.html'):
+            assert item in s,item
+          assert 'if @bytes > 0' in s
+          assert 'showWebpage(' in s
+          assert 'quicklook(@response)' in s
+          assert 'openURL(' not in s
+          assert 'runSSHScript' not in s and 'github_pat_' not in s
+          print("[PASS] SIGNED_SHORTCUT_204_EMPTY_SAFARI_ROUTE",p.stat().st_size)
+          PY
+      - name: Publish verified Safari installer Shortcut
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          TAG=scarlet-sign-to-safari-shortcut-v3
+          if gh release view "$TAG" -R "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "[STOP] Existing v2 shortcut preserved"
+            exit 4
+          fi
+          gh release create "$TAG" -R "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --title "Scarlet Crystal - iPhone sign then Safari installer v3" --notes "Signed iPhone Shortcut. GitHub HTTP 204 empty 0-byte result is not treated as a file to open in Scarlet Crystal. Non-empty GitHub API error is shown; successful request opens Safari view with independently verified signed IPA OTA installation button. A development-signed IPA may not be accepted by Safari OTA. No key or PAT embedded. Device installation not validated." dist/Scarlet-Crystal-Sign-Then-Safari.shortcut
+          echo '[PASS] SCARLET_SHORTCUT_V3_PUBLISHED'
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: scarlet-sign-to-safari-v3
+          path: dist/
+          if-no-files-found: warn
