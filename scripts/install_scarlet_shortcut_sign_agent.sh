@@ -8,7 +8,7 @@ BIN="$BASE/latest-publisher"
 STATE="$HOME/.local/state/scarlet-crystal-shortcut-sign"
 UNIT_DIR="$HOME/.config/systemd/user"
 SERVICE="$UNIT_DIR/scarlet-shortcut-sign-agent.service"
-AGENT_URL="https://raw.githubusercontent.com/fx564286/sidestore-auto-refresh/b0ab9f93bd4d00a2db9d9b29d826bb218c285c33/tools/scarlet_shortcut_sign_agent.py"
+AGENT_URL="https://raw.githubusercontent.com/fx564286/sidestore-auto-refresh/18c1eb12136397bb27316dbe2551407c330027ce/tools/scarlet_shortcut_sign_agent.py"
 
 stop(){ echo "[STOP] $*" >&2; exit 2; }
 [[ "$(id -u)" != 0 ]] || stop 'DO_NOT_RUN_AS_ROOT'
