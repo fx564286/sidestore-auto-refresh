@@ -5,6 +5,8 @@ on:
       - fix/scarlet-v191-auth-lease-deadline-20261106
     paths:
       - scripts/patch_v191_auth_lease_deadline.py
+      - scripts/patch_v191_settings_control_actions.py
+      - tests/test_v191_settings_control_actions.py
       - tests/test_v191_auth_lease_deadline.py
       - .github/workflows/scarlet-v191-auth-lease-regression.yml
   workflow_dispatch:
@@ -23,6 +25,7 @@ jobs:
           python3 -m py_compile scripts/patch_v191_auth_lease_deadline.py
           python3 -m unittest discover -s tests -p test_v189_auth_bridge_trace.py -v
           python3 -m unittest discover -s tests -p test_v191_auth_lease_deadline.py -v
+          python3 -m unittest discover -s tests -p test_v191_settings_control_actions.py -v
       - name: Check Swift syntax of actual patched pinned host bridge
         shell: bash
         run: |
