@@ -123,6 +123,16 @@ def analyze_profile(p, expected_bundle, local, apple):
         "expires":p.get("ExpirationDate"),
     }
 
+def authorization_identities(result):
+    if not all(result[k] for k in ("bundle_ok","group_ok","live","device")):
+        return set()
+    return set(result["profile_matches"]) & set(result["apple_matches"])
+
+def common_signing_identity(identities_per_bundle):
+    return (len(identities_per_bundle)==len(BUNDLES) and
+            all(identities_per_bundle) and
+            bool(set.intersection(*identities_per_bundle)))
+
 def main():
     os.umask(0o077)
     if not CA.is_file() or CA.stat().st_size < 1000:
@@ -190,9 +200,8 @@ def main():
         label="Main" if bundle==APP else bundle.rsplit(".",1)[-1]
         file=dest/(label+".mobileprovision")
         file.write_bytes(raw);file.chmod(0o600)
-        shared_identities=set(result["profile_matches"]) & set(result["apple_matches"])
-        ok=(result["bundle_ok"] and result["group_ok"] and result["live"] and
-            result["device"] and bool(shared_identities))
+        shared_identities=authorization_identities(result)
+        ok=bool(shared_identities)
         all_good=all_good and ok
         if ok:
             consistent_identities.append(shared_identities)
@@ -206,7 +215,7 @@ def main():
         print("[PROFILE_DATES] %s created=%s expires=%s" %
               (label,str(result["created"]),str(result["expires"])),flush=True)
     print("[CANDIDATE_PROFILES]",dest,flush=True)
-    if all_good and consistent_identities and set.intersection(*consistent_identities):
+    if all_good and common_signing_identity(consistent_identities):
         print("[PASS] FOUR_APPLE_PROFILES_AUTHORIZE_SAME_RECOVERED_IDENTITY",flush=True)
         print("[NEXT] Verify actual IPA entitlements + existing Team ID before signing",flush=True)
         return 0
