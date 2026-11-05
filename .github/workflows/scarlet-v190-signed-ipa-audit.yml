@@ -5,6 +5,7 @@ on:
       - fix/scarlet-v190-auth-transport-20261106
     paths:
       - support/audit_signed_ipa_provisioning.py
+      - support/scarlet-v190-paired-device-upgrade.sh
       - .github/workflows/scarlet-v190-signed-ipa-audit.yml
   workflow_dispatch:
 permissions:
@@ -23,6 +24,17 @@ jobs:
           set -euo pipefail
           mkdir -p published reports
           python3 -m py_compile support/audit_signed_ipa_provisioning.py
+          bash -n support/scarlet-v190-paired-device-upgrade.sh
+          python3 - <<'PY'
+          from pathlib import Path
+          s=Path("support/scarlet-v190-paired-device-upgrade.sh").read_text()
+          assert "upgrade \"$DEST/$FILE\"" in s
+          assert 'sha256sum -c -' in s
+          assert 'Existing Scarlet Crystal host not found' in s
+          for forbidden in ('ideviceinstaller uninstall', 'rm -rf /', 'gh release delete'):
+              assert forbidden not in s
+          print("[PASS] PAIRED_UPGRADE_READONLY_PREFLIGHT_SAFETY_CONTRACT")
+          PY
           for v in 189 190; do
             tag="scarlet-v${v}-device-signed-20261105"
             file="Scarlet-Crystal-V${v}-SIGNED-DEVELOPMENT.ipa"
