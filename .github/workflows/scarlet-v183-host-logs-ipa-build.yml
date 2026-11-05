@@ -1,10 +1,10 @@
-name: Scarlet Crystal V188 - native App Group and profile-aware refresh (iOS IPA)
+name: Scarlet Crystal V189 - signed OTA identity and Liquid Glass preservation (iOS IPA)
 
 on:
   workflow_dispatch:
   push:
     branches:
-      - fix/scarlet-v188-native-renewal-guard-20261105
+      - fix/scarlet-v189-ota-build-identity-20261105
     paths:
       - ".github/workflows/scarlet-v183-host-logs-ipa-build.yml"
       - ".github/workflows/scarlet-v181-design-auth-build.yml"
@@ -17,7 +17,7 @@ permissions:
 
 # One push build only, avoiding PR + push duplicate runner acquisition.
 concurrency:
-  group: scarlet-v188-host-auth-integrated-${{ github.ref }}
+  group: scarlet-v189-host-auth-integrated-${{ github.ref }}
   cancel-in-progress: false
 
 jobs:
@@ -163,6 +163,13 @@ jobs:
           python3 -m unittest discover -s builder/tests -p test_v182_p00_auth_cancel.py -v \
             2>&1 | tee artifacts/logs/v182-p00-auth-cancel-tests.log
 
+      - name: V189 signed release identity and installed build label regression tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m unittest discover -s builder/tests -p test_v189_ota_build_identity.py -v
+          echo '[PASS] V189_OTA_IDENTITY_SOURCE_CONTRACT'
+
       - name: Forward-port user's original dock and unified shell instead of replacing with stock
         shell: bash
         run: |
@@ -211,6 +218,8 @@ jobs:
           grep -R -q 'auth.requestCancellation(id: target)' work/EmbeddedSideStore/AltStore work/EmbeddedSideStore/SideStore
           grep -q 'auth.begin_locally_cancelled' work/LiveContainer/LiveContainerSwiftUI/Views/V3UnifiedShell.swift
           grep -q 'V3AuthStore.shared' work/LiveContainer/LiveContainerSwiftUI/Views/V3UnifiedShell.swift
+          grep -q 'SCARLET_V189_SIGNED_RELEASE_IDENTITY' work/LiveContainer/LiveContainerSwiftUI/Views/V3UnifiedShell.swift
+          grep -q 'ScarletBuildLabel' work/LiveContainer/LiveContainerSwiftUI/Views/V3UnifiedShell.swift
           grep -q ScarletCrystalDiagnostics work/LiveContainer/LiveContainerSwiftUI/Views/V3UnifiedShell.swift
           grep -q 'Share Log File' work/LiveContainer/LiveContainerSwiftUI/Views/V3UnifiedShell.swift
           swiftc -frontend -parse work/LiveContainer/LiveContainerSwiftUI/Views/V3UnifiedShell.swift
@@ -256,29 +265,29 @@ jobs:
               ASSETCATALOG_COMPILER_APPICON_NAME= \
               COMPILER_INDEX_STORE_ENABLE=NO build
 
-      - name: Package Scarlet Crystal V188 unsigned IPA (source-checked, device-unverified)
+      - name: Package Scarlet Crystal V189 unsigned IPA (source-checked, device-unverified)
         shell: bash
         timeout-minutes: 15
         run: |
           set -euo pipefail
           if ! command -v ldid >/dev/null; then brew install ldid; fi
-          python3 builder/scripts/v188_package_fork.py \
+          python3 builder/scripts/v189_package_fork.py \
             --root work/LiveContainer \
             --host "$RUNNER_TEMP/v178-lc/Build/Products/Release-iphoneos/LiveContainer.app" \
             --side "$RUNNER_TEMP/v178-sidestore/Build/Products/Release-iphoneos/SideStore.app" \
             --pin-file builder/config/scarlet-upstream-pins.json \
-            --output "$GITHUB_WORKSPACE/artifacts/Scarlet-Crystal-V188-NATIVE-RENEWAL-UNSIGNED.ipa" \
+            --output "$GITHUB_WORKSPACE/artifacts/Scarlet-Crystal-V189-OTA-IDENTITY-UNSIGNED.ipa" \
             2>&1 | tee artifacts/logs/v181-package.log
-          test -s artifacts/Scarlet-Crystal-V188-NATIVE-RENEWAL-UNSIGNED.ipa
-          test -s artifacts/Scarlet-Crystal-V188-NATIVE-RENEWAL-UNSIGNED.json
+          test -s artifacts/Scarlet-Crystal-V189-OTA-IDENTITY-UNSIGNED.ipa
+          test -s artifacts/Scarlet-Crystal-V189-OTA-IDENTITY-UNSIGNED.json
 
-      - name: Upload compiled Scarlet Crystal V188 Auth Cancel Fix IPA (unsigned, iPhone unverified)
+      - name: Upload compiled Scarlet Crystal V189 Update Identity Fix IPA (unsigned, iPhone unverified)
         uses: actions/upload-artifact@v4
         with:
-          name: Scarlet-Crystal-V188-NATIVE-RENEWAL-UNSIGNED
+          name: Scarlet-Crystal-V189-OTA-IDENTITY-UNSIGNED
           path: |
-            artifacts/Scarlet-Crystal-V188-NATIVE-RENEWAL-UNSIGNED.ipa
-            artifacts/Scarlet-Crystal-V188-NATIVE-RENEWAL-UNSIGNED.json
+            artifacts/Scarlet-Crystal-V189-OTA-IDENTITY-UNSIGNED.ipa
+            artifacts/Scarlet-Crystal-V189-OTA-IDENTITY-UNSIGNED.json
           if-no-files-found: error
           retention-days: 30
 
