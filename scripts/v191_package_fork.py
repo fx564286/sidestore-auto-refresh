@@ -20,7 +20,7 @@ def stamp_v191(host):
     previous_stamp(host)
     info_path=host/"Info.plist"
     info=plistlib.loads(info_path.read_bytes())
-    if info.get("CFBundleVersion")!="3.8.204" or info.get("ScarletBuildLabel")!="V191":
+    if info.get("CFBundleVersion")!="3.8.204" or info.get("ScarletBuildLabel")!="V190":
         raise RuntimeError("Unexpected compiled parent or V190 packaging identity")
     info["CFBundleVersion"]="3.8.205"
     info["ScarletBuildLabel"]="V191"
