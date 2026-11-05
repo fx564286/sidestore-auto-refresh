@@ -12,9 +12,9 @@ async function check(){
   const url="https://fx564286.github.io/sidestore-auto-refresh/scarlet-sign-status.json?time="+Date.now();
   const r=await fetch(url,{cache:"no-store"});if(!r.ok)throw Error("network");
   const data=await r.json();
-  const states={not_configured:"PC 서명 요청 처리 서비스 미설치",running:"PC에서 최신 IPA 서명·게시 진행 중",published:"서명 IPA 게시 완료",failed:"서명 또는 배포 실패"};
+  const states={not_configured:"첫 서명 요청이 아직 확인되지 않았습니다",running:"PC에서 최신 IPA 서명·게시 진행 중",published:"서명 IPA 게시 완료",failed:"서명 또는 배포 실패"};
   title.textContent=states[data.status]||"서명 상태 불명";
-  message.textContent=data.message||"진행 기록 없음";
+  message.textContent=data.status==="not_configured" ? "GitHub 상태 파일이 초기값입니다. 이 화면만으로 PC 서비스의 설치·실행 상태를 판단할 수 없습니다. 단축어의 GitHub POST 응답과 Actions 실행 기록을 확인하세요." : (data.message||"진행 기록 없음");
   const updated=data.updated_at?new Date(data.updated_at).toLocaleString("ko-KR"):"없음";
   info.textContent="GitHub 요청 번호: "+(data.request_run_id||"없음")+" · 상태 업데이트: "+updated;
  }catch(e){title.textContent="상태 조회 실패";message.textContent="GitHub Pages 연결을 확인해."}
