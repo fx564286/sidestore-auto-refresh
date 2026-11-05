@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>PayloadType</key><string>Configuration</string>
+  <key>PayloadVersion</key><integer>1</integer>
+  <key>PayloadIdentifier</key><string>app.scarletcrystal.v188.safari.installportal</string>
+  <key>PayloadUUID</key><string>8A30D6D0-4558-4F9C-9A2C-A5B62F9E3976</string>
+  <key>PayloadDisplayName</key><string>Scarlet Crystal V188 설치 포털</string>
+  <key>PayloadDescription</key><string>Scarlet Crystal V188 설치 페이지에 연결하는 홈 화면 바로가기입니다. 이 프로파일 자체는 IPA 앱을 설치하거나 DNS, VPN, 인증서, 앱 데이터를 변경하지 않습니다. 실제 앱 설치에는 SideInstaller 서명 또는 적합한 Apple 배포 서명이 필요합니다.</string>
+  <key>PayloadOrganization</key><string>Scarlet Crystal</string>
+  <key>PayloadRemovalDisallowed</key><false/>
+  <key>PayloadContent</key>
+  <array>
+    <dict>
+      <key>PayloadType</key><string>com.apple.webClip.managed</string>
+      <key>PayloadVersion</key><integer>1</integer>
+      <key>PayloadIdentifier</key><string>app.scarletcrystal.v188.safari.installportal.webclip</string>
+      <key>PayloadUUID</key><string>783021A3-0A54-4662-8346-DA04D3396E82</string>
+      <key>PayloadDisplayName</key><string>Scarlet V188 설치</string>
+      <key>Label</key><string>Scarlet V188</string>
+      <key>URL</key><string>https://fx564286.github.io/sidestore-auto-refresh/scarlet-v188.html</string>
+      <key>FullScreen</key><false/>
+      <key>IsRemovable</key><true/>
+    </dict>
+  </array>
+</dict>
+</plist>
