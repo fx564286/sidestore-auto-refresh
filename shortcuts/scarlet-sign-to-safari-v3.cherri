@@ -27,7 +27,8 @@ if @token == "fx564286/sidestore-auto-refresh" {
 /* Cherri's GET URL Contents may return an empty file named dispatches for
    HTTP 204. Check the BYTE SIZE, not whether the file reference exists.
    Never show Quick Look / Open In / Copy to Scarlet Crystal for zero bytes. */
-@bytes = getFileDetail(@response, "File Size")
+@sizeDetail = getFileDetail(@response, "File Size")
+@bytes = number(@sizeDetail)
 if @bytes > 0 {
   alert("GitHub가 오류 본문을 반환했습니다. 아래의 진단을 확인하세요. 토큰은 출력하지 않습니다.", "요청 오류")
   quicklook(@response)
