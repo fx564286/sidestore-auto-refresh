@@ -5,6 +5,7 @@ from tempfile import TemporaryDirectory
 from unittest import TestCase, main, mock
 import os
 import subprocess
+import plistlib
 
 SRC=Path(__file__).resolve().parents[1]/"scripts/scarlet_v188_sign_local.py"
 spec=importlib.util.spec_from_file_location("v188_sign",SRC)
@@ -50,6 +51,10 @@ class PemSigningTests(TestCase):
             for n in ("LiveProcess","ShareExtension","LaunchAppExtension"):
                 exts[n]=Path(d)/(n+".appex")
                 exts[n].mkdir()
+            for label,bundle in [("Main",path),*[(n,exts[n]) for n in exts]]:
+                name="V188Host" if label=="Main" else label
+                (bundle/"Info.plist").write_bytes(plistlib.dumps({"CFBundleExecutable":name}))
+                (bundle/name).write_bytes(b"\xcf\xfa\xed\xfe")
             requests=[]
             def command(args,input=None):
                 requests.append([str(x) for x in args])
@@ -66,6 +71,12 @@ class PemSigningTests(TestCase):
                 self.assertIn(str(m.CERT),c)
                 self.assertNotIn("--p12-file",c)
                 self.assertNotIn("--p12-password-file",c)
+            verifications=[x for x in requests if len(x)>1 and x[1]=="verify"]
+            self.assertEqual(len(verifications),4)
+            for v in verifications:
+                self.assertNotIn(".app",str(v[-1])[-4:])
+                self.assertTrue(Path(v[-1]).is_file())
+                self.assertFalse(v[-1].endswith((".app",".appex")))
 
     def test_no_cert_rotation_or_secret_upload(self):
         s=SRC.read_text()
