@@ -5,7 +5,6 @@
 #define color purple
 #define glyph arrow.up.circle
 #include 'actions/network'
-#include 'actions/scripting'
 #include 'actions/web'
 
 #question sshHost "CachyOS PC SSH 주소" "cachyos-x8664.local"
