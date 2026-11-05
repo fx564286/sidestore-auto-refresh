@@ -3,7 +3,7 @@
 :root{color-scheme:dark}*{box-sizing:border-box}body{margin:0;padding:calc(30px + env(safe-area-inset-top)) 18px 40px;font:16px/1.6 -apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo",sans-serif;color:#f8f6ff;background:radial-gradient(at 0 0,#4b317b,#101326 65%);min-height:100dvh}main{max-width:550px;margin:auto}.card{margin:20px 0;padding:22px;border:1px solid #ffffff43;border-radius:25px;background:#ffffff1a;backdrop-filter:blur(28px)}h1{font-size:30px;line-height:1.3}p{color:#d4d2e9}a.btn{display:block;padding:15px 10px;text-align:center;text-decoration:none;border-radius:14px;background:#d3c5fc;color:#1b1336;font-weight:700}.hint{font-size:13px}.state{font-weight:700;color:#e9d0ff}code{word-break:break-all}
 </style></head><body><main>
 <h1>Scarlet Crystal<br>서명 요청 상태</h1><p>iPhone 단축어가 GitHub에 요청하면 CachyOS PC에서 기존 Apple 인증서로 서명해. Wi-Fi·5G 공용이며 SSH 앱은 사용하지 않아.</p>
-<section class="card"><h2 id="title">서명 상태 확인 중…</h2><p id="message" class="state">최신 요청 확인 중</p><p id="info" class="hint">새로고침하지 않아도 상태를 확인해.</p><a class="btn" href="./scarlet-latest.html">최신 실제 앱 설치 페이지</a></section>
+<section class="card"><h2 id="title">서명 상태 확인 중…</h2><p id="message" class="state">최신 요청 확인 중</p><p id="info" class="hint">새로고침하지 않아도 상태를 확인해.</p><p id="dispatch-status" class="state">GitHub 요청 접수 기록 조회 중…</p><p id="dispatch-detail" class="hint"></p><a class="btn" href="https://github.com/fx564286/sidestore-auto-refresh/actions/workflows/scarlet-sign-request.yml">GitHub에서 직접 서명 요청 (로그인 필요)</a><a class="btn" href="./scarlet-latest.html">최신 실제 앱 설치 페이지</a></section>
 <section class="card"><p class="hint">GitHub 빌드 성공·로컬 서명 성공·iPhone 앱 설치 성공은 서로 다른 단계야. 마지막 단계는 기기에서 확인해야 해. Apple Development 서명은 Safari OTA에서 거부될 수 있어. 기존 앱은 삭제하지 마.</p></section>
 </main><script>
 const title=document.querySelector("#title"),message=document.querySelector("#message"),info=document.querySelector("#info");let last="";
@@ -19,5 +19,24 @@ async function check(){
   info.textContent="GitHub 요청 번호: "+(data.request_run_id||"없음")+" · 상태 업데이트: "+updated;
  }catch(e){title.textContent="상태 조회 실패";message.textContent="GitHub Pages 연결을 확인해."}
 }
-check();setInterval(check,15000);
+async function checkDispatch(){
+ const status=document.getElementById("dispatch-status"),detail=document.getElementById("dispatch-detail");
+ try{
+  const api="https://api.github.com/repos/fx564286/sidestore-auto-refresh/actions/workflows/scarlet-sign-request.yml/runs?event=workflow_dispatch&per_page=5";
+  const response=await fetch(api,{cache:"no-store",headers:{"Accept":"application/vnd.github+json"}});
+  if(!response.ok)throw Error("GitHub API HTTP "+response.status);
+  const data=await response.json();
+  const runs=(data.workflow_runs||[]).filter(r=>r.event==="workflow_dispatch" && r.head_branch==="main" && r.actor && r.actor.login==="fx564286");
+  if(!runs.length){
+    status.textContent="GitHub 서명 요청 미접수";
+    detail.textContent="단축어에서 요청이 전송되지 않았습니다. GitHub 토큰(저장소 Actions: Write), Authorization 헤더와 POST 응답을 확인하세요.";
+    return;
+  }
+  const last=runs.sort((a,b)=>b.id-a.id)[0];
+  const when=last.created_at?new Date(last.created_at).toLocaleString("ko-KR"):"시간 확인 불가";
+  status.textContent="GitHub 서명 요청 접수됨 · "+when;
+  detail.textContent="요청 #"+last.id+" · GitHub 작업 상태: "+(last.conclusion||last.status||"알 수 없음")+" · PC 서명 완료 여부는 위 상태와 별개입니다.";
+ }catch(e){status.textContent="GitHub 요청 조회 실패";detail.textContent="GitHub Actions 페이지에서 직접 실행 기록을 확인하세요.";}
+}
+check();checkDispatch();setInterval(check,15000);setInterval(checkDispatch,15000);
 </script></body></html>
