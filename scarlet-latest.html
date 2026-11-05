@@ -34,13 +34,13 @@ li{margin:9px 0}
 <h2>기존 앱 유지 · V190 서명본</h2>
 <p id="status" class="status" aria-live="polite">서명 IPA 공개 상태 확인 중…</p>
 <p>버튼을 누르면 iOS의 <code>itms-services</code> 설치 경로가 열리고 실제 Scarlet Crystal 앱 설치를 요청해.</p>
-<a class="btn disabled" id="ota" aria-disabled="true" href="#">Scarlet Crystal V190 앱 설치</a>
+<a class="btn disabled" id="ota" aria-disabled="true" href="#">V190 Safari OTA 설치 시험 (Development 서명)</a>
 <a class="btn outline disabled" id="ipa" aria-disabled="true" href="#">서명된 V190 IPA 확인</a>
 <small>기존 설치 앱을 삭제하지 마. 동일한 Bundle ID 및 App Group으로 업데이트해야 앱 데이터가 유지될 수 있어.</small>
 </section>
 <section>
-<h2>서명·설치 조건</h2>
-<p>V190 서명본은 <strong>Apple Development 인증서</strong>와 기존 iPhone 등록 프로파일로 만들어졌어. 서명은 성공했지만 Safari OTA 배포용 Ad Hoc 서명이 아니므로 기기에서 설치가 거부될 수 있어.</p>
+<h2>서명·설치 조건 (실제 IPA 검사 완료)</h2>
+<p><strong>실제 서명 IPA 검증 결과:</strong> V190의 호스트와 확장 3개가 모두 <strong>Development</strong> 프로파일을 포함하고 있으며, App Group 권한·앱 식별자·만료 여부는 검증됐어. <strong>Ad Hoc 배포 프로파일은 포함돼 있지 않아.</strong></p><p>따라서 HTTPS 페이지나 .mobileconfig를 추가한다고 개발용 IPA가 Safari OTA 배포용으로 변환되지는 않아. Safari OTA 설치는 거부될 수 있으며, <strong>이 페이지에서 설치가 가능하다고 보장하지 않아.</strong></p>
 <p class="note">설치 버튼이 앱 다운로드를 시작해도 실제 설치·실행 성공은 별도로 확인해야 해. Apple이 설치를 거부하면 개발용 서명 IPA는 페어링된 PC 또는 적합한 Ad Hoc 배포 방식으로 설치해야 해.</p>
 </section>
 <section>
@@ -83,7 +83,7 @@ li{margin:9px 0}
     ota.href="itms-services://?action=download-manifest&url="+encodeURIComponent(manifest);
     ota.classList.remove("disabled");
     ota.removeAttribute("aria-disabled");
-    status.textContent="V190 서명 IPA·매니페스트·SHA-256 일치 확인 · Safari 설치 요청 가능";
+    status.textContent="V190 서명 파일 검증 완료 · Development 프로파일 (Safari OTA 설치 성공 미보장)";
     status.style.color="#bdedcc";
   }).catch(()=>{
     status.textContent="V190 서명 IPA 또는 OTA 매니페스트 미게시/불일치. 실제 앱 설치 버튼은 비활성화 상태.";
