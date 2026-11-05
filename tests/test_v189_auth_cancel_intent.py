@@ -56,7 +56,10 @@ class AuthCancelIntentTests(unittest.TestCase):
 
     def test_never_claim_server_cancel_terminal_on_local_intent(self):
         self.assertNotIn("authCancelTerminal",self.begin)
-        self.assertNotIn("cancellationConfirmed = true",self.begin)
+        # An unrelated authoritative reconciliation path may legitimately set this.
+        # The local RPC catch must never claim remote cancellation success.
+        catch=self.begin[self.begin.index("                let userCancelIntent ="):]
+        self.assertNotIn("cancellationConfirmed = true",catch[:catch.index("                throw error")])
         self.assertNotIn("authBeginUserCancellationSessions.removeAll()",self.updated)
 
     def test_fails_closed_without_predecessor(self):
