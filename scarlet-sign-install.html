@@ -57,7 +57,7 @@ async function refresh(){
    for(const a of [ui.install,ui.ipa]){a.classList.remove("disabled");a.removeAttribute("aria-disabled");}
    ui.title.textContent="Scarlet Crystal V"+verifiedVersion+" 서명본 확인";
    ui.state.textContent="서명 IPA·HTTPS 매니페스트·SHA-256 확인 완료";
-   ui.details.textContent="아래 설치 버튼을 눌러 iOS 설치 요청을 진행하세요. 이 단계를 누른다고 기존 홍수정 앱이 실행되지는 않습니다. 앱 설치 완료는 별도 확인이 필요합니다.";
+   ui.details.textContent="아래 설치 버튼을 눌러 iOS의 OTA 설치를 요청하세요. 기존 홍수정 앱으로 파일을 복사하는 방식은 사용하지 않습니다. 실제 설치 여부는 아이폰에서 확인해야 합니다.";
    ui.install.textContent="Scarlet Crystal V"+verifiedVersion+" 실제 앱 설치";
    return;
   }
