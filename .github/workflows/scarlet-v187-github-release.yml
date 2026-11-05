@@ -1,0 +1,67 @@
+name: Publish Scarlet Crystal V187 IPA download (unsigned)
+on:
+  push:
+    branches: [gh-pages]
+    paths:
+      - '.github/workflows/scarlet-v187-github-release.yml'
+  workflow_dispatch:
+permissions:
+  contents: write
+  actions: read
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Download successful V187 Xcode build
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -Eeuo pipefail
+          gh run download 41861123589 -R "${GITHUB_REPOSITORY}" \
+            --name Scarlet-Crystal-V187-AUTH-CANCEL-FIX-UNSIGNED --dir public-build
+          test -s public-build/Scarlet-Crystal-V187-AUTH-CANCEL-FIX-UNSIGNED.ipa
+          python3 - <<'PY'
+          import plistlib
+          from pathlib import Path
+          from zipfile import ZipFile
+          path=Path("public-build/Scarlet-Crystal-V187-AUTH-CANCEL-FIX-UNSIGNED.ipa")
+          with ZipFile(path) as z:
+              assert z.testzip() is None, "Damaged IPA archive"
+              names=set(z.namelist())
+              info=plistlib.loads(z.read("Payload/LiveContainer.app/Info.plist"))
+              assert str(info.get("CFBundleIdentifier","")).startswith("com.kdt.livecontainer")
+              assert info.get("ScarletBuildLabel")=="V187", "Unexpected version label"
+              assert not any(n.endswith("/embedded.mobileprovision") for n in names), "IPA appears signed, do not publish under unsigned tag"
+              extensions=[n for n in names if n.startswith("Payload/LiveContainer.app/PlugIns/") and n.endswith(".appex/Info.plist")]
+              assert len(extensions)==3, f"Expected three extensions, got {len(extensions)}"
+          print("[PASS] V187 IPA valid, original host and 3 extensions; not Apple-signed")
+          PY
+          (cd public-build && sha256sum Scarlet-Crystal-V187-AUTH-CANCEL-FIX-UNSIGNED.ipa > Scarlet-Crystal-V187-AUTH-CANCEL-FIX-UNSIGNED.ipa.sha256)
+      - name: Publish V187 IPA in GitHub Release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -Eeuo pipefail
+          tag=scarlet-v187-unsigned-20261105
+          cat >/tmp/v187-release.txt <<'EOF'
+          Scarlet Crystal V187 nonblocking native auth cancellation: user cancel request acknowledged without claiming Apple session termination.
+          Full Xcode integration build successful: https://github.com/fx564286/sidestore-auto-refresh/actions/runs/41861123589
+          Source commit: 12d1ed652e82fc7fbfdf6fd78f404b6901db8316
+
+          UNSIGNED IPA. Cannot be installed directly on an iPhone before signing using valid Apple certificate and appropriate provisioning profiles for the host and all three extensions.
+          Existing App Group, Keychain and memory entitlements must be verified before an in-place upgrade.
+          EOF
+          if ! gh release view "$tag" -R "${GITHUB_REPOSITORY}" >/dev/null 2>&1; then
+            gh release create "$tag" -R "${GITHUB_REPOSITORY}" \
+              --target 12d1ed652e82fc7fbfdf6fd78f404b6901db8316 \
+              --title "Scarlet Crystal V187 (UNSIGNED · signing required)" \
+              --notes-file /tmp/v187-release.txt --prerelease
+          fi
+          gh release upload "$tag" \
+            public-build/Scarlet-Crystal-V187-AUTH-CANCEL-FIX-UNSIGNED.ipa \
+            public-build/Scarlet-Crystal-V187-AUTH-CANCEL-FIX-UNSIGNED.ipa.sha256 \
+            -R "${GITHUB_REPOSITORY}" --clobber
+          gh release view "$tag" -R "${GITHUB_REPOSITORY}" --json assets,url
