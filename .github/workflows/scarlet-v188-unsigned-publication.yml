@@ -1,0 +1,71 @@
+name: Scarlet Crystal V188 unsigned IPA public distribution for on-device signing
+
+on:
+  push:
+    branches:
+      - fix/scarlet-v188-native-renewal-guard-20261105
+    paths:
+      - .github/workflows/scarlet-v188-unsigned-publication.yml
+
+permissions:
+  contents: write
+  actions: read
+
+jobs:
+  publish-reviewed-unsigned:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Retrieve verified V188 unsigned IPA from successful Xcode 27.2 run
+        uses: actions/download-artifact@v4
+        with:
+          name: Scarlet-Crystal-V188-NATIVE-RENEWAL-UNSIGNED
+          run-id: 41974089754
+          repository: fx564286/sidestore-auto-refresh
+          github-token: ${{ github.token }}
+          path: dist
+
+      - name: Verify exact artifact content and create sha256
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -s dist/Scarlet-Crystal-V188-NATIVE-RENEWAL-UNSIGNED.ipa
+          test -s dist/Scarlet-Crystal-V188-NATIVE-RENEWAL-UNSIGNED.json
+          python3 - <<'PY'
+          from pathlib import Path
+          import zipfile, plistlib
+          ipa=Path("dist/Scarlet-Crystal-V188-NATIVE-RENEWAL-UNSIGNED.ipa")
+          with zipfile.ZipFile(ipa) as z:
+              assert z.testzip() is None
+              root="Payload/LiveContainer.app/"
+              p=plistlib.loads(z.read(root+"Info.plist"))
+              assert p["CFBundleIdentifier"]=="com.kdt.livecontainer", p.get("CFBundleIdentifier")
+              names=sorted(x for x in z.namelist() if x.startswith(root+"PlugIns/") and x.endswith(".appex/Info.plist"))
+              ids={plistlib.loads(z.read(x))["CFBundleIdentifier"] for x in names}
+              expected={"com.kdt.livecontainer.LiveProcess", "com.kdt.livecontainer.ShareExtension", "com.kdt.livecontainer.LaunchAppExtension"}
+              assert ids==expected, (ids,expected)
+              print("[PASS] V188_UNSIGNED_FOUR_BUNDLES")
+          PY
+          (cd dist && sha256sum Scarlet-Crystal-V188-NATIVE-RENEWAL-UNSIGNED.ipa > Scarlet-Crystal-V188-NATIVE-RENEWAL-UNSIGNED.ipa.sha256)
+          echo '[PASS] UNSIGNED_IPA_VERIFIED'
+      - name: Publish separately marked unsigned release (never advertise Safari direct install)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          TAG=scarlet-v188-unsigned-20261105
+          if gh release view "$TAG" -R "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "[PASS] RELEASE_ALREADY_EXISTS"
+            exit 0
+          fi
+          gh release create "$TAG" \
+            -R "$GITHUB_REPOSITORY" \
+            --target "$GITHUB_SHA" \
+            --title "Scarlet Crystal V188 — unsigned, for trusted on-device signing only" \
+            --notes "Unsigned IPA, compiled by GitHub Actions run 41974089754. Not directly installable by Safari. Use your own trusted signer such as the official SideInstaller; first verify existing Scarlet Crystal App ID, Apple Team and App Group or in-place update can fail and data may be inaccessible. Liquid Glass runtime parity and real device installation remain unverified." \
+            --prerelease \
+            dist/Scarlet-Crystal-V188-NATIVE-RENEWAL-UNSIGNED.ipa \
+            dist/Scarlet-Crystal-V188-NATIVE-RENEWAL-UNSIGNED.ipa.sha256 \
+            dist/Scarlet-Crystal-V188-NATIVE-RENEWAL-UNSIGNED.json
+          echo "[PASS] V188_UNSIGNED_RELEASE_PUBLISHED"
