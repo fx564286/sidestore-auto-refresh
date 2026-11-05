@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Scarlet Crystal · 서명 후 Safari 설치</title>
+<style>:root{color-scheme:dark}*{box-sizing:border-box}body{margin:0;min-height:100svh;padding:calc(32px + env(safe-area-inset-top)) 16px 40px;color:#faf7ff;background:radial-gradient(at 8% 3%,#67469b,#101425 70%);font:16px/1.58 -apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo",sans-serif}main{max-width:520px;margin:0 auto}h1{font-size:30px;line-height:1.28;margin:12px 0 18px}section{border-radius:23px;border:1px solid #ffffff45;background:#ffffff17;padding:22px;margin:20px 0;backdrop-filter:blur(25px)}p{color:#dbd6e9}.small{font-size:13px}.status{font-weight:700;color:#d9c7ff}.button{display:block;text-align:center;text-decoration:none;background:#d7caff;color:#1a1733;padding:16px 12px;border-radius:15px;margin:16px 0;font-weight:750}.sub{background:#ffffff20;color:#fff}.disabled{opacity:.5;pointer-events:none}code{font-size:12px;word-break:break-all}</style></head>
+<body><main><p class="small">SCARLET CRYSTAL · SIGN → SAFARI INSTALL</p><h1>서명 완료 후<br>Safari에서 앱 설치</h1>
+<section><h2 id="title">서명 및 설치 파일 확인 중</h2><p id="state" role="status" class="status">GitHub의 서명 처리 상태를 확인합니다.</p>
+<p id="details" class="small">이 화면은 서명 결과를 확인하고 설치 버튼을 제공합니다. 기존 홍수정 앱으로 데이터를 복사하지 않습니다.</p>
+<a id="install" class="button disabled" href="#" aria-disabled="true">서명된 Scarlet Crystal 앱 설치</a>
+<a id="ipa" class="button sub disabled" href="#" aria-disabled="true">서명된 IPA 다운로드</a>
+<a class="button sub" href="./scarlet-latest.html">최신 릴리스 설치 페이지</a></section>
+<section><p class="small">실제 IPA 설치는 구성 프로파일(.mobileconfig)이 아니라 iOS의 <code>itms-services</code> 설치 요청으로 진행합니다. 설치 버튼은 서명된 IPA와 HTTPS 매니페스트·SHA-256이 모두 일치할 때 활성화됩니다. 기존 앱을 삭제하지 마세요.</p>
+<p class="small">현재 Apple Development 서명은 Safari OTA에서 거부될 수 있습니다. 그 경우 이 화면을 구성 프로파일로 바꿔도 해결되지 않으며 적합한 Ad Hoc 배포 서명 또는 기존 페어링을 통한 설치가 필요합니다.</p></section>
+</main><script>
+const base="https://fx564286.github.io/sidestore-auto-refresh/";
+const repo="fx564286/sidestore-auto-refresh";
+const ui={title:document.getElementById("title"),state:document.getElementById("state"),details:document.getElementById("details"),install:document.getElementById("install"),ipa:document.getElementById("ipa")};
+let verifiedVersion=0;
+async function refresh(){
+ try{
+  const [statusRes,releasesRes]=await Promise.all([
+    fetch(base+"scarlet-sign-status.json?t="+Date.now(),{cache:"no-store"}),
+    fetch("https://api.github.com/repos/"+repo+"/releases?per_page=40",{cache:"no-store"})
+  ]);
+  if(!statusRes.ok||!releasesRes.ok)throw Error("상태 API 응답 오류");
+  const state=await statusRes.json(), releases=await releasesRes.json();
+  const choices=releases.flatMap(r=>{
+    const m=/^scarlet-v([0-9]+)-device-signed-[0-9]{8}$/.exec(r.tag_name||"");
+    if(!m||r.draft)return [];
+    const n=Number(m[1]),file="Scarlet-Crystal-V"+n+"-SIGNED-DEVELOPMENT.ipa";
+    const a=(r.assets||[]).find(x=>x.name===file && x.state==="uploaded" && x.size>1000000 && /^sha256:[0-9a-f]{64}$/i.test(x.digest||""));
+    return a && a.browser_download_url==="https://github.com/"+repo+"/releases/download/"+r.tag_name+"/"+file?[{version:n,file,asset:a}]:[];
+  }).sort((a,b)=>b.version-a.version);
+  if(state.status==="failed"){
+    ui.title.textContent="로컬 서명 처리 실패";
+    ui.state.textContent=state.message||"PC 서명 에이전트 로그를 확인하세요.";
+  }else if(state.status==="running"){
+    ui.title.textContent="PC 서명 진행 중";
+    ui.state.textContent="서명 검증 후 설치 버튼이 활성화됩니다.";
+  }else if(state.status==="published"){
+    ui.state.textContent="PC 서명 요청 처리 완료 · 설치 IPA 검증 중";
+  }else{
+    ui.state.textContent="새 요청이 아직 처리되지 않았습니다. 기존 서명본은 아래에서 확인할 수 있습니다.";
+  }
+  for(const candidate of choices){
+   if(candidate.version===verifiedVersion)return;
+   const path="Scarlet-V"+candidate.version+"-SIGNED-manifest.plist";
+   const shaPath="Scarlet-V"+candidate.version+"-SIGNED.sha256";
+   const [mr,sr]=await Promise.all([fetch(base+path,{cache:"no-store"}),fetch(base+shaPath,{cache:"no-store"})]);
+   if(!mr.ok||!sr.ok)continue;
+   const xml=await mr.text(),sum=(await sr.text()).trim().split(/\s+/)[0].toLowerCase();
+   if(!/^[0-9a-f]{64}$/.test(sum)||candidate.asset.digest.toLowerCase()!=="sha256:"+sum||
+     !xml.includes(candidate.file)||!xml.includes("com.kdt.livecontainer.P8EZT3U5N4")||
+     !xml.includes(candidate.asset.browser_download_url)||!xml.includes("software-package"))continue;
+   verifiedVersion=candidate.version;
+   ui.install.href="itms-services://?action=download-manifest&url="+encodeURIComponent(base+path);
+   ui.ipa.href=candidate.asset.browser_download_url;
+   for(const a of [ui.install,ui.ipa]){a.classList.remove("disabled");a.removeAttribute("aria-disabled");}
+   ui.title.textContent="Scarlet Crystal V"+verifiedVersion+" 서명본 확인";
+   ui.state.textContent="서명 IPA·HTTPS 매니페스트·SHA-256 확인 완료";
+   ui.details.textContent="아래 설치 버튼을 눌러 iOS 설치 요청을 진행하세요. 이 단계를 누른다고 기존 홍수정 앱이 실행되지는 않습니다. 앱 설치 완료는 별도 확인이 필요합니다.";
+   ui.install.textContent="Scarlet Crystal V"+verifiedVersion+" 실제 앱 설치";
+   return;
+  }
+  ui.details.textContent="서명된 앱 게시를 확인하는 중입니다. 요청에 따라 업데이트되며 기존 앱과 인증서는 유지됩니다.";
+ }catch(e){if(!verifiedVersion){ui.title.textContent="GitHub 상태 확인 실패";ui.state.textContent="인터넷 및 GitHub 상태를 확인하고 페이지를 다시 열어주세요.";}}
+}
+refresh();setInterval(refresh,12000);
+</script></body></html>
