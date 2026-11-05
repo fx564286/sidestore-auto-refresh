@@ -1,0 +1,42 @@
+name: Scarlet V187 cloud signing access check
+on:
+  push:
+    branches: [gh-pages]
+    paths:
+      - .github/workflows/scarlet-v187-signing-access-check.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  access-check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Inspect presence of protected signing material without exposing values
+        shell: bash
+        env:
+          P12_DATA: ${{ secrets.SCARLET_IOS_P12_BASE64 }}
+          P12_PASSWORD: ${{ secrets.SCARLET_IOS_P12_PASSWORD }}
+          PROFILE_HOST: ${{ secrets.SCARLET_PROFILE_HOST_BASE64 }}
+          PROFILE_LIVE: ${{ secrets.SCARLET_PROFILE_LIVEPROCESS_BASE64 }}
+          PROFILE_SHARE: ${{ secrets.SCARLET_PROFILE_SHAREEXTENSION_BASE64 }}
+          PROFILE_LAUNCH: ${{ secrets.SCARLET_PROFILE_LAUNCHAPPEXTENSION_BASE64 }}
+        run: |
+          python3 - <<'PY'
+          import os, sys
+          checks = {
+            'p12': bool(os.getenv('P12_DATA')),
+            'p12_password': bool(os.getenv('P12_PASSWORD')),
+            'host_profile': bool(os.getenv('PROFILE_HOST')),
+            'liveprocess_profile': bool(os.getenv('PROFILE_LIVE')),
+            'shareextension_profile': bool(os.getenv('PROFILE_SHARE')),
+            'launchappextension_profile': bool(os.getenv('PROFILE_LAUNCH')),
+          }
+          # Deliberately do not decode or print credential material.
+          print('Cloud signing secrets present:', sum(checks.values()), '/', len(checks))
+          if not all(checks.values()):
+            print('SIGNING_ASSET_ACCESS_BLOCKED: Required credentials are not available under the designated GitHub Actions secret names.')
+            print('Local CachyOS/NAS certificates are never available to GitHub-hosted runners automatically.')
+            sys.exit(2)
+          print('SIGNING_ASSET_ACCESS_READY: Secret names available; cryptographic, provisioning, and App Group checks still required.')
+          PY
