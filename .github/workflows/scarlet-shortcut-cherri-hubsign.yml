@@ -1,0 +1,69 @@
+name: Scarlet Crystal signed iOS Shortcut via official Cherri
+on:
+  push:
+    branches:
+      - feat/scarlet-universal-shortcut-publisher-20261105
+    paths:
+      - shortcuts/scarlet-latest.cherri
+      - .github/workflows/scarlet-shortcut-cherri-hubsign.yml
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  official-cherri:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - name: Fetch pinned Cherri 2.3.0 compiler
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/cherri dist
+          curl -fsSL --retry 3 \
+            https://github.com/electrikmilk/cherri/releases/download/v2.3.0/cherri_linux-x86_64.zip \
+            -o /tmp/cherri.zip
+          unzip -oq /tmp/cherri.zip -d /tmp/cherri
+          find /tmp/cherri -type f | head -20
+          CHERRI=$(find /tmp/cherri -type f -name cherri | head -1)
+          test -n "$CHERRI"
+          chmod +x "$CHERRI"
+          echo "CHERRI=$CHERRI" >> "$GITHUB_ENV"
+          "$CHERRI" --help | head -55 || true
+      - name: Compile Shortcut with import questions and request authorized remote signing
+        shell: bash
+        run: |
+          set -euo pipefail
+          "$CHERRI" shortcuts/scarlet-latest.cherri --hubsign \
+            --share=anyone --output=dist/Scarlet-Crystal-Latest.shortcut --debug
+          find dist -type f -maxdepth 1 -ls
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path("dist/Scarlet-Crystal-Latest.shortcut")
+          assert p.is_file() and p.stat().st_size>4000
+          assert p.read_bytes()[:4]==b"AEA1", "HUBSIGN_NOT_VALID_SHORTCUT"
+          print("[PASS] SIGNED_SHORTCUT_AEA1",p.stat().st_size)
+          PY
+      - name: Publish actual signed Shortcut file
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          TAG=scarlet-universal-shortcut-v1
+          if gh release view "$TAG" -R "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo '[STOP] EXISTING_SHORTCUT_RELEASE_NOT_OVERWRITTEN'
+            exit 3
+          fi
+          gh release create "$TAG" -R "$GITHUB_REPOSITORY" \
+            --target "$GITHUB_SHA" \
+            --title "Scarlet Crystal - latest version one-tap signed shortcut" \
+            --notes "Versionless: on iPhone import configure PC SSH host/user/password once; public shortcut binary embeds no secrets. On invocation, the CachyOS PC finds latest successful Xcode owner IPA, signs with existing local Apple key, publishes actual signed IPA and opens a stable latest Safari installation page. This is not an installed app or a Liquid Glass runtime test. Apple Development OTA is not guaranteed." \
+            dist/Scarlet-Crystal-Latest.shortcut
+          echo '[PASS] PUBLIC_SIGNED_SHORTCUT_RELEASE'
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: scarlet-cherri-signed-shortcut-output
+          path: dist/
+          if-no-files-found: warn
