@@ -1,8 +1,8 @@
 {
   "install_url": "https://fx564286.github.io/sidestore-auto-refresh/scarlet-latest.html",
-  "message": "아이폰 단축어 서명 요청을 PC에서 처리 중이야.",
+  "message": "서명 IPA 게시가 완료됐어. 아이폰 설치는 별도 확인이 필요해.",
   "phone_install_verified": false,
   "request_run_id": 42107270646,
-  "status": "running",
-  "updated_at": "2026-11-05T20:52:05.155992+00:00"
+  "status": "published",
+  "updated_at": "2026-11-05T20:52:20.938286+00:00"
 }
