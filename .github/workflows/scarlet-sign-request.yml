@@ -1,0 +1,17 @@
+name: Scarlet Crystal - iPhone signing request relay
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  request-acknowledged:
+    runs-on: ubuntu-latest
+    timeout-minutes: 4
+    steps:
+      - name: Record remote signing request without accessing signing keys
+        shell: bash
+        run: |
+          echo "Scarlet Crystal signing requested by GitHub user: ${{ github.actor }}"
+          echo "REQUEST RUN ID: ${{ github.run_id }}"
+          echo "This GitHub job DOES NOT SIGN and holds no Apple certificate."
+          echo "Local CachyOS signing agent verifies the owner and run ID and does the actual signing."
