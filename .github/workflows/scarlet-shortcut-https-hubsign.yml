@@ -1,0 +1,14 @@
+name: Build Scarlet Crystal HTTPS installer Shortcut
+on:
+  push:
+    branches: [feat/scarlet-universal-shortcut-publisher-20261105]
+    paths: [shortcuts/scarlet-latest-https.cherri, .github/workflows/scarlet-shortcut-https-hubsign.yml]
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: echo Starting Shortcuts compiler
