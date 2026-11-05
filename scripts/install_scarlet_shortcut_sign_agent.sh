@@ -8,7 +8,7 @@ BIN="$BASE/latest-publisher"
 STATE="$HOME/.local/state/scarlet-crystal-shortcut-sign"
 UNIT_DIR="$HOME/.config/systemd/user"
 SERVICE="$UNIT_DIR/scarlet-shortcut-sign-agent.service"
-AGENT_URL="https://raw.githubusercontent.com/fx564286/sidestore-auto-refresh/d11441c2418a3a98a8842bba8c78e0747efb8a9c/tools/scarlet_shortcut_sign_agent.py"
+AGENT_URL="https://raw.githubusercontent.com/fx564286/sidestore-auto-refresh/b0ab9f93bd4d00a2db9d9b29d826bb218c285c33/tools/scarlet_shortcut_sign_agent.py"
 
 stop(){ echo "[STOP] $*" >&2; exit 2; }
 [[ "$(id -u)" != 0 ]] || stop 'DO_NOT_RUN_AS_ROOT'
@@ -55,7 +55,8 @@ WantedBy=default.target
 UNIT
 chmod 600 "$SERVICE"
 systemctl --user daemon-reload
-systemctl --user enable --now scarlet-shortcut-sign-agent.service
+systemctl --user enable scarlet-shortcut-sign-agent.service
+systemctl --user restart scarlet-shortcut-sign-agent.service
 sleep 2
 systemctl --user is-active --quiet scarlet-shortcut-sign-agent.service || {
   systemctl --user status scarlet-shortcut-sign-agent.service --no-pager || true
