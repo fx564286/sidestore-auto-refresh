@@ -42,7 +42,8 @@ jobs:
           assert "runSSHScript" in source
           assert "192.168.50.59" in source and "NAS_TO_PC_SSH_KEY_MISSING" in source
           assert "scarlet_latest_publish.py" in source
-          assert "openURL" in source
+          assert 'openURL("{@result}")' in source, "BAD_SHORTCUT_OUTPUT_VARIABLE"
+          assert 'openURL("\\(@result)")' not in source, "LITERAL_OUTPUT_BUG"
           assert "sshpass" not in source and "StrictHostKeyChecking=no" not in source
           print("[PASS] SIGNED_NAS_RELAY_SHORTCUT",p.stat().st_size)
           PY
@@ -52,7 +53,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          TAG=scarlet-nas-shortcut-v1
+          TAG=scarlet-nas-shortcut-v2
           if gh release view "$TAG" -R "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
             echo '[STOP] EXISTING_RELEASE_PRESERVED'
             exit 4
