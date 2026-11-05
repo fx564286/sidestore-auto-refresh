@@ -32,6 +32,16 @@ class SigningDispatchSecurity(unittest.TestCase):
         ):
             self.assertFalse(mod.accepted(self.request(**bad)))
 
+    def test_owner_workflow_path_with_api_branch_suffix(self):
+        self.assertTrue(mod.accepted(self.request(path=".github/workflows/scarlet-sign-request.yml@main")))
+        self.assertTrue(mod.accepted(self.request(path=".github/workflows/scarlet-sign-request.yml")))
+        for wrong in (
+            ".github/workflows/scarlet-sign-request.yml@other",
+            ".github/workflows/scarlet-sign-request.yml.backup@main",
+            ".github/workflows/other/scarlet-sign-request.yml@main",
+        ):
+            self.assertFalse(mod.accepted(self.request(path=wrong)))
+
     def test_multiple_requests_use_latest_unique_run_id(self):
         with patch.object(mod,"gh",return_value={"workflow_runs":[self.request(id=1),self.request(id=3),self.request(id=2)]}):
             self.assertEqual(mod.latest_request()["id"],3)
