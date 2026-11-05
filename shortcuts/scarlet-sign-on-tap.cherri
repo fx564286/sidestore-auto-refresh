@@ -8,9 +8,10 @@
 #define color purple
 #define glyph smileyFace
 #include 'actions/web'
+#include 'actions/basic'
 #question githubToken "GitHub 토큰 (이 저장소 Actions: Read and write 권한)" ""
-@authorization = "Bearer "
-@authorization += githubToken
+@token = text(githubToken)
+@authorization = "Bearer {@token}"
 @sent = jsonRequest(
   "https://api.github.com/repos/fx564286/sidestore-auto-refresh/actions/workflows/scarlet-sign-request.yml/dispatches",
   "POST",
