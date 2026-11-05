@@ -10427,29 +10427,49 @@ private struct V3HomeView: View {
 }
 // V3_UNIFIED_SHELL_V1_END
 
-// NRG_V52_IN_APP_OTA: download is not evidence of a successful signed installation.
-private struct NRGOTAInfo { let version:Int; let ipa:URL; let digest:URL }
+// SCARLET_V189_SIGNED_RELEASE_IDENTITY: resolve installed and remote builds independently.
+// NRG-Wardog 6.0.0 provenance model: public tag != CFBundleVersion.
+// Preserve source UI and every Liquid Glass view; this changes only the OTA card.
+private struct NRGOTAInfo {
+    let version: Int
+    let ipa: URL
+    let digest: URL
+}
 private struct NRGOTAUpdateView: View {
     @EnvironmentObject private var status: V3SideStoreStatusStore
     @State private var build: NRGOTAInfo?
     @State private var busy = false
-    @State private var note = "공개 NRG 릴리스에서 새 버전을 확인할 수 있어."
+    @State private var note = "Scarlet Crystal 서명 릴리스를 확인할 수 있어."
     private let repo = "fx564286/sidestore-auto-refresh"
-    private let assetName = "LiveContainer-SideStore-v3.0.3-rc.ipa"
-    private var current: Int {
-        (Bundle.main.object(forInfoDictionaryKey: "NRGOTASequence") as? NSNumber)?.intValue ?? 0
+    private let downloadBase = "https://fx564286.github.io/sidestore-auto-refresh"
+
+    // The local CFBundleVersion (e.g. 3.8.202) is NOT the public release (V188).
+    // Do not treat a missing ScarletBuildLabel as "version 0" or a valid update.
+    private var localBuildLabel: String? {
+        guard let label = Bundle.main.object(forInfoDictionaryKey: "ScarletBuildLabel") as? String,
+              label.range(of: "^V[0-9]+$", options: .regularExpression) != nil else {
+            return nil
+        }
+        return label
     }
-    // NRG_V55_OTA_ROW_HIT_TARGETS: each action is its own List row.
-    // A VStack containing multiple Buttons inside one Section row makes
-    // UIKit/SwiftUI hit testing ambiguous on some iOS builds.
+    private var current: Int? {
+        guard let label = localBuildLabel else { return nil }
+        return Int(label.dropFirst())
+    }
+    private var bundleBuild: String {
+        (Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String) ?? "확인 불가"
+    }
     var body: some View {
         Group {
             VStack(alignment: .leading, spacing: 8) {
                 HStack {
-                    Label("NRG 앱 업데이트", systemImage: "arrow.down.app")
+                    Label("Scarlet Crystal 앱 업데이트", systemImage: "arrow.down.app")
                     Spacer()
-                    Text("#\\(current)").font(.caption2).foregroundColor(.secondary)
+                    Text(localBuildLabel ?? "설치 릴리스 불명")
+                        .font(.caption2).foregroundColor(.secondary)
                 }
+                Text("IPA 빌드: \(bundleBuild)")
+                    .font(.caption2).foregroundColor(.secondary)
                 Text(note).font(.caption).foregroundColor(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
                 if busy { ProgressView() }
@@ -10457,7 +10477,7 @@ private struct NRGOTAUpdateView: View {
             .accessibilityElement(children: .contain)
 
             Button(action: {
-                NSLog("[NRG_V55_OTA] action=check tapped=1")
+                NSLog("[SCARLET_OTA_V189] action=check tapped=1")
                 Task { await check() }
             }) {
                 Label("새 버전 확인", systemImage: "arrow.clockwise")
@@ -10468,12 +10488,12 @@ private struct NRGOTAUpdateView: View {
             .disabled(busy)
             .accessibilityIdentifier("nrgOTACheckAction")
 
-            if let build, build.version > current {
+            if let build, let current, build.version > current {
                 Button(action: {
-                    NSLog("[NRG_V55_OTA] action=download tapped=1 candidate=%d", build.version)
+                    NSLog("[SCARLET_OTA_V189] action=stage tapped=1 candidate=%d", build.version)
                     Task { await downloadAndStage(build) }
                 }) {
-                    Label("빌드 #\\(build.version) 다운로드 및 설치", systemImage: "square.and.arrow.down")
+                    Label("V\(build.version) 검증 후 SideStore로 전달", systemImage: "square.and.arrow.down")
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .contentShape(Rectangle())
                 }
@@ -10481,53 +10501,76 @@ private struct NRGOTAUpdateView: View {
                 .disabled(busy)
                 .accessibilityIdentifier("nrgOTADownloadAction")
             }
-
-            Text("기존 앱 삭제 금지. 실제 서명과 설치 성공 여부는 SideStore에서 확인해야 해.")
+            Text("다운로드·서명 요청은 설치 성공이 아니야. 기존 앱 삭제 금지.")
                 .font(.caption2).foregroundColor(.secondary)
         }
     }
+
     @MainActor private func check() async {
         guard !busy else { return }
         busy = true
         defer { busy = false }
         build = nil
         do {
-            let api = URL(string: "https://api.github.com/repos/\(repo)/releases/latest")!
+            let api = URL(string: "https://api.github.com/repos/\(repo)/releases?per_page=60")!
             var req = URLRequest(url: api)
             req.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
+            req.setValue("no-cache", forHTTPHeaderField: "Cache-Control")
             req.timeoutInterval = 20
             let (data, response) = try await URLSession.shared.data(for: req)
             guard let response = response as? HTTPURLResponse, response.statusCode == 200,
                   data.count < 1_048_576,
-                  let json = try JSONSerialization.jsonObject(with: data) as? [String: Any],
-                  json["draft"] as? Bool == false,
-                  let tag = json["tag_name"] as? String, tag.hasPrefix("nrg-ota-v"),
-                  let number = Int(tag.dropFirst("nrg-ota-v".count)), number > 0,
-                  let assets = json["assets"] as? [[String: Any]] else {
-                throw NSError(domain: "NRGOTA", code: 1)
+                  let releases = try JSONSerialization.jsonObject(with: data) as? [[String: Any]] else {
+                throw NSError(domain: "SCARLET_OTA", code: 1)
             }
-            func getAsset(_ name: String) -> URL? {
-                guard let item = assets.first(where: { $0["name"] as? String == name }),
-                      let text = item["browser_download_url"] as? String,
-                      let url = URL(string: text), url.scheme == "https",
-                      url.host == "github.com",
-                      url.path == "/\(repo)/releases/download/\(tag)/\(name)" else { return nil }
-                return url
+            // Ignore historical unsigned nrg-ota-v* releases and prerelease artifacts.
+            // Only an explicitly signed and uploaded Scarlet Crystal release qualifies.
+            let candidates: [NRGOTAInfo] = releases.compactMap { release in
+                guard release["draft"] as? Bool == false,
+                      let tag = release["tag_name"] as? String,
+                      tag.range(of: "^scarlet-v[0-9]+-device-signed-[0-9]{8}$",
+                                options: .regularExpression) != nil,
+                      let numberPart = tag.split(separator: "-").dropFirst().first,
+                      numberPart.hasPrefix("v"),
+                      let number = Int(numberPart.dropFirst()), number > 0,
+                      let assets = release["assets"] as? [[String: Any]] else { return nil }
+                let name = "Scarlet-Crystal-V\(number)-SIGNED-DEVELOPMENT.ipa"
+                guard let asset = assets.first(where: {
+                    $0["name"] as? String == name && $0["state"] as? String == "uploaded"
+                }), let download = asset["browser_download_url"] as? String,
+                      let ipa = URL(string: download),
+                      ipa.scheme == "https", ipa.host == "github.com",
+                      ipa.path == "/\(repo)/releases/download/\(tag)/\(name)",
+                      let digest = URL(string: "\(downloadBase)/Scarlet-V\(number)-SIGNED.sha256")
+                else { return nil }
+                return NRGOTAInfo(version: number, ipa: ipa, digest: digest)
             }
-            guard let ipa = getAsset(assetName),
-                  let hash = getAsset(assetName + ".sha256") else {
-                throw NSError(domain: "NRGOTA", code: 2)
+            guard let candidate = candidates.max(by: { $0.version < $1.version }) else {
+                note = "서명된 Scarlet Crystal 릴리스가 확인되지 않았어."
+                NSLog("[SCARLET_OTA_V189] stage=check signed_candidate=none")
+                return
             }
-            note = number > current ? "신규 빌드 #\(number)를 확인했어." : "이미 최신 빌드 #\(current)야."
-            if number > current { build = NRGOTAInfo(version: number, ipa: ipa, digest: hash) }
-            NSLog("[NRG_V52_OTA] stage=check current=%d available=%d result=pass",current,number)
+            guard let current else {
+                note = "현재 설치본의 ScarletBuildLabel을 확인할 수 없어. 설치 버전을 확인하기 전 갱신할 수 없어."
+                NSLog("[SCARLET_OTA_V189] stage=check installed_label=missing available=%d", candidate.version)
+                return
+            }
+            if candidate.version > current {
+                build = candidate
+                note = "서명된 V\(candidate.version) 릴리스가 있어. 현재 설치본은 V\(current)야."
+            } else {
+                note = "현재 설치본 V\(current). 최신 공개 서명본은 V\(candidate.version)야."
+            }
+            NSLog("[SCARLET_OTA_V189] stage=check installed=%d signed_release=%d result=pass",
+                  current, candidate.version)
         } catch {
-            note = "업데이트 확인 실패: \(error.localizedDescription)"
-            NSLog("[NRG_V52_OTA] stage=check result=failed")
+            note = "서명 릴리스 확인 실패: \(error.localizedDescription)"
+            NSLog("[SCARLET_OTA_V189] stage=check result=failed code=%d", (error as NSError).code)
         }
     }
+
     @MainActor private func downloadAndStage(_ candidate: NRGOTAInfo) async {
-        guard !busy, candidate.version > current else { return }
+        guard !busy, let current, candidate.version > current else { return }
         busy = true
         defer { busy = false }
         var downloadFile: URL?
@@ -10535,51 +10578,53 @@ private struct NRGOTAUpdateView: View {
         do {
             guard let host = Bundle.main.bundleIdentifier,
                   status.installedApps.contains(where: { $0.isHost && $0.bundleID == host }) else {
-                throw NSError(domain: "NRGOTA", code: 3)
+                throw NSError(domain: "SCARLET_OTA", code: 3)
             }
             guard status.connected, !status.needsSignIn, !status.loading else {
-                throw NSError(domain: "NRGOTA", code: 4)
+                throw NSError(domain: "SCARLET_OTA", code: 4)
             }
-            note = "SHA-256 체크섬 확인 중…"
+            note = "서명 릴리스 SHA-256 확인 중…"
             let (sum, sumResponse) = try await URLSession.shared.data(from: candidate.digest)
             guard let response = sumResponse as? HTTPURLResponse, response.statusCode == 200,
                   sum.count < 4096, let text = String(data: sum, encoding: .utf8),
                   let expected = text.split(whereSeparator: \.isWhitespace).first.map(String.init),
-                  expected.range(of:"^[0-9a-fA-F]{64}$",options:.regularExpression) != nil else {
-                throw NSError(domain:"NRGOTA",code:5)
+                  expected.range(of: "^[0-9a-fA-F]{64}$", options: .regularExpression) != nil else {
+                throw NSError(domain: "SCARLET_OTA", code: 5)
             }
-            note = "IPA 다운로드 중…"
+            note = "서명 IPA 다운로드 중…"
             let (ipa, ipaResponse) = try await URLSession.shared.download(for: URLRequest(url: candidate.ipa))
             downloadFile = ipa
             guard let response = ipaResponse as? HTTPURLResponse, response.statusCode == 200 else {
-                throw NSError(domain:"NRGOTA",code:6)
+                throw NSError(domain: "SCARLET_OTA", code: 6)
             }
             let size = (try FileManager.default.attributesOfItem(atPath: ipa.path)[.size] as? NSNumber)?.int64Value ?? 0
             guard size > 5_000_000 && size < 350_000_000 else {
-                throw NSError(domain:"NRGOTA",code:7)
+                throw NSError(domain: "SCARLET_OTA", code: 7)
             }
-            note = "다운로드 무결성 검증 중…"
-            let f = try FileHandle(forReadingFrom: ipa)
-            defer { try? f.close() }
+            note = "IPA 무결성 검증 중…"
+            let file = try FileHandle(forReadingFrom: ipa)
+            defer { try? file.close() }
             var digest = SHA256()
             while true {
-                let chunk = f.readData(ofLength: 1_048_576)
+                let chunk = file.readData(ofLength: 1_048_576)
                 if chunk.isEmpty { break }
                 digest.update(data: chunk)
             }
-            let actual = digest.finalize().map { String(format:"%02x",$0) }.joined()
+            let actual = digest.finalize().map { String(format: "%02x", $0) }.joined()
             guard actual.caseInsensitiveCompare(expected) == .orderedSame else {
-                throw NSError(domain:"NRGOTA",code:8)
+                throw NSError(domain: "SCARLET_OTA", code: 8)
             }
-            NSLog("[NRG_V52_OTA] stage=verified candidate=%d bytes=%lld hash_verified=1",candidate.version,size)
-            guard status.stageSharedIPA(ipa,title:"NRG 빌드 #\(candidate.version) 업데이트") != nil else {
-                throw NSError(domain:"NRGOTA",code:9)
+            NSLog("[SCARLET_OTA_V189] stage=verified candidate=%d bytes=%lld hash_verified=1",
+                  candidate.version, size)
+            guard status.stageSharedIPA(ipa, title: "Scarlet Crystal V\(candidate.version) 갱신 요청") != nil else {
+                throw NSError(domain: "SCARLET_OTA", code: 9)
             }
-            note = "IPA 검증 완료. 내장 SideStore에서 실제 서명·설치 결과를 확인해."
-            NSLog("[NRG_V52_OTA] stage=staged candidate=%d install_result=unverified",candidate.version)
+            note = "IPA를 검증해 SideStore로 전달했어. 서명·설치 완료 여부는 별도로 확인해야 해."
+            NSLog("[SCARLET_OTA_V189] stage=staged candidate=%d install_result=unverified", candidate.version)
         } catch {
-            note = "업데이트 중단 (단계 코드: \((error as NSError).code)). SideStore 연결 및 서명을 확인해."
-            NSLog("[NRG_V52_OTA] stage=prepare result=failed candidate=%d",candidate.version)
+            note = "갱신 준비 실패 (코드: \((error as NSError).code)). 연결·서명을 확인해."
+            NSLog("[SCARLET_OTA_V189] stage=prepare result=failed candidate=%d code=%d",
+                  candidate.version, (error as NSError).code)
         }
     }
 }
