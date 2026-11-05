@@ -103,7 +103,7 @@ def patch(src: str) -> str:
         "    @State private var preparedPassword = \"\"\n",
         "sign-in view memory-only input state")
     # Runs after the V185 host-owned authentication session overlay.
-    entry = """                if showCredentialEntry && auth.canBegin && !auth.isSignedIn {
+    entry = """                if showCredentialEntry && !auth.isSignedIn {
                     TextField("Apple ID", text: $preparedAppleID)
                         .textInputAutocapitalization(.never)
                         .autocorrectionDisabled()
@@ -121,7 +121,12 @@ def patch(src: str) -> str:
                     }
                     .buttonStyle(.borderedProminent)
                     .disabled(preparedAppleID.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ||
-                              preparedPassword.isEmpty)
+                              preparedPassword.isEmpty || !auth.canBegin)
+                    if !auth.canBegin {
+                        Text("이전 인증이 종료되지 않았습니다. 아래의 취소 확인 또는 상태 새로고침 후 로그인하세요.")
+                            .font(.footnote)
+                            .foregroundColor(.orange)
+                    }
                     Text("Apple이 인증 코드를 요청하면 이 화면에서 6자리 코드를 입력합니다.")
                         .font(.footnote)
                         .foregroundColor(.secondary)
