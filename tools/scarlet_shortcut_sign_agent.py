@@ -108,7 +108,7 @@ def accepted(run):
             run.get("head_branch")=="main" and
             (run.get("actor") or {}).get("login","").lower()==OWNER.lower() and
             (run.get("head_repository") or {}).get("full_name")==REPO and
-            (run.get("path") or "").split("@", 1)[0]==".github/workflows/"+WORKFLOW)
+            run.get("path") in (".github/workflows/"+WORKFLOW, ".github/workflows/"+WORKFLOW+"@main"))
 
 def latest_request():
     records=gh("actions/workflows/"+WORKFLOW+"/runs?event=workflow_dispatch&per_page=30")
