@@ -14,6 +14,8 @@ from pathlib import Path
 import plistlib
 import re
 import subprocess
+import ssl
+import socket
 import sys
 import urllib.request
 
@@ -71,6 +73,29 @@ def load_backend():
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module
+
+def tls_preflight():
+    """Check certificate validation before prompting for any Apple credentials."""
+    hosts = (
+        "new.ani.sidestore.io", "mac-ani.jkcoxson.com",
+        "ani.iloader.app", "ani3.stikstore.app",
+        "ani.jkcoxson.com", "ani2.stikstore.app",
+    )
+    paths = ssl.get_default_verify_paths()
+    print("[TLS_CA] file=", paths.cafile, "dir=", paths.capath, flush=True)
+    ctx = ssl.create_default_context()
+    verified = []
+    for host in hosts:
+        try:
+            with socket.create_connection((host, 443), timeout=8) as sock:
+                with ctx.wrap_socket(sock, server_hostname=host):
+                    print("[TLS_PASS]", host, flush=True)
+                    verified.append(host)
+        except (OSError, ssl.SSLError) as exc:
+            print("[TLS_FAIL]", host, str(exc)[:220], flush=True)
+    if not verified:
+        stop("ALL_ANISETTE_TLS_UNTRUSTED; CHECK_CA_STORE_OR_HTTPS_INTERCEPTION")
+    return verified
 
 def main():
     os.umask(0o077)
@@ -174,7 +199,9 @@ def main():
 
 if __name__ == "__main__":
     try:
-        main()
+        tls_preflight()
+        if "--tls-check" not in sys.argv:
+            main()
     except KeyboardInterrupt:
         print("\n[STOP] CANCELLED")
         sys.exit(130)
