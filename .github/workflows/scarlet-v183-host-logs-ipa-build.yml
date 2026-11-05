@@ -1,10 +1,10 @@
-name: Scarlet Crystal V190 - SideStore auth transport and cancellation diagnostics (iOS IPA)
+name: Scarlet Crystal V191 - bounded auth status lease and owner diagnostics (iOS IPA)
 
 on:
   workflow_dispatch:
   push:
     branches:
-      - fix/scarlet-v190-auth-transport-20261106
+      - fix/scarlet-v191-auth-lease-deadline-20261106
     paths:
       - ".github/workflows/scarlet-v183-host-logs-ipa-build.yml"
       - ".github/workflows/scarlet-v181-design-auth-build.yml"
@@ -17,7 +17,7 @@ permissions:
 
 # One push build only, avoiding PR + push duplicate runner acquisition.
 concurrency:
-  group: scarlet-v190-auth-transport-integrated-${{ github.ref }}
+  group: scarlet-v191-auth-lease-deadline-integrated-${{ github.ref }}
   cancel-in-progress: false
 
 jobs:
@@ -191,6 +191,13 @@ jobs:
           python3 -m unittest discover -s builder/tests -p test_v189_auth_bridge_trace.py -v
           python3 builder/scripts/patch_v189_auth_bridge_trace.py work/LiveContainer
           python3 builder/scripts/patch_v189_auth_bridge_trace.py work/LiveContainer
+          # V191: bound authBegin lease admission BEFORE XPC connect.
+          python3 -m unittest discover -s builder/tests -p test_v191_auth_lease_deadline.py -v
+          python3 builder/scripts/patch_v191_auth_lease_deadline.py work/LiveContainer
+          python3 builder/scripts/patch_v191_auth_lease_deadline.py work/LiveContainer
+          grep -q SCARLET_V191_AUTH_LEASE_DEADLINE work/LiveContainer/SideStoreSupport/SideStore.swift
+          grep -q SCARLET_V191_AUTH_LEASE_DEADLINE work/LiveContainer/LiveContainerSwiftUI/Views/V3UnifiedShell.swift
+          echo '[PASS] V191_AUTH_LEASE_BOUNDED_BEFORE_XPC_WITHOUT_FOREIGN_OWNER_RESET'
           swiftc -frontend -parse work/LiveContainer/SideStoreSupport/SideStore.swift
           swiftc -frontend -parse work/LiveContainer/LiveContainerSwiftUI/Views/V3UnifiedShell.swift
           grep -q SCARLET_V189_VERIFIABLE_UPDATE_IDENTITY work/LiveContainer/LiveContainerSwiftUI/Views/V3UnifiedShell.swift
@@ -283,47 +290,47 @@ jobs:
               ASSETCATALOG_COMPILER_APPICON_NAME= \
               COMPILER_INDEX_STORE_ENABLE=NO build
 
-      - name: Package Scarlet Crystal V190 unsigned IPA (source-checked, device-unverified)
+      - name: Package Scarlet Crystal V191 unsigned IPA (source-checked, device-unverified)
         shell: bash
         timeout-minutes: 15
         run: |
           set -euo pipefail
           if ! command -v ldid >/dev/null; then brew install ldid; fi
-          python3 builder/scripts/v190_package_fork.py \
+          python3 builder/scripts/v191_package_fork.py \
             --root work/LiveContainer \
             --host "$RUNNER_TEMP/v178-lc/Build/Products/Release-iphoneos/LiveContainer.app" \
             --side "$RUNNER_TEMP/v178-sidestore/Build/Products/Release-iphoneos/SideStore.app" \
             --pin-file builder/config/scarlet-upstream-pins.json \
-            --output "$GITHUB_WORKSPACE/artifacts/Scarlet-Crystal-V190-AUTH-TRANSPORT-UNSIGNED.ipa" \
+            --output "$GITHUB_WORKSPACE/artifacts/Scarlet-Crystal-V191-AUTH-LEASE-UNSIGNED.ipa" \
             2>&1 | tee artifacts/logs/v181-package.log
-          test -s artifacts/Scarlet-Crystal-V190-AUTH-TRANSPORT-UNSIGNED.ipa
-          test -s artifacts/Scarlet-Crystal-V190-AUTH-TRANSPORT-UNSIGNED.json
+          test -s artifacts/Scarlet-Crystal-V191-AUTH-LEASE-UNSIGNED.ipa
+          test -s artifacts/Scarlet-Crystal-V191-AUTH-LEASE-UNSIGNED.json
           # Confirm the actual iOS install identity is monotonic and matches the receipt.
           python3 - <<'PY'
           from pathlib import Path
           import hashlib, json, plistlib, zipfile
           root = Path("artifacts")
-          ipa = root / "Scarlet-Crystal-V190-AUTH-TRANSPORT-UNSIGNED.ipa"
-          receipt = json.loads((root / "Scarlet-Crystal-V190-AUTH-TRANSPORT-UNSIGNED.json").read_text())
-          assert receipt["verified"] is True and receipt["build"] == "V190"
+          ipa = root / "Scarlet-Crystal-V191-AUTH-LEASE-UNSIGNED.ipa"
+          receipt = json.loads((root / "Scarlet-Crystal-V191-AUTH-LEASE-UNSIGNED.json").read_text())
+          assert receipt["verified"] is True and receipt["build"] == "V191"
           with zipfile.ZipFile(ipa) as z:
               info_paths=[n for n in z.namelist() if n.startswith("Payload/") and n.endswith(".app/Info.plist") and n.count(".app/")==1]
               assert len(info_paths)==1, info_paths
               info=plistlib.loads(z.read(info_paths[0]))
-              assert info["CFBundleVersion"]=="3.8.204", info.get("CFBundleVersion")
-              assert info["ScarletBuildLabel"]=="V190", info.get("ScarletBuildLabel")
+              assert info["CFBundleVersion"]=="3.8.205", info.get("CFBundleVersion")
+              assert info["ScarletBuildLabel"]=="V191", info.get("ScarletBuildLabel")
               assert info["CFBundleDisplayName"]=="Scarlet Crystal"
           assert hashlib.sha256(ipa.read_bytes()).hexdigest()==receipt["sha256"]
-          print("[PASS] V190_REAL_IOS_BUILD_3.8.204_AUTH_SOURCE_IPA_HASH_VERIFIED")
+          print("[PASS] V191_REAL_IOS_BUILD_3.8.205_AUTH_LEASE_SOURCE_IPA_HASH_VERIFIED")
           PY
 
-      - name: Upload compiled Scarlet Crystal V190 SideStore authentication diagnostics IPA (unsigned, iPhone unverified)
+      - name: Upload compiled Scarlet Crystal V191 bounded authentication lease IPA (unsigned, iPhone unverified)
         uses: actions/upload-artifact@v4
         with:
-          name: Scarlet-Crystal-V190-AUTH-TRANSPORT-UNSIGNED
+          name: Scarlet-Crystal-V191-AUTH-LEASE-UNSIGNED
           path: |
-            artifacts/Scarlet-Crystal-V190-AUTH-TRANSPORT-UNSIGNED.ipa
-            artifacts/Scarlet-Crystal-V190-AUTH-TRANSPORT-UNSIGNED.json
+            artifacts/Scarlet-Crystal-V191-AUTH-LEASE-UNSIGNED.ipa
+            artifacts/Scarlet-Crystal-V191-AUTH-LEASE-UNSIGNED.json
           if-no-files-found: error
           retention-days: 30
 
