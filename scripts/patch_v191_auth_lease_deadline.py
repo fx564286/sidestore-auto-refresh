@@ -165,16 +165,16 @@ def patch_host(s: str) -> str:
     if "SCARLET_V189_AUTH_TRANSPORT_PHASE_TRACE" not in s:
         raise ValueError("V191 requires V189 log allowlist")
     extra_cases=''.join(
-        f'    case trace{i+15} = "{event}"\n'
+        f'    case trace{i+16} = "{event}"\n'
         for i,(_,event) in enumerate(PHASES))
     s=one(s,
-        '    case trace14 = "auth.cancel_rpc.timed_out"\n',
-        '    case trace14 = "auth.cancel_rpc.timed_out"\n'
+        '    case trace15 = "auth.cancel_rpc.timed_out"\n',
+        '    case trace15 = "auth.cancel_rpc.timed_out"\n'
         '    // '+MARK+': no session IDs or credentials in log events.\n'
         +extra_cases,
         "fixed logger event allowlist")
     mappings=''.join(
-        f'            case "{phase}": ScarletV183HostLog.record(.trace{i+15})\n'
+        f'            case "{phase}": ScarletV183HostLog.record(.trace{i+16})\n'
         for i,(phase,_) in enumerate(PHASES))
     s=one(s,
         '            case "begin.lease_waiting": ScarletV183HostLog.record(.trace1)\n',
