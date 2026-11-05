@@ -8,6 +8,8 @@ on:
       - ".github/workflows/scarlet-v189-login-entry-smoke.yml"
       - "scripts/patch_v189_login_entry.py"
       - "tests/test_v189_login_entry.py"
+      - "scripts/patch_v189_auth_bridge_trace.py"
+      - "tests/test_v189_auth_bridge_trace.py"
   workflow_dispatch:
 
 permissions:
@@ -24,6 +26,8 @@ jobs:
           set -euo pipefail
           python3 -m py_compile scripts/patch_v189_login_entry.py tests/test_v189_login_entry.py
           python3 -m unittest discover -s tests -p test_v189_login_entry.py -v
+          python3 -m py_compile scripts/patch_v189_auth_bridge_trace.py tests/test_v189_auth_bridge_trace.py
+          python3 -m unittest discover -s tests -p test_v189_auth_bridge_trace.py -v
       - name: Ensure IPA release is not claimed by unit tests
         run: |
           test -f scripts/patch_v189_login_entry.py
