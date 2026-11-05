@@ -169,15 +169,16 @@ def publish(result,digest,sha_commit):
                                    "kind":"software","title":"Scarlet Crystal V189"}}]}
     publish_page(MANIFEST,plistlib.dumps(manifest,fmt=plistlib.FMT_XML))
     publish_page(SHA_FILE,(digest+"  "+SIGNED+"\n").encode())
-    old=gh_api("repos/"+REPO+"/contents/scarlet-v188.html?ref=gh-pages")
-    original=base64.b64decode(old["content"]).decode("utf8")
-    page=original.replace("scarlet-v188-device-signed-20261105",TAG)
-    page=page.replace("Scarlet-V188-SIGNED-manifest.plist",MANIFEST)
-    page=page.replace("Scarlet-Crystal-V188-SIGNED-DEVELOPMENT.ipa",SIGNED)
-    page=page.replace("V188","V189").replace("v188","v189")
-    require("itms-services://" in page and TAG in page and "webClip" not in page,
-            "OTA_PAGE_TEMPLATE_INVALID")
-    publish_page(PAGE,page.encode("utf8"))
+    # The actual V189 Safari page already lives on gh-pages with strict
+    # release + manifest + SHA256 checks. Never overwrite it with an older,
+    # weaker V188 template when completing publication from CachyOS.
+    existing_page=gh_api("repos/"+REPO+"/contents/"+PAGE+"?ref=gh-pages")
+    page=base64.b64decode(existing_page["content"]).decode("utf8")
+    require(TAG in page and MANIFEST in page and SIGNED in page
+            and "itms-services://" in page
+            and "checksum mismatch" in page,
+            "V189_VERIFIED_REAL_APP_PAGE_MISSING")
+    print("[PASS] VERIFIED_V189_APP_INSTALL_PAGE_PRESERVED",flush=True)
     print("[PASS] V189_ACTUAL_APP_OTA_ASSETS_PUBLISHED",flush=True)
     print("[INSTALL_PAGE] https://fx564286.github.io/sidestore-auto-refresh/"+PAGE,flush=True)
     print("[SIGNED_IPA] "+ipa_url,flush=True)
