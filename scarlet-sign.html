@@ -1,0 +1,23 @@
+<!doctype html><html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Scarlet Crystal — 단축어 서명 진행 상태</title><style>
+:root{color-scheme:dark}*{box-sizing:border-box}body{margin:0;padding:calc(30px + env(safe-area-inset-top)) 18px 40px;font:16px/1.6 -apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo",sans-serif;color:#f8f6ff;background:radial-gradient(at 0 0,#4b317b,#101326 65%);min-height:100dvh}main{max-width:550px;margin:auto}.card{margin:20px 0;padding:22px;border:1px solid #ffffff43;border-radius:25px;background:#ffffff1a;backdrop-filter:blur(28px)}h1{font-size:30px;line-height:1.3}p{color:#d4d2e9}a.btn{display:block;padding:15px 10px;text-align:center;text-decoration:none;border-radius:14px;background:#d3c5fc;color:#1b1336;font-weight:700}.hint{font-size:13px}.state{font-weight:700;color:#e9d0ff}code{word-break:break-all}
+</style></head><body><main>
+<h1>Scarlet Crystal<br>서명 요청 상태</h1><p>iPhone 단축어가 GitHub에 요청하면 CachyOS PC에서 기존 Apple 인증서로 서명해. Wi-Fi·5G 공용이며 SSH 앱은 사용하지 않아.</p>
+<section class="card"><h2 id="title">서명 상태 확인 중…</h2><p id="message" class="state">최신 요청 확인 중</p><p id="info" class="hint">새로고침하지 않아도 상태를 확인해.</p><a class="btn" href="./scarlet-latest.html">최신 실제 앱 설치 페이지</a></section>
+<section class="card"><p class="hint">GitHub 빌드 성공·로컬 서명 성공·iPhone 앱 설치 성공은 서로 다른 단계야. 마지막 단계는 기기에서 확인해야 해. Apple Development 서명은 Safari OTA에서 거부될 수 있어. 기존 앱은 삭제하지 마.</p></section>
+</main><script>
+const title=document.querySelector("#title"),message=document.querySelector("#message"),info=document.querySelector("#info");let last="";
+async function check(){
+ try{
+  const url="https://fx564286.github.io/sidestore-auto-refresh/scarlet-sign-status.json?time="+Date.now();
+  const r=await fetch(url,{cache:"no-store"});if(!r.ok)throw Error("network");
+  const data=await r.json();
+  const states={not_configured:"PC 서명 요청 처리 서비스 미설치",running:"PC에서 최신 IPA 서명·게시 진행 중",published:"서명 IPA 게시 완료",failed:"서명 또는 배포 실패"};
+  title.textContent=states[data.status]||"서명 상태 불명";
+  message.textContent=data.message||"진행 기록 없음";
+  const updated=data.updated_at?new Date(data.updated_at).toLocaleString("ko-KR"):"없음";
+  info.textContent="GitHub 요청 번호: "+(data.request_run_id||"없음")+" · 상태 업데이트: "+updated;
+ }catch(e){title.textContent="상태 조회 실패";message.textContent="GitHub Pages 연결을 확인해."}
+}
+check();setInterval(check,15000);
+</script></body></html>
