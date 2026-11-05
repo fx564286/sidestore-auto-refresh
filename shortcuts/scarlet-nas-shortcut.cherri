@@ -8,6 +8,6 @@
 #question nasUser "NAS 사용자" "aggressivo"
 #question nasPassword "NAS 암호" ""
 @empty = nothing()
-@script = "scarlet-latest"
+@script = "ssh -T -o BatchMode=yes -o StrictHostKeyChecking=yes hanabi@192.168.50.59 true"
 @result = runSSHScript(@script, @empty, nasHost, nasPort, nasUser, "Password", nasPassword)
 openURL("\(@result)")
