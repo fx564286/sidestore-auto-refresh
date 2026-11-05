@@ -23,6 +23,8 @@ BASE=HOME/".local/share/scarlet-crystal"
 IDENTITY=BASE/"signing/identity-v188-enrolled"
 P12=IDENTITY/"identity.p12"
 PASS=IDENTITY/"identity-password.txt"
+KEY=IDENTITY/"private-key.pem"
+CERT=IDENTITY/"certificate.pem"
 RC=HOME/".local/bin/rcodesign"
 OUT=BASE/"v188-signed"
 SRC=OUT/"Scarlet-Crystal-V188-NATIVE-RENEWAL-UNSIGNED.ipa"
@@ -59,6 +61,18 @@ def cert_id():
     require(der.startswith(b"0"),"P12_CERTIFICATE_INVALID")
     print("[PASS] NEW_APPLE_P12_KEYPAIR_PRESENT",flush=True)
     return digest(der)
+
+def pem_identity_ready(expected_hash):
+    """Use the original enrolled PEM identity directly; bypass rcodesign PFX parser."""
+    require(KEY.is_file() and CERT.is_file(),"NEW_APPLE_PEM_IDENTITY_MISSING")
+    require(not KEY.is_symlink() and not CERT.is_symlink(),"UNSAFE_PEM_IDENTITY_SYMLINK")
+    pem_der=command(["openssl","x509","-in",CERT,"-outform","DER"])
+    require(digest(pem_der)==expected_hash,"PEM_CERT_DIFFERS_FROM_APPLE_AUTHORIZED_P12")
+    key_pub=command(["openssl","pkey","-in",KEY,"-pubout","-outform","DER"])
+    cert_pub_pem=command(["openssl","x509","-in",CERT,"-pubkey","-noout"])
+    cert_pub=command(["openssl","pkey","-pubin","-outform","DER"],cert_pub_pem)
+    require(key_pub==cert_pub,"APPLE_CERT_PRIVATE_KEY_MISMATCH")
+    print("[PASS] APPLE_AUTHORIZED_PEM_CERT_KEY_MATCH",flush=True)
 
 def profile_info(f, bundle, cert_hash):
     raw=command(["openssl","cms","-verify","-inform","DER","-in",f,"-noverify"])
@@ -188,9 +202,12 @@ def embed(host,exts,rights,staging):
 def sign(host,exts,staging):
     require(RC.is_file() and os.access(RC,os.X_OK),"RCODESIGN_MISSING")
     helptext=command([RC,"sign","--help"]).decode("utf8","replace")
-    for flag in ("--p12-file","--p12-password-file","--entitlements-xml-file","--shallow"):
+    for flag in ("--pem-file","--entitlements-xml-file","--shallow"):
         require(flag in helptext,"RCODESIGN_OPTION_UNAVAILABLE_"+flag)
-    args=[RC,"sign","--p12-file",P12,"--p12-password-file",PASS]
+    # OpenSSL 3 exports a PFX that rcodesign 0.29 can reject with a misleading
+    # wrong-password error. Apple issued this exact RSA key + PEM certificate;
+    # PEM is the native, lossless signing source. No P12 regeneration needed.
+    args=[RC,"sign","--pem-file",KEY,"--pem-file",CERT]
     # Deep sign frameworks and other nested binaries first. Then re-sign exact
     # extension entitlements, finally shallow re-seal host resource envelope.
     command(args+[host])
@@ -242,6 +259,7 @@ def main():
     os.umask(0o077)
     OUT.mkdir(parents=True,exist_ok=True,mode=0o700)
     cert_hash=cert_id()
+    pem_identity_ready(cert_hash)
     rights=profiles(cert_hash)
     unsigned()
     with tempfile.TemporaryDirectory(prefix="scarlet-v188-sign-",dir=OUT) as d:
