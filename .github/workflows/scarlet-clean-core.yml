@@ -14,7 +14,7 @@ permissions:
 
 jobs:
   standalone-core:
-    runs-on: macos-15
+    runs-on: ubuntu-24.04
     timeout-minutes: 12
     steps:
       - uses: actions/checkout@v4
@@ -39,6 +39,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          command -v swiftc >/dev/null
           swiftc -version
           swiftc -swift-version 6 -parse-as-library \
             rebuild/Sources/ScarletCleanCore/ScarletActionCoordinator.swift \
