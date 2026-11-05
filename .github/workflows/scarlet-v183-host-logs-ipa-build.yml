@@ -198,6 +198,14 @@ jobs:
           grep -q SCARLET_V191_AUTH_LEASE_DEADLINE work/LiveContainer/SideStoreSupport/SideStore.swift
           grep -q SCARLET_V191_AUTH_LEASE_DEADLINE work/LiveContainer/LiveContainerSwiftUI/Views/V3UnifiedShell.swift
           echo '[PASS] V191_AUTH_LEASE_BOUNDED_BEFORE_XPC_WITHOUT_FOREIGN_OWNER_RESET'
+          # Settings must distinguish local touch delivery from XPC failures.
+          python3 -m unittest discover -s builder/tests -p test_v191_settings_control_actions.py -v
+          python3 builder/scripts/patch_v191_settings_control_actions.py work/LiveContainer
+          python3 builder/scripts/patch_v191_settings_control_actions.py work/LiveContainer
+          grep -q SCARLET_V191_SETTINGS_ACTION_DIAGNOSTICS work/LiveContainer/LiveContainerSwiftUI/Views/V3UnifiedShell.swift
+          grep -q settingsLocalClearNotifications work/LiveContainer/LiveContainerSwiftUI/Views/Settings/LCSettingsView.swift
+          swiftc -frontend -parse work/LiveContainer/LiveContainerSwiftUI/Views/Settings/LCSettingsView.swift
+          echo '[PASS] V191_SETTINGS_LOCAL_TAP_VS_SIDESTORE_RPC_AUDIT'
           swiftc -frontend -parse work/LiveContainer/SideStoreSupport/SideStore.swift
           swiftc -frontend -parse work/LiveContainer/LiveContainerSwiftUI/Views/V3UnifiedShell.swift
           grep -q SCARLET_V189_VERIFIABLE_UPDATE_IDENTITY work/LiveContainer/LiveContainerSwiftUI/Views/V3UnifiedShell.swift
