@@ -25,7 +25,7 @@ jobs:
           for required in (
               'Scarlet-Crystal-V189-SIGNED-DEVELOPMENT.ipa',
               'Scarlet-Crystal-V189-UPDATE-TRUTH-UNSIGNED',
-              '3.8.203','P8EZT3U5N4','identity',
+              '3.8.203','P8EZT3U5N4','SIGNER',
               'CFBundleVersion','ScarletBuildLabel','sha256',
               'gh","run","download','itms-services://',
               'DEVELOPMENT_SIGNED_SAFARI_OTA_NOT_GUARANTEED',
