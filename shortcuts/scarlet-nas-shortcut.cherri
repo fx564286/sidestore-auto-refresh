@@ -1,0 +1,13 @@
+#define name "Scarlet Crystal NAS 자동 배포"
+#define color purple
+#define glyph smileyFace
+#include 'actions/network'
+#include 'actions/web'
+#question nasHost "NAS SSH 주소" ""
+#question nasPort "NAS SSH 포트" "22"
+#question nasUser "NAS 사용자" "aggressivo"
+#question nasPassword "NAS 암호" ""
+@empty = nothing()
+@script = "scarlet-latest"
+@result = runSSHScript(@script, @empty, nasHost, nasPort, nasUser, "Password", nasPassword)
+openURL("\(@result)")
