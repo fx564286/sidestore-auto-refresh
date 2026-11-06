@@ -8,6 +8,12 @@ on:
     paths:
       - 'rebuild/**'
       - '.github/workflows/scarlet-clean-core.yml'
+  pull_request:
+    branches:
+      - rebuild/scarlet-clean-core-20261106
+    paths:
+      - 'rebuild/**'
+      - '.github/workflows/scarlet-clean-core.yml'
 
 permissions:
   contents: read
