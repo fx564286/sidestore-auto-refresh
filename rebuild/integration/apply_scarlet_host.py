@@ -184,6 +184,37 @@ def hide_embedded_sidestore_guest_navigation(engine: Path) -> dict:
             "patchedFileSHA256":file_sha(view)}
 
 
+def theme_native_settings_section_rows(source: str) -> tuple[str, int]:
+    """Match Figma card tint on all upstream settings rows without changing actions.
+
+    Pinned LCSettingsView contains 15 real sections; Scarlet adds one
+    login/diagnostics section. Exact 16-section count is a drift guard.
+    """
+    import re
+    output = []
+    active_section_indents = []
+    started = 0
+    styled = 0
+    for line in source.splitlines(keepends=True):
+        start = re.match(r"^( {16}| {20})Section\s*\{", line)
+        if start:
+            active_section_indents.append(len(start.group(1)))
+            started += 1
+        output.append(line)
+        end = re.fullmatch(r"( {16}| {20})\}\s*", line)
+        if end and active_section_indents:
+            indent = len(end.group(1))
+            if indent == active_section_indents[-1]:
+                active_section_indents.pop()
+                output.append(" " * indent +
+                    ".listRowBackground(Color(red: 36.0/255, green: 35.0/255, blue: 58.0/255).opacity(0.80))\n")
+                styled += 1
+    assert started == 16 and styled == 16 and not active_section_indents, (
+        "Pinned LC settings Section structure changed", started, styled,
+        active_section_indents)
+    return "".join(output), styled
+
+
 def attach_native_settings_diagnostics(engine: Path) -> dict:
     """Add one diagnostics entry to the ORIGINAL full-screen LCSettingsView.
 
@@ -256,8 +287,9 @@ def attach_native_settings_diagnostics(engine: Path) -> dict:
         '            .background(Color(red: 13.0/255, green: 13.0/255, blue: 24.0/255).ignoresSafeArea())\n'
         '            .tint(Color(red: 170.0/255, green: 150.0/255, blue: 1.0))\n'
         '            .navigationBarTitle("lc.tabView.settings".loc)\n')
+    source, styled_rows = theme_native_settings_section_rows(source)
     target.write_text(source)
-    return {"settings":"original-LCSettingsView","singleTitle":True,
+    return {"settings":"original-LCSettingsView","styledSections":styled_rows,"singleTitle":True,
             "diagnosticSectionAtTop":True,"nativeLoginEntry":True,
             "newSettingsSheetCreated":False,"sha256":file_sha(target)}
 
