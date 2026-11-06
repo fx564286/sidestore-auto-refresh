@@ -103,14 +103,17 @@ def apply(engine:Path, root:Path):
         '\t\t\tisa = PBXNativeTarget;\n')
     if ps.count(old)!=1:raise RuntimeError("LC NativeTarget anchor missing")
     start=ps.index(old)
-    tail=ps[start:]
-    tail=replace_once(tail,
+    # Modify ONLY the LiveContainerSwiftUI target. The original project
+    # legitimately contains multiple independent empty dependency blocks.
+    target_end=ps.index("\n\t\t};",start)+len("\n\t\t};")
+    target=ps[start:target_end]
+    target=replace_once(target,
         "\t\t\tdependencies = (\n\t\t\t);\n",
         "\t\t\tdependencies = (\n"
         "\t\t\t\t173545AD2E2C7913001B3B4C /* PBXTargetDependency */,\n"
         "\t\t\t);\n",
         "LC SwiftUI dependency")
-    ps=ps[:start]+tail
+    ps=ps[:start]+target+ps[target_end:]
 
     src=root/"rebuild/EngineBridge/ScarletSideStoreSupportAuth.swift"
     assert src.is_file(),"Auth transport source missing"

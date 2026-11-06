@@ -20,7 +20,7 @@ ENGINE=r'''
 // Scarlet's headless bridge to the ORIGINAL SignInOperation.
 // The native SideStore AuthenticationViewController is never constructed.
 @MainActor
-private final class ScarletHeadlessSignInHandler: SignInFlowHandler {
+final class ScarletHeadlessSignInHandler: SignInFlowHandler {
     private let appleID: String
     private let secret: String
     private let challenge: (NSString, @escaping (NSString?) -> Void) -> Void
