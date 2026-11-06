@@ -34,7 +34,7 @@
         "Sources",
         "Settings"
       ],
-      "visibility": "auxiliary_screens_only_not_initial_home"
+      "visibility": "original_all_container_screens"
     },
     "roundSwitcher": {
       "x": 22,
@@ -125,11 +125,11 @@
           78,
           78
         ],
-        "settingsInline": true,
-        "nativeSettingsTitle": "LiveContainer 전체 설정",
-        "hideBottomTabsOnHome": true,
+        "settingsInline": false,
+        "hideBottomTabsOnHome": false,
         "homeSectionCount": 2,
-        "doNotShowStatisticsOrRecents": true
+        "doNotShowStatisticsOrRecents": true,
+        "homeSettingsCardRemoved": true
       },
       "apps": {
         "filterBarVisible": false,
@@ -150,16 +150,14 @@
       "requiredCopy": [
         "내 컨테이너",
         "SideStore",
-        "가상 앱",
-        "설정",
-        "LiveContainer 전체 설정"
+        "가상 앱"
       ],
       "dynamicData": [
         "actual_embedded_sidestore",
         "native_livecontainer_app_library",
         "original_livecontainer_settings"
       ],
-      "navigation": "Single initial screen, no Home or Settings tab required; native engine sheets"
+      "navigation": "Two original engine entries, with restored pre-merge native bottom navigation to separate original Settings"
     },
     {
       "figmaNodeId": "6:75",
@@ -262,6 +260,7 @@
     "UI requires real hosted guest engine, tab bar, round switcher and signed IPA for device validation",
     "Main container tabs never show the round app switcher; only the running guest scene may show it",
     "Figma shows an illustrative guest frame; real preview must be a captured guest render at switch time and never a static stock picture",
-    "Simulated SwiftUI previews do not certify native Liquid Glass or on-device Figma pixel equality."
+    "Simulated SwiftUI previews do not certify native Liquid Glass or on-device Figma pixel equality.",
+    "Rolled back only the new Home settings overlay clone; original separate LCSettingsView and glass navigation remain available."
   ]
 }

@@ -22,18 +22,19 @@ class NativeHomeSettings(unittest.TestCase):
 
     def test_home_settings_simultaneously_visible_and_no_tab_on_landing(self):
         self.assertIn('heading("", "내 컨테이너", "")',HOME)
-        self.assertIn('heading("", "설정", "")',HOME)
-        self.assertIn('ScarletActionRow(title: "LiveContainer 전체 설정"',HOME)
-        self.assertIn('if selected != .home {',UI)
-        self.assertTrue(NAV["home_and_settings_inline"])
-        self.assertTrue(NAV["home_tab_bar_hidden"])
-        self.assertFalse(NAV["main_screen_requires_tab"])
-        self.assertIn('case "settings": startTab = .home',PREVIEW)
+        self.assertNotIn('heading("", "설정", "")',HOME)
+        self.assertNotIn('ScarletActionRow(title: "LiveContainer 전체 설정"',HOME)
+        self.assertNotIn('if selected != .home {',UI)
+        self.assertFalse(NAV["home_and_settings_inline"])
+        self.assertFalse(NAV["home_tab_bar_hidden"])
+        self.assertTrue(NAV["main_screen_requires_tab"])
+        self.assertIn('case "settings": startTab = .settings',PREVIEW)
 
     def test_no_faux_settings_just_original_livecontainer_and_sidestore(self):
         self.assertNotIn('.sheet(isPresented: $showLocalAppearance)',UI)
         self.assertNotIn('.sheet(isPresented: $showLocalStorage)',UI)
-        self.assertIn('onAction(.localAppearance)',HOME)
+        self.assertNotIn('onAction(.localAppearance)',HOME)
+        self.assertIn('onAction(.localAppearance)',UI)
         self.assertIn('onAction(.localOpenEmbeddedSideStore)',HOME)
         self.assertIn('onAction(.localImportGuestIPA)',HOME)
         for literal in ("LCSettingsView()","LCAppListView()",

@@ -39,8 +39,8 @@ class FigmaMeasuredParity(unittest.TestCase):
         self.assertIn('case .sources: "books.vertical"', UI)
         axis = DESIGN["design"]["alignment"]
         self.assertEqual(axis["guestSegmentWidthPt"], axis["guestRowWidthPt"])
-        self.assertTrue(axis["homeAndSettings"]["settingsInline"])
-        self.assertTrue(axis["homeAndSettings"]["hideBottomTabsOnHome"])
+        self.assertFalse(axis["homeAndSettings"]["settingsInline"])
+        self.assertFalse(axis["homeAndSettings"]["hideBottomTabsOnHome"])
         self.assertEqual(axis["homeAndSettings"]["engineEntryHeightsPt"], [78,78])
         self.assertNotIn('Text(guest.isRunning ? "전환" : "실행")', UI)
 

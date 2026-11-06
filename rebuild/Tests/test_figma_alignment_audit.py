@@ -27,11 +27,11 @@ class AlignmentTests(unittest.TestCase):
         self.assertEqual(g["windowActionWidthsPt"],[102]*3)
         self.assertFalse(AUDIT["policy"]["doNotDuplicateSwitchers"] is False)
 
-    def test_home_settings_same_screen_without_tab(self):
+    def test_home_native_glass_settings_navigation_restored(self):
         home=UI[UI.index("    private var home: some View {"):UI.index("    private var visibleGuests:")]
         self.assertEqual(home.count('engineEntry("'),2)
-        self.assertIn('heading("", "설정", "")',home)
-        self.assertIn('if selected != .home {',UI)
+        self.assertNotIn('heading("", "설정", "")',home)
+        self.assertNotIn('if selected != .home {',UI)
         self.assertNotIn('SCARLET_CENTERED_WORKSPACE_STATS',UI)
         self.assertNotIn('quickAction("앱 추가"',UI)
         self.assertIn('preservedGlassTabBar($selected)',UI)

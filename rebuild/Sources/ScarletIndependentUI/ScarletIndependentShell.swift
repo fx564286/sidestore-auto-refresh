@@ -313,16 +313,14 @@ public struct ScarletIndependentShell: View {
                 }
                 .scrollIndicators(.hidden)
 
-                // Startup Home AND Settings require no tab navigation.
-                // Other/legacy destinations retain their protected glass bar.
-                if selected != .home {
-                    preservedGlassTabBar($selected)
-                        .frame(maxWidth: .infinity, alignment: .center)
-                        .frame(height: 62)
-                        .padding(.horizontal, 19)
-                        .padding(.bottom, 6)
-                        .accessibilityIdentifier("SCARLET_NATIVE_GLASS_BOTTOM_TAB_BAR")
-                }
+                // Restore pre-inline-settings native Liquid Glass navigation.
+                // Original settings remains reachable and its engine intact.
+                preservedGlassTabBar($selected)
+                    .frame(maxWidth: .infinity, alignment: .center)
+                    .frame(height: 62)
+                    .padding(.horizontal, 19)
+                    .padding(.bottom, 6)
+                    .accessibilityIdentifier("SCARLET_NATIVE_GLASS_BOTTOM_TAB_BAR")
             }
 
         }
@@ -377,24 +375,6 @@ public struct ScarletIndependentShell: View {
             }
             .accessibilityIdentifier("SCARLET_HOME_LIVECONTAINER_ENGINE")
 
-            heading("", "설정", "")
-            compactSettingsCard {
-                Text("LiveContainer")
-                    .font(.system(size: 18, weight: .semibold))
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .frame(height: 22)
-                    .padding(.leading, 8)
-                ScarletActionRow(title: "LiveContainer 전체 설정",
-                                 detail: "",
-                                 icon: "circle.lefthalf.filled", enabled: true) {
-                    // The host presents the ORIGINAL full LCSettingsView,
-                    // including JIT, multitasking, certificates and storage.
-                    onAction(.localAppearance)
-                }
-                .padding(.horizontal, 8)
-                .frame(height: 62)
-                .accessibilityIdentifier("SCARLET_NATIVE_LC_SETTINGS_ENTRY")
-            }
         }
         .foregroundStyle(ScarletPresentationColor.text)
     }

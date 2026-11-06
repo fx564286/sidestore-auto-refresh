@@ -32,16 +32,16 @@ class FigmaGeometryContract(unittest.TestCase):
         self.assertTrue(G["policy"]["doNotBuildFauxGlass"])
         self.assertTrue(G["policy"]["noSeparateWindowManagerTab"])
 
-    def test_home_has_two_native_engines_and_inline_settings(self):
+    def test_home_rolls_back_inline_settings_only(self):
         home=UI[UI.index("    private var home: some View {"):UI.index("    private var visibleGuests:")]
         self.assertEqual(home.count('engineEntry("'),2)
         self.assertIn('engineEntry("SideStore"',home)
         self.assertIn('engineEntry("가상 앱"',home)
-        self.assertIn('heading("", "설정", "")',home)
-        self.assertIn('ScarletActionRow(title: "LiveContainer 전체 설정"',home)
+        self.assertNotIn('heading("", "설정", "")',home)
+        self.assertNotIn('ScarletActionRow(title: "LiveContainer 전체 설정"',home)
         self.assertNotIn('sectionTitle("최근 앱")',home)
         self.assertNotIn('sectionTitle("빠른 작업")',home)
-        self.assertIn('if selected != .home {',UI)
+        self.assertNotIn('if selected != .home {',UI)
 
     def test_native_glass_control_must_be_injected_not_recreated(self):
         self.assertIn("preservedGlassTabBar: (Binding<Tab>) -> AnyView",UI)

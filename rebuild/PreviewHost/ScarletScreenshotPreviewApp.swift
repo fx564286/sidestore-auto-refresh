@@ -15,7 +15,7 @@ struct ScarletScreenshotPreviewApp: App {
         switch screen {
         case "apps": startTab = .apps
         case "sources": startTab = .sources
-        case "settings": startTab = .home
+        case "settings": startTab = .settings
         case "connection": startTab = .settings
         default: startTab = .home
         }

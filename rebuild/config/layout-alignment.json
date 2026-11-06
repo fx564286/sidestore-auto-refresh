@@ -36,7 +36,7 @@
       "Sources",
       "Settings"
     ],
-    "visible_on_initial_home": false,
+    "visible_on_initial_home": true,
     "preserves_original_material_on_auxiliary_screens": true
   },
   "round_app_switcher": {
@@ -80,13 +80,12 @@
     "guest_action_buttons_width_pt": 320,
     "guest_app_title_alignment": "LEFT",
     "hide_redundant_action_and_status_labels": true,
-    "home_and_settings_same_screen": true,
+    "home_and_settings_same_screen": false,
     "home_engine_card_equal_width_pt": 350,
     "home_engine_card_heights_pt": [
       78,
       78
     ],
-    "home_settings_card_height_pt": 102,
     "home_bottom_tabs_hidden": true
   }
 }

@@ -113,11 +113,11 @@
     "guest_preview_source": "live_owned_guest_view_snapshot_on_switch",
     "container_shell_has_round_switcher": false,
     "guest_overlay_has_bottom_host_tab_bar": false,
-    "home_and_settings_inline": true,
-    "main_screen_requires_tab": false,
-    "home_tab_bar_hidden": true,
-    "initial_screen": "home_with_settings",
-    "original_livecontainer_settings_entry": "ScarletControl.localAppearance -> LCSettingsView",
+    "home_and_settings_inline": false,
+    "main_screen_requires_tab": true,
+    "home_tab_bar_hidden": false,
+    "initial_screen": "home",
+    "original_livecontainer_settings_entry": "Settings tab -> LCSettingsView",
     "original_sidestore_entry": "ScarletControl.localOpenEmbeddedSideStore -> LCUtils.openSideStore",
     "original_guest_apps_entry": "ScarletControl.localImportGuestIPA -> LCAppListView"
   }

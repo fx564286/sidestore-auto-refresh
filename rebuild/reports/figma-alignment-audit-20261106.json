@@ -98,7 +98,8 @@
       78
     ],
     "homeNativeSettingsCardHeightPt": 102,
-    "homeSettingsSectionVisibleWithoutTab": true
+    "homeSettingsSectionVisibleWithoutTab": false,
+    "homeSettingsCardCount": 0
   },
   "policy": {
     "nativeGlassMaterial": "Must be provided by existing original host renderer; Figma is visual preview only",
@@ -112,8 +113,9 @@
     "settingsRowsOneLineOnly": true,
     "serviceActionsInConnectionDetails": true,
     "settingsCenteredPrimaryAction": true,
-    "noHomeOrSettingsTabsNeeded": true,
-    "originalEngineEntrypointsOnly": true
+    "noHomeOrSettingsTabsNeeded": false,
+    "originalEngineEntrypointsOnly": true,
+    "newlyClonedHomeSettingsRemoved": true
   },
-  "validation": "Figma initial home and native-settings direct access measured; UI source contract verified, actual iPhone runtime remains unverified."
+  "validation": "Rollback to pre-inline-settings Home: two engine entries and original native glass navigation; separate original settings screen untouched."
 }
