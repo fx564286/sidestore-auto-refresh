@@ -4,6 +4,9 @@ on:
   schedule:
     - cron: '41 0,12 * * *'
   workflow_dispatch:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/scarlet-upstream-dualtrack.yml']
 
 permissions:
   contents: write
