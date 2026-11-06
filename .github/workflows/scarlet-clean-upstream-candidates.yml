@@ -12,6 +12,7 @@ on:
 permissions:
   contents: write
   pull-requests: write
+  actions: write
 
 concurrency:
   group: scarlet-clean-upstream-candidates
@@ -67,6 +68,8 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
+          newCandidate=false
+          newPR=false
           if git ls-remote --exit-code origin "refs/heads/$head" >/dev/null 2>&1; then
             echo "[SKIP] Candidate revision already staged: $head"
           else
@@ -75,6 +78,7 @@ jobs:
             git commit -m "chore(clean-rebuild): sync coordinated LiveContainer/SideStore and SideSign pins"
             git push -u origin "$head"
             echo "[PASS] Created immutable upstream candidate: $head"
+            newCandidate=true
           fi
 
           existing="$(gh pr list -R "$GITHUB_REPOSITORY" --state all --head "$head" --json number --jq '.[0].number // empty')"
@@ -99,6 +103,18 @@ jobs:
               --title "chore: update Scarlet Crystal pinned LiveContainer/SideStore/SideSign sources" \
               --body-file "${RUNNER_TEMP}/upstream-pr.md"
             echo "[PASS] Created source update PR into $base"
+            newPR=true
+          fi
+
+          # GITHUB_TOKEN-created PR events do not automatically start other
+          # workflows. workflow_dispatch is explicitly permitted by GitHub.
+          # Trigger an independent, read-only iOS compatibility smoke gate.
+          if [[ "$newCandidate" == true || "$newPR" == true ]]; then
+            gh workflow run scarlet-clean-upstream-compat.yml \
+              -R "$GITHUB_REPOSITORY" --ref main -f candidate_ref="$head"
+            echo "[PASS] Requested Xcode 27.2 source graph + clean UI candidate tests"
+          else
+            echo "[SKIP] Exact candidate was already proposed; avoiding duplicate CI"
           fi
 
       - name: Retain exact upstream comparison as audit artifact
