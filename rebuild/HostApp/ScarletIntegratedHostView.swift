@@ -7,7 +7,8 @@ import SwiftUI
 @available(iOS 17.0, *)
 struct ScarletIntegratedHostView: View {
     @EnvironmentObject private var sharedModel: SharedModel
-    @ObservedObject private var guestDock = MultitaskDockManager.shared
+    // Guest window enumeration is sourced lazily from the live scene registry.
+    // Avoid initializing the dock before UIWindow and its view tree exist.
     @StateObject private var downloadHelper = DownloadHelper()
     @StateObject private var originalSources = AltStoreSourcesViewModel()
     @State private var showNativeAppLibrary = false
@@ -120,7 +121,13 @@ struct ScarletIntegratedHostView: View {
         )
         .environmentObject(downloadHelper)
         .onAppear {
-            NSLog("[SCARLET_BOOT] phase=home-visible")
+            // UIKit window creation can lag behind SwiftUI view construction.
+            // The actual dock is initialized lazily and attached when ready.
+            DispatchQueue.main.async {
+                MultitaskDockManager.shared.scarletEnsureWindowHost()
+                NSLog("[SCARLET_BOOT] phase=home-visible dock-root-attached=%d",
+                      MultitaskDockManager.shared.windowHostingView.superview != nil ? 1 : 0)
+            }
         }
         .sheet(isPresented: $showScarletAppleIDLogin) {
             // Credentials remain in a Scarlet-owned ephemeral view.
