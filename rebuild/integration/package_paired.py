@@ -192,6 +192,7 @@ def main():
     assert auth_proof.get("onlyNavigationEntryPatched") is True, "Native SideStore login entry report missing"
     assert auth_proof.get("originalTwoFactorUIUnmodified") is True, "Cannot verify original 2FA remains unchanged"
     assert auth_proof.get("sameFileNativeSignInForwarder") is True, "Original SideStore native login forwarder missing"
+    assert auth_proof.get("loginColdLaunchDeferralEnabled") is True, "SideStore cold-launch login readiness check missing"
     report={
         "schema":1,"hostBundleID":HOST_ID,
         "threeOriginalExtensions":list(EXTENSIONS),

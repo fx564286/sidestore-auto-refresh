@@ -7,6 +7,7 @@
 - Original Scarlet action `serviceBeginSignIn` previously launched SideStore home only; now passes `sidestore://signin` via LC's existing `runApp(urlStr:)` route.
 - Rolled back the failing direct cross-file invocation of fileprivate `signIn()`. The adapter now calls `scarletStartNativeAppleSignIn()` added in the **same original** `AltStore/Settings/SettingsViewController.swift` file; this delegates to the unmodified native `signIn()` implementation.
 - Scarlet settings `Apple ID 로그인` directly triggers native SideStore sign-in. No additional intermediate account/signing page is required. The existing navigation UI and host/guest data are preserved.
+- Native `SceneDelegate.sceneDidBecomeActive` resolves a pending sign-in URL if SideStore was not yet foregroundActive at the time of the request, avoiding a silent first-launch login request drop; existing scene lifecycle is otherwise preserved.
 - SideStore home action, virtual guest launch, existing profiles and app data remain unchanged.
 
 ## Status semantics

@@ -21,6 +21,17 @@ SETTINGS_FIXTURE='''private extension SettingsViewController
 }
 '''
 
+SCENE_FIXTURE='''final class SceneDelegate {
+    func scene(_ scene: UIScene, willConnectTo session: UISceneSession, options connectionOptions: UIScene.ConnectionOptions)
+    {
+    }
+    func sceneDidBecomeActive(_ scene: UIScene)
+    {
+        debugLog("[SceneDelegate] sceneDidBecomeActive() invoked")
+    }
+}
+'''
+
 UPSTREAM_FIXTURE='''@MainActor
 class URLHandler {
     func handle(_ url: URL) -> Bool {
@@ -48,12 +59,17 @@ class NativeSideStoreLoginRoute(unittest.TestCase):
 
     def test_native_route_has_pinned_and_fail_closed_contract(self):
         out=route.apply(UPSTREAM_FIXTURE)
-        for marker in ('case "signin":','ScarletOriginalSideStoreSignIn.open()',
+        for marker in ('case "signin":','ScarletOriginalSideStoreSignIn.request()',
                        'SettingsViewController','AuthManager.shared.isAuthenticated',
                        'settings.scarletStartNativeAppleSignIn()', 'case "pairing":', 'case "install":'):
             self.assertIn(marker,out)
         self.assertIn('guard url.path.isEmpty || url.path == "/"',out)
         self.assertIn('originalTwoFactorUIUnmodified',Path(route.__file__).read_text())
+        self.assertIn('guard pendingSignIn, open() else { return false }',out)
+        scene=route.apply_scene(SCENE_FIXTURE)
+        self.assertIn('ScarletOriginalSideStoreSignIn.activatePending()',scene)
+        with self.assertRaises(RuntimeError):
+            route.apply_scene(scene)
         with self.assertRaises(RuntimeError):
             route.apply(out)
         with self.assertRaises(RuntimeError):
@@ -63,6 +79,7 @@ class NativeSideStoreLoginRoute(unittest.TestCase):
         self.assertIn('patch_sidestore_native_signin.py',WORKFLOW)
         self.assertIn('--side-auth-report artifacts/side/native-signin-adapter.json',WORKFLOW)
         self.assertIn('originalSideStoreAuthFlowPreserved',PACKAGER)
+        self.assertIn('loginColdLaunchDeferralEnabled',PACKAGER)
         self.assertIn('"loginDeviceVerified":False',PACKAGER)
         self.assertIn('codesignedWithAppleProfile":False',PACKAGER)
 

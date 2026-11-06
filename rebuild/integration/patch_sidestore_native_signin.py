@@ -16,13 +16,21 @@ from pathlib import Path
 PIN = "ee3cc16a67f9fed766f79a0ed70938f0f8ad5a07"
 RELATIVE = "SideStore/DeepLinks/URLHandler.swift"
 SETTINGS_RELATIVE = "AltStore/Settings/SettingsViewController.swift"
+SCENE_RELATIVE = "AltStore/SceneDelegate.swift"
+SCENE_ANCHOR = '        debugLog("[SceneDelegate] sceneDidBecomeActive() invoked")\n'
+SCENE_INSERT = '''        // Deliver Scarlet native login only when the original guest scene is active.
+        Task { @MainActor in
+            _ = ScarletOriginalSideStoreSignIn.activatePending()
+        }
+'''
 ROUTE_ANCHOR = '        case "install":\n'
 
 ROUTE = '''        case "signin":
             // Scarlet's only job is to open the ORIGINAL SideStore sign-in
             // flow. Neither the host nor this adapter sees credentials/2FA.
             guard url.path.isEmpty || url.path == "/" else { return false }
-            return ScarletOriginalSideStoreSignIn.open()
+            ScarletOriginalSideStoreSignIn.request()
+            return true
 
 '''
 
@@ -47,7 +55,21 @@ ADAPTER = '''
 // Built-in SideStore navigation adapter for Scarlet Crystal.
 // No authentication, keychain, Anisette, certificate or 2FA code is replaced.
 @MainActor
-private enum ScarletOriginalSideStoreSignIn {
+enum ScarletOriginalSideStoreSignIn {
+    private static var pendingSignIn = false
+
+    static func request() {
+        pendingSignIn = true
+        _ = activatePending()
+    }
+
+    @discardableResult
+    static func activatePending() -> Bool {
+        guard pendingSignIn, open() else { return false }
+        pendingSignIn = false
+        return true
+    }
+
     private static func findSettings(in root: UIViewController) -> SettingsViewController? {
         if let settings = root as? SettingsViewController { return settings }
         if let nav = root as? UINavigationController {
@@ -123,6 +145,16 @@ def apply_settings(source: str) -> str:
     return source + SETTINGS_ENTRY
 
 
+def apply_scene(source: str) -> str:
+    if source.count(SCENE_ANCHOR) != 1:
+        raise RuntimeError("Pinned SideStore guest scene activation changed")
+    if "ScarletOriginalSideStoreSignIn.activatePending()" in source:
+        raise RuntimeError("Scene activation adapter already installed")
+    if "func scene(_ scene: UIScene, willConnectTo session: UISceneSession" not in source:
+        raise RuntimeError("Original SideStore guest scene handler missing")
+    return source.replace(SCENE_ANCHOR, SCENE_ANCHOR + SCENE_INSERT)
+
+
 def sha(raw: bytes) -> str:
     return hashlib.sha256(raw).hexdigest()
 
@@ -150,20 +182,28 @@ def main():
     assert settings.is_file(),f"Original SideStore SettingsViewController missing: {settings}"
     before=src.read_bytes()
     original_settings=settings.read_bytes()
+    scene=args.engine/SCENE_RELATIVE
+    assert scene.is_file(),f"Original SideStore SceneDelegate missing: {scene}"
+    original_scene=scene.read_bytes()
     after=apply(before.decode("utf-8")).encode("utf-8")
     patched_settings=apply_settings(original_settings.decode("utf-8")).encode("utf-8")
-    # Validate both pinned sources before writing either.
+    patched_scene=apply_scene(original_scene.decode("utf-8")).encode("utf-8")
+    # Validate all pinned sources before writing any of them.
     src.write_bytes(after)
     settings.write_bytes(patched_settings)
+    scene.write_bytes(patched_scene)
     args.report.parent.mkdir(parents=True,exist_ok=True)
     data={
        "schema":1,
        "upstreamPin":PIN,
        "modifiedFile":RELATIVE,
-       "modifiedFiles":[RELATIVE,SETTINGS_RELATIVE],
+       "modifiedFiles":[RELATIVE,SETTINGS_RELATIVE,SCENE_RELATIVE],
        "originalSha256":sha(before),"patchedSha256":sha(after),
        "settingsOriginalSha256":sha(original_settings),
        "settingsPatchedSha256":sha(patched_settings),
+       "sceneOriginalSha256":sha(original_scene),
+       "scenePatchedSha256":sha(patched_scene),
+       "loginColdLaunchDeferralEnabled":True,
        "originalFileprivateSignInPreserved":True,
        "sameFileNativeSignInForwarder":True,
        "onlyNavigationEntryPatched":True,
@@ -178,7 +218,7 @@ def main():
        "status":"source integration only; live Apple authentication requires signed device test"
     }
     args.report.write_text(json.dumps(data,ensure_ascii=False,indent=2)+"\n")
-    print("[PASS] Original SideStore Settings login directly invokes original signIn() via same-file forwarder")
+    print("[PASS] Original SideStore signIn() used; cold-launch request deferred until native guest scene becomes active")
     print("[BLOCK] Real Apple authentication, profile authorization, and device installation not verified")
 if __name__=="__main__":
     main()
