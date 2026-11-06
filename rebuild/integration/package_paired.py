@@ -73,6 +73,7 @@ def main():
     p.add_argument("--dylibify",type=Path,required=True)
     p.add_argument("--out",type=Path,required=True)
     p.add_argument("--host-report",type=Path)
+    p.add_argument("--side-auth-report",type=Path)
     args=p.parse_args()
     args.out.mkdir(parents=True,exist_ok=True)
     work=args.out/"_build_work"
@@ -187,6 +188,9 @@ def main():
     shutil.copy2(args.sidestore_ipa,side_copy)
 
     host_proof=json.loads(args.host_report.read_text()) if args.host_report and args.host_report.is_file() else {}
+    auth_proof=json.loads(args.side_auth_report.read_text()) if args.side_auth_report and args.side_auth_report.is_file() else {}
+    assert auth_proof.get("onlyNavigationEntryPatched") is True, "Native SideStore login entry report missing"
+    assert auth_proof.get("originalTwoFactorUIUnmodified") is True, "Cannot verify original 2FA remains unchanged"
     report={
         "schema":1,"hostBundleID":HOST_ID,
         "threeOriginalExtensions":list(EXTENSIONS),
@@ -197,6 +201,10 @@ def main():
         "retainsIntentsMetadata":True,"codesignedWithAppleProfile":False,
         "userDeviceInstallationVerified":False,
         "sideStoreAppleAuthenticationVerified":False,
+        "nativeSideStoreSignInDeepLink":auth_proof.get("nativeSignInDeepLink"),
+        "originalSideStoreAuthFlowPreserved":True,
+        "loginDeviceVerified":False,
+        "authAdapterAudit":auth_proof,
         "FigmaScarletShellSourceCompiled":bool(host_proof.get("newRootCompiled",False)),
         "originalNativeGlassSourceCompiled":bool(host_proof.get("newRootCompiled",False)),
         "hostIntegrationHashes":host_proof.get("sources",[]),

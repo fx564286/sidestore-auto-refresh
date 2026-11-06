@@ -630,7 +630,7 @@ public struct ScarletIndependentShell: View {
             ScarletPanel {
                 Text("연결 상태")
                     .font(.title3.bold())
-                Text(snapshot.serviceConnected ? "내장 SideStore 사용 가능" : "SideStore 연결 필요")
+                Text(snapshot.serviceConnected ? "내장 SideStore 발견 · 로그인 상태 미검증" : "SideStore 실행 파일 없음")
                     .font(.caption)
                     .foregroundStyle(ScarletPresentationColor.muted)
             }

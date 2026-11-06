@@ -55,12 +55,19 @@ struct ScarletIntegratedHostView: View {
         }
     }
 
-    private func openEmbeddedSideStore() {
+    private func openEmbeddedSideStore(signIn: Bool = false) {
         guard UserDefaults.sideStoreExist() else {
             showOriginalError = "내장 SideStore 실행 파일이 없습니다. 통합 IPA를 검사하세요."
             return
         }
-        LCUtils.openSideStore(delegate: nil)
+        // The original SideStore guest owns Apple ID, password, 2FA, and
+        // signing credentials. Scarlet only requests its native sign-in UI.
+        // SideStore's injected URL handler routes this to its ORIGINAL
+        // SettingsViewController.signIn() -> AuthManager -> SignInOperation.
+        LCUtils.openSideStore(
+            delegate: nil,
+            urlStr: signIn ? "sidestore://signin" : nil
+        )
     }
 
     private func handle(_ action: ScarletControl) {
@@ -68,8 +75,9 @@ struct ScarletIntegratedHostView: View {
         case .localImportGuestIPA:
             sharedModel.selectedTab = .apps
             showNativeAppLibrary = true
+        case .serviceBeginSignIn:
+            openEmbeddedSideStore(signIn: true)
         case .localOpenEmbeddedSideStore,
-             .serviceBeginSignIn,
              .serviceRefreshApp,
              .serviceSyncAppIDs,
              .serviceInstallIPA,

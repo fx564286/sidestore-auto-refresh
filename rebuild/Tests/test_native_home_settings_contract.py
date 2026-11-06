@@ -38,7 +38,7 @@ class NativeHomeSettings(unittest.TestCase):
         self.assertIn('onAction(.localOpenEmbeddedSideStore)',HOME)
         self.assertIn('onAction(.localImportGuestIPA)',HOME)
         for literal in ("LCSettingsView()","LCAppListView()",
-                        "LCUtils.openSideStore(delegate: nil)"):
+                        "LCUtils.openSideStore("):
             self.assertIn(literal,HOST)
         self.assertIn("case .localAppearance, .localStorageNavigation",HOST)
         self.assertIn(".serviceBeginSignIn,",HOST)
