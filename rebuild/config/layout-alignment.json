@@ -71,7 +71,7 @@
     "preview_not_static": true,
     "preview_action_label_visibility": "accessibility_only"
   },
-  "implementation": "Retain the existing Scarlet dark Liquid Glass tab-bar frame and all page layout; change ONLY four tabs order/labels/destinations (Sources, Apps, native LCTweaksView, native LCSettingsView). Screenshot is a navigation reference only.",
+  "implementation": "Preserve 352x62pt Scarlet bottom-bar geometry, four Korean tab destinations and current dark palette; replace STATIC gray tab highlight with Apple iOS26 GlassEffectContainer/morphing selection; physical iPhone optical/touch validation still pending.",
   "visual_alignment": {
     "content_gutter_pt": 20,
     "guest_panel_width_pt": 354,
