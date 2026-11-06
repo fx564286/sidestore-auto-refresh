@@ -17,22 +17,20 @@
     "x": 19,
     "width": 352,
     "height": 62,
-    "tab_count": 4,
-    "tab_width": 81,
+    "tab_count": 3,
+    "tab_width": 110,
     "tab_spacing": 6,
     "outer_padding": 5,
     "icon_and_label_horizontal_alignment": "CENTER",
-    "icon_bounds_center_x": 40.5,
-    "label_bounds_center_x": 40.5,
+    "icon_bounds_center_x": 55,
+    "label_bounds_center_x": 55,
     "equal_tab_centers": [
-      64.5,
-      151.5,
-      238.5,
-      325.5
+      79,
+      195,
+      311
     ],
     "labels": [
       "Home",
-      "Apps",
       "Sources",
       "Settings"
     ],
@@ -71,7 +69,7 @@
     "preview_not_static": true,
     "preview_action_label_visibility": "accessibility_only"
   },
-  "implementation": "Use Figma geometry as measured reference; native host Liquid Glass must be reused unchanged",
+  "implementation": "Measured Figma v1 is an archival reference. User-approved merged Home+Apps v2 has 3 equal Liquid Glass tabs and direct original LCSettingsView; validate runtime separately.",
   "visual_alignment": {
     "content_gutter_pt": 20,
     "guest_panel_width_pt": 354,
@@ -81,14 +79,14 @@
     "guest_app_title_alignment": "LEFT",
     "hide_redundant_action_and_status_labels": true,
     "home_and_settings_same_screen": false,
-    "home_engine_card_equal_width_pt": 350,
+    "home_engine_card_equal_width_pt": 170,
     "home_engine_card_heights_pt": [
       62,
       62
     ],
-    "home_bottom_tabs_hidden": true,
+    "home_bottom_tabs_hidden": false,
     "home_engine_install_labels": [
-      "iOS 앱 설치",
+      "SideStore 앱 설치",
       "게스트 앱 설치"
     ]
   }
