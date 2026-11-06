@@ -124,3 +124,58 @@ jobs:
           path: report/
           retention-days: 14
           if-no-files-found: warn
+
+  package-paired:
+    needs: [livecontainer, sidestore]
+    runs-on: xcode-27
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: Scarlet-LiveContainer-Native-Engine
+          path: artifacts/lc
+      - uses: actions/download-artifact@v4
+        with:
+          name: Scarlet-SideStore-Native-Engine
+          path: artifacts/side
+      - name: Prepare exact official LiveContainer embedded-SideStore packaging tools
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p report build-tools
+          brew install ldid
+          curl -fLSs --retry 3 \
+            https://github.com/LiveContainer/dylibify/releases/download/1.0/dylibify \
+            -o build-tools/dylibify
+          chmod +x build-tools/dylibify
+          file build-tools/dylibify
+          pin="$(python3 -c 'import json;print(json.load(open("config/scarlet-upstream-pins.json"))["LIVE_CONTAINER_REF"])')"
+          curl -fLSs --retry 3 \
+            "https://raw.githubusercontent.com/LiveContainer/LiveContainer/$pin/.github/sidelc/LCAppInfo.plist" \
+            -o build-tools/LCAppInfo.plist
+          plutil -lint build-tools/LCAppInfo.plist
+          shasum -a 256 build-tools/dylibify | tee report/official-dylibify-sha256.txt
+      - name: Produce separate and unified native engine IPAs without altering Apple signing assets
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 rebuild/integration/package_paired.py \
+            --lc-tar artifacts/lc/LiveContainer-app.tar \
+            --sidestore-ipa artifacts/side/SideStore.ipa \
+            --lc-appinfo build-tools/LCAppInfo.plist \
+            --dylibify build-tools/dylibify \
+            --out report
+          python3 rebuild/integration/verify_engines.py \
+            --phase combined \
+            --combined-ipa report/Scarlet-LiveContainer+SideStore-ENGINES-UNSIGNED.ipa \
+            --report report/combined-ipa-verification.json
+          echo "[PASS] Pinned SideStore embedded as native LC framework. User installation not performed."
+      - name: Upload exact binary artifacts and signing limitations
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: Scarlet-Paired-Engines-UNSIGNED-DIAGNOSTIC-ONLY
+          path: report/
+          if-no-files-found: warn
+          retention-days: 14
