@@ -76,19 +76,17 @@
     "settingsContentLeftPt": 20,
     "settingsCardWidthsPt": [
       350,
-      350,
       350
     ],
     "settingsCardHeightsPt": [
       165,
-      129,
-      80
+      129
     ],
     "settingsCardHeadingInsetPt": 17,
     "settingsIconInsetPt": 17,
     "settingsRowTextInsetPt": 65,
     "settingsPrimaryActionCenterXPt": 195,
-    "settingsCardCount": 3,
+    "settingsCardCount": 2,
     "homeEngineEntryWidthsPt": [
       350,
       350
