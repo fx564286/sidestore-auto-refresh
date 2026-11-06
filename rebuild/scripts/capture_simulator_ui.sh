@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # Deterministic SwiftUI screenshots ONLY (not the real Scarlet IPA).
 set -Eeuo pipefail
-ROOT="$(cd "$(dirname "\${BASH_SOURCE[0]}")/../.." && pwd)"
-OUT="\${1:-$ROOT/rebuild/reports/simulator-preview}"
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+OUT="${1:-$ROOT/rebuild/reports/simulator-preview}"
 mkdir -p "$OUT"
 SDK="$(xcrun --sdk iphonesimulator --show-sdk-path)"
 APP="$RUNNER_TEMP/ScarletUIOnlyPreview.app"
