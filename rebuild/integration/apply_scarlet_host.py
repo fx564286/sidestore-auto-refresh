@@ -248,10 +248,41 @@ def attach_native_settings_diagnostics(engine: Path) -> dict:
         '        .onChange(of: JITEnabler) { _ in\n'
         '            ScarletDiagnosticRecorder.shared.record("settings", "jit_provider_changed")\n'
         '        }\n')
+    form_style_anchor = '            }\n            .navigationBarTitle("lc.tabView.settings".loc)\n'
+    assert source.count(form_style_anchor) == 1, "Pinned LC settings Form changed"
+    source = source.replace(form_style_anchor,
+        '            }\n'
+        '            .scrollContentBackground(.hidden)\n'
+        '            .background(Color(red: 13.0/255, green: 13.0/255, blue: 24.0/255).ignoresSafeArea())\n'
+        '            .tint(Color(red: 170.0/255, green: 150.0/255, blue: 1.0))\n'
+        '            .navigationBarTitle("lc.tabView.settings".loc)\n')
     target.write_text(source)
     return {"settings":"original-LCSettingsView","singleTitle":True,
             "diagnosticSectionAtTop":True,"nativeLoginEntry":True,
             "newSettingsSheetCreated":False,"sha256":file_sha(target)}
+
+
+def apply_scarlet_native_tweaks_theme(engine: Path) -> dict:
+    """Theme the pinned original tweak List without touching toggle/import logic."""
+    target = engine/"LiveContainerSwiftUI/Views/LCTweaksView.swift"
+    assert target.is_file(), "Pinned tweak manager missing"
+    source = target.read_text()
+    anchor = '''            }
+        }
+        .navigationTitle(isRoot ? "lc.tabView.tweaks".loc : baseUrl.lastPathComponent)
+'''
+    assert source.count(anchor) == 1, "Pinned native tweaks List changed"
+    styled = '''            }
+            .listRowBackground(Color(red: 36.0/255, green: 35.0/255, blue: 58.0/255).opacity(0.80))
+        }
+        .scrollContentBackground(.hidden)
+        .background(Color(red: 13.0/255, green: 13.0/255, blue: 24.0/255).ignoresSafeArea())
+        .tint(Color(red: 170.0/255, green: 150.0/255, blue: 1.0))
+        .navigationTitle(isRoot ? "lc.tabView.tweaks".loc : baseUrl.lastPathComponent)
+'''
+    target.write_text(source.replace(anchor, styled))
+    return {"tweaks": "original-LCTweaksView", "originalActionsPreserved": True,
+            "scarletColorsApplied": True, "sha256": file_sha(target)}
 
 
 def main():
@@ -404,6 +435,7 @@ def main():
     dock_src_file.write_text(dock_source)
     guest_manager=hide_embedded_sidestore_guest_navigation(engine)
     native_settings=attach_native_settings_diagnostics(engine)
+    native_tweaks_theme=apply_scarlet_native_tweaks_theme(engine)
     a.report.parent.mkdir(parents=True,exist_ok=True)
     data={
         "schema":1,"newRootCompiled":False,
@@ -419,6 +451,7 @@ def main():
         "embeddedSideStoreEnginePreserved":True,
         "nativeGuestManager":guest_manager,
         "nativeSettingsDiagnostics":native_settings,
+        "nativeTweaksTheme":native_tweaks_theme,
         "localDiagnosticJournal":True,
         "shareablePrivacyRedactedLog":True,
         "originalNativeUIGlassEffect":True,
@@ -428,7 +461,8 @@ def main():
             "MultitaskSupport/MultitaskAppWindow.swift",
             "MultitaskSupport/MultitaskDockView.swift",
             "LiveContainerSwiftUI/Views/AppList/LCAppListView.swift",
-            "LiveContainerSwiftUI/Views/Settings/LCSettingsView.swift"
+            "LiveContainerSwiftUI/Views/Settings/LCSettingsView.swift",
+            "LiveContainerSwiftUI/Views/LCTweaksView.swift"
         ],
 
         "customAppIcon":figma_icon,
