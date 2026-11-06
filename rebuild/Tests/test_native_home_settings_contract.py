@@ -39,7 +39,9 @@ class NativeHomeSettings(unittest.TestCase):
         self.assertIn('case "settings", "connection": startTab = .settings',PREVIEW)
 
     def test_original_guest_import_and_side_store_fenced(self):
-        self.assertIn("LCAppListView(scarletStartIPAImport: guestIPAImportFromAddMenu)",HOST)
+        self.assertIn(".fileImporter(isPresented: $showGuestFilePicker,",HOST)
+        self.assertIn("LCAppListView(scarletQueuedIPAURL: queuedGuestIPAURL,",HOST)
+        self.assertNotIn("showNativeAppLibrary",HOST)
         self.assertIn("prepareDeviceIPAInstall()",HOST)
         self.assertIn("case .localImportGuestIPA:",HOST)
         self.assertIn("case .serviceInstallIPA:",HOST)
