@@ -27,17 +27,15 @@ class AlignmentTests(unittest.TestCase):
         self.assertEqual(g["windowActionWidthsPt"],[102]*3)
         self.assertFalse(AUDIT["policy"]["doNotDuplicateSwitchers"] is False)
 
-    def test_swiftui_quick_buttons_center_content_but_lists_left(self):
-        self.assertIn("VStack(alignment: .center, spacing: 8)",UI)
-        self.assertIn(".frame(maxWidth: .infinity, minHeight: 55, alignment: .center)",UI)
-        self.assertIn(".multilineTextAlignment(.center)",UI)
-        self.assertIn("VStack(alignment: .leading, spacing: 3)",UI)
-        self.assertIn("preservedGlassTabBar($selected)",UI)
-        self.assertIn(".frame(maxWidth: .infinity, alignment: .center)",UI)
-        self.assertNotIn(".glassEffect(",UI)
-        g=AUDIT["geometry"]
-        self.assertEqual(g["guestPanelRowWidthPt"],g["guestSegmentWidthPt"] if "guestSegmentWidthPt" in g else 322)
-        self.assertEqual(g["homeStatisticWidthsPt"],[147,147])
+    def test_home_settings_same_screen_without_tab(self):
+        home=UI[UI.index("    private var home: some View {"):UI.index("    private var visibleGuests:")]
+        self.assertEqual(home.count('engineEntry("'),2)
+        self.assertIn('heading("", "설정", "")',home)
+        self.assertIn('if selected != .home {',UI)
+        self.assertNotIn('SCARLET_CENTERED_WORKSPACE_STATS',UI)
+        self.assertNotIn('quickAction("앱 추가"',UI)
+        self.assertIn('preservedGlassTabBar($selected)',UI)
+        self.assertEqual(AUDIT["geometry"]["homeEngineEntryWidthsPt"],[350,350])
 
 
 if __name__=="__main__":

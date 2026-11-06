@@ -268,8 +268,6 @@ public struct ScarletIndependentShell: View {
         case running = "실행 중"
     }
     @State private var appFilter: AppFilter = .all
-    @State private var showLocalAppearance = false
-    @State private var showLocalStorage = false
     @State private var showConnectionDetails: Bool
     @ScaledMetric(relativeTo: .largeTitle) private var screenTitleSize: CGFloat = 28
 
@@ -321,46 +319,21 @@ public struct ScarletIndependentShell: View {
                 }
                 .scrollIndicators(.hidden)
 
-                // Native host tab bar: four destinations only, with the
-                // original Scarlet Crystal Liquid Glass materials/gestures.
-                // Do not add a Window Manager tab to this navigation bar.
-                preservedGlassTabBar($selected)
-                    .frame(maxWidth: .infinity, alignment: .center)
-                    .frame(height: 62)
-                    .padding(.horizontal, 19)
-                    .padding(.bottom, 6)
-                    .accessibilityIdentifier("SCARLET_NATIVE_GLASS_BOTTOM_TAB_BAR")
+                // Startup Home AND Settings require no tab navigation.
+                // Other/legacy destinations retain their protected glass bar.
+                if selected != .home {
+                    preservedGlassTabBar($selected)
+                        .frame(maxWidth: .infinity, alignment: .center)
+                        .frame(height: 62)
+                        .padding(.horizontal, 19)
+                        .padding(.bottom, 6)
+                        .accessibilityIdentifier("SCARLET_NATIVE_GLASS_BOTTOM_TAB_BAR")
+                }
             }
 
         }
         .background(ScarletPresentationColor.background.ignoresSafeArea())
         .preferredColorScheme(.dark)
-        .sheet(isPresented: $showLocalAppearance) {
-            NavigationStack {
-                VStack(alignment: .leading, spacing: 12) {
-                    Text("화면 및 인터페이스").font(.title2.bold())
-                    Text("이 화면은 SideStore 연결 없이 열립니다.")
-                    Text("실제 설정값은 기존 앱의 로컬 설정 저장소에 연결해야 합니다.")
-                        .foregroundStyle(.secondary)
-                    Spacer()
-                }
-                .padding()
-                .navigationTitle("로컬 인터페이스")
-            }
-        }
-        .sheet(isPresented: $showLocalStorage) {
-            NavigationStack {
-                VStack(alignment: .leading, spacing: 12) {
-                    Text("컨테이너 데이터").font(.title2.bold())
-                    Text("저장소 열람과 기존 데이터 보호를 위한 독립 경로입니다.")
-                    Text("파괴적인 삭제나 마이그레이션은 제공하지 않습니다.")
-                        .foregroundStyle(.secondary)
-                    Spacer()
-                }
-                .padding()
-                .navigationTitle("저장소")
-            }
-        }
 
     }
 
@@ -396,72 +369,70 @@ public struct ScarletIndependentShell: View {
         }
     }
 
+    // Initial screen: Home and Settings are both visible WITHOUT a tab.
+    // No stats, recent-app section, fake settings or duplicate navigation.
     private var home: some View {
         Group {
             heading("", "내 컨테이너", "")
-            ScarletPanel {
-                HStack(spacing: 14) {
-                    Text("\(guests.count) 설치 앱")
-                        .foregroundStyle(ScarletPresentationColor.text)
-                        .frame(maxWidth: .infinity, alignment: .center)
-                    Text("\(guests.filter(\.isRunning).count) 활성 창")
-                        .foregroundStyle(ScarletPresentationColor.success)
-                        .frame(maxWidth: .infinity, alignment: .center)
-                }
-                .font(.system(size: 16, weight: .semibold))
-                .frame(height: 25)
-                .accessibilityIdentifier("SCARLET_CENTERED_WORKSPACE_STATS")
+            engineEntry("SideStore", icon: "square.and.arrow.down") {
+                onAction(.localOpenEmbeddedSideStore)
             }
-            .background(ScarletPresentationColor.purple.opacity(0.28),
-                        in: RoundedRectangle(cornerRadius: 20))
-            sectionTitle("빠른 작업")
-            HStack(spacing: 10) {
-                quickAction("앱 추가", icon: "plus.app") {
-                    onAction(.localImportGuestIPA)
-                }
-                quickAction("설정", icon: "gearshape") {
-                    selected = .settings
-                }
+            .accessibilityIdentifier("SCARLET_HOME_SIDESTORE_ENGINE")
+            engineEntry("가상 앱", icon: "square.stack.3d.up") {
+                onAction(.localImportGuestIPA)
             }
-            sectionTitle("최근 앱")
-            ScarletGuestListCard(
-                guests: Array(guests
-                    .filter { $0.lastOpenedAt != nil }
-                    .sorted { ($0.lastOpenedAt ?? .distantPast) >
-                              ($1.lastOpenedAt ?? .distantPast) }
-                    .prefix(3)),
-                emptyText: "최근 실행한 앱이 없습니다.",
-                onOpen: onOpenGuest
-            )
+            .accessibilityIdentifier("SCARLET_HOME_LIVECONTAINER_ENGINE")
+
+            heading("", "설정", "")
+            compactSettingsCard {
+                Text("LiveContainer")
+                    .font(.system(size: 18, weight: .semibold))
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .frame(height: 22)
+                    .padding(.leading, 8)
+                ScarletActionRow(title: "LiveContainer 전체 설정",
+                                 detail: "",
+                                 icon: "circle.lefthalf.filled", enabled: true) {
+                    // The host presents the ORIGINAL full LCSettingsView,
+                    // including JIT, multitasking, certificates and storage.
+                    onAction(.localAppearance)
+                }
+                .padding(.horizontal, 8)
+                .frame(height: 62)
+                .accessibilityIdentifier("SCARLET_NATIVE_LC_SETTINGS_ENTRY")
+            }
         }
         .foregroundStyle(ScarletPresentationColor.text)
     }
 
-    private func quickAction(_ title: String, icon: String,
+    private func engineEntry(_ title: String, icon: String,
                              action: @escaping () -> Void) -> some View {
         Button(action: action) {
-            VStack(alignment: .center, spacing: 8) {
+            HStack(alignment: .center, spacing: 12) {
                 Image(systemName: icon)
-                    .font(.title2)
+                    .font(.system(size: 17, weight: .semibold))
                     .foregroundStyle(ScarletPresentationColor.accent)
-                    .frame(maxWidth: .infinity, alignment: .center)
+                    .frame(width: 36, height: 36)
+                    .background(ScarletPresentationColor.stroke.opacity(0.4),
+                                in: RoundedRectangle(cornerRadius: 11))
                 Text(title)
-                    .font(.headline)
-                    .multilineTextAlignment(.center)
-                    .frame(maxWidth: .infinity, alignment: .center)
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundStyle(ScarletPresentationColor.text)
+                    .lineLimit(1)
+                    .frame(maxWidth: .infinity, alignment: .leading)
             }
-            .foregroundStyle(ScarletPresentationColor.text)
-            .frame(maxWidth: .infinity, minHeight: 55, alignment: .center)
-            .padding(15)
+            .padding(.horizontal, 16)
+            .frame(maxWidth: .infinity, minHeight: 78, alignment: .leading)
             .background(ScarletPresentationColor.surface,
-                        in: RoundedRectangle(cornerRadius: 20))
+                        in: RoundedRectangle(cornerRadius: 20, style: .continuous))
             .overlay {
-                RoundedRectangle(cornerRadius: 20)
+                RoundedRectangle(cornerRadius: 20, style: .continuous)
                     .stroke(ScarletPresentationColor.stroke, lineWidth: 1)
             }
+            .contentShape(RoundedRectangle(cornerRadius: 20))
         }
         .buttonStyle(.plain)
-        .frame(maxWidth: .infinity)
+        .accessibilityLabel(title)
     }
 
     private var visibleGuests: [ScarletGuestPresentation] {
@@ -638,7 +609,6 @@ public struct ScarletIndependentShell: View {
                 ScarletActionRow(title: "화면 설정",
                                  detail: "",
                                  icon: "circle.lefthalf.filled", enabled: true) {
-                    showLocalAppearance = true
                     onAction(.localAppearance)
                 }
                 .padding(.horizontal, 8)
@@ -647,7 +617,6 @@ public struct ScarletIndependentShell: View {
                 ScarletActionRow(title: "저장소",
                                  detail: "",
                                  icon: "folder", enabled: true) {
-                    showLocalStorage = true
                     onAction(.localStorageNavigation)
                 }
                 .padding(.horizontal, 8)

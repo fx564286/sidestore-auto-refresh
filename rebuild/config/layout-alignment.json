@@ -35,7 +35,9 @@
       "Apps",
       "Sources",
       "Settings"
-    ]
+    ],
+    "visible_on_initial_home": false,
+    "preserves_original_material_on_auxiliary_screens": true
   },
   "round_app_switcher": {
     "count_per_screen": 0,
@@ -76,9 +78,15 @@
     "guest_row_width_pt": 322,
     "guest_segment_width_pt": 322,
     "guest_action_buttons_width_pt": 320,
-    "home_stats_equal_width_pt": 147,
-    "quick_action_content_alignment": "CENTER",
     "guest_app_title_alignment": "LEFT",
-    "hide_redundant_action_and_status_labels": true
+    "hide_redundant_action_and_status_labels": true,
+    "home_and_settings_same_screen": true,
+    "home_engine_card_equal_width_pt": 350,
+    "home_engine_card_heights_pt": [
+      78,
+      78
+    ],
+    "home_settings_card_height_pt": 102,
+    "home_bottom_tabs_hidden": true
   }
 }

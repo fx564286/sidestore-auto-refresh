@@ -30,13 +30,18 @@ class IndependentUIContractTests(unittest.TestCase):
         self.assertIn("struct ScarletIndependentShell",UI)
         self.assertIn("struct ScarletHostPresentationSnapshot",UI)
 
-    def test_local_settings_dont_depend_on_sidestore(self):
-        a=UI.index('ScarletActionRow(title: "화면 설정"')
-        b=UI.index('ScarletActionRow(title: "저장소"')
-        self.assertIn("showLocalAppearance = true",UI[a:b])
-        self.assertIn("onAction(.localAppearance)",UI[a:b])
-        self.assertIn("onAction(.localStorageNavigation)",UI[b:b+400])
-        self.assertNotIn("guard snapshot.serviceConnected",UI)
+    def test_home_and_settings_no_tab_and_original_engine_targets(self):
+        h=UI[UI.index("    private var home: some View {"):UI.index("    private var visibleGuests:")]
+        self.assertIn('engineEntry("SideStore"',h)
+        self.assertIn('engineEntry("가상 앱"',h)
+        self.assertIn('onAction(.localOpenEmbeddedSideStore)',h)
+        self.assertIn('onAction(.localImportGuestIPA)',h)
+        self.assertIn('onAction(.localAppearance)',h)
+        self.assertIn('heading("", "설정", "")',h)
+        self.assertIn("if selected != .home {",UI)
+        self.assertNotIn('showLocalAppearance = true',UI)
+        self.assertNotIn('showLocalStorage = true',UI)
+        self.assertNotIn('Text("실제 설정값은 기존 앱의 로컬 설정 저장소에 연결해야 합니다.")',UI)
 
     def test_native_glass_bottom_tabs_and_single_round_switcher(self):
         self.assertIn("SCARLET_NATIVE_GLASS_BOTTOM_TAB_BAR", UI)
@@ -113,6 +118,8 @@ class IndependentUIContractTests(unittest.TestCase):
         self.assertEqual(navigation.get("round_switcher_size_pt"),62)
         self.assertTrue(navigation.get("bottom_tab_uses_existing_liquid_glass"))
         self.assertEqual(navigation.get("bottom_tabs"),["home","apps","sources","settings"])
+        self.assertTrue(navigation.get("home_and_settings_inline"))
+        self.assertFalse(navigation.get("main_screen_requires_tab"))
         self.assertFalse(navigation.get("separate_window_management_tab"))
         self.assertEqual(navigation.get("window_management_entry"),"running_guest_only")
         self.assertEqual(navigation.get("round_switcher_visibility"),"guest_scene_only")

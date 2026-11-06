@@ -72,10 +72,6 @@
     "guestPanelWidthPt": 354,
     "guestPanelRowWidthPt": 322,
     "guestPanelContentCenterXPt": 177,
-    "homeStatisticWidthsPt": [
-      147,
-      147
-    ],
     "quickActionHeightPt": 85,
     "settingsContentLeftPt": 20,
     "settingsCardWidthsPt": [
@@ -92,7 +88,17 @@
     "settingsIconInsetPt": 17,
     "settingsRowTextInsetPt": 65,
     "settingsPrimaryActionCenterXPt": 195,
-    "settingsCardCount": 3
+    "settingsCardCount": 3,
+    "homeEngineEntryWidthsPt": [
+      350,
+      350
+    ],
+    "homeEngineEntryHeightsPt": [
+      78,
+      78
+    ],
+    "homeNativeSettingsCardHeightPt": 102,
+    "homeSettingsSectionVisibleWithoutTab": true
   },
   "policy": {
     "nativeGlassMaterial": "Must be provided by existing original host renderer; Figma is visual preview only",
@@ -105,7 +111,9 @@
     "actualGuestPreviewRequired": true,
     "settingsRowsOneLineOnly": true,
     "serviceActionsInConnectionDetails": true,
-    "settingsCenteredPrimaryAction": true
+    "settingsCenteredPrimaryAction": true,
+    "noHomeOrSettingsTabsNeeded": true,
+    "originalEngineEntrypointsOnly": true
   },
-  "validation": "Direct editable Figma measurement updated 2026-11-06; SwiftUI static layout parity checked by CI, iPhone native rendering not yet verified."
+  "validation": "Figma initial home and native-settings direct access measured; UI source contract verified, actual iPhone runtime remains unverified."
 }
