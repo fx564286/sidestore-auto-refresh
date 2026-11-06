@@ -167,7 +167,8 @@ def hide_embedded_sidestore_guest_navigation(engine: Path) -> dict:
         '        ScarletDiagnosticRecorder.shared.record("guest_import", "file_import_requested")\n',
         "            try await installIpaFile(fileUrl)\n":
         '            try await installIpaFile(fileUrl)\n'
-        '            ScarletDiagnosticRecorder.shared.record("guest_import", "import_pipeline_completed", status: "success")\n',
+        '            ScarletDiagnosticRecorder.shared.record("guest_import", "import_pipeline_completed",\n'
+        '                fields: ["result": "launch_unverified"])\n',
         "        } catch {\n            errorInfo = error.localizedDescription\n":
         '        } catch {\n'
         '            ScarletDiagnosticRecorder.shared.recordError("guest_import", "import_pipeline_failed", error: error)\n'
@@ -189,6 +190,34 @@ def hide_embedded_sidestore_guest_navigation(engine: Path) -> dict:
         else:
             assert source.count(original)==1, "Pinned LC import tracer duplicate: "+repr(original)
             source=source.replace(original,patched)
+    # Upstream deliberately keeps an imported guest when signing fails.
+    # A returned importer is *not* proof of a runnable, signed application.
+    # Emit a bounded failure class; do not put the user-facing signing error,
+    # app name, IPA path or certificate details in diagnostic JSONL.
+    sign_marker = "        // we leave it unsigned even if signing failed\\n        if let signError {\\n"
+    assert source.count(sign_marker) == 1, "Pinned LC import signing pathway changed"
+    sign_patch = """        // we leave it unsigned even if signing failed
+        if let signError {
+            if !signSuccess {
+                let sourceError = signError.lowercased()
+                let reason: String
+                if sourceError.contains("nocertificatefound") {
+                    reason = "certificate_missing"
+                } else if sourceError.contains("latestcertificateinvalid") {
+                    reason = "certificate_invalid"
+                } else if sourceError.contains("encrypted") {
+                    reason = "encrypted_binary"
+                } else if sourceError.contains("entitlement") {
+                    reason = "entitlements"
+                } else {
+                    reason = "other_sign_error"
+                }
+                ScarletDiagnosticRecorder.shared.record("guest_import",
+                    "import_signing_failed", status: "error",
+                    fields: ["reason": reason])
+            }
+"""
+    source = source.replace(sign_marker, sign_patch)
     # The Scarlet + button presents Files directly, never LC's app-list page.
     # Only the existing LC import/replace/signing state machine is retained.
     # The original manager remains available to original LC entry points,
