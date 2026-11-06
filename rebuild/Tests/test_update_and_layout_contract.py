@@ -45,6 +45,15 @@ class UpdateAndAlignmentTests(unittest.TestCase):
         self.assertTrue(panel["min_max_close_equal_width"])
         self.assertTrue(panel["outside_tap_dismiss"])
 
+    def test_figma_visual_report_matches_exact_segment_geometry(self):
+        report=json.loads((ROOT/"reports/figma-alignment-audit-20261106.json").read_text())
+        measured=report["geometry"]
+        expected=LAYOUT["window_management"]
+        self.assertEqual(measured["glassOverlaySegmentWidthPt"], expected["segment_width_pt"])
+        self.assertEqual(measured["glassOverlaySegmentXPt"],[7,162])
+        self.assertEqual(measured["iconLabelCenterOffsetPt"],[0,0,0,0])
+        self.assertEqual(measured["bottomBarCenterX"],measured["viewportCenterX"])
+
     def test_upstream_updates_only_to_reviewed_pins_and_one_fork(self):
         self.assertEqual(set(PINS),{"LIVE_CONTAINER_REF","EMBEDDED_SIDESTORE_REF",
                                     "MINIMUXER_REF","SIDESIGN_REF"})
