@@ -12,11 +12,12 @@ private final class ScarletWeakGuestController {
     init(_ controller: UIViewController) { self.controller = controller }
 }
 
-private struct ScarletGuestTarget: Identifiable {
+struct ScarletGuestTarget: Identifiable {
     let id: String
     let title: String
 }
 
+@available(iOS 16.1, *)
 @MainActor
 enum ScarletGuestSceneRegistry {
     private static var scenes: [String: ScarletWeakGuestController] = [:]

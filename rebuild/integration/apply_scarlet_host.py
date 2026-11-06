@@ -60,7 +60,9 @@ def main():
     guest_src=guest_window.read_text()
     anchors={
         "        return AppSceneViewController(bundleId: bundleId, dataUUID: dataUUID, delegate: context.coordinator)\n":
-        "        let controller = AppSceneViewController(bundleId: bundleId, dataUUID: dataUUID, delegate: context.coordinator)\n"
+        "        guard let controller = AppSceneViewController(bundleId: bundleId, dataUUID: dataUUID, delegate: context.coordinator) else {\n"
+        "            return UIViewController()\n"
+        "        }\n"
         "        ScarletGuestSceneRegistry.register(controller, dataUUID: dataUUID)\n"
         "        return controller\n",
         "            if !show {\n                vc.terminate()\n":
