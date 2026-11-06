@@ -1,4 +1,7 @@
-"""Scarlet Crystal clean UI acceptance contract (no app installation)."""
+"""User-approved single Home + native Settings integration contracts.
+
+Static checks validate source intent, not signed-device SideSign readiness.
+"""
 import json
 from pathlib import Path
 import unittest
@@ -6,11 +9,12 @@ import unittest
 ROOT=Path(__file__).resolve().parents[1]
 CONTRACT=json.loads((ROOT/"config/scarlet-independent-ui-contract.json").read_text())
 UI=(ROOT/"Sources/ScarletIndependentUI/ScarletIndependentShell.swift").read_text()
+HOST=(ROOT/"HostApp/ScarletIntegratedHostView.swift").read_text()
 CORE=(ROOT/"Sources/ScarletCleanCore/ScarletActionCoordinator.swift").read_text()
-
+HOME=UI[UI.index("    private var home: some View {"):UI.index("    private func installPathRow(")]
 
 class IndependentUIContractTests(unittest.TestCase):
-    def test_keep_only_four_runtime_dependencies(self):
+    def test_pinned_identity_and_engine_boundaries(self):
         self.assertEqual([x["id"] for x in CONTRACT["protected_runtime"]],
                          ["liquid_glass","livecontainer_engine","sidestore","sidesign"])
         self.assertEqual(CONTRACT["preserved_identity"]["bundle_id"],
@@ -18,112 +22,80 @@ class IndependentUIContractTests(unittest.TestCase):
         self.assertEqual(CONTRACT["preserved_identity"]["team_id"],"P8EZT3U5N4")
         self.assertTrue(CONTRACT["preserved_identity"]["keep_existing_app_groups"])
         self.assertTrue(CONTRACT["preserved_identity"]["keep_guest_and_host_data"])
-        self.assertIn("figma.com/design/",CONTRACT["design_file"])
 
-    def test_full_ui_not_bound_to_legacy_v3(self):
+    def test_no_legacy_router_or_fake_glass(self):
         for forbidden in ("V3UnifiedShell","V3ServiceBridge","LiveProcessService",
                           "SideSignManager","import SideStore","import LiveContainer",
-                          ".glassEffect(", "clearAppGroup", "removeUserData",
-                          "revokeCertificate", "nukeSideStore"):
+                          ".glassEffect(","clearAppGroup","removeUserData",
+                          "revokeCertificate","nukeSideStore"):
             self.assertNotIn(forbidden,UI)
-        self.assertNotIn("preservedGlassSwitchControl",UI)
         self.assertIn("struct ScarletIndependentShell",UI)
         self.assertIn("struct ScarletHostPresentationSnapshot",UI)
 
-    def test_home_settings_creation_rolled_back_and_engine_targets_preserved(self):
-        h=UI[UI.index("    private var home: some View {"):UI.index("    private var visibleGuests:")]
-        self.assertIn('installPathRow("SideStore 앱 설치"',h)
-        self.assertIn('installPathRow("게스트 앱 설치"',h)
-        self.assertIn('onAction(.serviceInstallIPA)',h)
-        self.assertIn('onAction(.localImportGuestIPA)',h)
-        self.assertNotIn('onAction(.localAppearance)',h)
-        self.assertNotIn('heading("", "설정", "")',h)
-        self.assertIn('heading("", "설정", "")',UI)
-        self.assertNotIn("if selected != .home {",UI)
-        self.assertNotIn('showLocalAppearance = true',UI)
-        self.assertNotIn('showLocalStorage = true',UI)
-        self.assertNotIn('Text("실제 설정값은 기존 앱의 로컬 설정 저장소에 연결해야 합니다.")',UI)
+    def test_only_one_home_with_two_distinct_install_engines(self):
+        self.assertIn('heading("", "설치된 앱", "")',HOME)
+        self.assertEqual(HOME.count('installPathRow("'),2)
+        self.assertIn('installPathRow("SideStore 앱 설치"',HOME)
+        self.assertIn('installPathRow("게스트 앱 설치"',HOME)
+        self.assertIn("onAction(.serviceInstallIPA)",HOME)
+        self.assertIn("onAction(.localImportGuestIPA)",HOME)
+        self.assertIn("guests: visibleGuests",HOME)
+        self.assertNotIn("guests: Array(guests.prefix(5))",HOME)
+        self.assertNotIn("private var apps: some View",UI)
 
-    def test_native_glass_bottom_tabs_and_single_round_switcher(self):
-        self.assertIn("SCARLET_NATIVE_GLASS_BOTTOM_TAB_BAR", UI)
-        self.assertNotIn("SCARLET_SINGLE_ROUND_APP_SWITCHER", UI)
-        self.assertEqual(UI.count("SCARLET_NATIVE_GLASS_BOTTOM_TAB_BAR"), 1)
-        self.assertEqual(UI.count("SCARLET_SINGLE_ROUND_APP_SWITCHER"), 0)
-        self.assertIn("preservedGlassTabBar: (Binding<Tab>) -> AnyView", UI)
-        self.assertIn("preservedGlassTabBar: @escaping (Binding<Tab>) -> AnyView", UI)
-        self.assertIn("preservedGlassTabBar($selected)", UI)
-        self.assertNotIn("preservedGlassSwitchControl: AnyView", UI)
-        self.assertNotIn(".frame(width: 62, height: 62)", UI)
-        self.assertIn(".frame(height: 62)", UI)
-        self.assertNotIn("AnyView?", UI)
-        self.assertNotIn("private var tabBar", UI)
-        self.assertNotIn(".glassEffect(", UI)
-        self.assertNotIn('Image(systemName: "ellipsis")', UI)
-        self.assertNotIn("Menu {", UI)
-        self.assertNotIn('quickAction("창 관리"', UI)
-        self.assertNotIn('ScarletActionRow(title: "실행 및 창 관리"', UI)
-        expected = ('case home = "Home"', 'case sources = "Sources"', 'case settings = "Settings"')
-        for case in expected:
-            self.assertIn(case, UI)
-        self.assertEqual(UI.count('        case home = "Home"'), 1)
-        self.assertNotIn('case windowManager', UI)
-        self.assertNotIn('case management', UI)
-        self.assertNotIn('case manager', UI)
+    def test_exactly_three_native_glass_tab_destinations(self):
+        self.assertIn("SCARLET_NATIVE_GLASS_BOTTOM_TAB_BAR",UI)
+        self.assertEqual(UI.count("SCARLET_NATIVE_GLASS_BOTTOM_TAB_BAR"),1)
+        for marker in ('case home = "Home"','case sources = "Sources"',
+                       'case settings = "Settings"'):
+            self.assertIn(marker,UI)
+        self.assertNotIn('case apps = "Apps"',UI)
+        self.assertEqual(CONTRACT["navigation"]["bottom_tabs"],
+                         ["home","sources","settings"])
+        self.assertIn("preservedGlassTabBar($selected)",UI)
+        self.assertIn("preservedGlassTabBar: (Binding<Tab>) -> AnyView",UI)
+        self.assertNotIn(".glassEffect(",UI)
+        self.assertNotIn("case windowManager",UI)
+        self.assertNotIn("SCARLET_SINGLE_ROUND_APP_SWITCHER",UI)
 
-    def test_existing_sources_tab_and_connection_details(self):
-        self.assertIn("struct ScarletSourcePresentation", UI)
-        self.assertIn("public let sources: [ScarletSourcePresentation]", UI)
-        self.assertIn("public let onAddSource: () -> Void", UI)
-        self.assertIn("public let onOpenSource: (String) -> Void", UI)
-        self.assertIn("case .sources: sourcesScreen", UI)
-        self.assertIn('heading("", "소스", "")', UI)
-        self.assertIn('Button(action: onAddSource)', UI)
-        self.assertNotIn('case connection =', UI)
-        self.assertIn('if selected == .settings {',UI)
-        self.assertIn('nativeSettings()',UI)
-        self.assertIn('SCARLET_INLINE_NATIVE_LC_SETTINGS',UI)
-        self.assertNotIn('.sheet(isPresented: $showNativeSettings)',UI)
-        self.assertIn('onAction(.serviceBeginSignIn)',UI)
-        self.assertTrue(CONTRACT["navigation"]["connection_signing_in_settings"])
+    def test_sources_still_uses_existing_source_models(self):
+        self.assertIn("public let sources: [ScarletSourcePresentation]",UI)
+        self.assertIn("case .sources: sourcesScreen",UI)
+        self.assertIn('heading("", "소스", "")',UI)
+        self.assertIn("Button(action: onAddSource)",UI)
+        self.assertIn("LCSourcesView()",HOST)
 
-    def test_auth_presentation_does_not_claim_service_equals_login(self):
-        self.assertIn("appleAuthenticated: Bool",UI)
-        self.assertIn("pairingVerified: Bool",UI)
-        self.assertIn("installationVerified: Bool",UI)
-        self.assertIn("signingVerified: Bool",UI)
-        self.assertIn("Text(verified ? \"확인됨\" : \"확인 필요\")",UI)
-        self.assertIn(".disabled(!snapshot.serviceConnected)",UI)
+    def test_settings_tab_shows_native_form_without_same_sheet_for_all_controls(self):
+        self.assertIn("if selected == .settings {",UI)
+        self.assertIn("nativeSettings()",UI)
+        self.assertIn("SCARLET_INLINE_NATIVE_LC_SETTINGS",UI)
+        self.assertIn("LCSettingsView()",HOST)
+        self.assertIn("nativeSettings: {",HOST)
+        self.assertNotIn(".sheet(isPresented: $showNativeSettings)",HOST)
+        self.assertNotIn('ScarletActionRow(title: "화면 설정"',UI)
+        self.assertNotIn('ScarletActionRow(title: "저장소"',UI)
+        self.assertNotIn('ScarletActionRow(title: "진단 로그"',UI)
+        self.assertNotIn("showConnectionDetails",UI)
+        self.assertTrue(CONTRACT["navigation"]["settings_tab_inline_native"])
+
+    def test_auth_status_not_confused_with_engine_presence(self):
+        for field in ("appleAuthenticated: Bool","pairingVerified: Bool",
+                      "installationVerified: Bool","signingVerified: Bool"):
+            self.assertIn(field,UI)
+        self.assertIn("SCARLET_SETTINGS_NATIVE_APPLE_LOGIN",UI)
+        self.assertIn("onAction(.serviceBeginSignIn)",UI)
+        self.assertTrue(CONTRACT["navigation"]["signin_request_requires_verified_engine"])
         self.assertIn("One actor",CORE)
 
-    def test_full_screen_structure_and_responsiveness(self):
-        for case in ('case home = "Home"',
-                     'case sources = "Sources"','case settings = "Settings"'):
-            self.assertIn(case,UI)
-        for required in ("ScrollView","ForEach","TextField","Button",
-                         ".frame(minHeight: 44)", ".frame(maxWidth: 650, alignment: .leading)",
-                         ".padding(.horizontal, 20)", "accessibilityIdentifier"):
-            self.assertIn(required,UI)
+    def test_responsive_safe_area_and_no_source_data_deletion(self):
+        for marker in ("ScrollView","ForEach","TextField","Button",
+                       ".frame(maxWidth: 650, alignment: .leading)",
+                       ".padding(.horizontal, 20)","accessibilityIdentifier"):
+            self.assertIn(marker,UI)
         self.assertNotIn("UIScreen.main.bounds",UI)
         self.assertNotIn("UIWindow(",UI)
-
-    def test_unverified_upstream_is_not_replaced(self):
-        assert set(CONTRACT["protected_runtime"][0]) >= {"id","description"}
-        self.assertNotIn("preservedGlassSwitchControl",UI)
-        self.assertIn("onOpenGuest",UI)
-        self.assertIn("serviceBeginSignIn",UI)
-        self.assertIn("SideStore 인증",UI)
-        navigation=CONTRACT.get("navigation",{})
-        self.assertTrue(navigation.get("bottom_tab_bar"))
-        self.assertTrue(navigation.get("single_round_app_switcher"))
-        self.assertEqual(navigation.get("round_switcher_size_pt"),62)
-        self.assertTrue(navigation.get("bottom_tab_uses_existing_liquid_glass"))
-        self.assertEqual(navigation.get("bottom_tabs"),["home","sources","settings"])
-        self.assertFalse(navigation.get("home_and_settings_inline"))
-        self.assertTrue(navigation.get("main_screen_requires_tab"))
-        self.assertFalse(navigation.get("separate_window_management_tab"))
-        self.assertEqual(navigation.get("window_management_entry"),"running_guest_only")
-        self.assertEqual(navigation.get("round_switcher_visibility"),"guest_scene_only")
-
+        self.assertNotIn("removeItem(at:",HOST)
+        self.assertIn("try await app.runApp()",HOST)
 
 if __name__=="__main__":
     unittest.main()
