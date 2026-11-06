@@ -4,6 +4,10 @@ on:
   schedule:
     - cron: "17 */6 * * *"
   workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/scarlet-upstream-auto-candidate.yml"
 
 permissions:
   contents: write
