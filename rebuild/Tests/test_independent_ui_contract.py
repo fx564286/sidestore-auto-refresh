@@ -31,14 +31,29 @@ class IndependentUIContractTests(unittest.TestCase):
         self.assertIn("struct ScarletHostPresentationSnapshot",UI)
 
     def test_local_settings_dont_depend_on_sidestore(self):
-        a=UI.index('ScarletActionRow(title: "화면 및 인터페이스"')
-        b=UI.index('ScarletActionRow(title: "컨테이너 데이터"')
+        a=UI.index('ScarletActionRow(title: "화면 설정"')
+        b=UI.index('ScarletActionRow(title: "저장소"')
         self.assertIn("showLocalAppearance = true",UI[a:b])
         self.assertIn("onAction(.localAppearance)",UI[a:b])
-        c=UI.index('ScarletActionRow(title: "실행 및 창 관리"')
-        self.assertIn("onAction(.localStorageNavigation)",UI[b:c])
-        self.assertIn("onOpenPreservedGlassWindowManager()",UI[c:c+400])
+        self.assertIn("onAction(.localStorageNavigation)",UI[b:b+400])
         self.assertNotIn("guard snapshot.serviceConnected",UI)
+
+    def test_one_round_switcher_replaces_bottom_tab_bar(self):
+        self.assertNotIn("private var tabBar",UI)
+        self.assertNotIn("SCARLET_INDEPENDENT_TAB_BAR",UI)
+        self.assertIn('SCARLET_SINGLE_ROUND_APP_SWITCHER',UI)
+        self.assertEqual(UI.count("SCARLET_SINGLE_ROUND_APP_SWITCHER"),1)
+        self.assertIn('Image(systemName: "square.on.square")',UI)
+        self.assertIn('.frame(width: 62, height: 62)',UI)
+        self.assertIn('Button(action: onOpenPreservedGlassWindowManager)',UI)
+        self.assertIn("preservedGlassSwitchControl: AnyView?",UI)
+        self.assertIn("if let preservedGlassSwitchControl",UI)
+        # On-screen app switching has a single native entry point.
+        self.assertEqual(UI.count('Button(action: onOpenPreservedGlassWindowManager)'),1)
+        self.assertNotIn('quickAction("창 관리"',UI)
+        self.assertNotIn('ScarletActionRow(title: "실행 및 창 관리"',UI)
+        self.assertIn("Menu {",UI)
+        self.assertIn("selected = tab",UI)
 
     def test_auth_presentation_does_not_claim_service_equals_login(self):
         self.assertIn("appleAuthenticated: Bool",UI)
@@ -62,9 +77,15 @@ class IndependentUIContractTests(unittest.TestCase):
 
     def test_unverified_upstream_is_not_replaced(self):
         assert set(CONTRACT["protected_runtime"][0]) >= {"id","description"}
-        self.assertIn("기존 Liquid Glass",UI)
-        self.assertIn("LiveContainer 엔진",UI)
-        self.assertIn("SideStore & SideSign",UI)
+        self.assertIn("onOpenPreservedGlassWindowManager",UI)
+        self.assertIn("onOpenGuest",UI)
+        self.assertIn("serviceBeginSignIn",UI)
+        self.assertIn("SideStore 연결 필요",UI)
+        navigation=CONTRACT.get("navigation",{})
+        self.assertFalse(navigation.get("bottom_tab_bar"))
+        self.assertTrue(navigation.get("single_round_app_switcher"))
+        self.assertEqual(navigation.get("round_switcher_size_pt"),62)
+        self.assertEqual(navigation.get("page_menu_location"),"top_trailing")
 
 
 if __name__=="__main__":
