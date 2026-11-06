@@ -283,9 +283,7 @@ def attach_native_settings_diagnostics(engine: Path) -> dict:
     assert source.count(form_style_anchor) == 1, "Pinned LC settings Form changed"
     source = source.replace(form_style_anchor,
         '            }\n'
-        '            .scrollContentBackground(.hidden)\n'
-        '            .background(Color(red: 13.0/255, green: 13.0/255, blue: 24.0/255).ignoresSafeArea())\n'
-        '            .tint(Color(red: 170.0/255, green: 150.0/255, blue: 1.0))\n'
+        '            .scarletNativeListTheme()\n'
         '            .navigationBarTitle("lc.tabView.settings".loc)\n')
     source, styled_rows = theme_native_settings_section_rows(source)
     target.write_text(source)
@@ -307,9 +305,7 @@ def apply_scarlet_native_tweaks_theme(engine: Path) -> dict:
     styled = '''            }
             .listRowBackground(Color(red: 36.0/255, green: 35.0/255, blue: 58.0/255).opacity(0.80))
         }
-        .scrollContentBackground(.hidden)
-        .background(Color(red: 13.0/255, green: 13.0/255, blue: 24.0/255).ignoresSafeArea())
-        .tint(Color(red: 170.0/255, green: 150.0/255, blue: 1.0))
+        .scarletNativeListTheme()
         .navigationTitle(isRoot ? "lc.tabView.tweaks".loc : baseUrl.lastPathComponent)
 '''
     target.write_text(source.replace(anchor, styled))
