@@ -83,8 +83,9 @@
   "navigation": {
     "bottom_tab_bar": true,
     "bottom_tabs": [
-      "home",
       "sources",
+      "apps",
+      "tweaks",
       "settings"
     ],
     "bottom_tab_uses_existing_liquid_glass": true,
@@ -102,9 +103,10 @@
     "no_duplicate_app_switcher_actions": true,
     "connection_signing_in_settings": true,
     "bottom_tab_display_labels": [
-      "Home",
-      "Sources",
-      "Settings"
+      "소스",
+      "앱",
+      "트윅",
+      "설정"
     ],
     "source_tab_uses_original_side_store_sources": true,
     "round_switcher_visibility": "guest_scene_only",
@@ -114,16 +116,18 @@
     "home_and_settings_inline": false,
     "main_screen_requires_tab": true,
     "home_tab_bar_hidden": false,
-    "initial_screen": "home",
+    "initial_screen": "apps",
     "original_livecontainer_settings_entry": "Settings tab -> inline LCSettingsView (original native Form; no sheet)",
     "original_sidestore_entry": "engine_only_never_launch_guest_UI",
-    "original_guest_apps_entry": "Merged Home -> real installed guest list + original LCAppListView importer action",
+    "original_guest_apps_entry": "Apps tab directly lists actual LiveContainer guests; title-leading file-plus opens native LCAppListView",
     "home_device_ipa_install": "ScarletControl.serviceInstallIPA -> headless SideStore/SideSign installer (transport unverified, fail closed)",
     "home_guest_ipa_install": "ScarletControl.localImportGuestIPA -> LCAppListView original guest importer",
     "home_app_library_inline": true,
     "only_one_home_tab": true,
     "settings_tab_inline_native": true,
     "signin_input_editable": true,
-    "signin_request_requires_verified_engine": true
+    "signin_request_requires_verified_engine": true,
+    "original_tweaks_entry": "Tweaks tab embeds original LCTweaksView without extra modal, native tweak enable/import/sign controls",
+    "reference_screenshot_scope": "BOTTOM TABS ORDER AND NAMES ONLY; retain existing Scarlet Crystal colors/layout/Live Glass/toolbar/content sizes"
   }
 }
