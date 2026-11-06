@@ -25,12 +25,13 @@ def main():
     assert entry.is_file(),"Upstream app entry missing"
     src=entry.read_text()
     original="            LCTabView()\n"
-    new="""            if #available(iOS 17.0, *) {
-                ScarletIntegratedHostView()
-            } else {
-                // Preserve upstream legacy compatibility without porting old
-                // Scarlet patch chains or changing the guest engine.
-                LCTabView()
+    new="""            Group {
+                if #available(iOS 17.0, *) {
+                    ScarletIntegratedHostView()
+                } else {
+                    // Preserve original fallback on older supported iOS.
+                    LCTabView()
+                }
             }
 """
     if src.count(original)!=1:
