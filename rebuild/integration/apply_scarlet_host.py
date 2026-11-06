@@ -91,6 +91,12 @@ def main():
         "originalGuestImporterPreserved":True,
         "embeddedSideStoreNativeLaunchPreserved":True,
         "originalNativeUIGlassEffect":True,
+        "upstreamLiveContainerSourceUntouched":False,
+        "upstreamLiveContainerModifiedTrackedPaths":[
+            "LiveContainerSwiftUI/App/LiveContainerSwiftUIApp.swift",
+            "MultitaskSupport/MultitaskAppWindow.swift"
+        ],
+
         "guestOnlySwitcherSourceInjected":True,
         "guestSnapshotCaptureSourceInjected":True,
         "guestRuntimeCaptureDeviceVerified":False,

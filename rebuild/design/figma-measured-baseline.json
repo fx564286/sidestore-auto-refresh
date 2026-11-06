@@ -62,6 +62,30 @@
       ],
       "nativeGlassRequired": true,
       "guestPreviewSource": "actual running owned guest scene captured on entering switcher; no Figma mock image is evidence"
+    },
+    "alignment": {
+      "viewportHorizontalCenterPt": 195,
+      "contentLeftMarginPt": 20,
+      "contentWidthPt": 350,
+      "guestPanelWidthPt": 354,
+      "guestPanelInternalCenterXPt": 177,
+      "guestSegmentWidthPt": 322,
+      "guestRowWidthPt": 322,
+      "guestWindowActionsWidthPt": 320,
+      "quickActionCardHeightPt": 85,
+      "homeStatisticsColumnsWidthPt": [
+        147,
+        147
+      ],
+      "appCardTitleAlignment": "leading",
+      "quickActionIconTextAlignment": "center",
+      "hiddenVisualActionLabels": [
+        "전환",
+        "실행",
+        "열기",
+        "활성"
+      ],
+      "preservedAccessibilityActions": true
     }
   },
   "screens": [
@@ -72,10 +96,8 @@
       "codeSection": "private var home:",
       "requiredCopy": [
         "내 컨테이너",
-        "앱 실행과 창 관리",
         "빠른 작업",
         "앱 추가",
-        "IPA 가져오기",
         "설정",
         "최근 앱"
       ],
@@ -92,7 +114,6 @@
       "codeSection": "private var apps:",
       "requiredCopy": [
         "내 앱",
-        "앱을 검색하거나 실행하세요.",
         "앱 검색",
         "전체",
         "최근",
@@ -112,7 +133,6 @@
         "설정",
         "컨테이너와 서명 설정",
         "화면 설정",
-        "테마 및 표시",
         "저장소",
         "앱 데이터 및 백업",
         "계정 및 서명",
@@ -130,7 +150,6 @@
       "codeSection": "private var connection:",
       "requiredCopy": [
         "연결 및 서명",
-        "페어링 및 Apple 계정",
         "기기 페어링",
         "Apple ID 로그인",
         "IPA 서명"
@@ -167,8 +186,6 @@
       "codeSection": "private var sourcesScreen:",
       "requiredCopy": [
         "소스",
-        "앱 소스를 관리합니다.",
-        "등록된 소스",
         "소스 추가"
       ],
       "dynamicData": [

@@ -54,7 +54,7 @@
     "icon_glyph_alignment": "CENTER",
     "primary_text_alignment": "LEFT",
     "detail_text_alignment": "LEFT",
-    "status_alignment": "RIGHT",
+    "status_alignment": "HIDDEN_VISUAL_ACCESSIBILITY_ONLY",
     "min_hit_target_pt": 44
   },
   "window_management": {
@@ -66,7 +66,19 @@
     "icon_label_alignment": "CENTER",
     "outside_tap_dismiss": true,
     "guest_scene_only": true,
-    "preview_not_static": true
+    "preview_not_static": true,
+    "preview_action_label_visibility": "accessibility_only"
   },
-  "implementation": "Use Figma geometry as measured reference; native host Liquid Glass must be reused unchanged"
+  "implementation": "Use Figma geometry as measured reference; native host Liquid Glass must be reused unchanged",
+  "visual_alignment": {
+    "content_gutter_pt": 20,
+    "guest_panel_width_pt": 354,
+    "guest_row_width_pt": 322,
+    "guest_segment_width_pt": 322,
+    "guest_action_buttons_width_pt": 320,
+    "home_stats_equal_width_pt": 147,
+    "quick_action_content_alignment": "CENTER",
+    "guest_app_title_alignment": "LEFT",
+    "hide_redundant_action_and_status_labels": true
+  }
 }

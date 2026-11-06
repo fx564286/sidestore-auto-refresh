@@ -35,6 +35,11 @@ class FigmaMeasuredParity(unittest.TestCase):
             self.assertIn('= "' + tab + '"', UI)
         self.assertNotIn(".glassEffect(", UI)
         self.assertNotIn("case windowManager", UI)
+        axis = DESIGN["design"]["alignment"]
+        self.assertEqual(axis["guestSegmentWidthPt"], axis["guestRowWidthPt"])
+        self.assertEqual(axis["homeStatisticsColumnsWidthPt"], [147,147])
+        self.assertNotIn('Text(guest.isRunning ? "전환" : "실행")', UI)
+
 
     def test_screen_copy_retained_in_swiftui(self):
         for screen in DESIGN["screens"]:

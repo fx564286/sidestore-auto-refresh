@@ -142,23 +142,24 @@ struct ScarletGuestSwitcherOverlay: View {
 
     private var windowPanel: some View {
         VStack(alignment: .leading, spacing: 12) {
-            HStack(spacing: 2) {
+            HStack(spacing: 6) {
                 ForEach(0..<2, id: \.self) { index in
                     Button {
                         selectedSegment = index
                     } label: {
                         Text(index == 0 ? "최근 앱" : "창 관리")
                             .font(.subheadline.weight(.semibold))
-                            .frame(maxWidth: .infinity, minHeight: 44)
+                            .frame(maxWidth: .infinity, minHeight: 36)
                             .background(selectedSegment == index
-                                ? Color.white.opacity(0.16) : Color.clear,
-                                in: Capsule())
+                                ? Color(red: 0.39, green: 0.30, blue: 0.89)
+                                : Color.clear, in: Capsule())
                     }
                     .buttonStyle(.plain)
                 }
             }
-            Text(selectedSegment == 0 ? "실행 중인 앱" : "활성 창")
-                .font(.headline)
+            .padding(7)
+            .frame(maxWidth: .infinity)
+            .background(Color.black.opacity(0.25), in: Capsule())
             ScrollView {
                 LazyVStack(spacing: 8) {
                     ForEach(targets) { item in
@@ -194,9 +195,7 @@ struct ScarletGuestSwitcherOverlay: View {
                                     Text(item.title)
                                         .font(.subheadline.weight(.semibold))
                                         .lineLimit(2)
-                                    Text(item.id == dataUUID ? "현재 실행 중" : "실행 중")
-                                        .font(.footnote)
-                                        .foregroundStyle(.white.opacity(0.7))
+                                        .frame(maxWidth: .infinity, alignment: .leading)
                                 }
                                 Spacer(minLength: 2)
                             }
@@ -226,7 +225,7 @@ struct ScarletGuestSwitcherOverlay: View {
         }
         .padding(16)
         .foregroundStyle(.white)
-        .frame(maxWidth: 332)
+        .frame(maxWidth: 354)
         .background {
             SCNativeLiquidGlassSurface(cornerRadius: 24,
                                         selectedIndex: selectedSegment)

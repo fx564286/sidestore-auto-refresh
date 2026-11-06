@@ -29,12 +29,16 @@ class AlignmentTests(unittest.TestCase):
 
     def test_swiftui_quick_buttons_center_content_but_lists_left(self):
         self.assertIn("VStack(alignment: .center, spacing: 8)",UI)
-        self.assertIn(".frame(maxWidth: .infinity, minHeight: 104, alignment: .center)",UI)
+        self.assertIn(".frame(maxWidth: .infinity, minHeight: 55, alignment: .center)",UI)
         self.assertIn(".multilineTextAlignment(.center)",UI)
         self.assertIn("VStack(alignment: .leading, spacing: 3)",UI)
         self.assertIn("preservedGlassTabBar($selected)",UI)
         self.assertIn(".frame(maxWidth: .infinity, alignment: .center)",UI)
         self.assertNotIn(".glassEffect(",UI)
+        g=AUDIT["geometry"]
+        self.assertEqual(g["guestPanelRowWidthPt"],g["guestSegmentWidthPt"] if "guestSegmentWidthPt" in g else 322)
+        self.assertEqual(g["homeStatisticWidthsPt"],[147,147])
+
 
 if __name__=="__main__":
     unittest.main()

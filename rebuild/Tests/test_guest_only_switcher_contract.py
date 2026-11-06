@@ -42,6 +42,14 @@ class GuestOnlySwitcherContract(unittest.TestCase):
         self.assertIn("ScarletStatusBadge",UI)
         self.assertIn(".frame(height: 44)",UI)
         self.assertIn("isRunning: visible",HOST)
+        self.assertIn("AltStoreSourcesViewModel()",HOST)
+        self.assertIn("originalSources.sources.map",HOST)
+        self.assertIn('guest.isRunning ? "실행 중인 앱으로 전환" : "앱 실행"',UI)
+        self.assertNotIn('Text(guest.isRunning ? "전환" : "실행")',UI)
+        self.assertNotIn('Text(guest.detail)',UI)
+        self.assertNotIn('Text(item.id == dataUUID ? "현재 실행 중" : "실행 중")',GUEST)
+        self.assertIn('.frame(maxWidth: 354)',GUEST)
+
         self.assertIn("ScarletNativeGlassSwitcher(openManager:",GUEST)
 
     def test_host_builder_copies_guest_source(self):

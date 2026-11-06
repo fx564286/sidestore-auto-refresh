@@ -71,7 +71,7 @@ class IndependentUIContractTests(unittest.TestCase):
         self.assertIn("public let onAddSource: () -> Void", UI)
         self.assertIn("public let onOpenSource: (String) -> Void", UI)
         self.assertIn("case .sources: sourcesScreen", UI)
-        self.assertIn('heading("", "소스", "앱 소스를 관리합니다.")', UI)
+        self.assertIn('heading("", "소스", "")', UI)
         self.assertIn('Button(action: onAddSource)', UI)
         self.assertNotIn('case connection =', UI)
         self.assertIn("showConnectionDetails = true", UI)

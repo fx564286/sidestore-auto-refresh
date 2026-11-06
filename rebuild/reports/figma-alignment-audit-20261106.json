@@ -68,7 +68,15 @@
     "iconTitleSecondaryAlignment": "center",
     "listTitleDetailAlignment": "leading",
     "containerRoundSwitcherCount": 0,
-    "guestRoundSwitcherCount": 1
+    "guestRoundSwitcherCount": 1,
+    "guestPanelWidthPt": 354,
+    "guestPanelRowWidthPt": 322,
+    "guestPanelContentCenterXPt": 177,
+    "homeStatisticWidthsPt": [
+      147,
+      147
+    ],
+    "quickActionHeightPt": 85
   },
   "policy": {
     "nativeGlassMaterial": "Must be provided by existing original host renderer; Figma is visual preview only",
@@ -80,5 +88,5 @@
     "hostContainerSwitcherHidden": true,
     "actualGuestPreviewRequired": true
   },
-  "validation": "Figma 2026-11-06 direct layer edit: host round buttons deleted, guest-only switcher retained, old guest overlay bottom host tab removed. Device screenshot not yet verified."
+  "validation": "Figma labels and layout inspected 2026-11-06; true SwiftUI renderer pixels and iPhone behavior need independent screenshot checks"
 }

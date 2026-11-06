@@ -107,25 +107,34 @@ private struct ScarletActionRow: View {
 
     var body: some View {
         Button(action: action) {
-            HStack(spacing: 12) {
+            HStack(alignment: .center, spacing: 12) {
                 Image(systemName: icon)
                     .font(.system(size: 17, weight: .semibold))
                     .foregroundStyle(ScarletPresentationColor.accent)
-                    .frame(width: 36, height: 36)
+                    .frame(width: 36, height: 36, alignment: .center)
                     .background(ScarletPresentationColor.stroke.opacity(0.4),
-                                in: RoundedRectangle(cornerRadius: 10))
+                                in: RoundedRectangle(cornerRadius: 11))
                 VStack(alignment: .leading, spacing: 3) {
-                    Text(title).font(.headline)
-                    Text(detail).font(.footnote)
-                        .foregroundStyle(ScarletPresentationColor.muted)
+                    Text(title)
+                        .font(.system(size: 16, weight: .semibold))
+                        .lineLimit(1)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    if !detail.isEmpty {
+                        Text(detail)
+                            .font(.system(size: 13))
+                            .foregroundStyle(ScarletPresentationColor.muted)
+                            .lineLimit(1)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    }
                 }
-                Spacer(minLength: 8)
+                .frame(maxWidth: .infinity, alignment: .leading)
                 Image(systemName: "chevron.right")
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(ScarletPresentationColor.muted)
+                    .frame(width: 20, alignment: .center)
             }
             .foregroundStyle(ScarletPresentationColor.text)
-            .frame(minHeight: 48)
+            .frame(maxWidth: .infinity, minHeight: 62, alignment: .leading)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
@@ -133,7 +142,6 @@ private struct ScarletActionRow: View {
         .accessibilityHint(enabled ? detail : "현재 연결 또는 권한 상태에서 사용할 수 없습니다.")
     }
 }
-
 
 private struct ScarletStatusBadge: View {
     let title: String
@@ -158,34 +166,26 @@ private struct ScarletGuestActionRow: View {
 
     var body: some View {
         Button(action: action) {
-            HStack(spacing: 12) {
+            HStack(alignment: .center, spacing: 12) {
                 Image(systemName: guest.icon)
                     .font(.system(size: 17, weight: .semibold))
                     .foregroundStyle(ScarletPresentationColor.accent)
-                    .frame(width: 36, height: 36)
+                    .frame(width: 36, height: 36, alignment: .center)
                     .background(ScarletPresentationColor.stroke.opacity(0.4),
                                 in: RoundedRectangle(cornerRadius: 11))
-                VStack(alignment: .leading, spacing: 3) {
-                    Text(guest.title)
-                        .font(.system(size: 16, weight: .semibold))
-                        .lineLimit(1)
-                    Text(guest.detail)
-                        .font(.system(size: 13))
-                        .foregroundStyle(ScarletPresentationColor.muted)
-                        .lineLimit(1)
-                }
-                Spacer(minLength: 8)
-                Text(guest.isRunning ? "전환" : "실행")
-                    .font(.system(size: 13, weight: .medium))
-                    .foregroundStyle(ScarletPresentationColor.success)
-                    .fixedSize()
+                Text(guest.title)
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundStyle(ScarletPresentationColor.text)
+                    .lineLimit(1)
+                    .frame(maxWidth: .infinity, alignment: .leading)
             }
-            .foregroundStyle(ScarletPresentationColor.text)
             .frame(maxWidth: .infinity, minHeight: 62, alignment: .leading)
             .padding(.horizontal, 8)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .accessibilityLabel(guest.title)
+        .accessibilityHint(guest.isRunning ? "실행 중인 앱으로 전환" : "앱 실행")
         .accessibilityIdentifier("SCARLET_GUEST_ACTION_ROW")
     }
 }
@@ -316,8 +316,8 @@ public struct ScarletIndependentShell: View {
                     .padding(.top, 18)
                     // Container screen intentionally has NO guest-only round switcher.
                     .padding(.bottom, 24)
-                    .frame(maxWidth: 650)
-                    .frame(maxWidth: .infinity)
+                    .frame(maxWidth: 650, alignment: .leading)
+                    .frame(maxWidth: .infinity, alignment: .center)
                 }
                 .scrollIndicators(.hidden)
 
@@ -375,9 +375,11 @@ public struct ScarletIndependentShell: View {
             Text(title)
                 .font(.system(size: screenTitleSize, weight: .bold, design: .default))
                 .foregroundStyle(ScarletPresentationColor.text)
-            Text(subtitle)
-                .font(.subheadline)
-                .foregroundStyle(ScarletPresentationColor.muted)
+            if !subtitle.isEmpty {
+                Text(subtitle)
+                    .font(.subheadline)
+                    .foregroundStyle(ScarletPresentationColor.muted)
+            }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }
@@ -396,44 +398,46 @@ public struct ScarletIndependentShell: View {
 
     private var home: some View {
         Group {
-            heading("Scarlet Crystal", "내 컨테이너", "앱 실행과 창 관리")
+            heading("", "내 컨테이너", "")
             ScarletPanel {
-                ScarletStatusBadge(title: "실행 가능",
-                                   color: ScarletPresentationColor.success)
-                Text("앱")
-                    .font(.title2.bold())
-                Text("설치된 앱")
-                    .font(.caption)
-                    .foregroundStyle(ScarletPresentationColor.muted)
-                HStack {
-                    Text("\(guests.count)  설치 앱").font(.headline)
-                    Spacer()
-                    Text("컨테이너").font(.caption.weight(.semibold))
+                HStack(spacing: 14) {
+                    Text("\(guests.count) 설치 앱")
+                        .foregroundStyle(ScarletPresentationColor.text)
+                        .frame(maxWidth: .infinity, alignment: .center)
+                    Text("\(guests.filter(\.isRunning).count) 활성 창")
                         .foregroundStyle(ScarletPresentationColor.success)
+                        .frame(maxWidth: .infinity, alignment: .center)
                 }
+                .font(.system(size: 16, weight: .semibold))
+                .frame(height: 25)
+                .accessibilityIdentifier("SCARLET_CENTERED_WORKSPACE_STATS")
             }
             .background(ScarletPresentationColor.purple.opacity(0.28),
                         in: RoundedRectangle(cornerRadius: 20))
             sectionTitle("빠른 작업")
             HStack(spacing: 10) {
-                quickAction("앱 추가", icon: "plus.app",
-                            detail: "IPA 가져오기") {
+                quickAction("앱 추가", icon: "plus.app") {
                     onAction(.localImportGuestIPA)
                 }
-                quickAction("설정", icon: "gearshape",
-                            detail: "환경설정") {
+                quickAction("설정", icon: "gearshape") {
                     selected = .settings
                 }
             }
             sectionTitle("최근 앱")
-            ScarletGuestListCard(guests: Array(guests.prefix(3)),
-                                 emptyText: "등록된 앱이 없습니다.",
-                                 onOpen: onOpenGuest)
+            ScarletGuestListCard(
+                guests: Array(guests
+                    .filter { $0.lastOpenedAt != nil }
+                    .sorted { ($0.lastOpenedAt ?? .distantPast) >
+                              ($1.lastOpenedAt ?? .distantPast) }
+                    .prefix(3)),
+                emptyText: "최근 실행한 앱이 없습니다.",
+                onOpen: onOpenGuest
+            )
         }
         .foregroundStyle(ScarletPresentationColor.text)
     }
 
-    private func quickAction(_ title: String, icon: String, detail: String,
+    private func quickAction(_ title: String, icon: String,
                              action: @escaping () -> Void) -> some View {
         Button(action: action) {
             VStack(alignment: .center, spacing: 8) {
@@ -445,14 +449,9 @@ public struct ScarletIndependentShell: View {
                     .font(.headline)
                     .multilineTextAlignment(.center)
                     .frame(maxWidth: .infinity, alignment: .center)
-                Text(detail)
-                    .font(.footnote)
-                    .multilineTextAlignment(.center)
-                    .foregroundStyle(ScarletPresentationColor.muted)
-                    .frame(maxWidth: .infinity, alignment: .center)
             }
             .foregroundStyle(ScarletPresentationColor.text)
-            .frame(maxWidth: .infinity, minHeight: 104, alignment: .center)
+            .frame(maxWidth: .infinity, minHeight: 55, alignment: .center)
             .padding(15)
             .background(ScarletPresentationColor.surface,
                         in: RoundedRectangle(cornerRadius: 20))
@@ -485,7 +484,7 @@ public struct ScarletIndependentShell: View {
 
     private var apps: some View {
         Group {
-            heading("", "내 앱", "앱을 검색하거나 실행하세요.")
+            heading("", "내 앱", "")
             HStack(spacing: 10) {
                 Image(systemName: "magnifyingglass")
                     .font(.system(size: 17, weight: .medium))
@@ -531,7 +530,6 @@ public struct ScarletIndependentShell: View {
                     .accessibilityIdentifier("SCARLET_APP_FILTER_\(item.rawValue)")
                 }
             }
-            sectionTitle("앱", trailing: "\(visibleGuests.count)개")
             ScarletGuestListCard(
                 guests: visibleGuests,
                 emptyText: appFilter == .running ? "실행 중인 앱이 없습니다."
@@ -545,8 +543,7 @@ public struct ScarletIndependentShell: View {
 
     private var sourcesScreen: some View {
         Group {
-            heading("", "소스", "앱 소스를 관리합니다.")
-            sectionTitle("등록된 소스", trailing: "\(sources.count)개")
+            heading("", "소스", "")
             ScarletPanel {
                 ForEach(sources) { source in
                     ScarletActionRow(title: source.title, detail: source.detail,
@@ -609,11 +606,11 @@ public struct ScarletIndependentShell: View {
 
     private var settings: some View {
         Group {
-            heading("", "설정", "컨테이너와 서명 설정")
+            heading("", "설정", "")
             ScarletPanel {
                 sectionTitle("기기 및 컨테이너")
                 ScarletActionRow(title: "화면 설정",
-                                 detail: "테마 및 표시",
+                                 detail: "",
                                  icon: "circle.lefthalf.filled", enabled: true) {
                     showLocalAppearance = true
                     onAction(.localAppearance)
@@ -627,13 +624,8 @@ public struct ScarletIndependentShell: View {
                 }
             }
             ScarletPanel {
-                ScarletStatusBadge(
-                    title: snapshot.serviceConnected ? "연결됨" : "연결 안 됨",
-                    color: snapshot.serviceConnected
-                        ? ScarletPresentationColor.success : ScarletPresentationColor.warning
-                )
                 Text("계정 및 서명").font(.headline)
-                Text("SideStore 연결 필요")
+                Text(snapshot.serviceConnected ? "SideStore 사용 가능" : "SideStore 연결 필요")
                     .font(.caption)
                     .foregroundStyle(ScarletPresentationColor.muted)
                 Button {
@@ -709,16 +701,11 @@ public struct ScarletIndependentShell: View {
                 .accessibilityIdentifier("SCARLET_CONNECTION_BACK")
                 Spacer()
             }
-            heading("", "연결 및 서명", "페어링 및 Apple 계정")
+            heading("", "연결 및 서명", "")
             ScarletPanel {
-                ScarletStatusBadge(
-                    title: snapshot.serviceConnected ? "연결됨" : "연결 안 됨",
-                    color: snapshot.serviceConnected
-                        ? ScarletPresentationColor.success : ScarletPresentationColor.warning
-                )
                 Text("연결 상태")
                     .font(.title3.bold())
-                Text(snapshot.serviceConnected ? "SideStore 연결됨" : "SideStore 연결 필요")
+                Text(snapshot.serviceConnected ? "내장 SideStore 사용 가능" : "SideStore 연결 필요")
                     .font(.caption)
                     .foregroundStyle(ScarletPresentationColor.muted)
             }

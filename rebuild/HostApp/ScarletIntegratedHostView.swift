@@ -9,6 +9,7 @@ struct ScarletIntegratedHostView: View {
     @EnvironmentObject private var sharedModel: SharedModel
     @ObservedObject private var guestDock = MultitaskDockManager.shared
     @StateObject private var downloadHelper = DownloadHelper()
+    @StateObject private var originalSources = AltStoreSourcesViewModel()
     @State private var showNativeAppLibrary = false
     @State private var showNativeSources = false
     @State private var showNativeSettings = false
@@ -92,7 +93,14 @@ struct ScarletIntegratedHostView: View {
                 installedProfileExpiresAt: nil,
                 installedProfileVerified: false),
             guests: guestItems,
-            sources: [],
+            sources: originalSources.sources.map { item in
+                ScarletSourcePresentation(
+                    id: item.id.absoluteString,
+                    title: item.displayName,
+                    detail: item.url.host ?? "",
+                    icon: "link"
+                )
+            },
             onAction: handle,
             onOpenGuest: runGuest,
             onOpenSource: { _ in showNativeSources = true },
