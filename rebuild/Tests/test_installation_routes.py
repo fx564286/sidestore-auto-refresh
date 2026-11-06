@@ -19,7 +19,10 @@ class InstallerRouteTests(unittest.TestCase):
         self.assertIn(".localImportGuestIPA, .localOpenEmbeddedSideStore:",ACTIONS)
         self.assertIn("onAction(.localImportGuestIPA)",UI)
         self.assertIn("case .localImportGuestIPA:",HOST)
-        self.assertIn("LCAppListView(scarletStartIPAImport: guestIPAImportFromAddMenu)",HOST)
+        self.assertIn(".fileImporter(isPresented: $showGuestFilePicker,",HOST)
+        self.assertIn("stageGuestIPAFromFiles(selected)",HOST)
+        self.assertIn("LCAppListView(scarletQueuedIPAURL: queuedGuestIPAURL,",HOST)
+        self.assertNotIn("showNativeAppLibrary",HOST)
         self.assertIn("try await app.runApp()",HOST)
 
     def test_sidestore_device_install_path_is_not_embedded_guest_navigation(self):
