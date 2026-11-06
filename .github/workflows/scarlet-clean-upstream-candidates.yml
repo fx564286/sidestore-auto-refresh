@@ -1,0 +1,111 @@
+name: Scarlet Crystal - automatic clean upstream candidate sync
+
+on:
+  schedule:
+    - cron: '17 1,13 * * *'
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/scarlet-clean-upstream-candidates.yml'
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: scarlet-clean-upstream-candidates
+  cancel-in-progress: false
+
+jobs:
+  propose-upstream-sync:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Check out independent UI integration branch
+        uses: actions/checkout@v4
+        with:
+          ref: rebuild/scarlet-clean-core-20261106
+          fetch-depth: 0
+          persist-credentials: true
+
+      - name: Test pinned upstream source graph and detect changes
+        id: scan
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          python3 -m unittest discover -s tests -p test_v177_upstream_follow.py -v
+          python3 scripts/scarlet_upstream_follow.py \
+            --config config/scarlet-upstream-pins.json \
+            --report "${RUNNER_TEMP}/upstream-status.json" --write
+          python3 -m json.tool "${RUNNER_TEMP}/upstream-status.json" >/dev/null
+          if git diff --quiet -- config/scarlet-upstream-pins.json; then
+            echo "changed=false" >>"${GITHUB_OUTPUT}"
+            echo "[PASS] No LiveContainer/SideStore/SideSign pinned dependency change"
+          else
+            echo "changed=true" >>"${GITHUB_OUTPUT}"
+            echo "[FOUND] Updated pinned parent sources and nested SideSign gitlink"
+          fi
+          # No alterations to settings, artwork, Liquid Glass or signing material.
+          if [[ -n "$(git diff --name-only -- . ':(exclude)config/scarlet-upstream-pins.json')" ]]; then
+            echo "[STOP] Unexpected dirty files; refusing update" >&2
+            exit 2
+          fi
+
+      - name: Open immutable upstream update candidate PR
+        if: steps.scan.outputs.changed == 'true'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          base="rebuild/scarlet-clean-core-20261106"
+          digest="$(sha256sum config/scarlet-upstream-pins.json | cut -c1-12)"
+          head="automation/scarlet-clean-upstream-$digest"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          if git ls-remote --exit-code origin "refs/heads/$head" >/dev/null 2>&1; then
+            echo "[SKIP] Candidate revision already staged: $head"
+          else
+            git switch -c "$head"
+            git add config/scarlet-upstream-pins.json
+            git commit -m "chore(clean-rebuild): sync coordinated LiveContainer/SideStore and SideSign pins"
+            git push -u origin "$head"
+            echo "[PASS] Created immutable upstream candidate: $head"
+          fi
+
+          existing="$(gh pr list -R "$GITHUB_REPOSITORY" --state all --head "$head" --json number --jq '.[0].number // empty')"
+          if [[ -n "$existing" ]]; then
+            echo "[SKIP] Existing PR #$existing for $head"
+          else
+            cat >"${RUNNER_TEMP}/upstream-pr.md" <<'MD'
+          ## Automatic source update proposal — not an installed app
+          - Detects verified LiveContainer/main and embedded LiveContainer/SideStore/LiveContainerSupport heads.
+          - Reads **SideSign and minimuxer submodule SHAs** from the exact selected SideStore tree, never mixing incompatible branches.
+          - Standalone SideStore/develop is advisory, not swapped into the embedded fork.
+          - Keeps **original Liquid Glass**, LiveContainer, SideStore, SideSign, Scarlet Crystal branding, existing App Groups and user data.
+          - Independent Figma/UI implementation remains unchanged.
+          
+          **Automatic steps:** pinned-source discovery, candidate branch, PR and CI source regression.
+          **Not automatic:** merging unvalidated engine changes, signing/replacing an IPA, defeating iOS installation permissions or 7-day Personal Team provisioning.
+          
+          Release must be gated on compiled host IPA, 4 embedded bundle entitlements, native Liquid Glass and guest runtime regression, Apple sign-in, pairing, signed IPA and actual device upgrade.
+          MD
+            gh pr create -R "$GITHUB_REPOSITORY" \
+              --base "$base" --head "$head" \
+              --title "chore: update Scarlet Crystal pinned LiveContainer/SideStore/SideSign sources" \
+              --body-file "${RUNNER_TEMP}/upstream-pr.md"
+            echo "[PASS] Created source update PR into $base"
+          fi
+
+      - name: Retain exact upstream comparison as audit artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: scarlet-clean-upstream-source-report
+          path: ${{ runner.temp }}/upstream-status.json
+          if-no-files-found: ignore
+          retention-days: 30
