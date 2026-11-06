@@ -77,8 +77,8 @@ private struct ScarletActionRow: View {
                     .background(ScarletPresentationColor.stroke.opacity(0.4),
                                 in: RoundedRectangle(cornerRadius: 10))
                 VStack(alignment: .leading, spacing: 3) {
-                    Text(title).font(.subheadline.weight(.semibold))
-                    Text(detail).font(.caption)
+                    Text(title).font(.headline)
+                    Text(detail).font(.footnote)
                         .foregroundStyle(ScarletPresentationColor.muted)
                 }
                 Spacer(minLength: 8)
@@ -128,6 +128,7 @@ public struct ScarletIndependentShell: View {
     @State private var searchText = ""
     @State private var showLocalAppearance = false
     @State private var showLocalStorage = false
+    @ScaledMetric(relativeTo: .largeTitle) private var screenTitleSize: CGFloat = 28
 
     public init(snapshot: ScarletHostPresentationSnapshot,
                 guests: [ScarletGuestPresentation],
@@ -146,29 +147,7 @@ public struct ScarletIndependentShell: View {
     public var body: some View {
         ZStack(alignment: .bottomLeading) {
             ScrollView {
-                VStack(alignment: .leading, spacing: 20) {
-                    // Ordinary host pages use an unobtrusive top menu.
-                    // Guest app switching uses ONE native circular control.
-                    HStack {
-                        Spacer()
-                        Menu {
-                            ForEach(Tab.allCases, id: \.self) { tab in
-                                Button {
-                                    selected = tab
-                                } label: {
-                                    Label(tab.rawValue, systemImage: tab.icon)
-                                }
-                            }
-                        } label: {
-                            Image(systemName: "ellipsis")
-                                .font(.system(size: 23, weight: .semibold))
-                                .foregroundStyle(ScarletPresentationColor.accent)
-                                .frame(width: 44, height: 44)
-                                .contentShape(Rectangle())
-                        }
-                        .accessibilityLabel("화면 이동")
-                    }
-                    .frame(maxWidth: .infinity)
+                VStack(alignment: .leading, spacing: 17) {
                     switch selected {
                     case .home: home
                     case .apps: apps
@@ -176,8 +155,28 @@ public struct ScarletIndependentShell: View {
                     case .connection: connection
                     }
                 }
+                // Figma page menu sits at the heading top-right without
+                // inserting a second header row that shifts content downward.
+                .overlay(alignment: .topTrailing) {
+                    Menu {
+                        ForEach(Tab.allCases, id: \.self) { tab in
+                            Button {
+                                selected = tab
+                            } label: {
+                                Label(tab.rawValue, systemImage: tab.icon)
+                            }
+                        }
+                    } label: {
+                        Image(systemName: "ellipsis")
+                            .font(.system(size: 23, weight: .semibold))
+                            .foregroundStyle(ScarletPresentationColor.accent)
+                            .frame(width: 44, height: 44)
+                            .contentShape(Rectangle())
+                    }
+                    .accessibilityLabel("화면 이동")
+                }
                 .padding(.horizontal, 20)
-                .padding(.top, 10)
+                .padding(.top, 18)
                 // Ensure content never disappears behind the circular switcher.
                 .padding(.bottom, 100)
                 .frame(maxWidth: 650)
@@ -252,7 +251,7 @@ public struct ScarletIndependentShell: View {
                     .foregroundStyle(ScarletPresentationColor.accent)
             }
             Text(title)
-                .font(.system(.largeTitle, design: .rounded, weight: .bold))
+                .font(.system(size: screenTitleSize, weight: .bold, design: .default))
                 .foregroundStyle(ScarletPresentationColor.text)
             Text(subtitle)
                 .font(.subheadline)
@@ -329,8 +328,8 @@ public struct ScarletIndependentShell: View {
             VStack(alignment: .leading, spacing: 8) {
                 Image(systemName: icon).font(.title2)
                     .foregroundStyle(ScarletPresentationColor.accent)
-                Text(title).font(.subheadline.weight(.semibold))
-                Text(detail).font(.caption2)
+                Text(title).font(.headline)
+                Text(detail).font(.footnote)
                     .foregroundStyle(ScarletPresentationColor.muted)
             }
             .foregroundStyle(ScarletPresentationColor.text)
