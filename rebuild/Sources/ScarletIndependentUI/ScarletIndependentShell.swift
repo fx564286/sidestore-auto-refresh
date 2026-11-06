@@ -134,6 +134,98 @@ private struct ScarletActionRow: View {
     }
 }
 
+
+private struct ScarletStatusBadge: View {
+    let title: String
+    let color: Color
+
+    var body: some View {
+        Text(title)
+            .font(.system(size: 12, weight: .semibold))
+            .foregroundStyle(color)
+            .fixedSize(horizontal: true, vertical: false)
+            .padding(.horizontal, 12)
+            .frame(height: 27)
+            .background(ScarletPresentationColor.surface, in: Capsule())
+    }
+}
+
+/// Rows and separators are based on REAL guest records. No trailing
+/// divider is rendered below the final app (fixes the Figma lone line).
+private struct ScarletGuestActionRow: View {
+    let guest: ScarletGuestPresentation
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 12) {
+                Image(systemName: guest.icon)
+                    .font(.system(size: 17, weight: .semibold))
+                    .foregroundStyle(ScarletPresentationColor.accent)
+                    .frame(width: 36, height: 36)
+                    .background(ScarletPresentationColor.stroke.opacity(0.4),
+                                in: RoundedRectangle(cornerRadius: 11))
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(guest.title)
+                        .font(.system(size: 16, weight: .semibold))
+                        .lineLimit(1)
+                    Text(guest.detail)
+                        .font(.system(size: 13))
+                        .foregroundStyle(ScarletPresentationColor.muted)
+                        .lineLimit(1)
+                }
+                Spacer(minLength: 8)
+                Text(guest.isRunning ? "전환" : "실행")
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundStyle(ScarletPresentationColor.success)
+                    .fixedSize()
+            }
+            .foregroundStyle(ScarletPresentationColor.text)
+            .frame(maxWidth: .infinity, minHeight: 62, alignment: .leading)
+            .padding(.horizontal, 8)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityIdentifier("SCARLET_GUEST_ACTION_ROW")
+    }
+}
+
+private struct ScarletGuestListCard: View {
+    let guests: [ScarletGuestPresentation]
+    let emptyText: String
+    let onOpen: (String) -> Void
+
+    var body: some View {
+        VStack(spacing: 0) {
+            if guests.isEmpty {
+                Text(emptyText)
+                    .font(.footnote)
+                    .foregroundStyle(ScarletPresentationColor.muted)
+                    .frame(maxWidth: .infinity, minHeight: 62, alignment: .leading)
+                    .padding(.horizontal, 8)
+            } else {
+                ForEach(guests) { item in
+                    ScarletGuestActionRow(guest: item) { onOpen(item.id) }
+                    if item.id != guests.last?.id {
+                        Rectangle()
+                            .fill(ScarletPresentationColor.stroke.opacity(0.55))
+                            .frame(height: 1)
+                            .padding(.horizontal, 8)
+                    }
+                }
+            }
+        }
+        .padding(7)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(ScarletPresentationColor.surface,
+                    in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 20, style: .continuous)
+                .stroke(ScarletPresentationColor.stroke, lineWidth: 1)
+        }
+    }
+}
+
 @available(iOS 16.0, *)
 public struct ScarletIndependentShell: View {
     // Preserves the existing Scarlet Crystal bottom tab destinations exactly.
@@ -306,9 +398,8 @@ public struct ScarletIndependentShell: View {
         Group {
             heading("Scarlet Crystal", "내 컨테이너", "앱 실행과 창 관리")
             ScarletPanel {
-                Text("실행 가능")
-                    .font(.caption2.weight(.bold))
-                    .foregroundStyle(ScarletPresentationColor.success)
+                ScarletStatusBadge(title: "실행 가능",
+                                   color: ScarletPresentationColor.success)
                 Text("앱")
                     .font(.title2.bold())
                 Text("설치된 앱")
@@ -335,19 +426,9 @@ public struct ScarletIndependentShell: View {
                 }
             }
             sectionTitle("최근 앱")
-            ScarletPanel {
-                ForEach(guests.prefix(3)) { guest in
-                    ScarletActionRow(title: guest.title, detail: guest.detail,
-                                     icon: guest.icon, enabled: true) {
-                        onOpenGuest(guest.id)
-                    }
-                }
-                if guests.isEmpty {
-                    Text("등록된 앱이 없습니다.")
-                        .font(.subheadline)
-                        .foregroundStyle(ScarletPresentationColor.muted)
-                }
-            }
+            ScarletGuestListCard(guests: Array(guests.prefix(3)),
+                                 emptyText: "등록된 앱이 없습니다.",
+                                 onOpen: onOpenGuest)
         }
         .foregroundStyle(ScarletPresentationColor.text)
     }
@@ -405,18 +486,26 @@ public struct ScarletIndependentShell: View {
     private var apps: some View {
         Group {
             heading("", "내 앱", "앱을 검색하거나 실행하세요.")
-            HStack {
+            HStack(spacing: 10) {
                 Image(systemName: "magnifyingglass")
+                    .font(.system(size: 17, weight: .medium))
                     .foregroundStyle(ScarletPresentationColor.accent)
+                    .frame(width: 20, height: 20)
                 TextField("앱 검색", text: $searchText)
+                    .font(.system(size: 14))
                     .textInputAutocapitalization(.never)
                     .autocorrectionDisabled()
                     .tint(ScarletPresentationColor.accent)
                     .accessibilityIdentifier("SCARLET_APP_SEARCH")
             }
-            .padding(14)
+            .padding(.horizontal, 14)
+            .frame(height: 44)
             .background(ScarletPresentationColor.surface,
-                        in: RoundedRectangle(cornerRadius: 16))
+                        in: RoundedRectangle(cornerRadius: 20))
+            .overlay {
+                RoundedRectangle(cornerRadius: 20)
+                    .stroke(ScarletPresentationColor.stroke, lineWidth: 1)
+            }
 
             // Figma 6:75 filter labels and equal-width targets.
             HStack(spacing: 8) {
@@ -427,13 +516,15 @@ public struct ScarletIndependentShell: View {
                         Text(item.rawValue)
                             .font(.footnote.weight(.semibold))
                             .foregroundStyle(ScarletPresentationColor.text)
-                            .frame(maxWidth: .infinity, minHeight: 44)
+                            .frame(maxWidth: .infinity)
+                            .frame(height: 34)
                             .background(
                                 appFilter == item
                                     ? ScarletPresentationColor.purple
                                     : ScarletPresentationColor.surface,
                                 in: Capsule()
                             )
+                            .frame(minHeight: 44)
                     }
                     .buttonStyle(.plain)
                     .accessibilityAddTraits(appFilter == item ? .isSelected : [])
@@ -441,21 +532,13 @@ public struct ScarletIndependentShell: View {
                 }
             }
             sectionTitle("앱", trailing: "\(visibleGuests.count)개")
-            ScarletPanel {
-                ForEach(visibleGuests) { guest in
-                    ScarletActionRow(title: guest.title, detail: guest.detail,
-                                     icon: guest.icon, enabled: true) {
-                        onOpenGuest(guest.id)
-                    }
-                }
-                if visibleGuests.isEmpty {
-                    Text(appFilter == .running ? "실행 중인 앱이 없습니다."
-                         : appFilter == .recent ? "최근 실행한 앱이 없습니다."
-                         : "앱이 없습니다.")
-                        .font(.footnote)
-                        .foregroundStyle(ScarletPresentationColor.muted)
-                }
-            }
+            ScarletGuestListCard(
+                guests: visibleGuests,
+                emptyText: appFilter == .running ? "실행 중인 앱이 없습니다."
+                           : appFilter == .recent ? "최근 실행한 앱이 없습니다."
+                           : "앱이 없습니다.",
+                onOpen: onOpenGuest
+            )
         }
         .foregroundStyle(ScarletPresentationColor.text)
     }
@@ -544,11 +627,11 @@ public struct ScarletIndependentShell: View {
                 }
             }
             ScarletPanel {
-                Text(snapshot.serviceConnected ? "SideStore 연결됨" : "SideStore 연결 필요")
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(snapshot.serviceConnected
-                                     ? ScarletPresentationColor.success
-                                     : ScarletPresentationColor.warning)
+                ScarletStatusBadge(
+                    title: snapshot.serviceConnected ? "연결됨" : "연결 안 됨",
+                    color: snapshot.serviceConnected
+                        ? ScarletPresentationColor.success : ScarletPresentationColor.warning
+                )
                 Text("계정 및 서명").font(.headline)
                 Text("SideStore 연결 필요")
                     .font(.caption)
@@ -628,12 +711,14 @@ public struct ScarletIndependentShell: View {
             }
             heading("", "연결 및 서명", "페어링 및 Apple 계정")
             ScarletPanel {
-                Text(snapshot.serviceConnected ? "연결됨" : "연결 안 됨")
-                    .font(.headline)
-                    .foregroundStyle(snapshot.serviceConnected
-                                     ? ScarletPresentationColor.success
-                                     : ScarletPresentationColor.warning)
-                Text("SideStore 연결 상태")
+                ScarletStatusBadge(
+                    title: snapshot.serviceConnected ? "연결됨" : "연결 안 됨",
+                    color: snapshot.serviceConnected
+                        ? ScarletPresentationColor.success : ScarletPresentationColor.warning
+                )
+                Text("연결 상태")
+                    .font(.title3.bold())
+                Text(snapshot.serviceConnected ? "SideStore 연결됨" : "SideStore 연결 필요")
                     .font(.caption)
                     .foregroundStyle(ScarletPresentationColor.muted)
             }

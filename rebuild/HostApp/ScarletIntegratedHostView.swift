@@ -7,6 +7,7 @@ import SwiftUI
 @available(iOS 17.0, *)
 struct ScarletIntegratedHostView: View {
     @EnvironmentObject private var sharedModel: SharedModel
+    @ObservedObject private var guestDock = MultitaskDockManager.shared
     @StateObject private var downloadHelper = DownloadHelper()
     @State private var showNativeAppLibrary = false
     @State private var showNativeSources = false
@@ -14,12 +15,20 @@ struct ScarletIntegratedHostView: View {
     @State private var showOriginalError: String?
 
     private var guestItems: [ScarletGuestPresentation] {
-        sharedModel.apps.map { app in
-            ScarletGuestPresentation(
+        // LCAppModel.isAppRunning is a *launch-in-progress* flag, not proof
+        // that a LiveContainer guest scene is visible. Use real dock/scene
+        // window ownership before exposing the Running filter.
+        let activeContainers = Set(ScarletGuestSceneRegistry.availableGuests().map(\.id))
+        return sharedModel.apps.map { app in
+            let visible = app.appInfo.containers.contains {
+                activeContainers.contains($0.folderName)
+            }
+            return ScarletGuestPresentation(
                 id: app.appInfo.relativeBundlePath ?? app.bundleIdentifier,
                 title: app.displayName,
-                detail: app.isAppRunning ? "실행 요청 중" : "설치됨",
-                isRunning: app.isAppRunning,
+                detail: visible ? "실행 중"
+                         : app.isAppRunning ? "실행 요청 중" : "설치됨",
+                isRunning: visible,
                 lastOpenedAt: app.appInfo.lastLaunched
             )
         }

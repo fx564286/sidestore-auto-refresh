@@ -63,7 +63,15 @@ enum ScarletGuestSceneRegistry {
         // Remote/secure rendering may refuse capture: display unavailable, never
         // substitute a fabricated stock photo.
         let bounds = view.bounds
-        return UIGraphicsImageRenderer(bounds: bounds).image { context in
+        // The panel displays a 116pt thumbnail. Limit capture resolution so
+        // switching among many apps does not allocate full-screen bitmaps.
+        let scale = min(CGFloat(1), CGFloat(256) / bounds.width)
+        let output = CGSize(width: bounds.width * scale,
+                            height: bounds.height * scale)
+        let format = UIGraphicsImageRendererFormat()
+        format.scale = 1
+        return UIGraphicsImageRenderer(size: output, format: format).image { context in
+            context.cgContext.scaleBy(x: scale, y: scale)
             if !view.drawHierarchy(in: bounds, afterScreenUpdates: false) {
                 view.layer.render(in: context.cgContext)
             }

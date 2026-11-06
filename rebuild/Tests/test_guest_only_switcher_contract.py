@@ -37,6 +37,11 @@ class GuestOnlySwitcherContract(unittest.TestCase):
         self.assertNotIn("Figma.png",GUEST)
         self.assertNotIn("UIImage(named:",GUEST)
         self.assertIn("SCNativeLiquidGlassSurface",GUEST)
+        self.assertIn("UIGraphicsImageRenderer(size: output, format: format)",GUEST)
+        self.assertIn("ScarletGuestListCard",UI)
+        self.assertIn("ScarletStatusBadge",UI)
+        self.assertIn(".frame(height: 44)",UI)
+        self.assertIn("isRunning: visible",HOST)
         self.assertIn("ScarletNativeGlassSwitcher(openManager:",GUEST)
 
     def test_host_builder_copies_guest_source(self):
