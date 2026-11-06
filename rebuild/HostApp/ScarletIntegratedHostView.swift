@@ -269,7 +269,7 @@ struct ScarletIntegratedHostView: View {
         .sheet(isPresented: $showScarletAppleIDLogin) {
             // Credentials remain in a Scarlet-owned ephemeral view.
             // The embedded SideStore guest authentication UI is NOT opened.
-            ScarletAppleIDLoginSheet(engine: ScarletPendingSideStoreEngineBridge())
+            ScarletAppleIDLoginSheet(engine: ScarletConnectedSideSignEngine())
         }
         .fileImporter(isPresented: $showGuestFilePicker,
                       allowedContentTypes: [.ipa, .tipa],
