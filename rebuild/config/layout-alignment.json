@@ -38,11 +38,16 @@
     ]
   },
   "round_app_switcher": {
-    "count_per_screen": 1,
+    "count_per_screen": 0,
     "diameter_pt": 62,
     "x": 22,
     "action": "original Liquid Glass recent apps / window manager",
-    "independent_window_manager_tab": false
+    "independent_window_manager_tab": false,
+    "count_per_guest_scene": 1,
+    "visibility": "guest_scene_only",
+    "position": "bottom_leading_above_home_indicator",
+    "guest_preview_source": "running guest view",
+    "host_shell_count": 0
   },
   "card_action_row": {
     "icon_badge_diameter_pt": 36,
@@ -59,7 +64,9 @@
     "segment_labels_alignment": "CENTER",
     "min_max_close_equal_width": true,
     "icon_label_alignment": "CENTER",
-    "outside_tap_dismiss": true
+    "outside_tap_dismiss": true,
+    "guest_scene_only": true,
+    "preview_not_static": true
   },
   "implementation": "Use Figma geometry as measured reference; native host Liquid Glass must be reused unchanged"
 }

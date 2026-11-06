@@ -91,11 +91,11 @@
     "bottom_tab_uses_existing_liquid_glass": true,
     "bottom_tab_injection": "Required host-provided existing interactive Liquid Glass bar, bound via Binding<Tab>; no synthetic glassEffect in clean UI",
     "separate_window_management_tab": false,
-    "window_management_entry": "round_switcher_only",
+    "window_management_entry": "running_guest_only",
     "single_round_app_switcher": true,
     "round_switcher_size_pt": 62,
     "round_switcher_hpos": "leading",
-    "round_switcher_position": "above_bottom_tab_bar",
+    "round_switcher_position": "floating_over_active_guest_scene",
     "round_switcher_uses_existing_liquid_glass": true,
     "app_switcher_action": "existing host overlay with recent apps and window management segmented controls",
     "overlay_outside_tap_dismiss": true,
@@ -108,6 +108,10 @@
       "Sources",
       "Settings"
     ],
-    "source_tab_uses_original_side_store_sources": true
+    "source_tab_uses_original_side_store_sources": true,
+    "round_switcher_visibility": "guest_scene_only",
+    "guest_preview_source": "live_owned_guest_view_snapshot_on_switch",
+    "container_shell_has_round_switcher": false,
+    "guest_overlay_has_bottom_host_tab_bar": false
   }
 }

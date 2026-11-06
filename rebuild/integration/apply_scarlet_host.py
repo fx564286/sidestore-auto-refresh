@@ -42,6 +42,7 @@ def main():
     sources={
         root/"rebuild/HostApp/ScarletIntegratedHostView.swift":"ScarletIntegratedHostView.swift",
         root/"rebuild/HostApp/ScarletNativeGlass.swift":"ScarletNativeGlass.swift",
+        root/"rebuild/HostApp/ScarletGuestSwitcherOverlay.swift":"ScarletGuestSwitcherOverlay.swift",
         root/"rebuild/Sources/ScarletIndependentUI/ScarletIndependentShell.swift":"ScarletIndependentShell.swift",
         root/"rebuild/Sources/ScarletCleanCore/ScarletActionCoordinator.swift":"ScarletActionCoordinator.swift",
         root/"rebuild/Sources/ScarletCleanCore/ScarletControlAuditTrail.swift":"ScarletControlAuditTrail.swift",
@@ -51,6 +52,34 @@ def main():
         assert inp.is_file(),f"Required independent source missing: {inp}"
         shutil.copy2(inp,out/name)
     entry.write_text(src.replace(original,new))
+
+    # Mount the sole circular control on an actual running guest scene.  Never
+    # place it over the independent host container tabs.  Refuse unknown pins.
+    guest_window=engine/"MultitaskSupport/MultitaskAppWindow.swift"
+    assert guest_window.is_file(),"Pinned LiveContainer guest window file missing"
+    guest_src=guest_window.read_text()
+    anchors={
+        "        return AppSceneViewController(bundleId: bundleId, dataUUID: dataUUID, delegate: context.coordinator)\n":
+        "        let controller = AppSceneViewController(bundleId: bundleId, dataUUID: dataUUID, delegate: context.coordinator)\n"
+        "        ScarletGuestSceneRegistry.register(controller, dataUUID: dataUUID)\n"
+        "        return controller\n",
+        "            if !show {\n                vc.terminate()\n":
+        "            if !show {\n                ScarletGuestSceneRegistry.unregister(dataUUID)\n                vc.terminate()\n",
+        "                .background(.black)\n                .frame(maxWidth: .infinity, maxHeight: .infinity)\n":
+        "                .background(.black)\n"
+        "                .frame(maxWidth: .infinity, maxHeight: .infinity)\n"
+        "                .overlay(alignment: .bottomLeading) {\n"
+        "                    if #available(iOS 17.0, *) {\n"
+        "                        ScarletGuestSwitcherOverlay(dataUUID: appInfo.dataUUID, displayName: appInfo.displayName)\n"
+        "                    }\n"
+        "                }\n"
+        "                .onDisappear { ScarletGuestSceneRegistry.unregister(appInfo.dataUUID) }\n"
+    }
+    for before,after in anchors.items():
+        if guest_src.count(before)!=1:
+            raise RuntimeError(f"Unexpected pinned guest scene layout; anchor count={guest_src.count(before)}: {before!r}")
+        guest_src=guest_src.replace(before,after)
+    guest_window.write_text(guest_src)
     a.report.parent.mkdir(parents=True,exist_ok=True)
     data={
         "schema":1,"newRootCompiled":False,
@@ -60,6 +89,9 @@ def main():
         "originalGuestImporterPreserved":True,
         "embeddedSideStoreNativeLaunchPreserved":True,
         "originalNativeUIGlassEffect":True,
+        "guestOnlySwitcherSourceInjected":True,
+        "guestSnapshotCaptureSourceInjected":True,
+        "guestRuntimeCaptureDeviceVerified":False,
         "actualIOSExecutionVerified":False,
         "windowMaximizeAndCloseComplete":False,
         "sources":[dict(path=str(x.relative_to(engine)),sha256=file_sha(x))

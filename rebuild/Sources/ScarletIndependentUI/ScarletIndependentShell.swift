@@ -161,10 +161,8 @@ public struct ScarletIndependentShell: View {
     public let onAddSource: () -> Void
     public let onAction: (ScarletControl) -> Void
     public let onOpenGuest: (String) -> Void
-    // The host MUST inject its EXISTING interactive circular Liquid Glass
-    // app-switch button (including original tap/long-press gestures).
-    // This new UI does not emulate the material or create a second button.
-    public let preservedGlassSwitchControl: AnyView
+    // The container's four tabs remain native Liquid Glass.
+    // The one round switch control belongs to a running guest scene ONLY.
     // Keep the original interactive Liquid Glass tab-bar renderer. The host
     // binds the four destination tabs to this shell selection; no duplicated
     // material or synthetic glassEffect is introduced here.
@@ -190,7 +188,6 @@ public struct ScarletIndependentShell: View {
                 onOpenGuest: @escaping (String) -> Void,
                 onOpenSource: @escaping (String) -> Void,
                 onAddSource: @escaping () -> Void,
-                preservedGlassSwitchControl: AnyView,
                 preservedGlassTabBar: @escaping (Binding<Tab>) -> AnyView,
                 initialTab: Tab = .home,
                 initialConnectionDetails: Bool = false) {
@@ -201,7 +198,6 @@ public struct ScarletIndependentShell: View {
         self.onOpenGuest = onOpenGuest
         self.onOpenSource = onOpenSource
         self.onAddSource = onAddSource
-        self.preservedGlassSwitchControl = preservedGlassSwitchControl
         self.preservedGlassTabBar = preservedGlassTabBar
         self._selected = State(initialValue: initialTab)
         self._showConnectionDetails = State(initialValue: initialConnectionDetails)
@@ -226,9 +222,8 @@ public struct ScarletIndependentShell: View {
                     }
                     .padding(.horizontal, 20)
                     .padding(.top, 18)
-                    // Keep the circular switcher's hit region accessible
-                    // without covering local setting controls or final rows.
-                    .padding(.bottom, 98)
+                    // Container screen intentionally has NO guest-only round switcher.
+                    .padding(.bottom, 24)
                     .frame(maxWidth: 650)
                     .frame(maxWidth: .infinity)
                 }
@@ -245,15 +240,6 @@ public struct ScarletIndependentShell: View {
                     .accessibilityIdentifier("SCARLET_NATIVE_GLASS_BOTTOM_TAB_BAR")
             }
 
-            // The existing ONE circular guest app switcher opens the
-            // original recent-apps/window-manager overlay (outside-tap
-            // dismiss is the host's responsibility), not a new tab.
-            preservedGlassSwitchControl
-                .frame(width: 62, height: 62)
-                .accessibilityLabel("앱 전환 및 창 관리")
-                .accessibilityIdentifier("SCARLET_SINGLE_ROUND_APP_SWITCHER")
-                .padding(.leading, 22)
-                .padding(.bottom, 78)
         }
         .background(ScarletPresentationColor.background.ignoresSafeArea())
         .preferredColorScheme(.dark)

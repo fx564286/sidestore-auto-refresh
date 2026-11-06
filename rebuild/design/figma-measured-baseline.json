@@ -39,7 +39,16 @@
       "x": 22,
       "y": 672,
       "w": 62,
-      "h": 62
+      "h": 62,
+      "visibility": "guest_scene_only",
+      "hiddenOnContainerScreens": [
+        "6:15",
+        "6:75",
+        "6:136",
+        "6:198",
+        "26:2"
+      ],
+      "guestScreen": "6:254"
     },
     "windowOverlay": {
       "segmentedTabs": [
@@ -51,7 +60,8 @@
         "최대화",
         "닫기"
       ],
-      "nativeGlassRequired": true
+      "nativeGlassRequired": true,
+      "guestPreviewSource": "actual running owned guest scene captured on entering switcher; no Figma mock image is evidence"
     }
   },
   "screens": [
@@ -148,7 +158,7 @@
       "dynamicData": [
         "actualGuestWindows"
       ],
-      "status": "BLOCKED until preserved native Liquid Glass window-manager host renderer is attached"
+      "status": "Native guest scene injection planned; real running-app screenshot and gestures require iPhone verification"
     },
     {
       "figmaNodeId": "26:2",
@@ -182,6 +192,8 @@
     "This fixture verifies design copy and declared geometry, not SwiftUI rendered pixels",
     "A matching static text string does not prove a working Button action",
     "Figma visual blur is not proof of Apple's native UIGlassEffect",
-    "UI requires real hosted guest engine, tab bar, round switcher and signed IPA for device validation"
+    "UI requires real hosted guest engine, tab bar, round switcher and signed IPA for device validation",
+    "Main container tabs never show the round app switcher; only the running guest scene may show it",
+    "Figma shows an illustrative guest frame; real preview must be a captured guest render at switch time and never a static stock picture"
   ]
 }

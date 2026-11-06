@@ -66,14 +66,19 @@
       102
     ],
     "iconTitleSecondaryAlignment": "center",
-    "listTitleDetailAlignment": "leading"
+    "listTitleDetailAlignment": "leading",
+    "containerRoundSwitcherCount": 0,
+    "guestRoundSwitcherCount": 1
   },
   "policy": {
     "nativeGlassMaterial": "Must be provided by existing original host renderer; Figma is visual preview only",
     "preserveOriginalLiquidGlass": true,
     "doNotDuplicateSwitchers": true,
     "doNotBuildFauxGlass": true,
-    "noSeparateWindowManagerTab": true
+    "noSeparateWindowManagerTab": true,
+    "guestOnlySwitcher": true,
+    "hostContainerSwitcherHidden": true,
+    "actualGuestPreviewRequired": true
   },
-  "validation": "Figma six-screen visual screenshot review and node-geometry audit 2026-11-06; iOS host rendering not yet compared"
+  "validation": "Figma 2026-11-06 direct layer edit: host round buttons deleted, guest-only switcher retained, old guest overlay bottom host tab removed. Device screenshot not yet verified."
 }

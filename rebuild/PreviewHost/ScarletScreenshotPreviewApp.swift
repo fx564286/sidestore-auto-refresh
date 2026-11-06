@@ -41,16 +41,6 @@ struct ScarletScreenshotPreviewApp: App {
                 onOpenGuest: { _ in },
                 onOpenSource: { _ in },
                 onAddSource: {},
-                preservedGlassSwitchControl: AnyView(
-                    Button {} label: {
-                        Image(systemName: "square.on.square")
-                            .font(.system(size: 22))
-                            .foregroundStyle(.white)
-                            .frame(width: 62, height: 62)
-                            .background(Color.gray.opacity(0.36), in: Circle())
-                    }
-                    .buttonStyle(.plain)
-                ),
                 preservedGlassTabBar: { selected in
                     AnyView(
                         HStack(spacing: 4) {

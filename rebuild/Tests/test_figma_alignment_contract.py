@@ -46,7 +46,7 @@ class FigmaGeometryContract(unittest.TestCase):
     def test_native_glass_control_must_be_injected_not_recreated(self):
         self.assertIn("preservedGlassTabBar: (Binding<Tab>) -> AnyView",UI)
         self.assertIn("preservedGlassTabBar($selected)",UI)
-        self.assertIn("preservedGlassSwitchControl",UI)
+        self.assertNotIn("preservedGlassSwitchControl",UI)
         self.assertNotIn(".glassEffect(",UI)
         self.assertNotIn("private var tabBar",UI)
 

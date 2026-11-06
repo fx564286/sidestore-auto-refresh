@@ -48,3 +48,9 @@ GitHub Actions: https://github.com/fx564286/sidestore-auto-refresh/actions/workf
 - 신규 설치 가능 IPA 없음.
 
 기존 사용자 앱 데이터와 번들 `com.kdt.livecontainer.P8EZT3U5N4`은 유지 대상으로 지정; 테스트 과정에서 삭제하지 않는다.
+
+## 2026-11-06 guest-only switcher correction
+- Figma Home / Apps / Sources / Settings / Account: circular control removed.
+- Guest app scene only: original native glass round control, no redundant host bottom bar.
+- Dynamic preview must be obtained from actual owned LiveContainer app scene pixels at switch time; a Figma photo or static icon is NOT acceptable proof.
+- Simulator-only screenshots are not screenshots from the running integrated IPA. Device acceptance remains unverified.

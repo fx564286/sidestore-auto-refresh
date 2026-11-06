@@ -13,11 +13,11 @@ PINS=json.loads((ROOT.parent/"config/scarlet-upstream-pins.json").read_text())
 class UpdateAndAlignmentTests(unittest.TestCase):
     def test_actual_original_glass_required_not_simulated(self):
         self.assertTrue(LAYOUT["bottom_tab_bar"]["uses_original_liquid_glass"])
-        self.assertEqual(LAYOUT["round_app_switcher"]["count_per_screen"],1)
+        self.assertEqual(LAYOUT["round_app_switcher"]["count_per_screen"],0)
         self.assertEqual(UI.count('SCARLET_NATIVE_GLASS_BOTTOM_TAB_BAR'),1)
-        self.assertEqual(UI.count('SCARLET_SINGLE_ROUND_APP_SWITCHER'),1)
+        self.assertEqual(UI.count('SCARLET_SINGLE_ROUND_APP_SWITCHER'),0)
         self.assertIn("preservedGlassTabBar($selected)",UI)
-        self.assertIn("preservedGlassSwitchControl",UI)
+        self.assertNotIn("preservedGlassSwitchControl",UI)
         self.assertNotIn(".glassEffect(",UI)
         self.assertFalse(LAYOUT["round_app_switcher"]["independent_window_manager_tab"])
 

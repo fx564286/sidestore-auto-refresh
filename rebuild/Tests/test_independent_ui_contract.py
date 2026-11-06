@@ -26,7 +26,7 @@ class IndependentUIContractTests(unittest.TestCase):
                           ".glassEffect(", "clearAppGroup", "removeUserData",
                           "revokeCertificate", "nukeSideStore"):
             self.assertNotIn(forbidden,UI)
-        self.assertIn("preservedGlassSwitchControl",UI)
+        self.assertNotIn("preservedGlassSwitchControl",UI)
         self.assertIn("struct ScarletIndependentShell",UI)
         self.assertIn("struct ScarletHostPresentationSnapshot",UI)
 
@@ -40,14 +40,14 @@ class IndependentUIContractTests(unittest.TestCase):
 
     def test_native_glass_bottom_tabs_and_single_round_switcher(self):
         self.assertIn("SCARLET_NATIVE_GLASS_BOTTOM_TAB_BAR", UI)
-        self.assertIn("SCARLET_SINGLE_ROUND_APP_SWITCHER", UI)
+        self.assertNotIn("SCARLET_SINGLE_ROUND_APP_SWITCHER", UI)
         self.assertEqual(UI.count("SCARLET_NATIVE_GLASS_BOTTOM_TAB_BAR"), 1)
-        self.assertEqual(UI.count("SCARLET_SINGLE_ROUND_APP_SWITCHER"), 1)
+        self.assertEqual(UI.count("SCARLET_SINGLE_ROUND_APP_SWITCHER"), 0)
         self.assertIn("preservedGlassTabBar: (Binding<Tab>) -> AnyView", UI)
         self.assertIn("preservedGlassTabBar: @escaping (Binding<Tab>) -> AnyView", UI)
         self.assertIn("preservedGlassTabBar($selected)", UI)
-        self.assertIn("preservedGlassSwitchControl: AnyView", UI)
-        self.assertIn(".frame(width: 62, height: 62)", UI)
+        self.assertNotIn("preservedGlassSwitchControl: AnyView", UI)
+        self.assertNotIn(".frame(width: 62, height: 62)", UI)
         self.assertIn(".frame(height: 62)", UI)
         self.assertNotIn("AnyView?", UI)
         self.assertNotIn("private var tabBar", UI)
@@ -103,7 +103,7 @@ class IndependentUIContractTests(unittest.TestCase):
 
     def test_unverified_upstream_is_not_replaced(self):
         assert set(CONTRACT["protected_runtime"][0]) >= {"id","description"}
-        self.assertIn("preservedGlassSwitchControl",UI)
+        self.assertNotIn("preservedGlassSwitchControl",UI)
         self.assertIn("onOpenGuest",UI)
         self.assertIn("serviceBeginSignIn",UI)
         self.assertIn("SideStore 연결 필요",UI)
@@ -114,7 +114,8 @@ class IndependentUIContractTests(unittest.TestCase):
         self.assertTrue(navigation.get("bottom_tab_uses_existing_liquid_glass"))
         self.assertEqual(navigation.get("bottom_tabs"),["home","apps","sources","settings"])
         self.assertFalse(navigation.get("separate_window_management_tab"))
-        self.assertEqual(navigation.get("window_management_entry"),"round_switcher_only")
+        self.assertEqual(navigation.get("window_management_entry"),"running_guest_only")
+        self.assertEqual(navigation.get("round_switcher_visibility"),"guest_scene_only")
 
 
 if __name__=="__main__":

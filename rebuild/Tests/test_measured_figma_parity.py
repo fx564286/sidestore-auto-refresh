@@ -30,7 +30,7 @@ class FigmaMeasuredParity(unittest.TestCase):
         self.assertEqual([nav["w"], nav["h"], nav["tabCount"]], [352, 62, 4])
         self.assertEqual(DESIGN["design"]["roundSwitcher"]["w"], 62)
         self.assertIn("preservedGlassTabBar($selected)", UI)
-        self.assertIn("preservedGlassSwitchControl", UI)
+        self.assertNotIn("preservedGlassSwitchControl", UI)
         for tab in nav["labels"]:
             self.assertIn('= "' + tab + '"', UI)
         self.assertNotIn(".glassEffect(", UI)
