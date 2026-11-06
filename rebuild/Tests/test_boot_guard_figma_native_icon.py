@@ -17,7 +17,7 @@ class ScarletBootAndBrandingContract(unittest.TestCase):
     def test_fresh_figma_icon_binary_is_real_png(self):
         self.assertTrue(ART.is_file())
         data = base64.b64decode(ART.read_text().strip(), validate=True)
-        self.assertTrue(data.startswith(b"\\x89PNG\\r\\n\\x1a\\n"))
+        self.assertTrue(data.startswith(b"\x89PNG\r\n\x1a\n"))
         w, h = struct.unpack(">II", data[16:24])
         self.assertGreaterEqual(w, 512)
         self.assertEqual(w, h)
