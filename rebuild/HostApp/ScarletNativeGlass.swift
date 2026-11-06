@@ -1,7 +1,8 @@
-// Scarlet Crystal — source-derived native UIKit Liquid Glass adapter.
-// Optical values and native UIGlassEffect are derived from the protected
-// pre-rebuild V131 implementation. No legacy V-series patch stack is applied.
-// Actual touch/morph/rotation acceptance requires an installed iPhone build.
+// Scarlet Crystal — iOS 26+ system Liquid Glass, with an explicit legacy fallback.
+// The earlier opaque UIKit background + painted selection did not establish
+// genuine interactive glass. SwiftUI's native GlassEffectContainer now owns
+// the tab material, selection morphing and drag response.
+// Real iPhone optical/touch verification is a separate release gate.
 import SwiftUI
 import UIKit
 
@@ -171,6 +172,92 @@ private struct SCInteractiveGlassTabs: View {
     }
 }
 
+
+@available(iOS 26.0, *)
+private struct SCInteractiveLiquidGlassTabs: View {
+    @Binding var selected: ScarletIndependentShell.Tab
+    @Namespace private var selectionNamespace
+
+    private var tabs: [ScarletIndependentShell.Tab] {
+        ScarletIndependentShell.Tab.allCases
+    }
+
+    private func select(_ tab: ScarletIndependentShell.Tab) {
+        guard selected != tab else { return }
+        withAnimation(.spring(response: 0.34, dampingFraction: 0.78)) {
+            selected = tab
+        }
+    }
+
+    var body: some View {
+        // One OS-managed glass container: the bar and the moving selected
+        // capsule share a material sampling region and selection identity.
+        GlassEffectContainer(spacing: 6) {
+            GeometryReader { geometry in
+                HStack(spacing: 6) {
+                    ForEach(tabs, id: \.self) { tab in
+                        Button {
+                            select(tab)
+                        } label: {
+                            VStack(spacing: 3) {
+                                Image(systemName: tab.icon)
+                                    .font(.system(size: 19, weight: .medium))
+                                Text(tab.rawValue)
+                                    .font(.system(size: 11.5, weight: .medium))
+                            }
+                            .frame(maxWidth: .infinity, minHeight: 52)
+                            .foregroundStyle(selected == tab
+                                ? Color.white : Color.white.opacity(0.73))
+                            .background {
+                                if selected == tab {
+                                    Capsule()
+                                        .glassEffect(
+                                            .regular.tint(.white.opacity(0.14)).interactive(),
+                                            in: .capsule
+                                        )
+                                        .glassEffectID("selected-tab", in: selectionNamespace)
+                                        .matchedGeometryEffect(id: "selection", in: selectionNamespace)
+                                }
+                            }
+                            .contentShape(Capsule())
+                        }
+                        .buttonStyle(.plain)
+                        .frame(maxWidth: .infinity)
+                        .accessibilityIdentifier("SCARLET_NATIVE_GLASS_TAB_" + tab.rawValue)
+                        .accessibilityAddTraits(selected == tab ? .isSelected : [])
+                    }
+                }
+                .padding(.horizontal, 5)
+                .frame(height: 62)
+                .background {
+                    Capsule()
+                        .glassEffect(.regular.interactive(), in: .capsule)
+                        .accessibilityIdentifier("SCARLET_LIVE_GLASS_BAR_MATERIAL")
+                }
+                // Drag previews move the selected system-glass capsule across
+                // the four real buttons; these are not duplicate touch routes.
+                .simultaneousGesture(
+                    DragGesture(minimumDistance: 8)
+                        .onChanged { value in
+                            let width = max(1, geometry.size.width)
+                            let fraction = min(max(value.location.x / width, 0), 0.999)
+                            let index = min(tabs.count - 1, Int(fraction * CGFloat(tabs.count)))
+                            select(tabs[index])
+                        }
+                )
+            }
+        }
+        .frame(height: 62)
+        .onAppear {
+            // This indicates the native rendering branch was mounted, not
+            // proof that GPU optical rendering was observed on a real device.
+            ScarletDiagnosticRecorder.shared.record("glass", "native_path_selected",
+                fields: ["api": "SwiftUI.GlassEffectContainer",
+                         "interactive": "true", "slots": "4"])
+        }
+    }
+}
+
 @available(iOS 16.0, *)
 struct ScarletNativeGlassTabBar: View {
     @Binding var selected: ScarletIndependentShell.Tab
@@ -179,9 +266,12 @@ struct ScarletNativeGlassTabBar: View {
         Group {
             if #available(iOS 26.0, *),
                !UIAccessibility.isReduceTransparencyEnabled {
-                SCInteractiveGlassTabs(selected: $selected)
+                // Real native Liquid Glass interaction, not a static gray
+                // capsule backed by a blur or tinted foreground overlay.
+                SCInteractiveLiquidGlassTabs(selected: $selected)
             } else {
-                // Only for older OS or explicit Reduce Transparency setting.
+                // Explicit accessibility / pre-iOS26 fallback; never call it
+                // native Liquid Glass.
                 HStack(spacing: 6) {
                     ForEach(ScarletIndependentShell.Tab.allCases, id: \.self) { tab in
                         Button { selected = tab } label: {
@@ -192,11 +282,10 @@ struct ScarletNativeGlassTabBar: View {
                                     .font(.system(size: 11.5, weight: .medium))
                             }
                             .frame(maxWidth: .infinity, minHeight: 52)
-                            .foregroundStyle(selected == tab ? Color.white : Color.white.opacity(0.73))
-                            .background(
-                                selected == tab ? Color.white.opacity(0.16) : Color.clear,
-                                in: Capsule()
-                            )
+                            .foregroundStyle(selected == tab
+                                ? Color.white : Color.white.opacity(0.73))
+                            .background(selected == tab
+                                ? Color.white.opacity(0.16) : Color.clear, in: Capsule())
                         }
                         .buttonStyle(.plain)
                         .frame(maxWidth: .infinity)
@@ -206,12 +295,11 @@ struct ScarletNativeGlassTabBar: View {
                 .padding(.horizontal, 5)
                 .frame(height: 62)
                 .background {
-                    SCNativeLiquidGlassSurface(cornerRadius: 31,
-                        selectedIndex: ScarletIndependentShell.Tab.allCases.firstIndex(of: selected) ?? 0)
+                    SCNativeLiquidGlassSurface(cornerRadius: 31)
                 }
-                .clipShape(Capsule())
             }
         }
+        .frame(height: 62)
     }
 }
 
@@ -225,9 +313,16 @@ struct ScarletNativeGlassSwitcher: View {
                 .foregroundStyle(.white)
                 .frame(width: 62, height: 62)
                 .background {
-                    SCNativeLiquidGlassSurface(cornerRadius: 31)
+                    if #available(iOS 26.0, *),
+                       !UIAccessibility.isReduceTransparencyEnabled {
+                        Circle()
+                            .glassEffect(.regular.interactive(), in: .circle)
+                            .accessibilityIdentifier("SCARLET_LIVE_GLASS_SWITCHER_MATERIAL")
+                    } else {
+                        SCNativeLiquidGlassSurface(cornerRadius: 31)
+                            .clipShape(Circle())
+                    }
                 }
-                .clipShape(Circle())
                 .contentShape(Circle())
         }
         .buttonStyle(.plain)
