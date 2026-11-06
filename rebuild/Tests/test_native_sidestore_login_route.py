@@ -21,6 +21,8 @@ class NativeScarletLoginContract(unittest.TestCase):
         self.assertNotIn("LCUtils.openSideStore(",HOST)
         self.assertIn("prepareDeviceIPAInstall()",HOST)
         self.assertNotIn("sidestore://signin",HOST)
+        self.assertNotIn('onAction(.localOpenEmbeddedSideStore)',UI)
+        self.assertNotIn('ScarletActionRow(title: "SideStore 열기"',UI)
         self.assertNotIn("openEmbeddedSideStore(signIn:",HOST)
         self.assertNotIn("patch_sidestore_native_signin.py",WORKFLOW)
 

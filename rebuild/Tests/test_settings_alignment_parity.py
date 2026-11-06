@@ -36,11 +36,12 @@ class SettingsParity(unittest.TestCase):
         self.assertIn(".frame(height: 62)",A)
 
     def test_original_sidestore_controls_not_removed(self):
-        for text in ('ScarletActionRow(title: "SideStore 열기"', 
-                     'Text("자동 갱신")','onAction(.serviceRefreshApp)',
-                     'onAction(.localOpenEmbeddedSideStore)',
+        for text in ('Text("자동 갱신")',
+                     'onAction(.serviceRefreshApp)',
                      'onAction(.serviceBeginSignIn)'):
             self.assertIn(text,B)
+        self.assertNotIn('ScarletActionRow(title: "SideStore 열기"',UI)
+        self.assertNotIn('onAction(.localOpenEmbeddedSideStore)',UI)
         self.assertNotIn('ScarletActionRow(title: "SideStore 열기"',A)
         self.assertNotIn('Text("자동 갱신")',A)
 

@@ -710,13 +710,6 @@ public struct ScarletIndependentShell: View {
                 .font(.caption)
                 .foregroundStyle(ScarletPresentationColor.muted)
             ScarletPanel {
-                ScarletActionRow(title: "SideStore 열기",
-                                 detail: "iOS 앱 설치 및 서명 갱신",
-                                 icon: "square.and.arrow.down", enabled: true) {
-                    onAction(.localOpenEmbeddedSideStore)
-                }
-            }
-            ScarletPanel {
                 Text("자동 갱신")
                     .font(.headline)
                 Text(renewalSummary)
