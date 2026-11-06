@@ -43,17 +43,32 @@ data=json.load(sys.stdin)
 devices=[d for bucket in data["devices"].values() for d in bucket
          if d.get("isAvailable") and d.get("name","").startswith("iPhone")]
 if not devices:raise SystemExit("No available iPhone simulator")
-devices.sort(key=lambda d:(not any(x in d["name"] for x in ("iPhone 16","iPhone 17")),d["name"]))
+devices.sort(key=lambda d:(d.get("state") != "Booted",
+                           not any(x in d["name"] for x in ("iPhone 16","iPhone 17")),
+                           d["name"]))
 print(devices[0]["udid"])
 ')"
 echo "[SIM] Selected device $UDID"
 cleanup(){ xcrun simctl shutdown "$UDID" >/dev/null 2>&1 || true; }
 trap cleanup EXIT
-xcrun simctl boot "$UDID"
+if xcrun simctl list devices booted | grep -Fq "$UDID"; then
+  echo "[SIM] Already booted; reusing the available device"
+else
+  xcrun simctl boot "$UDID"
+fi
 python3 - "$UDID" <<'PY'
 import subprocess,sys
-subprocess.run(["xcrun","simctl","bootstatus",sys.argv[1],"-b"],
-               timeout=240, check=True)
+udid=sys.argv[1]
+try:
+    subprocess.run(["xcrun","simctl","bootstatus",udid,"-b"],
+                   timeout=100, check=True)
+except subprocess.TimeoutExpired:
+    # Some hosted macOS runners never finish bootstatus even while launchd
+    # is responsive. Check the real device service instead of blind success.
+    print("[SIM] bootstatus timeout; checking simulator launchd",flush=True)
+    subprocess.run(["xcrun","simctl","spawn",udid,"launchctl","list"],
+                   timeout=35,check=True,stdout=subprocess.DEVNULL)
+    print("[SIM] launchd responsive; checking install and screenshots",flush=True)
 PY
 xcrun simctl install "$UDID" "$APP"
 for screen in home apps sources settings connection; do
