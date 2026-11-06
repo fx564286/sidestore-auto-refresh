@@ -264,6 +264,8 @@ public struct ScarletIndependentShell: View {
     public let nativeTweaks: () -> AnyView
     // Direct embedded original LiveContainer settings, not a modal.
     public let nativeSettings: () -> AnyView
+    // Only presentation state is emitted, no titles/guest IDs/credentials.
+    public let onTabChanged: (String) -> Void
 
     @State private var selected: Tab
     @State private var searchText = ""
@@ -279,6 +281,7 @@ public struct ScarletIndependentShell: View {
                 preservedGlassTabBar: @escaping (Binding<Tab>) -> AnyView,
                 nativeTweaks: @escaping () -> AnyView = { AnyView(EmptyView()) },
                 nativeSettings: @escaping () -> AnyView = { AnyView(EmptyView()) },
+                onTabChanged: @escaping (String) -> Void = { _ in },
                 initialTab: Tab = .apps) {
         self.snapshot = snapshot
         self.guests = guests
@@ -290,46 +293,19 @@ public struct ScarletIndependentShell: View {
         self.preservedGlassTabBar = preservedGlassTabBar
         self.nativeTweaks = nativeTweaks
         self.nativeSettings = nativeSettings
+        self.onTabChanged = onTabChanged
         self._selected = State(initialValue: initialTab)
     }
 
     public var body: some View {
         VStack(spacing: 0) {
             if selected == .settings {
-                // The real original LCSettingsView is the tab content itself.
-                // No "화면 설정" or "저장소" button opens a duplicate sheet.
-                VStack(spacing: 0) {
-                    HStack(spacing: 12) {
-                        Text("설정")
-                            .font(.system(size: screenTitleSize, weight: .bold))
-                            .foregroundStyle(ScarletPresentationColor.text)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                        Button {
-                            onAction(.serviceBeginSignIn)
-                        } label: {
-                            Label("Apple ID 로그인", systemImage: "person.crop.circle")
-                                .font(.system(size: 13, weight: .semibold))
-                        }
-                        .buttonStyle(.bordered)
-                        .tint(ScarletPresentationColor.accent)
-                        .accessibilityIdentifier("SCARLET_SETTINGS_NATIVE_APPLE_LOGIN")
-                    }
-                    .padding(.horizontal, 20)
-                    .padding(.top, 18)
-                    .padding(.bottom, 10)
-                    Text(snapshot.serviceConnected
-                         ? "SideStore 엔진 감지 · Apple 로그인 검증 필요"
-                         : "SideStore 인증 연결 확인 필요")
-                        .font(.caption)
-                        .foregroundStyle(ScarletPresentationColor.muted)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding(.horizontal, 20)
-                        .padding(.bottom, 8)
-                    nativeSettings()
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-                        .accessibilityIdentifier("SCARLET_INLINE_NATIVE_LC_SETTINGS")
-                }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                // Full-sized original LiveContainer NavigationView/Form.
+                // Its own single title, safe area and navigation are authoritative;
+                // do not add a second Scarlet title/card/status header.
+                nativeSettings()
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .accessibilityIdentifier("SCARLET_INLINE_NATIVE_LC_SETTINGS")
             } else if selected == .tweaks {
                 // Do not create a fake tweak-management card or a sheet.
                 // The original LiveContainer LCTweaksView controls actual
@@ -364,6 +340,8 @@ public struct ScarletIndependentShell: View {
         }
         .background(ScarletPresentationColor.background.ignoresSafeArea())
         .preferredColorScheme(.dark)
+        .onAppear { onTabChanged(selected.rawValue) }
+        .onChange(of: selected) { tab in onTabChanged(tab.rawValue) }
     }
 
     private func heading(_ overline: String, _ title: String, _ subtitle: String) -> some View {
