@@ -36,6 +36,13 @@ jobs:
           test "$(git -C engine/LiveContainer rev-parse HEAD)" = "$pin"
           echo "$pin" > report/livecontainer-commit.txt
           echo "[PASS] Pinned LiveContainer source"
+      - name: Integrate original LC guest engine with new Figma shell and V131 native glass
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 rebuild/integration/apply_scarlet_host.py \
+            --engine engine/LiveContainer \
+            --report report/scarlet-host-integration.json
       - name: Build LiveContainer with integrated SideStoreSupport for real iOS
         shell: bash
         run: |
@@ -59,6 +66,20 @@ jobs:
           python3 "$GITHUB_WORKSPACE/rebuild/integration/verify_engines.py" \
             --livecontainer "$app" --phase livecontainer \
             --report "$GITHUB_WORKSPACE/report/livecontainer-audit.json"
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          p=Path("report/scarlet-host-integration.json")
+          data=json.loads(p.read_text())
+          log=Path("report/livecontainer-build.log").read_text(errors="replace")
+          required=("ScarletIntegratedHostView.swift", "ScarletNativeGlass.swift",
+                    "ScarletIndependentShell.swift")
+          missing=[x for x in required if x not in log]
+          assert not missing, "Original Xcode sources absent from build log: "+str(missing)
+          data["newRootCompiled"]=True
+          p.write_text(json.dumps(data,indent=2)+"\n")
+          print("[PASS] New Figma shell and UIKit UIGlassEffect source compiled into native host")
+          PY
           tar -cf "$GITHUB_WORKSPACE/report/LiveContainer-app.tar" -C "$(dirname "$app")" LiveContainer.app
           echo "[PASS] Compiled LiveContainer host, 3 native extensions and SideStoreSupport"
       - uses: actions/upload-artifact@v4
@@ -165,6 +186,7 @@ jobs:
             --sidestore-ipa artifacts/side/SideStore.ipa \
             --lc-appinfo build-tools/LCAppInfo.plist \
             --dylibify build-tools/dylibify \
+            --host-report artifacts/lc/scarlet-host-integration.json \
             --out report
           python3 rebuild/integration/verify_engines.py \
             --phase combined \
