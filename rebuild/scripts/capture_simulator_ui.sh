@@ -50,7 +50,11 @@ echo "[SIM] Selected device $UDID"
 cleanup(){ xcrun simctl shutdown "$UDID" >/dev/null 2>&1 || true; }
 trap cleanup EXIT
 xcrun simctl boot "$UDID"
-xcrun simctl bootstatus "$UDID" -b
+python3 - "$UDID" <<'PY'
+import subprocess,sys
+subprocess.run(["xcrun","simctl","bootstatus",sys.argv[1],"-b"],
+               timeout=240, check=True)
+PY
 xcrun simctl install "$UDID" "$APP"
 for screen in home apps sources settings connection; do
   xcrun simctl launch --terminate-running-process "$UDID" \
