@@ -38,21 +38,32 @@ class IndependentUIContractTests(unittest.TestCase):
         self.assertIn("onAction(.localStorageNavigation)",UI[b:b+400])
         self.assertNotIn("guard snapshot.serviceConnected",UI)
 
-    def test_one_round_switcher_replaces_bottom_tab_bar(self):
-        self.assertNotIn("private var tabBar",UI)
-        self.assertNotIn("SCARLET_INDEPENDENT_TAB_BAR",UI)
-        self.assertEqual(UI.count("SCARLET_SINGLE_ROUND_APP_SWITCHER"),1)
-        self.assertIn(".frame(width: 62, height: 62)",UI)
-        self.assertIn("preservedGlassSwitchControl: AnyView)",UI)
-        self.assertIn("public let preservedGlassSwitchControl: AnyView",UI)
-        self.assertIn("preservedGlassSwitchControl\n",UI)
-        self.assertNotIn("AnyView?",UI)
-        self.assertNotIn("Button(action: preservedGlassSwitchControl)",UI)
-        self.assertNotIn('quickAction("창 관리"',UI)
-        self.assertNotIn('ScarletActionRow(title: "실행 및 창 관리"',UI)
-        self.assertIn("Menu {",UI)
-        self.assertIn("selected = tab",UI)
-        self.assertIn("accessibilityLabel(\"앱 전환 및 창 관리\")",UI)
+    def test_native_glass_bottom_tabs_and_single_round_switcher(self):
+        self.assertIn("SCARLET_NATIVE_GLASS_BOTTOM_TAB_BAR", UI)
+        self.assertIn("SCARLET_SINGLE_ROUND_APP_SWITCHER", UI)
+        self.assertEqual(UI.count("SCARLET_NATIVE_GLASS_BOTTOM_TAB_BAR"), 1)
+        self.assertEqual(UI.count("SCARLET_SINGLE_ROUND_APP_SWITCHER"), 1)
+        self.assertIn("preservedGlassTabBar: (Binding<Tab>) -> AnyView", UI)
+        self.assertIn("preservedGlassTabBar: @escaping (Binding<Tab>) -> AnyView", UI)
+        self.assertIn("preservedGlassTabBar($selected)", UI)
+        self.assertIn("preservedGlassSwitchControl: AnyView", UI)
+        self.assertIn(".frame(width: 62, height: 62)", UI)
+        self.assertIn(".frame(height: 62)", UI)
+        self.assertNotIn("AnyView?", UI)
+        self.assertNotIn("private var tabBar", UI)
+        self.assertNotIn(".glassEffect(", UI)
+        self.assertNotIn('Image(systemName: "ellipsis")', UI)
+        self.assertNotIn("Menu {", UI)
+        self.assertNotIn('quickAction("창 관리"', UI)
+        self.assertNotIn('ScarletActionRow(title: "실행 및 창 관리"', UI)
+        expected = ('case home = "홈"', 'case apps = "앱"',
+                    'case settings = "설정"', 'case connection = "연결"')
+        for case in expected:
+            self.assertIn(case, UI)
+        self.assertEqual(UI.count('        case home = "홈"'), 1)
+        self.assertNotIn('case windowManager', UI)
+        self.assertNotIn('case management', UI)
+        self.assertNotIn('case manager', UI)
 
     def test_auth_presentation_does_not_claim_service_equals_login(self):
         self.assertIn("appleAuthenticated: Bool",UI)
@@ -81,10 +92,13 @@ class IndependentUIContractTests(unittest.TestCase):
         self.assertIn("serviceBeginSignIn",UI)
         self.assertIn("SideStore 연결 필요",UI)
         navigation=CONTRACT.get("navigation",{})
-        self.assertFalse(navigation.get("bottom_tab_bar"))
+        self.assertTrue(navigation.get("bottom_tab_bar"))
         self.assertTrue(navigation.get("single_round_app_switcher"))
         self.assertEqual(navigation.get("round_switcher_size_pt"),62)
-        self.assertEqual(navigation.get("page_menu_location"),"top_trailing")
+        self.assertTrue(navigation.get("bottom_tab_uses_existing_liquid_glass"))
+        self.assertEqual(navigation.get("bottom_tabs"),["home","apps","settings","connection"])
+        self.assertFalse(navigation.get("separate_window_management_tab"))
+        self.assertEqual(navigation.get("window_management_entry"),"round_switcher_only")
 
 
 if __name__=="__main__":
