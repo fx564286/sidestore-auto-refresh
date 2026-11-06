@@ -103,7 +103,7 @@ public struct ScarletIndependentShell: View {
         case settings = "설정"
         case connection = "연결"
 
-        var icon: String {
+        public var icon: String {
             switch self {
             case .home: "house"
             case .apps: "square.stack.3d.up"
@@ -121,6 +121,10 @@ public struct ScarletIndependentShell: View {
     // app-switch button (including original tap/long-press gestures).
     // This new UI does not emulate the material or create a second button.
     public let preservedGlassSwitchControl: AnyView
+    // Keep the original interactive Liquid Glass tab-bar renderer. The host
+    // binds the four destination tabs to this shell selection; no duplicated
+    // material or synthetic glassEffect is introduced here.
+    public let preservedGlassTabBar: (Binding<Tab>) -> AnyView
 
     @State private var selected: Tab = .home
     @State private var searchText = ""
@@ -132,63 +136,57 @@ public struct ScarletIndependentShell: View {
                 guests: [ScarletGuestPresentation],
                 onAction: @escaping (ScarletControl) -> Void,
                 onOpenGuest: @escaping (String) -> Void,
-                preservedGlassSwitchControl: AnyView) {
+                preservedGlassSwitchControl: AnyView,
+                preservedGlassTabBar: @escaping (Binding<Tab>) -> AnyView) {
         self.snapshot = snapshot
         self.guests = guests
         self.onAction = onAction
         self.onOpenGuest = onOpenGuest
         self.preservedGlassSwitchControl = preservedGlassSwitchControl
+        self.preservedGlassTabBar = preservedGlassTabBar
     }
 
     public var body: some View {
         ZStack(alignment: .bottomLeading) {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 17) {
-                    switch selected {
-                    case .home: home
-                    case .apps: apps
-                    case .settings: settings
-                    case .connection: connection
-                    }
-                }
-                // Figma page menu sits at the heading top-right without
-                // inserting a second header row that shifts content downward.
-                .overlay(alignment: .topTrailing) {
-                    Menu {
-                        ForEach(Tab.allCases, id: \.self) { tab in
-                            Button {
-                                selected = tab
-                            } label: {
-                                Label(tab.rawValue, systemImage: tab.icon)
-                            }
+            VStack(spacing: 0) {
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 17) {
+                        switch selected {
+                        case .home: home
+                        case .apps: apps
+                        case .settings: settings
+                        case .connection: connection
                         }
-                    } label: {
-                        Image(systemName: "ellipsis")
-                            .font(.system(size: 23, weight: .semibold))
-                            .foregroundStyle(ScarletPresentationColor.accent)
-                            .frame(width: 44, height: 44)
-                            .contentShape(Rectangle())
                     }
-                    .accessibilityLabel("화면 이동")
+                    .padding(.horizontal, 20)
+                    .padding(.top, 18)
+                    // Keep the circular switcher's hit region accessible
+                    // without covering local setting controls or final rows.
+                    .padding(.bottom, 98)
+                    .frame(maxWidth: 650)
+                    .frame(maxWidth: .infinity)
                 }
-                .padding(.horizontal, 20)
-                .padding(.top, 18)
-                // Ensure content never disappears behind the circular switcher.
-                .padding(.bottom, 100)
-                .frame(maxWidth: 650)
-                .frame(maxWidth: .infinity)
-            }
-            .scrollIndicators(.hidden)
+                .scrollIndicators(.hidden)
 
-            // Exactly one host-owned circular app switcher. The injected
-            // component retains the prior Scarlet Crystal Liquid Glass touch
-            // model and is required for all release builds.
+                // Native host tab bar: four destinations only, with the
+                // original Scarlet Crystal Liquid Glass materials/gestures.
+                // Do not add a Window Manager tab to this navigation bar.
+                preservedGlassTabBar($selected)
+                    .frame(height: 62)
+                    .padding(.horizontal, 19)
+                    .padding(.bottom, 6)
+                    .accessibilityIdentifier("SCARLET_NATIVE_GLASS_BOTTOM_TAB_BAR")
+            }
+
+            // The existing ONE circular guest app switcher opens the
+            // original recent-apps/window-manager overlay (outside-tap
+            // dismiss is the host's responsibility), not a new tab.
             preservedGlassSwitchControl
                 .frame(width: 62, height: 62)
                 .accessibilityLabel("앱 전환 및 창 관리")
                 .accessibilityIdentifier("SCARLET_SINGLE_ROUND_APP_SWITCHER")
                 .padding(.leading, 22)
-                .padding(.bottom, 20)
+                .padding(.bottom, 78)
         }
         .background(ScarletPresentationColor.background.ignoresSafeArea())
         .preferredColorScheme(.dark)
