@@ -81,15 +81,12 @@
     "guest_app_title_alignment": "LEFT",
     "hide_redundant_action_and_status_labels": true,
     "home_and_settings_same_screen": false,
-    "home_engine_card_equal_width_pt": 170,
-    "home_engine_card_heights_pt": [
-      62,
-      62
-    ],
     "home_bottom_tabs_hidden": false,
-    "home_engine_install_labels": [
-      "SideStore 앱 설치",
-      "게스트 앱 설치"
-    ]
+    "apps_installer_presentation": "ONE title-leading 44pt plus native menu; never two cards",
+    "apps_install_menu_choices": [
+      "IPA 설치하기",
+      "게스트 앱 설치하기"
+    ],
+    "apps_always_visible_install_cards": 0
   }
 }
