@@ -199,6 +199,7 @@ public struct ScarletIndependentShell: View {
                 // original Scarlet Crystal Liquid Glass materials/gestures.
                 // Do not add a Window Manager tab to this navigation bar.
                 preservedGlassTabBar($selected)
+                    .frame(maxWidth: .infinity, alignment: .center)
                     .frame(height: 62)
                     .padding(.horizontal, 19)
                     .padding(.bottom, 6)
@@ -342,15 +343,23 @@ public struct ScarletIndependentShell: View {
     private func quickAction(_ title: String, icon: String, detail: String,
                              action: @escaping () -> Void) -> some View {
         Button(action: action) {
-            VStack(alignment: .leading, spacing: 8) {
-                Image(systemName: icon).font(.title2)
+            VStack(alignment: .center, spacing: 8) {
+                Image(systemName: icon)
+                    .font(.title2)
                     .foregroundStyle(ScarletPresentationColor.accent)
-                Text(title).font(.headline)
-                Text(detail).font(.footnote)
+                    .frame(maxWidth: .infinity, alignment: .center)
+                Text(title)
+                    .font(.headline)
+                    .multilineTextAlignment(.center)
+                    .frame(maxWidth: .infinity, alignment: .center)
+                Text(detail)
+                    .font(.footnote)
+                    .multilineTextAlignment(.center)
                     .foregroundStyle(ScarletPresentationColor.muted)
+                    .frame(maxWidth: .infinity, alignment: .center)
             }
             .foregroundStyle(ScarletPresentationColor.text)
-            .frame(maxWidth: .infinity, minHeight: 104, alignment: .leading)
+            .frame(maxWidth: .infinity, minHeight: 104, alignment: .center)
             .padding(15)
             .background(ScarletPresentationColor.surface,
                         in: RoundedRectangle(cornerRadius: 20))
