@@ -3,7 +3,7 @@
 // No App Group mutation, Apple login, keychain access, or UI styling here.
 import Foundation
 
-public enum ScarletControl: String, CaseIterable, Sendable {
+public enum ScarletControl: String, Codable, CaseIterable, Sendable {
     case localTapProbe
     case localClearNotifications
     case localAppearance
@@ -38,13 +38,13 @@ public enum ScarletDependency: String, Sendable {
     case authenticatedService
 }
 
-public enum ScarletActionState: String, Sendable {
+public enum ScarletActionState: String, Codable, Sendable {
     case succeeded
     case rejected
     case failed
 }
 
-public enum ScarletActionProblem: String, Sendable {
+public enum ScarletActionProblem: String, Codable, Sendable {
     case serviceUnavailable
     case signInRequired
     case actionInProgress
@@ -83,15 +83,24 @@ public protocol ScarletServiceActionDriver: Sendable {
 public actor ScarletActionCoordinator {
     private let local: any ScarletLocalActionDriver
     private let service: any ScarletServiceActionDriver
+    // Explicitly optional. Diagnostics never send secrets or issue network calls.
+    private let audit: ScarletControlAuditTrail?
     private var serviceReady = false
     private var signedIn = false
     private var inFlight: Set<ScarletControl> = []
     private var localTapCount = 0
 
     public init(local: any ScarletLocalActionDriver,
-                service: any ScarletServiceActionDriver) {
+                service: any ScarletServiceActionDriver,
+                audit: ScarletControlAuditTrail? = nil) {
         self.local = local
         self.service = service
+        self.audit = audit
+    }
+
+    private func finalize(_ receipt: ScarletActionReceipt) async -> ScarletActionReceipt {
+        if let audit { await audit.record(receipt) }
+        return receipt
     }
 
     public func updateAvailability(serviceReady: Bool, signedIn: Bool) {
@@ -107,15 +116,15 @@ public actor ScarletActionCoordinator {
         }
 
         if inFlight.contains(action) {
-            return receipt(.rejected, .actionInProgress)
+            return await finalize(receipt(.rejected, .actionInProgress))
         }
         switch action.dependency {
         case .local: break
         case .service:
-            guard serviceReady else { return receipt(.rejected, .serviceUnavailable) }
+            guard serviceReady else { return await finalize(receipt(.rejected, .serviceUnavailable)) }
         case .authenticatedService:
-            guard serviceReady else { return receipt(.rejected, .serviceUnavailable) }
-            guard signedIn else { return receipt(.rejected, .signInRequired) }
+            guard serviceReady else { return await finalize(receipt(.rejected, .serviceUnavailable)) }
+            guard signedIn else { return await finalize(receipt(.rejected, .signInRequired)) }
         }
 
         // Claim the local admission key before the first await. Only the
@@ -130,11 +139,11 @@ public actor ScarletActionCoordinator {
             } else {
                 try await service.execute(action)
             }
-            return receipt(.succeeded)
+            return await finalize(receipt(.succeeded))
         } catch {
             // Do not promote unknown remote outcomes into success or retry
             // a signing/installation mutation automatically.
-            return receipt(.failed, .actionFailed)
+            return await finalize(receipt(.failed, .actionFailed))
         }
     }
 }
