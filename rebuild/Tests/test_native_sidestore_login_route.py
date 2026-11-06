@@ -46,8 +46,9 @@ class NativeScarletLoginContract(unittest.TestCase):
 
     def test_settings_tab_direct_account_entry(self):
         self.assertIn("if selected == .settings {",UI)
-        self.assertIn("onAction(.serviceBeginSignIn)",UI)
-        self.assertIn("SCARLET_SETTINGS_NATIVE_APPLE_LOGIN",UI)
+        self.assertIn("case .serviceBeginSignIn:",HOST)
+        self.assertIn("SCARLET_SETTINGS_NATIVE_APPLE_LOGIN",INTEGRATOR)
+        self.assertIn("ScarletDiagnosticLogView()",INTEGRATOR)
         self.assertIn("nativeSettings()",UI)
         self.assertIn("SCARLET_INLINE_NATIVE_LC_SETTINGS",UI)
         self.assertNotIn("showConnectionDetails",UI)
