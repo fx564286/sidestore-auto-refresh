@@ -28,7 +28,7 @@ ROUTE = '''        case "signin":
 
 # SideStore signIn() is fileprivate. Keep original implementation and add
 # a same-file wrapper; never invoke private members across Swift source files.
-SETTINGS_ENTRY_ANCHOR = "private extension SettingsViewController\\n{\\n    func signIn()"
+SETTINGS_ENTRY_ANCHOR = "private extension SettingsViewController\n{\n    func signIn()"
 SETTINGS_ENTRY = """
 
 // Scarlet native sign-in entry: no credential or 2FA implementation.
