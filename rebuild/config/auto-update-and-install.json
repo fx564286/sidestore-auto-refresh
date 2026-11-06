@@ -1,0 +1,63 @@
+{
+  "schema": 1,
+  "product": "Scarlet Crystal",
+  "free_apple_account": true,
+  "source_updates": {
+    "default_branch_scheduler": ".github/workflows/scarlet-upstream-dualtrack.yml",
+    "cadence": "0:41 and 12:41 UTC daily",
+    "tracked_sources": [
+      {
+        "repo": "LiveContainer/LiveContainer",
+        "ref": "main",
+        "mode": "pinned reviewed candidate"
+      },
+      {
+        "repo": "LiveContainer/SideStore",
+        "ref": "LiveContainerSupport",
+        "mode": "pinned reviewed candidate"
+      },
+      {
+        "repo": "LiveContainer/SideStore",
+        "ref": "Dependencies/SideSign",
+        "mode": "paired nested gitlink"
+      },
+      {
+        "repo": "LiveContainer/SideStore",
+        "ref": "Dependencies/minimuxer",
+        "mode": "paired nested gitlink"
+      }
+    ],
+    "rebuilt_app_branch": "rebuild/scarlet-clean-core-20261106",
+    "source_diff_only": true,
+    "upstream_sync_proposal": "draft PR to clean rebuild branch; no auto merge",
+    "own_custom_changes": "CI runs on every push to clean rebuild branch; no upstream overwrite",
+    "do_not_replace_upstream_side_store_with_independent_develop_branch": true
+  },
+  "release": {
+    "actual_ipa_requires_integrated_xcode_build": true,
+    "preserve_native_liquid_glass": true,
+    "preserve_bundle_ids": true,
+    "preserve_app_group": true,
+    "preserve_guest_data": true,
+    "require_profile_audit": true,
+    "require_signature_and_device_install_receipt": true,
+    "automatically_release_without_validation": false
+  },
+  "free_signing": {
+    "hard_expiration_days": 7,
+    "refresh_trigger_hours_remaining": 72,
+    "profile_count": 4,
+    "renewal_policy": "rebuild/tools/renewal_policy.py",
+    "automated_refresh_requires": [
+      "valid local Apple login/2FA session",
+      "verified four Apple-issued development profiles with App Group",
+      "device pairing or fully functional on-device SideStore signing",
+      "reachable installed app and trustworthy installation receipt"
+    ],
+    "claims_no_free_7_day_bypass": true,
+    "safari_development_ipa_ota_supported": false,
+    "never_revoke_certificate_or_delete_profiles_automatically": true,
+    "signing_secret_location": "local signing PC or device only; never commit to GitHub",
+    "maximum_unattended_scope": "periodic check, regenerate when Apple session permits, same-bundle in-place reinstall; no guaranteed success during fresh 2FA or expired pairing"
+  }
+}
