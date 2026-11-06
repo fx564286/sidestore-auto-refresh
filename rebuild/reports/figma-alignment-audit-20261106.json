@@ -1,0 +1,78 @@
+{
+  "schema": 1,
+  "reviewed": "2026-11-06",
+  "file": "https://www.figma.com/design/QESg6S7oJS47PmlPpEX5w5",
+  "screens": [
+    {
+      "id": "6:15",
+      "name": "Home"
+    },
+    {
+      "id": "6:75",
+      "name": "Apps"
+    },
+    {
+      "id": "6:136",
+      "name": "Settings"
+    },
+    {
+      "id": "6:198",
+      "name": "Account & Signing"
+    },
+    {
+      "id": "6:254",
+      "name": "Native Glass Window Overlay"
+    },
+    {
+      "id": "26:2",
+      "name": "Sources"
+    }
+  ],
+  "geometry": {
+    "viewportWidthPt": 390,
+    "bottomBarX": 19,
+    "bottomBarWidth": 352,
+    "bottomBarCenterX": 195,
+    "viewportCenterX": 195,
+    "bottomBarHeight": 62,
+    "tabWidthsPt": [
+      81,
+      81,
+      81,
+      81
+    ],
+    "tabXPt": [
+      5,
+      92,
+      179,
+      266
+    ],
+    "iconLabelCenterOffsetPt": [
+      0,
+      0,
+      0,
+      0
+    ],
+    "roundSwitcherDiameterPt": 62,
+    "glassOverlaySegmentWidthPt": 151,
+    "glassOverlaySegmentXPt": [
+      7,
+      164
+    ],
+    "glassOverlaySegmentContentWidthPt": 322,
+    "windowActionWidthsPt": [
+      102,
+      102,
+      102
+    ],
+    "iconTitleSecondaryAlignment": "center",
+    "listTitleDetailAlignment": "leading"
+  },
+  "policy": {
+    "nativeGlassMaterial": "Must be provided by existing original host renderer; Figma is visual preview only",
+    "preserveOriginalLiquidGlass": true,
+    "doNotDuplicateSwitchers": true,
+    "doNotBuildFauxGlass": true,
+    "noSeparateWindowManagerTab": true
+  }
+}
