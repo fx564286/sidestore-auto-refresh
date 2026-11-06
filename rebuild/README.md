@@ -21,12 +21,12 @@ Authoritative boundary: [`rebuild/config/scarlet-independent-ui-contract.json`](
 
 [Figma — Scarlet Crystal · Independent UI Rebuild](https://www.figma.com/design/QESg6S7oJS47PmlPpEX5w5)
 
-Five editable iPhone concepts: Home, Apps, Settings, Connection & Signing, and Window Manager. Screen layers, text, colors and spacing are editable; preserved native Liquid Glass is marked as a runtime injection boundary. Existing runtime has **not** been replaced by these design frames.
+Four bottom destinations (Home, Apps, Settings, Connection) and one dedicated **overlay preview** for recent apps / window management. The overlay is opened only by the existing round app-switcher, **not** a fifth page or tab. Figma glass is a visual preview; the shipped iOS bar and switcher must reuse the host's original native Liquid Glass effect and gestures. Existing runtime has **not** been replaced by these design frames.
 
 ## Implemented code in isolated branch
 
 - `rebuild/Sources/ScarletCleanCore/ScarletActionCoordinator.swift`: new Swift 6 actor, explicit local vs service vs authenticated-service action policies, service outage does not block local actions; unknown install/signing results never claim success.
-- `rebuild/Sources/ScarletIndependentUI/ScarletIndependentShell.swift`: independent SwiftUI home/apps/settings/connection shell. A callback invokes the existing **Liquid Glass window manager presenter**; the effect itself is not re-created.
+- `rebuild/Sources/ScarletIndependentUI/ScarletIndependentShell.swift`: independent SwiftUI home/apps/settings/connection shell with **both host-injected original Liquid Glass controls**: `preservedGlassTabBar(Binding<Tab>)` for the persistent four-destination bottom dock and `preservedGlassSwitchControl` for app switching and window management. The effect itself is not re-created.
 - `rebuild/Tests/ScarletCleanCoreContract.swift`: executable core behavioral tests.
 - `rebuild/Tests/test_independent_ui_contract.py`: preservation boundaries, real local routes, disabled states and iOS-safe layout checks.
 - `.github/workflows/scarlet-clean-core.yml`: Linux Swift 6 behavioral contract plus Xcode 27.2 iOS-Simulator SwiftUI typecheck.
@@ -34,7 +34,7 @@ Five editable iPhone concepts: Home, Apps, Settings, Connection & Signing, and W
 ## Release gates (not complete)
 
 1. Wire shell into pinned upstream LiveContainer host with one adapter to actual SideStore and SideSign operations (no V3 patch-stack accretion).
-2. Preserve unchanged old Liquid Glass effect and guest controls by source diff and iPhone screenshot/interaction comparison.
+2. Preserve the original native Liquid Glass bottom bar and circular switcher including long-press/gesture behavior, with exact host adapter injections and iPhone screenshot/interaction comparisons. Confirm the only destination tabs are Home, Apps, Settings and Connection; the window manager remains an overlay.
 3. Every visible button routes to a real local setting or authenticated service action; failures visible and non-destructive. Verify portrait/landscape safe areas and outside-tap dismiss.
 4. Real iPhone pairing, Apple login and 6-digit 2FA, signing/provisioning and app installation must pass. A free Apple account cannot rely on Ad Hoc Safari OTA.
 5. Xcode integrated unsigned IPA, matching four-bundle provisioning, signed IPA, non-destructive upgrade and verified real build label. Keep old V189 installed until those pass.
