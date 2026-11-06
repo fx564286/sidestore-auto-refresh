@@ -35,6 +35,12 @@ jobs:
           assert "SCARLET_CLEAN_CORE_LOCAL_CONTROLS_WORK_WITHOUT_SERVICE" in t
           print("[PASS] CLEAN_CORE_ISOLATED_FROM_LEGACY_V3")
           PY
+      - name: Verify independent UI design boundary
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m json.tool rebuild/config/scarlet-independent-ui-contract.json >/dev/null
+          python3 -m unittest discover -s rebuild/Tests -p 'test_independent_ui_contract.py' -v
       - name: Compile pure Swift 6 source and run executable behavioral contract
         shell: bash
         run: |
@@ -51,3 +57,24 @@ jobs:
         shell: bash
         run: |
           echo "[FAIL] Clean-room integration cannot be promoted until tests pass."
+
+  swiftui-ios-typecheck:
+    runs-on: xcode-27
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - name: Select pinned Xcode for real iOS SwiftUI availability
+        uses: maxim-lobanov/setup-xcode@v1.6.0
+        with:
+          xcode-version: "27.2"
+      - name: Typecheck independent shell against iOS simulator SDK
+        shell: bash
+        run: |
+          set -euo pipefail
+          xcodebuild -version
+          sdk="$(xcrun --sdk iphonesimulator --show-sdk-path)"
+          xcrun --sdk iphonesimulator swiftc -swift-version 6 \
+            -target arm64-apple-ios17.0-simulator -sdk "$sdk" -typecheck \
+            rebuild/Sources/ScarletCleanCore/ScarletActionCoordinator.swift \
+            rebuild/Sources/ScarletIndependentUI/ScarletIndependentShell.swift
+          echo '[PASS] SCARLET_INDEPENDENT_UI_SWIFTUI_IOS_TYPECHECK'
