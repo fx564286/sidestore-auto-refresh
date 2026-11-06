@@ -56,7 +56,8 @@ struct ScarletAppleIDLoginSheet: View {
 
     @MainActor
     private func askForCode() async throws -> String {
-        try await withCheckedThrowingContinuation { continuation in
+        ScarletDiagnosticRecorder.shared.record("auth", "twofactor_prompt_requested")
+        return try await withCheckedThrowingContinuation { continuation in
             pendingCode = continuation
             verificationCode = ""
             requiresTwoFactorCode = true
@@ -71,14 +72,22 @@ struct ScarletAppleIDLoginSheet: View {
         let code = verificationCode
         verificationCode = ""
         requiresTwoFactorCode = false
+        ScarletDiagnosticRecorder.shared.record("auth", "twofactor_code_submitted")
         continuation.resume(returning: code)
     }
 
     private func beginSignIn() {
-        guard readyToSubmit else { return }
+        ScarletDiagnosticRecorder.shared.record("auth", "submit_tapped")
+        guard readyToSubmit else {
+            ScarletDiagnosticRecorder.shared.record("auth", "submit_incomplete",
+                status: "blocked", fields: ["reason": "required_fields_missing"])
+            return
+        }
         // Input is always editable. Never transmit Apple credentials until
         // the SideStore/SideSign transport explicitly reports it is ready.
         guard engine.isReady else {
+            ScarletDiagnosticRecorder.shared.record("auth", "transport_unverified",
+                status: "blocked", fields: ["reason": "engine_not_connected"])
             password = ""
             errorMessage = ScarletSignInBridgeError.engineNotConnected.localizedDescription
             return
@@ -88,6 +97,8 @@ struct ScarletAppleIDLoginSheet: View {
         password = ""
         errorMessage = nil
         isAuthenticating = true
+        ScarletDiagnosticRecorder.shared.record("auth", "request_started",
+            fields: ["stage": "credentials_handoff"])
         signInTask = Task { @MainActor in
             defer {
                 isAuthenticating = false
@@ -97,10 +108,16 @@ struct ScarletAppleIDLoginSheet: View {
                 try await engine.signIn(appleID: account, password: secret) {
                     try await askForCode()
                 }
+                ScarletDiagnosticRecorder.shared.record("auth", "request_succeeded",
+                    status: "success")
                 dismiss()
             } catch is CancellationError {
+                ScarletDiagnosticRecorder.shared.record("auth", "request_cancelled",
+                    status: "cancelled")
                 errorMessage = nil
             } catch {
+                ScarletDiagnosticRecorder.shared.recordError("auth", "request_failed",
+                    error: error)
                 errorMessage = error.localizedDescription
             }
         }
@@ -161,7 +178,12 @@ struct ScarletAppleIDLoginSheet: View {
                 }
             }
         }
+        .onAppear {
+            ScarletDiagnosticRecorder.shared.record("auth", "login_ui_opened",
+                fields: ["available": engine.isReady ? "true" : "false"])
+        }
         .onDisappear {
+            ScarletDiagnosticRecorder.shared.record("auth", "login_ui_closed")
             signInTask?.cancel()
             signInTask = nil
             password = ""
