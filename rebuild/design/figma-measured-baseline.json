@@ -130,6 +130,14 @@
         "hideBottomTabsOnHome": true,
         "homeSectionCount": 2,
         "doNotShowStatisticsOrRecents": true
+      },
+      "apps": {
+        "filterBarVisible": false,
+        "showImportButton": true,
+        "searchWidthPt": 350,
+        "searchHeightPt": 44,
+        "importButtonHeightPt": 47,
+        "guestCardTrailingDivider": false
       }
     }
   },
@@ -159,15 +167,13 @@
       "title": "내 앱",
       "codeSection": "private var apps:",
       "requiredCopy": [
-        "내 앱",
+        "가상 앱",
         "앱 검색",
-        "전체",
-        "최근",
-        "실행 중"
+        "앱 추가"
       ],
       "dynamicData": [
-        "actualRunningGuests",
-        "actualRecentGuests"
+        "livecontainerGuestList",
+        "nativeLiveContainerIPAImporter"
       ]
     },
     {

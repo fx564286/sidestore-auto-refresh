@@ -262,12 +262,6 @@ public struct ScarletIndependentShell: View {
 
     @State private var selected: Tab
     @State private var searchText = ""
-    private enum AppFilter: String, CaseIterable {
-        case all = "전체"
-        case recent = "최근"
-        case running = "실행 중"
-    }
-    @State private var appFilter: AppFilter = .all
     @State private var showConnectionDetails: Bool
     @ScaledMetric(relativeTo: .largeTitle) private var screenTitleSize: CGFloat = 28
 
@@ -435,27 +429,17 @@ public struct ScarletIndependentShell: View {
         .accessibilityLabel(title)
     }
 
+    // Virtual Apps: no recent/running/total filters or duplicate app statuses.
+    // Original LiveContainer library remains available from the initial screen.
     private var visibleGuests: [ScarletGuestPresentation] {
-        let matching = guests.filter {
+        guests.filter {
             searchText.isEmpty || $0.title.localizedCaseInsensitiveContains(searchText)
-        }
-        switch appFilter {
-        case .all:
-            return matching
-        case .recent:
-            // "Recent" is not a fabricated running list. The real host must
-            // populate lastOpenedAt based on actual guest activity.
-            return matching.filter { $0.lastOpenedAt != nil }
-                .sorted { ($0.lastOpenedAt ?? .distantPast) >
-                          ($1.lastOpenedAt ?? .distantPast) }
-        case .running:
-            return matching.filter(\.isRunning)
         }
     }
 
     private var apps: some View {
         Group {
-            heading("", "내 앱", "")
+            heading("", "가상 앱", "")
             HStack(spacing: 10) {
                 Image(systemName: "magnifyingglass")
                     .font(.system(size: 17, weight: .medium))
@@ -476,42 +460,22 @@ public struct ScarletIndependentShell: View {
                 RoundedRectangle(cornerRadius: 20)
                     .stroke(ScarletPresentationColor.stroke, lineWidth: 1)
             }
-
-            // Figma 6:75 filter labels and equal-width targets.
-            HStack(spacing: 8) {
-                ForEach(AppFilter.allCases, id: \.self) { item in
-                    Button {
-                        appFilter = item
-                    } label: {
-                        Text(item.rawValue)
-                            .font(.footnote.weight(.semibold))
-                            .foregroundStyle(
-                                appFilter == item
-                                    ? ScarletPresentationColor.text
-                                    : item == .running
-                                        ? ScarletPresentationColor.success
-                                        : ScarletPresentationColor.text
-                            )
-                            .frame(maxWidth: .infinity)
-                            .frame(height: 34)
-                            .background(
-                                appFilter == item
-                                    ? ScarletPresentationColor.purple
-                                    : ScarletPresentationColor.surface,
-                                in: Capsule()
-                            )
-                            .frame(minHeight: 44)
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityAddTraits(appFilter == item ? .isSelected : [])
-                    .accessibilityIdentifier("SCARLET_APP_FILTER_\(item.rawValue)")
-                }
+            Button {
+                onAction(.localImportGuestIPA)
+            } label: {
+                Text("＋  앱 추가")
+                    .font(.system(size: 16, weight: .semibold))
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 47)
+                    .foregroundStyle(ScarletPresentationColor.text)
+                    .background(ScarletPresentationColor.purple,
+                                in: RoundedRectangle(cornerRadius: 13))
             }
+            .buttonStyle(.plain)
+            .accessibilityIdentifier("SCARLET_NATIVE_GUEST_IMPORT")
             ScarletGuestListCard(
                 guests: visibleGuests,
-                emptyText: appFilter == .running ? "실행 중인 앱이 없습니다."
-                           : appFilter == .recent ? "최근 실행한 앱이 없습니다."
-                           : "앱이 없습니다.",
+                emptyText: "앱이 없습니다.",
                 onOpen: onOpenGuest
             )
         }

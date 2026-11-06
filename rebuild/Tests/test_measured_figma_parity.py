@@ -54,16 +54,16 @@ class FigmaMeasuredParity(unittest.TestCase):
                 for label in screen["requiredCopy"]:
                     self.assertIn(label, UI)
 
-    def test_figma_filters_are_operational_not_only_text(self):
-        self.assertIn('case all = "전체"', UI)
-        self.assertIn('case recent = "최근"', UI)
-        self.assertIn('case running = "실행 중"', UI)
-        self.assertIn(".filter { $0.lastOpenedAt != nil }", UI)
-        self.assertIn("matching.filter(\\.isRunning)", UI)
-        self.assertIn("appFilter = item", UI)
-        self.assertIn("SCARLET_APP_FILTER_", UI)
-        self.assertIn("SCARLET_APP_SEARCH", UI)
-        self.assertNotIn('Text("Madeira")', UI)
+    def test_app_screen_native_import_search_no_recent_filters(self):
+        apps=UI[UI.index("    private var apps: some View {"):UI.index("    private var sourcesScreen:")]
+        self.assertIn('heading("", "가상 앱", "")',apps)
+        self.assertIn('TextField("앱 검색"',apps)
+        self.assertIn('onAction(.localImportGuestIPA)',apps)
+        self.assertIn('SCARLET_NATIVE_GUEST_IMPORT',apps)
+        self.assertNotIn('SCARLET_APP_FILTER_',UI)
+        self.assertNotIn('private enum AppFilter:',UI)
+        self.assertIn('searchText.isEmpty ||',UI)
+        self.assertNotIn('Text("Madeira")',UI)
 
     def test_account_detail_keeps_bottom_tabs(self):
         self.assertIn("if showConnectionDetails {", UI)
