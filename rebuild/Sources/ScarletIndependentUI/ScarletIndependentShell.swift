@@ -120,6 +120,9 @@ public struct ScarletIndependentShell: View {
     // Host must call its ORIGINAL Liquid Glass presenter. Do not recreate
     // blur, glass material, gesture recognizers, or hit testing here.
     public let onOpenPreservedGlassWindowManager: () -> Void
+    // Host injects its EXISTING native Liquid Glass circular control. If not
+    // supplied, the isolated design preview displays a semantic fallback.
+    public let preservedGlassSwitchControl: AnyView?
 
     @State private var selected: Tab = .home
     @State private var searchText = ""
@@ -130,18 +133,42 @@ public struct ScarletIndependentShell: View {
                 guests: [ScarletGuestPresentation],
                 onAction: @escaping (ScarletControl) -> Void,
                 onOpenGuest: @escaping (String) -> Void,
-                onOpenPreservedGlassWindowManager: @escaping () -> Void) {
+                onOpenPreservedGlassWindowManager: @escaping () -> Void,
+                preservedGlassSwitchControl: AnyView? = nil) {
         self.snapshot = snapshot
         self.guests = guests
         self.onAction = onAction
         self.onOpenGuest = onOpenGuest
         self.onOpenPreservedGlassWindowManager = onOpenPreservedGlassWindowManager
+        self.preservedGlassSwitchControl = preservedGlassSwitchControl
     }
 
     public var body: some View {
-        VStack(spacing: 0) {
+        ZStack(alignment: .bottomLeading) {
             ScrollView {
                 VStack(alignment: .leading, spacing: 20) {
+                    // Ordinary host pages use an unobtrusive top menu.
+                    // Guest app switching uses ONE native circular control.
+                    HStack {
+                        Spacer()
+                        Menu {
+                            ForEach(Tab.allCases, id: \.self) { tab in
+                                Button {
+                                    selected = tab
+                                } label: {
+                                    Label(tab.rawValue, systemImage: tab.icon)
+                                }
+                            }
+                        } label: {
+                            Image(systemName: "ellipsis")
+                                .font(.system(size: 23, weight: .semibold))
+                                .foregroundStyle(ScarletPresentationColor.accent)
+                                .frame(width: 44, height: 44)
+                                .contentShape(Rectangle())
+                        }
+                        .accessibilityLabel("화면 이동")
+                    }
+                    .frame(maxWidth: .infinity)
                     switch selected {
                     case .home: home
                     case .apps: apps
@@ -150,13 +177,41 @@ public struct ScarletIndependentShell: View {
                     }
                 }
                 .padding(.horizontal, 20)
-                .padding(.top, 18)
-                .padding(.bottom, 28)
+                .padding(.top, 10)
+                // Ensure content never disappears behind the circular switcher.
+                .padding(.bottom, 100)
                 .frame(maxWidth: 650)
                 .frame(maxWidth: .infinity)
             }
             .scrollIndicators(.hidden)
-            tabBar
+
+            // The installed app must provide the original glass button.
+            // A deliberately non-glass fallback is used only in isolated
+            // SwiftUI previews prior to integration.
+            if let preservedGlassSwitchControl {
+                preservedGlassSwitchControl
+                    .frame(minWidth: 62, minHeight: 62)
+                    .padding(.leading, 22)
+                    .padding(.bottom, 20)
+            } else {
+                Button(action: onOpenPreservedGlassWindowManager) {
+                    Image(systemName: "square.on.square")
+                        .font(.system(size: 23, weight: .medium))
+                        .foregroundStyle(ScarletPresentationColor.text)
+                        .frame(width: 62, height: 62)
+                        .background(ScarletPresentationColor.surface,
+                                    in: Circle())
+                        .overlay {
+                            Circle().stroke(ScarletPresentationColor.accent,
+                                            lineWidth: 1)
+                        }
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("앱 전환 및 창 관리")
+                .accessibilityIdentifier("SCARLET_SINGLE_ROUND_APP_SWITCHER")
+                .padding(.leading, 22)
+                .padding(.bottom, 20)
+            }
         }
         .background(ScarletPresentationColor.background.ignoresSafeArea())
         .preferredColorScheme(.dark)
@@ -218,21 +273,20 @@ public struct ScarletIndependentShell: View {
 
     private var home: some View {
         Group {
-            heading("Scarlet Crystal", "나의 컨테이너",
-                    "더 빠르게 실행하고, 더 명확하게 관리하세요.")
+            heading("Scarlet Crystal", "내 컨테이너", "앱 실행과 창 관리")
             ScarletPanel {
-                Text("LIVE CONTAINER")
+                Text("실행 가능")
                     .font(.caption2.weight(.bold))
                     .foregroundStyle(ScarletPresentationColor.success)
-                Text("내 작업 공간")
+                Text("앱")
                     .font(.title2.bold())
-                Text("기존 실행 엔진과 게스트 데이터를 유지합니다.")
+                Text("설치된 앱")
                     .font(.caption)
                     .foregroundStyle(ScarletPresentationColor.muted)
                 HStack {
                     Text("\(guests.count)  설치 앱").font(.headline)
                     Spacer()
-                    Text("실행 준비").font(.caption.weight(.semibold))
+                    Text("컨테이너").font(.caption.weight(.semibold))
                         .foregroundStyle(ScarletPresentationColor.success)
                 }
             }
@@ -241,15 +295,15 @@ public struct ScarletIndependentShell: View {
             sectionTitle("빠른 작업")
             HStack(spacing: 10) {
                 quickAction("앱 추가", icon: "plus.app",
-                            detail: "기존 엔진으로 가져오기") {
+                            detail: "IPA 가져오기") {
                     onAction(.serviceInstallIPA)
                 }
-                quickAction("창 관리", icon: "macwindow.on.rectangle",
-                            detail: "원본 Liquid Glass 유지") {
-                    onOpenPreservedGlassWindowManager()
+                quickAction("설정", icon: "gearshape",
+                            detail: "환경설정") {
+                    selected = .settings
                 }
             }
-            sectionTitle("최근 실행 앱", trailing: "전체")
+            sectionTitle("최근 앱")
             ScarletPanel {
                 ForEach(guests.prefix(3)) { guest in
                     ScarletActionRow(title: guest.title, detail: guest.detail,
@@ -293,7 +347,7 @@ public struct ScarletIndependentShell: View {
 
     private var apps: some View {
         Group {
-            heading("LiveContainer", "내 앱", "앱을 찾고 실행하는 독립 목록입니다.")
+            heading("LiveContainer", "내 앱", "앱을 검색하거나 실행하세요.")
             HStack {
                 Image(systemName: "magnifyingglass")
                     .foregroundStyle(ScarletPresentationColor.accent)
@@ -316,7 +370,7 @@ public struct ScarletIndependentShell: View {
                 }
             }
             ScarletPanel {
-                Text("게스트 실행은 기존 LiveContainer 엔진을 이용합니다.")
+                Text("앱은 기존 컨테이너에 보관됩니다.")
                     .font(.caption)
                     .foregroundStyle(ScarletPresentationColor.muted)
             }
@@ -326,27 +380,21 @@ public struct ScarletIndependentShell: View {
 
     private var settings: some View {
         Group {
-            heading("Preferences", "설정", "로컬 기능은 서비스 장애와 독립적으로 동작합니다.")
+            heading("Preferences", "설정", "컨테이너와 서명 설정")
             ScarletPanel {
                 sectionTitle("기기 및 컨테이너")
-                ScarletActionRow(title: "화면 및 인터페이스",
-                                 detail: "테마 · 레이아웃 · 접근성",
+                ScarletActionRow(title: "화면 설정",
+                                 detail: "테마 및 표시",
                                  icon: "circle.lefthalf.filled", enabled: true) {
                     showLocalAppearance = true
                     onAction(.localAppearance)
                 }
                 Divider()
-                ScarletActionRow(title: "컨테이너 데이터",
-                                 detail: "저장소 · 백업 · 개인정보",
+                ScarletActionRow(title: "저장소",
+                                 detail: "앱 데이터 및 백업",
                                  icon: "folder", enabled: true) {
                     showLocalStorage = true
                     onAction(.localStorageNavigation)
-                }
-                Divider()
-                ScarletActionRow(title: "실행 및 창 관리",
-                                 detail: "기존 Liquid Glass 창 제어",
-                                 icon: "macwindow", enabled: true) {
-                    onOpenPreservedGlassWindowManager()
                 }
             }
             ScarletPanel {
@@ -355,14 +403,14 @@ public struct ScarletIndependentShell: View {
                     .foregroundStyle(snapshot.serviceConnected
                                      ? ScarletPresentationColor.success
                                      : ScarletPresentationColor.warning)
-                Text("SideStore & SideSign").font(.headline)
-                Text("연결 상태는 로컬 설정 버튼을 비활성화하지 않습니다.")
+                Text("계정 및 서명").font(.headline)
+                Text("SideStore 연결 필요")
                     .font(.caption)
                     .foregroundStyle(ScarletPresentationColor.muted)
                 Button {
                     onAction(.serviceReadSettings)
                 } label: {
-                    Text("상태 확인 및 다시 연결")
+                    Text("연결 확인")
                         .font(.subheadline.weight(.semibold))
                         .frame(maxWidth: .infinity, minHeight: 48)
                         .background(ScarletPresentationColor.purple,
@@ -371,8 +419,8 @@ public struct ScarletIndependentShell: View {
                 .buttonStyle(.plain)
             }
             ScarletPanel {
-                ScarletActionRow(title: "서비스 진단",
-                                 detail: "상태와 실패 원인을 확인",
+                ScarletActionRow(title: "진단 로그",
+                                 detail: "오류 및 동작 기록",
                                  icon: "waveform.path.ecg", enabled: true) {
                     onAction(.serviceReadLogs)
                 }
@@ -383,19 +431,18 @@ public struct ScarletIndependentShell: View {
 
     private var connection: some View {
         Group {
-            heading("Connection", "연결 및 서명",
-                    "페어링·로그인·서명을 서로 다른 단계로 확인합니다.")
+            heading("Connection", "연결 및 서명", "페어링 및 Apple 계정")
             ScarletPanel {
-                Text(snapshot.serviceConnected ? "서비스 연결 확인됨" : "서비스 연결 미확인")
+                Text(snapshot.serviceConnected ? "연결됨" : "연결 안 됨")
                     .font(.headline)
                     .foregroundStyle(snapshot.serviceConnected
                                      ? ScarletPresentationColor.success
                                      : ScarletPresentationColor.warning)
-                Text("서비스 연결만으로 Apple 로그인 성공으로 표시하지 않습니다.")
+                Text("SideStore 연결 상태")
                     .font(.caption)
                     .foregroundStyle(ScarletPresentationColor.muted)
             }
-            sectionTitle("연결 단계")
+            sectionTitle("설정 단계")
             ScarletPanel {
                 statusRow("01", "기기 페어링", verified: snapshot.pairingVerified)
                 Divider()
@@ -418,7 +465,7 @@ public struct ScarletIndependentShell: View {
             .accessibilityHint(snapshot.serviceConnected
                 ? "SideStore 로그인 요청을 시작합니다."
                 : "먼저 SideStore 서비스 연결을 복구해야 합니다.")
-            Text("6자리 2FA 코드는 실제 SideSign 요청에 따라 별도 화면에서 입력합니다.")
+            Text("로그인 시 2단계 인증이 필요할 수 있습니다.")
                 .font(.caption)
                 .foregroundStyle(ScarletPresentationColor.muted)
         }
@@ -441,37 +488,4 @@ public struct ScarletIndependentShell: View {
         .frame(minHeight: 44)
     }
 
-    private var tabBar: some View {
-        HStack(spacing: 2) {
-            ForEach(Tab.allCases, id: \.self) { tab in
-                Button {
-                    selected = tab
-                } label: {
-                    VStack(spacing: 4) {
-                        Image(systemName: tab.icon).font(.system(size: 19))
-                        Text(tab.rawValue).font(.caption2)
-                    }
-                    .foregroundStyle(selected == tab ?
-                                     ScarletPresentationColor.text :
-                                     ScarletPresentationColor.muted)
-                    .frame(maxWidth: .infinity, minHeight: 55)
-                    .background(selected == tab ?
-                                ScarletPresentationColor.stroke.opacity(0.45) :
-                                Color.clear,
-                                in: RoundedRectangle(cornerRadius: 14))
-                }
-                .buttonStyle(.plain)
-            }
-        }
-        .padding(7)
-        .background(ScarletPresentationColor.surface,
-                    in: RoundedRectangle(cornerRadius: 20))
-        .overlay {
-            RoundedRectangle(cornerRadius: 20)
-                .stroke(ScarletPresentationColor.stroke, lineWidth: 1)
-        }
-        .padding(.horizontal, 20)
-        .padding(.bottom, 9)
-        .accessibilityIdentifier("SCARLET_INDEPENDENT_TAB_BAR")
-    }
 }
