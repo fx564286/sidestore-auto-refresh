@@ -1,0 +1,65 @@
+{
+  "schema": 1,
+  "figma_file_key": "QESg6S7oJS47PmlPpEX5w5",
+  "screens": [
+    "6:15",
+    "6:75",
+    "6:136",
+    "6:198",
+    "6:254",
+    "26:2"
+  ],
+  "device_width_pt": 390,
+  "content_gutter_pt": 20,
+  "content_width_pt": 350,
+  "bottom_tab_bar": {
+    "uses_original_liquid_glass": true,
+    "x": 19,
+    "width": 352,
+    "height": 62,
+    "tab_count": 4,
+    "tab_width": 81,
+    "tab_spacing": 6,
+    "outer_padding": 5,
+    "icon_and_label_horizontal_alignment": "CENTER",
+    "icon_bounds_center_x": 40.5,
+    "label_bounds_center_x": 40.5,
+    "equal_tab_centers": [
+      64.5,
+      151.5,
+      238.5,
+      325.5
+    ],
+    "labels": [
+      "Home",
+      "Apps",
+      "Sources",
+      "Settings"
+    ]
+  },
+  "round_app_switcher": {
+    "count_per_screen": 1,
+    "diameter_pt": 62,
+    "x": 22,
+    "action": "original Liquid Glass recent apps / window manager",
+    "independent_window_manager_tab": false
+  },
+  "card_action_row": {
+    "icon_badge_diameter_pt": 36,
+    "icon_glyph_alignment": "CENTER",
+    "primary_text_alignment": "LEFT",
+    "detail_text_alignment": "LEFT",
+    "status_alignment": "RIGHT",
+    "min_hit_target_pt": 44
+  },
+  "window_management": {
+    "segmented_width_pt": 322,
+    "segment_width_pt": 153,
+    "segment_gap_pt": 2,
+    "segment_labels_alignment": "CENTER",
+    "min_max_close_equal_width": true,
+    "icon_label_alignment": "CENTER",
+    "outside_tap_dismiss": true
+  },
+  "implementation": "Use Figma geometry as measured reference; native host Liquid Glass must be reused unchanged"
+}
