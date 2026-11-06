@@ -14,6 +14,21 @@ public struct ScarletGuestPresentation: Identifiable, Equatable, Sendable {
     }
 }
 
+public struct ScarletSourcePresentation: Identifiable, Equatable, Sendable {
+    public let id: String
+    public let title: String
+    public let detail: String
+    public let icon: String
+
+    public init(id: String, title: String, detail: String,
+                icon: String = "square.stack.fill") {
+        self.id = id
+        self.title = title
+        self.detail = detail
+        self.icon = icon
+    }
+}
+
 public struct ScarletHostPresentationSnapshot: Equatable, Sendable {
     public let serviceConnected: Bool
     public let appleAuthenticated: Bool
@@ -97,24 +112,29 @@ private struct ScarletActionRow: View {
 }
 
 public struct ScarletIndependentShell: View {
+    // Preserves the existing Scarlet Crystal bottom tab destinations exactly.
+    // Window management remains exclusively in the circular app switcher.
     public enum Tab: String, CaseIterable {
-        case home = "홈"
-        case apps = "앱"
-        case settings = "설정"
-        case connection = "연결"
+        case home = "Home"
+        case apps = "Apps"
+        case sources = "Sources"
+        case settings = "Settings"
 
         public var icon: String {
             switch self {
             case .home: "house"
             case .apps: "square.stack.3d.up"
+            case .sources: "square.stack"
             case .settings: "gearshape"
-            case .connection: "link"
             }
         }
     }
 
     public let snapshot: ScarletHostPresentationSnapshot
     public let guests: [ScarletGuestPresentation]
+    public let sources: [ScarletSourcePresentation]
+    public let onOpenSource: (String) -> Void
+    public let onAddSource: () -> Void
     public let onAction: (ScarletControl) -> Void
     public let onOpenGuest: (String) -> Void
     // The host MUST inject its EXISTING interactive circular Liquid Glass
@@ -130,18 +150,25 @@ public struct ScarletIndependentShell: View {
     @State private var searchText = ""
     @State private var showLocalAppearance = false
     @State private var showLocalStorage = false
+    @State private var showConnectionDetails = false
     @ScaledMetric(relativeTo: .largeTitle) private var screenTitleSize: CGFloat = 28
 
     public init(snapshot: ScarletHostPresentationSnapshot,
                 guests: [ScarletGuestPresentation],
+                sources: [ScarletSourcePresentation],
                 onAction: @escaping (ScarletControl) -> Void,
                 onOpenGuest: @escaping (String) -> Void,
+                onOpenSource: @escaping (String) -> Void,
+                onAddSource: @escaping () -> Void,
                 preservedGlassSwitchControl: AnyView,
                 preservedGlassTabBar: @escaping (Binding<Tab>) -> AnyView) {
         self.snapshot = snapshot
         self.guests = guests
+        self.sources = sources
         self.onAction = onAction
         self.onOpenGuest = onOpenGuest
+        self.onOpenSource = onOpenSource
+        self.onAddSource = onAddSource
         self.preservedGlassSwitchControl = preservedGlassSwitchControl
         self.preservedGlassTabBar = preservedGlassTabBar
     }
@@ -154,8 +181,8 @@ public struct ScarletIndependentShell: View {
                         switch selected {
                         case .home: home
                         case .apps: apps
+                        case .sources: sourcesScreen
                         case .settings: settings
-                        case .connection: connection
                         }
                     }
                     .padding(.horizontal, 20)
@@ -215,6 +242,20 @@ public struct ScarletIndependentShell: View {
                 .padding()
                 .navigationTitle("저장소")
             }
+        }
+        .sheet(isPresented: $showConnectionDetails) {
+            NavigationStack {
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 17) {
+                        connection
+                    }
+                    .padding(20)
+                }
+                .background(ScarletPresentationColor.background.ignoresSafeArea())
+                .navigationTitle("계정 및 서명")
+                .navigationBarTitleDisplayMode(.inline)
+            }
+            .preferredColorScheme(.dark)
         }
     }
 
@@ -355,6 +396,36 @@ public struct ScarletIndependentShell: View {
         .foregroundStyle(ScarletPresentationColor.text)
     }
 
+    private var sourcesScreen: some View {
+        Group {
+            heading("", "소스", "앱 소스를 관리합니다.")
+            sectionTitle("등록된 소스", trailing: "\(sources.count)개")
+            ScarletPanel {
+                ForEach(sources) { source in
+                    ScarletActionRow(title: source.title, detail: source.detail,
+                                     icon: source.icon, enabled: true) {
+                        onOpenSource(source.id)
+                    }
+                }
+                if sources.isEmpty {
+                    Text("소스를 추가해 앱 목록을 확인하세요.")
+                        .font(.footnote)
+                        .foregroundStyle(ScarletPresentationColor.muted)
+                }
+            }
+            Button(action: onAddSource) {
+                Label("소스 추가", systemImage: "plus")
+                    .font(.headline)
+                    .frame(maxWidth: .infinity, minHeight: 48)
+                    .foregroundStyle(ScarletPresentationColor.text)
+                    .background(ScarletPresentationColor.purple,
+                                in: RoundedRectangle(cornerRadius: 13))
+            }
+            .buttonStyle(.plain)
+        }
+        .foregroundStyle(ScarletPresentationColor.text)
+    }
+
     private var settings: some View {
         Group {
             heading("", "설정", "컨테이너와 서명 설정")
@@ -385,9 +456,9 @@ public struct ScarletIndependentShell: View {
                     .font(.caption)
                     .foregroundStyle(ScarletPresentationColor.muted)
                 Button {
-                    onAction(.serviceReadSettings)
+                    showConnectionDetails = true
                 } label: {
-                    Text("연결 확인")
+                    Text("계정 및 서명 열기")
                         .font(.subheadline.weight(.semibold))
                         .frame(maxWidth: .infinity, minHeight: 48)
                         .background(ScarletPresentationColor.purple,
@@ -419,6 +490,17 @@ public struct ScarletIndependentShell: View {
                     .font(.caption)
                     .foregroundStyle(ScarletPresentationColor.muted)
             }
+            Button {
+                onAction(.serviceReadSettings)
+            } label: {
+                Label("연결 상태 확인", systemImage: "arrow.clockwise")
+                    .font(.headline)
+                    .frame(maxWidth: .infinity, minHeight: 48)
+                    .foregroundStyle(ScarletPresentationColor.text)
+                    .background(ScarletPresentationColor.surface,
+                                in: RoundedRectangle(cornerRadius: 13))
+            }
+            .buttonStyle(.plain)
             sectionTitle("설정 단계")
             ScarletPanel {
                 statusRow("01", "기기 페어링", verified: snapshot.pairingVerified)
