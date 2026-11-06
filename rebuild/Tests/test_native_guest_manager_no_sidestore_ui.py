@@ -1,4 +1,4 @@
-"""User acceptance: installed-apps leading + opens original LC manager only.
+"""User acceptance: title-leading + opens iPhone Files, never app manager.
 
 The SideStore/SideSign engine stays present; SideStore's standalone guest UI
 must never appear from the embedded LiveContainer manager. This file tests
@@ -35,18 +35,26 @@ class LCManagerWithoutSideStoreGuestUI(unittest.TestCase):
         self.assertEqual(home.count("Menu {"),1)
         self.assertNotIn("installPathRow(",UI)
 
-    def test_real_native_view_not_duplicate_navigation_stack(self):
-        fragment=HOST[HOST.index(".sheet(isPresented: $showNativeAppLibrary, onDismiss: {"):
+    def test_scarlet_files_picker_is_direct_not_nested_app_list(self):
+        self.assertIn(".fileImporter(isPresented: $showGuestFilePicker,",HOST)
+        self.assertIn("stageGuestIPAFromFiles(selected)",HOST)
+        self.assertIn('showGuestFilePicker = true',HOST)
+        self.assertNotIn("showNativeAppLibrary",HOST)
+        self.assertNotIn("guestIPAImportFromAddMenu",HOST)
+        fragment=HOST[HOST.index(".sheet(isPresented: $showGuestImportProgress, onDismiss: {"):
                       HOST.index(".sheet(isPresented: $showNativeSources) {")]
-        self.assertIn("LCAppListView(scarletStartIPAImport: guestIPAImportFromAddMenu)",fragment)
-        self.assertIn(".presentationDetents([.large])",fragment)
-        self.assertNotIn("NavigationStack {",fragment)
-        self.assertIn("case .localImportGuestIPA:",HOST)
-        self.assertIn("showNativeAppLibrary = true",HOST)
-        self.assertIn("guestIPAImportFromAddMenu = true",HOST)
+        self.assertIn("LCAppListView(scarletQueuedIPAURL: queuedGuestIPAURL,",fragment)
+        self.assertNotIn(".sheet(isPresented: $showNativeAppLibrary",fragment)
+        self.assertIn(".interactiveDismissDisabled()",fragment)
+
 
     def test_surgical_patch_removes_only_the_native_sidestore_guest_buttons(self):
         fixture='''// Upstream app list
+        NavigationView {
+            ScrollView {
+            }
+        }
+        .navigationViewStyle(StackNavigationViewStyle())
     init() {
         _installOptions = State(initialValue: [])
     }
@@ -124,9 +132,10 @@ class LCManagerWithoutSideStoreGuestUI(unittest.TestCase):
                 self.assertNotIn(forbidden,source)
             self.assertIn('if url.scheme == "sidestore" {',source)
             self.assertIn("file_import_requested",source)
-            self.assertIn("scarletStartIPAImport",source)
-            self.assertIn("scarletDidPromptIPAImport",source)
-            self.assertTrue(report["guestSelectionOpensNativeFileImporterOnce"])
+            self.assertIn("scarletQueuedIPAURL",source)
+            self.assertIn("SCARLET_GUEST_IMPORT_PROGRESS_ONLY",source)
+            self.assertIn("await startInstallApp(queuedIPA)",source)
+            self.assertTrue(report["scarletAppListNotPresentedDuringImport"])
             self.assertIn("import_pipeline_failed",source)
             self.assertIn("url_import_requested",source)
             self.assertNotIn('setValue(url.absoluteString, forKey: "launchAppUrlScheme")',source)
