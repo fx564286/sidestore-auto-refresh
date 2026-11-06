@@ -169,7 +169,7 @@ public struct ScarletIndependentShell: View {
     // material or synthetic glassEffect is introduced here.
     public let preservedGlassTabBar: (Binding<Tab>) -> AnyView
 
-    @State private var selected: Tab = .home
+    @State private var selected: Tab
     @State private var searchText = ""
     private enum AppFilter: String, CaseIterable {
         case all = "전체"
@@ -179,7 +179,7 @@ public struct ScarletIndependentShell: View {
     @State private var appFilter: AppFilter = .all
     @State private var showLocalAppearance = false
     @State private var showLocalStorage = false
-    @State private var showConnectionDetails = false
+    @State private var showConnectionDetails: Bool
     @ScaledMetric(relativeTo: .largeTitle) private var screenTitleSize: CGFloat = 28
 
     public init(snapshot: ScarletHostPresentationSnapshot,
@@ -190,7 +190,9 @@ public struct ScarletIndependentShell: View {
                 onOpenSource: @escaping (String) -> Void,
                 onAddSource: @escaping () -> Void,
                 preservedGlassSwitchControl: AnyView,
-                preservedGlassTabBar: @escaping (Binding<Tab>) -> AnyView) {
+                preservedGlassTabBar: @escaping (Binding<Tab>) -> AnyView,
+                initialTab: Tab = .home,
+                initialConnectionDetails: Bool = false) {
         self.snapshot = snapshot
         self.guests = guests
         self.sources = sources
@@ -200,6 +202,8 @@ public struct ScarletIndependentShell: View {
         self.onAddSource = onAddSource
         self.preservedGlassSwitchControl = preservedGlassSwitchControl
         self.preservedGlassTabBar = preservedGlassTabBar
+        self._selected = State(initialValue: initialTab)
+        self._showConnectionDetails = State(initialValue: initialConnectionDetails)
     }
 
     public var body: some View {
