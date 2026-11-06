@@ -172,7 +172,6 @@ struct ScarletIntegratedHostView: View {
             preservedGlassTabBar: { tab in
                 AnyView(ScarletNativeGlassTabBar(selected: tab))
             },
-            onTabChanged: recordTab,
             nativeTweaks: {
                 // Embedded real LiveContainer tweak manager; actual tweak
                 // folder state, enable toggles and import are owned upstream.
@@ -191,7 +190,8 @@ struct ScarletIntegratedHostView: View {
                         .environmentObject(LCAppSortManager.shared)
                         .environmentObject(downloadHelper)
                 )
-            }
+            },
+            onTabChanged: recordTab
         )
         .environmentObject(downloadHelper)
         .onAppear {
