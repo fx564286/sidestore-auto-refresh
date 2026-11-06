@@ -18,10 +18,10 @@ class NativeHomeSettings(unittest.TestCase):
         self.assertIn('installPathRow("게스트 앱 설치"',HOME)
         for redundant in ('"빠른 작업"','"최근 앱"','SCARLET_CENTERED_WORKSPACE_STATS','"활성 창"'):
             self.assertNotIn(redundant,HOME)
-        self.assertEqual(DESIGN["design"]["alignment"]["homeAndSettings"]["engineEntryHeightsPt"],[78,78])
+        self.assertEqual(DESIGN["design"]["alignment"]["homeAndSettings"]["engineEntryHeightsPt"],[62,62])
 
     def test_home_settings_simultaneously_visible_and_no_tab_on_landing(self):
-        self.assertIn('heading("", "내 컨테이너", "")',HOME)
+        self.assertIn('heading("", "IPA 설치", "")',HOME)
         self.assertNotIn('heading("", "설정", "")',HOME)
         self.assertNotIn('ScarletActionRow(title: "LiveContainer 전체 설정"',HOME)
         self.assertNotIn('if selected != .home {',UI)
