@@ -2,11 +2,11 @@
   "schema": 5,
   "product": "Scarlet Crystal",
   "design_file": "https://www.figma.com/design/QESg6S7oJS47PmlPpEX5w5",
-  "decision": "Independent UI rewrite except existing native Liquid Glass effect and upstream execution/signing engines",
+  "decision": "Native SideStore + LiveContainer engines, Scarlet Crystal UI, and newly implemented iOS26+ SwiftUI Liquid Glass; device optical acceptance pending",
   "protected_runtime": [
     {
       "id": "liquid_glass",
-      "description": "Keep existing native Liquid Glass implementation and touch/gesture material; do not replace it with new fake blur panels."
+      "description": "Earlier UIKit visual effect and flat selected capsule did not prove interactive glass. Implement iOS26+ native GlassEffectContainer, selected glassEffectID morph and drag, while preserving tab bar dimensions. Real iPhone verification required."
     },
     {
       "id": "livecontainer_engine",
@@ -50,7 +50,7 @@
     "mutations": "Do not claim success until authoritative result; no auto replay after unknown install/sign result",
     "auth": "One session owner; pairing, Apple authentication, 2FA, provisioning and installation are distinct states",
     "guestRuntime": "Use one existing LiveProcess control route; no duplicate Direct button paths",
-    "glass": "Existing Liquid Glass renderer/effect stays outside new UI code behind injected host adapter"
+    "glass": "Apple SwiftUI iOS26 GlassEffectContainer and interactive glassEffect are implemented in the host adapter for tabs, switcher and guest overlay; blur-only fallback only when Reduce Transparency or iOS<26; device optical acceptance pending"
   },
   "visual_targets": {
     "min_touch_target_pt": 44,
@@ -75,7 +75,7 @@
     "SwiftUI typechecks on pinned Xcode 27.2",
     "host shell wired to LiveContainer and SideStore/SideSign adapters",
     "settings actions actually observed on iPhone",
-    "native Liquid Glass code and gestures unchanged by checksum/diff",
+    "iOS26 native GlassEffectContainer and glassEffectID compiled, visible refraction/drag/morph on real iPhone verified",
     "bundle identity, entitlements and App Groups verified",
     "signed IPA actual upgrade install and data preservation",
     "Apple sign-in 2FA, pairing, refresh and guest runtime verified on iPhone"
@@ -88,8 +88,8 @@
       "tweaks",
       "settings"
     ],
-    "bottom_tab_uses_existing_liquid_glass": true,
-    "bottom_tab_injection": "Required host-provided existing interactive Liquid Glass bar, bound via Binding<Tab>; no synthetic glassEffect in clean UI",
+    "bottom_tab_uses_existing_liquid_glass": false,
+    "bottom_tab_injection": "Host-provided iOS26+ Apple GlassEffectContainer: native glass material, matched selected capsule, drag; old static UIKit blur is fallback only. Device visual verification pending.",
     "separate_window_management_tab": false,
     "window_management_entry": "running_guest_only",
     "single_round_app_switcher": true,
@@ -137,6 +137,7 @@
     ],
     "apps_install_buttons_always_visible": false,
     "apps_install_menu_native": true,
-    "no_second_guest_import_plus": true
+    "no_second_guest_import_plus": true,
+    "bottom_tab_uses_native_system_liquid_glass_ios26": true
   }
 }
