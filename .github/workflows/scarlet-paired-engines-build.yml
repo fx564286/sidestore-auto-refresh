@@ -7,6 +7,8 @@ on:
     paths:
       - ".github/workflows/scarlet-paired-engines-build.yml"
       - "rebuild/integration/**"
+      - "rebuild/HostApp/**"
+      - "rebuild/Sources/**"
 
 permissions:
   contents: read
