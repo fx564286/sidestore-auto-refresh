@@ -39,12 +39,23 @@ struct LCSettingsView: View {
         NavigationView {
             Form {
                 Text("original setting")
-            }
+''' + "".join(
+            '                Section {\n'
+            f'                    Text("Original setting {index}")\n'
+            '                } header: {\n'
+            '                    Text("Original section")\n'
+            '                } footer: {\n'
+            '                    Text("Unmodified control")\n'
+            '                }\n'
+            for index in range(15)
+        ) + '''            }
+            .navigationBarTitle("lc.tabView.settings".loc)
         }
         .navigationViewStyle(StackNavigationViewStyle())
     }
 }
 '''
+
         with tempfile.TemporaryDirectory() as tmp:
             engine=Path(tmp)
             file=engine/"LiveContainerSwiftUI/Views/Settings/LCSettingsView.swift"
@@ -53,9 +64,12 @@ struct LCSettingsView: View {
             report=integrator().attach_native_settings_diagnostics(engine)
             source=file.read_text()
             self.assertTrue(report["singleTitle"])
+            self.assertEqual(report["styledSections"],16)
             self.assertTrue(report["diagnosticSectionAtTop"])
             self.assertIn('Text("original setting")',source)
             self.assertIn("SCARLET_NATIVE_DIAGNOSTICS_ENTRY",source)
+            self.assertIn(".scarletNativeListTheme()",source)
+            self.assertEqual(source.count(".listRowBackground("),16)
             self.assertIn("ScarletDiagnosticLogView()",source)
             self.assertIn("ScarletAppleIDLoginSheet(",source)
             self.assertEqual(source.count("NavigationView {"),1)
