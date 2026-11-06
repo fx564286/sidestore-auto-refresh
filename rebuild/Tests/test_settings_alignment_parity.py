@@ -32,7 +32,10 @@ class SettingsParity(unittest.TestCase):
                   'ScarletActionRow(title: "저장소"',
                   'ScarletActionRow(title: "진단 로그"'):
             self.assertNotIn(x,UI)
-        self.assertIn("SCARLET_SETTINGS_NATIVE_APPLE_LOGIN",UI)
+        INTEGRATOR=(ROOT/"integration/apply_scarlet_host.py").read_text()
+        self.assertIn("SCARLET_SETTINGS_NATIVE_APPLE_LOGIN",INTEGRATOR)
+        self.assertIn("SCARLET_NATIVE_DIAGNOSTICS_ENTRY",INTEGRATOR)
+        self.assertNotIn('Text("설정")',UI)
         self.assertNotIn("showConnectionDetails",UI)
 
     def test_actual_iphone_screen_and_auth_remain_separate_gates(self):
