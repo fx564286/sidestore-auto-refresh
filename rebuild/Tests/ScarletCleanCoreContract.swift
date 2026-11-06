@@ -82,7 +82,7 @@ private struct CleanCoreContract {
                      localAgain.localTapCount == 2)
 
         // 7. Dependency classification covers EVERY public control.
-        precondition(ScarletControl.allCases.count == 11)
+        precondition(ScarletControl.allCases.count == 13)
         for action in ScarletControl.allCases {
             switch action.dependency {
             case .local, .service, .authenticatedService: break
@@ -93,7 +93,7 @@ private struct CleanCoreContract {
         print("[PASS] SCARLET_CLEAN_CORE_REMOTE_CONTROLS_EXPLAIN_UNAVAILABLE")
         print("[PASS] SCARLET_CLEAN_CORE_AUTH_STATE_IS_NOT_INFERRED_FROM_CONNECT")
         print("[PASS] SCARLET_CLEAN_CORE_NO_FALSE_INSTALL_SUCCESS_OR_REPLAY")
-        print("[PASS] SCARLET_CLEAN_CORE_LOCAL_ISOLATION_AND_11_ACTION_CLASSES")
+        print("[PASS] SCARLET_CLEAN_CORE_LOCAL_ISOLATION_AND_13_ACTION_CLASSES")
     }
 
 }
