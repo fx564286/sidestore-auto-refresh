@@ -18,7 +18,7 @@ public struct ScarletRefreshAssessment: Equatable, Sendable {
 }
 
 public struct ScarletRefreshPolicy: Sendable {
-    public static let recommendedLeadTime: TimeInterval = 48 * 3600
+    public static let recommendedLeadTime: TimeInterval = 72 * 3600
     public static let maxCheckInterval: TimeInterval = 12 * 3600
 
     public init() {}
