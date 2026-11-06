@@ -93,6 +93,7 @@ struct ScarletGuestSwitcherOverlay: View {
 
     @State private var isOpen = false
     @State private var selectedSegment = 0
+    @Namespace private var guestGlassSelection
     @State private var targets: [ScarletGuestTarget] = []
     @State private var previews: [String: UIImage] = [:]
 
@@ -146,21 +147,46 @@ struct ScarletGuestSwitcherOverlay: View {
             HStack(spacing: 6) {
                 ForEach(0..<2, id: \.self) { index in
                     Button {
-                        selectedSegment = index
+                        withAnimation(.spring(response: 0.34, dampingFraction: 0.78)) {
+                            selectedSegment = index
+                        }
                     } label: {
                         Text(index == 0 ? "최근 앱" : "창 관리")
                             .font(.subheadline.weight(.semibold))
                             .frame(maxWidth: .infinity, minHeight: 36)
-                            .background(selectedSegment == index
-                                ? Color(red: 0.39, green: 0.30, blue: 0.89)
-                                : Color.clear, in: Capsule())
+                            .background {
+                                if selectedSegment == index {
+                                    if #available(iOS 26.0, *),
+                                       !UIAccessibility.isReduceTransparencyEnabled {
+                                        Capsule()
+                                            .glassEffect(
+                                                .regular.tint(Color.purple.opacity(0.24)).interactive(),
+                                                in: .capsule
+                                            )
+                                            .glassEffectID("guest-segment", in: guestGlassSelection)
+                                            .matchedGeometryEffect(id: "guest-selection",
+                                                                   in: guestGlassSelection)
+                                    } else {
+                                        Capsule()
+                                            .fill(Color(red: 0.39, green: 0.30, blue: 0.89))
+                                    }
+                                }
+                            }
                     }
                     .buttonStyle(.plain)
                 }
             }
             .padding(7)
             .frame(maxWidth: .infinity)
-            .background(Color.black.opacity(0.25), in: Capsule())
+            .background {
+                if #available(iOS 26.0, *),
+                   !UIAccessibility.isReduceTransparencyEnabled {
+                    Capsule()
+                        .glassEffect(.regular.interactive(), in: .capsule)
+                } else {
+                    Capsule().fill(Color.black.opacity(0.25))
+                }
+            }
             ScrollView {
                 LazyVStack(spacing: 8) {
                     ForEach(targets) { item in
@@ -228,9 +254,16 @@ struct ScarletGuestSwitcherOverlay: View {
         .foregroundStyle(.white)
         .frame(maxWidth: 354)
         .background {
-            SCNativeLiquidGlassSurface(cornerRadius: 24,
-                                        selectedIndex: selectedSegment)
-                .clipShape(RoundedRectangle(cornerRadius: 24))
+            if #available(iOS 26.0, *),
+               !UIAccessibility.isReduceTransparencyEnabled {
+                RoundedRectangle(cornerRadius: 24, style: .continuous)
+                    .glassEffect(.regular, in: .rect(cornerRadius: 24))
+                    .accessibilityIdentifier("SCARLET_GUEST_PANEL_NATIVE_GLASS_MATERIAL")
+            } else {
+                SCNativeLiquidGlassSurface(cornerRadius: 24,
+                                            selectedIndex: selectedSegment)
+                    .clipShape(RoundedRectangle(cornerRadius: 24))
+            }
         }
         .overlay {
             RoundedRectangle(cornerRadius: 24)
