@@ -114,6 +114,59 @@ def hide_embedded_sidestore_guest_navigation(engine: Path) -> dict:
             "patchedFileSHA256":file_sha(view)}
 
 
+def attach_native_settings_diagnostics(engine: Path) -> dict:
+    """Add one diagnostics entry to the ORIGINAL full-screen LCSettingsView.
+
+    Never replace its navigation/Form, JIT controls, storage, certificate
+    storage, app groups, or settings persistence. Use fail-closed pinned
+    anchors to avoid silently corrupting future upstream revisions.
+    """
+    target=engine/"LiveContainerSwiftUI/Views/Settings/LCSettingsView.swift"
+    assert target.is_file(), "Pinned LC settings view missing"
+    source=target.read_text()
+    state_anchor="struct LCSettingsView: View {\n"
+    form_anchor="        NavigationView {\n            Form {\n"
+    style_anchor="        .navigationViewStyle(StackNavigationViewStyle())\n"
+    for anchor in (state_anchor,form_anchor,style_anchor):
+        assert source.count(anchor)==1, "Pinned settings structure changed: "+repr(anchor)
+    source=source.replace(state_anchor, state_anchor+
+        '    @State private var scarletShowAppleLogin = false\n')
+    new_section="""        NavigationView {
+            Form {
+                Section {
+                    Button {
+                        ScarletDiagnosticRecorder.shared.record("auth", "open_from_settings")
+                        scarletShowAppleLogin = true
+                    } label: {
+                        Label("Apple ID 로그인", systemImage: "person.crop.circle")
+                    }
+                    .accessibilityIdentifier("SCARLET_SETTINGS_NATIVE_APPLE_LOGIN")
+                    NavigationLink {
+                        ScarletDiagnosticLogView()
+                    } label: {
+                        Label("진단 로그 보기 및 공유", systemImage: "ladybug")
+                    }
+                    .accessibilityIdentifier("SCARLET_NATIVE_DIAGNOSTICS_ENTRY")
+                } header: {
+                    Text("Scarlet Crystal")
+                } footer: {
+                    Text("실행 오류, 게스트 앱 동작, 엔진 상태를 기기 안에서 기록하고 공유할 수 있습니다.")
+                }
+"""
+    source=source.replace(form_anchor,new_section)
+    source=source.replace(style_anchor,style_anchor+
+        '        .sheet(isPresented: $scarletShowAppleLogin) {\n'
+        '            ScarletAppleIDLoginSheet(engine: ScarletPendingSideStoreEngineBridge())\n'
+        '        }\n'
+        '        .onAppear {\n'
+        '            ScarletDiagnosticRecorder.shared.record("settings", "native_form_visible")\n'
+        '        }\n')
+    target.write_text(source)
+    return {"settings":"original-LCSettingsView","singleTitle":True,
+            "diagnosticSectionAtTop":True,"nativeLoginEntry":True,
+            "newSettingsSheetCreated":False,"sha256":file_sha(target)}
+
+
 def main():
     p=argparse.ArgumentParser()
     p.add_argument("--engine",type=Path,required=True)
@@ -144,6 +197,7 @@ def main():
         root/"rebuild/HostApp/ScarletNativeGlass.swift":"ScarletNativeGlass.swift",
         root/"rebuild/HostApp/ScarletGuestSwitcherOverlay.swift":"ScarletGuestSwitcherOverlay.swift",
         root/"rebuild/HostApp/ScarletAppleIDLoginSheet.swift":"ScarletAppleIDLoginSheet.swift",
+        root/"rebuild/HostApp/ScarletDiagnosticRecorder.swift":"ScarletDiagnosticRecorder.swift",
         root/"rebuild/Sources/ScarletIndependentUI/ScarletIndependentShell.swift":"ScarletIndependentShell.swift",
         root/"rebuild/Sources/ScarletCleanCore/ScarletActionCoordinator.swift":"ScarletActionCoordinator.swift",
         root/"rebuild/Sources/ScarletCleanCore/ScarletControlAuditTrail.swift":"ScarletControlAuditTrail.swift",
@@ -161,7 +215,8 @@ def main():
     boot_anchor="    init() {\n"
     assert src.count(boot_anchor)==1, "Pinned entry initializer changed"
     src=src.replace(boot_anchor,
-        boot_anchor+'        NSLog("[SCARLET_BOOT] phase=app-init-start")\n')
+        boot_anchor+'        NSLog("[SCARLET_BOOT] phase=app-init-start")\n'
+        '        ScarletDiagnosticRecorder.shared.record("boot", "app_init")\n')
     guest_anchors={
         'let newApp = LCAppInfo(bundlePath: "\(LCPath.bundlePath.path)/\(appDir)")!':
         'guard let newApp = LCAppInfo(bundlePath: "\(LCPath.bundlePath.path)/\(appDir)") else {\n'
@@ -261,6 +316,7 @@ def main():
     assert "keyWindow!.rootViewController!.view.subviews.first!" not in dock_source, "Unsafe force unwrap retained"
     dock_src_file.write_text(dock_source)
     guest_manager=hide_embedded_sidestore_guest_navigation(engine)
+    native_settings=attach_native_settings_diagnostics(engine)
     a.report.parent.mkdir(parents=True,exist_ok=True)
     data={
         "schema":1,"newRootCompiled":False,
@@ -275,13 +331,17 @@ def main():
         "embeddedSideStoreGuestUIEnabled":False,
         "embeddedSideStoreEnginePreserved":True,
         "nativeGuestManager":guest_manager,
+        "nativeSettingsDiagnostics":native_settings,
+        "localDiagnosticJournal":True,
+        "shareablePrivacyRedactedLog":True,
         "originalNativeUIGlassEffect":True,
         "upstreamLiveContainerSourceUntouched":False,
         "upstreamLiveContainerModifiedTrackedPaths":[
             "LiveContainerSwiftUI/App/LiveContainerSwiftUIApp.swift",
             "MultitaskSupport/MultitaskAppWindow.swift",
             "MultitaskSupport/MultitaskDockView.swift",
-            "LiveContainerSwiftUI/Views/AppList/LCAppListView.swift"
+            "LiveContainerSwiftUI/Views/AppList/LCAppListView.swift",
+            "LiveContainerSwiftUI/Views/Settings/LCSettingsView.swift"
         ],
 
         "customAppIcon":figma_icon,
@@ -299,6 +359,7 @@ def main():
     print("[PASS] Fresh Scarlet host sources injected into file-synchronized Xcode project")
     print("[PASS] Crash-traced dock window force unwrap replaced by deferred, data-preserving mount")
     print("[PASS] Original LC guest IPA/URL import preserved; SideStore guest UI shortcuts removed (engine retained)")
+    print("[PASS] Full-size native Settings and private on-device diagnostics/sharing injected")
     print("[PASS] New Figma Scarlet icon compiled into AppIcon.appiconset source; Xcode archive pending")
     print("[BLOCK] Await actual Xcode archive and iPhone runtime validation")
 if __name__=="__main__":main()
