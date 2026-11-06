@@ -22,27 +22,41 @@ def load_patch_module():
 
 class LCManagerWithoutSideStoreGuestUI(unittest.TestCase):
     def test_installed_apps_header_has_real_file_plus(self):
-        home=UI[UI.index("    private var home: some View {"):UI.index("    private func installPathRow(")]
+        home=UI[UI.index("    private var home: some View {"):UI.index("    private var visibleGuests:")]
         self.assertIn("SCARLET_INSTALLED_APPS_ADD_FILE",home)
         self.assertIn('Image(systemName: "doc.badge.plus")',home)
         self.assertIn('heading("", "설치된 앱", "")',home)
         self.assertLess(home.index("SCARLET_INSTALLED_APPS_ADD_FILE"),
                         home.index('heading("", "설치된 앱", "")'))
         self.assertIn("onAction(.localImportGuestIPA)",home)
-        self.assertIn("SCARLET_HOME_DEVICE_IPA_INSTALL",home)
-        self.assertIn("SCARLET_HOME_GUEST_IPA_INSTALL",home)
+        self.assertIn("SCARLET_INSTALL_CHOICE_DEVICE_IPA",home)
+        self.assertIn("SCARLET_INSTALL_CHOICE_GUEST_APP",home)
+        self.assertIn("onAction(.serviceInstallIPA)",home)
+        self.assertEqual(home.count("Menu {"),1)
+        self.assertNotIn("installPathRow(",UI)
 
     def test_real_native_view_not_duplicate_navigation_stack(self):
-        fragment=HOST[HOST.index(".sheet(isPresented: $showNativeAppLibrary) {"):
+        fragment=HOST[HOST.index(".sheet(isPresented: $showNativeAppLibrary, onDismiss: {"):
                       HOST.index(".sheet(isPresented: $showNativeSources) {")]
-        self.assertIn("LCAppListView()",fragment)
+        self.assertIn("LCAppListView(scarletStartIPAImport: guestIPAImportFromAddMenu)",fragment)
         self.assertIn(".presentationDetents([.large])",fragment)
         self.assertNotIn("NavigationStack {",fragment)
         self.assertIn("case .localImportGuestIPA:",HOST)
         self.assertIn("showNativeAppLibrary = true",HOST)
+        self.assertIn("guestIPAImportFromAddMenu = true",HOST)
 
     def test_surgical_patch_removes_only_the_native_sidestore_guest_buttons(self):
         fixture='''// Upstream app list
+    init() {
+        _installOptions = State(initialValue: [])
+    }
+            .onAppear {
+                if !didAppear {
+                    onAppear()
+                }
+            }
+        .betterFileImporter(isPresented: $choosingIPA, types: [.ipa, .tipa], multiple: false, callback: { fileUrls in
+        })
                 ToolbarItem(placement: .topBarLeading) {
                     Menu {
                         Button("lc.appList.installFromIpa".loc, systemImage: "doc.badge.plus", action: {
@@ -110,6 +124,9 @@ class LCManagerWithoutSideStoreGuestUI(unittest.TestCase):
                 self.assertNotIn(forbidden,source)
             self.assertIn('if url.scheme == "sidestore" {',source)
             self.assertIn("file_import_requested",source)
+            self.assertIn("scarletStartIPAImport",source)
+            self.assertIn("scarletDidPromptIPAImport",source)
+            self.assertTrue(report["guestSelectionOpensNativeFileImporterOnce"])
             self.assertIn("import_pipeline_failed",source)
             self.assertIn("url_import_requested",source)
             self.assertNotIn('setValue(url.absoluteString, forKey: "launchAppUrlScheme")',source)
