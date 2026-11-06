@@ -73,7 +73,9 @@ class NativeSideStoreLoginRoute(unittest.TestCase):
         self.assertIn('onAction(.serviceBeginSignIn)',settings)
         self.assertIn('SCARLET_SETTINGS_NATIVE_APPLE_LOGIN',settings)
         self.assertNotIn('Text("계정 및 서명 열기")',settings)
-        self.assertNotIn('showConnectionDetails = true',settings)
+        self.assertIn('SCARLET_SIGNING_MANAGEMENT',settings)
+        self.assertIn('showConnectionDetails = true',settings)
+        self.assertIn('onAction(.serviceBeginSignIn)',settings)
 
     def test_no_credentials_or_2fa_captured_by_adapter(self):
         code=Path(route.__file__).read_text()

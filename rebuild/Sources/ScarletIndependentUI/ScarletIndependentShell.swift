@@ -567,10 +567,19 @@ public struct ScarletIndependentShell: View {
                 .frame(height: 62)
             }
             VStack(alignment: .leading, spacing: 7) {
-                Text("계정 및 서명")
-                    .font(.system(size: 18, weight: .semibold))
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .frame(height: 22)
+                HStack(spacing: 12) {
+                    Text("계정 및 서명")
+                        .font(.system(size: 18, weight: .semibold))
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    Button("관리") {
+                        showConnectionDetails = true
+                    }
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundStyle(ScarletPresentationColor.accent)
+                    .buttonStyle(.plain)
+                    .accessibilityIdentifier("SCARLET_SIGNING_MANAGEMENT")
+                }
+                .frame(height: 22)
                 Text(snapshot.serviceConnected ? "SideStore 인증" : "내장 SideStore 확인 필요")
                     .font(.system(size: 13))
                     .foregroundStyle(ScarletPresentationColor.muted)

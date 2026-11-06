@@ -112,7 +112,7 @@ class IndependentUIContractTests(unittest.TestCase):
         self.assertNotIn("preservedGlassSwitchControl",UI)
         self.assertIn("onOpenGuest",UI)
         self.assertIn("serviceBeginSignIn",UI)
-        self.assertIn("SideStore 연결 필요",UI)
+        self.assertIn("SideStore 인증",UI)
         navigation=CONTRACT.get("navigation",{})
         self.assertTrue(navigation.get("bottom_tab_bar"))
         self.assertTrue(navigation.get("single_round_app_switcher"))
