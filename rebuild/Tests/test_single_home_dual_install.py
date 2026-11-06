@@ -4,11 +4,11 @@ import unittest
 ROOT=Path(__file__).resolve().parents[1]
 UI=(ROOT/"Sources/ScarletIndependentUI/ScarletIndependentShell.swift").read_text()
 HOST=(ROOT/"HostApp/ScarletIntegratedHostView.swift").read_text()
-HOME=UI[UI.index("    private var home: some View {"):UI.index("    // Virtual Apps:")]
+HOME=UI[UI.index("    private var home: some View {"):UI.index("    private var visibleGuests:")]
 class DualInstallRoutes(unittest.TestCase):
     def test_both_install_routes_share_home_with_equal_layout(self):
         self.assertEqual(HOME.count('installPathRow("'),2)
-        self.assertIn('"iOS 앱 설치"',HOME)
+        self.assertIn('"SideStore 앱 설치"',HOME)
         self.assertIn('"게스트 앱 설치"',HOME)
         self.assertIn("onAction(.serviceInstallIPA)",HOME)
         self.assertIn("onAction(.localImportGuestIPA)",HOME)
