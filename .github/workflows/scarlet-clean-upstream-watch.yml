@@ -1,0 +1,87 @@
+name: Scarlet Crystal - monitor LiveContainer and SideStore clean rebuild
+on:
+  schedule:
+    # GitHub Actions schedules run only from the repository default branch.
+    - cron: '17 0,12 * * *'
+  workflow_dispatch:
+permissions:
+  contents: write
+  pull-requests: write
+concurrency:
+  group: scarlet-clean-upstream-watch
+  cancel-in-progress: false
+jobs:
+  upstream-check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 18
+    steps:
+      - name: Checkout isolated rebuild source graph
+        uses: actions/checkout@v4
+        with:
+          ref: rebuild/scarlet-clean-core-20261106
+          fetch-depth: 0
+          persist-credentials: true
+      - name: Validate source tracking contract
+        run: |
+          set -euo pipefail
+          python3 -m unittest discover -s rebuild/Tests -p test_upstream_watch.py -v
+          python3 -m json.tool rebuild/upstream/pins.json >/dev/null
+      - name: Compare LiveContainer, maintained SideStore and matching nested dependencies
+        id: diff
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          python3 rebuild/upstream/watch.py \
+            --pins rebuild/upstream/pins.json \
+            --report "$RUNNER_TEMP/upstream.json" \
+            --candidate "$RUNNER_TEMP/upstream-next.json"
+          if python3 - "$RUNNER_TEMP/upstream.json" <<'PY'
+          import json,sys
+          sys.exit(0 if json.load(open(sys.argv[1]))["needs_review"] else 1)
+          PY
+          then echo 'changed=true' >> "$GITHUB_OUTPUT"
+          else echo 'changed=false' >> "$GITHUB_OUTPUT"
+          fi
+      - name: Open non-destructive upstream integration proposal
+        if: steps.diff.outputs.changed == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          candidate="$RUNNER_TEMP/upstream-next.json"
+          ids="$(python3 - "$candidate" <<'PY'
+          import json,sys
+          p=json.load(open(sys.argv[1]))
+          print(p["LIVE_CONTAINER_REF"][:10] + "-" + p["EMBEDDED_SIDESTORE_REF"][:10])
+          PY
+          )"
+          target="sync/scarlet-clean-$ids"
+          git fetch origin rebuild/scarlet-clean-core-20261106
+          git checkout -b "$target" origin/rebuild/scarlet-clean-core-20261106
+          cp "$candidate" rebuild/upstream/pins.json
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add rebuild/upstream/pins.json
+          git commit -m "chore(rebuild): stage verified LiveContainer and SideStore source refs"
+          if git ls-remote --exit-code --heads origin "$target" >/dev/null 2>&1; then
+            echo "[SAFE] Existing candidate branch preserved"
+          else
+            git push --set-upstream origin "$target"
+          fi
+          if gh pr list -R "$GITHUB_REPOSITORY" --head "$target" --state open --json number --jq '.[0].number' | grep -Eq '^[0-9]+$'; then
+            echo "[PASS] Existing integration PR preserved"
+          else
+            gh pr create -R "$GITHUB_REPOSITORY" \
+              --base rebuild/scarlet-clean-core-20261106 --head "$target" \
+              --title "chore(rebuild): newer LiveContainer and embedded SideStore" \
+              --body "Verified update candidate: LiveContainer and its maintained SideStore fork, with matching SideSign and minimuxer gitlinks. Does NOT auto-merge, auto-sign, install, or change existing Apple identity, Liquid Glass, App Groups, or user data. Integrated iOS build, entitlement checks, device/2FA and existing UI regression must pass before release."
+          fi
+      - name: Upload verified comparison evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: scarlet-clean-source-report
+          path: ${{ runner.temp }}/upstream.json
+          if-no-files-found: ignore
+          retention-days: 30
