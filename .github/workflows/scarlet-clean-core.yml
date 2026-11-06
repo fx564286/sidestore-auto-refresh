@@ -83,6 +83,36 @@ jobs:
         run: |
           echo "[FAIL] Clean-room integration cannot be promoted until tests pass."
 
+
+  release-readiness-audit:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Generate evidence-based design/glass/device release report
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p reports
+          python3 rebuild/scripts/audit_readiness.py --output reports/scarlet-release-readiness.json
+          python3 - <<'PY' >> "$GITHUB_STEP_SUMMARY"
+          import json
+          d=json.load(open("reports/scarlet-release-readiness.json"))
+          print("### Scarlet Crystal release readiness: "+d["currentStatus"])
+          print("| Check | Status |")
+          print("| --- | --- |")
+          for c in d["checks"]:
+              print("| "+c["id"]+" | "+c["status"]+" |")
+          print("\nA UI simulator screenshot and SwiftUI typecheck do NOT prove native Liquid Glass or installation.")
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: Scarlet-Clean-Release-Readiness-JSON
+          path: reports/scarlet-release-readiness.json
+          retention-days: 14
+          if-no-files-found: warn
+
   swiftui-ios-typecheck:
     runs-on: xcode-27
     timeout-minutes: 25
