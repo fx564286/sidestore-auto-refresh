@@ -8,9 +8,21 @@ public struct ScarletGuestPresentation: Identifiable, Equatable, Sendable {
     public let title: String
     public let detail: String
     public let icon: String
+    // Derived only from the actual LiveContainer guest registry; never infer
+    // running state from a static Figma example or an installation timestamp.
+    public let isRunning: Bool
+    public let lastOpenedAt: Date?
 
-    public init(id: String, title: String, detail: String, icon: String = "app.fill") {
-        self.id = id; self.title = title; self.detail = detail; self.icon = icon
+    public init(id: String, title: String, detail: String,
+                icon: String = "app.fill",
+                isRunning: Bool = false,
+                lastOpenedAt: Date? = nil) {
+        self.id = id
+        self.title = title
+        self.detail = detail
+        self.icon = icon
+        self.isRunning = isRunning
+        self.lastOpenedAt = lastOpenedAt
     }
 }
 
@@ -159,6 +171,12 @@ public struct ScarletIndependentShell: View {
 
     @State private var selected: Tab = .home
     @State private var searchText = ""
+    private enum AppFilter: String, CaseIterable {
+        case all = "전체"
+        case recent = "최근"
+        case running = "실행 중"
+    }
+    @State private var appFilter: AppFilter = .all
     @State private var showLocalAppearance = false
     @State private var showLocalStorage = false
     @State private var showConnectionDetails = false
@@ -383,34 +401,77 @@ public struct ScarletIndependentShell: View {
         .frame(maxWidth: .infinity)
     }
 
+    private var visibleGuests: [ScarletGuestPresentation] {
+        let matching = guests.filter {
+            searchText.isEmpty || $0.title.localizedCaseInsensitiveContains(searchText)
+        }
+        switch appFilter {
+        case .all:
+            return matching
+        case .recent:
+            // "Recent" is not a fabricated running list. The real host must
+            // populate lastOpenedAt based on actual guest activity.
+            return matching.filter { $0.lastOpenedAt != nil }
+                .sorted { ($0.lastOpenedAt ?? .distantPast) >
+                          ($1.lastOpenedAt ?? .distantPast) }
+        case .running:
+            return matching.filter(\.isRunning)
+        }
+    }
+
     private var apps: some View {
         Group {
             heading("", "내 앱", "앱을 검색하거나 실행하세요.")
             HStack {
                 Image(systemName: "magnifyingglass")
                     .foregroundStyle(ScarletPresentationColor.accent)
-                TextField("앱 이름 검색", text: $searchText)
+                TextField("앱 검색", text: $searchText)
                     .textInputAutocapitalization(.never)
                     .autocorrectionDisabled()
                     .tint(ScarletPresentationColor.accent)
+                    .accessibilityIdentifier("SCARLET_APP_SEARCH")
             }
             .padding(14)
             .background(ScarletPresentationColor.surface,
                         in: RoundedRectangle(cornerRadius: 16))
-            sectionTitle("앱 라이브러리", trailing: "\(guests.count)개")
+
+            // Figma 6:75 filter labels and equal-width targets.
+            HStack(spacing: 8) {
+                ForEach(AppFilter.allCases, id: \.self) { item in
+                    Button {
+                        appFilter = item
+                    } label: {
+                        Text(item.rawValue)
+                            .font(.footnote.weight(.semibold))
+                            .foregroundStyle(ScarletPresentationColor.text)
+                            .frame(maxWidth: .infinity, minHeight: 44)
+                            .background(
+                                appFilter == item
+                                    ? ScarletPresentationColor.purple
+                                    : ScarletPresentationColor.surface,
+                                in: Capsule()
+                            )
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityAddTraits(appFilter == item ? .isSelected : [])
+                    .accessibilityIdentifier("SCARLET_APP_FILTER_\(item.rawValue)")
+                }
+            }
+            sectionTitle("앱", trailing: "\(visibleGuests.count)개")
             ScarletPanel {
-                ForEach(guests.filter { searchText.isEmpty ||
-                    $0.title.localizedCaseInsensitiveContains(searchText) }) { guest in
+                ForEach(visibleGuests) { guest in
                     ScarletActionRow(title: guest.title, detail: guest.detail,
                                      icon: guest.icon, enabled: true) {
                         onOpenGuest(guest.id)
                     }
                 }
-            }
-            ScarletPanel {
-                Text("앱은 기존 컨테이너에 보관됩니다.")
-                    .font(.caption)
-                    .foregroundStyle(ScarletPresentationColor.muted)
+                if visibleGuests.isEmpty {
+                    Text(appFilter == .running ? "실행 중인 앱이 없습니다."
+                         : appFilter == .recent ? "최근 실행한 앱이 없습니다."
+                         : "앱이 없습니다.")
+                        .font(.footnote)
+                        .foregroundStyle(ScarletPresentationColor.muted)
+                }
             }
         }
         .foregroundStyle(ScarletPresentationColor.text)
