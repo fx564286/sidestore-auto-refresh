@@ -95,6 +95,18 @@ def audit_sidestore(src,ipa):
         "sevenDayRefreshVerified":False
     }
 
+def verify_no_sidestore_screen_toggle(archive:zipfile.ZipFile, app_prefix:str)->bool:
+    """Enforce Scarlet-owned UI in the actual packed IPA, not source alone."""
+    settings_path=app_prefix+"Settings.bundle/Root.plist"
+    if settings_path not in archive.namelist():
+        return True
+    settings=plistlib.loads(archive.read(settings_path))
+    rows=settings.get("PreferenceSpecifiers",[])
+    assert isinstance(rows,list),"Invalid Settings.bundle PreferenceSpecifiers"
+    assert not any(isinstance(row,dict) and row.get("Key")=="LCOpenSideStore"
+                   for row in rows),"Packaged IPA exposes legacy SideStore screen navigation"
+    return True
+
 def main():
     ap=argparse.ArgumentParser()
     ap.add_argument("--phase",required=True,choices=["pins","livecontainer","sidestore","combined"])
@@ -133,6 +145,7 @@ def main():
                 assert d["CFBundleIdentifier"]==HOST_ID+"."+ext,d["CFBundleIdentifier"]
             assert any(x.startswith(p+"Frameworks/SideStoreApp.framework/") for x in infolist)
             assert p+"Frameworks/SideStoreApp.framework/SideStore" in infolist
+            report["sideStoreSettingsScreenNavigationAbsent"]=verify_no_sidestore_screen_toggle(z,p)
             report["combinedIPAProduced"]=True
             report["originalHostIdentity"]=HOST_ID
             report["threeExtensionsPreserved"]=True
