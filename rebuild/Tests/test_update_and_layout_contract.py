@@ -21,15 +21,15 @@ class UpdateAndAlignmentTests(unittest.TestCase):
         self.assertNotIn(".glassEffect(",UI)
         self.assertFalse(LAYOUT["round_app_switcher"]["independent_window_manager_tab"])
 
-    def test_four_bottom_tabs_centered_on_six_screens(self):
+    def test_three_bottom_tabs_centered_on_six_source_screens(self):
         bar=LAYOUT["bottom_tab_bar"]
         self.assertEqual(len(LAYOUT["screens"]),6)
-        self.assertEqual(bar["tab_count"],4)
-        self.assertEqual(bar["labels"],["Home","Apps","Sources","Settings"])
+        self.assertEqual(bar["tab_count"],3)
+        self.assertEqual(bar["labels"],["Home","Sources","Settings"])
         self.assertEqual(bar["icon_and_label_horizontal_alignment"],"CENTER")
         self.assertEqual(bar["icon_bounds_center_x"],bar["label_bounds_center_x"])
         expected=[bar["x"]+bar["outer_padding"]+bar["tab_width"]/2+
-                  i*(bar["tab_width"]+bar["tab_spacing"]) for i in range(4)]
+                  i*(bar["tab_width"]+bar["tab_spacing"]) for i in range(3)]
         self.assertEqual(bar["equal_tab_centers"],expected)
         self.assertEqual(bar["x"]*2+bar["width"],LAYOUT["device_width_pt"])
 
