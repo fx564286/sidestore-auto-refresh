@@ -14,14 +14,14 @@ HOME=UI[UI.index("    private var home: some View {"):UI.index("    private var 
 class NativeHomeSettings(unittest.TestCase):
     def test_two_engine_cards_not_status_dashboard(self):
         self.assertEqual(HOME.count('installPathRow("'),2)
-        self.assertIn('installPathRow("iOS 앱 설치"',HOME)
+        self.assertIn('installPathRow("SideStore 앱 설치"',HOME)
         self.assertIn('installPathRow("게스트 앱 설치"',HOME)
         for redundant in ('"빠른 작업"','"최근 앱"','SCARLET_CENTERED_WORKSPACE_STATS','"활성 창"'):
             self.assertNotIn(redundant,HOME)
         self.assertEqual(DESIGN["design"]["alignment"]["homeAndSettings"]["engineEntryHeightsPt"],[62,62])
 
     def test_home_settings_simultaneously_visible_and_no_tab_on_landing(self):
-        self.assertIn('heading("", "IPA 설치", "")',HOME)
+        self.assertIn('heading("", "설치된 앱", "")',HOME)
         self.assertNotIn('heading("", "설정", "")',HOME)
         self.assertNotIn('ScarletActionRow(title: "LiveContainer 전체 설정"',HOME)
         self.assertNotIn('if selected != .home {',UI)
