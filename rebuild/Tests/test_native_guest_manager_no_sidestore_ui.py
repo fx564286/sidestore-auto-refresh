@@ -77,6 +77,18 @@ class LCManagerWithoutSideStoreGuestUI(unittest.TestCase):
             LCUtils.openSideStore(delegate: self)
             return
         }
+    func startInstallApp(_ fileUrl:URL) async {
+        do {
+            try await installIpaFile(fileUrl)
+        } catch {
+            errorInfo = error.localizedDescription
+        }
+    }
+    nonisolated func decompress(_ path: String, _ destination: String ,_ progress: Progress) async -> Int32 {
+        return 0
+    }
+    func startInstallFromUrl() async {
+    }
 '''
         with tempfile.TemporaryDirectory() as temporary:
             engine=Path(temporary)
@@ -97,6 +109,9 @@ class LCManagerWithoutSideStoreGuestUI(unittest.TestCase):
                               'bundleId == "builtinSideStore"'):
                 self.assertNotIn(forbidden,source)
             self.assertIn('if url.scheme == "sidestore" {',source)
+            self.assertIn("file_import_requested",source)
+            self.assertIn("import_pipeline_failed",source)
+            self.assertIn("url_import_requested",source)
             self.assertNotIn('setValue(url.absoluteString, forKey: "launchAppUrlScheme")',source)
 
     def test_unrecognized_native_version_refuses_to_patch(self):
