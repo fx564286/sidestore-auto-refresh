@@ -13,6 +13,7 @@ struct ScarletIntegratedHostView: View {
     @State private var showNativeAppLibrary = false
     @State private var showNativeSources = false
     @State private var showNativeSettings = false
+    @State private var showScarletAppleIDLogin = false
     @State private var showOriginalError: String?
 
     private var guestItems: [ScarletGuestPresentation] {
@@ -55,19 +56,14 @@ struct ScarletIntegratedHostView: View {
         }
     }
 
-    private func openEmbeddedSideStore(signIn: Bool = false) {
+    private func openEmbeddedSideStore() {
         guard UserDefaults.sideStoreExist() else {
             showOriginalError = "내장 SideStore 실행 파일이 없습니다. 통합 IPA를 검사하세요."
             return
         }
-        // The original SideStore guest owns Apple ID, password, 2FA, and
-        // signing credentials. Scarlet only requests its native sign-in UI.
-        // SideStore's injected URL handler routes this to its ORIGINAL
-        // SettingsViewController.signIn() -> AuthManager -> SignInOperation.
-        LCUtils.openSideStore(
-            delegate: nil,
-            urlStr: signIn ? "sidestore://signin" : nil
-        )
+        // Only the explicit SideStore app entry launches its guest UI.
+        // Scarlet Apple login MUST remain inside Scarlet's own interface.
+        LCUtils.openSideStore(delegate: nil)
     }
 
     private func handle(_ action: ScarletControl) {
@@ -76,7 +72,7 @@ struct ScarletIntegratedHostView: View {
             sharedModel.selectedTab = .apps
             showNativeAppLibrary = true
         case .serviceBeginSignIn:
-            openEmbeddedSideStore(signIn: true)
+            showScarletAppleIDLogin = true
         case .localOpenEmbeddedSideStore,
              .serviceRefreshApp,
              .serviceSyncAppIDs,
@@ -121,6 +117,11 @@ struct ScarletIntegratedHostView: View {
             }
         )
         .environmentObject(downloadHelper)
+        .sheet(isPresented: $showScarletAppleIDLogin) {
+            // Credentials remain in a Scarlet-owned ephemeral view.
+            // The embedded SideStore guest authentication UI is NOT opened.
+            ScarletAppleIDLoginSheet(engine: ScarletPendingSideStoreEngineBridge())
+        }
         .sheet(isPresented: $showNativeAppLibrary) {
             NavigationStack {
                 // ORIGINAL LC guest IPA importer, including file/URL import,

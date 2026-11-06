@@ -114,13 +114,6 @@ jobs:
           python3 rebuild/integration/verify_engines.py \
             --sidestore-source engine/SideStore --phase pins \
             --report report/source-gitlink-audit.json
-      - name: Route Scarlet sign-in to original SideStore login and 2FA
-        shell: bash
-        run: |
-          set -euo pipefail
-          python3 rebuild/integration/patch_sidestore_native_signin.py \
-            --engine engine/SideStore \
-            --report report/native-signin-adapter.json
       - name: Install SideStore official build prerequisite
         shell: bash
         run: brew install ldid
@@ -198,7 +191,6 @@ jobs:
             --lc-appinfo build-tools/LCAppInfo.plist \
             --dylibify build-tools/dylibify \
             --host-report artifacts/lc/scarlet-host-integration.json \
-            --side-auth-report artifacts/side/native-signin-adapter.json \
             --out report
           python3 rebuild/integration/verify_engines.py \
             --phase combined \

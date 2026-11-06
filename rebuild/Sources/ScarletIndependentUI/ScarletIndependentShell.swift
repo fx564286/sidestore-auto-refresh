@@ -599,7 +599,7 @@ public struct ScarletIndependentShell: View {
                 .buttonStyle(.plain)
                 .disabled(!snapshot.serviceConnected)
                 .accessibilityIdentifier("SCARLET_SETTINGS_NATIVE_APPLE_LOGIN")
-                .accessibilityHint("원본 SideStore Apple ID 로그인 화면을 바로 엽니다.")
+                .accessibilityHint("Scarlet의 Apple ID 로그인 입력 화면을 엽니다.")
             }
             .padding(.horizontal, 16)
             .padding(.vertical, 17)
@@ -678,7 +678,7 @@ public struct ScarletIndependentShell: View {
             }
             .disabled(!snapshot.serviceConnected)
             .accessibilityHint(snapshot.serviceConnected
-                ? "SideStore 로그인 요청을 시작합니다."
+                ? "Scarlet의 Apple ID 인증 화면을 엽니다."
                 : "먼저 SideStore 서비스 연결을 복구해야 합니다.")
             Text("로그인 시 2단계 인증이 필요할 수 있습니다.")
                 .font(.caption)
