@@ -32,7 +32,7 @@ class IndependentUIContractTests(unittest.TestCase):
 
     def test_home_settings_creation_rolled_back_and_engine_targets_preserved(self):
         h=UI[UI.index("    private var home: some View {"):UI.index("    private var visibleGuests:")]
-        self.assertIn('installPathRow("iOS 앱 설치"',h)
+        self.assertIn('installPathRow("SideStore 앱 설치"',h)
         self.assertIn('installPathRow("게스트 앱 설치"',h)
         self.assertIn('onAction(.serviceInstallIPA)',h)
         self.assertIn('onAction(.localImportGuestIPA)',h)
@@ -62,8 +62,7 @@ class IndependentUIContractTests(unittest.TestCase):
         self.assertNotIn("Menu {", UI)
         self.assertNotIn('quickAction("창 관리"', UI)
         self.assertNotIn('ScarletActionRow(title: "실행 및 창 관리"', UI)
-        expected = ('case home = "Home"', 'case apps = "Apps"',
-                    'case sources = "Sources"', 'case settings = "Settings"')
+        expected = ('case home = "Home"', 'case sources = "Sources"', 'case settings = "Settings"')
         for case in expected:
             self.assertIn(case, UI)
         self.assertEqual(UI.count('        case home = "Home"'), 1)
@@ -80,11 +79,11 @@ class IndependentUIContractTests(unittest.TestCase):
         self.assertIn('heading("", "소스", "")', UI)
         self.assertIn('Button(action: onAddSource)', UI)
         self.assertNotIn('case connection =', UI)
-        self.assertIn("showConnectionDetails = true", UI)
-        self.assertNotIn(".sheet(isPresented: $showConnectionDetails)", UI)
-        self.assertIn("if showConnectionDetails {", UI)
-        self.assertIn("SCARLET_CONNECTION_BACK", UI)
-        self.assertIn("onAction(.serviceReadSettings)", UI)
+        self.assertIn('if selected == .settings {',UI)
+        self.assertIn('nativeSettings()',UI)
+        self.assertIn('SCARLET_INLINE_NATIVE_LC_SETTINGS',UI)
+        self.assertNotIn('.sheet(isPresented: $showNativeSettings)',UI)
+        self.assertIn('onAction(.serviceBeginSignIn)',UI)
         self.assertTrue(CONTRACT["navigation"]["connection_signing_in_settings"])
 
     def test_auth_presentation_does_not_claim_service_equals_login(self):
@@ -97,7 +96,7 @@ class IndependentUIContractTests(unittest.TestCase):
         self.assertIn("One actor",CORE)
 
     def test_full_screen_structure_and_responsiveness(self):
-        for case in ('case home = "Home"','case apps = "Apps"',
+        for case in ('case home = "Home"',
                      'case sources = "Sources"','case settings = "Settings"'):
             self.assertIn(case,UI)
         for required in ("ScrollView","ForEach","TextField","Button",
@@ -118,7 +117,7 @@ class IndependentUIContractTests(unittest.TestCase):
         self.assertTrue(navigation.get("single_round_app_switcher"))
         self.assertEqual(navigation.get("round_switcher_size_pt"),62)
         self.assertTrue(navigation.get("bottom_tab_uses_existing_liquid_glass"))
-        self.assertEqual(navigation.get("bottom_tabs"),["home","apps","sources","settings"])
+        self.assertEqual(navigation.get("bottom_tabs"),["home","sources","settings"])
         self.assertFalse(navigation.get("home_and_settings_inline"))
         self.assertTrue(navigation.get("main_screen_requires_tab"))
         self.assertFalse(navigation.get("separate_window_management_tab"))
