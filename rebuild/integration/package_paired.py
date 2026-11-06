@@ -65,6 +65,27 @@ def side_urls(info):
     activities=info.setdefault("NSUserActivityTypes",[])
     for n in ("RefreshAllIntent","ViewAppIntent"):append_unique(activities,n)
 
+def remove_sidestore_ui_preference(settings_bundle: Path) -> int:
+    """Remove only legacy SideStore-screen navigation from a packaged host.
+
+    This does not alter SideStoreSupport, SideSign, credentials, profiles, guest
+    data, or the original upstream repository. Other settings are preserved.
+    """
+    settings=settings_bundle/"Root.plist"
+    if not settings.is_file():
+        return 0
+    payload=read(settings)
+    rows=payload.get("PreferenceSpecifiers",[])
+    if not isinstance(rows,list):
+        raise ValueError("Invalid host Settings.bundle preference specifiers")
+    kept=[row for row in rows
+          if not (isinstance(row,dict) and row.get("Key")=="LCOpenSideStore")]
+    removed=len(rows)-len(kept)
+    if removed:
+        payload["PreferenceSpecifiers"]=kept
+        write(settings,payload)
+    return removed
+
 def main():
     p=argparse.ArgumentParser()
     p.add_argument("--lc-tar",type=Path,required=True)
@@ -171,14 +192,10 @@ def main():
             shutil.rmtree(widgets)
             widget_discarded=True
 
-    settings=combined/"Settings.bundle/Root.plist"
-    if settings.is_file():
-        obj=read(settings)
-        rows=obj.setdefault("PreferenceSpecifiers",[])
-        if not any(row.get("Key")=="LCOpenSideStore" for row in rows):
-            rows.append(dict(Type="PSToggleSwitchSpecifier",Title="Open SideStore",
-                             Key="LCOpenSideStore",DefaultValue=False))
-        write(settings,obj)
+    # The Scarlet UI owns all navigation. Strip the old guest-UI entry from
+    # the packaged app without touching SideStore's authentication services.
+    removed_guest_ui_entries=remove_sidestore_ui_preference(
+        combined/"Settings.bundle")
 
     cleanup_codesign(combined)
     combined_ipa=args.out/"Scarlet-LiveContainer+SideStore-ENGINES-UNSIGNED.ipa"
@@ -200,6 +217,8 @@ def main():
         "nativeSideStoreSignInDeepLink":None,
         "originalSideStoreAuthFlowPreserved":True,
         "scarletOwnsCredentialUI":True,
+        "legacySideStoreScreenPreferencesRemoved":removed_guest_ui_entries,
+        "sideStoreSettingsScreenNavigationExposed":False,
         "sideStoreEngineTransportConnected":False,
         "loginDeviceVerified":False,
         "authAdapterAudit":{"nativeSideStoreAuthUIBypassed":True,
