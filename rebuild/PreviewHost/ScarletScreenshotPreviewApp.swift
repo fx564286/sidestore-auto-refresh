@@ -12,11 +12,11 @@ struct ScarletScreenshotPreviewApp: App {
         let index = args.firstIndex(of: "--screen")
         let screen = index.flatMap { i in args.indices.contains(i + 1) ? args[i + 1] : nil } ?? "home"
         switch screen {
-        case "apps": startTab = .home // legacy screenshot request maps to merged Home
+        case "apps", "home": startTab = .apps
         case "sources": startTab = .sources
-        case "settings": startTab = .settings
-        case "connection": startTab = .settings
-        default: startTab = .home
+        case "tweaks": startTab = .tweaks
+        case "settings", "connection": startTab = .settings
+        default: startTab = .apps
         }
     }
 
