@@ -295,7 +295,7 @@ def attach_native_settings_diagnostics(engine: Path) -> dict:
     source=source.replace(style_anchor,style_anchor+
         '        .sheet(isPresented: $scarletShowAppleLogin) {\n'
         '            if #available(iOS 17.0, *) {\n'
-        '                ScarletAppleIDLoginSheet(engine: ScarletPendingSideStoreEngineBridge())\n'
+        '                ScarletAppleIDLoginSheet(engine: ScarletConnectedSideSignEngine())\n'
         '            } else {\n'
         '                Text("Apple 로그인은 iOS 17 이상에서 제공됩니다.")\n'
         '            }\n'
