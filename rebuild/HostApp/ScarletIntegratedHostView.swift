@@ -119,6 +119,9 @@ struct ScarletIntegratedHostView: View {
             }
         )
         .environmentObject(downloadHelper)
+        .onAppear {
+            NSLog("[SCARLET_BOOT] phase=home-visible")
+        }
         .sheet(isPresented: $showScarletAppleIDLogin) {
             // Credentials remain in a Scarlet-owned ephemeral view.
             // The embedded SideStore guest authentication UI is NOT opened.
