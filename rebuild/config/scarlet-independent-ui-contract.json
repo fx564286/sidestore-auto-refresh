@@ -1,0 +1,76 @@
+{
+  "schema": 2,
+  "product": "Scarlet Crystal",
+  "design_file": "https://www.figma.com/design/QESg6S7oJS47PmlPpEX5w5",
+  "decision": "Independent UI rewrite except existing native Liquid Glass effect and upstream execution/signing engines",
+  "protected_runtime": [
+    {
+      "id": "liquid_glass",
+      "description": "Keep existing native Liquid Glass implementation and touch/gesture material; do not replace it with new fake blur panels."
+    },
+    {
+      "id": "livecontainer_engine",
+      "description": "Keep LiveContainer guest launch, app isolation and LiveProcess runtime execution engine."
+    },
+    {
+      "id": "sidestore",
+      "description": "Keep embedded SideStore application services, authentication and device operations via documented adapters."
+    },
+    {
+      "id": "sidesign",
+      "description": "Keep SideSign signing/authentication library and key handling, no invented replacement."
+    }
+  ],
+  "preserved_identity": {
+    "app_name": "Scarlet Crystal",
+    "bundle_id": "com.kdt.livecontainer.P8EZT3U5N4",
+    "team_id": "P8EZT3U5N4",
+    "extensions": [
+      "LiveProcess",
+      "ShareExtension",
+      "LaunchAppExtension"
+    ],
+    "keep_existing_app_groups": true,
+    "keep_signing_assets": true,
+    "keep_guest_and_host_data": true
+  },
+  "independent_ui": [
+    "overall information architecture and SwiftUI shell",
+    "home and app list presentation and local filtering",
+    "settings layouts, control sizes and navigational routing",
+    "pairing/Apple sign-in/2FA and signing status presentations",
+    "non-glass dialogs, notices, diagnostics and contextual error recovery",
+    "window manager action layout, size, touch targets and visual hierarchy without rewriting preserved Liquid Glass effect",
+    "responsive portrait/landscape-safe layout and dynamic type"
+  ],
+  "architecture": {
+    "ownership": "UI depends on action ports and structured snapshots; engines never depend on UI",
+    "settings": "Local state and actions cannot be blocked by SideStore connectivity",
+    "sideStore": "Service-backed control must state service/authorization/permission preconditions",
+    "mutations": "Do not claim success until authoritative result; no auto replay after unknown install/sign result",
+    "auth": "One session owner; pairing, Apple authentication, 2FA, provisioning and installation are distinct states",
+    "guestRuntime": "Use one existing LiveProcess control route; no duplicate Direct button paths",
+    "glass": "Existing Liquid Glass renderer/effect stays outside new UI code behind injected host adapter"
+  },
+  "visual_targets": {
+    "min_touch_target_pt": 44,
+    "section_gutter_pt": 20,
+    "card_radius_pt": 20,
+    "ensure_equal_segment_widths": true,
+    "visible_outside_tap_dismiss": true,
+    "no_overlap_or_clipping": true,
+    "dark_and_light_accessibility": "implement and test",
+    "no_dynamic_island_or_notch_integration": true
+  },
+  "release_gates": [
+    "Figma screen layers editable with screen parity coverage",
+    "pure Swift6 action coordinator behavioral tests pass",
+    "SwiftUI typechecks on pinned Xcode 27.2",
+    "host shell wired to LiveContainer and SideStore/SideSign adapters",
+    "settings actions actually observed on iPhone",
+    "native Liquid Glass code and gestures unchanged by checksum/diff",
+    "bundle identity, entitlements and App Groups verified",
+    "signed IPA actual upgrade install and data preservation",
+    "Apple sign-in 2FA, pairing, refresh and guest runtime verified on iPhone"
+  ]
+}
