@@ -1,63 +1,46 @@
-# Scarlet Crystal — clean-core rebuild (isolated baseline)
+# Scarlet Crystal — independent UI rebuild
 
-**Not an installable IPA, not a successful SideStore repair.** This folder
-implements the first verified boundary of the replacement application
-architecture, without changing the user's installed app, certificate or data.
+**Scope fixed 2026-11-06:** only the existing **native Liquid Glass effect**, **LiveContainer guest engine**, **SideStore services**, and **SideSign library** remain as protected runtime implementations. All other presentation, controls, settings, navigation, diagnostics, status screens and information architecture may be redesigned independently. Host identity and user data must still remain compatible.
 
-## Existing assets that MUST remain identical
+## Protected runtime and identity
 
-| Asset | Canonical value/policy |
+| Area | Required boundary |
 | --- | --- |
-| Product | Scarlet Crystal |
-| iOS host bundle ID | `com.kdt.livecontainer.P8EZT3U5N4` |
-| Apple free team | `P8EZT3U5N4` |
-| Extensions | LiveProcess, ShareExtension, LaunchAppExtension |
-| App Group | retain existing authorized group and access to existing data |
-| External parents | pinned LiveContainer and embedded SideStore, not a copy invented here |
-| Liquid Glass / gestures / windows | preserve original custom user-authored implementation, no notch feature |
-| Stored app data / accounts | no forced uninstall, reset, profile deletion or revocation |
-| Signing | development-sign existing bundle set; free account does not confer Ad Hoc OTA |
+| Native Liquid Glass | Keep existing effect code, gesture behavior and host presenter. New UI calls into it; do **not** fake/reimplement the material. |
+| LiveContainer | Keep guest execution/runtime engine and the single LiveProcess control route. |
+| SideStore | Keep the actual embedded service and pairing/auth/install behavior behind a clearly typed adapter. |
+| SideSign | Keep authentication and Apple-signing library; do not replace or invent Apple credentials. |
+| Identity | Scarlet Crystal `com.kdt.livecontainer.P8EZT3U5N4`; team `P8EZT3U5N4` and existing extensions. |
+| App Groups / user data | Preserve exact existing authorized groups, certificates, installed guests and host documents. No destructive reset. |
 
-## Reason for rebuild
+**The legacy `config/scarlet-ui-preservation.json` is historical for V144–V191 builds; it does not restrict the new independent UI.** Only the glass *effect and interaction implementation*, not the old non-glass layout, sizes, colors, positions or menus, is frozen. No notch or Dynamic Island integration.
 
-The V189 physical iPhone log shows `auth.rpc.lease_waiting` without a
-subsequent connect or send event. V191 bounds that waiting path but does not
-prove a working service. The settings UI separately gates SideStore-backed
-toggles on a stale snapshot, which makes many controls appear inert.
-Repeatedly forward-porting V3 patches is hard to validate as an app.
+Authoritative boundary: [`rebuild/config/scarlet-independent-ui-contract.json`](config/scarlet-independent-ui-contract.json).
 
-## Replacement, in order
+## Editable design
 
-1. **Working standalone interaction coordinator:** local action and service
-   action use distinct adapters and typed receipts. A broken service cannot
-   block native settings; an unverified remote write never claims success.
-2. Replace the host settings view using one unified action inventory and
-   trace every button's tap, disabled reason, request, result and persistence.
-   Distinguish UserDefaults, files, service settings and Apple authorization.
-3. Replace the V3 auth bridge with one session owner, one authoritative
-   SideStore connection, explicit reconnect/reset rules and a time-bounded
-   pre-XPC request lifecycle; no invented Apple 2FA results.
-4. Integrate upstream LiveContainer + SideStore source and preserve the old
-   Liquid Glass dock/guest control flows as data and tested design invariants.
-5. Execute iOS builds plus navigation/rotation/control tests and prove
-   compatible signing of all 4 bundles before delivering IPA. Install without
-   deleting the existing application. Re-verify password/2FA separately.
+[Figma — Scarlet Crystal · Independent UI Rebuild](https://www.figma.com/design/QESg6S7oJS47PmlPpEX5w5)
 
-## Verification evidence and limits
+Five editable iPhone concepts: Home, Apps, Settings, Connection & Signing, and Window Manager. Screen layers, text, colors and spacing are editable; preserved native Liquid Glass is marked as a runtime injection boundary. Existing runtime has **not** been replaced by these design frames.
 
-- `rebuild/Sources/ScarletCleanCore/ScarletActionCoordinator.swift` is new,
-  independent source: no legacy V3 import or old-state patch stack.
-- `rebuild/Tests/ScarletCleanCoreContract.swift` runs executable tests for
-  disconnected native settings, service-backed actions, authentication
-  gates, and no false installation success.
-- CI: `.github/workflows/scarlet-clean-core.yml`.
-- **Passing standalone tests do not mean the app is rebuilt.**
-  Real iOS integration, UI parity, Apple login, signed IPA and the user's
-  installed runtime remain separate unverified gates.
+## Implemented code in isolated branch
 
-## Safeguards
+- `rebuild/Sources/ScarletCleanCore/ScarletActionCoordinator.swift`: new Swift 6 actor, explicit local vs service vs authenticated-service action policies, service outage does not block local actions; unknown install/signing results never claim success.
+- `rebuild/Sources/ScarletIndependentUI/ScarletIndependentShell.swift`: independent SwiftUI home/apps/settings/connection shell. A callback invokes the existing **Liquid Glass window manager presenter**; the effect itself is not re-created.
+- `rebuild/Tests/ScarletCleanCoreContract.swift`: executable core behavioral tests.
+- `rebuild/Tests/test_independent_ui_contract.py`: preservation boundaries, real local routes, disabled states and iOS-safe layout checks.
+- `.github/workflows/scarlet-clean-core.yml`: Linux Swift 6 behavioral contract plus Xcode 27.2 iOS-Simulator SwiftUI typecheck.
 
-The original V191 and older release branches are preserved for comparison;
-this rebuild must not silently merge or overwrite them. No destructive
-migration is permitted. Keep a read-only compatibility test for existing
-guest containers, profiles and App Group access before any on-device upgrade.
+## Release gates (not complete)
+
+1. Wire shell into pinned upstream LiveContainer host with one adapter to actual SideStore and SideSign operations (no V3 patch-stack accretion).
+2. Preserve unchanged old Liquid Glass effect and guest controls by source diff and iPhone screenshot/interaction comparison.
+3. Every visible button routes to a real local setting or authenticated service action; failures visible and non-destructive. Verify portrait/landscape safe areas and outside-tap dismiss.
+4. Real iPhone pairing, Apple login and 6-digit 2FA, signing/provisioning and app installation must pass. A free Apple account cannot rely on Ad Hoc Safari OTA.
+5. Xcode integrated unsigned IPA, matching four-bundle provisioning, signed IPA, non-destructive upgrade and verified real build label. Keep old V189 installed until those pass.
+
+**Present state:** independent Figma designs + SwiftUI source + standalone and iOS typecheck only. The rebuilt host is not yet an installable IPA and actual SideStore/2FA remains unverified.
+
+## Safety
+
+No uninstall, App Group deletion, forced certificate/profile revocation or clearing guest data. Original V191 and earlier branches remain available for reference, not as a constraint on non-glass UI design.
