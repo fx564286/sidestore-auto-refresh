@@ -113,7 +113,12 @@ class IndependentUIContractTests(unittest.TestCase):
             self.assertIn(marker,UI)
         self.assertNotIn("UIScreen.main.bounds",UI)
         self.assertNotIn("UIWindow(",UI)
-        self.assertNotIn("removeItem(at:",HOST)
+        # Only the copied temporary IPA can be cleaned, not the Files original.
+        self.assertIn("startAccessingSecurityScopedResource()",HOST)
+        self.assertIn("FileManager.default.copyItem(at: source, to: temporary)",HOST)
+        self.assertIn("removeItem(at: queuedGuestIPAURL)",HOST)
+        self.assertNotIn("removeItem(at: source)",HOST)
+        self.assertNotIn("removeItem(at: selected)",HOST)
         self.assertIn("try await app.runApp()",HOST)
 
 if __name__=="__main__":
