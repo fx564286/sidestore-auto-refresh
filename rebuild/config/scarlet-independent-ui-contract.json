@@ -119,15 +119,24 @@
     "initial_screen": "apps",
     "original_livecontainer_settings_entry": "Settings tab -> inline LCSettingsView (original native Form; no sheet)",
     "original_sidestore_entry": "engine_only_never_launch_guest_UI",
-    "original_guest_apps_entry": "Apps tab directly lists actual LiveContainer guests; title-leading file-plus opens native LCAppListView",
-    "home_device_ipa_install": "ScarletControl.serviceInstallIPA -> headless SideStore/SideSign installer (transport unverified, fail closed)",
-    "home_guest_ipa_install": "ScarletControl.localImportGuestIPA -> LCAppListView original guest importer",
+    "original_guest_apps_entry": "Apps tab -> one title-leading + menu -> guest choice directly presents native LC IPA picker; no second +",
+    "home_device_ipa_install": "Apps title-leading + -> IPA 설치하기 -> SideStore headless device IPA install (transport unverified; fail closed)",
+    "home_guest_ipa_install": "Apps title-leading + -> 게스트 앱 설치하기 -> real LCAppListView native IPA file importer opens once automatically",
     "home_app_library_inline": true,
     "only_one_home_tab": true,
     "settings_tab_inline_native": true,
     "signin_input_editable": true,
     "signin_request_requires_verified_engine": true,
     "original_tweaks_entry": "Tweaks tab embeds original LCTweaksView without extra modal, native tweak enable/import/sign controls",
-    "reference_screenshot_scope": "BOTTOM TABS ORDER AND NAMES ONLY; retain existing Scarlet Crystal colors/layout/Live Glass/toolbar/content sizes"
+    "reference_screenshot_scope": "BOTTOM TABS ORDER AND NAMES ONLY; retain existing Scarlet Crystal colors/layout/Live Glass/toolbar/content sizes",
+    "apps_installer_entry_count": 1,
+    "apps_install_menu_choice_count": 2,
+    "apps_install_menu_choices": [
+      "IPA 설치하기",
+      "게스트 앱 설치하기"
+    ],
+    "apps_install_buttons_always_visible": false,
+    "apps_install_menu_native": true,
+    "no_second_guest_import_plus": true
   }
 }
