@@ -1,5 +1,5 @@
 {
-  "schema": 4,
+  "schema": 5,
   "product": "Scarlet Crystal",
   "design_file": "https://www.figma.com/design/QESg6S7oJS47PmlPpEX5w5",
   "decision": "Independent UI rewrite except existing native Liquid Glass effect and upstream execution/signing engines",
@@ -85,8 +85,8 @@
     "bottom_tabs": [
       "home",
       "apps",
-      "settings",
-      "connection"
+      "sources",
+      "settings"
     ],
     "bottom_tab_uses_existing_liquid_glass": true,
     "bottom_tab_injection": "Required host-provided existing interactive Liquid Glass bar, bound via Binding<Tab>; no synthetic glassEffect in clean UI",
@@ -100,6 +100,14 @@
     "app_switcher_action": "existing host overlay with recent apps and window management segmented controls",
     "overlay_outside_tap_dismiss": true,
     "top_right_extra_menu": false,
-    "no_duplicate_app_switcher_actions": true
+    "no_duplicate_app_switcher_actions": true,
+    "connection_signing_in_settings": true,
+    "bottom_tab_display_labels": [
+      "Home",
+      "Apps",
+      "Sources",
+      "Settings"
+    ],
+    "source_tab_uses_original_side_store_sources": true
   }
 }
