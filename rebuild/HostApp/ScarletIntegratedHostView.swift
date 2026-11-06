@@ -14,6 +14,7 @@ struct ScarletIntegratedHostView: View {
     @StateObject private var downloadHelper = DownloadHelper()
     @StateObject private var originalSources = AltStoreSourcesViewModel()
     @State private var showNativeAppLibrary = false
+    @State private var guestIPAImportFromAddMenu = false
     @State private var showNativeSources = false
     @State private var showScarletAppleIDLogin = false
     @State private var showOriginalError: String?
@@ -89,6 +90,7 @@ struct ScarletIntegratedHostView: View {
                 showOriginalError = error.localizedDescription
                 // The unchanged upstream screen keeps the complete
                 // certificate/container diagnostics available for recovery.
+                guestIPAImportFromAddMenu = false
                 showNativeAppLibrary = true
             }
         }
@@ -119,6 +121,7 @@ struct ScarletIntegratedHostView: View {
         case .localImportGuestIPA:
             ScarletDiagnosticRecorder.shared.record("guest_import", "manager_open_requested")
             sharedModel.selectedTab = .apps
+            guestIPAImportFromAddMenu = true
             showNativeAppLibrary = true
         case .serviceBeginSignIn:
             ScarletDiagnosticRecorder.shared.record("auth", "login_sheet_requested")
@@ -244,11 +247,13 @@ struct ScarletIntegratedHostView: View {
             // The embedded SideStore guest authentication UI is NOT opened.
             ScarletAppleIDLoginSheet(engine: ScarletPendingSideStoreEngineBridge())
         }
-        .sheet(isPresented: $showNativeAppLibrary) {
-            // Show the exact native LiveContainer screen requested by the user.
-            // LCAppListView owns its NavigationView and native + IPA/URL menu.
-            // Do not nest it in a second NavigationStack.
-            LCAppListView()
+        .sheet(isPresented: $showNativeAppLibrary, onDismiss: {
+            guestIPAImportFromAddMenu = false
+        }) {
+            // Reuse the original native LC file importer. Guest selection from
+            // the sole Apps + menu starts file selection without a second +.
+            // Other error-recovery entrances retain normal LC manager behavior.
+            LCAppListView(scarletStartIPAImport: guestIPAImportFromAddMenu)
                 .environmentObject(downloadHelper)
                 .environmentObject(sharedModel)
                 .environmentObject(LCAppSortManager.shared)
