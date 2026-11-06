@@ -18,6 +18,58 @@ import tempfile
 def file_sha(path):
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
+def instrument_original_guest_signing(engine: Path) -> dict:
+    """Trace the *original* LC signing step without changing sign/launch logic.
+
+    Swift.String errors otherwise flatten into NSError(domain=Swift.String,
+    code=1), concealing whether the launcher failed before opening a scene.
+    Categorize expected upstream signing errors; never export the raw
+    localized string, bundle path, app name or identity.
+    """
+    target = engine / "LiveContainerSwiftUI/Models/LCAppModel.swift"
+    assert target.is_file(), "Pinned LC guest model missing"
+    source = target.read_text()
+    original = "        try await signApp(force: false)\n"
+    assert source.count(original) == 1, "Pinned LC runApp signing step changed"
+    source = source.replace(original, """        ScarletDiagnosticRecorder.shared.record("guest", "signing_started")
+        do {
+            try await signApp(force: false)
+            ScarletDiagnosticRecorder.shared.record("guest", "signing_completed", status: "success")
+        } catch {
+            ScarletDiagnosticRecorder.shared.recordError("guest", "signing_failed", error: error)
+            throw error
+        }
+""")
+    err_anchor = "                throw signError.loc\n"
+    assert source.count(err_anchor) == 1, "Pinned LC signing error pathway changed"
+    source = source.replace(err_anchor, """                let safeReason: String
+                let detail = signError.lowercased()
+                if detail.contains("nocertificatefound") {
+                    safeReason = "certificate_missing"
+                } else if detail.contains("latestcertificateinvalid") {
+                    safeReason = "certificate_invalid"
+                } else if detail.contains("encrypted") {
+                    safeReason = "encrypted_binary"
+                } else if detail.contains("entitlement") {
+                    safeReason = "entitlements"
+                } else if detail.contains("certificate") {
+                    safeReason = "certificate_error"
+                } else {
+                    safeReason = "other_sign_error"
+                }
+                ScarletDiagnosticRecorder.shared.record(
+                    "guest", "signing_reason", status: "error",
+                    fields: ["reason": safeReason])
+                throw signError.loc
+""")
+    target.write_text(source)
+    return {"originalLCSigningUnchanged": True,
+            "originalLCLauncherUnchanged": True,
+            "signingPhaseLogged": True,
+            "safeFailureCategoryLogged": True,
+            "sha256": file_sha(target)}
+
+
 def apply_figma_app_icon(root: Path, engine: Path) -> dict:
     """Build native AppIcon assets from the exact Figma artwork, before actool.
 
@@ -497,6 +549,7 @@ def main():
     dock_source=dock_source.replace(unsafe_init,safe_init)
     assert "keyWindow!.rootViewController!.view.subviews.first!" not in dock_source, "Unsafe force unwrap retained"
     dock_src_file.write_text(dock_source)
+    guest_signing=instrument_original_guest_signing(engine)
     guest_manager=hide_embedded_sidestore_guest_navigation(engine)
     native_settings=attach_native_settings_diagnostics(engine)
     native_tweaks_theme=apply_scarlet_native_tweaks_theme(engine)
@@ -514,6 +567,7 @@ def main():
         "embeddedSideStoreGuestUIEnabled":False,
         "embeddedSideStoreEnginePreserved":True,
         "nativeGuestManager":guest_manager,
+        "originalLCGuestSigningDiagnostics":guest_signing,
         "nativeSettingsDiagnostics":native_settings,
         "nativeTweaksTheme":native_tweaks_theme,
         "localDiagnosticJournal":True,
@@ -526,7 +580,8 @@ def main():
             "MultitaskSupport/MultitaskDockView.swift",
             "LiveContainerSwiftUI/Views/AppList/LCAppListView.swift",
             "LiveContainerSwiftUI/Views/Settings/LCSettingsView.swift",
-            "LiveContainerSwiftUI/Views/LCTweaksView.swift"
+            "LiveContainerSwiftUI/Views/LCTweaksView.swift",
+            "LiveContainerSwiftUI/Models/LCAppModel.swift"
         ],
 
         "customAppIcon":figma_icon,
