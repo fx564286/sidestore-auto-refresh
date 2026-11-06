@@ -27,7 +27,7 @@ def apply_figma_app_icon(root: Path, engine: Path) -> dict:
     source=root/"rebuild/assets/ScarletCrystalAppIcon.figma.png.base64"
     assert source.is_file(), "Figma icon artwork is missing"
     png=base64.b64decode(source.read_text().strip(), validate=True)
-    assert png.startswith(b"\\x89PNG\\r\\n\\x1a\\n"), "Invalid PNG signature"
+    assert png.startswith(b"\x89PNG\r\n\x1a\n"), "Invalid PNG signature"
     width,height=struct.unpack(">II",png[16:24])
     assert width>=512 and height>=512 and width==height, (width,height)
     iconset=engine/"Resources/Assets.xcassets/AppIcon.appiconset"
@@ -46,7 +46,7 @@ def apply_figma_app_icon(root: Path, engine: Path) -> dict:
                             str(original),"--out",str(destination)],
                            check=True, stdout=subprocess.DEVNULL)
             output=destination.read_bytes()
-            assert output.startswith(b"\\x89PNG\\r\\n\\x1a\\n")
+            assert output.startswith(b"\x89PNG\r\n\x1a\n")
             assert struct.unpack(">II",output[16:24])==(1024,1024)
     return {"sourceFigmaNode":"108:2","inputPixels":[width,height],
             "primaryIcon":"AppIcon1024.png","variants":names,
@@ -97,20 +97,20 @@ def main():
     # host before any error screen is displayed. Skip that guest only; NEVER
     # delete or rewrite the bundle, container or shared App Group data.
     src=src.replace(original,new)
-    boot_anchor="    init() {\\n"
+    boot_anchor="    init() {\n"
     assert src.count(boot_anchor)==1, "Pinned entry initializer changed"
     src=src.replace(boot_anchor,
-        boot_anchor+'        NSLog("[SCARLET_BOOT] phase=app-init-start")\\n')
+        boot_anchor+'        NSLog("[SCARLET_BOOT] phase=app-init-start")\n')
     guest_anchors={
-        'let newApp = LCAppInfo(bundlePath: "\\(LCPath.bundlePath.path)/\\(appDir)")!':
-        'guard let newApp = LCAppInfo(bundlePath: "\\(LCPath.bundlePath.path)/\\(appDir)") else {\\n'
-        '                    NSLog("[SCARLET_BOOT] invalid-local-guest-skipped")\\n'
-        '                    continue\\n'
+        'let newApp = LCAppInfo(bundlePath: "\(LCPath.bundlePath.path)/\(appDir)")!':
+        'guard let newApp = LCAppInfo(bundlePath: "\(LCPath.bundlePath.path)/\(appDir)") else {\n'
+        '                    NSLog("[SCARLET_BOOT] invalid-local-guest-skipped")\n'
+        '                    continue\n'
         '                }',
-        'let newApp = LCAppInfo(bundlePath: "\\(LCPath.lcGroupBundlePath.path)/\\(appDir)")!':
-        'guard let newApp = LCAppInfo(bundlePath: "\\(LCPath.lcGroupBundlePath.path)/\\(appDir)") else {\\n'
-        '                        NSLog("[SCARLET_BOOT] invalid-shared-guest-skipped")\\n'
-        '                        continue\\n'
+        'let newApp = LCAppInfo(bundlePath: "\(LCPath.lcGroupBundlePath.path)/\(appDir)")!':
+        'guard let newApp = LCAppInfo(bundlePath: "\(LCPath.lcGroupBundlePath.path)/\(appDir)") else {\n'
+        '                        NSLog("[SCARLET_BOOT] invalid-shared-guest-skipped")\n'
+        '                        continue\n'
         '                    }'
     }
     for before,after in guest_anchors.items():
