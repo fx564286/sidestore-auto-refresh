@@ -18,13 +18,17 @@ class NativeHomeSettings(unittest.TestCase):
         self.assertIn("guests: visibleGuests",HOME)
         self.assertIn("SCARLET_HOME_DEVICE_IPA_INSTALL",HOME)
         self.assertIn("SCARLET_HOME_GUEST_IPA_INSTALL",HOME)
-        self.assertEqual(NAV["bottom_tabs"],["home","sources","settings"])
+        self.assertEqual(NAV["bottom_tabs"],["sources","apps","tweaks","settings"])
+        self.assertEqual(NAV["initial_screen"],"apps")
+        self.assertIn("initialTab: Tab = .apps",UI)
         self.assertNotIn('private var apps: some View {',UI)
 
     def test_settings_tab_direct_native_not_an_extra_modal(self):
         self.assertIn("if selected == .settings {",UI)
         self.assertIn("nativeSettings()",UI)
         self.assertIn("LCSettingsView()",HOST)
+        self.assertIn("LCTweaksView()",HOST)
+        self.assertIn("nativeTweaks()",UI)
         self.assertNotIn(".sheet(isPresented: $showNativeSettings)",HOST)
         self.assertNotIn("showNativeSettings = true",HOST)
         self.assertNotIn("showConnectionDetails",UI)
