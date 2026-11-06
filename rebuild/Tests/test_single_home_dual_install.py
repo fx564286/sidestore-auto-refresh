@@ -21,13 +21,16 @@ class DualInstallRoutes(unittest.TestCase):
         self.assertNotIn('"최근 앱"',HOME)
         self.assertNotIn('"빠른 작업"',HOME)
     def test_original_guest_import_and_no_sidestore_window(self):
-        self.assertIn("LCAppListView(scarletStartIPAImport: guestIPAImportFromAddMenu)",HOST)
+        self.assertIn(".fileImporter(isPresented: $showGuestFilePicker,",HOST)
+        self.assertIn("LCAppListView(scarletQueuedIPAURL: queuedGuestIPAURL,",HOST)
+        self.assertNotIn("showNativeAppLibrary",HOST)
         self.assertIn("case .localImportGuestIPA:",HOST)
         self.assertIn("case .serviceInstallIPA:",HOST)
         self.assertNotIn("LCUtils.openSideStore(",HOST)
         self.assertIn("prepareDeviceIPAInstall()",HOST)
         self.assertIn("아직 검증되지 않았습니다",HOST)
         self.assertIn("UserDefaults.sideStoreExist()",HOST)
-        self.assertIn("guestIPAImportFromAddMenu = true",HOST)
+        self.assertIn("showGuestFilePicker = true",HOST)
+        self.assertNotIn("guestIPAImportFromAddMenu",HOST)
 if __name__=="__main__":
     unittest.main()
