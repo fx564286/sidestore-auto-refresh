@@ -173,7 +173,7 @@ def main():
     // first key window. Mount the same native host after the scene is ready.
     public func scarletEnsureWindowHost() {
         guard let rootView = keyWindow?.rootViewController?.view else { return }
-        let target = rootView.subviews.first ?? rootView
+        let target = rootView.subviews.first(where: { $0 !== windowHostingView }) ?? rootView
         if windowHostingView.superview !== target {
             windowHostingView.removeFromSuperview()
             target.addSubview(windowHostingView)
