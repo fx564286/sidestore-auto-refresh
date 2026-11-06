@@ -106,6 +106,16 @@ class LCManagerWithoutSideStoreGuestUI(unittest.TestCase):
             errorInfo = error.localizedDescription
         }
     }
+    func installIpaFile(_ url: URL) async throws {
+        // we leave it unsigned even if signing failed
+        if let signError {
+            if signSuccess {
+                errorInfo = signError
+            } else {
+                errorInfo = signError.loc
+            }
+        }
+    }
     nonisolated func decompress(_ path: String, _ destination: String ,_ progress: Progress) async -> Int32 {
         return 0
     }
@@ -137,6 +147,8 @@ class LCManagerWithoutSideStoreGuestUI(unittest.TestCase):
             self.assertIn("await startInstallApp(queuedIPA)",source)
             self.assertTrue(report["scarletAppListNotPresentedDuringImport"])
             self.assertIn("import_pipeline_failed",source)
+            self.assertIn("import_signing_failed",source)
+            self.assertIn("launch_unverified",source)
             self.assertIn("url_import_requested",source)
             self.assertNotIn('setValue(url.absoluteString, forKey: "launchAppUrlScheme")',source)
 
