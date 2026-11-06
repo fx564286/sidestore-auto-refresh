@@ -135,48 +135,83 @@ def hide_embedded_sidestore_guest_navigation(engine: Path) -> dict:
         else:
             assert source.count(original)==1, "Pinned LC import tracer duplicate: "+repr(original)
             source=source.replace(original,patched)
-    # The single Scarlet + menu already chooses the install type.
-    # Guest choice must directly open the ORIGINAL LC importer rather
-    # than making the user press a second + in LCAppListView.
+    # The Scarlet + button presents Files directly, never LC's app-list page.
+    # Only the existing LC import/replace/signing state machine is retained.
+    # The original manager remains available to original LC entry points,
+    # but it is not presented during any Scarlet IPA selection or installation.
     importer_init="""    init() {
         _installOptions = State(initialValue: [])
     }
 """
-    importer_new="""    private let scarletStartIPAImport: Bool
-    @State private var scarletDidPromptIPAImport = false
+    importer_new="""    private let scarletQueuedIPAURL: URL?
+    private let scarletOnImportFinished: (() -> Void)?
+    @State private var scarletDidStartQueuedImport = false
+    @State private var scarletQueuedImportFinished = false
 
-    init(scarletStartIPAImport: Bool = false) {
-        self.scarletStartIPAImport = scarletStartIPAImport
+    init(scarletQueuedIPAURL: URL? = nil,
+         scarletOnImportFinished: (() -> Void)? = nil) {
+        self.scarletQueuedIPAURL = scarletQueuedIPAURL
+        self.scarletOnImportFinished = scarletOnImportFinished
         _installOptions = State(initialValue: [])
     }
 """
-    assert source.count(importer_init)==1, "Pinned LC importer initializer changed"
-    source=source.replace(importer_init,importer_new)
-    appear="""            .onAppear {
-                if !didAppear {
-                    onAppear()
-                }
-            }
+    assert source.count(importer_init) == 1, "Pinned LC importer initializer changed"
+    source = source.replace(importer_init, importer_new)
+
+    begin = """        NavigationView {
+            ScrollView {
 """
-    appear_new="""            .onAppear {
-                if !didAppear {
-                    onAppear()
+    replacement = """        NavigationView {
+            if let queuedIPA = scarletQueuedIPAURL {
+                VStack(spacing: 20) {
+                    Image(systemName: "square.and.arrow.down.on.square")
+                        .font(.system(size: 32))
+                    Text(scarletQueuedImportFinished ? "IPA 처리 완료" : "IPA 가져오는 중")
+                        .font(.headline)
+                    ProgressView(value: Double(installProgressPercentage))
+                        .frame(maxWidth: 280)
+                    Button("닫기") {
+                        scarletOnImportFinished?()
+                    }
+                    .disabled(installprogressVisible)
+                    .accessibilityIdentifier("SCARLET_IMPORT_PROGRESS_CLOSE")
                 }
-                if scarletStartIPAImport && !scarletDidPromptIPAImport {
-                    scarletDidPromptIPAImport = true
-                    DispatchQueue.main.async {
-                        choosingIPA = true
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .background(Color(red: 13.0/255, green: 13.0/255, blue: 24.0/255).ignoresSafeArea())
+                .onAppear {
+                    guard !scarletDidStartQueuedImport else { return }
+                    scarletDidStartQueuedImport = true
+                    if !didAppear { onAppear() }
+                    Task {
+                        await startInstallApp(queuedIPA)
+                        scarletQueuedImportFinished = true
                     }
                 }
-            }
+                .accessibilityIdentifier("SCARLET_GUEST_IMPORT_PROGRESS_ONLY")
+            } else {
+                ScrollView {
 """
-    assert source.count(appear)==1, "Pinned LC importer appearance changed"
-    source=source.replace(appear,appear_new)
+    assert source.count(begin) == 1, "Pinned LC app manager body changed"
+    source = source.replace(begin, replacement)
+    end = """        }
+        .navigationViewStyle(StackNavigationViewStyle())
+"""
+    assert source.count(end) == 1, "Pinned LC NavigationView close changed"
+    source = source.replace(end, """            }
+        }
+        .navigationViewStyle(StackNavigationViewStyle())
+""")
+
+    # The existing betterFileImporter, replacement confirmation and errors
+    # remain attached to NavigationView; the queued branch never shows ScrollView.
+    assert source.count("SCARLET_GUEST_IMPORT_PROGRESS_ONLY") == 1
     assert '.betterFileImporter(isPresented: $choosingIPA' in source
+    assert 'try await installIpaFile(fileUrl)' in source
     view.write_text(source)
     return {"appManager":"LCAppListView",
             "nativeIPAImportPreserved":True,
-            "guestSelectionOpensNativeFileImporterOnce":True,
+            "scarletFilesPickerOwnedByHost":True,
+            "scarletAppListNotPresentedDuringImport":True,
             "nativeURLImportPreserved":True,
             "embeddedSideStoreGuestNavigationRemoved":True,
             "embeddedSideStoreEnginePreserved":True,
