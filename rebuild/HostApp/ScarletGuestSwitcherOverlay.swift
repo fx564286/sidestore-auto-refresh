@@ -132,9 +132,10 @@ struct ScarletGuestSwitcherOverlay: View {
                 ScarletNativeGlassSwitcher(openManager: {
                     if isOpen { closeSwitcher() } else { openSwitcher() }
                 })
+                .padding(.leading, 4)
                 .accessibilityIdentifier("SCARLET_GUEST_ONLY_ROUND_SWITCHER")
             }
-            .padding(.leading, 22)
+            .padding(.leading, 18)
             .padding(.bottom, 76)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
@@ -209,16 +210,16 @@ struct ScarletGuestSwitcherOverlay: View {
             }
             .frame(maxHeight: 224)
             if selectedSegment == 1 {
-                HStack(spacing: 8) {
-                    Button("최소화") {
+                HStack(spacing: 7) {
+                    guestWindowCommand("최소화", symbol: "minus") {
                         MultitaskDockManager.shared.minimizeAllWindows()
                         closeSwitcher()
                     }
-                    Button("최대화") {}.disabled(true)
-                    Button("닫기") {}.disabled(true)
+                    guestWindowCommand("최대화",
+                                       symbol: "arrow.up.left.and.arrow.down.right",
+                                       isEnabled: false) {}
+                    guestWindowCommand("닫기", symbol: "xmark", isEnabled: false) {}
                 }
-                .font(.footnote.weight(.semibold))
-                .buttonStyle(.plain)
                 .frame(maxWidth: .infinity)
                 .accessibilityHint("창별 소유권 연결 전에는 최대화와 닫기를 실행할 수 없습니다.")
             }
@@ -236,5 +237,30 @@ struct ScarletGuestSwitcherOverlay: View {
                 .stroke(.white.opacity(0.22), lineWidth: 1)
         }
         .accessibilityIdentifier("SCARLET_GUEST_LIVE_PREVIEW_PANEL")
+    }
+
+    // Centered 320pt three-column window actions; unavailable actions
+    // remain disabled until the original window owner can be verified.
+    private func guestWindowCommand(_ title: String, symbol: String,
+                                    isEnabled: Bool = true,
+                                    action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            VStack(spacing: 2) {
+                Image(systemName: symbol)
+                    .font(.system(size: 16, weight: .semibold))
+                    .frame(height: 23, alignment: .center)
+                Text(title)
+                    .font(.system(size: 12, weight: .semibold))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.85)
+            }
+            .frame(maxWidth: .infinity, minHeight: 55, alignment: .center)
+            .background(Color.black.opacity(0.26),
+                        in: RoundedRectangle(cornerRadius: 12))
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .frame(maxWidth: .infinity)
+        .disabled(!isEnabled)
     }
 }

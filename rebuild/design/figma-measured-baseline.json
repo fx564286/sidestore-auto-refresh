@@ -93,7 +93,10 @@
         "Apps": "square.grid.3x3",
         "Sources": "books.vertical",
         "Settings": "gearshape"
-      }
+      },
+      "guestPanelLeftPt": 18,
+      "guestSwitcherLeftPt": 22,
+      "guestWindowActionColumnWidthPt": 102
     }
   },
   "screens": [

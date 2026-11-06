@@ -49,6 +49,11 @@ class GuestOnlySwitcherContract(unittest.TestCase):
         self.assertNotIn('Text(guest.detail)',UI)
         self.assertNotIn('Text(item.id == dataUUID ? "현재 실행 중" : "실행 중")',GUEST)
         self.assertIn('.frame(maxWidth: 354)',GUEST)
+        self.assertIn('.padding(.leading, 18)',GUEST)
+        self.assertIn('.padding(.leading, 4)',GUEST)
+        self.assertIn('HStack(spacing: 7)',GUEST)
+        self.assertIn('guestWindowCommand("최대화"',GUEST)
+        self.assertIn('guestWindowCommand("닫기"',GUEST)
 
         self.assertIn("ScarletNativeGlassSwitcher(openManager:",GUEST)
 
