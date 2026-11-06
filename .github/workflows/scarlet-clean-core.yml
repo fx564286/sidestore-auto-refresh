@@ -40,7 +40,8 @@ jobs:
         run: |
           set -euo pipefail
           python3 -m json.tool rebuild/config/scarlet-independent-ui-contract.json >/dev/null
-          python3 -m unittest discover -s rebuild/Tests -p 'test_independent_ui_contract.py' -v
+          python3 -m unittest discover -s rebuild/Tests -p 'test_*.py' -v
+          python3 -m py_compile rebuild/tools/renewal_policy.py
           python3 -m unittest discover -s rebuild/Tests -p 'test_scarlet_upstream_candidate.py' -v
       - name: Compile pure Swift 6 source and run executable behavioral contract
         shell: bash
