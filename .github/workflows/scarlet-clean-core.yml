@@ -5,12 +5,14 @@ on:
   push:
     branches:
       - rebuild/scarlet-from-zero-20261106
+      - research/scarlet-engine-only-auth-xpc-20261106
     paths:
       - 'rebuild/**'
       - '.github/workflows/scarlet-clean-core.yml'
   pull_request:
     branches:
       - rebuild/scarlet-from-zero-20261106
+      - research/scarlet-engine-only-auth-xpc-20261106
     paths:
       - 'rebuild/**'
       - '.github/workflows/scarlet-clean-core.yml'
