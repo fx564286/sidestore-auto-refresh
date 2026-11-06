@@ -29,13 +29,14 @@ class AlignmentTests(unittest.TestCase):
 
     def test_home_native_glass_settings_navigation_restored(self):
         home=UI[UI.index("    private var home: some View {"):UI.index("    private var visibleGuests:")]
-        self.assertEqual(home.count('installPathRow("'),2)
+        self.assertEqual(home.count("Menu {"),1)
         self.assertNotIn('heading("", "설정", "")',home)
         self.assertNotIn('if selected != .home {',UI)
         self.assertNotIn('SCARLET_CENTERED_WORKSPACE_STATS',UI)
         self.assertNotIn('quickAction("앱 추가"',UI)
         self.assertIn('preservedGlassTabBar($selected)',UI)
-        self.assertEqual(AUDIT["geometry"]["homeEngineEntryWidthsPt"],[350,350])
+        self.assertEqual(AUDIT["geometry"]["homeEngineEntryWidthsPt"],[350,350])  # archival Figma v1, not current Apps layout
+        self.assertNotIn("installPathRow(",UI)
 
 
 if __name__=="__main__":
