@@ -194,7 +194,7 @@ def hide_embedded_sidestore_guest_navigation(engine: Path) -> dict:
     # A returned importer is *not* proof of a runnable, signed application.
     # Emit a bounded failure class; do not put the user-facing signing error,
     # app name, IPA path or certificate details in diagnostic JSONL.
-    sign_marker = "        // we leave it unsigned even if signing failed\\n        if let signError {\\n"
+    sign_marker = "        // we leave it unsigned even if signing failed\n        if let signError {\n"
     assert source.count(sign_marker) == 1, "Pinned LC import signing pathway changed"
     sign_patch = """        // we leave it unsigned even if signing failed
         if let signError {
