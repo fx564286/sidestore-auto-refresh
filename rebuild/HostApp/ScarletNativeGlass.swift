@@ -111,40 +111,107 @@ struct SCNativeLiquidGlassSurface: UIViewRepresentable {
     }
 }
 
+// The actual iOS 26+ implementation uses the SwiftUI glass compositor.
+// Two distinct glass shapes contribute to ONE container: the full pill and
+// the selection pill. This is not a translucent Color overlay pretending
+// to be Liquid Glass. Geometry matches the old 62pt Scarlet bar.
+@available(iOS 26.0, *)
+private struct SCInteractiveGlassTabs: View {
+    @Binding var selected: ScarletIndependentShell.Tab
+    @Namespace private var activeGlassNamespace
+
+    var body: some View {
+        GlassEffectContainer(spacing: 4) {
+            HStack(spacing: 6) {
+                ForEach(ScarletIndependentShell.Tab.allCases, id: \.self) { tab in
+                    Button {
+                        withAnimation(.spring(response: 0.34, dampingFraction: 0.78)) {
+                            selected = tab
+                        }
+                    } label: {
+                        VStack(spacing: 3) {
+                            Image(systemName: tab.icon)
+                                .font(.system(size: 19, weight: .medium))
+                            Text(tab.rawValue)
+                                .font(.system(size: 11.5, weight: .medium))
+                        }
+                        .frame(maxWidth: .infinity, minHeight: 52)
+                        .foregroundStyle(selected == tab ? .white : .white.opacity(0.78))
+                        .contentShape(Capsule())
+                    }
+                    .buttonStyle(.plain)
+                    .frame(maxWidth: .infinity)
+                    .background {
+                        if selected == tab {
+                            Capsule()
+                                .fill(.clear)
+                                .glassEffect(
+                                    .regular.tint(.white.opacity(0.12)).interactive(),
+                                    in: Capsule()
+                                )
+                                .glassEffectID("scarlet-active-tab", in: activeGlassNamespace)
+                        }
+                    }
+                    .accessibilityIdentifier("SCARLET_NATIVE_GLASS_TAB_" + tab.rawValue)
+                    .accessibilityAddTraits(selected == tab ? .isSelected : [])
+                }
+            }
+            .padding(.horizontal, 5)
+            .frame(height: 62)
+            .background {
+                Capsule()
+                    .fill(.clear)
+                    .glassEffect(.regular, in: Capsule())
+                    .accessibilityIdentifier("SCARLET_REAL_GLASS_TAB_BAR")
+            }
+        }
+        // Keep the glass compositor visible all the way to the outer edges.
+        // Do NOT add UIKit clipping/opaque tint on this native glass path.
+        .frame(height: 62)
+    }
+}
+
 @available(iOS 16.0, *)
 struct ScarletNativeGlassTabBar: View {
     @Binding var selected: ScarletIndependentShell.Tab
 
     var body: some View {
-        HStack(spacing: 6) {
-            ForEach(ScarletIndependentShell.Tab.allCases, id: \.self) { tab in
-                Button {
-                    selected = tab
-                } label: {
-                    VStack(spacing: 3) {
-                        Image(systemName: tab.icon)
-                            .font(.system(size: 19, weight: .medium))
-                        Text(tab.rawValue)
-                            .font(.system(size: 11.5, weight: .medium))
+        Group {
+            if #available(iOS 26.0, *),
+               !UIAccessibility.isReduceTransparencyEnabled {
+                SCInteractiveGlassTabs(selected: $selected)
+            } else {
+                // Only for older OS or explicit Reduce Transparency setting.
+                HStack(spacing: 6) {
+                    ForEach(ScarletIndependentShell.Tab.allCases, id: \.self) { tab in
+                        Button { selected = tab } label: {
+                            VStack(spacing: 3) {
+                                Image(systemName: tab.icon)
+                                    .font(.system(size: 19, weight: .medium))
+                                Text(tab.rawValue)
+                                    .font(.system(size: 11.5, weight: .medium))
+                            }
+                            .frame(maxWidth: .infinity, minHeight: 52)
+                            .foregroundStyle(selected == tab ? Color.white : Color.white.opacity(0.73))
+                            .background(
+                                selected == tab ? Color.white.opacity(0.16) : Color.clear,
+                                in: Capsule()
+                            )
+                        }
+                        .buttonStyle(.plain)
+                        .frame(maxWidth: .infinity)
+                        .accessibilityIdentifier("SCARLET_NATIVE_GLASS_TAB_" + tab.rawValue)
                     }
-                    .frame(maxWidth: .infinity, minHeight: 52)
-                    .foregroundStyle(selected == tab ? Color.white : Color.white.opacity(0.73))
-                    .background(selected == tab ? Color.white.opacity(0.16) : Color.clear,
-                                in: Capsule())
                 }
-                .buttonStyle(.plain)
-                .frame(maxWidth: .infinity)
-                .accessibilityIdentifier("SCARLET_NATIVE_GLASS_TAB_" + tab.rawValue)
-                .accessibilityAddTraits(selected == tab ? .isSelected : [])
+                .padding(.horizontal, 5)
+                .frame(height: 62)
+                .background {
+                    SCNativeLiquidGlassSurface(cornerRadius: 31,
+                        selectedIndex: ScarletIndependentShell.Tab.allCases.firstIndex(of: selected) ?? 0)
+                }
+                .clipShape(Capsule())
             }
         }
-        .padding(.horizontal, 5)
-        .frame(height: 62)
-        .background {
-            SCNativeLiquidGlassSurface(cornerRadius: 31,
-                 selectedIndex: ScarletIndependentShell.Tab.allCases.firstIndex(of: selected) ?? 0)
-        }
-        .clipShape(Capsule())
     }
 }
 
