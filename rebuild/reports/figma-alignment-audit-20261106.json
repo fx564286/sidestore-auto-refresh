@@ -54,10 +54,10 @@
       0
     ],
     "roundSwitcherDiameterPt": 62,
-    "glassOverlaySegmentWidthPt": 151,
+    "glassOverlaySegmentWidthPt": 153,
     "glassOverlaySegmentXPt": [
       7,
-      164
+      162
     ],
     "glassOverlaySegmentContentWidthPt": 322,
     "windowActionWidthsPt": [
@@ -74,5 +74,6 @@
     "doNotDuplicateSwitchers": true,
     "doNotBuildFauxGlass": true,
     "noSeparateWindowManagerTab": true
-  }
+  },
+  "validation": "Figma six-screen visual screenshot review and node-geometry audit 2026-11-06; iOS host rendering not yet compared"
 }
