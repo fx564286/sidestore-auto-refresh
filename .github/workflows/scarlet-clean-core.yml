@@ -1,16 +1,16 @@
-name: Scarlet Crystal CLEAN CORE - standalone behavioral tests
+name: Scarlet Crystal NEW PROJECT - clean source tests
 
 on:
   workflow_dispatch:
   push:
     branches:
-      - rebuild/scarlet-clean-core-20261106
+      - rebuild/scarlet-from-zero-20261106
     paths:
       - 'rebuild/**'
       - '.github/workflows/scarlet-clean-core.yml'
   pull_request:
     branches:
-      - rebuild/scarlet-clean-core-20261106
+      - rebuild/scarlet-from-zero-20261106
     paths:
       - 'rebuild/**'
       - '.github/workflows/scarlet-clean-core.yml'

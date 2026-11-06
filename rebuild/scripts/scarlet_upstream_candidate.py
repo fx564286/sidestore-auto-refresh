@@ -1,52 +1,75 @@
 #!/usr/bin/env python3
-"""Scarlet Crystal upstream candidate discovery; does NOT ship or install apps.
-
-LiveContainer main and the embedded LiveContainer/SideStore fork are the two
-authoritative parents. SideStore/SideStore develop is an ADVISORY source only.
-Nested SideSign/minimuxer gitlinks are read from the exact embedded fork tree.
-All source SHAs are immutable, validated and staged for guarded CI.
-"""
+"""New-project source tracker. No V-series dependencies or old patch scripts."""
+from __future__ import annotations
 import argparse
-import importlib.util
 import json
+import os
+import re
+import urllib.request
 from datetime import datetime, timezone
 from pathlib import Path
 
-ROOT=Path(__file__).resolve().parents[2]
-FOLLOW=ROOT/"scripts/scarlet_upstream_follow.py"
-spec=importlib.util.spec_from_file_location("scarlet_upstream_follow",FOLLOW)
-up=importlib.util.module_from_spec(spec)
-spec.loader.exec_module(up)
+UPSTREAMS={
+    "LIVE_CONTAINER_REF":("LiveContainer/LiveContainer","main"),
+    "EMBEDDED_SIDESTORE_REF":("LiveContainer/SideStore","LiveContainerSupport")
+}
+SUBMODULES={
+    "MINIMUXER_REF":"Dependencies/minimuxer",
+    "SIDESIGN_REF":"Dependencies/SideSign"
+}
+ADVISORY=("SideStore/SideStore","develop")
+SHA_RE=re.compile(r"^[0-9a-f]{40}$")
 
-def candidate(pinned: dict, advisory_baseline: dict, found: dict, advisory_sha: str) -> dict:
-    expected=set(up.UPSTREAMS)|set(up.SUBMODULES)
+def sha(s:str)->str:
+    if not isinstance(s,str) or not SHA_RE.fullmatch(s):
+        raise ValueError("Invalid 40-character immutable git SHA")
+    return s
+
+def get_json(url:str)->dict:
+    headers={
+        "Accept":"application/vnd.github+json",
+        "User-Agent":"ScarletCrystalCleanUpstream"
+    }
+    token=os.getenv("GH_TOKEN")
+    if token:headers["Authorization"]="Bearer "+token
+    req=urllib.request.Request(url,headers=headers)
+    with urllib.request.urlopen(req,timeout=25) as response:
+        return json.load(response)
+
+def discover()->tuple[dict,str]:
+    found={}
+    for key,(repo,branch) in UPSTREAMS.items():
+        data=get_json(f"https://api.github.com/repos/{repo}/commits/{branch}")
+        found[key]=sha(data["sha"])
+    target=found["EMBEDDED_SIDESTORE_REF"]
+    source=get_json(f"https://api.github.com/repos/LiveContainer/SideStore/git/trees/{target}?recursive=1")
+    if source.get("truncated"):raise ValueError("Embedded fork source tree truncated")
+    links={e.get("path"):e for e in source.get("tree",[]) if e.get("mode")=="160000"}
+    for key,path in SUBMODULES.items():
+        e=links.get(path)
+        if e is None or e.get("type")!="commit":
+            raise ValueError("Embedded SideStore missing gitlink: "+path)
+        found[key]=sha(e["sha"])
+    advisory=sha(get_json(f"https://api.github.com/repos/{ADVISORY[0]}/commits/{ADVISORY[1]}")["sha"])
+    return found,advisory
+
+def candidate(pinned:dict,advisory_baseline:dict,found:dict,advisory_sha:str)->dict:
+    expected=set(UPSTREAMS)|set(SUBMODULES)
     if set(pinned)!=expected or set(found)!=expected:
-        raise ValueError("Incomplete pinned upstream graph")
-    for key in expected:
-        up.sha(pinned[key]);up.sha(found[key])
-    up.sha(advisory_sha)
-    old_advisory=up.sha(advisory_baseline["sideStoreAdvisory"]["head"])
-    upstream_changes={k:{"from":pinned[k],"to":found[k]} for k in sorted(expected)
-                      if pinned[k]!=found[k]}
-    official_changed=advisory_sha!=old_advisory
+        raise ValueError("Refuse partial parent + nested SideSign source graph")
+    for k in expected:sha(pinned[k]);sha(found[k])
+    sha(advisory_sha)
+    old=sha(advisory_baseline["sideStoreAdvisory"]["head"])
+    changes={k:{"from":pinned[k],"to":found[k]} for k in sorted(expected) if pinned[k]!=found[k]}
+    advisoryChanged=advisory_sha!=old
     return {
-        "schema":1,
-        "parentsChanged":bool(upstream_changes),
-        "advisoryChanged":official_changed,
-        "requiresIntegration":bool(upstream_changes) or official_changed,
-        "updatedPins":found,
-        "authoritativeChanges":upstream_changes,
-        "sideStoreAdvisory":{
-            "repository":"SideStore/SideStore",
-            "branch":"develop",
-            "previous":old_advisory,
-            "latest":advisory_sha,
-            "autoReplaceEmbeddedFork":False
-        },
-        "originalGlassPreserved":True,
-        "appIdentityPreserved":True,
-        "autoRelease":False,
-        "autoDeviceInstall":False,
+        "schema":1,"parentsChanged":bool(changes),"advisoryChanged":advisoryChanged,
+        "requiresIntegration":bool(changes) or advisoryChanged,"updatedPins":found,
+        "authoritativeChanges":changes,
+        "sideStoreAdvisory":{"repository":ADVISORY[0],"branch":ADVISORY[1],
+            "previous":old,"latest":advisory_sha,"autoReplaceEmbeddedFork":False},
+        "originalGlassPreserved":True,"appIdentityPreserved":True,
+        "autoRelease":False,"autoDeviceInstall":False,
         "reviewRequiredForUnknownAPIDiffs":True,
         "prerequisites":[
             "match LiveContainer and fork API behavior",
@@ -58,32 +81,30 @@ def candidate(pinned: dict, advisory_baseline: dict, found: dict, advisory_sha: 
         ]
     }
 
-def main():
+def main()->None:
     p=argparse.ArgumentParser()
     p.add_argument("--pins",type=Path,required=True)
     p.add_argument("--baseline",type=Path,required=True)
     p.add_argument("--report",type=Path,required=True)
     p.add_argument("--candidate-pins",type=Path,required=True)
     p.add_argument("--candidate-baseline",type=Path,required=True)
-    args=p.parse_args()
-    pins=json.loads(args.pins.read_text(encoding="utf-8"))
-    old=json.loads(args.baseline.read_text(encoding="utf-8"))
-    found,advisory=up.discover()
-    result=candidate(pins,old,found,advisory)
+    a=p.parse_args()
+    current=json.loads(a.pins.read_text())
+    baseline=json.loads(a.baseline.read_text())
+    found,advisory=discover()
+    result=candidate(current,baseline,found,advisory)
     result["checkedAt"]=datetime.now(timezone.utc).isoformat()
-    args.report.parent.mkdir(parents=True,exist_ok=True)
-    args.candidate_pins.parent.mkdir(parents=True,exist_ok=True)
-    args.candidate_baseline.parent.mkdir(parents=True,exist_ok=True)
-    args.report.write_text(json.dumps(result,indent=2)+"\n",encoding="utf-8")
-    args.candidate_pins.write_text(json.dumps(found,indent=2)+"\n",encoding="utf-8")
+    for path in [a.report,a.candidate_pins,a.candidate_baseline]:
+        path.parent.mkdir(parents=True,exist_ok=True)
+    a.report.write_text(json.dumps(result,indent=2)+"\n")
+    a.candidate_pins.write_text(json.dumps(found,indent=2)+"\n")
     if result["advisoryChanged"]:
-        old["sideStoreAdvisory"]["head"]=advisory
-        old["observedAt"]=result["checkedAt"]
-    args.candidate_baseline.write_text(json.dumps(old,indent=2)+"\n",encoding="utf-8")
+        baseline["sideStoreAdvisory"]["head"]=advisory
+        baseline["observedAt"]=result["checkedAt"]
+    a.candidate_baseline.write_text(json.dumps(baseline,indent=2)+"\n")
     print("SCARLET_UPSTREAM_PARENT_CHANGE="+str(result["parentsChanged"]).lower())
     print("SCARLET_SIDESTORE_ADVISORY_CHANGE="+str(result["advisoryChanged"]).lower())
-    print("SCARLET_UPSTREAM_CANDIDATE="+str(result["requiresIntegration"]).lower())
-    print("[NOTICE] Source updates are staged, never auto installed or published.")
+    print("[INFO] Source candidate only; no automatic release or device install.")
 
 if __name__=="__main__":
     main()

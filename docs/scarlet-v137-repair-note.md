@@ -1,1 +1,0 @@
-V137: repair post-rotation guest touch coordinates, per-scene edge handle ownership, and regular Liquid Glass contrast.
