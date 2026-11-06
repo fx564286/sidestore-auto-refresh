@@ -29,6 +29,8 @@ def instrument_original_guest_signing(engine: Path) -> dict:
     target = engine / "LiveContainerSwiftUI/Models/LCAppModel.swift"
     assert target.is_file(), "Pinned LC guest model missing"
     source = target.read_text()
+    assert '"signing_started"' not in source and '"signing_reason"' not in source, (
+        "LC guest signing diagnostics already injected")
     original = "        try await signApp(force: false)\n"
     assert source.count(original) == 1, "Pinned LC runApp signing step changed"
     source = source.replace(original, """        ScarletDiagnosticRecorder.shared.record("guest", "signing_started")
