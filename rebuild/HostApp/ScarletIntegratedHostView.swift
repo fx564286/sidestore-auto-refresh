@@ -147,14 +147,15 @@ struct ScarletIntegratedHostView: View {
             ScarletAppleIDLoginSheet(engine: ScarletPendingSideStoreEngineBridge())
         }
         .sheet(isPresented: $showNativeAppLibrary) {
-            NavigationStack {
-                // ORIGINAL LC guest IPA importer, including file/URL import,
-                // container selection, per-app signature and error feedback.
-                LCAppListView()
-                    .environmentObject(downloadHelper)
-            }
-            .environmentObject(sharedModel)
-            .environmentObject(LCAppSortManager.shared)
+            // Show the exact native LiveContainer screen requested by the user.
+            // LCAppListView owns its NavigationView and native + IPA/URL menu.
+            // Do not nest it in a second NavigationStack.
+            LCAppListView()
+                .environmentObject(downloadHelper)
+                .environmentObject(sharedModel)
+                .environmentObject(LCAppSortManager.shared)
+                .presentationDetents([.large])
+                .presentationDragIndicator(.visible)
         }
         .sheet(isPresented: $showNativeSources) {
             NavigationStack {
