@@ -13,31 +13,6 @@ protocol ScarletAppleSignInEngine: AnyObject {
                 requestTwoFactorCode: @escaping @MainActor () async throws -> String) async throws
 }
 
-enum ScarletSignInBridgeError: LocalizedError {
-    case engineNotConnected
-    var errorDescription: String? {
-        switch self {
-        case .engineNotConnected:
-            return "SideStore 인증 엔진의 안전한 연결이 아직 검증되지 않았습니다."
-        }
-    }
-}
-
-// The current SideStore binary is isolated as a LiveContainer guest.
-// Calling its guest UI is NOT an acceptable replacement for an in-host
-// authentication transport. Fail closed until a real, validated secure
-// engine bridge is implemented and device-tested.
-@MainActor
-final class ScarletPendingSideStoreEngineBridge: ScarletAppleSignInEngine {
-    var isReady: Bool { false }
-    func prepare() async throws { throw ScarletSignInBridgeError.engineNotConnected }
-    func cancel() {}
-    func signIn(appleID: String, password: String,
-                requestTwoFactorCode: @escaping @MainActor () async throws -> String) async throws {
-        throw ScarletSignInBridgeError.engineNotConnected
-    }
-}
-
 @available(iOS 17.0, *)
 struct ScarletAppleIDLoginSheet: View {
     let engine: any ScarletAppleSignInEngine
@@ -96,7 +71,7 @@ struct ScarletAppleIDLoginSheet: View {
             ScarletDiagnosticRecorder.shared.record("auth", "transport_unverified",
                 status: "blocked", fields: ["reason": "engine_not_connected"])
             password = ""
-            errorMessage = ScarletSignInBridgeError.engineNotConnected.localizedDescription
+            errorMessage = "SideStore 인증 엔진 연결이 확인되지 않았습니다."
             return
         }
         let account = appleID.trimmingCharacters(in: .whitespacesAndNewlines)
