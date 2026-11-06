@@ -372,7 +372,7 @@ public struct ScarletIndependentShell: View {
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
-    // Initial screen: Home and Settings are both visible WITHOUT a tab.
+    // The Home tab directly displays installed apps; Settings has its own tab.
     // No stats, recent-app section, fake settings or duplicate navigation.
     // One Home screen, two DISTINCT install targets, no SideStore guest UI.
     // The original guest importer handles LiveContainer-contained apps.
@@ -382,7 +382,25 @@ public struct ScarletIndependentShell: View {
     // Home/Apps are one destination, not competing screens or overlay sheets.
     private var home: some View {
         Group {
-            heading("", "설치된 앱", "")
+            HStack(spacing: 10) {
+                // Opens the genuine original LiveContainer app-manager screen
+                // (the user's second screenshot), not a SideStore guest UI.
+                Button {
+                    onAction(.localImportGuestIPA)
+                } label: {
+                    Image(systemName: "doc.badge.plus")
+                        .font(.system(size: 20, weight: .semibold))
+                        .foregroundStyle(ScarletPresentationColor.accent)
+                        .frame(width: 44, height: 44)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("설치된 앱 관리 및 IPA 파일 추가")
+                .accessibilityHint("원본 LiveContainer 앱 관리 화면 열기")
+                .accessibilityIdentifier("SCARLET_INSTALLED_APPS_ADD_FILE")
+                heading("", "설치된 앱", "")
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
             HStack(spacing: 10) {
                 installPathRow("SideStore 앱 설치",
                                icon: "plus",
