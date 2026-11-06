@@ -211,7 +211,12 @@ public struct ScarletIndependentShell: View {
                         case .home: home
                         case .apps: apps
                         case .sources: sourcesScreen
-                        case .settings: settings
+                        case .settings:
+                        if showConnectionDetails {
+                            connection
+                        } else {
+                            settings
+                        }
                         }
                     }
                     .padding(.horizontal, 20)
@@ -273,20 +278,7 @@ public struct ScarletIndependentShell: View {
                 .navigationTitle("저장소")
             }
         }
-        .sheet(isPresented: $showConnectionDetails) {
-            NavigationStack {
-                ScrollView {
-                    VStack(alignment: .leading, spacing: 17) {
-                        connection
-                    }
-                    .padding(20)
-                }
-                .background(ScarletPresentationColor.background.ignoresSafeArea())
-                .navigationTitle("계정 및 서명")
-                .navigationBarTitleDisplayMode(.inline)
-            }
-            .preferredColorScheme(.dark)
-        }
+
     }
 
     private func heading(_ overline: String, _ title: String, _ subtitle: String) -> some View {
@@ -623,6 +615,19 @@ public struct ScarletIndependentShell: View {
 
     private var connection: some View {
         Group {
+            HStack(spacing: 8) {
+                Button {
+                    showConnectionDetails = false
+                } label: {
+                    Label("설정", systemImage: "chevron.left")
+                        .font(.footnote.weight(.semibold))
+                        .foregroundStyle(ScarletPresentationColor.accent)
+                        .frame(minHeight: 44)
+                }
+                .buttonStyle(.plain)
+                .accessibilityIdentifier("SCARLET_CONNECTION_BACK")
+                Spacer()
+            }
             heading("", "연결 및 서명", "페어링 및 Apple 계정")
             ScarletPanel {
                 Text(snapshot.serviceConnected ? "연결됨" : "연결 안 됨")
