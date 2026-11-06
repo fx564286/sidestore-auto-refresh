@@ -50,7 +50,7 @@ class ScarletBootAndBrandingContract(unittest.TestCase):
         self.assertIn('dock_source.replace(unsafe_init,safe_init)', INJECTION)
         self.assertIn("UIWindow.didBecomeVisibleNotification", INJECTION)
         self.assertIn("scarletEnsureWindowHost()", INJECTION)
-        self.assertIn("rootView.subviews.first ?? rootView", INJECTION)
+        self.assertIn("rootView.subviews.first(where: { $0 !== windowHostingView }) ?? rootView", INJECTION)
         self.assertIn('onDeviceSigtrapDockForceUnwrapGuarded', INJECTION)
         self.assertNotIn("@ObservedObject private var guestDock = MultitaskDockManager.shared", HOST)
         self.assertIn("MultitaskDockManager.shared.scarletEnsureWindowHost()", HOST)
