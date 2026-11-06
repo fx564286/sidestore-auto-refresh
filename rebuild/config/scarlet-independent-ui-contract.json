@@ -1,5 +1,5 @@
 {
-  "schema": 3,
+  "schema": 4,
   "product": "Scarlet Crystal",
   "design_file": "https://www.figma.com/design/QESg6S7oJS47PmlPpEX5w5",
   "decision": "Independent UI rewrite except existing native Liquid Glass effect and upstream execution/signing engines",
@@ -81,14 +81,25 @@
     "Apple sign-in 2FA, pairing, refresh and guest runtime verified on iPhone"
   ],
   "navigation": {
-    "bottom_tab_bar": false,
+    "bottom_tab_bar": true,
+    "bottom_tabs": [
+      "home",
+      "apps",
+      "settings",
+      "connection"
+    ],
+    "bottom_tab_uses_existing_liquid_glass": true,
+    "bottom_tab_injection": "Required host-provided existing interactive Liquid Glass bar, bound via Binding<Tab>; no synthetic glassEffect in clean UI",
+    "separate_window_management_tab": false,
+    "window_management_entry": "round_switcher_only",
     "single_round_app_switcher": true,
     "round_switcher_size_pt": 62,
     "round_switcher_hpos": "leading",
-    "page_menu_location": "top_trailing",
-    "app_switcher_effect": "existing host Liquid Glass control injected unchanged",
-    "app_switcher_action": "existing host recent apps and window management overlay",
-    "page_menu_action": "home/apps/settings/connection; never used as guest app switcher",
+    "round_switcher_position": "above_bottom_tab_bar",
+    "round_switcher_uses_existing_liquid_glass": true,
+    "app_switcher_action": "existing host overlay with recent apps and window management segmented controls",
+    "overlay_outside_tap_dismiss": true,
+    "top_right_extra_menu": false,
     "no_duplicate_app_switcher_actions": true
   }
 }
