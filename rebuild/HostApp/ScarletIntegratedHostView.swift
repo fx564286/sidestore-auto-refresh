@@ -19,6 +19,7 @@ struct ScarletIntegratedHostView: View {
     @State private var queuedGuestIPAURL: URL?
     @State private var showNativeSources = false
     @State private var showScarletAppleIDLogin = false
+    @State private var appleAuthVerified = false
     @State private var showOriginalError: String?
 
     // Recorded values are deliberately categorical. No Apple ID, guest name,
@@ -174,7 +175,7 @@ struct ScarletIntegratedHostView: View {
         ScarletIndependentShell(
             snapshot: ScarletHostPresentationSnapshot(
                 serviceConnected: UserDefaults.sideStoreExist(),
-                appleAuthenticated: false,
+                appleAuthenticated: appleAuthVerified,
                 pairingVerified: false,
                 signingVerified: false,
                 installationVerified: false,
@@ -240,6 +241,11 @@ struct ScarletIntegratedHostView: View {
         .onChange(of: scenePhase) { phase in
             ScarletDiagnosticRecorder.shared.record("lifecycle", "scene_phase",
                 fields: ["state": String(describing: phase)])
+        }
+        .onReceive(NotificationCenter.default.publisher(
+            for: Notification.Name("ScarletGuestAuthVerified"))) { _ in
+            appleAuthVerified = true
+            ScarletDiagnosticRecorder.shared.record("auth", "verified_login_visible", status: "success")
         }
         .onReceive(NotificationCenter.default.publisher(
             for: UIApplication.didReceiveMemoryWarningNotification)) { _ in
