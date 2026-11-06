@@ -72,6 +72,7 @@ def main():
     p.add_argument("--lc-appinfo",type=Path,required=True)
     p.add_argument("--dylibify",type=Path,required=True)
     p.add_argument("--out",type=Path,required=True)
+    p.add_argument("--host-report",type=Path)
     args=p.parse_args()
     args.out.mkdir(parents=True,exist_ok=True)
     work=args.out/"_build_work"
@@ -185,6 +186,7 @@ def main():
     side_copy=args.out/"SideStore-Standalone-UNSIGNED.ipa"
     shutil.copy2(args.sidestore_ipa,side_copy)
 
+    host_proof=json.loads(args.host_report.read_text()) if args.host_report and args.host_report.is_file() else {}
     report={
         "schema":1,"hostBundleID":HOST_ID,
         "threeOriginalExtensions":list(EXTENSIONS),
@@ -195,7 +197,9 @@ def main():
         "retainsIntentsMetadata":True,"codesignedWithAppleProfile":False,
         "userDeviceInstallationVerified":False,
         "sideStoreAppleAuthenticationVerified":False,
-        "FigmaScarletShellIntegrated":False,
+        "FigmaScarletShellSourceCompiled":bool(host_proof.get("newRootCompiled",False)),
+        "originalNativeGlassSourceCompiled":bool(host_proof.get("newRootCompiled",False)),
+        "hostIntegrationHashes":host_proof.get("sources",[]),
         "nativeOriginalLiquidGlassVerified":False,
         "scope":"Engine diagnostics only; NOT a release or a confirmed functional app",
         "files":{p.name:{"bytes":p.stat().st_size,"sha256":sha256(p)}
