@@ -56,14 +56,28 @@ class IndependentUIContractTests(unittest.TestCase):
         self.assertNotIn("Menu {", UI)
         self.assertNotIn('quickAction("창 관리"', UI)
         self.assertNotIn('ScarletActionRow(title: "실행 및 창 관리"', UI)
-        expected = ('case home = "홈"', 'case apps = "앱"',
-                    'case settings = "설정"', 'case connection = "연결"')
+        expected = ('case home = "Home"', 'case apps = "Apps"',
+                    'case sources = "Sources"', 'case settings = "Settings"')
         for case in expected:
             self.assertIn(case, UI)
-        self.assertEqual(UI.count('        case home = "홈"'), 1)
+        self.assertEqual(UI.count('        case home = "Home"'), 1)
         self.assertNotIn('case windowManager', UI)
         self.assertNotIn('case management', UI)
         self.assertNotIn('case manager', UI)
+
+    def test_existing_sources_tab_and_connection_details(self):
+        self.assertIn("struct ScarletSourcePresentation", UI)
+        self.assertIn("public let sources: [ScarletSourcePresentation]", UI)
+        self.assertIn("public let onAddSource: () -> Void", UI)
+        self.assertIn("public let onOpenSource: (String) -> Void", UI)
+        self.assertIn("case .sources: sourcesScreen", UI)
+        self.assertIn('heading("", "소스", "앱 소스를 관리합니다.")', UI)
+        self.assertIn('Button(action: onAddSource)', UI)
+        self.assertNotIn('case connection =', UI)
+        self.assertIn("showConnectionDetails = true", UI)
+        self.assertIn(".sheet(isPresented: $showConnectionDetails)", UI)
+        self.assertIn("onAction(.serviceReadSettings)", UI)
+        self.assertTrue(CONTRACT["navigation"]["connection_signing_in_settings"])
 
     def test_auth_presentation_does_not_claim_service_equals_login(self):
         self.assertIn("appleAuthenticated: Bool",UI)
@@ -75,8 +89,8 @@ class IndependentUIContractTests(unittest.TestCase):
         self.assertIn("One actor",CORE)
 
     def test_full_screen_structure_and_responsiveness(self):
-        for case in ('case home = "홈"','case apps = "앱"',
-                     'case settings = "설정"','case connection = "연결"'):
+        for case in ('case home = "Home"','case apps = "Apps"',
+                     'case sources = "Sources"','case settings = "Settings"'):
             self.assertIn(case,UI)
         for required in ("ScrollView","ForEach","TextField","Button",
                          ".frame(minHeight: 44)", ".frame(maxWidth: 650)",
@@ -96,7 +110,7 @@ class IndependentUIContractTests(unittest.TestCase):
         self.assertTrue(navigation.get("single_round_app_switcher"))
         self.assertEqual(navigation.get("round_switcher_size_pt"),62)
         self.assertTrue(navigation.get("bottom_tab_uses_existing_liquid_glass"))
-        self.assertEqual(navigation.get("bottom_tabs"),["home","apps","settings","connection"])
+        self.assertEqual(navigation.get("bottom_tabs"),["home","apps","sources","settings"])
         self.assertFalse(navigation.get("separate_window_management_tab"))
         self.assertEqual(navigation.get("window_management_entry"),"round_switcher_only")
 
