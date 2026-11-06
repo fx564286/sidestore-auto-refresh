@@ -72,12 +72,12 @@ public struct ScarletHostPresentationSnapshot: Equatable, Sendable {
 
 private enum ScarletPresentationColor {
     static let background = Color(red: 0.051, green: 0.051, blue: 0.094)
-    static let surface = Color(red: 0.125, green: 0.121, blue: 0.19)
-    static let stroke = Color(red: 0.27, green: 0.25, blue: 0.36)
+    static let surface = Color(red: 36.0/255, green: 35.0/255, blue: 58.0/255)
+    static let stroke = Color(red: 69.0/255, green: 66.0/255, blue: 93.0/255)
     static let accent = Color(red: 0.667, green: 0.588, blue: 1.0)
-    static let purple = Color(red: 0.39, green: 0.30, blue: 0.89)
+    static let purple = Color(red: 103.0/255, green: 76.0/255, blue: 225.0/255)
     static let text = Color(red: 0.988, green: 0.98, blue: 1.0)
-    static let muted = Color(red: 0.72, green: 0.70, blue: 0.77)
+    static let muted = Color(red: 170.0/255, green: 166.0/255, blue: 188.0/255)
     static let warning = Color(red: 1.0, green: 0.73, blue: 0.48)
     static let success = Color(red: 0.49, green: 0.85, blue: 0.78)
 }
@@ -571,12 +571,12 @@ public struct ScarletIndependentShell: View {
         Group {
             heading("", "설정", "")
             compactSettingsCard {
-                Text("컨테이너")
+                Text("LiveContainer")
                     .font(.system(size: 18, weight: .semibold))
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .frame(height: 22)
                     .padding(.leading, 8)
-                ScarletActionRow(title: "화면 설정",
+                ScarletActionRow(title: "LiveContainer 전체 설정",
                                  detail: "",
                                  icon: "circle.lefthalf.filled", enabled: true) {
                     onAction(.localAppearance)
@@ -584,10 +584,10 @@ public struct ScarletIndependentShell: View {
                 .padding(.horizontal, 8)
                 .frame(height: 62)
                 Divider()
-                ScarletActionRow(title: "저장소",
+                ScarletActionRow(title: "가상 앱 관리",
                                  detail: "",
                                  icon: "folder", enabled: true) {
-                    onAction(.localStorageNavigation)
+                    onAction(.localImportGuestIPA)
                 }
                 .padding(.horizontal, 8)
                 .frame(height: 62)
@@ -635,15 +635,6 @@ public struct ScarletIndependentShell: View {
             .overlay {
                 RoundedRectangle(cornerRadius: 20)
                     .stroke(ScarletPresentationColor.stroke, lineWidth: 1)
-            }
-            compactSettingsCard {
-                ScarletActionRow(title: "진단 로그",
-                                 detail: "",
-                                 icon: "waveform.path.ecg", enabled: true) {
-                    onAction(.serviceReadLogs)
-                }
-                .padding(.horizontal, 8)
-                .frame(height: 62)
             }
         }
         .foregroundStyle(ScarletPresentationColor.text)
@@ -738,6 +729,18 @@ public struct ScarletIndependentShell: View {
                         : "페어링, Apple 로그인 및 설치 프로파일 확인이 필요합니다.")
                 }
             }
+            // Diagnostics remain available under signing management, outside
+            // the two-card Figma Settings screen. Do not drop the action.
+            Button {
+                onAction(.serviceReadLogs)
+            } label: {
+                Label("진단 로그", systemImage: "waveform.path.ecg")
+                    .font(.subheadline.weight(.semibold))
+                    .frame(maxWidth: .infinity, minHeight: 48)
+                    .foregroundStyle(ScarletPresentationColor.text)
+            }
+            .buttonStyle(.plain)
+            .accessibilityIdentifier("SCARLET_SIGNING_DIAGNOSTIC_LOGS")
         }
         .foregroundStyle(ScarletPresentationColor.text)
     }
