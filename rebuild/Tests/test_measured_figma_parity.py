@@ -24,16 +24,18 @@ class FigmaMeasuredParity(unittest.TestCase):
                          ["Home","Apps","Sources","Settings"])
         self.assertEqual(DESIGN["design"]["bottomBar"]["tabCount"],4)
 
-    def test_user_override_replaces_old_apps_tab_without_touching_glass(self):
+    def test_user_override_changes_only_tab_order_not_scarlet_glass_layout(self):
         self.assertEqual(CURRENT["navigation"]["bottom_tabs"],
-                         ["home","sources","settings"])
+                         ["sources","apps","tweaks","settings"])
         self.assertEqual(CURRENT["navigation"]["bottom_tab_display_labels"],
-                         ["Home","Sources","Settings"])
+                         ["소스","앱","트윅","설정"])
         self.assertIn("preservedGlassTabBar($selected)",UI)
-        self.assertNotIn('case apps = "Apps"',UI)
+        for marker in ('case sources = "소스"','case apps = "앱"',
+                       'case tweaks = "트윅"','case settings = "설정"'):
+            self.assertIn(marker,UI)
         self.assertNotIn(".glassEffect(",UI)
         self.assertNotIn("case windowManager",UI)
-        self.assertIn('case .home: "square.grid.2x2"',UI)
+        self.assertIn('case .apps: "square.grid.2x2"',UI)
         self.assertEqual(DESIGN["design"]["roundSwitcher"]["w"],62)
 
     def test_merged_home_labels_filters_and_actions_are_real(self):
@@ -50,6 +52,8 @@ class FigmaMeasuredParity(unittest.TestCase):
         self.assertIn("if selected == .settings {",UI)
         self.assertIn("SCARLET_INLINE_NATIVE_LC_SETTINGS",UI)
         self.assertIn("LCSettingsView()",HOST)
+        self.assertIn("LCTweaksView()",HOST)
+        self.assertIn("SCARLET_INLINE_NATIVE_LC_TWEAKS",UI)
         self.assertNotIn(".sheet(isPresented: $showNativeSettings)",HOST)
         self.assertNotIn("if showConnectionDetails {",UI)
 
