@@ -57,9 +57,16 @@ jobs:
           swiftc -version
           swiftc -swift-version 6 -parse-as-library \
             rebuild/Sources/ScarletCleanCore/ScarletActionCoordinator.swift \
+            rebuild/Sources/ScarletCleanCore/ScarletControlAuditTrail.swift \
             rebuild/Tests/ScarletCleanCoreContract.swift \
             -o "${RUNNER_TEMP}/scarlet-clean-core-contract"
           "${RUNNER_TEMP}/scarlet-clean-core-contract"
+          swiftc -swift-version 6 -parse-as-library \
+            rebuild/Sources/ScarletCleanCore/ScarletActionCoordinator.swift \
+            rebuild/Sources/ScarletCleanCore/ScarletControlAuditTrail.swift \
+            rebuild/Tests/ScarletActionAuditContract.swift \
+            -o "${RUNNER_TEMP}/scarlet-audit-contract"
+          "${RUNNER_TEMP}/scarlet-audit-contract"
           swiftc -swift-version 6 -parse-as-library \
             rebuild/Sources/ScarletCleanCore/ScarletUpdateCoordinator.swift \
             rebuild/Tests/ScarletUpdateCoordinatorContract.swift \
@@ -94,6 +101,7 @@ jobs:
           xcrun --sdk iphonesimulator swiftc -swift-version 6 \
             -target arm64-apple-ios17.0-simulator -sdk "$sdk" -typecheck \
             rebuild/Sources/ScarletCleanCore/ScarletActionCoordinator.swift \
+            rebuild/Sources/ScarletCleanCore/ScarletControlAuditTrail.swift \
             rebuild/Sources/ScarletCleanCore/ScarletUpdateCoordinator.swift \
             rebuild/Sources/ScarletCleanCore/ScarletRefreshPolicy.swift \
             rebuild/Sources/ScarletIndependentUI/ScarletIndependentShell.swift
