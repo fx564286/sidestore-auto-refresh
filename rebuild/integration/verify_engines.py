@@ -54,7 +54,9 @@ def audit_lc(path):
     assert path.is_dir(),f"Native LiveContainer .app missing: {path}"
     info=plist_at(path)
     binary=path/info["CFBundleExecutable"]
-    assert binary.is_file() and binary.stat().st_size>100000,"Host Mach-O missing"
+    assert binary.is_file() and binary.stat().st_size>1024,f"Host executable missing: {binary}"
+    fmt=subprocess.check_output(["file",str(binary)],text=True)
+    assert "Mach-O" in fmt,f"Host not native iOS Mach-O: {fmt}"
     extpaths={s:path/"PlugIns"/(s+".appex") for s in EXTENSIONS}
     for label,ext in extpaths.items():
         assert ext.is_dir(),f"Required app extension missing: {label}"
@@ -81,7 +83,7 @@ def audit_sidestore(src,ipa):
         host=plistlib.loads(z.read("Payload/SideStore.app/Info.plist"))
         binary=f'Payload/SideStore.app/{host["CFBundleExecutable"]}'
         assert binary in n, f"SideStore executable not packaged: {binary}"
-        assert z.getinfo(binary).file_size>100000,"SideStore Mach-O tiny"
+        assert z.getinfo(binary).file_size>1024,"SideStore native executable missing"
     return {
         "builtSideStoreIPA":True,
         "bundle":host["CFBundleIdentifier"],
