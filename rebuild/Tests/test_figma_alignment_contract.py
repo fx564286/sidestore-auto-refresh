@@ -41,7 +41,7 @@ class FigmaGeometryContract(unittest.TestCase):
         self.assertIn(".frame(maxWidth: .infinity, alignment: .center)",quick)
         rows=UI[UI.index("private struct ScarletActionRow"):UI.index("public struct ScarletIndependentShell")]
         self.assertIn("VStack(alignment: .leading",rows)
-        self.assertIn("HStack(spacing: 12)",rows)
+        self.assertIn("HStack(alignment: .center, spacing: 12)",rows)
 
     def test_native_glass_control_must_be_injected_not_recreated(self):
         self.assertIn("preservedGlassTabBar: (Binding<Tab>) -> AnyView",UI)

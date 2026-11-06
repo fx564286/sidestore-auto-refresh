@@ -36,7 +36,7 @@ class UpdateAndAlignmentTests(unittest.TestCase):
     def test_action_status_and_window_controls_have_distinct_alignment(self):
         row=LAYOUT["card_action_row"]
         self.assertEqual(row["icon_glyph_alignment"],"CENTER")
-        self.assertEqual(row["status_alignment"],"RIGHT")
+        self.assertEqual(row["status_alignment"],"HIDDEN_VISUAL_ACCESSIBILITY_ONLY")
         self.assertEqual(row["primary_text_alignment"],"LEFT")
         panel=LAYOUT["window_management"]
         self.assertEqual(panel["segment_labels_alignment"],"CENTER")
