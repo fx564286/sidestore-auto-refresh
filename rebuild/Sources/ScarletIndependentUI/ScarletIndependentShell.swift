@@ -228,18 +228,16 @@ private struct ScarletGuestListCard: View {
 
 @available(iOS 16.0, *)
 public struct ScarletIndependentShell: View {
-    // Preserves the existing Scarlet Crystal bottom tab destinations exactly.
-    // Window management remains exclusively in the circular app switcher.
+    // Unified Home owns installation and the LiveContainer app list.
+    // Native Liquid Glass navigation is preserved; no duplicate Apps tab.
     public enum Tab: String, CaseIterable {
         case home = "Home"
-        case apps = "Apps"
         case sources = "Sources"
         case settings = "Settings"
 
         public var icon: String {
             switch self {
-            case .home: "house"
-            case .apps: "square.grid.3x3"
+            case .home: "square.grid.2x2"
             case .sources: "books.vertical"
             case .settings: "gearshape"
             }
@@ -259,6 +257,8 @@ public struct ScarletIndependentShell: View {
     // binds the four destination tabs to this shell selection; no duplicated
     // material or synthetic glassEffect is introduced here.
     public let preservedGlassTabBar: (Binding<Tab>) -> AnyView
+    // Direct embedded original LiveContainer settings, not a modal.
+    public let nativeSettings: () -> AnyView
 
     @State private var selected: Tab
     @State private var searchText = ""
@@ -273,6 +273,7 @@ public struct ScarletIndependentShell: View {
                 onOpenSource: @escaping (String) -> Void,
                 onAddSource: @escaping () -> Void,
                 preservedGlassTabBar: @escaping (Binding<Tab>) -> AnyView,
+                nativeSettings: @escaping () -> AnyView = { AnyView(EmptyView()) },
                 initialTab: Tab = .home,
                 initialConnectionDetails: Bool = false) {
         self.snapshot = snapshot
@@ -283,50 +284,75 @@ public struct ScarletIndependentShell: View {
         self.onOpenSource = onOpenSource
         self.onAddSource = onAddSource
         self.preservedGlassTabBar = preservedGlassTabBar
+        self.nativeSettings = nativeSettings
         self._selected = State(initialValue: initialTab)
         self._showConnectionDetails = State(initialValue: initialConnectionDetails)
     }
 
     public var body: some View {
-        ZStack(alignment: .bottomLeading) {
-            VStack(spacing: 0) {
+        VStack(spacing: 0) {
+            if selected == .settings {
+                // The real original LCSettingsView is the tab content itself.
+                // No "화면 설정" or "저장소" button opens a duplicate sheet.
+                VStack(spacing: 0) {
+                    HStack(spacing: 12) {
+                        Text("설정")
+                            .font(.system(size: screenTitleSize, weight: .bold))
+                            .foregroundStyle(ScarletPresentationColor.text)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                        Button {
+                            onAction(.serviceBeginSignIn)
+                        } label: {
+                            Label("Apple ID 로그인", systemImage: "person.crop.circle")
+                                .font(.system(size: 13, weight: .semibold))
+                        }
+                        .buttonStyle(.bordered)
+                        .tint(ScarletPresentationColor.accent)
+                        .accessibilityIdentifier("SCARLET_SETTINGS_NATIVE_APPLE_LOGIN")
+                    }
+                    .padding(.horizontal, 20)
+                    .padding(.top, 18)
+                    .padding(.bottom, 10)
+                    Text(snapshot.serviceConnected
+                         ? "SideStore 엔진 감지 · Apple 로그인 검증 필요"
+                         : "SideStore 인증 연결 확인 필요")
+                        .font(.caption)
+                        .foregroundStyle(ScarletPresentationColor.muted)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.horizontal, 20)
+                        .padding(.bottom, 8)
+                    nativeSettings()
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .accessibilityIdentifier("SCARLET_INLINE_NATIVE_LC_SETTINGS")
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 17) {
                         switch selected {
                         case .home: home
-                        case .apps: apps
                         case .sources: sourcesScreen
-                        case .settings:
-                        if showConnectionDetails {
-                            connection
-                        } else {
-                            settings
-                        }
+                        case .settings: EmptyView()
                         }
                     }
                     .padding(.horizontal, 20)
                     .padding(.top, 18)
-                    // Container screen intentionally has NO guest-only round switcher.
                     .padding(.bottom, 24)
                     .frame(maxWidth: 650, alignment: .leading)
                     .frame(maxWidth: .infinity, alignment: .center)
                 }
                 .scrollIndicators(.hidden)
-
-                // Restore pre-inline-settings native Liquid Glass navigation.
-                // Original settings remains reachable and its engine intact.
-                preservedGlassTabBar($selected)
-                    .frame(maxWidth: .infinity, alignment: .center)
-                    .frame(height: 62)
-                    .padding(.horizontal, 19)
-                    .padding(.bottom, 6)
-                    .accessibilityIdentifier("SCARLET_NATIVE_GLASS_BOTTOM_TAB_BAR")
             }
 
+            preservedGlassTabBar($selected)
+                .frame(maxWidth: .infinity, alignment: .center)
+                .frame(height: 62)
+                .padding(.horizontal, 19)
+                .padding(.bottom, 6)
+                .accessibilityIdentifier("SCARLET_NATIVE_GLASS_BOTTOM_TAB_BAR")
         }
         .background(ScarletPresentationColor.background.ignoresSafeArea())
         .preferredColorScheme(.dark)
-
     }
 
     private func heading(_ overline: String, _ title: String, _ subtitle: String) -> some View {
@@ -367,91 +393,29 @@ public struct ScarletIndependentShell: View {
     // The original guest importer handles LiveContainer-contained apps.
     // Device IPA signing and installation uses SideStore/SideSign only after
     // the embedded engine transport and Apple provisioning are verified.
+    // Unified Home: both install engines and all real installed guest apps.
+    // Home/Apps are one destination, not competing screens or overlay sheets.
     private var home: some View {
         Group {
-            heading("", "IPA 설치", "")
-            VStack(spacing: 0) {
-                installPathRow("iOS 앱 설치",
-                               icon: "arrow.down.app",
-                               detail: "기기에 설치",
+            heading("", "설치된 앱", "")
+            HStack(spacing: 10) {
+                installPathRow("SideStore 앱 설치",
+                               icon: "plus",
+                               detail: "SideStore 기기 IPA 설치",
                                identifier: "SCARLET_HOME_DEVICE_IPA_INSTALL") {
                     onAction(.serviceInstallIPA)
                 }
-                Divider()
-                    .overlay(ScarletPresentationColor.stroke)
-                    .padding(.leading, 52)
                 installPathRow("게스트 앱 설치",
-                               icon: "square.stack.3d.up",
-                               detail: "LiveContainer에 추가",
+                               icon: "plus",
+                               detail: "LiveContainer 게스트 IPA 가져오기",
                                identifier: "SCARLET_HOME_GUEST_IPA_INSTALL") {
                     onAction(.localImportGuestIPA)
                 }
             }
-            .padding(.horizontal, 10)
-            .background(ScarletPresentationColor.surface,
-                        in: RoundedRectangle(cornerRadius: 20, style: .continuous))
-            .overlay {
-                RoundedRectangle(cornerRadius: 20, style: .continuous)
-                    .stroke(ScarletPresentationColor.stroke, lineWidth: 1)
-            }
-
-            if !guests.isEmpty {
-                heading("", "가상 앱", "")
-                ScarletGuestListCard(
-                    guests: Array(guests.prefix(5)),
-                    emptyText: "앱이 없습니다.",
-                    onOpen: onOpenGuest
-                )
-            }
-        }
-        .foregroundStyle(ScarletPresentationColor.text)
-    }
-
-    private func installPathRow(_ title: String,
-                                icon: String,
-                                detail: String,
-                                identifier: String,
-                                action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            HStack(alignment: .center, spacing: 12) {
-                Image(systemName: icon)
-                    .font(.system(size: 17, weight: .semibold))
-                    .foregroundStyle(ScarletPresentationColor.accent)
-                    .frame(width: 36, height: 36)
-                    .background(ScarletPresentationColor.stroke.opacity(0.4),
-                                in: RoundedRectangle(cornerRadius: 11))
-                Text(title)
-                    .font(.system(size: 16, weight: .semibold))
-                    .foregroundStyle(ScarletPresentationColor.text)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-            }
-            .padding(.horizontal, 8)
-            .frame(maxWidth: .infinity, minHeight: 62, alignment: .leading)
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .accessibilityLabel(title)
-        .accessibilityHint(detail)
-        .accessibilityIdentifier(identifier)
-    }
-
-    // Virtual Apps: no recent/running/total filters or duplicate app statuses.
-    // Original LiveContainer library remains available from the initial screen.
-    private var visibleGuests: [ScarletGuestPresentation] {
-        guests.filter {
-            searchText.isEmpty || $0.title.localizedCaseInsensitiveContains(searchText)
-        }
-    }
-
-    private var apps: some View {
-        Group {
-            heading("", "가상 앱", "")
             HStack(spacing: 10) {
                 Image(systemName: "magnifyingglass")
-                    .font(.system(size: 17, weight: .medium))
                     .foregroundStyle(ScarletPresentationColor.accent)
-                    .frame(width: 20, height: 20)
-                TextField("앱 검색", text: $searchText)
+                TextField("설치된 앱 검색", text: $searchText)
                     .font(.system(size: 14))
                     .textInputAutocapitalization(.never)
                     .autocorrectionDisabled()
@@ -466,26 +430,54 @@ public struct ScarletIndependentShell: View {
                 RoundedRectangle(cornerRadius: 20)
                     .stroke(ScarletPresentationColor.stroke, lineWidth: 1)
             }
-            Button {
-                onAction(.localImportGuestIPA)
-            } label: {
-                Text("＋  앱 추가")
-                    .font(.system(size: 16, weight: .semibold))
-                    .frame(maxWidth: .infinity)
-                    .frame(height: 47)
-                    .foregroundStyle(ScarletPresentationColor.text)
-                    .background(ScarletPresentationColor.purple,
-                                in: RoundedRectangle(cornerRadius: 13))
-            }
-            .buttonStyle(.plain)
-            .accessibilityIdentifier("SCARLET_NATIVE_GUEST_IMPORT")
             ScarletGuestListCard(
                 guests: visibleGuests,
-                emptyText: "앱이 없습니다.",
+                emptyText: "설치된 앱이 없습니다.",
                 onOpen: onOpenGuest
             )
         }
         .foregroundStyle(ScarletPresentationColor.text)
+    }
+
+    private func installPathRow(_ title: String,
+                                icon: String,
+                                detail: String,
+                                identifier: String,
+                                action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            HStack(alignment: .center, spacing: 8) {
+                Image(systemName: icon)
+                    .font(.system(size: 17, weight: .bold))
+                    .foregroundStyle(ScarletPresentationColor.accent)
+                    .frame(width: 25, height: 36)
+                Text(title)
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(ScarletPresentationColor.text)
+                    .lineLimit(2)
+                    .multilineTextAlignment(.leading)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .padding(.horizontal, 11)
+            .frame(maxWidth: .infinity, minHeight: 62, alignment: .leading)
+            .contentShape(Rectangle())
+            .background(ScarletPresentationColor.surface,
+                        in: RoundedRectangle(cornerRadius: 16))
+            .overlay {
+                RoundedRectangle(cornerRadius: 16)
+                    .stroke(ScarletPresentationColor.stroke, lineWidth: 1)
+            }
+        }
+        .buttonStyle(.plain)
+        .frame(maxWidth: .infinity)
+        .accessibilityLabel(title)
+        .accessibilityHint(detail)
+        .accessibilityIdentifier(identifier)
+    }
+
+    private var visibleGuests: [ScarletGuestPresentation] {
+        guests.filter {
+            searchText.isEmpty || $0.title.localizedCaseInsensitiveContains(searchText)
+        }
     }
 
     private var sourcesScreen: some View {
