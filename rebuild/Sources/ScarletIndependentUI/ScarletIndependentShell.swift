@@ -364,22 +364,30 @@ public struct ScarletIndependentShell: View {
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
-    // The Apps tab directly displays installed apps; Settings and Tweaks
-    // render original LiveContainer managers. Preserve the custom Scarlet UI.
-    // No stats, recent-app section, fake settings or duplicate navigation.
-    // One Apps screen, two DISTINCT install targets, no SideStore guest UI.
-    // The original guest importer handles LiveContainer-contained apps.
-    // Device IPA signing and installation uses SideStore/SideSign only after
-    // the embedded engine transport and Apple provisioning are verified.
-    // Unified Home: both install engines and all real installed guest apps.
-    // Home/Apps are one destination, not competing screens or overlay sheets.
+    // Apps displays only its heading, search and actual LiveContainer guests.
+    // One title-leading native menu owns both installation routes. The native
+    // menu is dismissible by outside tap and keeps the Scarlet shell layout.
     private var home: some View {
         Group {
             HStack(spacing: 10) {
-                // Opens the genuine original LiveContainer app-manager screen
-                // (the user's second screenshot), not a SideStore guest UI.
-                Button {
-                    onAction(.localImportGuestIPA)
+                Menu {
+                    Button {
+                        // Device-level IPA: SideStore/SideSign; fail closed
+                        // until verified transport, signing and profiles exist.
+                        onAction(.serviceInstallIPA)
+                    } label: {
+                        Label("IPA 설치하기", systemImage: "square.and.arrow.down")
+                    }
+                    .accessibilityIdentifier("SCARLET_INSTALL_CHOICE_DEVICE_IPA")
+
+                    Button {
+                        // Guest-level IPA: the original LC importer, never
+                        // SideStore's standalone application window.
+                        onAction(.localImportGuestIPA)
+                    } label: {
+                        Label("게스트 앱 설치하기", systemImage: "square.stack.3d.up.badge.a")
+                    }
+                    .accessibilityIdentifier("SCARLET_INSTALL_CHOICE_GUEST_APP")
                 } label: {
                     Image(systemName: "doc.badge.plus")
                         .font(.system(size: 20, weight: .semibold))
@@ -387,27 +395,13 @@ public struct ScarletIndependentShell: View {
                         .frame(width: 44, height: 44)
                         .contentShape(Rectangle())
                 }
-                .buttonStyle(.plain)
-                .accessibilityLabel("설치된 앱 관리 및 IPA 파일 추가")
-                .accessibilityHint("원본 LiveContainer 앱 관리 화면 열기")
+                .accessibilityLabel("앱 설치")
+                .accessibilityHint("IPA 설치 또는 게스트 앱 설치 선택")
                 .accessibilityIdentifier("SCARLET_INSTALLED_APPS_ADD_FILE")
                 heading("", "설치된 앱", "")
             }
             .frame(maxWidth: .infinity, alignment: .leading)
-            HStack(spacing: 10) {
-                installPathRow("SideStore 앱 설치",
-                               icon: "plus",
-                               detail: "SideStore 기기 IPA 설치",
-                               identifier: "SCARLET_HOME_DEVICE_IPA_INSTALL") {
-                    onAction(.serviceInstallIPA)
-                }
-                installPathRow("게스트 앱 설치",
-                               icon: "plus",
-                               detail: "LiveContainer 게스트 IPA 가져오기",
-                               identifier: "SCARLET_HOME_GUEST_IPA_INSTALL") {
-                    onAction(.localImportGuestIPA)
-                }
-            }
+
             HStack(spacing: 10) {
                 Image(systemName: "magnifyingglass")
                     .foregroundStyle(ScarletPresentationColor.accent)
@@ -433,41 +427,6 @@ public struct ScarletIndependentShell: View {
             )
         }
         .foregroundStyle(ScarletPresentationColor.text)
-    }
-
-    private func installPathRow(_ title: String,
-                                icon: String,
-                                detail: String,
-                                identifier: String,
-                                action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            HStack(alignment: .center, spacing: 8) {
-                Image(systemName: icon)
-                    .font(.system(size: 17, weight: .bold))
-                    .foregroundStyle(ScarletPresentationColor.accent)
-                    .frame(width: 25, height: 36)
-                Text(title)
-                    .font(.system(size: 13, weight: .semibold))
-                    .foregroundStyle(ScarletPresentationColor.text)
-                    .lineLimit(2)
-                    .multilineTextAlignment(.leading)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-            }
-            .padding(.horizontal, 11)
-            .frame(maxWidth: .infinity, minHeight: 62, alignment: .leading)
-            .contentShape(Rectangle())
-            .background(ScarletPresentationColor.surface,
-                        in: RoundedRectangle(cornerRadius: 16))
-            .overlay {
-                RoundedRectangle(cornerRadius: 16)
-                    .stroke(ScarletPresentationColor.stroke, lineWidth: 1)
-            }
-        }
-        .buttonStyle(.plain)
-        .frame(maxWidth: .infinity)
-        .accessibilityLabel(title)
-        .accessibilityHint(detail)
-        .accessibilityIdentifier(identifier)
     }
 
     private var visibleGuests: [ScarletGuestPresentation] {
