@@ -19,7 +19,9 @@ class FigmaMeasuredParity(unittest.TestCase):
         self.assertEqual(len({s["figmaNodeId"] for s in screens}), 6)
         self.assertEqual(DESIGN["design"]["viewport"], {"w": 390, "h": 844})
         for s in screens:
-            self.assertRegex(s["figmaNodeId"], r"^\\d+:\\d+$")
+            segments = s["figmaNodeId"].split(":")
+            self.assertEqual(len(segments), 2)
+            self.assertTrue(all(part.isdecimal() for part in segments))
             self.assertTrue(s["requiredCopy"])
 
     def test_navigation_and_glass_boundaries(self):
