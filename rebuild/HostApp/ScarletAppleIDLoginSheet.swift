@@ -7,6 +7,8 @@ import SwiftUI
 @MainActor
 protocol ScarletAppleSignInEngine: AnyObject {
     var isReady: Bool { get }
+    func prepare() async throws
+    func cancel()
     func signIn(appleID: String, password: String,
                 requestTwoFactorCode: @escaping @MainActor () async throws -> String) async throws
 }
@@ -28,6 +30,8 @@ enum ScarletSignInBridgeError: LocalizedError {
 @MainActor
 final class ScarletPendingSideStoreEngineBridge: ScarletAppleSignInEngine {
     var isReady: Bool { false }
+    func prepare() async throws { throw ScarletSignInBridgeError.engineNotConnected }
+    func cancel() {}
     func signIn(appleID: String, password: String,
                 requestTwoFactorCode: @escaping @MainActor () async throws -> String) async throws {
         throw ScarletSignInBridgeError.engineNotConnected
@@ -45,11 +49,14 @@ struct ScarletAppleIDLoginSheet: View {
     @State private var isAuthenticating = false
     @State private var requiresTwoFactorCode = false
     @State private var errorMessage: String?
+    @State private var transportReady = false
+    @State private var transportChecking = true
     @State private var signInTask: Task<Void, Never>?
     @State private var pendingCode: CheckedContinuation<String, Error>?
 
     private var readyToSubmit: Bool {
         !isAuthenticating
+            && transportReady
             && !appleID.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
             && !password.isEmpty
     }
@@ -85,7 +92,7 @@ struct ScarletAppleIDLoginSheet: View {
         }
         // Input is always editable. Never transmit Apple credentials until
         // the SideStore/SideSign transport explicitly reports it is ready.
-        guard engine.isReady else {
+        guard transportReady && engine.isReady else {
             ScarletDiagnosticRecorder.shared.record("auth", "transport_unverified",
                 status: "blocked", fields: ["reason": "engine_not_connected"])
             password = ""
@@ -162,9 +169,16 @@ struct ScarletAppleIDLoginSheet: View {
                             .accessibilityIdentifier("SCARLET_LOGIN_ERROR")
                     }
                 }
-                if !engine.isReady {
+                if transportChecking {
                     Section {
-                        Text("입력은 가능합니다. SideStore 인증 연결이 준비되지 않아 현재 로그인 요청은 전송되지 않습니다.")
+                        HStack {
+                            ProgressView()
+                            Text("SideStore 인증 엔진 연결 확인 중")
+                        }
+                    }
+                } else if !transportReady {
+                    Section {
+                        Text("내장 SideStore 인증 연결 실패. 위 오류를 확인하세요.")
                             .font(.footnote)
                             .foregroundStyle(.secondary)
                     }
@@ -178,13 +192,32 @@ struct ScarletAppleIDLoginSheet: View {
                 }
             }
         }
-        .onAppear {
+        .task {
             ScarletDiagnosticRecorder.shared.record("auth", "login_ui_opened",
                 fields: ["available": engine.isReady ? "true" : "false"])
+            transportChecking = true
+            do {
+                ScarletDiagnosticRecorder.shared.record("auth", "transport_check_started")
+                try await engine.prepare()
+                transportReady = engine.isReady
+                if transportReady {
+                    ScarletDiagnosticRecorder.shared.record("auth", "transport_ready", status: "success")
+                } else {
+                    ScarletDiagnosticRecorder.shared.record("auth", "transport_unverified",
+                        status: "blocked", fields: ["reason": "engine_not_connected"])
+                }
+            } catch {
+                transportReady = false
+                ScarletDiagnosticRecorder.shared.record("auth", "transport_preflight_failed",
+                    status: "blocked", fields: ["reason": "engine_not_connected"])
+                errorMessage = error.localizedDescription
+            }
+            transportChecking = false
         }
         .onDisappear {
             ScarletDiagnosticRecorder.shared.record("auth", "login_ui_closed")
             signInTask?.cancel()
+            engine.cancel()
             signInTask = nil
             password = ""
             verificationCode = ""
