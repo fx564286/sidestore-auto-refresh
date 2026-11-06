@@ -1,39 +1,59 @@
-"""Tests real iOS 26+ glass material and tab interaction, not screenshots.
+"""Native Liquid Glass implementation contract for iOS 26+.
 
-Physical-device optical effect still requires iPhone evidence and dynamic test.
+Static evidence verifies proper Apple Glass APIs and actual interaction
+paths. Only physical iPhone testing can establish optical/gesture parity.
 """
 from pathlib import Path
 import unittest
 
 ROOT=Path(__file__).resolve().parents[1]
 GLASS=(ROOT/"HostApp/ScarletNativeGlass.swift").read_text()
+GUEST=(ROOT/"HostApp/ScarletGuestSwitcherOverlay.swift").read_text()
 UI=(ROOT/"Sources/ScarletIndependentUI/ScarletIndependentShell.swift").read_text()
 HOST=(ROOT/"HostApp/ScarletIntegratedHostView.swift").read_text()
-TABS=GLASS[GLASS.index("private struct SCInteractiveGlassTabs"):GLASS.index("struct ScarletNativeGlassSwitcher")]
+TABS=GLASS[GLASS.index("private struct SCInteractiveLiquidGlassTabs"):
+           GLASS.index("@available(iOS 16.0, *)\nstruct ScarletNativeGlassTabBar")]
 
 class NativeLiquidGlassContract(unittest.TestCase):
-    def test_ios26_uses_swiftui_real_glass_compositor(self):
-        self.assertIn("GlassEffectContainer(spacing:",TABS)
-        self.assertIn(".glassEffect(.regular, in: Capsule())",TABS)
-        self.assertIn(".regular.tint(.white.opacity(0.12)).interactive()",TABS)
-        self.assertIn('.glassEffectID("scarlet-active-tab", in: activeGlassNamespace)',TABS)
-        self.assertIn("SCARLET_REAL_GLASS_TAB_BAR",TABS)
-        self.assertIn("SCInteractiveGlassTabs(selected: $selected)",TABS)
+    def test_ios26_uses_system_glass_compositor_and_real_selected_material(self):
+        self.assertIn("GlassEffectContainer(spacing: 6)",TABS)
+        self.assertIn(".glassEffect(.regular.interactive(), in: .capsule)",TABS)
+        self.assertIn(".regular.tint(.white.opacity(0.14)).interactive()",TABS)
+        self.assertIn('.glassEffectID("selected-tab", in: selectionNamespace)',TABS)
+        self.assertIn('.matchedGeometryEffect(id: "selection", in: selectionNamespace)',TABS)
+        self.assertIn("SCInteractiveLiquidGlassTabs(selected: $selected)",GLASS)
+        self.assertIn("SCARLET_LIVE_GLASS_BAR_MATERIAL",TABS)
+        self.assertIn('fields: ["api": "SwiftUI.GlassEffectContainer"',TABS)
 
-    def test_previous_flat_gray_selected_fill_not_used_on_ios26(self):
-        modern=TABS[:TABS.index("@available(iOS 16.0, *)")]
-        self.assertNotIn(".background(selected == tab ? Color.white.opacity(0.16)",modern)
-        self.assertNotIn("UIBlurEffect(",modern)
-        self.assertNotIn(".clipShape(Capsule())",modern)
-        self.assertIn("withAnimation(.spring(",modern)
-        self.assertIn(".contentShape(Capsule())",modern)
+    def test_selected_segment_morphs_on_tap_and_drag(self):
+        self.assertIn("withAnimation(.spring(",TABS)
+        self.assertIn("DragGesture(minimumDistance: 8)",TABS)
+        self.assertIn(".simultaneousGesture(",TABS)
+        self.assertIn("select(tabs[index])",TABS)
+        self.assertIn("select(tab)",TABS)
+        self.assertIn(".contentShape(Capsule())",TABS)
 
-    def test_old_os_and_accessibility_fallback_is_explicit(self):
-        self.assertIn("if #available(iOS 26.0, *)",TABS)
-        self.assertIn("!UIAccessibility.isReduceTransparencyEnabled",TABS)
-        self.assertIn("SCNativeLiquidGlassSurface(cornerRadius: 31",TABS)
+    def test_no_flat_painted_selection_in_ios26_glass_path(self):
+        self.assertNotIn(".background(selected == tab ?",TABS)
+        self.assertNotIn("UIBlurEffect(",TABS)
+        self.assertNotIn(".clipShape(Capsule())",TABS)
+        self.assertNotIn("SCNativeLiquidGlassSurface",TABS)
+        self.assertNotIn("Color.black.opacity(",TABS)
 
-    def test_original_dimensions_and_no_fake_shell_glass(self):
+    def test_fallback_for_old_os_and_reduce_transparency_remains_separate(self):
+        self.assertIn("if #available(iOS 26.0, *)",GLASS)
+        self.assertIn("!UIAccessibility.isReduceTransparencyEnabled",GLASS)
+        self.assertIn("SCNativeLiquidGlassSurface(cornerRadius: 31)",GLASS)
+
+    def test_guest_switcher_and_panel_use_native_glass(self):
+        self.assertIn("SCARLET_LIVE_GLASS_SWITCHER_MATERIAL",GLASS)
+        self.assertIn(".glassEffect(.regular.interactive(), in: .circle)",GLASS)
+        self.assertIn("SCARLET_GUEST_PANEL_NATIVE_GLASS_MATERIAL",GUEST)
+        self.assertIn(".glassEffect(.regular, in: .rect(cornerRadius: 24))",GUEST)
+        self.assertIn(".glassEffectID(\"guest-segment\", in: guestGlassSelection)",GUEST)
+        self.assertIn("withAnimation(.spring(",GUEST)
+
+    def test_existing_geometry_and_four_tab_destinations(self):
         self.assertIn(".frame(height: 62)",TABS)
         self.assertIn(".padding(.horizontal, 19)",UI)
         self.assertIn("preservedGlassTabBar($selected)",UI)
