@@ -3,7 +3,7 @@ name: Scarlet paired LiveContainer and SideStore iOS build
 on:
   workflow_dispatch:
   push:
-    branches: [rebuild/scarlet-from-zero-20261106, research/scarlet-engine-only-auth-xpc-20261106]
+    branches: [rebuild/scarlet-from-zero-20261106]
     paths:
       - ".github/workflows/scarlet-paired-engines-build.yml"
       - "rebuild/integration/**"
@@ -45,13 +45,6 @@ jobs:
           python3 rebuild/integration/apply_scarlet_host.py \
             --engine engine/LiveContainer \
             --report report/scarlet-host-integration.json
-      - name: Inject research-only SideStore XPC authentication interface
-        shell: bash
-        run: |
-          set -euo pipefail
-          python3 rebuild/integration/patch_host_auth_ipc.py \
-            --engine engine/LiveContainer \
-            --report report/scarlet-auth-host-xpc-audit.json
       - name: Build LiveContainer with integrated SideStoreSupport for real iOS
         shell: bash
         run: |
@@ -121,13 +114,6 @@ jobs:
           python3 rebuild/integration/verify_engines.py \
             --sidestore-source engine/SideStore --phase pins \
             --report report/source-gitlink-audit.json
-      - name: Inject original SignInOperation headless adapter
-        shell: bash
-        run: |
-          set -euo pipefail
-          python3 rebuild/integration/patch_sidestore_headless_auth.py \
-            --engine engine/SideStore \
-            --report report/scarlet-headless-auth-audit.json
       - name: Install SideStore official build prerequisite
         shell: bash
         run: brew install ldid
