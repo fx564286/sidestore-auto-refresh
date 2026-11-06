@@ -117,6 +117,7 @@ struct ScarletAppleIDLoginSheet: View {
                 }
                 ScarletDiagnosticRecorder.shared.record("auth", "request_succeeded",
                     status: "success")
+                NotificationCenter.default.post(name: Notification.Name("ScarletGuestAuthVerified"), object: nil)
                 dismiss()
             } catch is CancellationError {
                 ScarletDiagnosticRecorder.shared.record("auth", "request_cancelled",
