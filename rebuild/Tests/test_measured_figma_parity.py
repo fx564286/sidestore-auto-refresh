@@ -12,7 +12,7 @@ DESIGN=json.loads((ROOT/"design/figma-measured-baseline.json").read_text())
 CURRENT=json.loads((ROOT/"config/scarlet-independent-ui-contract.json").read_text())
 UI=(ROOT/"Sources/ScarletIndependentUI/ScarletIndependentShell.swift").read_text()
 HOST=(ROOT/"HostApp/ScarletIntegratedHostView.swift").read_text()
-HOME=UI[UI.index("    private var home: some View {"):UI.index("    private func installPathRow(")]
+HOME=UI[UI.index("    private var home: some View {"):UI.index("    private var visibleGuests:")]
 
 class FigmaMeasuredParity(unittest.TestCase):
     def test_six_original_screen_nodes_remain_as_design_archive(self):
@@ -41,9 +41,10 @@ class FigmaMeasuredParity(unittest.TestCase):
     def test_merged_home_labels_filters_and_actions_are_real(self):
         self.assertIn('heading("", "설치된 앱", "")',HOME)
         self.assertIn('TextField("설치된 앱 검색"',HOME)
-        self.assertIn('installPathRow("SideStore 앱 설치"',HOME)
-        self.assertIn('installPathRow("게스트 앱 설치"',HOME)
+        self.assertIn('Label("IPA 설치하기"',HOME)
+        self.assertIn('Label("게스트 앱 설치하기"',HOME)
         self.assertIn("guests: visibleGuests",HOME)
+        self.assertNotIn("installPathRow(",UI)
         self.assertIn("searchText.isEmpty ||",UI)
         self.assertNotIn('Text("Madeira")',UI)
         self.assertNotIn('private var apps: some View {',UI)
