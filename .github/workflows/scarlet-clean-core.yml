@@ -95,5 +95,6 @@ jobs:
             -target arm64-apple-ios17.0-simulator -sdk "$sdk" -typecheck \
             rebuild/Sources/ScarletCleanCore/ScarletActionCoordinator.swift \
             rebuild/Sources/ScarletCleanCore/ScarletUpdateCoordinator.swift \
+            rebuild/Sources/ScarletCleanCore/ScarletRefreshPolicy.swift \
             rebuild/Sources/ScarletIndependentUI/ScarletIndependentShell.swift
           echo '[PASS] SCARLET_INDEPENDENT_UI_SWIFTUI_IOS_TYPECHECK'
