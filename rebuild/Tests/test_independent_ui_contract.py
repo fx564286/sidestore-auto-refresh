@@ -95,8 +95,11 @@ class IndependentUIContractTests(unittest.TestCase):
         for field in ("appleAuthenticated: Bool","pairingVerified: Bool",
                       "installationVerified: Bool","signingVerified: Bool"):
             self.assertIn(field,UI)
-        self.assertIn("SCARLET_SETTINGS_NATIVE_APPLE_LOGIN",UI)
-        self.assertIn("onAction(.serviceBeginSignIn)",UI)
+        INTEGRATOR=(ROOT/"integration/apply_scarlet_host.py").read_text()
+        self.assertIn("SCARLET_SETTINGS_NATIVE_APPLE_LOGIN",INTEGRATOR)
+        self.assertIn("case .serviceBeginSignIn:",HOST)
+        self.assertIn("ScarletDiagnosticLogView()",INTEGRATOR)
+        self.assertNotIn('Text("설정")',UI)
         self.assertTrue(CONTRACT["navigation"]["signin_request_requires_verified_engine"])
         self.assertIn("One actor",CORE)
 
