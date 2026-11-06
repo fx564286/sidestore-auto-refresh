@@ -245,10 +245,12 @@ public struct ScarletIndependentShell: View {
 
     private func heading(_ overline: String, _ title: String, _ subtitle: String) -> some View {
         VStack(alignment: .leading, spacing: 9) {
-            Text(overline.uppercased())
-                .font(.caption2.weight(.semibold))
-                .tracking(0.8)
-                .foregroundStyle(ScarletPresentationColor.accent)
+            if !overline.isEmpty {
+                Text(overline.uppercased())
+                    .font(.caption2.weight(.semibold))
+                    .tracking(0.8)
+                    .foregroundStyle(ScarletPresentationColor.accent)
+            }
             Text(title)
                 .font(.system(.largeTitle, design: .rounded, weight: .bold))
                 .foregroundStyle(ScarletPresentationColor.text)
@@ -347,7 +349,7 @@ public struct ScarletIndependentShell: View {
 
     private var apps: some View {
         Group {
-            heading("LiveContainer", "내 앱", "앱을 검색하거나 실행하세요.")
+            heading("", "내 앱", "앱을 검색하거나 실행하세요.")
             HStack {
                 Image(systemName: "magnifyingglass")
                     .foregroundStyle(ScarletPresentationColor.accent)
@@ -380,7 +382,7 @@ public struct ScarletIndependentShell: View {
 
     private var settings: some View {
         Group {
-            heading("Preferences", "설정", "컨테이너와 서명 설정")
+            heading("", "설정", "컨테이너와 서명 설정")
             ScarletPanel {
                 sectionTitle("기기 및 컨테이너")
                 ScarletActionRow(title: "화면 설정",
@@ -431,7 +433,7 @@ public struct ScarletIndependentShell: View {
 
     private var connection: some View {
         Group {
-            heading("Connection", "연결 및 서명", "페어링 및 Apple 계정")
+            heading("", "연결 및 서명", "페어링 및 Apple 계정")
             ScarletPanel {
                 Text(snapshot.serviceConnected ? "연결됨" : "연결 안 됨")
                     .font(.headline)
