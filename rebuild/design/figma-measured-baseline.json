@@ -5,7 +5,7 @@
     "fileKey": "QESg6S7oJS47PmlPpEX5w5",
     "url": "https://www.figma.com/design/QESg6S7oJS47PmlPpEX5w5",
     "capturedOn": "2026-11-06",
-    "validation": "Directly read editable Figma layer geometry/text; commit is a snapshot, not continuous synchronization"
+    "validation": "Direct Figma get_design_context on 2026-11-06; 6:136 has exactly two settings cards, while runtime is separately validated"
   },
   "design": {
     "viewport": {
@@ -100,8 +100,7 @@
         "cardWidthPt": 350,
         "cardHeightsPt": [
           165,
-          129,
-          80
+          129
         ],
         "cardHeaderLeftPt": 17,
         "cardIconLeftPt": 17,
@@ -109,7 +108,7 @@
         "accountTextLeftPt": 17,
         "ctaCenterScreenXPt": 195,
         "rowHeightPt": 62,
-        "settingsCardCount": 3,
+        "settingsCardCount": 2,
         "secondaryVisualStatusLabelsRemoved": true,
         "serviceToolsRoutedToConnectionDetail": true
       },
@@ -188,10 +187,11 @@
       "codeSection": "private var settings:",
       "requiredCopy": [
         "설정",
-        "화면 설정",
-        "저장소",
+        "LiveContainer",
+        "LiveContainer 전체 설정",
+        "가상 앱 관리",
         "계정 및 서명",
-        "진단 로그"
+        "Apple ID 로그인"
       ],
       "dynamicData": [
         "serviceConnectionState",
