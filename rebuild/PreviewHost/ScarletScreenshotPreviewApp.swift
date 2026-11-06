@@ -68,6 +68,25 @@ struct ScarletScreenshotPreviewApp: App {
                                     in: Capsule())
                     )
                 },
+                nativeSettings: {
+                    // Simulator-only placeholder. The installable app injects
+                    // upstream LCSettingsView with real original controls.
+                    AnyView(
+                        NavigationStack {
+                            Form {
+                                Section("Scarlet Crystal") {
+                                    Label("Apple ID 로그인 (미리보기)", systemImage: "person.crop.circle")
+                                    Label("진단 로그 보기 및 공유 (미리보기)", systemImage: "ladybug")
+                                }
+                                Section("LiveContainer (미리보기)") {
+                                    Label("인증서·JIT·멀티태스킹 설정", systemImage: "gearshape")
+                                    Label("원본 설정 Form은 실기기에서 사용", systemImage: "info.circle")
+                                }
+                            }
+                            .navigationTitle("설정")
+                        }
+                    )
+                },
                 initialTab: startTab
             )
             .overlay(alignment: .topTrailing) {
