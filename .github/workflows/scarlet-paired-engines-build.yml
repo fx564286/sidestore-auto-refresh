@@ -42,6 +42,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          python3 rebuild/integration/wire_scarlet_auth.py --engine engine/LiveContainer --mode livecontainer
           python3 rebuild/integration/apply_scarlet_host.py \
             --engine engine/LiveContainer \
             --report report/scarlet-host-integration.json
@@ -114,6 +115,7 @@ jobs:
           python3 rebuild/integration/verify_engines.py \
             --sidestore-source engine/SideStore --phase pins \
             --report report/source-gitlink-audit.json
+          python3 rebuild/integration/wire_scarlet_auth.py --engine engine/SideStore --mode sidestore
       - name: Install SideStore official build prerequisite
         shell: bash
         run: brew install ldid
