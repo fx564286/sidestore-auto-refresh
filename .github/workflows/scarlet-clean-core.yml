@@ -18,6 +18,10 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: scarlet-clean-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   standalone-core:
     runs-on: ubuntu-24.04
@@ -137,6 +141,7 @@ jobs:
             rebuild/Sources/ScarletIndependentUI/ScarletIndependentShell.swift
           echo '[PASS] SCARLET_INDEPENDENT_UI_SWIFTUI_IOS_TYPECHECK'
       - name: Capture five iPhone Simulator SwiftUI screenshots (mock glass disclosed)
+        timeout-minutes: 9
         shell: bash
         run: |
           set -euo pipefail
