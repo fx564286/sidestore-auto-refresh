@@ -75,7 +75,9 @@ class IndependentUIContractTests(unittest.TestCase):
         self.assertIn('Button(action: onAddSource)', UI)
         self.assertNotIn('case connection =', UI)
         self.assertIn("showConnectionDetails = true", UI)
-        self.assertIn(".sheet(isPresented: $showConnectionDetails)", UI)
+        self.assertNotIn(".sheet(isPresented: $showConnectionDetails)", UI)
+        self.assertIn("if showConnectionDetails {", UI)
+        self.assertIn("SCARLET_CONNECTION_BACK", UI)
         self.assertIn("onAction(.serviceReadSettings)", UI)
         self.assertTrue(CONTRACT["navigation"]["connection_signing_in_settings"])
 
