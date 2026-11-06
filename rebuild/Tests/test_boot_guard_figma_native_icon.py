@@ -41,6 +41,20 @@ class ScarletBootAndBrandingContract(unittest.TestCase):
         self.assertNotIn("removeItem(at:", INJECTION)
         self.assertIn("phase=home-visible", HOST)
 
+    def test_crash_traced_dock_force_unwrap_is_deferred(self):
+        # Four real iOS 27.2 SIGTRAP reports reproduce this exact path.
+        # The real pinned upstream force-unwrap is replaced during Xcode
+        # integration; device data and original engine remain intact.
+        self.assertIn("unsafe_init", INJECTION)
+        self.assertIn('dock_source.count(unsafe_init)==1', INJECTION)
+        self.assertIn('dock_source.replace(unsafe_init,safe_init)', INJECTION)
+        self.assertIn("UIWindow.didBecomeVisibleNotification", INJECTION)
+        self.assertIn("scarletEnsureWindowHost()", INJECTION)
+        self.assertIn("rootView.subviews.first ?? rootView", INJECTION)
+        self.assertIn('onDeviceSigtrapDockForceUnwrapGuarded', INJECTION)
+        self.assertNotIn("@ObservedObject private var guestDock = MultitaskDockManager.shared", HOST)
+        self.assertIn("MultitaskDockManager.shared.scarletEnsureWindowHost()", HOST)
+
     def test_actual_device_launch_is_not_certified(self):
         report_source = (ROOT / "integration/package_paired.py").read_text()
         self.assertIn('"userDeviceInstallationVerified":False', report_source)
