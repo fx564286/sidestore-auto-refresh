@@ -92,7 +92,31 @@ def main():
         assert inp.is_file(),f"Required independent source missing: {inp}"
         shutil.copy2(inp,out/name)
     figma_icon=apply_figma_app_icon(root,engine)
-    entry.write_text(src.replace(original,new))
+    # Pinned LiveContainer initialization force-unwraps each persisted guest
+    # bundle. A damaged/partial historical guest can otherwise terminate the
+    # host before any error screen is displayed. Skip that guest only; NEVER
+    # delete or rewrite the bundle, container or shared App Group data.
+    src=src.replace(original,new)
+    boot_anchor="    init() {\\n"
+    assert src.count(boot_anchor)==1, "Pinned entry initializer changed"
+    src=src.replace(boot_anchor,
+        boot_anchor+'        NSLog("[SCARLET_BOOT] phase=app-init-start")\\n')
+    guest_anchors={
+        'let newApp = LCAppInfo(bundlePath: "\\(LCPath.bundlePath.path)/\\(appDir)")!':
+        'guard let newApp = LCAppInfo(bundlePath: "\\(LCPath.bundlePath.path)/\\(appDir)") else {\\n'
+        '                    NSLog("[SCARLET_BOOT] invalid-local-guest-skipped")\\n'
+        '                    continue\\n'
+        '                }',
+        'let newApp = LCAppInfo(bundlePath: "\\(LCPath.lcGroupBundlePath.path)/\\(appDir)")!':
+        'guard let newApp = LCAppInfo(bundlePath: "\\(LCPath.lcGroupBundlePath.path)/\\(appDir)") else {\\n'
+        '                        NSLog("[SCARLET_BOOT] invalid-shared-guest-skipped")\\n'
+        '                        continue\\n'
+        '                    }'
+    }
+    for before,after in guest_anchors.items():
+        assert src.count(before)==1, f"Pinned guest initializer changed: {before}"
+        src=src.replace(before,after)
+    entry.write_text(src)
 
     # Mount the sole circular control on an actual running guest scene.  Never
     # place it over the independent host container tabs.  Refuse unknown pins.
@@ -127,6 +151,8 @@ def main():
     data={
         "schema":1,"newRootCompiled":False,
         "upstreamAppEntryPatched":True,
+        "invalidPersistedGuestSkippedWithoutMutation":True,
+        "hostBootPhaseLoggingInjected":True,
         "hostEntry":"ScarletIntegratedHostView",
         "realLCGuestModelsUsed":True,
         "originalGuestImporterPreserved":True,
