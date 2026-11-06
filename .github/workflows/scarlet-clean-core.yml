@@ -41,6 +41,7 @@ jobs:
           set -euo pipefail
           python3 -m json.tool rebuild/config/scarlet-independent-ui-contract.json >/dev/null
           python3 -m unittest discover -s rebuild/Tests -p 'test_independent_ui_contract.py' -v
+          python3 -m unittest discover -s rebuild/Tests -p 'test_scarlet_upstream_candidate.py' -v
       - name: Compile pure Swift 6 source and run executable behavioral contract
         shell: bash
         run: |
@@ -52,6 +53,11 @@ jobs:
             rebuild/Tests/ScarletCleanCoreContract.swift \
             -o "${RUNNER_TEMP}/scarlet-clean-core-contract"
           "${RUNNER_TEMP}/scarlet-clean-core-contract"
+          swiftc -swift-version 6 -parse-as-library \
+            rebuild/Sources/ScarletCleanCore/ScarletRefreshPolicy.swift \
+            rebuild/Tests/ScarletRefreshPolicyContract.swift \
+            -o "${RUNNER_TEMP}/scarlet-refresh-contract"
+          "${RUNNER_TEMP}/scarlet-refresh-contract"
       - name: Save actual test output
         if: failure()
         shell: bash
