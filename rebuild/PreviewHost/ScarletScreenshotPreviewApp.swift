@@ -6,7 +6,6 @@ import SwiftUI
 @main
 struct ScarletScreenshotPreviewApp: App {
     private let startTab: ScarletIndependentShell.Tab
-    private let startAccountDetails: Bool
 
     init() {
         let args = ProcessInfo.processInfo.arguments
@@ -19,7 +18,6 @@ struct ScarletScreenshotPreviewApp: App {
         case "connection": startTab = .settings
         default: startTab = .home
         }
-        startAccountDetails = screen == "connection"
     }
 
     var body: some Scene {
@@ -70,8 +68,7 @@ struct ScarletScreenshotPreviewApp: App {
                                     in: Capsule())
                     )
                 },
-                initialTab: startTab,
-                initialConnectionDetails: startAccountDetails
+                initialTab: startTab
             )
             .overlay(alignment: .topTrailing) {
                 Text("SIMULATOR UI PREVIEW · NOT LIQUID GLASS")
