@@ -26,7 +26,7 @@ class IndependentUIContractTests(unittest.TestCase):
                           ".glassEffect(", "clearAppGroup", "removeUserData",
                           "revokeCertificate", "nukeSideStore"):
             self.assertNotIn(forbidden,UI)
-        self.assertIn("onOpenPreservedGlassWindowManager",UI)
+        self.assertIn("preservedGlassSwitchControl",UI)
         self.assertIn("struct ScarletIndependentShell",UI)
         self.assertIn("struct ScarletHostPresentationSnapshot",UI)
 
@@ -41,19 +41,18 @@ class IndependentUIContractTests(unittest.TestCase):
     def test_one_round_switcher_replaces_bottom_tab_bar(self):
         self.assertNotIn("private var tabBar",UI)
         self.assertNotIn("SCARLET_INDEPENDENT_TAB_BAR",UI)
-        self.assertIn('SCARLET_SINGLE_ROUND_APP_SWITCHER',UI)
         self.assertEqual(UI.count("SCARLET_SINGLE_ROUND_APP_SWITCHER"),1)
-        self.assertIn('Image(systemName: "square.on.square")',UI)
-        self.assertIn('.frame(width: 62, height: 62)',UI)
-        self.assertIn('Button(action: onOpenPreservedGlassWindowManager)',UI)
-        self.assertIn("preservedGlassSwitchControl: AnyView?",UI)
-        self.assertIn("if let preservedGlassSwitchControl",UI)
-        # On-screen app switching has a single native entry point.
-        self.assertEqual(UI.count('Button(action: onOpenPreservedGlassWindowManager)'),1)
+        self.assertIn(".frame(width: 62, height: 62)",UI)
+        self.assertIn("preservedGlassSwitchControl: AnyView)",UI)
+        self.assertIn("public let preservedGlassSwitchControl: AnyView",UI)
+        self.assertIn("preservedGlassSwitchControl\n",UI)
+        self.assertNotIn("AnyView?",UI)
+        self.assertNotIn("Button(action: onOpenPreservedGlassWindowManager)",UI)
         self.assertNotIn('quickAction("창 관리"',UI)
         self.assertNotIn('ScarletActionRow(title: "실행 및 창 관리"',UI)
         self.assertIn("Menu {",UI)
         self.assertIn("selected = tab",UI)
+        self.assertIn("accessibilityLabel(\"앱 전환 및 창 관리\")",UI)
 
     def test_auth_presentation_does_not_claim_service_equals_login(self):
         self.assertIn("appleAuthenticated: Bool",UI)
