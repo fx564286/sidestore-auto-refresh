@@ -172,12 +172,14 @@ def attach_native_settings_diagnostics(engine: Path) -> dict:
                         Label("Apple ID 로그인", systemImage: "person.crop.circle")
                     }
                     .accessibilityIdentifier("SCARLET_SETTINGS_NATIVE_APPLE_LOGIN")
-                    NavigationLink {
-                        ScarletDiagnosticLogView()
-                    } label: {
-                        Label("진단 로그 보기 및 공유", systemImage: "ladybug")
+                    if #available(iOS 16.0, *) {
+                        NavigationLink {
+                            ScarletDiagnosticLogView()
+                        } label: {
+                            Label("진단 로그 보기 및 공유", systemImage: "ladybug")
+                        }
+                        .accessibilityIdentifier("SCARLET_NATIVE_DIAGNOSTICS_ENTRY")
                     }
-                    .accessibilityIdentifier("SCARLET_NATIVE_DIAGNOSTICS_ENTRY")
                 } header: {
                     Text("Scarlet Crystal")
                 } footer: {
@@ -187,7 +189,11 @@ def attach_native_settings_diagnostics(engine: Path) -> dict:
     source=source.replace(form_anchor,new_section)
     source=source.replace(style_anchor,style_anchor+
         '        .sheet(isPresented: $scarletShowAppleLogin) {\n'
-        '            ScarletAppleIDLoginSheet(engine: ScarletPendingSideStoreEngineBridge())\n'
+        '            if #available(iOS 17.0, *) {\n'
+        '                ScarletAppleIDLoginSheet(engine: ScarletPendingSideStoreEngineBridge())\n'
+        '            } else {\n'
+        '                Text("Apple 로그인은 iOS 17 이상에서 제공됩니다.")\n'
+        '            }\n'
         '        }\n'
         '        .onAppear {\n'
         '            ScarletDiagnosticRecorder.shared.record("settings", "native_form_visible")\n'
