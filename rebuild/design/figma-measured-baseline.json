@@ -118,18 +118,24 @@
         "contentLeftPt": 20,
         "contentWidthPt": 350,
         "engineEntryTitles": [
-          "SideStore",
-          "가상 앱"
+          "iOS 앱 설치",
+          "게스트 앱 설치"
         ],
         "engineEntryHeightsPt": [
-          78,
-          78
+          62,
+          62
         ],
         "settingsInline": false,
         "hideBottomTabsOnHome": false,
         "homeSectionCount": 2,
         "doNotShowStatisticsOrRecents": true,
-        "homeSettingsCardRemoved": true
+        "homeSettingsCardRemoved": true,
+        "homeInstallationActions": [
+          "serviceInstallIPA",
+          "localImportGuestIPA"
+        ],
+        "deviceInstallStatus": "bridge_unverified",
+        "installButtonStyle": "compact_equal_width_action_rows"
       },
       "apps": {
         "filterBarVisible": false,
@@ -148,16 +154,17 @@
       "title": "내 컨테이너",
       "codeSection": "private var home:",
       "requiredCopy": [
-        "내 컨테이너",
-        "SideStore",
+        "IPA 설치",
+        "iOS 앱 설치",
+        "게스트 앱 설치",
         "가상 앱"
       ],
       "dynamicData": [
-        "actual_embedded_sidestore",
-        "native_livecontainer_app_library",
-        "original_livecontainer_settings"
+        "real_livecontainer_guest_list",
+        "guest_ipa_import",
+        "sidestore_device_ipa_install_pending"
       ],
-      "navigation": "Two original engine entries, with restored pre-merge native bottom navigation to separate original Settings"
+      "navigation": "Two directly visible distinct IPA install targets on Home; never open SideStore guest UI"
     },
     {
       "figmaNodeId": "6:75",

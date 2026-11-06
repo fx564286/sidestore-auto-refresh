@@ -22,11 +22,12 @@ class InstallerRouteTests(unittest.TestCase):
         self.assertIn("LCAppListView()",HOST)
         self.assertIn("try await app.runApp()",HOST)
 
-    def test_embedded_sidestore_open_is_always_available_for_login(self):
+    def test_sidestore_device_install_path_is_not_embedded_guest_navigation(self):
         self.assertIn("case localOpenEmbeddedSideStore",ACTIONS)
-        self.assertIn('ScarletActionRow(title: "SideStore 열기"',UI)
-        self.assertIn("onAction(.localOpenEmbeddedSideStore)",UI)
-        self.assertIn("LCUtils.openSideStore(",HOST)
+        self.assertIn('installPathRow("iOS 앱 설치"',UI)
+        self.assertIn("onAction(.serviceInstallIPA)",UI)
+        self.assertNotIn("LCUtils.openSideStore(",HOST)
+        self.assertIn("prepareDeviceIPAInstall()",HOST)
         self.assertIn('case .serviceBeginSignIn:',HOST)
         self.assertNotIn("sidestore://signin",HOST)
         self.assertIn("showScarletAppleIDLogin = true",HOST)

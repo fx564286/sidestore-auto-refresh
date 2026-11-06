@@ -32,9 +32,9 @@ class IndependentUIContractTests(unittest.TestCase):
 
     def test_home_settings_creation_rolled_back_and_engine_targets_preserved(self):
         h=UI[UI.index("    private var home: some View {"):UI.index("    private var visibleGuests:")]
-        self.assertIn('engineEntry("SideStore"',h)
-        self.assertIn('engineEntry("가상 앱"',h)
-        self.assertIn('onAction(.localOpenEmbeddedSideStore)',h)
+        self.assertIn('installPathRow("iOS 앱 설치"',h)
+        self.assertIn('installPathRow("게스트 앱 설치"',h)
+        self.assertIn('onAction(.serviceInstallIPA)',h)
         self.assertIn('onAction(.localImportGuestIPA)',h)
         self.assertNotIn('onAction(.localAppearance)',h)
         self.assertNotIn('heading("", "설정", "")',h)

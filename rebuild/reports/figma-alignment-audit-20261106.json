@@ -94,8 +94,8 @@
       350
     ],
     "homeEngineEntryHeightsPt": [
-      78,
-      78
+      62,
+      62
     ],
     "homeNativeSettingsCardHeightPt": 102,
     "homeSettingsSectionVisibleWithoutTab": false,
@@ -115,7 +115,9 @@
     "settingsCenteredPrimaryAction": true,
     "noHomeOrSettingsTabsNeeded": false,
     "originalEngineEntrypointsOnly": true,
-    "newlyClonedHomeSettingsRemoved": true
+    "newlyClonedHomeSettingsRemoved": true,
+    "noSideStoreGuestNavigation": true,
+    "separateDeviceAndGuestImport": true
   },
-  "validation": "Rollback to pre-inline-settings Home: two engine entries and original native glass navigation; separate original settings screen untouched."
+  "validation": "Home uses two explicit same-screen IPA install controls; SideStore device install remains fail closed until authenticated headless transport verified; guest importer is native LiveContainer."
 }

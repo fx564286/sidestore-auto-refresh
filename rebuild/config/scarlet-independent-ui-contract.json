@@ -118,7 +118,9 @@
     "home_tab_bar_hidden": false,
     "initial_screen": "home",
     "original_livecontainer_settings_entry": "Settings tab -> LCSettingsView",
-    "original_sidestore_entry": "ScarletControl.localOpenEmbeddedSideStore -> LCUtils.openSideStore",
-    "original_guest_apps_entry": "ScarletControl.localImportGuestIPA -> LCAppListView"
+    "original_sidestore_entry": "engine_only_never_launch_guest_UI",
+    "original_guest_apps_entry": "ScarletControl.localImportGuestIPA -> LCAppListView",
+    "home_device_ipa_install": "ScarletControl.serviceInstallIPA -> SideStore headless installer (unverified, fail-closed)",
+    "home_guest_ipa_install": "ScarletControl.localImportGuestIPA -> original LiveContainer import"
   }
 }

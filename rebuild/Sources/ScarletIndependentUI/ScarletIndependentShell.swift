@@ -363,24 +363,55 @@ public struct ScarletIndependentShell: View {
 
     // Initial screen: Home and Settings are both visible WITHOUT a tab.
     // No stats, recent-app section, fake settings or duplicate navigation.
+    // One Home screen, two DISTINCT install targets, no SideStore guest UI.
+    // The original guest importer handles LiveContainer-contained apps.
+    // Device IPA signing and installation uses SideStore/SideSign only after
+    // the embedded engine transport and Apple provisioning are verified.
     private var home: some View {
         Group {
-            heading("", "내 컨테이너", "")
-            engineEntry("SideStore", icon: "square.and.arrow.down") {
-                onAction(.localOpenEmbeddedSideStore)
+            heading("", "IPA 설치", "")
+            VStack(spacing: 0) {
+                installPathRow("iOS 앱 설치",
+                               icon: "arrow.down.app",
+                               detail: "기기에 설치",
+                               identifier: "SCARLET_HOME_DEVICE_IPA_INSTALL") {
+                    onAction(.serviceInstallIPA)
+                }
+                Divider()
+                    .overlay(ScarletPresentationColor.stroke)
+                    .padding(.leading, 52)
+                installPathRow("게스트 앱 설치",
+                               icon: "square.stack.3d.up",
+                               detail: "LiveContainer에 추가",
+                               identifier: "SCARLET_HOME_GUEST_IPA_INSTALL") {
+                    onAction(.localImportGuestIPA)
+                }
             }
-            .accessibilityIdentifier("SCARLET_HOME_SIDESTORE_ENGINE")
-            engineEntry("가상 앱", icon: "square.stack.3d.up") {
-                onAction(.localImportGuestIPA)
+            .padding(.horizontal, 10)
+            .background(ScarletPresentationColor.surface,
+                        in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+            .overlay {
+                RoundedRectangle(cornerRadius: 20, style: .continuous)
+                    .stroke(ScarletPresentationColor.stroke, lineWidth: 1)
             }
-            .accessibilityIdentifier("SCARLET_HOME_LIVECONTAINER_ENGINE")
 
+            if !guests.isEmpty {
+                heading("", "가상 앱", "")
+                ScarletGuestListCard(
+                    guests: Array(guests.prefix(5)),
+                    emptyText: "앱이 없습니다.",
+                    onOpen: onOpenGuest
+                )
+            }
         }
         .foregroundStyle(ScarletPresentationColor.text)
     }
 
-    private func engineEntry(_ title: String, icon: String,
-                             action: @escaping () -> Void) -> some View {
+    private func installPathRow(_ title: String,
+                                icon: String,
+                                detail: String,
+                                identifier: String,
+                                action: @escaping () -> Void) -> some View {
         Button(action: action) {
             HStack(alignment: .center, spacing: 12) {
                 Image(systemName: icon)
@@ -392,21 +423,16 @@ public struct ScarletIndependentShell: View {
                 Text(title)
                     .font(.system(size: 16, weight: .semibold))
                     .foregroundStyle(ScarletPresentationColor.text)
-                    .lineLimit(1)
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
-            .padding(.horizontal, 16)
-            .frame(maxWidth: .infinity, minHeight: 78, alignment: .leading)
-            .background(ScarletPresentationColor.surface,
-                        in: RoundedRectangle(cornerRadius: 20, style: .continuous))
-            .overlay {
-                RoundedRectangle(cornerRadius: 20, style: .continuous)
-                    .stroke(ScarletPresentationColor.stroke, lineWidth: 1)
-            }
-            .contentShape(RoundedRectangle(cornerRadius: 20))
+            .padding(.horizontal, 8)
+            .frame(maxWidth: .infinity, minHeight: 62, alignment: .leading)
+            .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .accessibilityLabel(title)
+        .accessibilityHint(detail)
+        .accessibilityIdentifier(identifier)
     }
 
     // Virtual Apps: no recent/running/total filters or duplicate app statuses.

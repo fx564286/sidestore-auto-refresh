@@ -56,14 +56,16 @@ struct ScarletIntegratedHostView: View {
         }
     }
 
-    private func openEmbeddedSideStore() {
+    private func prepareDeviceIPAInstall() {
+        // Do not open SideStore's UI. Device installation requires the
+        // SideStore headless install/signing engine and verified profiles.
+        // The older integrated app implements IPA staging -> installSharedIPA.
+        // This rebuild has not yet ported and verified that transport.
         guard UserDefaults.sideStoreExist() else {
-            showOriginalError = "내장 SideStore 실행 파일이 없습니다. 통합 IPA를 검사하세요."
+            showOriginalError = "내장 SideStore 설치 엔진을 찾지 못했습니다."
             return
         }
-        // Only the explicit SideStore app entry launches its guest UI.
-        // Scarlet Apple login MUST remain inside Scarlet's own interface.
-        LCUtils.openSideStore(delegate: nil)
+        showOriginalError = "iOS 앱 설치 엔진의 서명·기기 설치 연결이 아직 검증되지 않았습니다. 원본 IPA와 기존 인증서·프로파일은 변경하지 않았습니다."
     }
 
     private func handle(_ action: ScarletControl) {
@@ -73,13 +75,13 @@ struct ScarletIntegratedHostView: View {
             showNativeAppLibrary = true
         case .serviceBeginSignIn:
             showScarletAppleIDLogin = true
+        case .serviceInstallIPA:
+            prepareDeviceIPAInstall()
         case .localOpenEmbeddedSideStore,
-             .serviceRefreshApp,
-             .serviceSyncAppIDs,
-             .serviceInstallIPA,
-             .serviceSetSettings,
-             .serviceReadSettings:
-            openEmbeddedSideStore()
+             .serviceRefreshApp, .serviceSyncAppIDs,
+             .serviceSetSettings, .serviceReadSettings:
+            // Never redirect any SideStore service button to its guest UI.
+            showOriginalError = "SideStore 화면 이동은 사용하지 않습니다. 해당 기능은 Scarlet 내부 엔진 연결이 검증된 후 사용할 수 있습니다."
         case .localAppearance, .localStorageNavigation, .serviceReadLogs,
              .localTapProbe, .localClearNotifications:
             showNativeSettings = true

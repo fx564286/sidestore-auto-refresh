@@ -83,9 +83,13 @@
     "home_and_settings_same_screen": false,
     "home_engine_card_equal_width_pt": 350,
     "home_engine_card_heights_pt": [
-      78,
-      78
+      62,
+      62
     ],
-    "home_bottom_tabs_hidden": true
+    "home_bottom_tabs_hidden": true,
+    "home_engine_install_labels": [
+      "iOS 앱 설치",
+      "게스트 앱 설치"
+    ]
   }
 }

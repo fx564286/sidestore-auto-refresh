@@ -13,9 +13,9 @@ HOME=UI[UI.index("    private var home: some View {"):UI.index("    private var 
 
 class NativeHomeSettings(unittest.TestCase):
     def test_two_engine_cards_not_status_dashboard(self):
-        self.assertEqual(HOME.count('engineEntry("'),2)
-        self.assertIn('engineEntry("SideStore"',HOME)
-        self.assertIn('engineEntry("가상 앱"',HOME)
+        self.assertEqual(HOME.count('installPathRow("'),2)
+        self.assertIn('installPathRow("iOS 앱 설치"',HOME)
+        self.assertIn('installPathRow("게스트 앱 설치"',HOME)
         for redundant in ('"빠른 작업"','"최근 앱"','SCARLET_CENTERED_WORKSPACE_STATS','"활성 창"'):
             self.assertNotIn(redundant,HOME)
         self.assertEqual(DESIGN["design"]["alignment"]["homeAndSettings"]["engineEntryHeightsPt"],[78,78])
@@ -35,10 +35,10 @@ class NativeHomeSettings(unittest.TestCase):
         self.assertNotIn('.sheet(isPresented: $showLocalStorage)',UI)
         self.assertNotIn('onAction(.localAppearance)',HOME)
         self.assertIn('onAction(.localAppearance)',UI)
-        self.assertIn('onAction(.localOpenEmbeddedSideStore)',HOME)
+        self.assertIn('onAction(.serviceInstallIPA)',HOME)
         self.assertIn('onAction(.localImportGuestIPA)',HOME)
         for literal in ("LCSettingsView()","LCAppListView()",
-                        "LCUtils.openSideStore("):
+                        "prepareDeviceIPAInstall()"):
             self.assertIn(literal,HOST)
         self.assertIn("case .localAppearance, .localStorageNavigation",HOST)
         self.assertIn("case .serviceBeginSignIn:",HOST)
