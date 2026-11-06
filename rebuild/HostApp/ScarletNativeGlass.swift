@@ -111,6 +111,7 @@ struct SCNativeLiquidGlassSurface: UIViewRepresentable {
     }
 }
 
+@available(iOS 16.0, *)
 struct ScarletNativeGlassTabBar: View {
     @Binding var selected: ScarletIndependentShell.Tab
 
