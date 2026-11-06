@@ -98,3 +98,16 @@ jobs:
             rebuild/Sources/ScarletCleanCore/ScarletRefreshPolicy.swift \
             rebuild/Sources/ScarletIndependentUI/ScarletIndependentShell.swift
           echo '[PASS] SCARLET_INDEPENDENT_UI_SWIFTUI_IOS_TYPECHECK'
+      - name: Capture five iPhone Simulator SwiftUI screenshots (mock glass disclosed)
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash rebuild/scripts/capture_simulator_ui.sh "$RUNNER_TEMP/scarlet-design-screenshots"
+      - name: Upload visible screenshot evidence and provenance
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: Scarlet-Clean-UI-Figma-Parity-Simulator-Only
+          path: ${{ runner.temp }}/scarlet-design-screenshots/
+          if-no-files-found: warn
+          retention-days: 14
