@@ -112,6 +112,22 @@ struct SCNativeLiquidGlassSurface: UIViewRepresentable {
     }
 }
 
+// The upstream LiveContainer target also compiles for iOS 15.0.
+// Guard iOS 16-only list background APIs without changing native controls.
+extension View {
+    @ViewBuilder
+    func scarletNativeListTheme() -> some View {
+        if #available(iOS 16.0, *) {
+            self.scrollContentBackground(.hidden)
+                .background(Color(red: 13.0/255, green: 13.0/255, blue: 24.0/255).ignoresSafeArea())
+                .tint(Color(red: 170.0/255, green: 150.0/255, blue: 1.0))
+        } else {
+            self.background(Color(red: 13.0/255, green: 13.0/255, blue: 24.0/255).ignoresSafeArea())
+                .tint(Color(red: 170.0/255, green: 150.0/255, blue: 1.0))
+        }
+    }
+}
+
 // The actual iOS 26+ implementation uses the SwiftUI glass compositor.
 // Two distinct glass shapes contribute to ONE container: the full pill and
 // the selection pill. This is not a translucent Color overlay pretending
