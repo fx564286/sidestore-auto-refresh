@@ -1,0 +1,142 @@
+name: Scarlet Crystal - monitor free signing renewal expiry
+on:
+  schedule:
+    - cron: '32 1 * * *'
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/scarlet-renewal-watch.yml
+permissions:
+  contents: read
+  issues: write
+concurrency:
+  group: scarlet-free-signing-renewal
+  cancel-in-progress: false
+jobs:
+  audit-published-signed-ipa:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: rebuild/scarlet-clean-core-20261106
+      - name: Validate 7-day profile audit contract
+        run: |
+          set -euo pipefail
+          python3 -m unittest discover -s rebuild/Tests -p 'test_renewal_guard.py' -v
+      - name: Select latest published signed development IPA
+        id: release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh release list -R "$GITHUB_REPOSITORY" --limit 100 --json tagName,isDraft,isPrerelease > "$RUNNER_TEMP/releases.json"
+          python3 - "$RUNNER_TEMP/releases.json" "$GITHUB_OUTPUT" <<'PY'
+          import json,re,sys
+          data=json.load(open(sys.argv[1]))
+          found=[]
+          for r in data:
+              match=re.fullmatch(r"scarlet-v([0-9]+)-device-signed-([0-9]{8})",r["tagName"])
+              if match and not r["isDraft"]:
+                  found.append((int(match.group(1)),match.group(2),r["tagName"]))
+          if not found:raise SystemExit("[STOP] No signed Scarlet release exists")
+          version,_,tag=max(found)
+          with open(sys.argv[2],"a") as f:
+              f.write(f"tag={tag}\nversion={version}\nfile=Scarlet-Crystal-V{version}-SIGNED-DEVELOPMENT.ipa\n")
+          print("[RELEASE] Signed artifact selected: V",version)
+          PY
+      - name: Download and hash-check actual signed artifact
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SIGNED_TAG: ${{ steps.release.outputs.tag }}
+          SIGNED_FILE: ${{ steps.release.outputs.file }}
+        run: |
+          set -euo pipefail
+          gh api "repos/$GITHUB_REPOSITORY/releases/tags/$SIGNED_TAG" > "$RUNNER_TEMP/release.json"
+          python3 - "$RUNNER_TEMP/release.json" "$SIGNED_FILE" "$RUNNER_TEMP/expected-sha256" <<'PY'
+          import json,re,sys
+          o=json.load(open(sys.argv[1]))
+          matches=[a for a in o.get("assets",[]) if a.get("name")==sys.argv[2]]
+          if len(matches)!=1 or matches[0].get("size",0)<1_000_000:
+              raise SystemExit("[STOP] Published signed artifact absent")
+          digest=matches[0].get("digest","")
+          if not re.fullmatch(r"sha256:[0-9a-f]{64}",digest):
+              raise SystemExit("[STOP] Missing verified release digest")
+          open(sys.argv[3],"w").write(digest.split(":",1)[1]+"\n")
+          PY
+          gh release download "$SIGNED_TAG" -R "$GITHUB_REPOSITORY" \
+            --pattern "$SIGNED_FILE" --dir "$RUNNER_TEMP"
+          (cd "$RUNNER_TEMP" && echo "$(cat expected-sha256)  $SIGNED_FILE" | sha256sum -c -)
+      - name: Verify all four Apple Development profiles and earliest expiry
+        id: guard
+        shell: bash
+        env:
+          SIGNED_FILE: ${{ steps.release.outputs.file }}
+        run: |
+          set -euo pipefail
+          python3 rebuild/signing/renewal_guard.py \
+            --ipa "$RUNNER_TEMP/$SIGNED_FILE" \
+            --report "$RUNNER_TEMP/renewal-report.json" \
+            --expected-sha256 "$(cat "$RUNNER_TEMP/expected-sha256")" \
+            --renew-before-hours 96 || {
+              test -s "$RUNNER_TEMP/renewal-report.json" || exit 2
+              echo "[NOTICE] Published signed IPA requires attention, not a silent install success"
+            }
+          python3 - "$RUNNER_TEMP/renewal-report.json" "$GITHUB_OUTPUT" <<'PY'
+          import json,sys
+          r=json.load(open(sys.argv[1]))
+          print("[PROFILE] state",r["state"],"hours_remaining",r["remaining_hours"])
+          with open(sys.argv[2],"a") as f:
+              f.write("state="+r["state"]+"\n")
+              f.write("expiration="+r["earliest_expiry_utc"]+"\n")
+              f.write("remaining="+str(r["remaining_hours"])+"\n")
+          PY
+      - name: Open one renewal warning per signed release (no secrets)
+        if: steps.guard.outputs.state != 'valid'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SIGNED_TAG: ${{ steps.release.outputs.tag }}
+          SIGNED_VERSION: ${{ steps.release.outputs.version }}
+          EXPIRATION: ${{ steps.guard.outputs.expiration }}
+          REMAINING: ${{ steps.guard.outputs.remaining }}
+          PROFILE_STATE: ${{ steps.guard.outputs.state }}
+        run: |
+          set -euo pipefail
+          title="[Scarlet free-signing renewal] V$SIGNED_VERSION"
+          if gh issue list -R "$GITHUB_REPOSITORY" --state open --limit 100 \
+            --json title --jq '.[].title' | grep -Fxq "$title"; then
+            echo "[INFO] Existing expiry issue retained"
+          else
+            cat > "$RUNNER_TEMP/renewal-issue.txt" <<EOF
+          Published V$SIGNED_VERSION IPA profile status: $PROFILE_STATE.
+          Earliest profile expiry (UTC): $EXPIRATION.
+          Approximate hours remaining at check: $REMAINING.
+
+          This is a read-only audit of the published development-signed IPA. It is
+          NOT proof of the IPA currently installed on the iPhone.
+
+          Free Apple Personal Team profiles remain valid only 7 days.
+          Renewal requires fresh Apple-issued profiles for the host and all three
+          extensions, verified App Group/bundle ID/certificate/device authorization,
+          in-place re-signing and a confirmed iPhone installation via trusted
+          pairing or a working SideStore on-device installer.
+          Signer availability, Apple 2FA and iOS installation cannot be inferred
+          from GitHub's HTTP 204 response or a signed IPA upload.
+
+          Preserve existing apps, guests, credentials and profiles.
+          EOF
+            gh issue create -R "$GITHUB_REPOSITORY" --title "$title" \
+              --body-file "$RUNNER_TEMP/renewal-issue.txt" --assignee fx564286
+          fi
+      - name: Publish audit result without signed IPA or device identifiers
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: scarlet-provisioning-expiry-audit
+          path: ${{ runner.temp }}/renewal-report.json
+          retention-days: 30
+          if-no-files-found: ignore
