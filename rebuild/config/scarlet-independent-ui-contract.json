@@ -84,7 +84,6 @@
     "bottom_tab_bar": true,
     "bottom_tabs": [
       "home",
-      "apps",
       "sources",
       "settings"
     ],
@@ -104,7 +103,6 @@
     "connection_signing_in_settings": true,
     "bottom_tab_display_labels": [
       "Home",
-      "Apps",
       "Sources",
       "Settings"
     ],
@@ -117,10 +115,15 @@
     "main_screen_requires_tab": true,
     "home_tab_bar_hidden": false,
     "initial_screen": "home",
-    "original_livecontainer_settings_entry": "Settings tab -> LCSettingsView",
+    "original_livecontainer_settings_entry": "Settings tab -> inline LCSettingsView (original native Form; no sheet)",
     "original_sidestore_entry": "engine_only_never_launch_guest_UI",
-    "original_guest_apps_entry": "ScarletControl.localImportGuestIPA -> LCAppListView",
-    "home_device_ipa_install": "ScarletControl.serviceInstallIPA -> SideStore headless installer (unverified, fail-closed)",
-    "home_guest_ipa_install": "ScarletControl.localImportGuestIPA -> original LiveContainer import"
+    "original_guest_apps_entry": "Merged Home -> real installed guest list + original LCAppListView importer action",
+    "home_device_ipa_install": "ScarletControl.serviceInstallIPA -> headless SideStore/SideSign installer (transport unverified, fail closed)",
+    "home_guest_ipa_install": "ScarletControl.localImportGuestIPA -> LCAppListView original guest importer",
+    "home_app_library_inline": true,
+    "only_one_home_tab": true,
+    "settings_tab_inline_native": true,
+    "signin_input_editable": true,
+    "signin_request_requires_verified_engine": true
   }
 }
