@@ -1,0 +1,187 @@
+{
+  "schema": 1,
+  "source": {
+    "provider": "Figma",
+    "fileKey": "QESg6S7oJS47PmlPpEX5w5",
+    "url": "https://www.figma.com/design/QESg6S7oJS47PmlPpEX5w5",
+    "capturedOn": "2026-11-06",
+    "validation": "Directly read editable Figma layer geometry/text; commit is a snapshot, not continuous synchronization"
+  },
+  "design": {
+    "viewport": {
+      "w": 390,
+      "h": 844
+    },
+    "colorTokens": {
+      "background": "#0D0D18",
+      "surface": "#24233A",
+      "accent": "#AA96FF"
+    },
+    "titleSizePt": 28,
+    "sectionHeadingPt": 18,
+    "actionTextPt": 16,
+    "detailTextPt": 13,
+    "bottomBar": {
+      "x": 19,
+      "y": 750,
+      "w": 352,
+      "h": 62,
+      "tabCount": 4,
+      "tabWidthPt": 81,
+      "labels": [
+        "Home",
+        "Apps",
+        "Sources",
+        "Settings"
+      ]
+    },
+    "roundSwitcher": {
+      "x": 22,
+      "y": 672,
+      "w": 62,
+      "h": 62
+    },
+    "windowOverlay": {
+      "segmentedTabs": [
+        "최근 앱",
+        "창 관리"
+      ],
+      "actions": [
+        "최소화",
+        "최대화",
+        "닫기"
+      ],
+      "nativeGlassRequired": true
+    }
+  },
+  "screens": [
+    {
+      "figmaNodeId": "6:15",
+      "id": "home",
+      "title": "내 컨테이너",
+      "codeSection": "private var home:",
+      "requiredCopy": [
+        "내 컨테이너",
+        "앱 실행과 창 관리",
+        "빠른 작업",
+        "앱 추가",
+        "IPA 가져오기",
+        "설정",
+        "최근 앱"
+      ],
+      "dynamicData": [
+        "guestCount",
+        "guestList",
+        "runningCount"
+      ]
+    },
+    {
+      "figmaNodeId": "6:75",
+      "id": "apps",
+      "title": "내 앱",
+      "codeSection": "private var apps:",
+      "requiredCopy": [
+        "내 앱",
+        "앱을 검색하거나 실행하세요.",
+        "앱 검색",
+        "전체",
+        "최근",
+        "실행 중"
+      ],
+      "dynamicData": [
+        "actualRunningGuests",
+        "actualRecentGuests"
+      ]
+    },
+    {
+      "figmaNodeId": "6:136",
+      "id": "settings",
+      "title": "설정",
+      "codeSection": "private var settings:",
+      "requiredCopy": [
+        "설정",
+        "컨테이너와 서명 설정",
+        "화면 설정",
+        "테마 및 표시",
+        "저장소",
+        "앱 데이터 및 백업",
+        "계정 및 서명",
+        "진단 로그"
+      ],
+      "dynamicData": [
+        "serviceConnectionState",
+        "profileExpiry"
+      ]
+    },
+    {
+      "figmaNodeId": "6:198",
+      "id": "connection",
+      "title": "연결 및 서명",
+      "codeSection": "private var connection:",
+      "requiredCopy": [
+        "연결 및 서명",
+        "페어링 및 Apple 계정",
+        "기기 페어링",
+        "Apple ID 로그인",
+        "IPA 서명"
+      ],
+      "dynamicData": [
+        "pairing",
+        "auth",
+        "signing",
+        "installation"
+      ],
+      "navigation": "in-page Settings detail retains tab bar"
+    },
+    {
+      "figmaNodeId": "6:254",
+      "id": "overlay",
+      "title": "창 관리",
+      "codeSection": null,
+      "requiredCopy": [
+        "최근 앱",
+        "창 관리",
+        "최소화",
+        "최대화",
+        "닫기"
+      ],
+      "dynamicData": [
+        "actualGuestWindows"
+      ],
+      "status": "BLOCKED until preserved native Liquid Glass window-manager host renderer is attached"
+    },
+    {
+      "figmaNodeId": "26:2",
+      "id": "sources",
+      "title": "소스",
+      "codeSection": "private var sourcesScreen:",
+      "requiredCopy": [
+        "소스",
+        "앱 소스를 관리합니다.",
+        "등록된 소스",
+        "소스 추가"
+      ],
+      "dynamicData": [
+        "realSideStoreSources"
+      ]
+    }
+  ],
+  "runtimeGates": {
+    "nativeGlassRenderer": true,
+    "nativeGlassInteractive": true,
+    "originalOutsideTapDismiss": true,
+    "nativeFourDestinationTabs": true,
+    "oneRoundSwitchControl": true,
+    "appLaunch": true,
+    "deviceInstaller": true,
+    "deviceAppleLogin2FA": true,
+    "realIPhoneScreenshots": true,
+    "portraitLandscapeSafeArea": true
+  },
+  "limitations": [
+    "This fixture verifies design copy and declared geometry, not SwiftUI rendered pixels",
+    "A matching static text string does not prove a working Button action",
+    "Figma visual blur is not proof of Apple's native UIGlassEffect",
+    "UI requires real hosted guest engine, tab bar, round switcher and signed IPA for device validation"
+  ]
+}
