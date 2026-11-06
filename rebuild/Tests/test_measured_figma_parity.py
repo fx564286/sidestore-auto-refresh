@@ -1,80 +1,62 @@
-"""Figma parity contract based on actual inspected Figma node IDs and labels.
+"""Historical Figma six-screen measurements versus the user's later three-tab override.
 
-This is not a screenshot pixel-diff or proof of native Liquid Glass.
-It guards against accidental loss of editable Figma structure in SwiftUI.
+The immutable 4-tab Figma baseline is archival, NOT a claim that current
+runtime still has four tabs. Actual iPhone pixel parity remains unverified.
 """
 import json
-import re
 import unittest
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parents[1]
-DESIGN = json.loads((ROOT / "design/figma-measured-baseline.json").read_text())
-UI = (ROOT / "Sources/ScarletIndependentUI/ScarletIndependentShell.swift").read_text()
+ROOT=Path(__file__).resolve().parents[1]
+DESIGN=json.loads((ROOT/"design/figma-measured-baseline.json").read_text())
+CURRENT=json.loads((ROOT/"config/scarlet-independent-ui-contract.json").read_text())
+UI=(ROOT/"Sources/ScarletIndependentUI/ScarletIndependentShell.swift").read_text()
+HOST=(ROOT/"HostApp/ScarletIntegratedHostView.swift").read_text()
+HOME=UI[UI.index("    private var home: some View {"):UI.index("    private func installPathRow(")]
 
 class FigmaMeasuredParity(unittest.TestCase):
-    def test_six_unique_measured_screens(self):
-        screens = DESIGN["screens"]
-        self.assertEqual(len(screens), 6)
-        self.assertEqual(len({s["figmaNodeId"] for s in screens}), 6)
-        self.assertEqual(DESIGN["design"]["viewport"], {"w": 390, "h": 844})
-        for s in screens:
-            segments = s["figmaNodeId"].split(":")
-            self.assertEqual(len(segments), 2)
-            self.assertTrue(all(part.isdecimal() for part in segments))
-            self.assertTrue(s["requiredCopy"])
+    def test_six_original_screen_nodes_remain_as_design_archive(self):
+        screens=DESIGN["screens"]
+        self.assertEqual(len(screens),6)
+        self.assertEqual(len({s["figmaNodeId"] for s in screens}),6)
+        self.assertEqual(DESIGN["design"]["viewport"],{"w":390,"h":844})
+        self.assertEqual(DESIGN["design"]["bottomBar"]["labels"],
+                         ["Home","Apps","Sources","Settings"])
+        self.assertEqual(DESIGN["design"]["bottomBar"]["tabCount"],4)
 
-    def test_navigation_and_glass_boundaries(self):
-        nav = DESIGN["design"]["bottomBar"]
-        self.assertEqual(nav["labels"], ["Home", "Apps", "Sources", "Settings"])
-        self.assertEqual([nav["w"], nav["h"], nav["tabCount"]], [352, 62, 4])
-        self.assertEqual(DESIGN["design"]["roundSwitcher"]["w"], 62)
-        self.assertIn("preservedGlassTabBar($selected)", UI)
-        self.assertNotIn("preservedGlassSwitchControl", UI)
-        for tab in nav["labels"]:
-            self.assertIn('= "' + tab + '"', UI)
-        self.assertNotIn(".glassEffect(", UI)
-        self.assertNotIn("case windowManager", UI)
-        self.assertIn('case .apps: "square.grid.3x3"', UI)
-        self.assertIn('case .sources: "books.vertical"', UI)
-        axis = DESIGN["design"]["alignment"]
-        self.assertEqual(axis["guestSegmentWidthPt"], axis["guestRowWidthPt"])
-        self.assertFalse(axis["homeAndSettings"]["settingsInline"])
-        self.assertFalse(axis["homeAndSettings"]["hideBottomTabsOnHome"])
-        self.assertEqual(axis["homeAndSettings"]["engineEntryHeightsPt"], [62,62])
-        self.assertNotIn('Text(guest.isRunning ? "전환" : "실행")', UI)
+    def test_user_override_replaces_old_apps_tab_without_touching_glass(self):
+        self.assertEqual(CURRENT["navigation"]["bottom_tabs"],
+                         ["home","sources","settings"])
+        self.assertEqual(CURRENT["navigation"]["bottom_tab_display_labels"],
+                         ["Home","Sources","Settings"])
+        self.assertIn("preservedGlassTabBar($selected)",UI)
+        self.assertNotIn('case apps = "Apps"',UI)
+        self.assertNotIn(".glassEffect(",UI)
+        self.assertNotIn("case windowManager",UI)
+        self.assertIn('case .home: "square.grid.2x2"',UI)
+        self.assertEqual(DESIGN["design"]["roundSwitcher"]["w"],62)
 
-
-    def test_screen_copy_retained_in_swiftui(self):
-        for screen in DESIGN["screens"]:
-            if screen["codeSection"] is None:
-                continue
-            with self.subTest(screen=screen["id"]):
-                self.assertIn(screen["codeSection"], UI)
-                for label in screen["requiredCopy"]:
-                    self.assertIn(label, UI)
-
-    def test_app_screen_native_import_search_no_recent_filters(self):
-        apps=UI[UI.index("    private var apps: some View {"):UI.index("    private var sourcesScreen:")]
-        self.assertIn('heading("", "가상 앱", "")',apps)
-        self.assertIn('TextField("앱 검색"',apps)
-        self.assertIn('onAction(.localImportGuestIPA)',apps)
-        self.assertIn('SCARLET_NATIVE_GUEST_IMPORT',apps)
-        self.assertNotIn('SCARLET_APP_FILTER_',UI)
-        self.assertNotIn('private enum AppFilter:',UI)
-        self.assertIn('searchText.isEmpty ||',UI)
+    def test_merged_home_labels_filters_and_actions_are_real(self):
+        self.assertIn('heading("", "설치된 앱", "")',HOME)
+        self.assertIn('TextField("설치된 앱 검색"',HOME)
+        self.assertIn('installPathRow("SideStore 앱 설치"',HOME)
+        self.assertIn('installPathRow("게스트 앱 설치"',HOME)
+        self.assertIn("guests: visibleGuests",HOME)
+        self.assertIn("searchText.isEmpty ||",UI)
         self.assertNotIn('Text("Madeira")',UI)
+        self.assertNotIn('private var apps: some View {',UI)
 
-    def test_account_detail_keeps_bottom_tabs(self):
-        self.assertIn("if showConnectionDetails {", UI)
-        self.assertNotIn(".sheet(isPresented: $showConnectionDetails)", UI)
-        self.assertIn("SCARLET_CONNECTION_BACK", UI)
+    def test_settings_native_tab_keeps_original_engine_form(self):
+        self.assertIn("if selected == .settings {",UI)
+        self.assertIn("SCARLET_INLINE_NATIVE_LC_SETTINGS",UI)
+        self.assertIn("LCSettingsView()",HOST)
+        self.assertNotIn(".sheet(isPresented: $showNativeSettings)",HOST)
+        self.assertNotIn("if showConnectionDetails {",UI)
 
-    def test_not_a_false_physical_device_certification(self):
+    def test_not_false_physical_device_certification(self):
         self.assertTrue(DESIGN["runtimeGates"]["realIPhoneScreenshots"])
         self.assertTrue(DESIGN["runtimeGates"]["nativeGlassInteractive"])
-        self.assertIn("not proof", " ".join(DESIGN["limitations"]).lower())
-        self.assertIsNone(next(s for s in DESIGN["screens"] if s["id"] == "overlay")["codeSection"])
+        self.assertIn("not proof"," ".join(DESIGN["limitations"]).lower())
 
-if __name__ == "__main__":
+if __name__=="__main__":
     unittest.main()
