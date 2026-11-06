@@ -35,15 +35,26 @@ public struct ScarletHostPresentationSnapshot: Equatable, Sendable {
     public let pairingVerified: Bool
     public let installationVerified: Bool
     public let signingVerified: Bool
+    // Only the installed app's verified profile may be used here.
+    // The published GitHub IPA's profile is not the phone's profile.
+    public let installedProfileExpiresAt: Date?
+    public let installedProfileVerified: Bool
+    public let upstreamCandidateAvailable: Bool
 
     public init(serviceConnected: Bool = false, appleAuthenticated: Bool = false,
                 pairingVerified: Bool = false, signingVerified: Bool = false,
-                installationVerified: Bool = false) {
+                installationVerified: Bool = false,
+                installedProfileExpiresAt: Date? = nil,
+                installedProfileVerified: Bool = false,
+                upstreamCandidateAvailable: Bool = false) {
         self.serviceConnected = serviceConnected
         self.appleAuthenticated = appleAuthenticated
         self.pairingVerified = pairingVerified
         self.signingVerified = signingVerified
         self.installationVerified = installationVerified
+        self.installedProfileExpiresAt = installedProfileExpiresAt
+        self.installedProfileVerified = installedProfileVerified
+        self.upstreamCandidateAvailable = upstreamCandidateAvailable
     }
 }
 
@@ -435,6 +446,40 @@ public struct ScarletIndependentShell: View {
         .foregroundStyle(ScarletPresentationColor.text)
     }
 
+    private var renewalAssessment: ScarletRefreshAssessment {
+        ScarletRefreshPolicy().assess(
+            now: Date(),
+            profileExpiresAt: snapshot.installedProfileVerified
+                ? snapshot.installedProfileExpiresAt : nil
+        )
+    }
+
+    private var renewalSummary: String {
+        guard snapshot.installedProfileVerified else {
+            return "아이폰에 설치된 앱의 프로파일 확인 필요"
+        }
+        switch renewalAssessment.decision {
+        case .healthy:
+            guard let remaining = renewalAssessment.remainingSeconds else {
+                return "유효기간 확인 필요"
+            }
+            return "만료까지 약 \(max(1, Int(remaining / 3600)))시간"
+        case .refreshDue:
+            return "서명 갱신 필요"
+        case .alreadyExpired:
+            return "서명 유효기간 만료"
+        case .profileUnavailable:
+            return "유효기간 확인 필요"
+        }
+    }
+
+    private var renewalReady: Bool {
+        snapshot.serviceConnected &&
+        snapshot.appleAuthenticated &&
+        snapshot.pairingVerified &&
+        snapshot.installedProfileVerified
+    }
+
     private var settings: some View {
         Group {
             heading("", "설정", "컨테이너와 서명 설정")
@@ -474,6 +519,35 @@ public struct ScarletIndependentShell: View {
                                     in: RoundedRectangle(cornerRadius: 13))
                 }
                 .buttonStyle(.plain)
+            }
+            ScarletPanel {
+                Text("자동 갱신")
+                    .font(.headline)
+                Text(renewalSummary)
+                    .font(.footnote)
+                    .foregroundStyle(ScarletPresentationColor.muted)
+                if snapshot.upstreamCandidateAvailable {
+                    Text("원본 업데이트 후보 확인됨")
+                        .font(.footnote)
+                        .foregroundStyle(ScarletPresentationColor.accent)
+                }
+                if renewalAssessment.decision == .refreshDue ||
+                   renewalAssessment.decision == .alreadyExpired {
+                    Button {
+                        onAction(.serviceRefreshApp)
+                    } label: {
+                        Text("서명 갱신")
+                            .font(.subheadline.weight(.semibold))
+                            .frame(maxWidth: .infinity, minHeight: 48)
+                            .background(ScarletPresentationColor.purple,
+                                        in: RoundedRectangle(cornerRadius: 13))
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(!renewalReady)
+                    .accessibilityHint(renewalReady
+                        ? "기기 설치 결과를 별도로 확인해야 합니다."
+                        : "페어링, Apple 로그인 및 설치 프로파일 확인이 필요합니다.")
+                }
             }
             ScarletPanel {
                 ScarletActionRow(title: "진단 로그",
