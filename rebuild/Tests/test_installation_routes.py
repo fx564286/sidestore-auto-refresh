@@ -19,12 +19,12 @@ class InstallerRouteTests(unittest.TestCase):
         self.assertIn(".localImportGuestIPA, .localOpenEmbeddedSideStore:",ACTIONS)
         self.assertIn("onAction(.localImportGuestIPA)",UI)
         self.assertIn("case .localImportGuestIPA:",HOST)
-        self.assertIn("LCAppListView()",HOST)
+        self.assertIn("LCAppListView(scarletStartIPAImport: guestIPAImportFromAddMenu)",HOST)
         self.assertIn("try await app.runApp()",HOST)
 
     def test_sidestore_device_install_path_is_not_embedded_guest_navigation(self):
         self.assertIn("case localOpenEmbeddedSideStore",ACTIONS)
-        self.assertIn('installPathRow("SideStore 앱 설치"',UI)
+        self.assertIn('Label("IPA 설치하기"',UI)
         self.assertIn("onAction(.serviceInstallIPA)",UI)
         self.assertNotIn("LCUtils.openSideStore(",HOST)
         self.assertIn("prepareDeviceIPAInstall()",HOST)
