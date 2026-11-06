@@ -1,0 +1,142 @@
+name: Scarlet Upstream Auto-Candidate
+
+on:
+  schedule:
+    - cron: "17 */6 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: scarlet-auto-candidate
+  cancel-in-progress: false
+
+jobs:
+  detect:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    outputs:
+      changed: ${{ steps.scan.outputs.changed }}
+      parent_changed: ${{ steps.scan.outputs.parent_changed }}
+    steps:
+      - name: Checkout independent UI rebuild branch
+        uses: actions/checkout@v4
+        with:
+          ref: rebuild/scarlet-clean-core-20261106
+          fetch-depth: 0
+      - name: Verify upstream source tracking
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m py_compile scripts/scarlet_upstream_follow.py rebuild/scripts/scarlet_upstream_candidate.py
+          python3 -m unittest discover -s rebuild/Tests -p 'test_scarlet_upstream_candidate.py' -v
+          python3 -m unittest discover -s tests -p 'test_v177_upstream_follow.py' -v
+      - name: Discover authoritative parents and SideStore advisory
+        id: scan
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/scarlet-candidate" artifacts/upstream
+          python3 rebuild/scripts/scarlet_upstream_candidate.py --pins config/scarlet-upstream-pins.json --baseline rebuild/config/scarlet-upstream-advisory-baseline.json --report artifacts/upstream/scan.json --candidate-pins "$RUNNER_TEMP/scarlet-candidate/pins.json" --candidate-baseline "$RUNNER_TEMP/scarlet-candidate/advisory.json"
+          python3 - <<'PY' >> "$GITHUB_OUTPUT"
+          import json
+          obj=json.load(open("artifacts/upstream/scan.json"))
+          print("changed="+str(obj["requiresIntegration"]).lower())
+          print("parent_changed="+str(obj["parentsChanged"]).lower())
+          PY
+          cp "$RUNNER_TEMP/scarlet-candidate/pins.json" config/scarlet-upstream-pins.json
+          cp "$RUNNER_TEMP/scarlet-candidate/advisory.json" rebuild/config/scarlet-upstream-advisory-baseline.json
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          data=json.loads(Path("artifacts/upstream/scan.json").read_text())
+          data.pop("checkedAt",None)
+          p=Path("rebuild/reports/last-upstream-candidate.json")
+          p.parent.mkdir(parents=True,exist_ok=True)
+          p.write_text(json.dumps(data,indent=2)+"\n")
+          PY
+      - name: Upload immutable source-diff evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: Scarlet-Upstream-Detection
+          path: artifacts/upstream/
+          if-no-files-found: warn
+          retention-days: 30
+      - name: Open or update separate unmerged candidate pull request
+        if: steps.scan.outputs.changed == 'true'
+        uses: peter-evans/create-pull-request@v7
+        with:
+          token: ${{ github.token }}
+          commit-message: "chore(upstream): stage latest protected upstream source graph"
+          title: "Auto-candidate LiveContainer / SideStore / SideSign update"
+          body: |
+            Automatically detected source changes. This pull request only stages
+            upstream pins and a compatibility report. LiveContainer main and
+            embedded LiveContainer/SideStore LiveContainerSupport are the actual
+            parents. Official SideStore/develop is advisory, never silently
+            substituted. Existing native Liquid Glass and user data remain protected.
+
+            NOT a signed or installable app. Real Scarlet host integration,
+            Xcode tests, pairing, authentication, provisioned signing, data
+            preservation and iPhone install must pass before promotion.
+          branch: automation/scarlet-upstream-candidate
+          base: rebuild/scarlet-clean-core-20261106
+          draft: true
+          delete-branch: false
+          add-paths: |
+            config/scarlet-upstream-pins.json
+            rebuild/config/scarlet-upstream-advisory-baseline.json
+            rebuild/reports/last-upstream-candidate.json
+
+  validate:
+    needs: detect
+    if: needs.detect.outputs.parent_changed == 'true'
+    runs-on: xcode-27
+    timeout-minutes: 85
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: rebuild/scarlet-clean-core-20261106
+      - uses: actions/download-artifact@v4
+        with:
+          name: Scarlet-Upstream-Detection
+          path: artifacts/upstream/
+      - name: Build and test paired upstream parents unsigned
+        shell: bash
+        run: |
+          set -uo pipefail
+          mkdir -p work artifacts/upstream
+          python3 - <<'PY' > "$RUNNER_TEMP/scarlet-pins.env"
+          import json
+          d=json.load(open("artifacts/upstream/scan.json"))["updatedPins"]
+          for key,sha in d.items():
+              assert len(sha)==40 and all(c in "0123456789abcdef" for c in sha)
+              print("export "+key+"="+sha)
+          PY
+          source "$RUNNER_TEMP/scarlet-pins.env"
+          git clone --filter=blob:none https://github.com/LiveContainer/LiveContainer.git work/LiveContainer || exit 1
+          git -C work/LiveContainer checkout --detach "$LIVE_CONTAINER_REF" || exit 1
+          git -C work/LiveContainer submodule update --init --recursive --depth=1 || exit 1
+          git clone --filter=blob:none https://github.com/LiveContainer/SideStore.git work/EmbeddedSideStore || exit 1
+          git -C work/EmbeddedSideStore checkout --detach "$EMBEDDED_SIDESTORE_REF" || exit 1
+          git -C work/EmbeddedSideStore submodule update --init --recursive --depth=1 || exit 1
+          test "$(git -C work/EmbeddedSideStore/Dependencies/SideSign rev-parse HEAD)" = "$SIDESIGN_REF" || exit 1
+          test "$(git -C work/EmbeddedSideStore/Dependencies/minimuxer rev-parse HEAD)" = "$MINIMUXER_REF" || exit 1
+          python3 scripts/run_bounded_build.py --log artifacts/upstream/livecontainer-build.log --timeout-seconds 2100 -- xcodebuild -project work/LiveContainer/LiveContainer.xcodeproj -scheme LiveContainer -sdk iphoneos -configuration Release -jobs 2 -derivedDataPath "$RUNNER_TEMP/upstream-lc" CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO COMPILER_INDEX_STORE_ENABLE=NO build
+          lc=$?
+          python3 scripts/run_bounded_build.py --log artifacts/upstream/sidestore-build.log --timeout-seconds 2100 -- xcodebuild -project work/EmbeddedSideStore/AltStore.xcodeproj -scheme SideStore -sdk iphoneos -configuration Release -jobs 2 -derivedDataPath "$RUNNER_TEMP/upstream-ss" CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO COMPILER_INDEX_STORE_ENABLE=NO build
+          ss=$?
+          printf "LiveContainer=%s\nSideStore=%s\n" "$lc" "$ss" | tee artifacts/upstream/build-results.txt
+          test "$lc" -eq 0 && test "$ss" -eq 0
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: Scarlet-Auto-Candidate-Upstream-Build-Logs
+          path: artifacts/upstream/
+          if-no-files-found: warn
+          retention-days: 30
