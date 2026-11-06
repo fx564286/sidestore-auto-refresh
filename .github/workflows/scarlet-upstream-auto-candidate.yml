@@ -1,0 +1,96 @@
+name: Scarlet Crystal automatic upstream candidate
+
+on:
+  schedule:
+    - cron: "17 */6 * * *"
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: [".github/workflows/scarlet-upstream-auto-candidate.yml"]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: scarlet-upstream-auto-candidate
+  cancel-in-progress: false
+
+jobs:
+  detect:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    outputs:
+      source_changed: ${{ steps.detect.outputs.source_changed }}
+      needs_review: ${{ steps.detect.outputs.needs_review }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: rebuild/scarlet-clean-core-20261106
+          fetch-depth: 0
+
+      - name: Audit latest LiveContainer and embedded SideStore with nested SideSign
+        id: detect
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          python3 -m unittest discover -s rebuild/Tests -p test_scarlet_upstream_candidate.py -v
+          mkdir -p artifacts/upstream
+          python3 rebuild/scripts/scarlet_upstream_candidate.py \
+            --pins config/scarlet-upstream-pins.json \
+            --baseline rebuild/config/scarlet-upstream-advisory-baseline.json \
+            --report artifacts/upstream/latest-upstream-diff.json \
+            --candidate-pins "$RUNNER_TEMP/pins.json" \
+            --candidate-baseline "$RUNNER_TEMP/advisory.json"
+          python3 - <<'PY' >>"$GITHUB_OUTPUT"
+          import json
+          d=json.load(open("artifacts/upstream/latest-upstream-diff.json"))
+          print("needs_review="+str(d["requiresIntegration"]).lower())
+          print("source_changed="+str(d["parentsChanged"]).lower())
+          PY
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: Scarlet-Upstream-Latest-Diff
+          path: artifacts/upstream/
+          retention-days: 30
+
+      - name: Stage verified source refs as DRAFT PR (never auto release)
+        if: steps.detect.outputs.needs_review == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BASE: rebuild/scarlet-clean-core-20261106
+          BOT_BRANCH: automation/scarlet-upstream-candidate
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git switch -C "$BOT_BRANCH"
+          cp "$RUNNER_TEMP/pins.json" config/scarlet-upstream-pins.json
+          cp "$RUNNER_TEMP/advisory.json" rebuild/config/scarlet-upstream-advisory-baseline.json
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          d=json.loads(Path("artifacts/upstream/latest-upstream-diff.json").read_text())
+          d.pop("checkedAt",None)
+          p=Path("rebuild/reports/upstream-candidate.json")
+          p.parent.mkdir(parents=True,exist_ok=True)
+          p.write_text(json.dumps(d,indent=2)+"\n")
+          PY
+          git add config/scarlet-upstream-pins.json \
+            rebuild/config/scarlet-upstream-advisory-baseline.json \
+            rebuild/reports/upstream-candidate.json
+          if git diff --cached --quiet; then
+            echo "[PASS] No novel candidate changes"
+            exit 0
+          fi
+          git commit -m "chore(upstream): stage LiveContainer/SideStore/SideSign source candidate"
+          git push --force-with-lease origin HEAD:refs/heads/automation/scarlet-upstream-candidate
+          if [ "$(gh pr list -R "$GITHUB_REPOSITORY" --head "$BOT_BRANCH" --base "$BASE" --state open --json number --jq 'length')" = "0" ]; then
+            gh pr create -R "$GITHUB_REPOSITORY" --draft --base "$BASE" --head "$BOT_BRANCH" \
+              --title "Automatically discovered upstream candidate (not released)" \
+              --body "Pinned LiveContainer and embedded SideStore (including SideSign/minimuxer gitlinks) have been checked against upstream. Official SideStore/develop is advisory only. Requires exact iOS integration, Liquid Glass preservation, App Group and on-device authentication/installation proof. No unsigned or signed IPA is installed, published or auto merged by this automation."
+          fi
