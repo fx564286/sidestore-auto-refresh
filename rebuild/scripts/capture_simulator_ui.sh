@@ -30,6 +30,7 @@ case "$ARCH" in arm64|x86_64) ;; *) echo "[STOP] Unsupported simulator host arch
 xcrun --sdk iphonesimulator swiftc -swift-version 6 -parse-as-library \
     -target "$ARCH-apple-ios17.0-simulator" -sdk "$SDK" \
     "$ROOT/rebuild/Sources/ScarletCleanCore/ScarletActionCoordinator.swift" \
+    "$ROOT/rebuild/Sources/ScarletCleanCore/ScarletControlAuditTrail.swift" \
     "$ROOT/rebuild/Sources/ScarletCleanCore/ScarletUpdateCoordinator.swift" \
     "$ROOT/rebuild/Sources/ScarletCleanCore/ScarletRefreshPolicy.swift" \
     "$ROOT/rebuild/Sources/ScarletIndependentUI/ScarletIndependentShell.swift" \
