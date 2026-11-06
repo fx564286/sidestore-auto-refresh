@@ -77,3 +77,104 @@ jobs:
           path: upstream-status.json
           if-no-files-found: ignore
           retention-days: 30
+
+  # Follow clean-rebuild source pins independently of the legacy V177 train.
+  # This scheduler lives on the DEFAULT branch: GitHub only schedules there.
+  # It never edits installed apps, signs IPA or grants Apple entitlements.
+  stage-clean-rebuild-upstream:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - name: Checkout the independent Scarlet Crystal rebuild
+        uses: actions/checkout@v4
+        with:
+          ref: rebuild/scarlet-clean-core-20261106
+          fetch-depth: 0
+          persist-credentials: true
+
+      - name: Validate tracker and compare both production upstreams + nested SideSign
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          python3 -m unittest discover -s tests -p test_v177_upstream_follow.py -v
+          python3 scripts/scarlet_upstream_follow.py \
+            --config config/scarlet-upstream-pins.json \
+            --report rebuild-upstream-status.json --write
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          old=json.loads(Path("rebuild/config/scarlet-independent-ui-contract.json").read_text())
+          assert old["preserved_identity"]["bundle_id"] == "com.kdt.livecontainer.P8EZT3U5N4"
+          assert old["navigation"]["bottom_tab_bar"] is True
+          assert old["navigation"]["single_round_app_switcher"] is True
+          status=json.loads(Path("rebuild-upstream-status.json").read_text())
+          assert status["auto_release"] is False
+          print("[PASS] Independent UI and app identities remain isolated from source sync")
+          PY
+
+      - name: Determine whether upstream changed the pinned source graph
+        id: changed
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          if git diff --quiet -- config/scarlet-upstream-pins.json; then
+            echo 'changed=false' >>"$GITHUB_OUTPUT"
+            echo '[PASS] Clean rebuild upstream pins current; no release or install triggered.'
+          else
+            echo 'changed=true' >>"$GITHUB_OUTPUT"
+            echo '[INFO] Paired upstream refs changed; propose reviewed integration.'
+          fi
+
+      - name: Open immutable source-sync proposal against the clean rebuild
+        if: steps.changed.outputs.changed == 'true'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -Eeuo pipefail
+          base='rebuild/scarlet-clean-core-20261106'
+          source="$(python3 - <<'PY'
+          import json
+          p=json.load(open("config/scarlet-upstream-pins.json"))
+          print(p["LIVE_CONTAINER_REF"][:10] + "-" + p["EMBEDDED_SIDESTORE_REF"][:10])
+          PY
+          )"
+          head="sync/scarlet-clean-core-upstream-$source"
+          if git ls-remote --exit-code --heads origin "refs/heads/$head" >/dev/null 2>&1; then
+            echo "[SKIP] Immutable candidate source branch already exists: $head"
+          else
+            git config user.name 'github-actions[bot]'
+            git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+            git switch -c "$head"
+            git add config/scarlet-upstream-pins.json
+            git commit -m "chore(rebuild): stage paired LiveContainer/SideStore/SideSign upstream refs"
+            git push origin "$head"
+          fi
+          existing="$(gh pr list --repo "$GITHUB_REPOSITORY" --state open --head "$head" --json number --jq '.[0].number // empty')"
+          if [[ -z "$existing" ]]; then
+            cat >"$RUNNER_TEMP/scarlet-upstream-pr.md" <<'EOF'
+          Automatic source candidate for Scarlet Crystal clean rebuild.
+
+          - LiveContainer/main and LiveContainer/SideStore/LiveContainerSupport are tracked as one verified source graph.
+          - SideSign and minimuxer gitlinks are taken from the paired SideStore commit.
+          - The user's independent UI changes remain on the rebuild base branch; source refs only are updated in this PR.
+          - Before promotion: compile current Xcode IPA, validate original native Liquid Glass, exact 4 bundle IDs, App Groups, guest data and all runtime interaction paths.
+          - No automatic merge, signing, provisioning or iPhone installation. A free Apple account still requires expiry-aware refresh.
+          EOF
+            gh pr create --repo "$GITHUB_REPOSITORY" --base "$base" --head "$head" \
+              --draft --title "chore(rebuild): sync LiveContainer + SideStore + nested SideSign" \
+              --body-file "$RUNNER_TEMP/scarlet-upstream-pr.md"
+          else
+            echo "[PASS] Existing source candidate PR #$existing"
+          fi
+
+      - name: Archive independent rebuild upstream comparison
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: scarlet-clean-rebuild-upstream-status
+          path: rebuild-upstream-status.json
+          if-no-files-found: ignore
+          retention-days: 30
