@@ -116,6 +116,12 @@ def main():
     for before,after in guest_anchors.items():
         assert src.count(before)==1, f"Pinned guest initializer changed: {before}"
         src=src.replace(before,after)
+    url_schemes_anchor="tempURLSchemes?.formUnion(newApp.urlSchemes() as! [String])"
+    assert src.count(url_schemes_anchor)==2, "Pinned URL scheme loader changed"
+    src=src.replace(url_schemes_anchor,
+        'if let schemes = newApp.urlSchemes() as? [String] {\n'
+        '                        tempURLSchemes?.formUnion(schemes)\n'
+        '                    }')
     entry.write_text(src)
 
     # Mount the sole circular control on an actual running guest scene.  Never
