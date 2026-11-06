@@ -25,8 +25,8 @@ class FigmaGeometryContract(unittest.TestCase):
     def test_round_switcher_and_two_equal_window_segments(self):
         g=G["geometry"]
         self.assertEqual(g["roundSwitcherDiameterPt"],62)
-        self.assertEqual(g["glassOverlaySegmentWidthPt"],151)
-        self.assertEqual(g["glassOverlaySegmentXPt"],[7,164])
+        self.assertEqual(g["glassOverlaySegmentWidthPt"],153)
+        self.assertEqual(g["glassOverlaySegmentXPt"],[7,162])
         self.assertEqual(g["windowActionWidthsPt"],[102,102,102])
         self.assertTrue(G["policy"]["preserveOriginalLiquidGlass"])
         self.assertTrue(G["policy"]["doNotBuildFauxGlass"])
