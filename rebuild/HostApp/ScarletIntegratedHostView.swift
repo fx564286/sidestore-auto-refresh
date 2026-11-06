@@ -4,6 +4,7 @@
 // does not replace either engine, credentials, profiles or guest storage.
 import SwiftUI
 import UIKit
+import UniformTypeIdentifiers
 
 @available(iOS 17.0, *)
 struct ScarletIntegratedHostView: View {
@@ -13,8 +14,9 @@ struct ScarletIntegratedHostView: View {
     // Avoid initializing the dock before UIWindow and its view tree exist.
     @StateObject private var downloadHelper = DownloadHelper()
     @StateObject private var originalSources = AltStoreSourcesViewModel()
-    @State private var showNativeAppLibrary = false
-    @State private var guestIPAImportFromAddMenu = false
+    @State private var showGuestFilePicker = false
+    @State private var showGuestImportProgress = false
+    @State private var queuedGuestIPAURL: URL?
     @State private var showNativeSources = false
     @State private var showScarletAppleIDLogin = false
     @State private var showOriginalError: String?
@@ -90,8 +92,7 @@ struct ScarletIntegratedHostView: View {
                 showOriginalError = error.localizedDescription
                 // The unchanged upstream screen keeps the complete
                 // certificate/container diagnostics available for recovery.
-                guestIPAImportFromAddMenu = false
-                showNativeAppLibrary = true
+                // Errors stay on this host; never open the old app-list screen.
             }
         }
     }
@@ -114,15 +115,38 @@ struct ScarletIntegratedHostView: View {
         showOriginalError = "iOS 앱 설치 엔진의 서명·기기 설치 연결이 아직 검증되지 않았습니다. 원본 IPA와 기존 인증서·프로파일은 변경하지 않았습니다."
     }
 
+    // SwiftUI presents the real iOS Files document picker. Copy the
+    // security-scoped original into a scratch IPA: LiveContainer's original
+    // startInstallApp removes its input URL after importing; the user's Files
+    // original must never be removed.
+    private func stageGuestIPAFromFiles(_ source: URL) {
+        let ext = source.pathExtension.lowercased()
+        guard ext == "ipa" || ext == "tipa" else {
+            showOriginalError = "IPA 또는 TIPA 파일을 선택하세요."
+            return
+        }
+        let scoped = source.startAccessingSecurityScopedResource()
+        defer { if scoped { source.stopAccessingSecurityScopedResource() } }
+        let temporary = FileManager.default.temporaryDirectory
+            .appendingPathComponent("scarlet-guest-\(UUID().uuidString).\(ext)")
+        do {
+            try FileManager.default.copyItem(at: source, to: temporary)
+            queuedGuestIPAURL = temporary
+            ScarletDiagnosticRecorder.shared.record("guest_import", "file_staged")
+            showGuestImportProgress = true
+        } catch {
+            ScarletDiagnosticRecorder.shared.recordError("guest_import", "file_stage_failed", error: error)
+            showOriginalError = "파일을 가져올 수 없습니다: \(error.localizedDescription)"
+        }
+    }
+
     private func handle(_ action: ScarletControl) {
         ScarletDiagnosticRecorder.shared.record("action", "requested",
             fields: ["action": action.rawValue])
         switch action {
         case .localImportGuestIPA:
-            ScarletDiagnosticRecorder.shared.record("guest_import", "manager_open_requested")
-            sharedModel.selectedTab = .apps
-            guestIPAImportFromAddMenu = true
-            showNativeAppLibrary = true
+            ScarletDiagnosticRecorder.shared.record("guest_import", "file_picker_requested")
+            showGuestFilePicker = true
         case .serviceBeginSignIn:
             ScarletDiagnosticRecorder.shared.record("auth", "login_sheet_requested")
             showScarletAppleIDLogin = true
@@ -225,9 +249,9 @@ struct ScarletIntegratedHostView: View {
             for: UIDevice.orientationDidChangeNotification)) { _ in
             recordLayout()
         }
-        .onChange(of: showNativeAppLibrary) { visible in
+        .onChange(of: showGuestImportProgress) { visible in
             ScarletDiagnosticRecorder.shared.record("guest_import",
-                visible ? "manager_visible" : "manager_dismissed")
+                visible ? "import_progress_visible" : "import_progress_dismissed")
         }
         .onChange(of: showNativeSources) { visible in
             ScarletDiagnosticRecorder.shared.record("sources",
@@ -247,18 +271,40 @@ struct ScarletIntegratedHostView: View {
             // The embedded SideStore guest authentication UI is NOT opened.
             ScarletAppleIDLoginSheet(engine: ScarletPendingSideStoreEngineBridge())
         }
-        .sheet(isPresented: $showNativeAppLibrary, onDismiss: {
-            guestIPAImportFromAddMenu = false
+        .fileImporter(isPresented: $showGuestFilePicker,
+                      allowedContentTypes: [.ipa, .tipa],
+                      allowsMultipleSelection: false) { result in
+            switch result {
+            case .success(let files):
+                if let selected = files.first {
+                    ScarletDiagnosticRecorder.shared.record("guest_import", "file_selected")
+                    stageGuestIPAFromFiles(selected)
+                }
+            case .failure(let error):
+                ScarletDiagnosticRecorder.shared.recordError(
+                    "guest_import", "file_selection_failed", error: error)
+                showOriginalError = error.localizedDescription
+            }
+        }
+        .sheet(isPresented: $showGuestImportProgress, onDismiss: {
+            if let queuedGuestIPAURL {
+                try? FileManager.default.removeItem(at: queuedGuestIPAURL)
+            }
+            queuedGuestIPAURL = nil
         }) {
-            // Reuse the original native LC file importer. Guest selection from
-            // the sole Apps + menu starts file selection without a second +.
-            // Other error-recovery entrances retain normal LC manager behavior.
-            LCAppListView(scarletStartIPAImport: guestIPAImportFromAddMenu)
-                .environmentObject(downloadHelper)
-                .environmentObject(sharedModel)
-                .environmentObject(LCAppSortManager.shared)
-                .presentationDetents([.large])
-                .presentationDragIndicator(.visible)
+            if let queuedGuestIPAURL {
+                // Only the original LC installer runs here. The old app-list
+                // UI branch is never constructed for Scarlet's IPA flow.
+                LCAppListView(scarletQueuedIPAURL: queuedGuestIPAURL,
+                              scarletOnImportFinished: {
+                                  showGuestImportProgress = false
+                              })
+                    .environmentObject(downloadHelper)
+                    .environmentObject(sharedModel)
+                    .environmentObject(LCAppSortManager.shared)
+                    .presentationDetents([.medium])
+                    .interactiveDismissDisabled()
+            }
         }
         .sheet(isPresented: $showNativeSources) {
             NavigationStack {
