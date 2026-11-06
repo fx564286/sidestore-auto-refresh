@@ -104,6 +104,37 @@ def hide_embedded_sidestore_guest_navigation(engine: Path) -> dict:
         '        }\n')
     assert "LCUtils.openSideStore(" not in source
     assert "BuiltInSideStoreAppInfo.shared" not in source
+
+    # Keep the original manager and importer. Trace important lifecycle
+    # boundaries without logging any file paths, URLs or app identifiers.
+    native_events={
+        "    func startInstallApp(_ fileUrl:URL) async {\n":
+        '    func startInstallApp(_ fileUrl:URL) async {\n'
+        '        ScarletDiagnosticRecorder.shared.record("guest_import", "file_import_requested")\n',
+        "            try await installIpaFile(fileUrl)\n":
+        '            try await installIpaFile(fileUrl)\n'
+        '            ScarletDiagnosticRecorder.shared.record("guest_import", "import_pipeline_completed", status: "success")\n',
+        "        } catch {\n            errorInfo = error.localizedDescription\n":
+        '        } catch {\n'
+        '            ScarletDiagnosticRecorder.shared.recordError("guest_import", "import_pipeline_failed", error: error)\n'
+        '            errorInfo = error.localizedDescription\n',
+        "    func startInstallFromUrl() async {\n":
+        '    func startInstallFromUrl() async {\n'
+        '        ScarletDiagnosticRecorder.shared.record("guest_import", "url_import_requested")\n'
+    }
+    for original,patched in native_events.items():
+        assert source.count(original)>=1, "Pinned LC import tracer anchor missing: "+repr(original)
+        # 'catch/errorInfo' may appear in multiple functions; trace only
+        # the local startInstallApp() catch, not unrelated error handlers.
+        if original.startswith("        } catch {"):
+            region_start=source.index("    func startInstallApp(_ fileUrl:URL) async {")
+            region_end=source.index("    nonisolated func decompress(",region_start)
+            region=source[region_start:region_end]
+            assert region.count(original)==1, "Pinned importer catch changed"
+            source=source[:region_start]+region.replace(original,patched)+source[region_end:]
+        else:
+            assert source.count(original)==1, "Pinned LC import tracer duplicate: "+repr(original)
+            source=source.replace(original,patched)
     view.write_text(source)
     return {"appManager":"LCAppListView",
             "nativeIPAImportPreserved":True,
@@ -160,6 +191,17 @@ def attach_native_settings_diagnostics(engine: Path) -> dict:
         '        }\n'
         '        .onAppear {\n'
         '            ScarletDiagnosticRecorder.shared.record("settings", "native_form_visible")\n'
+        '        }\n'
+        '        .onChange(of: dynamicColors) { enabled in\n'
+        '            ScarletDiagnosticRecorder.shared.record("settings", "dynamic_colors_changed",\n'
+        '                fields: ["state": enabled ? "enabled" : "disabled"])\n'
+        '        }\n'
+        '        .onChange(of: darkModeIcon) { enabled in\n'
+        '            ScarletDiagnosticRecorder.shared.record("settings", "dark_icon_changed",\n'
+        '                fields: ["state": enabled ? "enabled" : "disabled"])\n'
+        '        }\n'
+        '        .onChange(of: JITEnabler) { _ in\n'
+        '            ScarletDiagnosticRecorder.shared.record("settings", "jit_provider_changed")\n'
         '        }\n')
     target.write_text(source)
     return {"settings":"original-LCSettingsView","singleTitle":True,
