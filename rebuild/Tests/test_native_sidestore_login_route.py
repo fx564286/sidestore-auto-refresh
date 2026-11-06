@@ -54,6 +54,11 @@ class NativeScarletLoginContract(unittest.TestCase):
         self.assertIn("onAction(.serviceBeginSignIn)",settings)
         self.assertIn("SCARLET_SETTINGS_NATIVE_APPLE_LOGIN",settings)
         self.assertNotIn("계정 및 서명 열기",settings)
+        self.assertIn("nativeSettings()",UI)
+        self.assertIn("SCARLET_INLINE_NATIVE_LC_SETTINGS",UI)
+        self.assertIn("SCARLET_SETTINGS_NATIVE_APPLE_LOGIN",UI)
+        self.assertNotIn(".disabled(!engine.isReady)",SHEET)
+        self.assertIn("guard engine.isReady else {",SHEET)
 
 if __name__=="__main__":
     unittest.main()
