@@ -117,12 +117,10 @@ public struct ScarletIndependentShell: View {
     public let guests: [ScarletGuestPresentation]
     public let onAction: (ScarletControl) -> Void
     public let onOpenGuest: (String) -> Void
-    // Host must call its ORIGINAL Liquid Glass presenter. Do not recreate
-    // blur, glass material, gesture recognizers, or hit testing here.
-    public let onOpenPreservedGlassWindowManager: () -> Void
-    // Host injects its EXISTING native Liquid Glass circular control. If not
-    // supplied, the isolated design preview displays a semantic fallback.
-    public let preservedGlassSwitchControl: AnyView?
+    // The host MUST inject its EXISTING interactive circular Liquid Glass
+    // app-switch button (including original tap/long-press gestures).
+    // This new UI does not emulate the material or create a second button.
+    public let preservedGlassSwitchControl: AnyView
 
     @State private var selected: Tab = .home
     @State private var searchText = ""
@@ -134,13 +132,11 @@ public struct ScarletIndependentShell: View {
                 guests: [ScarletGuestPresentation],
                 onAction: @escaping (ScarletControl) -> Void,
                 onOpenGuest: @escaping (String) -> Void,
-                onOpenPreservedGlassWindowManager: @escaping () -> Void,
-                preservedGlassSwitchControl: AnyView? = nil) {
+                preservedGlassSwitchControl: AnyView) {
         self.snapshot = snapshot
         self.guests = guests
         self.onAction = onAction
         self.onOpenGuest = onOpenGuest
-        self.onOpenPreservedGlassWindowManager = onOpenPreservedGlassWindowManager
         self.preservedGlassSwitchControl = preservedGlassSwitchControl
     }
 
@@ -184,33 +180,15 @@ public struct ScarletIndependentShell: View {
             }
             .scrollIndicators(.hidden)
 
-            // The installed app must provide the original glass button.
-            // A deliberately non-glass fallback is used only in isolated
-            // SwiftUI previews prior to integration.
-            if let preservedGlassSwitchControl {
-                preservedGlassSwitchControl
-                    .frame(minWidth: 62, minHeight: 62)
-                    .padding(.leading, 22)
-                    .padding(.bottom, 20)
-            } else {
-                Button(action: onOpenPreservedGlassWindowManager) {
-                    Image(systemName: "square.on.square")
-                        .font(.system(size: 23, weight: .medium))
-                        .foregroundStyle(ScarletPresentationColor.text)
-                        .frame(width: 62, height: 62)
-                        .background(ScarletPresentationColor.surface,
-                                    in: Circle())
-                        .overlay {
-                            Circle().stroke(ScarletPresentationColor.accent,
-                                            lineWidth: 1)
-                        }
-                }
-                .buttonStyle(.plain)
+            // Exactly one host-owned circular app switcher. The injected
+            // component retains the prior Scarlet Crystal Liquid Glass touch
+            // model and is required for all release builds.
+            preservedGlassSwitchControl
+                .frame(width: 62, height: 62)
                 .accessibilityLabel("앱 전환 및 창 관리")
                 .accessibilityIdentifier("SCARLET_SINGLE_ROUND_APP_SWITCHER")
                 .padding(.leading, 22)
                 .padding(.bottom, 20)
-            }
         }
         .background(ScarletPresentationColor.background.ignoresSafeArea())
         .preferredColorScheme(.dark)
