@@ -5,7 +5,8 @@
 - Native source login: `SettingsViewController.signIn() → AuthManager.shared.signIn(presentingViewController:) → SignInOperation.execute()`.
 - Native 2FA handling: `SignInFlowHandler.verificationCode(for:)`, retaining trusted device, SMS, phone, six-digit prompt, cancel, retry. No new credentials UI or anisette mutations.
 - Original Scarlet action `serviceBeginSignIn` previously launched SideStore home only; now passes `sidestore://signin` via LC's existing `runApp(urlStr:)` route.
-- Only `SideStore/DeepLinks/URLHandler.swift` is modified at build time. The adapter presents the pinned original Settings storyboard and invokes original `SettingsViewController.signIn()`.
+- Rolled back the failing direct cross-file invocation of fileprivate `signIn()`. The adapter now calls `scarletStartNativeAppleSignIn()` added in the **same original** `AltStore/Settings/SettingsViewController.swift` file; this delegates to the unmodified native `signIn()` implementation.
+- Scarlet settings `Apple ID 로그인` directly triggers native SideStore sign-in. No additional intermediate account/signing page is required. The existing navigation UI and host/guest data are preserved.
 - SideStore home action, virtual guest launch, existing profiles and app data remain unchanged.
 
 ## Status semantics

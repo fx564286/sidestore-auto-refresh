@@ -12,6 +12,15 @@ PACKAGER=(ROOT/"integration/package_paired.py").read_text()
 sys.path.insert(0,str(ROOT/"integration"))
 import patch_sidestore_native_signin as route
 
+SETTINGS_FIXTURE='''private extension SettingsViewController
+{
+    func signIn()
+    {
+        let result = try await AuthManager.shared.signIn(presentingViewController: self)
+    }
+}
+'''
+
 UPSTREAM_FIXTURE='''@MainActor
 class URLHandler {
     func handle(_ url: URL) -> Bool {
@@ -41,7 +50,7 @@ class NativeSideStoreLoginRoute(unittest.TestCase):
         out=route.apply(UPSTREAM_FIXTURE)
         for marker in ('case "signin":','ScarletOriginalSideStoreSignIn.open()',
                        'SettingsViewController','AuthManager.shared.isAuthenticated',
-                       'settings.signIn()', 'case "pairing":', 'case "install":'):
+                       'settings.scarletStartNativeAppleSignIn()', 'case "pairing":', 'case "install":'):
             self.assertIn(marker,out)
         self.assertIn('guard url.path.isEmpty || url.path == "/"',out)
         self.assertIn('originalTwoFactorUIUnmodified',Path(route.__file__).read_text())
@@ -57,6 +66,15 @@ class NativeSideStoreLoginRoute(unittest.TestCase):
         self.assertIn('"loginDeviceVerified":False',PACKAGER)
         self.assertIn('codesignedWithAppleProfile":False',PACKAGER)
 
+    def test_settings_login_action_goes_direct_without_intermediate_page(self):
+        ui=(ROOT/"Sources/ScarletIndependentUI/ScarletIndependentShell.swift").read_text()
+        settings=ui[ui.index("    private var settings: some View {"):ui.index("    private var connection: some View {")]
+        self.assertIn('Text("Apple ID 로그인")',settings)
+        self.assertIn('onAction(.serviceBeginSignIn)',settings)
+        self.assertIn('SCARLET_SETTINGS_NATIVE_APPLE_LOGIN',settings)
+        self.assertNotIn('Text("계정 및 서명 열기")',settings)
+        self.assertNotIn('showConnectionDetails = true',settings)
+
     def test_no_credentials_or_2fa_captured_by_adapter(self):
         code=Path(route.__file__).read_text()
         self.assertNotIn('let password =',route.ADAPTER)
@@ -64,7 +82,13 @@ class NativeSideStoreLoginRoute(unittest.TestCase):
         self.assertNotIn('Keychain.shared',route.ADAPTER)
         self.assertNotIn('AnisetteProvider.fetch',route.ADAPTER)
         self.assertNotIn('AuthManager.shared.signIn(',route.ADAPTER)
-        self.assertIn('settings.signIn()',route.ADAPTER)
+        self.assertIn('settings.scarletStartNativeAppleSignIn()',route.ADAPTER)
+        self.assertNotIn('settings.signIn()',route.ADAPTER)
+        patched=route.apply_settings(SETTINGS_FIXTURE)
+        self.assertIn('func scarletStartNativeAppleSignIn()',patched)
+        self.assertIn('AuthManager.shared.signIn(presentingViewController: self)',patched)
+        with self.assertRaises(RuntimeError):
+            route.apply_settings(patched)
 
 if __name__=="__main__":
     unittest.main()

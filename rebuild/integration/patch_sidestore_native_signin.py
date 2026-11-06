@@ -15,6 +15,7 @@ from pathlib import Path
 
 PIN = "ee3cc16a67f9fed766f79a0ed70938f0f8ad5a07"
 RELATIVE = "SideStore/DeepLinks/URLHandler.swift"
+SETTINGS_RELATIVE = "AltStore/Settings/SettingsViewController.swift"
 ROUTE_ANCHOR = '        case "install":\n'
 
 ROUTE = '''        case "signin":
@@ -24,6 +25,23 @@ ROUTE = '''        case "signin":
             return ScarletOriginalSideStoreSignIn.open()
 
 '''
+
+# SideStore signIn() is fileprivate. Keep original implementation and add
+# a same-file wrapper; never invoke private members across Swift source files.
+SETTINGS_ENTRY_ANCHOR = "private extension SettingsViewController\\n{\\n    func signIn()"
+SETTINGS_ENTRY = """
+
+// Scarlet native sign-in entry: no credential or 2FA implementation.
+extension SettingsViewController {
+    @MainActor func scarletStartNativeAppleSignIn() {
+        guard !AuthManager.shared.isAuthenticated else {
+            debugLog("[ScarletNativeSignIn] Existing authentication retained")
+            return
+        }
+        signIn()
+    }
+}
+"""
 
 ADAPTER = '''
 // Built-in SideStore navigation adapter for Scarlet Crystal.
@@ -61,7 +79,7 @@ private enum ScarletOriginalSideStoreSignIn {
                     tab.selectedIndex = index
                     if !AuthManager.shared.isAuthenticated &&
                        settings.presentedViewController == nil {
-                        DispatchQueue.main.async { settings.signIn() }
+                        DispatchQueue.main.async { settings.scarletStartNativeAppleSignIn() }
                     }
                     return true
                 }
@@ -87,13 +105,23 @@ private enum ScarletOriginalSideStoreSignIn {
         navigation.modalPresentationStyle = .pageSheet
         presenter.present(navigation, animated: true) {
             if !AuthManager.shared.isAuthenticated {
-                settings.signIn()
+                settings.scarletStartNativeAppleSignIn()
             }
         }
         return true
     }
 }
 '''
+
+def apply_settings(source: str) -> str:
+    if source.count(SETTINGS_ENTRY_ANCHOR) != 1:
+        raise RuntimeError("Pinned original SideStore signIn method changed")
+    if "func scarletStartNativeAppleSignIn()" in source:
+        raise RuntimeError("Same-file login entry already present")
+    if "AuthManager.shared.signIn(presentingViewController: self)" not in source:
+        raise RuntimeError("Original SideStore sign-in authentication path missing")
+    return source + SETTINGS_ENTRY
+
 
 def sha(raw: bytes) -> str:
     return hashlib.sha256(raw).hexdigest()
@@ -118,15 +146,26 @@ def main():
     args=p.parse_args()
     src=args.engine/RELATIVE
     assert src.is_file(),f"Original SideStore URLHandler missing: {src}"
+    settings=args.engine/SETTINGS_RELATIVE
+    assert settings.is_file(),f"Original SideStore SettingsViewController missing: {settings}"
     before=src.read_bytes()
+    original_settings=settings.read_bytes()
     after=apply(before.decode("utf-8")).encode("utf-8")
+    patched_settings=apply_settings(original_settings.decode("utf-8")).encode("utf-8")
+    # Validate both pinned sources before writing either.
     src.write_bytes(after)
+    settings.write_bytes(patched_settings)
     args.report.parent.mkdir(parents=True,exist_ok=True)
     data={
        "schema":1,
        "upstreamPin":PIN,
        "modifiedFile":RELATIVE,
+       "modifiedFiles":[RELATIVE,SETTINGS_RELATIVE],
        "originalSha256":sha(before),"patchedSha256":sha(after),
+       "settingsOriginalSha256":sha(original_settings),
+       "settingsPatchedSha256":sha(patched_settings),
+       "originalFileprivateSignInPreserved":True,
+       "sameFileNativeSignInForwarder":True,
        "onlyNavigationEntryPatched":True,
        "originalAuthManagerUnmodified":True,
        "originalSignInOperationUnmodified":True,
@@ -139,7 +178,7 @@ def main():
        "status":"source integration only; live Apple authentication requires signed device test"
     }
     args.report.write_text(json.dumps(data,ensure_ascii=False,indent=2)+"\n")
-    print("[PASS] SideStore native sign-in URL entry uses original SettingsViewController/AuthManager/2FA")
+    print("[PASS] Original SideStore Settings login directly invokes original signIn() via same-file forwarder")
     print("[BLOCK] Real Apple authentication, profile authorization, and device installation not verified")
 if __name__=="__main__":
     main()

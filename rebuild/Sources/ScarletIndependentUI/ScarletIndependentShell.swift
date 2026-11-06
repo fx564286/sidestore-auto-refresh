@@ -571,15 +571,15 @@ public struct ScarletIndependentShell: View {
                     .font(.system(size: 18, weight: .semibold))
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .frame(height: 22)
-                Text(snapshot.serviceConnected ? "SideStore 사용 가능" : "SideStore 연결 필요")
+                Text(snapshot.serviceConnected ? "SideStore 인증" : "내장 SideStore 확인 필요")
                     .font(.system(size: 13))
                     .foregroundStyle(ScarletPresentationColor.muted)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .frame(height: 16)
                 Button {
-                    showConnectionDetails = true
+                    onAction(.serviceBeginSignIn)
                 } label: {
-                    Text("계정 및 서명 열기")
+                    Text("Apple ID 로그인")
                         .font(.system(size: 15, weight: .semibold))
                         .multilineTextAlignment(.center)
                         .frame(maxWidth: .infinity)
@@ -588,6 +588,9 @@ public struct ScarletIndependentShell: View {
                                     in: RoundedRectangle(cornerRadius: 13))
                 }
                 .buttonStyle(.plain)
+                .disabled(!snapshot.serviceConnected)
+                .accessibilityIdentifier("SCARLET_SETTINGS_NATIVE_APPLE_LOGIN")
+                .accessibilityHint("원본 SideStore Apple ID 로그인 화면을 바로 엽니다.")
             }
             .padding(.horizontal, 16)
             .padding(.vertical, 17)

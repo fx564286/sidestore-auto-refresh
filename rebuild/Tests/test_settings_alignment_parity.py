@@ -30,6 +30,9 @@ class SettingsParity(unittest.TestCase):
         self.assertNotIn("오류 및 동작 기록",A)
         self.assertIn(".multilineTextAlignment(.center)",A)
         self.assertIn(".padding(.horizontal, 8)",A)
+        self.assertIn('Text("Apple ID 로그인")',A)
+        self.assertIn('SCARLET_SETTINGS_NATIVE_APPLE_LOGIN',A)
+        self.assertNotIn('계정 및 서명 열기',A)
         self.assertIn(".frame(height: 62)",A)
 
     def test_original_sidestore_controls_not_removed(self):
