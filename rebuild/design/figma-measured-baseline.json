@@ -85,7 +85,15 @@
         "열기",
         "활성"
       ],
-      "preservedAccessibilityActions": true
+      "preservedAccessibilityActions": true,
+      "defaultAppFilterSelection": "all",
+      "defaultAppFilterSelectedFill": "#674CE1",
+      "nativeTabIconParity": {
+        "Home": "house",
+        "Apps": "square.grid.3x3",
+        "Sources": "books.vertical",
+        "Settings": "gearshape"
+      }
     }
   },
   "screens": [

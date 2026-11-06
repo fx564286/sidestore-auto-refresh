@@ -239,8 +239,8 @@ public struct ScarletIndependentShell: View {
         public var icon: String {
             switch self {
             case .home: "house"
-            case .apps: "square.stack.3d.up"
-            case .sources: "square.stack"
+            case .apps: "square.grid.3x3"
+            case .sources: "books.vertical"
             case .settings: "gearshape"
             }
         }
@@ -514,7 +514,13 @@ public struct ScarletIndependentShell: View {
                     } label: {
                         Text(item.rawValue)
                             .font(.footnote.weight(.semibold))
-                            .foregroundStyle(ScarletPresentationColor.text)
+                            .foregroundStyle(
+                                appFilter == item
+                                    ? ScarletPresentationColor.text
+                                    : item == .running
+                                        ? ScarletPresentationColor.success
+                                        : ScarletPresentationColor.text
+                            )
                             .frame(maxWidth: .infinity)
                             .frame(height: 34)
                             .background(

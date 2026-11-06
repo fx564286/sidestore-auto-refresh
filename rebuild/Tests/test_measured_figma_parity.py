@@ -35,6 +35,8 @@ class FigmaMeasuredParity(unittest.TestCase):
             self.assertIn('= "' + tab + '"', UI)
         self.assertNotIn(".glassEffect(", UI)
         self.assertNotIn("case windowManager", UI)
+        self.assertIn('case .apps: "square.grid.3x3"', UI)
+        self.assertIn('case .sources: "books.vertical"', UI)
         axis = DESIGN["design"]["alignment"]
         self.assertEqual(axis["guestSegmentWidthPt"], axis["guestRowWidthPt"])
         self.assertEqual(axis["homeStatisticsColumnsWidthPt"], [147,147])
