@@ -45,7 +45,7 @@ struct ScarletAppleIDLoginSheet: View {
     @State private var isAuthenticating = false
     @State private var requiresTwoFactorCode = false
     @State private var errorMessage: String?
-    @State private var success = false
+    @State private var signInTask: Task<Void, Never>?
     @State private var pendingCode: CheckedContinuation<String, Error>?
 
     private var readyToSubmit: Bool {
@@ -65,7 +65,7 @@ struct ScarletAppleIDLoginSheet: View {
 
     private func submitCode() {
         guard verificationCode.count == 6,
-              verificationCode.allSatisfy(\.isNumber),
+              verificationCode.utf8.allSatisfy({ $0 >= 48 && $0 <= 57 }),
               let continuation = pendingCode else { return }
         pendingCode = nil
         let code = verificationCode
@@ -81,7 +81,7 @@ struct ScarletAppleIDLoginSheet: View {
         password = ""
         errorMessage = nil
         isAuthenticating = true
-        Task { @MainActor in
+        signInTask = Task { @MainActor in
             defer {
                 isAuthenticating = false
                 requiresTwoFactorCode = false
@@ -90,7 +90,6 @@ struct ScarletAppleIDLoginSheet: View {
                 try await engine.signIn(appleID: account, password: secret) {
                     try await askForCode()
                 }
-                success = true
                 dismiss()
             } catch is CancellationError {
                 errorMessage = nil
@@ -111,7 +110,7 @@ struct ScarletAppleIDLoginSheet: View {
                             .accessibilityIdentifier("SCARLET_2FA_CODE")
                         Button("인증번호 확인", action: submitCode)
                             .disabled(verificationCode.count != 6 ||
-                                      !verificationCode.allSatisfy(\.isNumber))
+                                      !verificationCode.utf8.allSatisfy({ $0 >= 48 && $0 <= 57 }))
                     }
                 } else {
                     Section("Apple ID") {
@@ -121,9 +120,11 @@ struct ScarletAppleIDLoginSheet: View {
                             .textInputAutocapitalization(.never)
                             .autocorrectionDisabled()
                             .accessibilityIdentifier("SCARLET_APPLE_ID_FIELD")
+                            .disabled(!engine.isReady)
                         SecureField("비밀번호", text: $password)
                             .textContentType(.password)
                             .accessibilityIdentifier("SCARLET_APPLE_PASSWORD_FIELD")
+                            .disabled(!engine.isReady)
                     }
                     Section {
                         Button("로그인", action: beginSignIn)
@@ -156,6 +157,8 @@ struct ScarletAppleIDLoginSheet: View {
             }
         }
         .onDisappear {
+            signInTask?.cancel()
+            signInTask = nil
             password = ""
             verificationCode = ""
             pendingCode?.resume(throwing: CancellationError())
