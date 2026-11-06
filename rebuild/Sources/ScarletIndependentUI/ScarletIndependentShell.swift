@@ -72,8 +72,8 @@ public struct ScarletHostPresentationSnapshot: Equatable, Sendable {
 
 private enum ScarletPresentationColor {
     static let background = Color(red: 0.051, green: 0.051, blue: 0.094)
-    static let surface = Color(red: 0.125, green: 0.121, blue: 0.19)
-    static let stroke = Color(red: 0.27, green: 0.25, blue: 0.36)
+    static let surface = Color(red: 36.0/255, green: 35.0/255, blue: 58.0/255)
+    static let stroke = Color(red: 69.0/255, green: 66.0/255, blue: 93.0/255)
     static let accent = Color(red: 0.667, green: 0.588, blue: 1.0)
     static let purple = Color(red: 0.39, green: 0.30, blue: 0.89)
     static let text = Color(red: 0.988, green: 0.98, blue: 1.0)
@@ -298,44 +298,57 @@ public struct ScarletIndependentShell: View {
     }
 
     public var body: some View {
-        VStack(spacing: 0) {
-            if selected == .settings {
-                // Full-sized original LiveContainer NavigationView/Form.
-                // Its own single title, safe area and navigation are authoritative;
-                // do not add a second Scarlet title/card/status header.
-                nativeSettings()
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .accessibilityIdentifier("SCARLET_INLINE_NATIVE_LC_SETTINGS")
-            } else if selected == .tweaks {
-                // Do not create a fake tweak-management card or a sheet.
-                // The original LiveContainer LCTweaksView controls actual
-                // tweak folders, dylib/framework imports and enable state.
-                nativeTweaks()
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .accessibilityIdentifier("SCARLET_INLINE_NATIVE_LC_TWEAKS")
-            } else {
-                ScrollView {
-                    VStack(alignment: .leading, spacing: 17) {
-                        switch selected {
-                        case .sources: sourcesScreen
-                        case .apps: home
-                        case .tweaks, .settings: EmptyView()
-                        }
-                    }
-                    .padding(.horizontal, 20)
-                    .padding(.top, 18)
-                    .padding(.bottom, 24)
-                    .frame(maxWidth: 650, alignment: .leading)
-                    .frame(maxWidth: .infinity, alignment: .center)
-                }
-                .scrollIndicators(.hidden)
-            }
+        // The OS glass surface must sample content behind the dock,
+        // not a separate, uniformly painted footer.
+        ZStack(alignment: .bottom) {
+            ScarletPresentationColor.background.ignoresSafeArea()
 
+            Group {
+                if selected == .settings {
+                    // The original LC settings Form keeps all JIT, certificate,
+                    // navigation, storage and diagnostic actions intact.
+                    nativeSettings()
+                        .safeAreaInset(edge: .bottom, spacing: 0) {
+                            Color.clear.frame(height: 82)
+                        }
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .accessibilityIdentifier("SCARLET_INLINE_NATIVE_LC_SETTINGS")
+                } else if selected == .tweaks {
+                    // Real upstream tweak manager; no duplicate static UI.
+                    nativeTweaks()
+                        .safeAreaInset(edge: .bottom, spacing: 0) {
+                            Color.clear.frame(height: 82)
+                        }
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .accessibilityIdentifier("SCARLET_INLINE_NATIVE_LC_TWEAKS")
+                } else {
+                    ScrollView {
+                        VStack(alignment: .leading, spacing: 17) {
+                            switch selected {
+                            case .sources: sourcesScreen
+                            case .apps: home
+                            case .tweaks, .settings: EmptyView()
+                            }
+                        }
+                        .padding(.horizontal, 20)
+                        .padding(.top, 18)
+                        // Last interactive row stays clear of overlaid glass.
+                        .padding(.bottom, 106)
+                        .frame(maxWidth: 650, alignment: .leading)
+                        .frame(maxWidth: .infinity, alignment: .center)
+                    }
+                    .scrollIndicators(.hidden)
+                }
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+
+            // One Figma-sized 352x62 pt native dock above screen content.
             preservedGlassTabBar($selected)
                 .frame(maxWidth: .infinity, alignment: .center)
                 .frame(height: 62)
                 .padding(.horizontal, 19)
                 .padding(.bottom, 6)
+                .zIndex(1)
                 .accessibilityIdentifier("SCARLET_NATIVE_GLASS_BOTTOM_TAB_BAR")
         }
         .background(ScarletPresentationColor.background.ignoresSafeArea())
