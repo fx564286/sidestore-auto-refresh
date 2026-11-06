@@ -11,7 +11,7 @@ CONTRACT=json.loads((ROOT/"config/scarlet-independent-ui-contract.json").read_te
 UI=(ROOT/"Sources/ScarletIndependentUI/ScarletIndependentShell.swift").read_text()
 HOST=(ROOT/"HostApp/ScarletIntegratedHostView.swift").read_text()
 CORE=(ROOT/"Sources/ScarletCleanCore/ScarletActionCoordinator.swift").read_text()
-HOME=UI[UI.index("    private var home: some View {"):UI.index("    private func installPathRow(")]
+HOME=UI[UI.index("    private var home: some View {"):UI.index("    private var visibleGuests:")]
 
 class IndependentUIContractTests(unittest.TestCase):
     def test_pinned_identity_and_engine_boundaries(self):
@@ -34,12 +34,15 @@ class IndependentUIContractTests(unittest.TestCase):
 
     def test_only_one_home_with_two_distinct_install_engines(self):
         self.assertIn('heading("", "설치된 앱", "")',HOME)
-        self.assertEqual(HOME.count('installPathRow("'),2)
-        self.assertIn('installPathRow("SideStore 앱 설치"',HOME)
-        self.assertIn('installPathRow("게스트 앱 설치"',HOME)
+        self.assertEqual(HOME.count("Menu {"),1)
+        self.assertIn('Label("IPA 설치하기"',HOME)
+        self.assertIn('Label("게스트 앱 설치하기"',HOME)
         self.assertIn("onAction(.serviceInstallIPA)",HOME)
         self.assertIn("onAction(.localImportGuestIPA)",HOME)
         self.assertIn("guests: visibleGuests",HOME)
+        self.assertEqual(HOME.count("onAction(.serviceInstallIPA)"),1)
+        self.assertEqual(HOME.count("onAction(.localImportGuestIPA)"),1)
+        self.assertNotIn("installPathRow(",UI)
         self.assertNotIn("guests: Array(guests.prefix(5))",HOME)
         self.assertNotIn("private var apps: some View",UI)
 
