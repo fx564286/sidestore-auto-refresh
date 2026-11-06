@@ -53,6 +53,67 @@ def apply_figma_app_icon(root: Path, engine: Path) -> dict:
             "assetSHA256":{n:file_sha(iconset/n) for n in names}}
 
 
+def hide_embedded_sidestore_guest_navigation(engine: Path) -> dict:
+    """Retain SideStore/SideSign engines, remove only its *guest UI* shortcuts.
+
+    The user wants the original LiveContainer app manager with IPA/URL import,
+    but not a second SideStore application window. Keep SideStoreSupport,
+    LiveProcess and refresh IPC untouched. Exact source anchors refuse drift.
+    """
+    view=engine/"LiveContainerSwiftUI/Views/AppList/LCAppListView.swift"
+    assert view.is_file(), "Pinned native LiveContainer app manager missing"
+    source=view.read_text()
+
+    # Native toolbar: the first leading item is the real IPA/URL add menu.
+    # Only the SECOND item launches the bundled SideStore guest application.
+    toolbar_start="""                ToolbarItem(placement: .topBarLeading) {
+                    if(UserDefaults.sideStoreExist()) {
+"""
+    next_item="""                ToolbarItem(placement: .topBarTrailing) {
+"""
+    assert source.count(toolbar_start)==1, "Native SideStore guest toolbar changed"
+    prefix, remainder=source.split(toolbar_start,1)
+    assert remainder.count(next_item)>=1, "Native guest toolbar end changed"
+    removed, rest=remainder.split(next_item,1)
+    for expected in ("LCUtils.openSideStore(delegate: self)",
+                     "BuiltInSideStoreAppInfo.shared.iconIsDarkIcon"):
+        assert removed.count(expected)==1, f"Native SideStore guest button changed: {expected}"
+    source=prefix+next_item+rest
+    assert 'Button("lc.appList.installFromIpa".loc' in source
+    assert 'Button("lc.appList.installFromUrl".loc' in source
+
+    # No hidden secondary path via the guest launch ID or SideStore URL.
+    builtin="""        if appFound == nil && bundleId == "builtinSideStore" {
+            appFound = LCAppModel(appInfo: BuiltInSideStoreAppInfo.shared)
+        }
+"""
+    assert source.count(builtin)==1, "Pinned builtin SideStore guest launch changed"
+    source=source.replace(builtin,"")
+
+    deeplink="""        if url.scheme == "sidestore" && UserDefaults.sideStoreExist() {
+            UserDefaults.standard.setValue(url.absoluteString, forKey: "launchAppUrlScheme")
+            LCUtils.openSideStore(delegate: self)
+            return
+        }
+"""
+    assert source.count(deeplink)==1, "Pinned SideStore deeplink route changed"
+    source=source.replace(deeplink,
+        '        if url.scheme == "sidestore" {\n'
+        '            NSLog("[SCARLET_ROUTE] SideStore guest UI disabled; engine retained")\n'
+        '            return\n'
+        '        }\n')
+    assert "LCUtils.openSideStore(" not in source
+    assert "BuiltInSideStoreAppInfo.shared" not in source
+    view.write_text(source)
+    return {"appManager":"LCAppListView",
+            "nativeIPAImportPreserved":True,
+            "nativeURLImportPreserved":True,
+            "embeddedSideStoreGuestNavigationRemoved":True,
+            "embeddedSideStoreEnginePreserved":True,
+            "changedFile":str(view.relative_to(engine)),
+            "patchedFileSHA256":file_sha(view)}
+
+
 def main():
     p=argparse.ArgumentParser()
     p.add_argument("--engine",type=Path,required=True)
@@ -199,6 +260,7 @@ def main():
     dock_source=dock_source.replace(unsafe_init,safe_init)
     assert "keyWindow!.rootViewController!.view.subviews.first!" not in dock_source, "Unsafe force unwrap retained"
     dock_src_file.write_text(dock_source)
+    guest_manager=hide_embedded_sidestore_guest_navigation(engine)
     a.report.parent.mkdir(parents=True,exist_ok=True)
     data={
         "schema":1,"newRootCompiled":False,
@@ -210,13 +272,16 @@ def main():
         "hostEntry":"ScarletIntegratedHostView",
         "realLCGuestModelsUsed":True,
         "originalGuestImporterPreserved":True,
-        "embeddedSideStoreNativeLaunchPreserved":True,
+        "embeddedSideStoreGuestUIEnabled":False,
+        "embeddedSideStoreEnginePreserved":True,
+        "nativeGuestManager":guest_manager,
         "originalNativeUIGlassEffect":True,
         "upstreamLiveContainerSourceUntouched":False,
         "upstreamLiveContainerModifiedTrackedPaths":[
             "LiveContainerSwiftUI/App/LiveContainerSwiftUIApp.swift",
             "MultitaskSupport/MultitaskAppWindow.swift",
-            "MultitaskSupport/MultitaskDockView.swift"
+            "MultitaskSupport/MultitaskDockView.swift",
+            "LiveContainerSwiftUI/Views/AppList/LCAppListView.swift"
         ],
 
         "customAppIcon":figma_icon,
@@ -233,6 +298,7 @@ def main():
     a.report.write_text(json.dumps(data,indent=2)+"\n")
     print("[PASS] Fresh Scarlet host sources injected into file-synchronized Xcode project")
     print("[PASS] Crash-traced dock window force unwrap replaced by deferred, data-preserving mount")
+    print("[PASS] Original LC guest IPA/URL import preserved; SideStore guest UI shortcuts removed (engine retained)")
     print("[PASS] New Figma Scarlet icon compiled into AppIcon.appiconset source; Xcode archive pending")
     print("[BLOCK] Await actual Xcode archive and iPhone runtime validation")
 if __name__=="__main__":main()
