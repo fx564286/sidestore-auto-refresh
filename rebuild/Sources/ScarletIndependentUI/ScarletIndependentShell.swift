@@ -340,7 +340,7 @@ public struct ScarletIndependentShell: View {
             HStack(spacing: 10) {
                 quickAction("앱 추가", icon: "plus.app",
                             detail: "IPA 가져오기") {
-                    onAction(.serviceInstallIPA)
+                    onAction(.localImportGuestIPA)
                 }
                 quickAction("설정", icon: "gearshape",
                             detail: "환경설정") {
@@ -576,6 +576,13 @@ public struct ScarletIndependentShell: View {
                                     in: RoundedRectangle(cornerRadius: 13))
                 }
                 .buttonStyle(.plain)
+            }
+            ScarletPanel {
+                ScarletActionRow(title: "SideStore 열기",
+                                 detail: "iOS 앱 설치 및 서명 갱신",
+                                 icon: "square.and.arrow.down", enabled: true) {
+                    onAction(.localOpenEmbeddedSideStore)
+                }
             }
             ScarletPanel {
                 Text("자동 갱신")
