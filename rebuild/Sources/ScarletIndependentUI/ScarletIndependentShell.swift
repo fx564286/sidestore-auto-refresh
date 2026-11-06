@@ -134,6 +134,7 @@ private struct ScarletActionRow: View {
     }
 }
 
+@available(iOS 16.0, *)
 public struct ScarletIndependentShell: View {
     // Preserves the existing Scarlet Crystal bottom tab destinations exactly.
     // Window management remains exclusively in the circular app switcher.
