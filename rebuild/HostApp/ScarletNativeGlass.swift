@@ -232,6 +232,17 @@ private struct SCInteractiveLiquidGlassTabs: View {
                 .background {
                     Capsule()
                         .glassEffect(.regular.interactive(), in: .capsule)
+                        .overlay {
+                            // Figma bottom bar node 24:28 has a 1.2 pt
+                            // luminous rim; the material remains native glass.
+                            Capsule()
+                                .strokeBorder(
+                                    Color(red: 217.0/255, green: 210.0/255,
+                                          blue: 248.0/255).opacity(0.7),
+                                    lineWidth: 1.2
+                                )
+                                .allowsHitTesting(false)
+                        }
                         .accessibilityIdentifier("SCARLET_LIVE_GLASS_BAR_MATERIAL")
                 }
                 // Drag previews move the selected system-glass capsule across
