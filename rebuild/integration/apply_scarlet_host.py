@@ -153,12 +153,60 @@ def main():
             raise RuntimeError(f"Unexpected pinned guest scene layout; anchor count={guest_src.count(before)}: {before!r}")
         guest_src=guest_src.replace(before,after)
     guest_window.write_text(guest_src)
+
+    # The 2026-11-06 on-device crashes (four identical SIGTRAP/BRK #1 in
+    # LiveContainerSwiftUI UUID A87CD742-820E-3F50-A48B-481388DCF3B1,
+    # PC imageOffset 0x22ACC) identify the pinned dock's force unwrap:
+    # keyWindow!.rootViewController!.view.subviews.first!
+    # The fresh SwiftUI shell requests MultitaskDockManager.shared before
+    # UIWindow has attached its root hierarchy. Preserve the actual dock
+    # engine and user windows; defer its attachment until a view exists.
+    dock_src_file=engine/"MultitaskSupport/MultitaskDockView.swift"
+    assert dock_src_file.is_file(), "Pinned LiveContainer dock source missing"
+    dock_source=dock_src_file.read_text()
+    unsafe_init="""    override init() {
+        super.init()
+        keyWindow!.rootViewController!.view.subviews.first!.addSubview(self.windowHostingView)
+        setupDockView()
+"""
+    safe_init="""    // Scarlet: app startup may evaluate the dock before UIKit creates its
+    // first key window. Mount the same native host after the scene is ready.
+    public func scarletEnsureWindowHost() {
+        guard let rootView = keyWindow?.rootViewController?.view else { return }
+        let target = rootView.subviews.first ?? rootView
+        if windowHostingView.superview !== target {
+            windowHostingView.removeFromSuperview()
+            target.addSubview(windowHostingView)
+        }
+    }
+
+    @objc private func scarletWindowBecameVisible(_ notification: Notification) {
+        DispatchQueue.main.async { [weak self] in
+            self?.scarletEnsureWindowHost()
+        }
+    }
+
+    override init() {
+        super.init()
+        scarletEnsureWindowHost()
+        NotificationCenter.default.addObserver(self,
+            selector: #selector(scarletWindowBecameVisible(_:)),
+            name: UIWindow.didBecomeVisibleNotification,
+            object: nil)
+        setupDockView()
+"""
+    assert dock_source.count(unsafe_init)==1, "Pinned dock startup layout changed"
+    dock_source=dock_source.replace(unsafe_init,safe_init)
+    assert "keyWindow!.rootViewController!.view.subviews.first!" not in dock_source, "Unsafe force unwrap retained"
+    dock_src_file.write_text(dock_source)
     a.report.parent.mkdir(parents=True,exist_ok=True)
     data={
         "schema":1,"newRootCompiled":False,
         "upstreamAppEntryPatched":True,
         "invalidPersistedGuestSkippedWithoutMutation":True,
         "hostBootPhaseLoggingInjected":True,
+        "onDeviceSigtrapDockForceUnwrapGuarded":True,
+        "dockAttachDeferredToWindowVisibility":True,
         "hostEntry":"ScarletIntegratedHostView",
         "realLCGuestModelsUsed":True,
         "originalGuestImporterPreserved":True,
@@ -167,7 +215,8 @@ def main():
         "upstreamLiveContainerSourceUntouched":False,
         "upstreamLiveContainerModifiedTrackedPaths":[
             "LiveContainerSwiftUI/App/LiveContainerSwiftUIApp.swift",
-            "MultitaskSupport/MultitaskAppWindow.swift"
+            "MultitaskSupport/MultitaskAppWindow.swift",
+            "MultitaskSupport/MultitaskDockView.swift"
         ],
 
         "customAppIcon":figma_icon,
@@ -183,6 +232,7 @@ def main():
     }
     a.report.write_text(json.dumps(data,indent=2)+"\n")
     print("[PASS] Fresh Scarlet host sources injected into file-synchronized Xcode project")
+    print("[PASS] Crash-traced dock window force unwrap replaced by deferred, data-preserving mount")
     print("[PASS] New Figma Scarlet icon compiled into AppIcon.appiconset source; Xcode archive pending")
     print("[BLOCK] Await actual Xcode archive and iPhone runtime validation")
 if __name__=="__main__":main()
