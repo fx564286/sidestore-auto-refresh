@@ -47,7 +47,7 @@ class IndependentUIContractTests(unittest.TestCase):
         self.assertIn("public let preservedGlassSwitchControl: AnyView",UI)
         self.assertIn("preservedGlassSwitchControl\n",UI)
         self.assertNotIn("AnyView?",UI)
-        self.assertNotIn("Button(action: onOpenPreservedGlassWindowManager)",UI)
+        self.assertNotIn("Button(action: preservedGlassSwitchControl)",UI)
         self.assertNotIn('quickAction("창 관리"',UI)
         self.assertNotIn('ScarletActionRow(title: "실행 및 창 관리"',UI)
         self.assertIn("Menu {",UI)
@@ -76,7 +76,7 @@ class IndependentUIContractTests(unittest.TestCase):
 
     def test_unverified_upstream_is_not_replaced(self):
         assert set(CONTRACT["protected_runtime"][0]) >= {"id","description"}
-        self.assertIn("onOpenPreservedGlassWindowManager",UI)
+        self.assertIn("preservedGlassSwitchControl",UI)
         self.assertIn("onOpenGuest",UI)
         self.assertIn("serviceBeginSignIn",UI)
         self.assertIn("SideStore 연결 필요",UI)
