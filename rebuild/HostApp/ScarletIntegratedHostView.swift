@@ -119,6 +119,14 @@ struct ScarletIntegratedHostView: View {
             preservedGlassTabBar: { tab in
                 AnyView(ScarletNativeGlassTabBar(selected: tab))
             },
+            nativeTweaks: {
+                // Embedded real LiveContainer tweak manager; actual tweak
+                // folder state, enable toggles and import are owned upstream.
+                AnyView(
+                    LCTweaksView()
+                        .environmentObject(sharedModel)
+                )
+            },
             nativeSettings: {
                 // Original LiveContainer Forms, pickers, certificates, JIT,
                 // multitask and storage controls remain wired to real state.
