@@ -33,12 +33,16 @@ class NativeScarletLoginContract(unittest.TestCase):
                           "print(password)","sidestore://",".disabled(!engine.isReady)"):
             self.assertNotIn(forbidden,SHEET)
         self.assertIn('password = ""',SHEET)
-        self.assertIn("guard engine.isReady else {",SHEET)
+        self.assertIn("guard transportReady && engine.isReady else {",SHEET)
 
-    def test_bridge_is_explicitly_not_yet_verified(self):
+    def test_real_bridge_is_present_but_device_auth_not_yet_verified(self):
         self.assertIn("protocol ScarletAppleSignInEngine",SHEET)
-        self.assertIn("var isReady: Bool { false }",SHEET)
-        self.assertIn("throw ScarletSignInBridgeError.engineNotConnected",SHEET)
+        self.assertIn("ScarletConnectedSideSignEngine()",HOST)
+        self.assertIn("try await engine.prepare()",SHEET)
+        self.assertNotIn("var isReady: Bool { false }",SHEET)
+        self.assertNotIn("ScarletPendingSideStoreEngineBridge",HOST+SHEET)
+        self.assertIn("--mode livecontainer",WORKFLOW)
+        self.assertIn("--mode sidestore",WORKFLOW)
         self.assertIn('"sideStoreEngineTransportConnected":False',PACKAGER)
         self.assertIn('"loginDeviceVerified":False',PACKAGER)
         self.assertIn('"sideStoreAppleAuthenticationVerified":False',PACKAGER)
