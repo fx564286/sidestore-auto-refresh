@@ -41,7 +41,7 @@ class NativeHomeSettings(unittest.TestCase):
                         "LCUtils.openSideStore("):
             self.assertIn(literal,HOST)
         self.assertIn("case .localAppearance, .localStorageNavigation",HOST)
-        self.assertIn(".serviceBeginSignIn,",HOST)
+        self.assertIn("case .serviceBeginSignIn:",HOST)
         self.assertNotIn("clearAppGroup",UI)
 
 if __name__=="__main__":
