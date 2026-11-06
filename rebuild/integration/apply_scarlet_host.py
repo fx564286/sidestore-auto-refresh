@@ -6,13 +6,52 @@ Do not apply previous V-series patches or edit LC/SideStore signing assets.
 """
 from __future__ import annotations
 import argparse
+import base64
 import hashlib
 import json
 from pathlib import Path
 import shutil
+import struct
+import subprocess
+import tempfile
 
 def file_sha(path):
     return hashlib.sha256(path.read_bytes()).hexdigest()
+
+def apply_figma_app_icon(root: Path, engine: Path) -> dict:
+    """Build native AppIcon assets from the exact Figma artwork, before actool.
+
+    No host signing assets, app identifiers, guest data or alternate-icon
+    catalog entries are removed. macOS sips ships with the Xcode runner.
+    """
+    source=root/"rebuild/assets/ScarletCrystalAppIcon.figma.png.base64"
+    assert source.is_file(), "Figma icon artwork is missing"
+    png=base64.b64decode(source.read_text().strip(), validate=True)
+    assert png.startswith(b"\\x89PNG\\r\\n\\x1a\\n"), "Invalid PNG signature"
+    width,height=struct.unpack(">II",png[16:24])
+    assert width>=512 and height>=512 and width==height, (width,height)
+    iconset=engine/"Resources/Assets.xcassets/AppIcon.appiconset"
+    assert iconset.is_dir(), "Pinned upstream app icon catalog missing"
+    manifest=json.loads((iconset/"Contents.json").read_text())
+    names=sorted({x["filename"] for x in manifest["images"] if x.get("filename")})
+    assert "AppIcon1024.png" in names, "Native primary icon entry missing"
+    assert all((iconset/n).is_file() for n in names), "Pinned native icon catalog drift"
+    import os
+    with tempfile.TemporaryDirectory(prefix="scarlet-figma-icon-") as tmp:
+        original=Path(tmp)/"Figma-Icon.png"
+        original.write_bytes(png)
+        for name in names:
+            destination=iconset/name
+            subprocess.run(["sips","-s","format","png","-z","1024","1024",
+                            str(original),"--out",str(destination)],
+                           check=True, stdout=subprocess.DEVNULL)
+            output=destination.read_bytes()
+            assert output.startswith(b"\\x89PNG\\r\\n\\x1a\\n")
+            assert struct.unpack(">II",output[16:24])==(1024,1024)
+    return {"sourceFigmaNode":"108:2","inputPixels":[width,height],
+            "primaryIcon":"AppIcon1024.png","variants":names,
+            "assetSHA256":{n:file_sha(iconset/n) for n in names}}
+
 
 def main():
     p=argparse.ArgumentParser()
@@ -52,6 +91,7 @@ def main():
     for inp,name in sources.items():
         assert inp.is_file(),f"Required independent source missing: {inp}"
         shutil.copy2(inp,out/name)
+    figma_icon=apply_figma_app_icon(root,engine)
     entry.write_text(src.replace(original,new))
 
     # Mount the sole circular control on an actual running guest scene.  Never
@@ -98,6 +138,7 @@ def main():
             "MultitaskSupport/MultitaskAppWindow.swift"
         ],
 
+        "customAppIcon":figma_icon,
         "guestOnlySwitcherSourceInjected":True,
         "guestSnapshotCaptureSourceInjected":True,
         "guestRuntimeCaptureDeviceVerified":False,
@@ -110,5 +151,6 @@ def main():
     }
     a.report.write_text(json.dumps(data,indent=2)+"\n")
     print("[PASS] Fresh Scarlet host sources injected into file-synchronized Xcode project")
+    print("[PASS] New Figma Scarlet icon compiled into AppIcon.appiconset source; Xcode archive pending")
     print("[BLOCK] Await actual Xcode archive and iPhone runtime validation")
 if __name__=="__main__":main()
