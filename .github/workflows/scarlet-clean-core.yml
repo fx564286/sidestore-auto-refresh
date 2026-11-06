@@ -61,6 +61,11 @@ jobs:
             -o "${RUNNER_TEMP}/scarlet-clean-core-contract"
           "${RUNNER_TEMP}/scarlet-clean-core-contract"
           swiftc -swift-version 6 -parse-as-library \
+            rebuild/Sources/ScarletCleanCore/ScarletUpdateCoordinator.swift \
+            rebuild/Tests/ScarletUpdateCoordinatorContract.swift \
+            -o "${RUNNER_TEMP}/scarlet-update-contract"
+          "${RUNNER_TEMP}/scarlet-update-contract"
+          swiftc -swift-version 6 -parse-as-library \
             rebuild/Sources/ScarletCleanCore/ScarletRefreshPolicy.swift \
             rebuild/Tests/ScarletRefreshPolicyContract.swift \
             -o "${RUNNER_TEMP}/scarlet-refresh-contract"
@@ -89,5 +94,6 @@ jobs:
           xcrun --sdk iphonesimulator swiftc -swift-version 6 \
             -target arm64-apple-ios17.0-simulator -sdk "$sdk" -typecheck \
             rebuild/Sources/ScarletCleanCore/ScarletActionCoordinator.swift \
+            rebuild/Sources/ScarletCleanCore/ScarletUpdateCoordinator.swift \
             rebuild/Sources/ScarletIndependentUI/ScarletIndependentShell.swift
           echo '[PASS] SCARLET_INDEPENDENT_UI_SWIFTUI_IOS_TYPECHECK'
