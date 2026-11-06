@@ -43,15 +43,19 @@ class IndependentUIContractTests(unittest.TestCase):
         self.assertNotIn("guests: Array(guests.prefix(5))",HOME)
         self.assertNotIn("private var apps: some View",UI)
 
-    def test_exactly_three_native_glass_tab_destinations(self):
+    def test_exactly_four_native_glass_tab_destinations(self):
         self.assertIn("SCARLET_NATIVE_GLASS_BOTTOM_TAB_BAR",UI)
         self.assertEqual(UI.count("SCARLET_NATIVE_GLASS_BOTTOM_TAB_BAR"),1)
-        for marker in ('case home = "Home"','case sources = "Sources"',
-                       'case settings = "Settings"'):
+        for marker in ('case sources = "소스"','case apps = "앱"',
+                       'case tweaks = "트윅"','case settings = "설정"'):
             self.assertIn(marker,UI)
-        self.assertNotIn('case apps = "Apps"',UI)
+        self.assertNotIn('case home = "Home"',UI)
         self.assertEqual(CONTRACT["navigation"]["bottom_tabs"],
-                         ["home","sources","settings"])
+                         ["sources","apps","tweaks","settings"])
+        self.assertEqual(CONTRACT["navigation"]["bottom_tab_display_labels"],
+                         ["소스","앱","트윅","설정"])
+        self.assertEqual(CONTRACT["navigation"]["initial_screen"],"apps")
+        self.assertIn("initialTab: Tab = .apps",UI)
         self.assertIn("preservedGlassTabBar($selected)",UI)
         self.assertIn("preservedGlassTabBar: (Binding<Tab>) -> AnyView",UI)
         self.assertNotIn(".glassEffect(",UI)
@@ -64,6 +68,15 @@ class IndependentUIContractTests(unittest.TestCase):
         self.assertIn('heading("", "소스", "")',UI)
         self.assertIn("Button(action: onAddSource)",UI)
         self.assertIn("LCSourcesView()",HOST)
+
+    def test_tweaks_tab_embeds_real_livecontainer_manager_without_new_modal(self):
+        self.assertIn("if selected == .tweaks {",UI)
+        self.assertIn("nativeTweaks()",UI)
+        self.assertIn("SCARLET_INLINE_NATIVE_LC_TWEAKS",UI)
+        self.assertIn("LCTweaksView()",HOST)
+        self.assertIn("nativeTweaks: {",HOST)
+        self.assertTrue(CONTRACT["navigation"]["reference_screenshot_scope"].startswith("BOTTOM TABS"))
+        self.assertNotIn(".glassEffect(",UI)
 
     def test_settings_tab_shows_native_form_without_same_sheet_for_all_controls(self):
         self.assertIn("if selected == .settings {",UI)
