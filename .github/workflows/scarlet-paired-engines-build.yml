@@ -70,10 +70,12 @@ jobs:
             --report "$GITHUB_WORKSPACE/report/livecontainer-audit.json"
           python3 - <<'PY'
           import json
+          import os
           from pathlib import Path
-          p=Path("report/scarlet-host-integration.json")
+          root=Path(os.environ["GITHUB_WORKSPACE"])
+          p=root/"report/scarlet-host-integration.json"
           data=json.loads(p.read_text())
-          log=Path("report/livecontainer-build.log").read_text(errors="replace")
+          log=(root/"report/livecontainer-build.log").read_text(errors="replace")
           required=("ScarletIntegratedHostView.swift", "ScarletNativeGlass.swift",
                     "ScarletIndependentShell.swift")
           missing=[x for x in required if x not in log]
