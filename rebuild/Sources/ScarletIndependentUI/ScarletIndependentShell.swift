@@ -228,17 +228,20 @@ private struct ScarletGuestListCard: View {
 
 @available(iOS 16.0, *)
 public struct ScarletIndependentShell: View {
-    // Unified Home owns installation and the LiveContainer app list.
-    // Native Liquid Glass navigation is preserved; no duplicate Apps tab.
+    // User-selected tab order and labels, WITHOUT importing the example
+    // screenshot's theme, dimensions or container layout.
+    // The original UIKit Liquid Glass renderer remains unmodified.
     public enum Tab: String, CaseIterable {
-        case home = "Home"
-        case sources = "Sources"
-        case settings = "Settings"
+        case sources = "소스"
+        case apps = "앱"
+        case tweaks = "트윅"
+        case settings = "설정"
 
         public var icon: String {
             switch self {
-            case .home: "square.grid.2x2"
             case .sources: "books.vertical"
+            case .apps: "square.grid.2x2"
+            case .tweaks: "wrench.and.screwdriver"
             case .settings: "gearshape"
             }
         }
@@ -257,6 +260,8 @@ public struct ScarletIndependentShell: View {
     // binds the four destination tabs to this shell selection; no duplicated
     // material or synthetic glassEffect is introduced here.
     public let preservedGlassTabBar: (Binding<Tab>) -> AnyView
+    // Original LC tweak file/enable/sign manager embedded directly in the tab.
+    public let nativeTweaks: () -> AnyView
     // Direct embedded original LiveContainer settings, not a modal.
     public let nativeSettings: () -> AnyView
 
@@ -272,8 +277,9 @@ public struct ScarletIndependentShell: View {
                 onOpenSource: @escaping (String) -> Void,
                 onAddSource: @escaping () -> Void,
                 preservedGlassTabBar: @escaping (Binding<Tab>) -> AnyView,
+                nativeTweaks: @escaping () -> AnyView = { AnyView(EmptyView()) },
                 nativeSettings: @escaping () -> AnyView = { AnyView(EmptyView()) },
-                initialTab: Tab = .home) {
+                initialTab: Tab = .apps) {
         self.snapshot = snapshot
         self.guests = guests
         self.sources = sources
@@ -282,6 +288,7 @@ public struct ScarletIndependentShell: View {
         self.onOpenSource = onOpenSource
         self.onAddSource = onAddSource
         self.preservedGlassTabBar = preservedGlassTabBar
+        self.nativeTweaks = nativeTweaks
         self.nativeSettings = nativeSettings
         self._selected = State(initialValue: initialTab)
     }
@@ -323,13 +330,20 @@ public struct ScarletIndependentShell: View {
                         .accessibilityIdentifier("SCARLET_INLINE_NATIVE_LC_SETTINGS")
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else if selected == .tweaks {
+                // Do not create a fake tweak-management card or a sheet.
+                // The original LiveContainer LCTweaksView controls actual
+                // tweak folders, dylib/framework imports and enable state.
+                nativeTweaks()
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .accessibilityIdentifier("SCARLET_INLINE_NATIVE_LC_TWEAKS")
             } else {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 17) {
                         switch selected {
-                        case .home: home
                         case .sources: sourcesScreen
-                        case .settings: EmptyView()
+                        case .apps: home
+                        case .tweaks, .settings: EmptyView()
                         }
                     }
                     .padding(.horizontal, 20)
@@ -372,9 +386,10 @@ public struct ScarletIndependentShell: View {
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
-    // The Home tab directly displays installed apps; Settings has its own tab.
+    // The Apps tab directly displays installed apps; Settings and Tweaks
+    // render original LiveContainer managers. Preserve the custom Scarlet UI.
     // No stats, recent-app section, fake settings or duplicate navigation.
-    // One Home screen, two DISTINCT install targets, no SideStore guest UI.
+    // One Apps screen, two DISTINCT install targets, no SideStore guest UI.
     // The original guest importer handles LiveContainer-contained apps.
     // Device IPA signing and installation uses SideStore/SideSign only after
     // the embedded engine transport and Apple provisioning are verified.
