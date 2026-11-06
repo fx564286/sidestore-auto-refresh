@@ -22,6 +22,20 @@ class ReleaseReadinessTests(unittest.TestCase):
                     "signed_ipa_and_user_data"]:
             self.assertIn(key,ids)
 
+    def test_actual_injected_host_not_misreported_as_missing(self):
+        r=audit.assess(ROOT)
+        checks={x["id"]:x for x in r["checks"]}
+        self.assertEqual(checks["livecontainer_host_integration"]["status"],
+                         "source_present_device_unverified")
+        self.assertEqual(checks["native_glass_tab_and_switcher"]["status"],
+                         "source_present_device_unverified")
+        self.assertEqual(checks["window_manager_gestures"]["status"],
+                         "partially_implemented_device_unverified")
+        for id in ("livecontainer_host_integration", "native_glass_tab_and_switcher",
+                   "window_manager_gestures"):
+            self.assertIn(id, r["blockingChecks"])
+        self.assertFalse(r["releaseReady"])
+
     def test_source_typecheck_does_not_claim_real_glass(self):
         r=audit.assess(ROOT)
         self.assertTrue(r["simulatorEvidenceIsNotNativeGlass"])
