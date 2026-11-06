@@ -100,8 +100,11 @@ def patch_livecontainer(engine: Path) -> None:
 }
 
 """
-    assert s.count("@end") == 1
-    s = s.replace("@end", extra + "@end")
+    # XPCClient.m has a Swift category declaration and the implementation;
+    # append the worker methods only to the final implementation @end.
+    assert s.count("@end") == 2, "Pinned XPCClient ObjC structure changed"
+    head, last = s.rsplit("@end", 1)
+    s = head + extra + "@end" + last
     client.write_text(s)
 
     support = engine / "SideStoreSupport/ScarletAuthXPCSupport.swift"
