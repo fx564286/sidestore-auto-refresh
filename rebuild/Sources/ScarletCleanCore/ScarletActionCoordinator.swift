@@ -8,6 +8,8 @@ public enum ScarletControl: String, Codable, CaseIterable, Sendable {
     case localClearNotifications
     case localAppearance
     case localStorageNavigation
+    case localImportGuestIPA
+    case localOpenEmbeddedSideStore
 
     case serviceReadSettings
     case serviceSetSettings
@@ -21,7 +23,8 @@ public enum ScarletControl: String, Codable, CaseIterable, Sendable {
     public var dependency: ScarletDependency {
         switch self {
         case .localTapProbe, .localClearNotifications,
-             .localAppearance, .localStorageNavigation:
+             .localAppearance, .localStorageNavigation,
+             .localImportGuestIPA, .localOpenEmbeddedSideStore:
             return .local
         case .serviceReadSettings, .serviceSetSettings, .serviceReadLogs,
              .serviceBeginSignIn:
