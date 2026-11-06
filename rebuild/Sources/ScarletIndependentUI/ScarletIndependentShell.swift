@@ -262,7 +262,6 @@ public struct ScarletIndependentShell: View {
 
     @State private var selected: Tab
     @State private var searchText = ""
-    @State private var showConnectionDetails: Bool
     @ScaledMetric(relativeTo: .largeTitle) private var screenTitleSize: CGFloat = 28
 
     public init(snapshot: ScarletHostPresentationSnapshot,
@@ -274,8 +273,7 @@ public struct ScarletIndependentShell: View {
                 onAddSource: @escaping () -> Void,
                 preservedGlassTabBar: @escaping (Binding<Tab>) -> AnyView,
                 nativeSettings: @escaping () -> AnyView = { AnyView(EmptyView()) },
-                initialTab: Tab = .home,
-                initialConnectionDetails: Bool = false) {
+                initialTab: Tab = .home) {
         self.snapshot = snapshot
         self.guests = guests
         self.sources = sources
@@ -286,7 +284,6 @@ public struct ScarletIndependentShell: View {
         self.preservedGlassTabBar = preservedGlassTabBar
         self.nativeSettings = nativeSettings
         self._selected = State(initialValue: initialTab)
-        self._showConnectionDetails = State(initialValue: initialConnectionDetails)
     }
 
     public var body: some View {
@@ -373,18 +370,6 @@ public struct ScarletIndependentShell: View {
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-    }
-
-    private func sectionTitle(_ label: String, trailing: String? = nil) -> some View {
-        HStack {
-            Text(label).font(.headline)
-                .foregroundStyle(ScarletPresentationColor.text)
-            Spacer()
-            if let trailing {
-                Text(trailing).font(.caption.weight(.semibold))
-                    .foregroundStyle(ScarletPresentationColor.accent)
-            }
-        }
     }
 
     // Initial screen: Home and Settings are both visible WITHOUT a tab.
@@ -509,245 +494,5 @@ public struct ScarletIndependentShell: View {
         .foregroundStyle(ScarletPresentationColor.text)
     }
 
-    private var renewalAssessment: ScarletRefreshAssessment {
-        ScarletRefreshPolicy().assess(
-            now: Date(),
-            profileExpiresAt: snapshot.installedProfileVerified
-                ? snapshot.installedProfileExpiresAt : nil
-        )
-    }
-
-    private var renewalSummary: String {
-        guard snapshot.installedProfileVerified else {
-            return "아이폰에 설치된 앱의 프로파일 확인 필요"
-        }
-        switch renewalAssessment.decision {
-        case .healthy:
-            guard let remaining = renewalAssessment.remainingSeconds else {
-                return "유효기간 확인 필요"
-            }
-            return "만료까지 약 \(max(1, Int(remaining / 3600)))시간"
-        case .refreshDue:
-            return "서명 갱신 필요"
-        case .alreadyExpired:
-            return "서명 유효기간 만료"
-        case .profileUnavailable:
-            return "유효기간 확인 필요"
-        }
-    }
-
-    private var renewalReady: Bool {
-        snapshot.serviceConnected &&
-        snapshot.appleAuthenticated &&
-        snapshot.pairingVerified &&
-        snapshot.installedProfileVerified
-    }
-
-    // 6:136 · Figma Settings: three left-anchored panels, centered CTA.
-    // Row icon + title anchors: card X + 17 / + 65 pt respectively.
-    private func compactSettingsCard<Content: View>(
-        @ViewBuilder content: () -> Content
-    ) -> some View {
-        VStack(alignment: .leading, spacing: 0, content: content)
-            .padding(9)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(ScarletPresentationColor.surface,
-                        in: RoundedRectangle(cornerRadius: 20))
-            .overlay {
-                RoundedRectangle(cornerRadius: 20)
-                    .stroke(ScarletPresentationColor.stroke, lineWidth: 1)
-            }
-    }
-
-    private var settings: some View {
-        Group {
-            heading("", "설정", "")
-            compactSettingsCard {
-                Text("컨테이너")
-                    .font(.system(size: 18, weight: .semibold))
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .frame(height: 22)
-                    .padding(.leading, 8)
-                ScarletActionRow(title: "화면 설정",
-                                 detail: "",
-                                 icon: "circle.lefthalf.filled", enabled: true) {
-                    onAction(.localAppearance)
-                }
-                .padding(.horizontal, 8)
-                .frame(height: 62)
-                Divider()
-                ScarletActionRow(title: "저장소",
-                                 detail: "",
-                                 icon: "folder", enabled: true) {
-                    onAction(.localStorageNavigation)
-                }
-                .padding(.horizontal, 8)
-                .frame(height: 62)
-            }
-            VStack(alignment: .leading, spacing: 7) {
-                HStack(spacing: 12) {
-                    Text("계정 및 서명")
-                        .font(.system(size: 18, weight: .semibold))
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                    Button("관리") {
-                        showConnectionDetails = true
-                    }
-                    .font(.system(size: 13, weight: .medium))
-                    .foregroundStyle(ScarletPresentationColor.accent)
-                    .buttonStyle(.plain)
-                    .accessibilityIdentifier("SCARLET_SIGNING_MANAGEMENT")
-                }
-                .frame(height: 22)
-                Text(snapshot.serviceConnected ? "SideStore 인증" : "내장 SideStore 확인 필요")
-                    .font(.system(size: 13))
-                    .foregroundStyle(ScarletPresentationColor.muted)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .frame(height: 16)
-                Button {
-                    onAction(.serviceBeginSignIn)
-                } label: {
-                    Text("Apple ID 로그인")
-                        .font(.system(size: 15, weight: .semibold))
-                        .multilineTextAlignment(.center)
-                        .frame(maxWidth: .infinity)
-                        .frame(height: 43)
-                        .background(ScarletPresentationColor.purple,
-                                    in: RoundedRectangle(cornerRadius: 13))
-                }
-                .buttonStyle(.plain)
-                .disabled(!snapshot.serviceConnected)
-                .accessibilityIdentifier("SCARLET_SETTINGS_NATIVE_APPLE_LOGIN")
-                .accessibilityHint("Scarlet의 Apple ID 로그인 입력 화면을 엽니다.")
-            }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 17)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(ScarletPresentationColor.surface,
-                        in: RoundedRectangle(cornerRadius: 20))
-            .overlay {
-                RoundedRectangle(cornerRadius: 20)
-                    .stroke(ScarletPresentationColor.stroke, lineWidth: 1)
-            }
-            compactSettingsCard {
-                ScarletActionRow(title: "진단 로그",
-                                 detail: "",
-                                 icon: "waveform.path.ecg", enabled: true) {
-                    onAction(.serviceReadLogs)
-                }
-                .padding(.horizontal, 8)
-                .frame(height: 62)
-            }
-        }
-        .foregroundStyle(ScarletPresentationColor.text)
-    }
-
-    private var connection: some View {
-        Group {
-            HStack(spacing: 8) {
-                Button {
-                    showConnectionDetails = false
-                } label: {
-                    Label("설정", systemImage: "chevron.left")
-                        .font(.footnote.weight(.semibold))
-                        .foregroundStyle(ScarletPresentationColor.accent)
-                        .frame(minHeight: 44)
-                }
-                .buttonStyle(.plain)
-                .accessibilityIdentifier("SCARLET_CONNECTION_BACK")
-                Spacer()
-            }
-            heading("", "연결 및 서명", "")
-            ScarletPanel {
-                Text("연결 상태")
-                    .font(.title3.bold())
-                Text(snapshot.serviceConnected ? "내장 SideStore 발견 · 로그인 상태 미검증" : "SideStore 실행 파일 없음")
-                    .font(.caption)
-                    .foregroundStyle(ScarletPresentationColor.muted)
-            }
-            Button {
-                onAction(.serviceReadSettings)
-            } label: {
-                Label("연결 상태 확인", systemImage: "arrow.clockwise")
-                    .font(.headline)
-                    .frame(maxWidth: .infinity, minHeight: 48)
-                    .foregroundStyle(ScarletPresentationColor.text)
-                    .background(ScarletPresentationColor.surface,
-                                in: RoundedRectangle(cornerRadius: 13))
-            }
-            .buttonStyle(.plain)
-            sectionTitle("설정 단계")
-            ScarletPanel {
-                statusRow("01", "기기 페어링", verified: snapshot.pairingVerified)
-                Divider()
-                statusRow("02", "Apple ID 로그인", verified: snapshot.appleAuthenticated)
-                Divider()
-                statusRow("03", "IPA 서명", verified: snapshot.signingVerified)
-                Divider()
-                statusRow("04", "기기 설치", verified: snapshot.installationVerified)
-            }
-            Button {
-                onAction(.serviceBeginSignIn)
-            } label: {
-                Text("Apple ID 로그인 시작")
-                    .frame(maxWidth: .infinity, minHeight: 48)
-                    .foregroundStyle(ScarletPresentationColor.text)
-                    .background(ScarletPresentationColor.purple,
-                                in: RoundedRectangle(cornerRadius: 13))
-            }
-            .disabled(!snapshot.serviceConnected)
-            .accessibilityHint(snapshot.serviceConnected
-                ? "Scarlet의 Apple ID 인증 화면을 엽니다."
-                : "먼저 SideStore 서비스 연결을 복구해야 합니다.")
-            Text("로그인 시 2단계 인증이 필요할 수 있습니다.")
-                .font(.caption)
-                .foregroundStyle(ScarletPresentationColor.muted)
-            ScarletPanel {
-                Text("자동 갱신")
-                    .font(.headline)
-                Text(renewalSummary)
-                    .font(.footnote)
-                    .foregroundStyle(ScarletPresentationColor.muted)
-                if snapshot.upstreamCandidateAvailable {
-                    Text("원본 업데이트 후보 확인됨")
-                        .font(.footnote)
-                        .foregroundStyle(ScarletPresentationColor.accent)
-                }
-                if renewalAssessment.decision == .refreshDue ||
-                   renewalAssessment.decision == .alreadyExpired {
-                    Button {
-                        onAction(.serviceRefreshApp)
-                    } label: {
-                        Text("서명 갱신")
-                            .font(.subheadline.weight(.semibold))
-                            .frame(maxWidth: .infinity, minHeight: 48)
-                            .background(ScarletPresentationColor.purple,
-                                        in: RoundedRectangle(cornerRadius: 13))
-                    }
-                    .buttonStyle(.plain)
-                    .disabled(!renewalReady)
-                    .accessibilityHint(renewalReady
-                        ? "기기 설치 결과를 별도로 확인해야 합니다."
-                        : "페어링, Apple 로그인 및 설치 프로파일 확인이 필요합니다.")
-                }
-            }
-        }
-        .foregroundStyle(ScarletPresentationColor.text)
-    }
-
-    private func statusRow(_ number: String, _ title: String,
-                           verified: Bool) -> some View {
-        HStack {
-            Text(number).font(.caption.weight(.bold))
-                .foregroundStyle(ScarletPresentationColor.accent)
-            Text(title).font(.subheadline.weight(.medium))
-            Spacer()
-            Text(verified ? "확인됨" : "확인 필요")
-                .font(.caption)
-                .foregroundStyle(verified
-                                 ? ScarletPresentationColor.success
-                                 : ScarletPresentationColor.warning)
-        }
-        .frame(minHeight: 44)
-    }
 
 }
