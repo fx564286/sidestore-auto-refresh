@@ -1,0 +1,107 @@
+
+// Scarlet guest-auth worker injected into pinned SideStore AuthManager.swift.
+// It runs in SideStore's LiveProcess context, never inside the Scarlet UI.
+// NotificationCenter messages stay inside the guest process; XPC is the only
+// host/guest boundary. Never log Apple IDs, passwords, OTPs or auth tokens.
+@objc(ScarletGuestSignInAgent)
+final class ScarletGuestSignInAgent: NSObject {
+    @MainActor private static var activeRequest: String?
+    @MainActor private static var pendingCode: CheckedContinuation<String, Error>?
+    @MainActor private static var cancelled = false
+
+    @objc(begin:)
+    static func begin(_ payload: NSDictionary) {
+        guard let id = payload["requestID"] as? String,
+              let email = payload["email"] as? String,
+              let password = payload["password"] as? String else { return }
+        Task { @MainActor in
+            guard activeRequest == nil else {
+                finish(id, code: -3, domain: "scarlet.auth.busy")
+                return
+            }
+            activeRequest = id
+            cancelled = false
+            defer {
+                activeRequest = nil
+                pendingCode = nil
+                cancelled = false
+            }
+            do {
+                let anisette = try await AnisetteProvider.fetch()
+                let xcodeVersion = await AnisetteConfigManager.shared.resolvedXcodeVersion()
+                let (_, session) = try await AuthManager.shared.signIn(
+                    appleID: email, password: password, anisetteData: anisette,
+                    xcodeVersion: xcodeVersion,
+                    verificationHandler: { request in
+                        switch request {
+                        case .selectDeliveryMethod(let mode, let phones):
+                            switch mode {
+                            case .sms:
+                                if let phone = phones.first { return .requestSMS(phoneID: phone.id) }
+                                return .requestTrustedDevice
+                            case .voice:
+                                if let phone = phones.first { return .requestVoice(phoneID: phone.id) }
+                                return .requestTrustedDevice
+                            case .trustedDevice:
+                                return .requestTrustedDevice
+                            }
+                        case .trustedDevice, .sms, .voice:
+                            let code = try await receiveUserCode(id)
+                            return .verificationCode(code)
+                        }
+                    })
+                guard !cancelled else { throw CancellationError() }
+                AuthManager.shared.currentAppleID = email
+                AuthManager.shared.password = password
+                AuthManager.shared.adsid = session.dsid
+                AuthManager.shared.xcodeToken = session.authToken
+                finish(id, code: 0, domain: "success")
+            } catch {
+                let failure = error as NSError
+                finish(id, code: failure.code, domain: failure.domain)
+            }
+        }
+    }
+
+    @MainActor
+    private static func receiveUserCode(_ id: String) async throws -> String {
+        guard activeRequest == id, !cancelled else { throw CancellationError() }
+        return try await withCheckedThrowingContinuation { continuation in
+            pendingCode = continuation
+            NotificationCenter.default.post(
+                name: Notification.Name("ScarletGuestAuthNeedsCode"),
+                object: nil, userInfo: ["requestID": id])
+        }
+    }
+
+    @objc(receiveCode:)
+    static func receiveCode(_ payload: NSDictionary) {
+        guard let id = payload["requestID"] as? String,
+              let code = payload["code"] as? String else { return }
+        Task { @MainActor in
+            guard activeRequest == id, let continuation = pendingCode else { return }
+            pendingCode = nil
+            continuation.resume(returning: code)
+        }
+    }
+
+    @objc(cancel:)
+    static func cancel(_ payload: NSDictionary) {
+        guard let id = payload["requestID"] as? String else { return }
+        Task { @MainActor in
+            guard activeRequest == id else { return }
+            cancelled = true
+            if let continuation = pendingCode {
+                pendingCode = nil
+                continuation.resume(throwing: CancellationError())
+            }
+        }
+    }
+
+    @MainActor
+    private static func finish(_ id: String, code: Int, domain: String) {
+        NotificationCenter.default.post(
+            name: Notification.Name("ScarletGuestAuthCompleted"), object: nil,
+            userInfo: ["requestID": id, "code": code, "domain": domain])
+    }
+}
