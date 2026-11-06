@@ -13,7 +13,6 @@ struct ScarletIntegratedHostView: View {
     @StateObject private var originalSources = AltStoreSourcesViewModel()
     @State private var showNativeAppLibrary = false
     @State private var showNativeSources = false
-    @State private var showNativeSettings = false
     @State private var showScarletAppleIDLogin = false
     @State private var showOriginalError: String?
 
@@ -85,7 +84,9 @@ struct ScarletIntegratedHostView: View {
             showOriginalError = "SideStore 화면 이동은 사용하지 않습니다. 해당 기능은 Scarlet 내부 엔진 연결이 검증된 후 사용할 수 있습니다."
         case .localAppearance, .localStorageNavigation, .serviceReadLogs,
              .localTapProbe, .localClearNotifications:
-            showNativeSettings = true
+            // The real LCSettingsView lives directly inside the settings tab.
+            // Do not route distinct controls to one generic settings modal.
+            showOriginalError = "설정 탭에서 원본 LiveContainer 설정을 직접 사용할 수 있습니다."
         }
     }
 
@@ -117,6 +118,17 @@ struct ScarletIntegratedHostView: View {
             },
             preservedGlassTabBar: { tab in
                 AnyView(ScarletNativeGlassTabBar(selected: tab))
+            },
+            nativeSettings: {
+                // Original LiveContainer Forms, pickers, certificates, JIT,
+                // multitask and storage controls remain wired to real state.
+                // The bottom tab is NOT inside a second presentation.
+                AnyView(
+                    LCSettingsView()
+                        .environmentObject(sharedModel)
+                        .environmentObject(LCAppSortManager.shared)
+                        .environmentObject(downloadHelper)
+                )
             }
         )
         .environmentObject(downloadHelper)
@@ -147,13 +159,6 @@ struct ScarletIntegratedHostView: View {
         .sheet(isPresented: $showNativeSources) {
             NavigationStack {
                 LCSourcesView()
-            }
-            .environmentObject(sharedModel)
-            .environmentObject(LCAppSortManager.shared)
-        }
-        .sheet(isPresented: $showNativeSettings) {
-            NavigationStack {
-                LCSettingsView()
             }
             .environmentObject(sharedModel)
             .environmentObject(LCAppSortManager.shared)
