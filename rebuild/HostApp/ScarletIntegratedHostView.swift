@@ -21,6 +21,7 @@ struct ScarletIntegratedHostView: View {
     @State private var showScarletAppleIDLogin = false
     @State private var appleAuthVerified = false
     @State private var showOriginalError: String?
+    @State private var launchingGuestKeys: Set<String> = []
 
     // Recorded values are deliberately categorical. No Apple ID, guest name,
     // certificate, UDID, user path, IPA URL or credential is ever serialized.
@@ -82,6 +83,13 @@ struct ScarletIntegratedHostView: View {
             return
         }
         Task { @MainActor in
+            // A double tap must not start overlapping LC sign/launch attempts.
+            guard launchingGuestKeys.insert(key).inserted else {
+                ScarletDiagnosticRecorder.shared.record("guest", "launch_duplicate_ignored",
+                    fields: ["guest_ref": guestRef])
+                return
+            }
+            defer { launchingGuestKeys.remove(key) }
             do {
                 // Delegates and guest bundle identity remain original LC.
                 try await app.runApp()
