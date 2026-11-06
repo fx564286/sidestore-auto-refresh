@@ -135,9 +135,48 @@ def hide_embedded_sidestore_guest_navigation(engine: Path) -> dict:
         else:
             assert source.count(original)==1, "Pinned LC import tracer duplicate: "+repr(original)
             source=source.replace(original,patched)
+    # The single Scarlet + menu already chooses the install type.
+    # Guest choice must directly open the ORIGINAL LC importer rather
+    # than making the user press a second + in LCAppListView.
+    importer_init="""    init() {
+        _installOptions = State(initialValue: [])
+    }
+"""
+    importer_new="""    private let scarletStartIPAImport: Bool
+    @State private var scarletDidPromptIPAImport = false
+
+    init(scarletStartIPAImport: Bool = false) {
+        self.scarletStartIPAImport = scarletStartIPAImport
+        _installOptions = State(initialValue: [])
+    }
+"""
+    assert source.count(importer_init)==1, "Pinned LC importer initializer changed"
+    source=source.replace(importer_init,importer_new)
+    appear="""            .onAppear {
+                if !didAppear {
+                    onAppear()
+                }
+            }
+"""
+    appear_new="""            .onAppear {
+                if !didAppear {
+                    onAppear()
+                }
+                if scarletStartIPAImport && !scarletDidPromptIPAImport {
+                    scarletDidPromptIPAImport = true
+                    DispatchQueue.main.async {
+                        choosingIPA = true
+                    }
+                }
+            }
+"""
+    assert source.count(appear)==1, "Pinned LC importer appearance changed"
+    source=source.replace(appear,appear_new)
+    assert '.betterFileImporter(isPresented: $choosingIPA' in source
     view.write_text(source)
     return {"appManager":"LCAppListView",
             "nativeIPAImportPreserved":True,
+            "guestSelectionOpensNativeFileImporterOnce":True,
             "nativeURLImportPreserved":True,
             "embeddedSideStoreGuestNavigationRemoved":True,
             "embeddedSideStoreEnginePreserved":True,
