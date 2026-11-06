@@ -127,18 +127,26 @@ public final class ScarletNativeAuthTransport {
     }
 }
 
-@available(iOS 17.0, *)
 extension RefreshHandler {
+    // ObjC protocol requirements must be implemented at the target's
+    // minimum deployment version even though auth starts only on iOS 17+.
     @objc func scarletAuthNeedsCode(_ requestID: String) {
-        Task { @MainActor in ScarletNativeAuthTransport.shared.needsCode(requestID) }
-    }
-
-    @objc func scarletAuthCompleted(_ requestID: String, code: Int, domain: String) {
-        Task { @MainActor in
-            ScarletNativeAuthTransport.shared.finished(requestID, code: code, domain: domain)
+        if #available(iOS 17.0, *) {
+            Task { @MainActor in ScarletNativeAuthTransport.shared.needsCode(requestID) }
         }
     }
 
+    @objc func scarletAuthCompleted(_ requestID: String, code: Int, domain: String) {
+        if #available(iOS 17.0, *) {
+            Task { @MainActor in
+                ScarletNativeAuthTransport.shared.finished(requestID, code: code, domain: domain)
+            }
+        }
+    }
+}
+
+@available(iOS 17.0, *)
+extension RefreshHandler {
     func scarletEnsureAuthGuest() async throws {
         if client != nil { return }
         if listener == nil {
