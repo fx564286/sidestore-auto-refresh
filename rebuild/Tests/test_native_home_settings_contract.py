@@ -33,7 +33,7 @@ class NativeHomeSettings(unittest.TestCase):
         self.assertNotIn("showNativeSettings = true",HOST)
         self.assertNotIn("showConnectionDetails",UI)
         self.assertTrue(NAV["settings_tab_inline_native"])
-        self.assertIn('case "settings": startTab = .settings',PREVIEW)
+        self.assertIn('case "settings", "connection": startTab = .settings',PREVIEW)
 
     def test_original_guest_import_and_side_store_fenced(self):
         self.assertIn("LCAppListView()",HOST)
