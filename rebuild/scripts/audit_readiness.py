@@ -40,14 +40,40 @@ def assess(root:Path)->dict:
     add("original_native_liquid_glass","blocked" if not native else "source_present_device_unverified",
         "No verifiable original native UIGlassEffect host/gesture integration in new HostApp source"
         if not native else "Source references UIGlassEffect; original-runtime checksum and physical gesture verification still required")
-    ui_host=any(p.name.endswith("App.swift") for p in host_files if p.is_file())
-    add("livecontainer_host_integration","blocked" if not ui_host else "source_present_device_unverified",
-        "Only isolated SwiftUI exists; real LiveContainer host app entrypoint missing"
-        if not ui_host else "Host entrypoint present; guest runtime device tests outstanding")
-    add("native_glass_tab_and_switcher","blocked",
-        "Binding<Tab> and AnyView injection types are present, but no original working glass view instances have been provided by the iOS host")
-    add("window_manager_gestures","blocked",
-        "Figma has recent apps/window manager overlay, but no bound native overlay for long press, outside tap or rotation in new host")
+    # The host entrypoint is pinned upstream, not an App.swift file in
+    # rebuild/HostApp. Inspect the actual injection adapter instead of falsely
+    # reporting a missing host when its source integration is already present.
+    injector=root/"rebuild/integration/apply_scarlet_host.py"
+    injection_source=injector.read_text(errors="replace") if injector.is_file() else ""
+    host_wired=("ScarletIntegratedHostView()" in injection_source
+                and "LiveContainerSwiftUI/App/LiveContainerSwiftUIApp.swift" in injection_source
+                and "ScarletIntegratedHostView.swift" in injection_source
+                and (host/"ScarletIntegratedHostView.swift").is_file())
+    add("livecontainer_host_integration",
+        "source_present_device_unverified" if host_wired else "blocked",
+        "New host is wired through pinned LiveContainer app-entry injection; "
+        "paired-engine Xcode archive evidence is checked in its separate CI run, "
+        "not in this source-only report; iPhone execution unverified"
+        if host_wired else "LiveContainer app-entry injection is missing")
+    native_glass_file=host/"ScarletNativeGlass.swift"
+    glass_source=native_glass_file.read_text(errors="replace") if native_glass_file.exists() else ""
+    glass_wired=(host_wired and "SCNativeLiquidGlassSurface" in glass_source
+                 and "UIGlassEffect" in glass_source
+                 and "ScarletNativeGlassTabBar" in glass_source)
+    add("native_glass_tab_and_switcher",
+        "source_present_device_unverified" if glass_wired else "blocked",
+        "Native glass tab and guest switcher source are injected; original optical "
+        "and touch behavior still need physical iPhone verification"
+        if glass_wired else "Native glass tab/switcher source binding is missing")
+    switcher=host/"ScarletGuestSwitcherOverlay.swift"
+    switcher_source=switcher.read_text(errors="replace") if switcher.exists() else ""
+    gesture_source=(host_wired and "SCARLET_GUEST_OUTSIDE_TAP_DISMISS" in switcher_source
+                    and "onTapGesture { closeSwitcher() }" in switcher_source)
+    add("window_manager_gestures",
+        "partially_implemented_device_unverified" if gesture_source else "blocked",
+        "Guest-only overlay and outside-tap dismissal are present in source; "
+        "maximize/close remain disabled, and rotation/touch need device testing"
+        if gesture_source else "Guest overlay with outside-tap dismissal is missing")
     add("apple_login_pairing_2fa","blocked",
         "Live iPhone SideStore/SideSign authentication and six-digit 2FA have not been reproduced on the rebuilt application")
     add("seven_day_refresh_and_install","blocked",
