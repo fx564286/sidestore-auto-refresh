@@ -610,83 +610,89 @@ public struct ScarletIndependentShell: View {
         snapshot.installedProfileVerified
     }
 
+    // 6:136 · Figma Settings: three left-anchored panels, centered CTA.
+    // Row icon + title anchors: card X + 17 / + 65 pt respectively.
+    private func compactSettingsCard<Content: View>(
+        @ViewBuilder content: () -> Content
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 0, content: content)
+            .padding(9)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(ScarletPresentationColor.surface,
+                        in: RoundedRectangle(cornerRadius: 20))
+            .overlay {
+                RoundedRectangle(cornerRadius: 20)
+                    .stroke(ScarletPresentationColor.stroke, lineWidth: 1)
+            }
+    }
+
     private var settings: some View {
         Group {
             heading("", "설정", "")
-            ScarletPanel {
-                sectionTitle("기기 및 컨테이너")
+            compactSettingsCard {
+                Text("컨테이너")
+                    .font(.system(size: 18, weight: .semibold))
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .frame(height: 22)
+                    .padding(.leading, 8)
                 ScarletActionRow(title: "화면 설정",
                                  detail: "",
                                  icon: "circle.lefthalf.filled", enabled: true) {
                     showLocalAppearance = true
                     onAction(.localAppearance)
                 }
+                .padding(.horizontal, 8)
+                .frame(height: 62)
                 Divider()
                 ScarletActionRow(title: "저장소",
-                                 detail: "앱 데이터 및 백업",
+                                 detail: "",
                                  icon: "folder", enabled: true) {
                     showLocalStorage = true
                     onAction(.localStorageNavigation)
                 }
+                .padding(.horizontal, 8)
+                .frame(height: 62)
             }
-            ScarletPanel {
-                Text("계정 및 서명").font(.headline)
+            VStack(alignment: .leading, spacing: 7) {
+                Text("계정 및 서명")
+                    .font(.system(size: 18, weight: .semibold))
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .frame(height: 22)
                 Text(snapshot.serviceConnected ? "SideStore 사용 가능" : "SideStore 연결 필요")
-                    .font(.caption)
+                    .font(.system(size: 13))
                     .foregroundStyle(ScarletPresentationColor.muted)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .frame(height: 16)
                 Button {
                     showConnectionDetails = true
                 } label: {
                     Text("계정 및 서명 열기")
-                        .font(.subheadline.weight(.semibold))
-                        .frame(maxWidth: .infinity, minHeight: 48)
+                        .font(.system(size: 15, weight: .semibold))
+                        .multilineTextAlignment(.center)
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 43)
                         .background(ScarletPresentationColor.purple,
                                     in: RoundedRectangle(cornerRadius: 13))
                 }
                 .buttonStyle(.plain)
             }
-            ScarletPanel {
-                ScarletActionRow(title: "SideStore 열기",
-                                 detail: "iOS 앱 설치 및 서명 갱신",
-                                 icon: "square.and.arrow.down", enabled: true) {
-                    onAction(.localOpenEmbeddedSideStore)
-                }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 17)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(ScarletPresentationColor.surface,
+                        in: RoundedRectangle(cornerRadius: 20))
+            .overlay {
+                RoundedRectangle(cornerRadius: 20)
+                    .stroke(ScarletPresentationColor.stroke, lineWidth: 1)
             }
-            ScarletPanel {
-                Text("자동 갱신")
-                    .font(.headline)
-                Text(renewalSummary)
-                    .font(.footnote)
-                    .foregroundStyle(ScarletPresentationColor.muted)
-                if snapshot.upstreamCandidateAvailable {
-                    Text("원본 업데이트 후보 확인됨")
-                        .font(.footnote)
-                        .foregroundStyle(ScarletPresentationColor.accent)
-                }
-                if renewalAssessment.decision == .refreshDue ||
-                   renewalAssessment.decision == .alreadyExpired {
-                    Button {
-                        onAction(.serviceRefreshApp)
-                    } label: {
-                        Text("서명 갱신")
-                            .font(.subheadline.weight(.semibold))
-                            .frame(maxWidth: .infinity, minHeight: 48)
-                            .background(ScarletPresentationColor.purple,
-                                        in: RoundedRectangle(cornerRadius: 13))
-                    }
-                    .buttonStyle(.plain)
-                    .disabled(!renewalReady)
-                    .accessibilityHint(renewalReady
-                        ? "기기 설치 결과를 별도로 확인해야 합니다."
-                        : "페어링, Apple 로그인 및 설치 프로파일 확인이 필요합니다.")
-                }
-            }
-            ScarletPanel {
+            compactSettingsCard {
                 ScarletActionRow(title: "진단 로그",
-                                 detail: "오류 및 동작 기록",
+                                 detail: "",
                                  icon: "waveform.path.ecg", enabled: true) {
                     onAction(.serviceReadLogs)
                 }
+                .padding(.horizontal, 8)
+                .frame(height: 62)
             }
         }
         .foregroundStyle(ScarletPresentationColor.text)
@@ -752,6 +758,42 @@ public struct ScarletIndependentShell: View {
             Text("로그인 시 2단계 인증이 필요할 수 있습니다.")
                 .font(.caption)
                 .foregroundStyle(ScarletPresentationColor.muted)
+            ScarletPanel {
+                ScarletActionRow(title: "SideStore 열기",
+                                 detail: "iOS 앱 설치 및 서명 갱신",
+                                 icon: "square.and.arrow.down", enabled: true) {
+                    onAction(.localOpenEmbeddedSideStore)
+                }
+            }
+            ScarletPanel {
+                Text("자동 갱신")
+                    .font(.headline)
+                Text(renewalSummary)
+                    .font(.footnote)
+                    .foregroundStyle(ScarletPresentationColor.muted)
+                if snapshot.upstreamCandidateAvailable {
+                    Text("원본 업데이트 후보 확인됨")
+                        .font(.footnote)
+                        .foregroundStyle(ScarletPresentationColor.accent)
+                }
+                if renewalAssessment.decision == .refreshDue ||
+                   renewalAssessment.decision == .alreadyExpired {
+                    Button {
+                        onAction(.serviceRefreshApp)
+                    } label: {
+                        Text("서명 갱신")
+                            .font(.subheadline.weight(.semibold))
+                            .frame(maxWidth: .infinity, minHeight: 48)
+                            .background(ScarletPresentationColor.purple,
+                                        in: RoundedRectangle(cornerRadius: 13))
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(!renewalReady)
+                    .accessibilityHint(renewalReady
+                        ? "기기 설치 결과를 별도로 확인해야 합니다."
+                        : "페어링, Apple 로그인 및 설치 프로파일 확인이 필요합니다.")
+                }
+            }
         }
         .foregroundStyle(ScarletPresentationColor.text)
     }

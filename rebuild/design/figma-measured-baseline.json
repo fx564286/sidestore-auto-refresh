@@ -96,7 +96,26 @@
       },
       "guestPanelLeftPt": 18,
       "guestSwitcherLeftPt": 22,
-      "guestWindowActionColumnWidthPt": 102
+      "guestWindowActionColumnWidthPt": 102,
+      "settings": {
+        "figmaNodeId": "6:136",
+        "screenContentLeftPt": 20,
+        "cardWidthPt": 350,
+        "cardHeightsPt": [
+          165,
+          129,
+          80
+        ],
+        "cardHeaderLeftPt": 17,
+        "cardIconLeftPt": 17,
+        "cardRowTitleLeftPt": 65,
+        "accountTextLeftPt": 17,
+        "ctaCenterScreenXPt": 195,
+        "rowHeightPt": 62,
+        "settingsCardCount": 3,
+        "secondaryVisualStatusLabelsRemoved": true,
+        "serviceToolsRoutedToConnectionDetail": true
+      }
     }
   },
   "screens": [
@@ -144,7 +163,6 @@
         "설정",
         "화면 설정",
         "저장소",
-        "앱 데이터 및 백업",
         "계정 및 서명",
         "진단 로그"
       ],
@@ -221,6 +239,7 @@
     "Figma visual blur is not proof of Apple's native UIGlassEffect",
     "UI requires real hosted guest engine, tab bar, round switcher and signed IPA for device validation",
     "Main container tabs never show the round app switcher; only the running guest scene may show it",
-    "Figma shows an illustrative guest frame; real preview must be a captured guest render at switch time and never a static stock picture"
+    "Figma shows an illustrative guest frame; real preview must be a captured guest render at switch time and never a static stock picture",
+    "Simulated SwiftUI previews do not certify native Liquid Glass or on-device Figma pixel equality."
   ]
 }

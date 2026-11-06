@@ -76,7 +76,23 @@
       147,
       147
     ],
-    "quickActionHeightPt": 85
+    "quickActionHeightPt": 85,
+    "settingsContentLeftPt": 20,
+    "settingsCardWidthsPt": [
+      350,
+      350,
+      350
+    ],
+    "settingsCardHeightsPt": [
+      165,
+      129,
+      80
+    ],
+    "settingsCardHeadingInsetPt": 17,
+    "settingsIconInsetPt": 17,
+    "settingsRowTextInsetPt": 65,
+    "settingsPrimaryActionCenterXPt": 195,
+    "settingsCardCount": 3
   },
   "policy": {
     "nativeGlassMaterial": "Must be provided by existing original host renderer; Figma is visual preview only",
@@ -86,7 +102,10 @@
     "noSeparateWindowManagerTab": true,
     "guestOnlySwitcher": true,
     "hostContainerSwitcherHidden": true,
-    "actualGuestPreviewRequired": true
+    "actualGuestPreviewRequired": true,
+    "settingsRowsOneLineOnly": true,
+    "serviceActionsInConnectionDetails": true,
+    "settingsCenteredPrimaryAction": true
   },
-  "validation": "Figma labels and layout inspected 2026-11-06; true SwiftUI renderer pixels and iPhone behavior need independent screenshot checks"
+  "validation": "Direct editable Figma measurement updated 2026-11-06; SwiftUI static layout parity checked by CI, iPhone native rendering not yet verified."
 }
