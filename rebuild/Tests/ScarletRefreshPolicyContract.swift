@@ -11,6 +11,11 @@ private struct FreeSevenDayPolicyContract {
         precondition(fresh.nextCheckAt == now.addingTimeInterval(12*3600))
         precondition(fresh.requiresAuthoritativeInstallResult)
 
+        precondition(ScarletRefreshPolicy.recommendedLeadTime == 72*3600)
+        let beforeWindow=p.assess(now:now,profileExpiresAt:now.addingTimeInterval(73*3600))
+        precondition(beforeWindow.decision == .healthy)
+        let firstDue=p.assess(now:now,profileExpiresAt:now.addingTimeInterval(72*3600))
+        precondition(firstDue.decision == .refreshDue)
         let near=p.assess(now:now,profileExpiresAt:now.addingTimeInterval(24*3600))
         precondition(near.decision == .refreshDue)
         precondition(near.nextCheckAt == now.addingTimeInterval(3600))
@@ -35,7 +40,7 @@ private struct FreeSevenDayPolicyContract {
                                            installedBundleVerified:true)
         precondition(verified.isRenewalComplete)
         print("[PASS] FREE_ACCOUNT_SEVEN_DAY_EXPIRY_NOT_BYPASSED")
-        print("[PASS] AUTOMATIC_REFRESH_EARLY_WARNING_48H")
+        print("[PASS] AUTOMATIC_REFRESH_EARLY_WARNING_72H")
         print("[PASS] REFRESH_REQUIRES_DEVICE_INSTALLED_VERIFICATION")
     }
 }
