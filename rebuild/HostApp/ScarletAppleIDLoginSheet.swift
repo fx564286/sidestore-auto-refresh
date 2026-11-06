@@ -49,7 +49,7 @@ struct ScarletAppleIDLoginSheet: View {
     @State private var pendingCode: CheckedContinuation<String, Error>?
 
     private var readyToSubmit: Bool {
-        engine.isReady && !isAuthenticating
+        !isAuthenticating
             && !appleID.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
             && !password.isEmpty
     }
@@ -76,6 +76,13 @@ struct ScarletAppleIDLoginSheet: View {
 
     private func beginSignIn() {
         guard readyToSubmit else { return }
+        // Input is always editable. Never transmit Apple credentials until
+        // the SideStore/SideSign transport explicitly reports it is ready.
+        guard engine.isReady else {
+            password = ""
+            errorMessage = ScarletSignInBridgeError.engineNotConnected.localizedDescription
+            return
+        }
         let account = appleID.trimmingCharacters(in: .whitespacesAndNewlines)
         let secret = password
         password = ""
@@ -120,11 +127,9 @@ struct ScarletAppleIDLoginSheet: View {
                             .textInputAutocapitalization(.never)
                             .autocorrectionDisabled()
                             .accessibilityIdentifier("SCARLET_APPLE_ID_FIELD")
-                            .disabled(!engine.isReady)
                         SecureField("비밀번호", text: $password)
                             .textContentType(.password)
                             .accessibilityIdentifier("SCARLET_APPLE_PASSWORD_FIELD")
-                            .disabled(!engine.isReady)
                     }
                     Section {
                         Button("로그인", action: beginSignIn)
@@ -142,7 +147,7 @@ struct ScarletAppleIDLoginSheet: View {
                 }
                 if !engine.isReady {
                     Section {
-                        Text("인증 엔진 연결 미검증 · 로그인 비활성화")
+                        Text("입력은 가능합니다. SideStore 인증 연결이 준비되지 않아 현재 로그인 요청은 전송되지 않습니다.")
                             .font(.footnote)
                             .foregroundStyle(.secondary)
                     }
