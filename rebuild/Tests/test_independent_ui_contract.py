@@ -95,7 +95,7 @@ class IndependentUIContractTests(unittest.TestCase):
                      'case sources = "Sources"','case settings = "Settings"'):
             self.assertIn(case,UI)
         for required in ("ScrollView","ForEach","TextField","Button",
-                         ".frame(minHeight: 44)", ".frame(maxWidth: 650)",
+                         ".frame(minHeight: 44)", ".frame(maxWidth: 650, alignment: .leading)",
                          ".padding(.horizontal, 20)", "accessibilityIdentifier"):
             self.assertIn(required,UI)
         self.assertNotIn("UIScreen.main.bounds",UI)

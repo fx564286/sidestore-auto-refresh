@@ -142,7 +142,6 @@
       "codeSection": "private var settings:",
       "requiredCopy": [
         "설정",
-        "컨테이너와 서명 설정",
         "화면 설정",
         "저장소",
         "앱 데이터 및 백업",
