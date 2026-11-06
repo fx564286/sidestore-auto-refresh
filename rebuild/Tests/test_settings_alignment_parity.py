@@ -13,24 +13,24 @@ B=UI[UI.index("    private var connection: some View {"):]
 class SettingsParity(unittest.TestCase):
     def test_measured_card_axes(self):
         self.assertEqual(G["settingsContentLeftPt"],20)
-        self.assertEqual(G["settingsCardWidthsPt"],[350,350,350])
-        self.assertEqual(G["settingsCardHeightsPt"],[165,129,80])
+        self.assertEqual(G["settingsCardWidthsPt"],[350,350])
+        self.assertEqual(G["settingsCardHeightsPt"],[165,129])
         self.assertEqual(G["settingsIconInsetPt"],G["settingsCardHeadingInsetPt"])
         self.assertEqual(G["settingsRowTextInsetPt"]-G["settingsIconInsetPt"],48)
         self.assertEqual(G["settingsPrimaryActionCenterXPt"],195)
-        self.assertEqual(G["settingsCardCount"],3)
+        self.assertEqual(G["settingsCardCount"],2)
 
-    def test_exactly_three_aligned_panels(self):
-        self.assertEqual(A.count("compactSettingsCard {"),2)
-        self.assertEqual(A.count("ScarletActionRow(title:"),3)
+    def test_exactly_two_aligned_panels(self):
+        self.assertEqual(A.count("compactSettingsCard {"),1)
+        self.assertEqual(A.count("ScarletActionRow(title:"),2)
         self.assertNotIn("ScarletPanel {",A)
-        self.assertIn('Text("컨테이너")',A)
+        self.assertIn('Text("LiveContainer")',A)
         self.assertIn('heading("", "설정", "")',A)
         self.assertNotIn("앱 데이터 및 백업",A)
         self.assertNotIn("오류 및 동작 기록",A)
         self.assertIn(".multilineTextAlignment(.center)",A)
         self.assertIn(".padding(.horizontal, 8)",A)
-        self.assertIn('Text("Apple ID 로그인")',A)
+        self.assertIn('Text("Apple ID 로그인")',A)\n        self.assertIn('ScarletActionRow(title: "LiveContainer 전체 설정"',A)\n        self.assertIn('ScarletActionRow(title: "가상 앱 관리"',A)\n        self.assertIn("onAction(.localImportGuestIPA)",A)\n        self.assertNotIn('ScarletActionRow(title: "진단 로그"',A)\n        self.assertIn('SCARLET_SIGNING_DIAGNOSTIC_LOGS',B)
         self.assertIn('SCARLET_SETTINGS_NATIVE_APPLE_LOGIN',A)
         self.assertNotIn('계정 및 서명 열기',A)
         self.assertIn(".frame(height: 62)",A)
