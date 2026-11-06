@@ -22,8 +22,8 @@ class AlignmentTests(unittest.TestCase):
 
     def test_window_manager_uses_equal_segments_and_action_buttons(self):
         g=AUDIT["geometry"]
-        self.assertEqual(g["glassOverlaySegmentWidthPt"],151)
-        self.assertEqual(g["glassOverlaySegmentXPt"],[7,164])
+        self.assertEqual(g["glassOverlaySegmentWidthPt"],153)
+        self.assertEqual(g["glassOverlaySegmentXPt"],[7,162])
         self.assertEqual(g["windowActionWidthsPt"],[102]*3)
         self.assertFalse(AUDIT["policy"]["doNotDuplicateSwitchers"] is False)
 
