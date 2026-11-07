@@ -12,12 +12,13 @@ HOME=UI[UI.index("    private var home: some View {"):UI.index("    private var 
 
 class NativeHomeSettings(unittest.TestCase):
     def test_one_home_both_install_targets_and_entire_guest_list(self):
-        self.assertEqual(HOME.count("Menu {"),1)
-        self.assertIn('Label("IPA 설치하기"',HOME)
-        self.assertIn('Label("게스트 앱 설치하기"',HOME)
+        self.assertEqual(HOME.count("\n                Menu {"),0)
+        self.assertIn('Label("iPhone에 직접 설치 (SideStore)"',HOME)
+        self.assertIn('onAction(.localImportGuestIPA)',HOME)
         self.assertIn("guests: visibleGuests",HOME)
         self.assertIn("SCARLET_INSTALL_CHOICE_DEVICE_IPA",HOME)
-        self.assertIn("SCARLET_INSTALL_CHOICE_GUEST_APP",HOME)
+        self.assertIn(".contextMenu {",HOME)
+        self.assertNotIn("SCARLET_INSTALL_CHOICE_GUEST_APP",HOME)
         self.assertEqual(NAV["bottom_tabs"],["sources","apps","tweaks","settings"])
         self.assertEqual(NAV["initial_screen"],"apps")
         self.assertIn("initialTab: Tab = .apps",UI)
