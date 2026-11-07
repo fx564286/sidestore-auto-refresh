@@ -11,6 +11,8 @@ import unittest
 ROOT = Path(__file__).resolve().parents[1]
 HOST = (ROOT/"HostApp/ScarletIntegratedHostView.swift").read_text()
 BRIDGE = (ROOT/"HostApp/ScarletSideStoreAuthenticationBridge.swift").read_text()
+GUEST_AGENT = (ROOT/"integration/ScarletGuestSignInAgent.swift.txt").read_text()
+SHELL = (ROOT/"Sources/ScarletIndependentUI/ScarletIndependentShell.swift").read_text()
 PATCH = ROOT/"integration/apply_scarlet_host.py"
 
 
@@ -36,6 +38,27 @@ class LiveGuestAuthDiagnostics(unittest.TestCase):
         self.assertNotIn('"password": password', BRIDGE)
         self.assertNotIn('"appleID": appleID', BRIDGE)
         self.assertNotIn('"otp":', BRIDGE)
+
+    def test_side_sign_swift_enum_index_three_is_not_apple_server_code(self):
+        self.assertIn("catch let error as ServerError", GUEST_AGENT)
+        self.assertIn("case .underlyingError(let appleCode, _)", GUEST_AGENT)
+        self.assertIn('domain: "SideSign.ServerError.underlyingError"', GUEST_AGENT)
+        self.assertIn("case .invalidAnisetteData:", GUEST_AGENT)
+        self.assertIn("case .authenticationHandshakeFailed:", GUEST_AGENT)
+        self.assertNotIn("jsonPayload)", GUEST_AGENT)
+        self.assertNotIn('fields: ["password"', GUEST_AGENT)
+
+    def test_guest_invalid_signature_has_non_destructive_recovery(self):
+        self.assertIn("recordGuestCertificatePreflight()", HOST)
+        self.assertIn("certificate_preflight", HOST)
+        self.assertIn("team_match", HOST)
+        self.assertIn("ScarletGuestCertificateInvalid", HOST)
+        self.assertIn("ScarletOpenSigningSettings", HOST)
+        self.assertIn("서명 설정에서 복구", HOST)
+        self.assertIn("selected = .settings", SHELL)
+        self.assertNotIn("SecItemDelete", HOST)
+        self.assertNotIn("revokeCertificate", HOST)
+        self.assertNotIn("LCUtils.appGroupUserDefault.set(nil", HOST)
 
     def test_signing_instrumentation_preserves_original_sign_calls_and_errors(self):
         source = '''import Foundation
@@ -66,6 +89,7 @@ class LCAppModel {
             for name in ("signing_started", "signing_completed", "signing_failed",
                          "signing_reason", "certificate_missing", "encrypted_binary"):
                 self.assertIn(name, result)
+            self.assertIn("ScarletGuestCertificateInvalid", result)
             self.assertNotIn("print(signError)", result)
             with self.assertRaises(AssertionError):
                 integrator().instrument_original_guest_signing(engine)
