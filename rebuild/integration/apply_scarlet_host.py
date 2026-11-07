@@ -210,6 +210,7 @@ def hide_embedded_sidestore_guest_navigation(engine: Path) -> dict:
     sign_patch = """        // we leave it unsigned even if signing failed
         if let signError {
             if !signSuccess {
+                scarletGuestImportSignFailed = true
                 let sourceError = signError.lowercased()
                 let reason: String
                 if sourceError.contains("nocertificatefound") {
@@ -241,6 +242,7 @@ def hide_embedded_sidestore_guest_navigation(engine: Path) -> dict:
     private let scarletOnImportFinished: (() -> Void)?
     @State private var scarletDidStartQueuedImport = false
     @State private var scarletQueuedImportFinished = false
+    @State private var scarletGuestImportSignFailed = false
 
     init(scarletQueuedIPAURL: URL? = nil,
          scarletOnImportFinished: (() -> Void)? = nil) {
@@ -260,8 +262,18 @@ def hide_embedded_sidestore_guest_navigation(engine: Path) -> dict:
                 VStack(spacing: 20) {
                     Image(systemName: "square.and.arrow.down.on.square")
                         .font(.system(size: 32))
-                    Text(scarletQueuedImportFinished ? "IPA 처리 완료" : "IPA 가져오는 중")
+                    Text(scarletQueuedImportFinished
+                         ? (scarletGuestImportSignFailed
+                            ? "IPA 가져옴 · 서명 검증 실패"
+                            : "IPA 가져오기 종료 · 실행 별도 확인")
+                         : "IPA 가져오는 중")
                         .font(.headline)
+                    if scarletGuestImportSignFailed {
+                        Text("앱 파일은 보관됐지만 서명 검증에 실패하여 실행할 수 없습니다. 설정의 JIT-Less 모드 진단과 SideStore 인증서 상태를 확인하세요.")
+                            .font(.footnote)
+                            .multilineTextAlignment(.center)
+                            .padding(.horizontal, 16)
+                    }
                     ProgressView(value: Double(installProgressPercentage))
                         .frame(maxWidth: 280)
                     Button("닫기") {
