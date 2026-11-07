@@ -128,6 +128,33 @@ extension View {
     }
 }
 
+// The native Form/List scroll view, not its enclosing NavigationView,
+// must own enough bottom clearance for the 62pt floating dock plus home area.
+extension View {
+    @ViewBuilder
+    func scarletDockScrollClearance() -> some View {
+        if #available(iOS 26.0, *) {
+            self.safeAreaInset(edge: .bottom, spacing: 0) {
+                Color.clear.frame(height: 140).accessibilityHidden(true)
+            }
+            .scrollEdgeEffectDisabled(for: .bottom)
+        } else {
+            self.safeAreaInset(edge: .bottom, spacing: 0) {
+                Color.clear.frame(height: 140).accessibilityHidden(true)
+            }
+        }
+    }
+
+    @ViewBuilder
+    func scarletDockUnderlayVisible() -> some View {
+        if #available(iOS 26.0, *) {
+            self.scrollEdgeEffectDisabled(for: .bottom)
+        } else {
+            self
+        }
+    }
+}
+
 // The actual iOS 26+ implementation uses the SwiftUI glass compositor.
 // Two distinct glass shapes contribute to ONE container: the full pill and
 // the selection pill. This is not a translucent Color overlay pretending
@@ -228,11 +255,13 @@ private struct SCInteractiveLiquidGlassTabs: View {
                                 if selected == tab {
                                     Capsule()
                                         .glassEffect(
-                                            .regular.tint(.white.opacity(0.14)).interactive(),
+                                            .regular.tint(Color(red: 170.0/255,
+                                                                green: 150.0/255,
+                                                                blue: 255.0/255).opacity(0.22)).interactive(),
                                             in: .capsule
                                         )
                                         .glassEffectID("selected-tab", in: selectionNamespace)
-                                        .matchedGeometryEffect(id: "selection", in: selectionNamespace)
+
                                 }
                             }
                             .contentShape(Capsule())
@@ -245,22 +274,6 @@ private struct SCInteractiveLiquidGlassTabs: View {
                 }
                 .padding(.horizontal, 5)
                 .frame(height: 62)
-                .background {
-                    Capsule()
-                        .glassEffect(.regular.interactive(), in: .capsule)
-                        .overlay {
-                            // Figma bottom bar node 24:28 has a 1.2 pt
-                            // luminous rim; the material remains native glass.
-                            Capsule()
-                                .strokeBorder(
-                                    Color(red: 217.0/255, green: 210.0/255,
-                                          blue: 248.0/255).opacity(0.7),
-                                    lineWidth: 1.2
-                                )
-                                .allowsHitTesting(false)
-                        }
-                        .accessibilityIdentifier("SCARLET_LIVE_GLASS_BAR_MATERIAL")
-                }
                 // Drag previews move the selected system-glass capsule across
                 // the four real buttons; these are not duplicate touch routes.
                 .simultaneousGesture(
@@ -275,6 +288,28 @@ private struct SCInteractiveLiquidGlassTabs: View {
             }
         }
         .frame(height: 62)
+        // A separate system-glass backplate avoids merging the moving
+        // selection pill into its fully overlapping parent glass surface.
+        // Neither surface is an opaque painted replacement.
+        .background {
+            Capsule()
+                .glassEffect(.regular.interactive(), in: .capsule)
+                .overlay {
+                    Capsule()
+                        .strokeBorder(
+                            LinearGradient(colors: [
+                                Color.white.opacity(0.50),
+                                Color(red: 217.0/255, green: 210.0/255,
+                                      blue: 248.0/255).opacity(0.30),
+                                Color.white.opacity(0.07),
+                                Color.white.opacity(0.38)
+                            ], startPoint: .topLeading, endPoint: .bottomTrailing),
+                            lineWidth: 1.2
+                        )
+                        .allowsHitTesting(false)
+                }
+                .accessibilityIdentifier("SCARLET_LIVE_GLASS_BAR_MATERIAL")
+        }
         .onAppear {
             // This indicates the native rendering branch was mounted, not
             // proof that GPU optical rendering was observed on a real device.
