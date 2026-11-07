@@ -68,13 +68,13 @@ class IndependentUIContractTests(unittest.TestCase):
 
     def test_sources_still_uses_existing_source_models(self):
         self.assertIn("public let sources: [ScarletSourcePresentation]",UI)
-        self.assertIn("case .sources: sourcesScreen",UI)
+        self.assertIn("if tab == .sources {",UI)
         self.assertIn('heading("", "소스", "")',UI)
         self.assertIn("Button(action: onAddSource)",UI)
         self.assertIn("LCSourcesView()",HOST)
 
     def test_tweaks_tab_embeds_real_livecontainer_manager_without_new_modal(self):
-        self.assertIn("if selected == .tweaks {",UI)
+        self.assertIn("if tab == .tweaks {",UI)
         self.assertIn("nativeTweaks()",UI)
         self.assertIn("SCARLET_INLINE_NATIVE_LC_TWEAKS",UI)
         self.assertIn("LCTweaksView()",HOST)
@@ -83,7 +83,7 @@ class IndependentUIContractTests(unittest.TestCase):
         self.assertNotIn(".glassEffect(",UI)
 
     def test_settings_tab_shows_native_form_without_same_sheet_for_all_controls(self):
-        self.assertIn("if selected == .settings {",UI)
+        self.assertIn("if tab == .settings {",UI)
         self.assertIn("nativeSettings()",UI)
         self.assertIn("SCARLET_INLINE_NATIVE_LC_SETTINGS",UI)
         self.assertIn("LCSettingsView()",HOST)
