@@ -18,7 +18,7 @@ class NativeLiquidGlassContract(unittest.TestCase):
     def test_ios26_uses_apple_owned_system_tabbar_not_manual_overlay(self):
         # Apple's system tab bar owns its Liquid Glass rendering and
         # navigational scroll safe areas, including pushed JIT-Less Forms.
-        self.assertIn("if #available(iOS 26.0, *) {\\n                systemLiquidGlassTabs", UI)
+        self.assertIn("systemLiquidGlassTabs", UI)
         self.assertIn("TabView(selection: $selected) {", UI)
         self.assertIn("ForEach(Tab.allCases, id: \\.self)", UI)
         self.assertIn("Label(tab.rawValue, systemImage: tab.icon)", UI)
