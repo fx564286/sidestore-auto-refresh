@@ -82,6 +82,20 @@ private enum ScarletPresentationColor {
     static let success = Color(red: 0.49, green: 0.85, blue: 0.78)
 }
 
+// The independent presentation target typechecks without the LC host.
+// Keep scroll-edge styling self-contained instead of referring to host
+// NativeGlass extensions that aren't linked into the standalone target.
+private extension View {
+    @ViewBuilder
+    func scarletIndependentScrollEdge() -> some View {
+        if #available(iOS 26.0, *) {
+            self.scrollEdgeEffectStyle(.hard, for: .bottom)
+        } else {
+            self
+        }
+    }
+}
+
 private struct ScarletPanel<Content: View>: View {
     @ViewBuilder let content: Content
     init(@ViewBuilder content: () -> Content) { self.content = content() }
@@ -341,7 +355,7 @@ public struct ScarletIndependentShell: View {
                         .frame(maxWidth: .infinity, alignment: .center)
                     }
                     .scrollIndicators(.hidden)
-                    .scarletDockUnderlayVisible()
+                    .scarletIndependentScrollEdge()
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
