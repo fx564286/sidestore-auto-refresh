@@ -50,25 +50,37 @@ def run(*args, seconds=30, checked=True):
         raise RuntimeError(f"{args[:4]} failed rc={cp.returncode}: {cp.stderr[-600:]}")
     return cp
 
+# Pair each simulated device type with the *same* runtime as an actual
+# available runner image. Selecting newest runtime + newest phone separately
+# yielded CoreSimulator.SimError 403 ("Incompatible device") on Xcode 27.2.
 try:
-    types=json.loads(run("xcrun","simctl","list","devicetypes","--json",seconds=40).stdout)["devicetypes"]
-    runtimes=json.loads(run("xcrun","simctl","list","runtimes","--json",seconds=40).stdout)["runtimes"]
+    data=json.loads(run("xcrun","simctl","list","devices","available",
+                        "--json",seconds=40).stdout)["devices"]
 except Exception as e:
-    print(f"[SIM][INFRA] CoreSimulator discovery failed: {e}",file=sys.stderr)
+    print(f"[SIM][INFRA] Available simulator discovery failed: {e}",file=sys.stderr)
     sys.exit(2)
-phones=[x for x in types if x.get("identifier") and x.get("name","").startswith("iPhone")]
-ios=[x for x in runtimes if x.get("isAvailable") and "iOS" in x.get("name","")]
-if not phones or not ios:
-    print("[SIM][INFRA] No available iOS runtime or iPhone device type",file=sys.stderr)
+pairs=[]
+for runtime_id,devices in data.items():
+    if "iOS" not in runtime_id:
+        continue
+    for device in devices:
+        name=device.get("name","")
+        type_id=device.get("deviceTypeIdentifier")
+        if device.get("isAvailable") and name.startswith("iPhone") and type_id:
+            pairs.append((runtime_id,type_id,name,device.get("udid",""),device.get("state","")))
+if not pairs:
+    print("[SIM][INFRA] No preconfigured compatible iPhone/runtime pair",file=sys.stderr)
     sys.exit(2)
-phones.sort(key=lambda x:(not x["name"].startswith("iPhone 17"),x["name"]))
-ios.sort(key=lambda x:x.get("version",""),reverse=True)
-device_type,runtime=phones[0]["identifier"],ios[0]["identifier"]
-print(f"[SIM] Disposable device: {phones[0]['name']} / {ios[0]['name']}",file=sys.stderr)
+# Prefer a non-running template so the runner's stuck booted simulator remains
+# undisturbed. Always use the complete device/runtime pair from the same row.
+pairs.sort(key=lambda p:(p[4]!="Shutdown",not p[2].startswith("iPhone 17"),p[2]))
+print(f"[SIM] Available compatible combinations: {len(pairs)}",file=sys.stderr)
 
 for attempt in (1,2):
     udid=None
     try:
+        runtime,device_type,device_name,template_udid,_ = pairs[min(attempt-1,len(pairs)-1)]
+        print(f"[SIM] Attempt {attempt} using {device_name} / {runtime}",file=sys.stderr)
         if attempt==2:
             # The first try may leave a stuck simulator daemon on hosted macOS.
             # Restart only CoreSimulatorService, never user data / host keychains.
