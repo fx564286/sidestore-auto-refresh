@@ -50,7 +50,7 @@ class FigmaMeasuredParity(unittest.TestCase):
         self.assertNotIn('private var apps: some View {',UI)
 
     def test_settings_native_tab_keeps_original_engine_form(self):
-        self.assertIn("if selected == .settings {",UI)
+        self.assertIn("if tab == .settings {",UI)
         self.assertIn("SCARLET_INLINE_NATIVE_LC_SETTINGS",UI)
         self.assertIn("LCSettingsView()",HOST)
         self.assertIn("LCTweaksView()",HOST)
