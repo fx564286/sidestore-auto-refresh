@@ -383,24 +383,10 @@ public struct ScarletIndependentShell: View {
     private var home: some View {
         Group {
             HStack(spacing: 10) {
-                Menu {
-                    Button {
-                        // Device-level IPA: SideStore/SideSign; fail closed
-                        // until verified transport, signing and profiles exist.
-                        onAction(.serviceInstallIPA)
-                    } label: {
-                        Label("IPA 설치하기", systemImage: "square.and.arrow.down")
-                    }
-                    .accessibilityIdentifier("SCARLET_INSTALL_CHOICE_DEVICE_IPA")
-
-                    Button {
-                        // Guest-level IPA: the original LC importer, never
-                        // SideStore's standalone application window.
-                        onAction(.localImportGuestIPA)
-                    } label: {
-                        Label("게스트 앱 설치하기", systemImage: "square.stack.3d.up.badge.a")
-                    }
-                    .accessibilityIdentifier("SCARLET_INSTALL_CHOICE_GUEST_APP")
+                Button {
+                    // One tap: open the native Files document picker.
+                    // Guest IPA import stays in the original LiveContainer pipeline.
+                    onAction(.localImportGuestIPA)
                 } label: {
                     Image(systemName: "doc.badge.plus")
                         .font(.system(size: 20, weight: .semibold))
@@ -408,8 +394,20 @@ public struct ScarletIndependentShell: View {
                         .frame(width: 44, height: 44)
                         .contentShape(Rectangle())
                 }
-                .accessibilityLabel("앱 설치")
-                .accessibilityHint("IPA 설치 또는 게스트 앱 설치 선택")
+                .buttonStyle(.plain)
+                .contextMenu {
+                    Button {
+                        // Separate SideStore device installation, currently
+                        // fail-closed until signing/transport is verified.
+                        onAction(.serviceInstallIPA)
+                    } label: {
+                        Label("iPhone에 직접 설치 (SideStore)",
+                              systemImage: "square.and.arrow.down")
+                    }
+                    .accessibilityIdentifier("SCARLET_INSTALL_CHOICE_DEVICE_IPA")
+                }
+                .accessibilityLabel("iPhone 파일에서 IPA 선택")
+                .accessibilityHint("탭하면 파일 앱에서 IPA를 선택합니다. 길게 누르면 기기 설치 옵션이 나타납니다.")
                 .accessibilityIdentifier("SCARLET_INSTALLED_APPS_ADD_FILE")
                 heading("", "설치된 앱", "")
             }
