@@ -65,6 +65,7 @@ public final class ScarletNativeAuthTransport {
     }
 
     public func signIn(email: String, password: String,
+                       anisetteProfile: String,
                        codeProvider: @escaping () async throws -> String) async throws {
         guard requestID == nil else { throw ScarletNativeAuthError.alreadyRunning }
         try await prepare()
@@ -81,7 +82,8 @@ public final class ScarletNativeAuthTransport {
         }
         try await withCheckedThrowingContinuation { (c: CheckedContinuation<Void, Error>) in
             completion = c
-            remote.scarletBeginAuth(id, email: email, password: password)
+            remote.scarletBeginAuth(id, email: email, password: password,
+                                    profile: anisetteProfile)
             Task { @MainActor in
                 try? await Task.sleep(for: .seconds(360))
                 if self.requestID == id {
