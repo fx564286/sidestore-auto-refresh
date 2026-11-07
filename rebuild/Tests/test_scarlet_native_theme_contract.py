@@ -19,7 +19,11 @@ class NativeScarletTheme(unittest.TestCase):
         self.assertIn("ZStack(alignment: .bottom)", shell)
         self.assertIn("preservedGlassTabBar($selected)", shell)
         self.assertEqual(shell.count("preservedGlassTabBar($selected)"), 1)
-        self.assertIn(".padding(.bottom, 106)", shell)
+        self.assertIn("SCARLET_SCROLL_END_CLEARANCE", shell)
+        self.assertIn(".frame(height: 140)", shell)
+        self.assertIn(".scarletDockUnderlayVisible()", shell)
+        self.assertNotIn(".padding(.bottom, 106)", shell)
+        self.assertNotIn("Color.clear.frame(height: 82)", shell)
         self.assertIn(".padding(.horizontal, 19)", shell)
         self.assertIn("SCARLET_NATIVE_GLASS_BOTTOM_TAB_BAR", shell)
 
@@ -30,6 +34,14 @@ class NativeScarletTheme(unittest.TestCase):
         self.assertIn("LCTweaksView()", HOST)
         self.assertIn("theme_native_settings_section_rows", INTEGRATOR.read_text())
         self.assertIn("apply_scarlet_native_tweaks_theme", INTEGRATOR.read_text())
+
+    def test_form_and_list_inset_is_applied_to_native_scrollers(self):
+        patch = INTEGRATOR.read_text()
+        self.assertIn("scarletDockScrollClearance()", patch)
+        self.assertIn(".safeAreaInset(edge: .bottom, spacing: 0)", GLASS)
+        self.assertIn(".scrollEdgeEffectDisabled(for: .bottom)", GLASS)
+        self.assertIn("Color.clear.frame(height: 140)", GLASS)
+        self.assertNotIn("Color.clear.frame(height: 82)", patch)
 
     def test_theme_uses_exact_figma_surface_and_native_glass(self):
         self.assertIn("36.0/255, green: 35.0/255, blue: 58.0/255", UI)
