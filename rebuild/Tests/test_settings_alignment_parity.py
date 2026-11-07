@@ -20,7 +20,7 @@ class SettingsParity(unittest.TestCase):
         self.assertEqual(G["settingsCardCount"],3)
 
     def test_original_livecontainer_settings_is_direct_tab_content(self):
-        self.assertIn("if selected == .settings {",UI)
+        self.assertIn("if tab == .settings {",UI)
         self.assertIn("nativeSettings()",UI)
         self.assertIn("nativeSettings: {",HOST)
         self.assertIn("LCSettingsView()",HOST)
