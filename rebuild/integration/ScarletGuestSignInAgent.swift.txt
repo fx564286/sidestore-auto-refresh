@@ -179,8 +179,14 @@ final class ScarletGuestSignInAgent: NSObject {
         // Existing ADI may belong to a different Anisette identity. An
         // explicit Mac-server attempt creates isolated ADI in memory only.
         // The persistent ADI and server selection are never cleared here.
-        let existingBlob: Data? = dedicatedMacServer ? nil :
-            AnisetteConfigManager.shared.anisetteAdiBlob.flatMap { Data(base64Encoded: $0) }
+        let savedProfile = UserDefaults.standard.string(
+            forKey: "scarlet.auth.lastSuccessfulAnisetteProfile")
+        let sameStoredIdentity = !dedicatedMacServer ||
+            savedProfile == "sidestore_new_mac"
+        let existingBlob: Data? = sameStoredIdentity ?
+            AnisetteConfigManager.shared.anisetteAdiBlob.flatMap {
+                Data(base64Encoded: $0)
+            } : nil
         let temporaryProvider = SideSign.AnisetteDataManager()
         let (result, newAdiBlob) = try await temporaryProvider.fetchAnisetteDataWithFailover(
             servers: selected,
@@ -196,6 +202,17 @@ final class ScarletGuestSignInAgent: NSObject {
         compatible.clientInfo = headers.clientInfo ?? result.clientInfo
         compatible.userAgent = headers.userAgent ?? result.userAgent
         return (compatible, newAdiBlob)
+    }
+
+    // Invoked by the pinned SideStore AuthManager when rebuilding a
+    // persisted Xcode-token session. Returning to the default Android/PC
+    // Anisette after a successful Mac login reproduces -80045.
+    @MainActor
+    static func restoreAnisetteForSavedSession() async throws -> ALTAnisetteData {
+        let profile = UserDefaults.standard.string(
+            forKey: "scarlet.auth.lastSuccessfulAnisetteProfile") ?? "default"
+        let (data, _) = try await fetchAuthAnisette(profile: profile)
+        return data
     }
 
     @MainActor
