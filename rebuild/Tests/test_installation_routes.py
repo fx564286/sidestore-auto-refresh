@@ -30,7 +30,7 @@ class InstallerRouteTests(unittest.TestCase):
         self.assertIn('Label("IPA 설치하기"',UI)
         self.assertIn("onAction(.serviceInstallIPA)",UI)
         self.assertNotIn("LCUtils.openSideStore(",HOST)
-        self.assertIn("prepareDeviceIPAInstall()",HOST)
+        self.assertIn("prepareDeviceIPAInstall(selected)",HOST)
         self.assertIn('case .serviceBeginSignIn:',HOST)
         self.assertNotIn("sidestore://signin",HOST)
         self.assertIn("showScarletAppleIDLogin = true",HOST)
