@@ -146,6 +146,24 @@ extension View {
     }
 }
 
+// The nested JIT-Less diagnostics and entitlement pages each own a Form.
+// Native iOS 26 TabView protects the navigation-stack safe area; an explicit
+// scroll-content margin preserves the last test/help buttons at full scroll.
+extension View {
+    @ViewBuilder
+    func scarletDiagnosticScrollMargins() -> some View {
+        if #available(iOS 26.0, *) {
+            self.contentMargins(.bottom, 84, for: .scrollContent)
+        } else if #available(iOS 17.0, *) {
+            self.contentMargins(.bottom, 120, for: .scrollContent)
+        } else {
+            self.safeAreaInset(edge: .bottom, spacing: 0) {
+                Color.clear.frame(height: 120).accessibilityHidden(true)
+            }
+        }
+    }
+}
+
 // The actual iOS 26+ implementation uses the SwiftUI glass compositor.
 // The OS glass material, not a painted translucent Color, provides refraction.
 // The selected segment and the full 62pt dock have distinct compositor
