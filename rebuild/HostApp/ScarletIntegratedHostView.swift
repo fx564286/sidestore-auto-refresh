@@ -24,6 +24,8 @@ struct ScarletIntegratedHostView: View {
     @State private var showNativeSources = false
     @State private var showScarletAppleIDLogin = false
     @State private var appleAuthVerified = false
+    // Ignore delayed auth readbacks after a newer foreground/login transition.
+    @State private var authStateReadGeneration: UInt64 = 0
     @State private var showOriginalError: String?
     @State private var signingRecoveryNeeded = false
     @State private var launchingGuestKeys: Set<String> = []
@@ -40,8 +42,20 @@ struct ScarletIntegratedHostView: View {
 
     private func refreshStoredLoginState() {
         guard #available(iOS 17.0, *) else { return }
+        // Foreground activation, login completion and sheet dismissal can
+        // trigger overlapping XPC Keychain reads. A stale false result must
+        // not overwrite a newer authenticated state.
+        authStateReadGeneration &+= 1
+        let requestGeneration = authStateReadGeneration
         Task { @MainActor in
             let stored = await ScarletConnectedSideSignEngine().storedAuthenticated()
+            guard requestGeneration == authStateReadGeneration,
+                  !showScarletAppleIDLogin else {
+                ScarletDiagnosticRecorder.shared.record(
+                    "auth", "host_session_read_discarded",
+                    fields: ["reason": "stale_or_login_active"])
+                return
+            }
             appleAuthVerified = stored
             ScarletDiagnosticRecorder.shared.record(
                 "auth", stored ? "host_session_restored" : "host_session_unavailable",
