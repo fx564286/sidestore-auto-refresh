@@ -62,6 +62,15 @@ def instrument_original_guest_signing(engine: Path) -> dict:
                 ScarletDiagnosticRecorder.shared.record(
                     "guest", "signing_reason", status: "error",
                     fields: ["reason": safeReason])
+                // Do not retry with a demonstrably bad signing setup.
+                // The original LC Settings offers safe import/refresh and
+                // JIT-Less validation. No certificate is deleted or replaced.
+                if safeReason == "certificate_invalid" ||
+                    safeReason == "certificate_missing" {
+                    NotificationCenter.default.post(
+                        name: Notification.Name("ScarletGuestCertificateInvalid"),
+                        object: nil)
+                }
                 throw signError.loc
 """)
     target.write_text(source)
