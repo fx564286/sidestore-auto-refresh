@@ -145,9 +145,10 @@ struct ScarletAppleIDLoginSheet: View {
                                 Text("기존 설정").tag("default")
                                 Text("Windows iTunes (원격)").tag("windows")
                                 Text("Mac AuthKit (원격)").tag("mac")
+                                Text("SideStore New (Mac 서버)").tag("sidestore_new_mac")
                             }
                             .accessibilityIdentifier("SCARLET_ANISETTE_COMPAT_PROFILE")
-                            Text("Apple 인증 -80045 대응용입니다. 선택한 방식은 이번 로그인 시도에만 적용되며 기존 인증서·설정을 변경하지 않습니다. 서버에 따라 실패할 수 있습니다.")
+                            Text("Apple 로그인 -80045 이후에 사용할 1회 진단 경로입니다. SideStore New는 원격 Mac Anisette를 새로 요청합니다. 기존 인증서·계정·Anisette 파일은 삭제하지 않습니다. 로그인 성공을 보장하지는 않습니다.")
                                 .font(.footnote)
                                 .foregroundStyle(.secondary)
                         }
