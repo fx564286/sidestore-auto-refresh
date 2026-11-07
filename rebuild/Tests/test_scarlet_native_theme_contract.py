@@ -21,7 +21,7 @@ class NativeScarletTheme(unittest.TestCase):
         self.assertEqual(shell.count("preservedGlassTabBar($selected)"), 1)
         self.assertIn("SCARLET_SCROLL_END_CLEARANCE", shell)
         self.assertIn(".frame(height: 140)", shell)
-        self.assertIn(".scarletDockUnderlayVisible()", shell)
+        self.assertIn(".scarletIndependentScrollEdge()", shell)
         self.assertNotIn(".padding(.bottom, 106)", shell)
         self.assertNotIn("Color.clear.frame(height: 82)", shell)
         self.assertIn(".padding(.horizontal, 19)", shell)
