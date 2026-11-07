@@ -38,6 +38,17 @@ struct ScarletIntegratedHostView: View {
             fields: ["tab": tabs[raw] ?? "unknown"])
     }
 
+    private func refreshStoredLoginState() {
+        guard #available(iOS 17.0, *) else { return }
+        Task { @MainActor in
+            let stored = await ScarletNativeAuthTransport.shared.storedAuthenticated()
+            appleAuthVerified = stored
+            ScarletDiagnosticRecorder.shared.record(
+                "auth", stored ? "host_session_restored" : "host_session_unavailable",
+                status: stored ? "success" : "info")
+        }
+    }
+
     private func recordLayout() {
         let window = UIApplication.shared.connectedScenes
             .compactMap { $0 as? UIWindowScene }
@@ -287,6 +298,7 @@ struct ScarletIntegratedHostView: View {
                          "engine": "livecontainer",
                          "available": UserDefaults.sideStoreExist() ? "true" : "false"])
             recordLayout()
+            refreshStoredLoginState()
             // UIKit window creation can lag behind SwiftUI view construction.
             // The actual dock is initialized lazily and attached when ready.
             DispatchQueue.main.async {
@@ -300,11 +312,17 @@ struct ScarletIntegratedHostView: View {
         .onChange(of: scenePhase) { phase in
             ScarletDiagnosticRecorder.shared.record("lifecycle", "scene_phase",
                 fields: ["state": String(describing: phase)])
+            if phase == .active && !showScarletAppleIDLogin {
+                refreshStoredLoginState()
+            }
         }
         .onReceive(NotificationCenter.default.publisher(
             for: Notification.Name("ScarletGuestAuthVerified"))) { _ in
-            appleAuthVerified = true
-            ScarletDiagnosticRecorder.shared.record("auth", "verified_login_visible", status: "success")
+            // State must come from persisted SideStore Keychain, never from
+            // the success notification alone.
+            refreshStoredLoginState()
+            ScarletDiagnosticRecorder.shared.record("auth",
+                "verified_login_recheck_requested")
         }
         .onReceive(NotificationCenter.default.publisher(
             for: Notification.Name("ScarletGuestCertificateInvalid"))) { _ in
@@ -332,6 +350,7 @@ struct ScarletIntegratedHostView: View {
         .onChange(of: showScarletAppleIDLogin) { visible in
             ScarletDiagnosticRecorder.shared.record("auth",
                 visible ? "login_visible" : "login_dismissed")
+            if !visible { refreshStoredLoginState() }
         }
         .onChange(of: showOriginalError) { error in
             if error != nil {
