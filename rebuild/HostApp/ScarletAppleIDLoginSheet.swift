@@ -8,6 +8,7 @@ import SwiftUI
 protocol ScarletAppleSignInEngine: AnyObject {
     var isReady: Bool { get }
     func prepare() async throws
+    func storedAuthenticated() async -> Bool
     func cancel()
     func signIn(appleID: String, password: String,
                 anisetteProfile: String,
@@ -28,12 +29,15 @@ struct ScarletAppleIDLoginSheet: View {
     @State private var showAnisetteCompatibility = false
     @State private var anisetteProfile = "default"
     @State private var transportReady = false
+    @State private var retainedSession = false
+    @State private var explicitlyReauthenticating = false
     @State private var transportChecking = true
     @State private var signInTask: Task<Void, Never>?
     @State private var pendingCode: CheckedContinuation<String, Error>?
 
     private var readyToSubmit: Bool {
         !isAuthenticating
+            && (!retainedSession || explicitlyReauthenticating)
             && transportReady
             && !appleID.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
             && !password.isEmpty
@@ -94,7 +98,17 @@ struct ScarletAppleIDLoginSheet: View {
                                         anisetteProfile: anisetteProfile) {
                     try await askForCode()
                 }
-                ScarletDiagnosticRecorder.shared.record("auth", "request_succeeded",
+                // A successful server challenge is not enough: the worker
+                // must demonstrate the token remains readable in Keychain.
+                guard await engine.storedAuthenticated() else {
+                    throw NSError(domain: "scarlet.auth.keychain_not_restored",
+                                  code: -3402,
+                                  userInfo: [NSLocalizedDescriptionKey:
+                                    "Apple 인증은 완료됐지만 SideStore 인증 정보 유지 확인에 실패했습니다."])
+                }
+                retainedSession = true
+                explicitlyReauthenticating = false
+                ScarletDiagnosticRecorder.shared.record("auth", "stored_session_verified",
                     status: "success")
                 NotificationCenter.default.post(name: Notification.Name("ScarletGuestAuthVerified"), object: nil)
                 dismiss()
@@ -117,7 +131,19 @@ struct ScarletAppleIDLoginSheet: View {
     var body: some View {
         NavigationStack {
             Form {
-                if requiresTwoFactorCode {
+                if retainedSession && !explicitlyReauthenticating {
+                    Section("SideStore 로그인 상태") {
+                        Label("인증 정보 유지 확인됨", systemImage: "checkmark.shield.fill")
+                            .foregroundStyle(.green)
+                            .accessibilityIdentifier("SCARLET_STORED_LOGIN_VISIBLE")
+                        Text("SideStore 보안 저장소에서 Apple 인증 토큰을 확인했습니다. 서명 인증서와 활성 팀 설정은 별도로 검증됩니다.")
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+                        Button("다른 계정으로 다시 인증") {
+                            explicitlyReauthenticating = true
+                        }
+                    }
+                } else if requiresTwoFactorCode {
                     Section("Apple 2단계 인증") {
                         TextField("6자리 인증번호", text: $verificationCode)
                             .keyboardType(.numberPad)
@@ -200,6 +226,10 @@ struct ScarletAppleIDLoginSheet: View {
                 transportReady = engine.isReady
                 if transportReady {
                     ScarletDiagnosticRecorder.shared.record("auth", "transport_ready", status: "success")
+                    retainedSession = await engine.storedAuthenticated()
+                    ScarletDiagnosticRecorder.shared.record("auth",
+                        retainedSession ? "stored_session_restored" : "stored_session_absent",
+                        status: retainedSession ? "success" : "info")
                 } else {
                     ScarletDiagnosticRecorder.shared.record("auth", "transport_unverified",
                         status: "blocked", fields: ["reason": "engine_not_connected"])
