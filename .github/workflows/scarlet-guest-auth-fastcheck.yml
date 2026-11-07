@@ -1,0 +1,54 @@
+name: Scarlet certificate and SideSign auth - fast source regression
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [rebuild/scarlet-from-zero-20261106]
+    paths:
+      - '.github/workflows/scarlet-guest-auth-fastcheck.yml'
+      - 'rebuild/HostApp/ScarletDiagnosticRecorder.swift'
+      - 'rebuild/HostApp/ScarletIntegratedHostView.swift'
+      - 'rebuild/integration/ScarletGuestSignInAgent.swift.txt'
+      - 'rebuild/integration/apply_scarlet_host.py'
+      - 'rebuild/Tests/test_guest_launch_auth_diagnostics.py'
+
+permissions:
+  contents: read
+
+jobs:
+  source-regression:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate Python integration scripts
+        run: |
+          set -Eeuo pipefail
+          python3 -m py_compile rebuild/integration/apply_scarlet_host.py rebuild/integration/wire_scarlet_auth.py
+      - name: Run full 110+ source and behavior contract tests
+        run: |
+          set -Eeuo pipefail
+          python3 -m unittest discover -s rebuild/Tests -p 'test_*.py' -v
+      - name: Compile representative SideSign enum case matching on Swift 6
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          if command -v swiftc >/dev/null; then
+            cat > /tmp/scarlet-servererror.swift <<'SWIFT'
+          enum ServerError: Error {
+              case badServerResponse(reason: String, jsonPayload: String)
+              case invalidResponseFormat(rawPayload: String)
+              case missingKey(key: String, jsonPayload: String)
+              case underlyingError(code: Int, message: String)
+          }
+          func remoteStatus(_ error: ServerError) -> Int {
+              switch error {
+              case .underlyingError(let code, _): return code
+              case .badServerResponse: return -3001
+              case .invalidResponseFormat: return -3002
+              case .missingKey: return -3003
+              }
+          }
+          SWIFT
+            swiftc -typecheck /tmp/scarlet-servererror.swift
+          fi
