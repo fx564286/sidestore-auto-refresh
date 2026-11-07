@@ -29,6 +29,9 @@ struct ScarletIntegratedHostView: View {
     @State private var showOriginalError: String?
     @State private var signingRecoveryNeeded = false
     @State private var launchingGuestKeys: Set<String> = []
+    // Guest removal never alters data containers, Keychain or certificates.
+    @State private var pendingGuestUninstallKey: String?
+    @State private var confirmGuestUninstall = false
 
     // Recorded values are deliberately categorical. No Apple ID, guest name,
     // certificate, UDID, user path, IPA URL or credential is ever serialized.
@@ -174,6 +177,85 @@ struct ScarletIntegratedHostView: View {
         }
     }
 
+    private func requestGuestUninstall(_ key: String) {
+        let ref = ScarletDiagnosticRecorder.shared.guestReference(key)
+        guard sharedModel.apps.contains(where: {
+            ($0.appInfo.relativeBundlePath ?? $0.bundleIdentifier) == key
+        }) else {
+            ScarletDiagnosticRecorder.shared.record(
+                "guest", "uninstall_missing", status: "error",
+                fields: ["guest_ref": ref])
+            showOriginalError = "삭제할 게스트 앱을 찾을 수 없습니다."
+            return
+        }
+        pendingGuestUninstallKey = key
+        confirmGuestUninstall = true
+        ScarletDiagnosticRecorder.shared.record(
+            "guest", "uninstall_confirmation_requested",
+            fields: ["guest_ref": ref])
+    }
+
+    private func uninstallConfirmedGuest() {
+        guard let key = pendingGuestUninstallKey else { return }
+        pendingGuestUninstallKey = nil
+        let ref = ScarletDiagnosticRecorder.shared.guestReference(key)
+        guard let app = sharedModel.apps.first(where: {
+            ($0.appInfo.relativeBundlePath ?? $0.bundleIdentifier) == key
+        }) else {
+            showOriginalError = "이미 삭제되었거나 찾을 수 없는 앱입니다."
+            return
+        }
+        guard !launchingGuestKeys.contains(key), !app.isAppRunning else {
+            showOriginalError = "앱 실행 또는 서명이 진행 중입니다. 작업 종료 후 삭제하세요."
+            ScarletDiagnosticRecorder.shared.record(
+                "guest", "uninstall_blocked", status: "blocked",
+                fields: ["reason": "launch_in_progress"])
+            return
+        }
+        let activeContainers = Set(ScarletGuestSceneRegistry.availableGuests().map(\.id))
+        guard !app.appInfo.containers.contains(where: {
+            activeContainers.contains($0.folderName)
+        }) else {
+            showOriginalError = "앱이 실행 중입니다. 해당 창을 종료한 뒤 삭제하세요."
+            ScarletDiagnosticRecorder.shared.record(
+                "guest", "uninstall_blocked", status: "blocked",
+                fields: ["reason": "guest_running"])
+            return
+        }
+        guard let originalPath = app.appInfo.bundlePath(),
+              app.appInfo.relativeBundlePath != nil else {
+            showOriginalError = "앱 경로를 검증할 수 없어 삭제를 중단했습니다."
+            return
+        }
+        // Delete only an immediate .app child of the original LC bundle root.
+        // Keep Documents, Data/Application, AppGroups and all signing assets.
+        let bundleURL = URL(fileURLWithPath: originalPath)
+            .standardizedFileURL.resolvingSymlinksInPath()
+        let root = (app.appInfo.isShared ? LCPath.lcGroupBundlePath : LCPath.bundlePath)
+            .standardizedFileURL.resolvingSymlinksInPath()
+        guard bundleURL.pathExtension.lowercased() == "app",
+              bundleURL.deletingLastPathComponent() == root,
+              FileManager.default.fileExists(atPath: bundleURL.path) else {
+            showOriginalError = "LiveContainer 앱 폴더 외부 경로는 삭제할 수 없습니다."
+            ScarletDiagnosticRecorder.shared.record(
+                "guest", "uninstall_blocked", status: "blocked",
+                fields: ["reason": "unexpected_bundle_path"])
+            return
+        }
+        do {
+            try FileManager.default.removeItem(at: bundleURL)
+            sharedModel.apps.removeAll { $0 === app }
+            sharedModel.hiddenApps.removeAll { $0 === app }
+            ScarletDiagnosticRecorder.shared.record(
+                "guest", "uninstall_bundle_completed", status: "success",
+                fields: ["guest_ref": ref, "result": "data_preserved"])
+        } catch {
+            ScarletDiagnosticRecorder.shared.recordError(
+                "guest", "uninstall_bundle_failed", error: error)
+            showOriginalError = "앱 파일 삭제 실패: \(error.localizedDescription)"
+        }
+    }
+
     private func prepareDeviceIPAInstall(_ source: URL) {
         guard ["ipa", "tipa"].contains(source.pathExtension.lowercased()) else {
             showOriginalError = "IPA 또는 TIPA 파일을 선택하세요."
@@ -276,6 +358,7 @@ struct ScarletIntegratedHostView: View {
             },
             onAction: handle,
             onOpenGuest: runGuest,
+            onDeleteGuest: requestGuestUninstall,
             onOpenSource: { _ in showNativeSources = true },
             onAddSource: {
                 sharedModel.selectedTab = .sources
@@ -424,6 +507,20 @@ struct ScarletIntegratedHostView: View {
             }
             .environmentObject(sharedModel)
             .environmentObject(LCAppSortManager.shared)
+        }
+        .confirmationDialog(
+            "게스트 앱 삭제",
+            isPresented: $confirmGuestUninstall,
+            titleVisibility: .visible
+        ) {
+            Button("앱만 삭제 (데이터 보존)", role: .destructive) {
+                uninstallConfirmedGuest()
+            }
+            Button("취소", role: .cancel) {
+                pendingGuestUninstallKey = nil
+            }
+        } message: {
+            Text("게스트 앱 파일만 삭제합니다. 데이터, 키체인, 다른 앱과 인증서는 보존됩니다.")
         }
         .alert("Scarlet Crystal 진단", isPresented: Binding(
             get: { showOriginalError != nil },
