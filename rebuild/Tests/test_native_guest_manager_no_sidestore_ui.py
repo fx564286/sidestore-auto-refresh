@@ -30,13 +30,12 @@ class LCManagerWithoutSideStoreGuestUI(unittest.TestCase):
                         home.index('heading("", "설치된 앱", "")'))
         self.assertIn("onAction(.localImportGuestIPA)",home)
         self.assertIn("SCARLET_INSTALL_CHOICE_DEVICE_IPA",home)
-        self.assertIn(".contextMenu {",home)
-        self.assertNotIn("SCARLET_INSTALL_CHOICE_GUEST_APP",home)
+        self.assertNotIn(".contextMenu {",home)
+        self.assertIn("SCARLET_INSTALL_CHOICE_GUEST_APP",home)
         self.assertIn("onAction(.serviceInstallIPA)",home)
-        self.assertEqual(home.count("\n                Menu {"),0)
+        self.assertEqual(home.count("\n                Menu {"),1)
         self.assertIn(".buttonStyle(.plain)",home)
-        self.assertLess(home.index("onAction(.localImportGuestIPA)"),
-                        home.index(".contextMenu {"))
+        self.assertLess(home.index("Menu {"), home.index("onAction(.localImportGuestIPA)"))
         self.assertNotIn("installPathRow(",UI)
 
     def test_scarlet_files_picker_is_direct_not_nested_app_list(self):
