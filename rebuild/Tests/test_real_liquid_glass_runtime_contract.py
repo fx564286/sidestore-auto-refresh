@@ -15,6 +15,23 @@ TABS=GLASS[GLASS.index("private struct SCInteractiveLiquidGlassTabs"):
            GLASS.index("@available(iOS 16.0, *)\nstruct ScarletNativeGlassTabBar")]
 
 class NativeLiquidGlassContract(unittest.TestCase):
+    def test_ios26_uses_apple_owned_system_tabbar_not_manual_overlay(self):
+        # Apple's system tab bar owns its Liquid Glass rendering and
+        # navigational scroll safe areas, including pushed JIT-Less Forms.
+        self.assertIn("if #available(iOS 26.0, *) {\\n                systemLiquidGlassTabs", UI)
+        self.assertIn("TabView(selection: $selected) {", UI)
+        self.assertIn("ForEach(Tab.allCases, id: \\.self)", UI)
+        self.assertIn("Label(tab.rawValue, systemImage: tab.icon)", UI)
+        self.assertIn(".tabBarMinimizeBehavior(.onScrollDown)", UI)
+        self.assertIn("SCARLET_IOS26_NATIVE_SYSTEM_GLASS_TABS", UI)
+        # The old custom bar only exists inside the legacy branch.
+        self.assertIn("private var legacyGlassTabs: some View", UI)
+        self.assertIn("preservedGlassTabBar($selected)", UI)
+        source = UI[UI.index("private var systemLiquidGlassTabs: some View"):
+                    UI.index("private var legacyGlassTabs: some View")]
+        self.assertNotIn("preservedGlassTabBar($selected)", source)
+        self.assertNotIn("ZStack(alignment: .bottom)", source)
+
     def test_ios26_uses_system_glass_compositor_and_real_selected_material(self):
         self.assertIn("GlassEffectContainer(spacing: 6)",TABS)
         self.assertIn(".glassEffect(.regular.interactive(), in: .capsule)",TABS)
