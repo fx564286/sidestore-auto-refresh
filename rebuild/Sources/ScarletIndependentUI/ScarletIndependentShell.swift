@@ -89,7 +89,7 @@ private extension View {
     @ViewBuilder
     func scarletIndependentScrollEdge() -> some View {
         if #available(iOS 26.0, *) {
-            self.scrollEdgeEffectStyle(.hard, for: .bottom)
+            self.scrollEdgeEffectHidden(true, for: .all)
         } else {
             self
         }
