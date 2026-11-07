@@ -378,15 +378,27 @@ public struct ScarletIndependentShell: View {
     }
 
     // Apps displays only its heading, search and actual LiveContainer guests.
-    // One title-leading native menu owns both installation routes. The native
-    // menu is dismissible by outside tap and keeps the Scarlet shell layout.
+    // One title-leading menu owns both installation routes on a single tap.
+    // The selected route opens the same native Files picker, without an app list.
     private var home: some View {
         Group {
             HStack(spacing: 10) {
-                Button {
-                    // One tap: open the native Files document picker.
-                    // Guest IPA import stays in the original LiveContainer pipeline.
-                    onAction(.localImportGuestIPA)
+                Menu {
+                    Button {
+                        // User chooses one of two installation targets in a
+                        // single tap, then the native iPhone Files importer.
+                        onAction(.serviceInstallIPA)
+                    } label: {
+                        Label("IPA 설치하기", systemImage: "square.and.arrow.down")
+                    }
+                    .accessibilityIdentifier("SCARLET_INSTALL_CHOICE_DEVICE_IPA")
+
+                    Button {
+                        onAction(.localImportGuestIPA)
+                    } label: {
+                        Label("게스트 앱 설치하기", systemImage: "square.stack.3d.up.badge.a")
+                    }
+                    .accessibilityIdentifier("SCARLET_INSTALL_CHOICE_GUEST_APP")
                 } label: {
                     Image(systemName: "doc.badge.plus")
                         .font(.system(size: 20, weight: .semibold))
@@ -394,20 +406,8 @@ public struct ScarletIndependentShell: View {
                         .frame(width: 44, height: 44)
                         .contentShape(Rectangle())
                 }
-                .buttonStyle(.plain)
-                .contextMenu {
-                    Button {
-                        // Separate SideStore device installation, currently
-                        // fail-closed until signing/transport is verified.
-                        onAction(.serviceInstallIPA)
-                    } label: {
-                        Label("iPhone에 직접 설치 (SideStore)",
-                              systemImage: "square.and.arrow.down")
-                    }
-                    .accessibilityIdentifier("SCARLET_INSTALL_CHOICE_DEVICE_IPA")
-                }
-                .accessibilityLabel("iPhone 파일에서 IPA 선택")
-                .accessibilityHint("탭하면 파일 앱에서 IPA를 선택합니다. 길게 누르면 기기 설치 옵션이 나타납니다.")
+                .accessibilityLabel("앱 설치")
+                .accessibilityHint("한 번 탭하여 IPA 설치 또는 게스트 앱 설치 선택")
                 .accessibilityIdentifier("SCARLET_INSTALLED_APPS_ADD_FILE")
                 heading("", "설치된 앱", "")
             }
