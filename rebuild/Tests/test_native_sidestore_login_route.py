@@ -18,7 +18,7 @@ class NativeScarletLoginContract(unittest.TestCase):
         self.assertIn("showScarletAppleIDLogin = true",HOST)
         self.assertIn("ScarletAppleIDLoginSheet(engine:",HOST)
         self.assertNotIn("LCUtils.openSideStore(",HOST)
-        self.assertIn("prepareDeviceIPAInstall()",HOST)
+        self.assertIn("prepareDeviceIPAInstall(selected)",HOST)
         self.assertNotIn("sidestore://signin",HOST)
         self.assertNotIn("openEmbeddedSideStore(signIn:",HOST)
         self.assertNotIn("patch_sidestore_native_signin.py",WORKFLOW)
