@@ -24,7 +24,7 @@ jobs:
         with:
           name: Scarlet-LiveContainer-Native-Engine
           path: artifacts/lc
-          run-id: 42329548155
+          run-id: 42330372803
           github-token: ${{ github.token }}
 
       - uses: actions/download-artifact@v4
@@ -108,7 +108,7 @@ jobs:
           verification remain unconfirmed. Original users' data is unchanged.
           EOF
           printf "\nCompiled new UI: %s\nReused audited pinned SideStore: 42327658622\n" \
-            "42329548155" >> release-notes.md
+            "42330372803" >> release-notes.md
           if ! gh release view "$tag" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
             gh release create "$tag" --repo "$GITHUB_REPOSITORY" \
               --target "$GITHUB_SHA" --title "Scarlet integrated — unsigned diagnostic IPA" \
