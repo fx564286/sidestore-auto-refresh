@@ -176,6 +176,7 @@ private struct ScarletStatusBadge: View {
 /// divider is rendered below the final app (fixes the Figma lone line).
 private struct ScarletGuestActionRow: View {
     let guest: ScarletGuestPresentation
+    let onDelete: () -> Void
     let action: () -> Void
 
     var body: some View {
@@ -201,6 +202,14 @@ private struct ScarletGuestActionRow: View {
         .accessibilityLabel(guest.title)
         .accessibilityHint(guest.isRunning ? "실행 중인 앱으로 전환" : "앱 실행")
         .accessibilityIdentifier("SCARLET_GUEST_ACTION_ROW")
+        .contextMenu {
+            Button(role: .destructive) {
+                onDelete()
+            } label: {
+                Label("앱 삭제", systemImage: "trash")
+            }
+            .accessibilityIdentifier("SCARLET_GUEST_UNINSTALL_MENU")
+        }
     }
 }
 
@@ -208,6 +217,7 @@ private struct ScarletGuestListCard: View {
     let guests: [ScarletGuestPresentation]
     let emptyText: String
     let onOpen: (String) -> Void
+    let onDelete: (String) -> Void
 
     var body: some View {
         VStack(spacing: 0) {
@@ -219,7 +229,11 @@ private struct ScarletGuestListCard: View {
                     .padding(.horizontal, 8)
             } else {
                 ForEach(guests) { item in
-                    ScarletGuestActionRow(guest: item) { onOpen(item.id) }
+                    ScarletGuestActionRow(
+                        guest: item,
+                        onDelete: { onDelete(item.id) },
+                        action: { onOpen(item.id) }
+                    )
                     if item.id != guests.last?.id {
                         Rectangle()
                             .fill(ScarletPresentationColor.stroke.opacity(0.55))
@@ -268,6 +282,7 @@ public struct ScarletIndependentShell: View {
     public let onAddSource: () -> Void
     public let onAction: (ScarletControl) -> Void
     public let onOpenGuest: (String) -> Void
+    public let onDeleteGuest: (String) -> Void
     // The container's four tabs remain native Liquid Glass.
     // The one round switch control belongs to a running guest scene ONLY.
     // Keep the original interactive Liquid Glass tab-bar renderer. The host
@@ -290,6 +305,7 @@ public struct ScarletIndependentShell: View {
                 sources: [ScarletSourcePresentation],
                 onAction: @escaping (ScarletControl) -> Void,
                 onOpenGuest: @escaping (String) -> Void,
+                onDeleteGuest: @escaping (String) -> Void = { _ in },
                 onOpenSource: @escaping (String) -> Void,
                 onAddSource: @escaping () -> Void,
                 preservedGlassTabBar: @escaping (Binding<Tab>) -> AnyView,
@@ -302,6 +318,7 @@ public struct ScarletIndependentShell: View {
         self.sources = sources
         self.onAction = onAction
         self.onOpenGuest = onOpenGuest
+        self.onDeleteGuest = onDeleteGuest
         self.onOpenSource = onOpenSource
         self.onAddSource = onAddSource
         self.preservedGlassTabBar = preservedGlassTabBar
@@ -483,7 +500,8 @@ public struct ScarletIndependentShell: View {
             ScarletGuestListCard(
                 guests: visibleGuests,
                 emptyText: "설치된 앱이 없습니다.",
-                onOpen: onOpenGuest
+                onOpen: onOpenGuest,
+                onDelete: onDeleteGuest
             )
         }
         .foregroundStyle(ScarletPresentationColor.text)
