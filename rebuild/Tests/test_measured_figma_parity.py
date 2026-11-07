@@ -41,7 +41,7 @@ class FigmaMeasuredParity(unittest.TestCase):
     def test_merged_home_labels_filters_and_actions_are_real(self):
         self.assertIn('heading("", "설치된 앱", "")',HOME)
         self.assertIn('TextField("설치된 앱 검색"',HOME)
-        self.assertIn('Label("iPhone에 직접 설치 (SideStore)"',HOME)
+        self.assertIn('Label("IPA 설치하기"',HOME)
         self.assertIn('onAction(.localImportGuestIPA)',HOME)
         self.assertIn("guests: visibleGuests",HOME)
         self.assertNotIn("installPathRow(",UI)
