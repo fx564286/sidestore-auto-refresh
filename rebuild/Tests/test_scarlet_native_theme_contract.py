@@ -37,12 +37,12 @@ class NativeScarletTheme(unittest.TestCase):
             target = engine/"LiveContainerSwiftUI/Views/Settings/LCJITLessDiagnoseView.swift"
             target.parent.mkdir(parents=True)
             source = (
-                'Form {\\n    Text("Entitlements remain original")\\n'
-                '            }\\n'
-                '            .navigationTitle(isLiveProcess ? "LiveProcess Entitlements" : "LiveContainer Entitlements")\\n'
-                'Form {\\n    Button("Test JIT-Less") {}\\n'
-                '            }\\n'
-                '            .navigationTitle("lc.settings.jitlessDiagnose".loc)\\n'
+                'Form {\n    Text("Entitlements remain original")\n'
+                '            }\n'
+                '            .navigationTitle(isLiveProcess ? "LiveProcess Entitlements" : "LiveContainer Entitlements")\n'
+                'Form {\n    Button("Test JIT-Less") {}\n'
+                '            }\n'
+                '            .navigationTitle("lc.settings.jitlessDiagnose".loc)\n'
             )
             target.write_text(source)
             report = integrator.attach_jitless_diagnostic_scroll_margins(engine)
