@@ -13,10 +13,12 @@ final class ScarletConnectedSideSignEngine: ScarletAppleSignInEngine {
     }
 
     func signIn(appleID: String, password: String,
-                requestTwoFactorCode: @escaping @MainActor () async throws -> String) async throws {
+                anisetteProfile: String,
+                 requestTwoFactorCode: @escaping @MainActor () async throws -> String) async throws {
         do {
             try await ScarletNativeAuthTransport.shared.signIn(
                 email: appleID, password: password,
+                anisetteProfile: anisetteProfile,
                 codeProvider: requestTwoFactorCode)
         } catch let error as ScarletNativeAuthError {
             // NSError bridging of a Swift enum collapses failures to code 0.
