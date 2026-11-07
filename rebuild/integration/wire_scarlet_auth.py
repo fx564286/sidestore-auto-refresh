@@ -32,6 +32,7 @@ def patch_livecontainer(engine: Path) -> None:
         '- (void)refreshAllAppsWithIdentifier:(NSString*)identifier mangledTypeName:(NSString *)mangledTypeName;\n@end',
         """- (void)refreshAllAppsWithIdentifier:(NSString*)identifier mangledTypeName:(NSString *)mangledTypeName;
 - (void)scarletAuthReady:(void (^)(BOOL isReady))reply;
+- (void)scarletAuthStored:(void (^)(BOOL hasStoredSession))reply;
 - (void)scarletBeginAuth:(NSString*)requestID email:(NSString*)email password:(NSString*)password profile:(NSString*)profile;
 - (void)scarletProvideCode:(NSString*)requestID code:(NSString*)code;
 - (void)scarletCancelAuth:(NSString*)requestID;
@@ -73,6 +74,19 @@ def patch_livecontainer(engine: Path) -> None:
 - (void)scarletAuthReady:(void (^)(BOOL))reply {
     Class worker = NSClassFromString(@"ScarletGuestSignInAgent");
     reply(worker && [worker respondsToSelector:@selector(begin:)]);
+}
+
+- (void)scarletAuthStored:(void (^)(BOOL))reply {
+    // Read saved status in the *SideStore* process from its original Keychain.
+    // Returning cached host UI state here would falsely survive broken sign-in.
+    Class worker = NSClassFromString(@"ScarletGuestSignInAgent");
+    if (!worker || ![worker respondsToSelector:@selector(persistedState)]) {
+        reply(NO);
+        return;
+    }
+    BOOL authenticated = ((BOOL (*)(id, SEL))objc_msgSend)(worker,
+                                                         @selector(persistedState));
+    reply(authenticated);
 }
 
 - (void)scarletBeginAuth:(NSString*)requestID email:(NSString*)email password:(NSString*)password profile:(NSString*)profile {
