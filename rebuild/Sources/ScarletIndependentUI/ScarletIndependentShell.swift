@@ -312,62 +312,15 @@ public struct ScarletIndependentShell: View {
     }
 
     public var body: some View {
-        // The OS glass surface must sample content behind the dock,
-        // not a separate, uniformly painted footer.
-        ZStack(alignment: .bottom) {
-            ScarletPresentationColor.background.ignoresSafeArea()
-
-            Group {
-                if selected == .settings {
-                    // The original LC settings Form keeps all JIT, certificate,
-                    // navigation, storage and diagnostic actions intact.
-                    nativeSettings()
-                        // The pinned Form supplies its own internal scroll
-                        // clearance. An outer inset only shrinks NavigationView
-                        // and may leave the last row trapped below the dock.
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-                        .accessibilityIdentifier("SCARLET_INLINE_NATIVE_LC_SETTINGS")
-                } else if selected == .tweaks {
-                    // Real upstream tweak manager; no duplicate static UI.
-                    nativeTweaks()
-                        // Pinned List owns bottom scroll clearance internally.
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-                        .accessibilityIdentifier("SCARLET_INLINE_NATIVE_LC_TWEAKS")
-                } else {
-                    ScrollView {
-                        VStack(alignment: .leading, spacing: 17) {
-                            switch selected {
-                            case .sources: sourcesScreen
-                            case .apps: home
-                            case .tweaks, .settings: EmptyView()
-                            }
-                            // Real trailing scroll content, not outer padding.
-                            // Gives the last card a full travel path above
-                            // the floating 62pt dock + home indicator.
-                            Color.clear
-                                .frame(height: 140)
-                                .accessibilityHidden(true)
-                                .accessibilityIdentifier("SCARLET_SCROLL_END_CLEARANCE")
-                        }
-                        .padding(.horizontal, 20)
-                        .padding(.top, 18)
-                        .frame(maxWidth: 650, alignment: .leading)
-                        .frame(maxWidth: .infinity, alignment: .center)
-                    }
-                    .scrollIndicators(.hidden)
-                    .scarletIndependentScrollEdge()
-                }
+        // iOS 26+ owns the complete native Liquid Glass tab hierarchy.
+        // A custom ZStack overlay cannot teach a pushed NavigationView Form
+        // about its occluded bottom, and can flatten the sampled glass.
+        Group {
+            if #available(iOS 26.0, *) {
+                systemLiquidGlassTabs
+            } else {
+                legacyGlassTabs
             }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-
-            // One Figma-sized 352x62 pt native dock above screen content.
-            preservedGlassTabBar($selected)
-                .frame(maxWidth: .infinity, alignment: .center)
-                .frame(height: 62)
-                .padding(.horizontal, 19)
-                .padding(.bottom, 6)
-                .zIndex(1)
-                .accessibilityIdentifier("SCARLET_NATIVE_GLASS_BOTTOM_TAB_BAR")
         }
         .background(ScarletPresentationColor.background.ignoresSafeArea())
         .preferredColorScheme(.dark)
@@ -404,6 +357,76 @@ public struct ScarletIndependentShell: View {
     // Apps displays only its heading, search and actual LiveContainer guests.
     // One title-leading menu owns both installation routes on a single tap.
     // The selected route opens the same native Files picker, without an app list.
+
+    @available(iOS 26.0, *)
+    private var systemLiquidGlassTabs: some View {
+        // Apple TabView supplies its own floating iOS 26+ Liquid Glass,
+        // safe-area integration, scroll underlap, native interactions and
+        // automatic navigation-stack inset. No custom painted capsule overlays.
+        TabView(selection: $selected) {
+            ForEach(Tab.allCases, id: \.self) { tab in
+                screen(for: tab)
+                    .tabItem {
+                        Label(tab.rawValue, systemImage: tab.icon)
+                    }
+                    .tag(tab)
+            }
+        }
+        .tabBarMinimizeBehavior(.onScrollDown)
+        .accessibilityIdentifier("SCARLET_IOS26_NATIVE_SYSTEM_GLASS_TABS")
+    }
+
+    private var legacyGlassTabs: some View {
+        // Only old iOS uses the previous independent overlay bar.
+        ZStack(alignment: .bottom) {
+            ScarletPresentationColor.background.ignoresSafeArea()
+            screen(for: selected)
+            preservedGlassTabBar($selected)
+                .frame(maxWidth: .infinity, alignment: .center)
+                .frame(height: 62)
+                .padding(.horizontal, 19)
+                .padding(.bottom, 6)
+                .zIndex(1)
+                .accessibilityIdentifier("SCARLET_NATIVE_GLASS_BOTTOM_TAB_BAR")
+        }
+    }
+
+    @ViewBuilder
+    private func screen(for tab: Tab) -> some View {
+        Group {
+            if tab == .settings {
+                nativeSettings()
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .accessibilityIdentifier("SCARLET_INLINE_NATIVE_LC_SETTINGS")
+            } else if tab == .tweaks {
+                nativeTweaks()
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .accessibilityIdentifier("SCARLET_INLINE_NATIVE_LC_TWEAKS")
+            } else {
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 17) {
+                        if tab == .sources {
+                            sourcesScreen
+                        } else {
+                            home
+                        }
+                        Color.clear
+                            .frame(height: 140)
+                            .accessibilityHidden(true)
+                            .accessibilityIdentifier("SCARLET_SCROLL_END_CLEARANCE")
+                    }
+                    .padding(.horizontal, 20)
+                    .padding(.top, 18)
+                    .frame(maxWidth: 650, alignment: .leading)
+                    .frame(maxWidth: .infinity, alignment: .center)
+                }
+                .scrollIndicators(.hidden)
+                .scarletIndependentScrollEdge()
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
     private var home: some View {
         Group {
             HStack(spacing: 10) {
