@@ -11,6 +11,7 @@ on:
       - 'rebuild/integration/ScarletGuestSignInAgent.swift.txt'
       - 'rebuild/integration/apply_scarlet_host.py'
       - 'rebuild/Tests/test_guest_launch_auth_diagnostics.py'
+      - 'rebuild/Tests/test_anisette_compatibility_and_signature_probe.py'
 
 permissions:
   contents: read
