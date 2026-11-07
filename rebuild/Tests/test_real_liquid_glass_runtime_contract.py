@@ -18,9 +18,13 @@ class NativeLiquidGlassContract(unittest.TestCase):
     def test_ios26_uses_system_glass_compositor_and_real_selected_material(self):
         self.assertIn("GlassEffectContainer(spacing: 6)",TABS)
         self.assertIn(".glassEffect(.regular.interactive(), in: .capsule)",TABS)
-        self.assertIn(".regular.tint(.white.opacity(0.14)).interactive()",TABS)
+        self.assertIn(".regular.tint(Color(red: 170.0/255,",TABS)
         self.assertIn('.glassEffectID("selected-tab", in: selectionNamespace)',TABS)
-        self.assertIn('.matchedGeometryEffect(id: "selection", in: selectionNamespace)',TABS)
+        self.assertNotIn('.matchedGeometryEffect(id: "selection", in: selectionNamespace)',TABS)
+        # The backplate has its own genuine OS glass layer; it must not
+        # merge inside the moving selection's GlassEffectContainer at rest.
+        self.assertIn(".frame(height: 62)\n        // A separate system-glass backplate",TABS)
+        self.assertIn(".background {\n            Capsule()\n                .glassEffect(.regular.interactive(), in: .capsule)",TABS)
         self.assertIn("SCInteractiveLiquidGlassTabs(selected: $selected)",GLASS)
         self.assertIn("SCARLET_LIVE_GLASS_BAR_MATERIAL",TABS)
         self.assertIn('fields: ["api": "SwiftUI.GlassEffectContainer"',TABS)
