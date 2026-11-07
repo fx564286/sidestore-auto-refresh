@@ -341,6 +341,7 @@ public struct ScarletIndependentShell: View {
                         .frame(maxWidth: .infinity, alignment: .center)
                     }
                     .scrollIndicators(.hidden)
+                    .scarletDockUnderlayVisible()
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
