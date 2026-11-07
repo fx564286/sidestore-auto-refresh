@@ -24,14 +24,14 @@ jobs:
         with:
           name: Scarlet-LiveContainer-Native-Engine
           path: artifacts/lc
-          run-id: 42322421537
+          run-id: 42329548155
           github-token: ${{ github.token }}
 
       - uses: actions/download-artifact@v4
         with:
           name: Scarlet-SideStore-Native-Engine
           path: artifacts/side
-          run-id: 42307937625
+          run-id: 42327658622
           github-token: ${{ github.token }}
 
       - name: Fail closed unless cached artifacts match reviewed current sources/pins
@@ -107,8 +107,8 @@ jobs:
           Native signing, Apple login, app execution and Liquid Glass real-device
           verification remain unconfirmed. Original users' data is unchanged.
           EOF
-          printf "\nCompiled new UI: %s\nReused audited pinned SideStore: 42307937625\n" \
-            "42322421537" >> release-notes.md
+          printf "\nCompiled new UI: %s\nReused audited pinned SideStore: 42327658622\n" \
+            "42329548155" >> release-notes.md
           if ! gh release view "$tag" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
             gh release create "$tag" --repo "$GITHUB_REPOSITORY" \
               --target "$GITHUB_SHA" --title "Scarlet integrated — unsigned diagnostic IPA" \
