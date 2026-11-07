@@ -14,7 +14,7 @@ BRIDGE = (ROOT/"HostApp/ScarletSideStoreAuthenticationBridge.swift").read_text()
 GUEST_AGENT = (ROOT/"integration/ScarletGuestSignInAgent.swift.txt").read_text()
 SHELL = (ROOT/"Sources/ScarletIndependentUI/ScarletIndependentShell.swift").read_text()
 RECORDER = (ROOT/"HostApp/ScarletDiagnosticRecorder.swift").read_text()
-INTEGRATOR_SOURCE = PATCH.read_text()
+INTEGRATOR_SOURCE = (ROOT/"integration/apply_scarlet_host.py").read_text()
 PATCH = ROOT/"integration/apply_scarlet_host.py"
 
 
