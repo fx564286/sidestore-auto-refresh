@@ -40,8 +40,10 @@ codesign --force --sign - --timestamp=none "$APP"
 # Never reuse the macOS runner's prebooted simulator: it can report "Booted"
 # while launchd and SpringBoard are unresponsive. Isolate a new disposable
 # simulator from an available iOS runtime and device type.
-UDID="$(python3 - <<'PY'
+SIM_UDID_FILE="$RUNNER_TEMP/scarlet-preview-udid.txt"
+python3 - "$SIM_UDID_FILE" <<'PY'
 import json,subprocess,sys,time,uuid
+from pathlib import Path
 
 def run(*args, seconds=30, checked=True):
     cp=subprocess.run(args,stdout=subprocess.PIPE,stderr=subprocess.PIPE,
@@ -100,7 +102,7 @@ for attempt in (1,2):
             # Positive launchd evidence is mandatory before proceeding.
             run("xcrun","simctl","spawn",udid,"launchctl","list",seconds=25)
         print(f"[SIM] Verified disposable runtime (attempt {attempt})",file=sys.stderr)
-        print(udid)
+        Path(sys.argv[1]).write_text(udid + "\n")
         sys.exit(0)
     except Exception as e:
         print(f"[SIM][INFRA] Attempt {attempt} failed: {e}",file=sys.stderr)
@@ -112,7 +114,7 @@ for attempt in (1,2):
 print("[SIM][INFRA] No responsive iPhone Simulator: capture not verified",file=sys.stderr)
 sys.exit(2)
 PY
-)"
+UDID="$(cat "$SIM_UDID_FILE")"
 echo "[SIM] Dedicated device $UDID"
 cleanup() {
   python3 - "$UDID" <<'PY'
