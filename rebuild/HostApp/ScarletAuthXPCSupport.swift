@@ -64,6 +64,26 @@ public final class ScarletNativeAuthTransport {
         isReady = true
     }
 
+    // Ask the real SideStore worker to re-read its Keychain every time a
+    // host scene starts or an auth sheet is reopened. Do not cache a false
+    // "logged in" badge from a one-time XPC success notification.
+    public func storedAuthenticated() async -> Bool {
+        if !isReady {
+            do { try await prepare() }
+            catch { return false }
+        }
+        guard let remote = RefreshHandler.shared.client else { return false }
+        return await withCheckedContinuation { (c: CheckedContinuation<Bool, Never>) in
+            let gate = ScarletBoolGate(c)
+            DispatchQueue.main.asyncAfter(deadline: .now() + 12) {
+                gate.finish(false)
+            }
+            remote.scarletAuthStored { stored in
+                gate.finish(stored)
+            }
+        }
+    }
+
     public func signIn(email: String, password: String,
                        anisetteProfile: String,
                        codeProvider: @escaping () async throws -> String) async throws {
