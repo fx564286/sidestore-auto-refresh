@@ -49,7 +49,7 @@ class NativeScarletLoginContract(unittest.TestCase):
         self.assertIn("ScarletAppleIDLoginSheet.swift",INTEGRATOR)
 
     def test_settings_tab_direct_account_entry(self):
-        self.assertIn("if selected == .settings {",UI)
+        self.assertIn("if tab == .settings {",UI)
         self.assertIn("case .serviceBeginSignIn:",HOST)
         self.assertIn("SCARLET_SETTINGS_NATIVE_APPLE_LOGIN",INTEGRATOR)
         self.assertIn("ScarletDiagnosticLogView()",INTEGRATOR)
