@@ -396,10 +396,12 @@ public struct ScarletIndependentShell: View {
         Group {
             if tab == .settings {
                 nativeSettings()
+                    .scarletIndependentScrollEdge()
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                     .accessibilityIdentifier("SCARLET_INLINE_NATIVE_LC_SETTINGS")
             } else if tab == .tweaks {
                 nativeTweaks()
+                    .scarletIndependentScrollEdge()
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                     .accessibilityIdentifier("SCARLET_INLINE_NATIVE_LC_TWEAKS")
             } else {
