@@ -10,7 +10,8 @@ protocol ScarletAppleSignInEngine: AnyObject {
     func prepare() async throws
     func cancel()
     func signIn(appleID: String, password: String,
-                requestTwoFactorCode: @escaping @MainActor () async throws -> String) async throws
+                anisetteProfile: String,
+                 requestTwoFactorCode: @escaping @MainActor () async throws -> String) async throws
 }
 
 @available(iOS 17.0, *)
@@ -24,6 +25,8 @@ struct ScarletAppleIDLoginSheet: View {
     @State private var isAuthenticating = false
     @State private var requiresTwoFactorCode = false
     @State private var errorMessage: String?
+    @State private var showAnisetteCompatibility = false
+    @State private var anisetteProfile = "default"
     @State private var transportReady = false
     @State private var transportChecking = true
     @State private var signInTask: Task<Void, Never>?
@@ -80,14 +83,15 @@ struct ScarletAppleIDLoginSheet: View {
         errorMessage = nil
         isAuthenticating = true
         ScarletDiagnosticRecorder.shared.record("auth", "request_started",
-            fields: ["stage": "credentials_handoff"])
+            fields: ["stage": "credentials_handoff", "reason": anisetteProfile])
         signInTask = Task { @MainActor in
             defer {
                 isAuthenticating = false
                 requiresTwoFactorCode = false
             }
             do {
-                try await engine.signIn(appleID: account, password: secret) {
+                try await engine.signIn(appleID: account, password: secret,
+                                        anisetteProfile: anisetteProfile) {
                     try await askForCode()
                 }
                 ScarletDiagnosticRecorder.shared.record("auth", "request_succeeded",
@@ -102,6 +106,10 @@ struct ScarletAppleIDLoginSheet: View {
                 ScarletDiagnosticRecorder.shared.recordError("auth", "request_failed",
                     error: error)
                 errorMessage = error.localizedDescription
+                // Opt-in for one following attempt: never silently loop auth.
+                if error.localizedDescription.contains("-80045") {
+                    showAnisetteCompatibility = true
+                }
             }
         }
     }
@@ -130,6 +138,19 @@ struct ScarletAppleIDLoginSheet: View {
                         SecureField("비밀번호", text: $password)
                             .textContentType(.password)
                             .accessibilityIdentifier("SCARLET_APPLE_PASSWORD_FIELD")
+                    }
+                    if showAnisetteCompatibility {
+                        Section("Anisette 인증 호환 방식") {
+                            Picker("이번 로그인에서 사용할 방식", selection: $anisetteProfile) {
+                                Text("기존 설정").tag("default")
+                                Text("Windows iTunes (원격)").tag("windows")
+                                Text("Mac AuthKit (원격)").tag("mac")
+                            }
+                            .accessibilityIdentifier("SCARLET_ANISETTE_COMPAT_PROFILE")
+                            Text("Apple 인증 -80045 대응용입니다. 선택한 방식은 이번 로그인 시도에만 적용되며 기존 인증서·설정을 변경하지 않습니다. 서버에 따라 실패할 수 있습니다.")
+                                .font(.footnote)
+                                .foregroundStyle(.secondary)
+                        }
                     }
                     Section {
                         Button("로그인", action: beginSignIn)
