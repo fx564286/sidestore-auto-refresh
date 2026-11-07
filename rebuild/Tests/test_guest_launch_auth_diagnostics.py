@@ -13,6 +13,8 @@ HOST = (ROOT/"HostApp/ScarletIntegratedHostView.swift").read_text()
 BRIDGE = (ROOT/"HostApp/ScarletSideStoreAuthenticationBridge.swift").read_text()
 GUEST_AGENT = (ROOT/"integration/ScarletGuestSignInAgent.swift.txt").read_text()
 SHELL = (ROOT/"Sources/ScarletIndependentUI/ScarletIndependentShell.swift").read_text()
+RECORDER = (ROOT/"HostApp/ScarletDiagnosticRecorder.swift").read_text()
+INTEGRATOR_SOURCE = PATCH.read_text()
 PATCH = ROOT/"integration/apply_scarlet_host.py"
 
 
@@ -59,6 +61,14 @@ class LiveGuestAuthDiagnostics(unittest.TestCase):
         self.assertNotIn("SecItemDelete", HOST)
         self.assertNotIn("revokeCertificate", HOST)
         self.assertNotIn("LCUtils.appGroupUserDefault.set(nil", HOST)
+
+    def test_diagnostic_report_identifies_actual_ci_commit_and_keeps_signing_fields(self):
+        self.assertIn("SourceCommit:", RECORDER)
+        self.assertIn("__SCARLET_BUILD_SHA__", RECORDER)
+        for field in ("certificate_present", "password_present", "team_match", "build_sha"):
+            self.assertIn('"'+field+'"', RECORDER)
+        self.assertIn('os.environ.get("GITHUB_SHA", "")', INTEGRATOR_SOURCE)
+        self.assertIn("report_source.count(marker) == 1", INTEGRATOR_SOURCE)
 
     def test_signing_instrumentation_preserves_original_sign_calls_and_errors(self):
         source = '''import Foundation
