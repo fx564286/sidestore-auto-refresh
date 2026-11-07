@@ -56,9 +56,52 @@ final class ScarletGuestSignInAgent: NSObject {
                 AuthManager.shared.adsid = session.dsid
                 AuthManager.shared.xcodeToken = session.authToken
                 finish(id, code: 0, domain: "success")
+            } catch let error as ServerError {
+                // A Swift enum NSError code (3 here) is the enum case index,
+                // NOT Apple's GrandSlam status. Preserve the real status
+                // from .underlyingError without serializing Apple responses.
+                switch error {
+                case .underlyingError(let appleCode, _):
+                    finish(id, code: appleCode == 0 ? -3000 : appleCode,
+                           domain: "SideSign.ServerError.underlyingError")
+                case .badServerResponse:
+                    finish(id, code: -3001, domain: "SideSign.ServerError.badServerResponse")
+                case .invalidResponseFormat:
+                    finish(id, code: -3002, domain: "SideSign.ServerError.invalidResponseFormat")
+                case .missingKey:
+                    finish(id, code: -3003, domain: "SideSign.ServerError.missingKey")
+                }
+            } catch let error as DeveloperPortalError {
+                // Only categorical errors traverse the guest XPC bridge.
+                // No raw Apple server message, email, OTP, token or 2FA phone.
+                switch error {
+                case .incorrectCredentials:
+                    finish(id, code: -3101, domain: "SideSign.DeveloperPortalError.incorrectCredentials")
+                case .invalidAnisetteData:
+                    finish(id, code: -3102, domain: "SideSign.DeveloperPortalError.invalidAnisetteData")
+                case .authenticationHandshakeFailed:
+                    finish(id, code: -3103, domain: "SideSign.DeveloperPortalError.authenticationHandshakeFailed")
+                case .requiresTwoFactorAuthentication:
+                    finish(id, code: -3104, domain: "SideSign.DeveloperPortalError.requiresTwoFactorAuthentication")
+                case .incorrectVerificationCode:
+                    finish(id, code: -3105, domain: "SideSign.DeveloperPortalError.incorrectVerificationCode")
+                case .accountRepairRequired:
+                    finish(id, code: -3106, domain: "SideSign.DeveloperPortalError.accountRepairRequired")
+                case .tooManyAttempts:
+                    finish(id, code: -3107, domain: "SideSign.DeveloperPortalError.tooManyAttempts")
+                case .userCancelled:
+                    finish(id, code: -3108, domain: "SideSign.DeveloperPortalError.userCancelled")
+                default:
+                    finish(id, code: -3199, domain: "SideSign.DeveloperPortalError.other")
+                }
+            } catch is CancellationError {
+                finish(id, code: -3200, domain: "scarlet.auth.cancelled")
             } catch {
                 let failure = error as NSError
-                finish(id, code: failure.code, domain: failure.domain)
+                // Preserve only the error namespace and numeric code. The
+                // diagnostic recorder also redacts identifiers and secrets.
+                finish(id, code: failure.code == 0 ? -3300 : failure.code,
+                       domain: "scarlet.auth.unclassified")
             }
         }
     }
