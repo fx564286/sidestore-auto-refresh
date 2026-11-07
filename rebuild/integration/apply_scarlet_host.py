@@ -413,6 +413,7 @@ def attach_native_settings_diagnostics(engine: Path) -> dict:
     source = source.replace(form_style_anchor,
         '            }\n'
         '            .scarletNativeListTheme()\n'
+        '            .scarletDockScrollClearance()\n'
         '            .navigationBarTitle("lc.tabView.settings".loc)\n')
     source, styled_rows = theme_native_settings_section_rows(source)
     target.write_text(source)
@@ -435,6 +436,7 @@ def apply_scarlet_native_tweaks_theme(engine: Path) -> dict:
             .listRowBackground(Color(red: 36.0/255, green: 35.0/255, blue: 58.0/255).opacity(0.80))
         }
         .scarletNativeListTheme()
+        .scarletDockScrollClearance()
         .navigationTitle(isRoot ? "lc.tabView.tweaks".loc : baseUrl.lastPathComponent)
 '''
     target.write_text(source.replace(anchor, styled))
