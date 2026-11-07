@@ -137,7 +137,7 @@ extension View {
             self.safeAreaInset(edge: .bottom, spacing: 0) {
                 Color.clear.frame(height: 140).accessibilityHidden(true)
             }
-            .scrollEdgeEffectDisabled(for: .bottom)
+            .scrollEdgeEffectStyle(.hard, for: .bottom)
         } else {
             self.safeAreaInset(edge: .bottom, spacing: 0) {
                 Color.clear.frame(height: 140).accessibilityHidden(true)
@@ -148,7 +148,7 @@ extension View {
     @ViewBuilder
     func scarletDockUnderlayVisible() -> some View {
         if #available(iOS 26.0, *) {
-            self.scrollEdgeEffectDisabled(for: .bottom)
+            self.scrollEdgeEffectStyle(.hard, for: .bottom)
         } else {
             self
         }
@@ -156,9 +156,9 @@ extension View {
 }
 
 // The actual iOS 26+ implementation uses the SwiftUI glass compositor.
-// Two distinct glass shapes contribute to ONE container: the full pill and
-// the selection pill. This is not a translucent Color overlay pretending
-// to be Liquid Glass. Geometry matches the old 62pt Scarlet bar.
+// The OS glass material, not a painted translucent Color, provides refraction.
+// The selected segment and the full 62pt dock have distinct compositor
+// boundaries so their overlapping shapes don't merge into a flat plate.
 @available(iOS 26.0, *)
 private struct SCInteractiveGlassTabs: View {
     @Binding var selected: ScarletIndependentShell.Tab
@@ -233,8 +233,8 @@ private struct SCInteractiveLiquidGlassTabs: View {
     }
 
     var body: some View {
-        // One OS-managed glass container: the bar and the moving selected
-        // capsule share a material sampling region and selection identity.
+        // Only the selected moving capsule is in this compositor; the outer
+        // backplate is a separate native Glass surface below.
         GlassEffectContainer(spacing: 6) {
             GeometryReader { geometry in
                 HStack(spacing: 6) {
