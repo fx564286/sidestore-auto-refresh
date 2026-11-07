@@ -12,6 +12,11 @@ on:
       - 'rebuild/integration/apply_scarlet_host.py'
       - 'rebuild/Tests/test_guest_launch_auth_diagnostics.py'
       - 'rebuild/Tests/test_anisette_compatibility_and_signature_probe.py'
+      - 'rebuild/HostApp/ScarletNativeGlass.swift'
+      - 'rebuild/Sources/ScarletIndependentUI/ScarletIndependentShell.swift'
+      - 'rebuild/Tests/test_scarlet_native_theme_contract.py'
+      - 'rebuild/Tests/test_real_liquid_glass_runtime_contract.py'
+      - 'rebuild/Tests/test_native_diagnostic_export.py'
 
 permissions:
   contents: read
