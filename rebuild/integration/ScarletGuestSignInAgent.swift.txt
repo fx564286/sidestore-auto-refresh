@@ -153,8 +153,8 @@ final class ScarletGuestSignInAgent: NSObject {
         // The auth request must use the same Client-Info / User-Agent pair
         // supplied during Anisette generation, even if a server omits them.
         var compatible = result
-        compatible.clientInfo = headers.clientInfo
-        compatible.userAgent = headers.userAgent
+        compatible.clientInfo = headers.clientInfo ?? result.clientInfo
+        compatible.userAgent = headers.userAgent ?? result.userAgent
         return (compatible, newAdiBlob)
     }
 
