@@ -37,45 +37,98 @@ xcrun --sdk iphonesimulator swiftc -swift-version 6 -parse-as-library \
     "$ROOT/rebuild/PreviewHost/ScarletScreenshotPreviewApp.swift" \
     -o "$BIN"
 codesign --force --sign - --timestamp=none "$APP"
-UDID="$(xcrun simctl list devices available --json | python3 -c '
-import json,sys
-data=json.load(sys.stdin)
-devices=[d for bucket in data["devices"].values() for d in bucket
-         if d.get("isAvailable") and d.get("name","").startswith("iPhone")]
-if not devices:raise SystemExit("No available iPhone simulator")
-devices.sort(key=lambda d:(d.get("state") != "Booted",
-                           not any(x in d["name"] for x in ("iPhone 16","iPhone 17")),
-                           d["name"]))
-print(devices[0]["udid"])
-')"
-echo "[SIM] Selected device $UDID"
-cleanup(){ xcrun simctl shutdown "$UDID" >/dev/null 2>&1 || true; }
-trap cleanup EXIT
-if xcrun simctl list devices booted | grep -Fq "$UDID"; then
-  echo "[SIM] Already booted; reusing the available device"
-else
-  xcrun simctl boot "$UDID"
-fi
-python3 - "$UDID" <<'PY'
-import subprocess,sys
-udid=sys.argv[1]
+# Never reuse the macOS runner's prebooted simulator: it can report "Booted"
+# while launchd and SpringBoard are unresponsive. Isolate a new disposable
+# simulator from an available iOS runtime and device type.
+UDID="$(python3 - <<'PY'
+import json,subprocess,sys,time,uuid
+
+def run(*args, seconds=30, checked=True):
+    cp=subprocess.run(args,stdout=subprocess.PIPE,stderr=subprocess.PIPE,
+                      text=True,timeout=seconds)
+    if checked and cp.returncode:
+        raise RuntimeError(f"{args[:4]} failed rc={cp.returncode}: {cp.stderr[-600:]}")
+    return cp
+
 try:
-    subprocess.run(["xcrun","simctl","bootstatus",udid,"-b"],
-                   timeout=100, check=True)
-except subprocess.TimeoutExpired:
-    # Some hosted macOS runners never finish bootstatus even while launchd
-    # is responsive. Check the real device service instead of blind success.
-    print("[SIM] bootstatus timeout; checking simulator launchd",flush=True)
-    subprocess.run(["xcrun","simctl","spawn",udid,"launchctl","list"],
-                   timeout=35,check=True,stdout=subprocess.DEVNULL)
-    print("[SIM] launchd responsive; checking install and screenshots",flush=True)
+    types=json.loads(run("xcrun","simctl","list","devicetypes","--json",seconds=40).stdout)["devicetypes"]
+    runtimes=json.loads(run("xcrun","simctl","list","runtimes","--json",seconds=40).stdout)["runtimes"]
+except Exception as e:
+    print(f"[SIM][INFRA] CoreSimulator discovery failed: {e}",file=sys.stderr)
+    sys.exit(2)
+phones=[x for x in types if x.get("identifier") and x.get("name","").startswith("iPhone")]
+ios=[x for x in runtimes if x.get("isAvailable") and "iOS" in x.get("name","")]
+if not phones or not ios:
+    print("[SIM][INFRA] No available iOS runtime or iPhone device type",file=sys.stderr)
+    sys.exit(2)
+phones.sort(key=lambda x:(not x["name"].startswith("iPhone 17"),x["name"]))
+ios.sort(key=lambda x:x.get("version",""),reverse=True)
+device_type,runtime=phones[0]["identifier"],ios[0]["identifier"]
+print(f"[SIM] Disposable device: {phones[0]['name']} / {ios[0]['name']}",file=sys.stderr)
+
+for attempt in (1,2):
+    udid=None
+    try:
+        if attempt==2:
+            # The first try may leave a stuck simulator daemon on hosted macOS.
+            # Restart only CoreSimulatorService, never user data / host keychains.
+            run("killall","-9","com.apple.CoreSimulator.CoreSimulatorService",
+                seconds=12,checked=False)
+            time.sleep(4)
+        name="Scarlet-Preview-CI-"+uuid.uuid4().hex[:8]
+        udid=run("xcrun","simctl","create",name,device_type,runtime,
+                 seconds=50).stdout.strip()
+        if not udid:
+            raise RuntimeError("Simulator create returned empty UDID")
+        run("xcrun","simctl","boot",udid,seconds=45)
+        try:
+            run("xcrun","simctl","bootstatus",udid,"-b",seconds=115)
+        except (subprocess.TimeoutExpired,RuntimeError):
+            # bootstatus sometimes stalls even if launchd is responsive.
+            # Positive launchd evidence is mandatory before proceeding.
+            run("xcrun","simctl","spawn",udid,"launchctl","list",seconds=25)
+        print(f"[SIM] Verified disposable runtime (attempt {attempt})",file=sys.stderr)
+        print(udid)
+        sys.exit(0)
+    except Exception as e:
+        print(f"[SIM][INFRA] Attempt {attempt} failed: {e}",file=sys.stderr)
+        if udid:
+            for command in ("shutdown","delete"):
+                try:
+                    run("xcrun","simctl",command,udid,seconds=12,checked=False)
+                except Exception: pass
+print("[SIM][INFRA] No responsive iPhone Simulator: capture not verified",file=sys.stderr)
+sys.exit(2)
 PY
-xcrun simctl install "$UDID" "$APP"
+)"
+echo "[SIM] Dedicated device $UDID"
+cleanup() {
+  python3 - "$UDID" <<'PY'
+import subprocess,sys
+for command in ("shutdown","delete"):
+    try: subprocess.run(["xcrun","simctl",command,sys.argv[1]],
+                        timeout=12,stdout=subprocess.DEVNULL,
+                        stderr=subprocess.DEVNULL)
+    except Exception: pass
+PY
+}
+trap cleanup EXIT
+python3 - "$UDID" "$APP" <<'PY'
+import subprocess,sys
+subprocess.run(["xcrun","simctl","install",sys.argv[1],sys.argv[2]],
+               check=True,timeout=60)
+PY
 for screen in home apps sources settings connection; do
-  xcrun simctl launch --terminate-running-process "$UDID" \
-    dev.scarlet.design.ui-only-preview --screen "$screen"
-  sleep 3
-  xcrun simctl io "$UDID" screenshot "$OUT/$screen.png" >/dev/null
+  python3 - "$UDID" "$screen" "$OUT/$screen.png" <<'PY'
+import subprocess,sys,time
+udid,screen,out=sys.argv[1:]
+subprocess.run(["xcrun","simctl","launch","--terminate-running-process",
+                udid,"dev.scarlet.design.ui-only-preview","--screen",screen],
+               check=True,timeout=35)
+time.sleep(3)
+subprocess.run(["xcrun","simctl","io",udid,"screenshot",out],
+               check=True,timeout=35,stdout=subprocess.DEVNULL)
+PY
   [[ -s "$OUT/$screen.png" ]] || { echo "[FAIL] Missing screenshot $screen"; exit 1; }
   echo "[SCREENSHOT] $screen.png"
 done
