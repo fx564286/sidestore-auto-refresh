@@ -207,3 +207,75 @@ jobs:
           path: report/
           if-no-files-found: warn
           retention-days: 14
+
+
+  # GitHub Actions artifact links expire and may require authentication.
+  # A Release asset in this public repo has a stable public download URL.
+  publish-unsigned-github-release:
+    needs: [package-paired]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/rebuild/scarlet-from-zero-20261106'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: Scarlet-Paired-Engines-UNSIGNED-DIAGNOSTIC-ONLY
+          path: packaged
+      - name: Verify unsigned IPA and prepare downloadable release asset
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          src="packaged/Scarlet-LiveContainer+SideStore-ENGINES-UNSIGNED.ipa"
+          test -s "$src"
+          python3 - "$src" <<'PY'
+          from pathlib import Path
+          from zipfile import ZipFile
+          import sys
+          ipa=Path(sys.argv[1])
+          with ZipFile(ipa) as z:
+              bad=z.testzip()
+              assert bad is None, f"IPA ZIP corruption: {bad}"
+              paths=z.namelist()
+              assert any(p.startswith("Payload/") and p.endswith(".app/Info.plist") for p in paths), "Missing iOS app"
+              assert any(p.endswith("LiveProcess.appex/Info.plist") for p in paths), "Missing LiveProcess"
+          print("[PASS] Public IPA ZIP structure; Apple signature not verified")
+          PY
+          cp "$src" Scarlet-Integrated-UNSIGNED.ipa
+          sha256sum Scarlet-Integrated-UNSIGNED.ipa > Scarlet-Integrated-UNSIGNED.ipa.sha256
+          cat > release-notes.md <<'EOF'
+          ## Scarlet integrated LiveContainer + SideStore — unsigned diagnostic IPA
+
+          This GitHub Release provides a direct download instead of an expiring CI ZIP artifact.
+
+          NOT APPLE SIGNED. NOT DIRECTLY INSTALLABLE ON AN IPHONE.
+          Apple authentication, device installation, guest launch and native Liquid Glass runtime are NOT verified.
+
+          The unmodified source IPA and prior user data are not touched.
+          Check the accompanying SHA-256 checksum file.
+          EOF
+          printf "\nBuild source: %s\nCI run: https://github.com/%s/actions/runs/%s\n" \
+            "$GITHUB_SHA" "$GITHUB_REPOSITORY" "$GITHUB_RUN_ID" >> release-notes.md
+      - name: Publish public GitHub Release asset
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -Eeuo pipefail
+          tag=scarlet-integrated-unsigned-latest
+          if ! gh release view "$tag" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release create "$tag" --repo "$GITHUB_REPOSITORY" \
+              --target "$GITHUB_SHA" --title "Scarlet integrated — UNSIGNED diagnostic IPA" \
+              --prerelease --latest=false --notes-file release-notes.md
+          fi
+          gh release upload "$tag" --repo "$GITHUB_REPOSITORY" \
+            Scarlet-Integrated-UNSIGNED.ipa \
+            Scarlet-Integrated-UNSIGNED.ipa.sha256 --clobber
+          gh release edit "$tag" --repo "$GITHUB_REPOSITORY" \
+            --title "Scarlet integrated — UNSIGNED diagnostic IPA" \
+            --prerelease --notes-file release-notes.md
+          gh release view "$tag" --repo "$GITHUB_REPOSITORY" \
+            --json assets --jq '.assets[].name' \
+            | grep -Fx 'Scarlet-Integrated-UNSIGNED.ipa'
+          echo "https://github.com/$GITHUB_REPOSITORY/releases/download/$tag/Scarlet-Integrated-UNSIGNED.ipa" >> "$GITHUB_STEP_SUMMARY"
