@@ -32,7 +32,7 @@ def patch_livecontainer(engine: Path) -> None:
         '- (void)refreshAllAppsWithIdentifier:(NSString*)identifier mangledTypeName:(NSString *)mangledTypeName;\n@end',
         """- (void)refreshAllAppsWithIdentifier:(NSString*)identifier mangledTypeName:(NSString *)mangledTypeName;
 - (void)scarletAuthReady:(void (^)(BOOL isReady))reply;
-- (void)scarletBeginAuth:(NSString*)requestID email:(NSString*)email password:(NSString*)password;
+- (void)scarletBeginAuth:(NSString*)requestID email:(NSString*)email password:(NSString*)password profile:(NSString*)profile;
 - (void)scarletProvideCode:(NSString*)requestID code:(NSString*)code;
 - (void)scarletCancelAuth:(NSString*)requestID;
 @end""", "RefreshClient proto")
@@ -75,13 +75,13 @@ def patch_livecontainer(engine: Path) -> None:
     reply(worker && [worker respondsToSelector:@selector(begin:)]);
 }
 
-- (void)scarletBeginAuth:(NSString*)requestID email:(NSString*)email password:(NSString*)password {
+- (void)scarletBeginAuth:(NSString*)requestID email:(NSString*)email password:(NSString*)password profile:(NSString*)profile {
     Class worker = NSClassFromString(@"ScarletGuestSignInAgent");
     if (![worker respondsToSelector:@selector(begin:)]) {
         [handler.server scarletAuthCompleted:requestID code:-2 domain:@"scarlet.auth.worker_missing"];
         return;
     }
-    NSDictionary* args = @{@"requestID": requestID, @"email": email, @"password": password};
+    NSDictionary* args = @{@"requestID": requestID, @"email": email, @"password": password, @"profile": profile ?: @"default"};
     ((void (*)(id, SEL, id))objc_msgSend)(worker, @selector(begin:), args);
 }
 
