@@ -454,13 +454,13 @@ def attach_jitless_diagnostic_scroll_margins(engine: Path) -> dict:
     assert path.is_file(), "Pinned LC JIT-Less diagnostic view missing"
     source = path.read_text()
     anchors = (
-        '            }\\n            .navigationTitle(isLiveProcess ? "LiveProcess Entitlements" : "LiveContainer Entitlements")\\n',
-        '            }\\n            .navigationTitle("lc.settings.jitlessDiagnose".loc)\\n',
+        '            }\n            .navigationTitle(isLiveProcess ? "LiveProcess Entitlements" : "LiveContainer Entitlements")\n',
+        '            }\n            .navigationTitle("lc.settings.jitlessDiagnose".loc)\n',
     )
     for anchor in anchors:
         assert source.count(anchor) == 1, "Pinned nested Form changed: " + repr(anchor)
         source = source.replace(anchor, anchor.replace(
-            '            .navigationTitle(', '            .scarletDiagnosticScrollMargins()\\n            .navigationTitle('))
+            '            .navigationTitle(', '            .scarletDiagnosticScrollMargins()\n            .navigationTitle('))
     assert source.count(".scarletDiagnosticScrollMargins()") == 2
     path.write_text(source)
     return {"originalNestedForms": 2, "lastRowsCovered": False,
