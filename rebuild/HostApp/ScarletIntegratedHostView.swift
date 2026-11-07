@@ -5,6 +5,7 @@
 import SwiftUI
 import UIKit
 import UniformTypeIdentifiers
+import Security
 
 @available(iOS 17.0, *)
 struct ScarletIntegratedHostView: View {
@@ -24,6 +25,7 @@ struct ScarletIntegratedHostView: View {
     @State private var showScarletAppleIDLogin = false
     @State private var appleAuthVerified = false
     @State private var showOriginalError: String?
+    @State private var signingRecoveryNeeded = false
     @State private var launchingGuestKeys: Set<String> = []
 
     // Recorded values are deliberately categorical. No Apple ID, guest name,
@@ -73,6 +75,27 @@ struct ScarletIntegratedHostView: View {
         }
     }
 
+    // On-device, privacy-preserving certificate preflight; only booleans and
+    // a team-match classification are exported, never P12/password/team IDs.
+    private func recordGuestCertificatePreflight() {
+        let cert = LCUtils.certificateData()
+        let password = LCSharedUtils.certificatePassword()
+        var teamMatch = "unverified"
+        if let cert, let password,
+           let certificateTeam = LCUtils.getCertTeamId(withKeyData: cert, password: password) {
+            let task = SecTaskCreateFromSelf(nil)
+            if let entitlement = SecTaskCopyValueForEntitlement(
+                task, "com.apple.developer.team-identifier" as CFString, nil),
+               let hostTeam = entitlement.takeRetainedValue() as? String {
+                teamMatch = certificateTeam == hostTeam ? "match" : "mismatch"
+            }
+        }
+        ScarletDiagnosticRecorder.shared.record("guest", "certificate_preflight",
+            fields: ["certificate_present": cert == nil ? "false" : "true",
+                     "password_present": password == nil ? "false" : "true",
+                     "team_match": teamMatch])
+    }
+
     private func runGuest(_ key: String) {
         let guestRef = ScarletDiagnosticRecorder.shared.guestReference(key)
         ScarletDiagnosticRecorder.shared.record("guest", "launch_requested",
@@ -94,6 +117,8 @@ struct ScarletIntegratedHostView: View {
             }
             defer { launchingGuestKeys.remove(key) }
             do {
+                // Record host/certificate compatibility without modifying it.
+                recordGuestCertificatePreflight()
                 // Delegates and guest bundle identity remain original LC.
                 try await app.runApp()
                 // runApp returning is NOT proof the guest scene is on-screen.
@@ -267,6 +292,12 @@ struct ScarletIntegratedHostView: View {
             ScarletDiagnosticRecorder.shared.record("auth", "verified_login_visible", status: "success")
         }
         .onReceive(NotificationCenter.default.publisher(
+            for: Notification.Name("ScarletGuestCertificateInvalid"))) { _ in
+            signingRecoveryNeeded = true
+            ScarletDiagnosticRecorder.shared.record("guest", "certificate_recovery_available",
+                status: "warning")
+        }
+        .onReceive(NotificationCenter.default.publisher(
             for: UIApplication.didReceiveMemoryWarningNotification)) { _ in
             ScarletDiagnosticRecorder.shared.record("system", "memory_warning", status: "warning")
         }
@@ -349,9 +380,24 @@ struct ScarletIntegratedHostView: View {
             get: { showOriginalError != nil },
             set: { if !$0 { showOriginalError = nil } }
         )) {
-            Button("확인", role: .cancel) { showOriginalError = nil }
+            if signingRecoveryNeeded {
+                Button("서명 설정에서 복구") {
+                    signingRecoveryNeeded = false
+                    showOriginalError = nil
+                    NotificationCenter.default.post(
+                        name: Notification.Name("ScarletOpenSigningSettings"), object: nil)
+                }
+            }
+            Button("확인", role: .cancel) {
+                showOriginalError = nil
+                signingRecoveryNeeded = false
+            }
         } message: {
-            Text(showOriginalError ?? "")
+            if signingRecoveryNeeded {
+                Text("게스트 앱 서명이 유효하지 않습니다. 설정의 'SideStore 인증서 가져오기/새로고침'과 'JIT-Less 모드 진단'을 확인하세요. 기존 앱과 인증서는 보존됩니다.")
+            } else {
+                Text(showOriginalError ?? "")
+            }
         }
     }
 
