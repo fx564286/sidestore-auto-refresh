@@ -444,6 +444,29 @@ def apply_scarlet_native_tweaks_theme(engine: Path) -> dict:
             "scarletColorsApplied": True, "sha256": file_sha(target)}
 
 
+def attach_jitless_diagnostic_scroll_margins(engine: Path) -> dict:
+    """Fix the ORIGINAL nested JIT-Less/Entitlement Forms, not just Settings.
+
+    The previous outer NavigationView inset never reached the pushed Form.
+    Keep every certificate, test, entitlement, button and action untouched.
+    """
+    path = engine / "LiveContainerSwiftUI/Views/Settings/LCJITLessDiagnoseView.swift"
+    assert path.is_file(), "Pinned LC JIT-Less diagnostic view missing"
+    source = path.read_text()
+    anchors = (
+        '            }\\n            .navigationTitle(isLiveProcess ? "LiveProcess Entitlements" : "LiveContainer Entitlements")\\n',
+        '            }\\n            .navigationTitle("lc.settings.jitlessDiagnose".loc)\\n',
+    )
+    for anchor in anchors:
+        assert source.count(anchor) == 1, "Pinned nested Form changed: " + repr(anchor)
+        source = source.replace(anchor, anchor.replace(
+            '            .navigationTitle(', '            .scarletDiagnosticScrollMargins()\\n            .navigationTitle('))
+    assert source.count(".scarletDiagnosticScrollMargins()") == 2
+    path.write_text(source)
+    return {"originalNestedForms": 2, "lastRowsCovered": False,
+            "source": str(path.relative_to(engine)), "sha256": file_sha(path)}
+
+
 def main():
     p=argparse.ArgumentParser()
     p.add_argument("--engine",type=Path,required=True)
@@ -604,6 +627,7 @@ def main():
     guest_manager=hide_embedded_sidestore_guest_navigation(engine)
     native_settings=attach_native_settings_diagnostics(engine)
     native_tweaks_theme=apply_scarlet_native_tweaks_theme(engine)
+    nested_diagnostic_layout=attach_jitless_diagnostic_scroll_margins(engine)
     a.report.parent.mkdir(parents=True,exist_ok=True)
     data={
         "schema":1,"newRootCompiled":False,
@@ -621,6 +645,7 @@ def main():
         "originalLCGuestSigningDiagnostics":guest_signing,
         "nativeSettingsDiagnostics":native_settings,
         "nativeTweaksTheme":native_tweaks_theme,
+        "nativeJITLessDiagnosticScroll":nested_diagnostic_layout,
         "localDiagnosticJournal":True,
         "shareablePrivacyRedactedLog":True,
         "originalNativeUIGlassEffect":True,
@@ -631,6 +656,7 @@ def main():
             "MultitaskSupport/MultitaskDockView.swift",
             "LiveContainerSwiftUI/Views/AppList/LCAppListView.swift",
             "LiveContainerSwiftUI/Views/Settings/LCSettingsView.swift",
+            "LiveContainerSwiftUI/Views/Settings/LCJITLessDiagnoseView.swift",
             "LiveContainerSwiftUI/Views/LCTweaksView.swift",
             "LiveContainerSwiftUI/Models/LCAppModel.swift"
         ],
