@@ -164,6 +164,14 @@ def patch_sidestore(engine: Path) -> None:
     assert source.count("public final class AuthManager") == 1
     assert source.count("func signIn(appleID: String,") == 1
     assert "ScarletGuestSignInAgent" not in source
+    # The original SideStore token-restoration path always requests the
+    # DEFAULT Anisette, even after successful Mac-server auth. That can
+    # recreate Apple -80045 on the next launch or signing operation. Keep
+    # the original token/team database and change only this Anisette source.
+    original = "            let anisetteData = try await AnisetteProvider.fetch()"
+    assert source.count(original) == 1, "Pinned SideStore token restoration changed"
+    source = source.replace(original,
+        "            let anisetteData = try await ScarletGuestSignInAgent.restoreAnisetteForSavedSession()")
     extra = (ROOT / "rebuild/integration/ScarletGuestSignInAgent.swift.txt").read_text()
     target.write_text(source.rstrip() + "\n\n" + extra)
     print("[PASS] SideStore SideSign-backed guest authentication worker staged")
