@@ -9,6 +9,17 @@ final class ScarletGuestSignInAgent: NSObject {
     @MainActor private static var pendingCode: CheckedContinuation<String, Error>?
     @MainActor private static var cancelled = false
 
+    // SideStore Keychain is the source of truth, never a SwiftUI @State
+    // success event. This read works after a LiveProcess/host relaunch.
+    @objc(persistedState)
+    static func persistedState() -> Bool {
+        let auth = AuthManager.shared
+        return auth.isAuthenticated &&
+            auth.currentAppleID != nil &&
+            auth.adsid != nil &&
+            auth.xcodeToken != nil
+    }
+
     @objc(begin:)
     static func begin(_ payload: NSDictionary) {
         guard let id = payload["requestID"] as? String,
@@ -61,6 +72,16 @@ final class ScarletGuestSignInAgent: NSObject {
                 AuthManager.shared.password = password
                 AuthManager.shared.adsid = session.dsid
                 AuthManager.shared.xcodeToken = session.authToken
+                // Do not acknowledge success until all SideStore credentials
+                // can be read back from its own Keychain, in the worker.
+                guard persistedState() else {
+                    finish(id, code: -3401, domain: "scarlet.auth.keychain_roundtrip_failed")
+                    return
+                }
+                // Non-secret successful Anisette route for token restoration.
+                // Only commit the chosen route after a verified Keychain save.
+                UserDefaults.standard.set(profile,
+                    forKey: "scarlet.auth.lastSuccessfulAnisetteProfile")
                 finish(id, code: 0, domain: "success")
             } catch let error as ServerError {
                 // A Swift enum NSError code (3 here) is the enum case index,
