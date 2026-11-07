@@ -128,9 +128,24 @@ PY
 }
 trap cleanup EXIT
 python3 - "$UDID" "$APP" <<'PY'
-import subprocess,sys
-subprocess.run(["xcrun","simctl","install",sys.argv[1],sys.argv[2]],
-               check=True,timeout=60)
+import subprocess,sys,time
+udid,app=sys.argv[1:]
+# On cold GitHub macOS runners CoreSimulator can need more than 60s to
+# initialize its package installation service after launchd becomes ready.
+# Retry only the disposable simulator; never report a screenshot on failure.
+for attempt in range(1,3):
+    try:
+        subprocess.run(["xcrun","simctl","install",udid,app],
+                       check=True,timeout=180)
+        print(f"[SIM] App installed successfully (attempt {attempt})",flush=True)
+        break
+    except (subprocess.TimeoutExpired,subprocess.CalledProcessError) as exc:
+        print(f"[SIM] Install attempt {attempt}/2 failed: {type(exc).__name__}",file=sys.stderr,flush=True)
+        if attempt == 2:
+            raise
+        subprocess.run(["xcrun","simctl","bootstatus",udid,"-b"],
+                       check=False,timeout=90)
+        time.sleep(8)
 PY
 for screen in home apps sources settings connection; do
   python3 - "$UDID" "$screen" "$OUT/$screen.png" <<'PY'
