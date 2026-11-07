@@ -28,7 +28,7 @@ class NativeHomeSettings(unittest.TestCase):
         self.assertEqual(HOME.count("onAction(.localImportGuestIPA)"),1)
 
     def test_settings_tab_direct_native_not_an_extra_modal(self):
-        self.assertIn("if selected == .settings {",UI)
+        self.assertIn("if tab == .settings {",UI)
         self.assertIn("nativeSettings()",UI)
         self.assertIn("LCSettingsView()",HOST)
         self.assertIn("LCTweaksView()",HOST)
