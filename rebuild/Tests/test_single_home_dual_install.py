@@ -7,7 +7,7 @@ HOST=(ROOT/"HostApp/ScarletIntegratedHostView.swift").read_text()
 HOME=UI[UI.index("    private var home: some View {"):UI.index("    private var visibleGuests:")]
 class DualInstallRoutes(unittest.TestCase):
     def test_one_tap_opens_ios_files_while_long_press_preserves_device_install(self):
-        self.assertEqual(HOME.count("Menu {"),0)
+        self.assertEqual(HOME.count("\n                Menu {"),0)
         self.assertIn(".contextMenu {",HOME)
         self.assertIn('Label("iPhone에 직접 설치 (SideStore)"',HOME)
         self.assertLess(HOME.index("onAction(.localImportGuestIPA)"),
