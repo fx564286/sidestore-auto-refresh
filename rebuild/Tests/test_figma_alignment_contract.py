@@ -34,9 +34,9 @@ class FigmaGeometryContract(unittest.TestCase):
 
     def test_home_rolls_back_inline_settings_only(self):
         home=UI[UI.index("    private var home: some View {"):UI.index("    private var visibleGuests:")]
-        self.assertEqual(home.count("Menu {"),1)
-        self.assertIn('Label("IPA 설치하기"',home)
-        self.assertIn('Label("게스트 앱 설치하기"',home)
+        self.assertEqual(home.count("\n                Menu {"),0)
+        self.assertIn('Label("iPhone에 직접 설치 (SideStore)"',home)
+        self.assertIn('onAction(.localImportGuestIPA)',home)
         self.assertNotIn("installPathRow(",UI)
         self.assertNotIn('heading("", "설정", "")',home)
         self.assertNotIn('ScarletActionRow(title: "LiveContainer 전체 설정"',home)
