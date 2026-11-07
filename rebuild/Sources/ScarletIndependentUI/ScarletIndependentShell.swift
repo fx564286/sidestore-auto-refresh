@@ -308,17 +308,15 @@ public struct ScarletIndependentShell: View {
                     // The original LC settings Form keeps all JIT, certificate,
                     // navigation, storage and diagnostic actions intact.
                     nativeSettings()
-                        .safeAreaInset(edge: .bottom, spacing: 0) {
-                            Color.clear.frame(height: 82)
-                        }
+                        // The pinned Form supplies its own internal scroll
+                        // clearance. An outer inset only shrinks NavigationView
+                        // and may leave the last row trapped below the dock.
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                         .accessibilityIdentifier("SCARLET_INLINE_NATIVE_LC_SETTINGS")
                 } else if selected == .tweaks {
                     // Real upstream tweak manager; no duplicate static UI.
                     nativeTweaks()
-                        .safeAreaInset(edge: .bottom, spacing: 0) {
-                            Color.clear.frame(height: 82)
-                        }
+                        // Pinned List owns bottom scroll clearance internally.
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                         .accessibilityIdentifier("SCARLET_INLINE_NATIVE_LC_TWEAKS")
                 } else {
@@ -329,11 +327,16 @@ public struct ScarletIndependentShell: View {
                             case .apps: home
                             case .tweaks, .settings: EmptyView()
                             }
+                            // Real trailing scroll content, not outer padding.
+                            // Gives the last card a full travel path above
+                            // the floating 62pt dock + home indicator.
+                            Color.clear
+                                .frame(height: 140)
+                                .accessibilityHidden(true)
+                                .accessibilityIdentifier("SCARLET_SCROLL_END_CLEARANCE")
                         }
                         .padding(.horizontal, 20)
                         .padding(.top, 18)
-                        // Last interactive row stays clear of overlaid glass.
-                        .padding(.bottom, 106)
                         .frame(maxWidth: 650, alignment: .leading)
                         .frame(maxWidth: .infinity, alignment: .center)
                     }
