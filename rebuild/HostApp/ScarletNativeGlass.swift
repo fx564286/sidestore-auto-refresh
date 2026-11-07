@@ -118,9 +118,16 @@ extension View {
     @ViewBuilder
     func scarletNativeListTheme() -> some View {
         if #available(iOS 16.0, *) {
-            self.scrollContentBackground(.hidden)
-                .background(Color(red: 13.0/255, green: 13.0/255, blue: 24.0/255).ignoresSafeArea())
-                .tint(Color(red: 170.0/255, green: 150.0/255, blue: 1.0))
+            if #available(iOS 26.0, *) {
+                self.scrollContentBackground(.hidden)
+                    .background(Color(red: 13.0/255, green: 13.0/255, blue: 24.0/255).ignoresSafeArea())
+                    .scrollEdgeEffectHidden(true, for: .all)
+                    .tint(Color(red: 170.0/255, green: 150.0/255, blue: 1.0))
+            } else {
+                self.scrollContentBackground(.hidden)
+                    .background(Color(red: 13.0/255, green: 13.0/255, blue: 24.0/255).ignoresSafeArea())
+                    .tint(Color(red: 170.0/255, green: 150.0/255, blue: 1.0))
+            }
         } else {
             self.background(Color(red: 13.0/255, green: 13.0/255, blue: 24.0/255).ignoresSafeArea())
                 .tint(Color(red: 170.0/255, green: 150.0/255, blue: 1.0))
@@ -137,7 +144,7 @@ extension View {
             self.safeAreaInset(edge: .bottom, spacing: 0) {
                 Color.clear.frame(height: 140).accessibilityHidden(true)
             }
-            .scrollEdgeEffectStyle(.hard, for: .bottom)
+            .scrollEdgeEffectHidden(true, for: .all)
         } else {
             self.safeAreaInset(edge: .bottom, spacing: 0) {
                 Color.clear.frame(height: 140).accessibilityHidden(true)
@@ -154,6 +161,7 @@ extension View {
     func scarletDiagnosticScrollMargins() -> some View {
         if #available(iOS 26.0, *) {
             self.contentMargins(.bottom, 84, for: .scrollContent)
+                .scrollEdgeEffectHidden(true, for: .all)
         } else if #available(iOS 17.0, *) {
             self.contentMargins(.bottom, 120, for: .scrollContent)
         } else {
