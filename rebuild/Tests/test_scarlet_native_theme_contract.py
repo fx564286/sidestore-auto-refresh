@@ -39,7 +39,7 @@ class NativeScarletTheme(unittest.TestCase):
         patch = INTEGRATOR.read_text()
         self.assertIn("scarletDockScrollClearance()", patch)
         self.assertIn(".safeAreaInset(edge: .bottom, spacing: 0)", GLASS)
-        self.assertIn(".scrollEdgeEffectDisabled(for: .bottom)", GLASS)
+        self.assertIn(".scrollEdgeEffectStyle(.hard, for: .bottom)", GLASS)
         self.assertIn("Color.clear.frame(height: 140)", GLASS)
         self.assertNotIn("Color.clear.frame(height: 82)", patch)
 
