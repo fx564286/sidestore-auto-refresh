@@ -55,6 +55,14 @@ class PersistedSideStoreLogin(unittest.TestCase):
         self.assertIn("if phase == .active && !showScarletAppleIDLogin", HOST)
         self.assertNotIn("appleAuthVerified = true", HOST)
 
+    def test_foreground_login_checks_discard_stale_xpc_readbacks(self):
+        self.assertIn("authStateReadGeneration &+= 1", HOST)
+        self.assertIn("requestGeneration == authStateReadGeneration", HOST)
+        self.assertIn("!showScarletAppleIDLogin", HOST)
+        self.assertLess(HOST.index("requestGeneration == authStateReadGeneration"),
+                        HOST.index("appleAuthVerified = stored"))
+        self.assertIn("host_session_read_discarded", HOST)
+
     def test_system_glass_minimize_remains_but_all_edge_veils_removed(self):
         self.assertIn("TabView(selection: $selected)", SHELL)
         self.assertIn(".tabBarMinimizeBehavior(.onScrollDown)", SHELL)
@@ -64,6 +72,8 @@ class PersistedSideStoreLogin(unittest.TestCase):
         self.assertNotIn(".scrollEdgeEffectStyle(.hard", GLASS)
         self.assertNotIn(".scrollEdgeEffectStyle(.hard", SHELL)
         self.assertIn("scarletDiagnosticScrollMargins", GLASS)
+        self.assertIn("nativeSettings()\n                    .scarletIndependentScrollEdge()", SHELL)
+        self.assertIn("nativeTweaks()\n                    .scarletIndependentScrollEdge()", SHELL)
 
 if __name__ == "__main__":
     unittest.main()
