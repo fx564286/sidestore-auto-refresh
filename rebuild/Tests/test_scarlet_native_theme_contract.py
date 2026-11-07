@@ -2,6 +2,7 @@
 import importlib.util
 from pathlib import Path
 import unittest
+import tempfile
 
 ROOT = Path(__file__).resolve().parents[1]
 UI = (ROOT / "Sources/ScarletIndependentUI/ScarletIndependentShell.swift").read_text()
@@ -26,6 +27,30 @@ class NativeScarletTheme(unittest.TestCase):
         self.assertNotIn("Color.clear.frame(height: 82)", shell)
         self.assertIn(".padding(.horizontal, 19)", shell)
         self.assertIn("SCARLET_NATIVE_GLASS_BOTTOM_TAB_BAR", shell)
+
+    def test_jitless_child_forms_have_real_scroll_content_margins(self):
+        self.assertIn("scarletDiagnosticScrollMargins()", INTEGRATOR.read_text())
+        self.assertIn(".contentMargins(.bottom, 84, for: .scrollContent)", GLASS)
+        with tempfile.TemporaryDirectory() as tmp:
+            from pathlib import Path
+            engine = Path(tmp)
+            target = engine/"LiveContainerSwiftUI/Views/Settings/LCJITLessDiagnoseView.swift"
+            target.parent.mkdir(parents=True)
+            source = (
+                'Form {\\n    Text("Entitlements remain original")\\n'
+                '            }\\n'
+                '            .navigationTitle(isLiveProcess ? "LiveProcess Entitlements" : "LiveContainer Entitlements")\\n'
+                'Form {\\n    Button("Test JIT-Less") {}\\n'
+                '            }\\n'
+                '            .navigationTitle("lc.settings.jitlessDiagnose".loc)\\n'
+            )
+            target.write_text(source)
+            report = integrator.attach_jitless_diagnostic_scroll_margins(engine)
+            compiled = target.read_text()
+            self.assertEqual(report["originalNestedForms"], 2)
+            self.assertEqual(compiled.count(".scarletDiagnosticScrollMargins()"), 2)
+            self.assertIn('Button("Test JIT-Less")', compiled)
+            self.assertIn('Entitlements remain original', compiled)
 
     def test_real_tweaks_settings_are_not_replaced_by_fake_card_actions(self):
         for item in ("nativeSettings()", "nativeTweaks()"):
