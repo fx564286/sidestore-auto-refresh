@@ -34,9 +34,11 @@ class IndependentUIContractTests(unittest.TestCase):
 
     def test_only_one_home_with_two_distinct_install_engines(self):
         self.assertIn('heading("", "설치된 앱", "")',HOME)
-        self.assertEqual(HOME.count("Menu {"),1)
-        self.assertIn('Label("IPA 설치하기"',HOME)
-        self.assertIn('Label("게스트 앱 설치하기"',HOME)
+        self.assertEqual(HOME.count("Menu {"),0)
+        self.assertIn(".contextMenu {",HOME)
+        self.assertIn('Label("iPhone에 직접 설치 (SideStore)"',HOME)
+        self.assertLess(HOME.index("onAction(.localImportGuestIPA)"),
+                        HOME.index(".contextMenu {"))
         self.assertIn("onAction(.serviceInstallIPA)",HOME)
         self.assertIn("onAction(.localImportGuestIPA)",HOME)
         self.assertIn("guests: visibleGuests",HOME)
