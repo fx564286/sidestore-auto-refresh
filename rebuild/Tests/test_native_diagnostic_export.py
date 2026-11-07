@@ -69,6 +69,8 @@ struct LCSettingsView: View {
             self.assertIn('Text("original setting")',source)
             self.assertIn("SCARLET_NATIVE_DIAGNOSTICS_ENTRY",source)
             self.assertIn(".scarletNativeListTheme()",source)
+            self.assertIn(".scarletDockScrollClearance()",source)
+            self.assertIn(".scarletNativeListTheme()\\n            .scarletDockScrollClearance()",source.replace("\n", "\\n"))
             self.assertEqual(source.count(".listRowBackground("),16)
             self.assertIn("ScarletDiagnosticLogView()",source)
             self.assertIn("ScarletAppleIDLoginSheet(",source)
