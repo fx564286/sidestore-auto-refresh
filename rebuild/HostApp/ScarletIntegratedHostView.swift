@@ -14,6 +14,9 @@ struct ScarletIntegratedHostView: View {
     // Avoid initializing the dock before UIWindow and its view tree exist.
     @StateObject private var downloadHelper = DownloadHelper()
     @StateObject private var originalSources = AltStoreSourcesViewModel()
+    // A single Files picker serves both explicitly selected installation routes.
+    private enum IPAInstallRoute { case guest, device }
+    @State private var pendingIPAInstallRoute: IPAInstallRoute = .guest
     @State private var showGuestFilePicker = false
     @State private var showGuestImportProgress = false
     @State private var queuedGuestIPAURL: URL?
@@ -106,7 +109,12 @@ struct ScarletIntegratedHostView: View {
         }
     }
 
-    private func prepareDeviceIPAInstall() {
+    private func prepareDeviceIPAInstall(_ source: URL) {
+        guard ["ipa", "tipa"].contains(source.pathExtension.lowercased()) else {
+            showOriginalError = "IPA 또는 TIPA 파일을 선택하세요."
+            return
+        }
+        ScarletDiagnosticRecorder.shared.record("sidestore", "device_file_selected")
         ScarletDiagnosticRecorder.shared.record("sidestore", "install_requested",
             fields: ["engine": "sidestore"])
         // Do not open SideStore's UI. Device installation requires the
@@ -154,13 +162,16 @@ struct ScarletIntegratedHostView: View {
             fields: ["action": action.rawValue])
         switch action {
         case .localImportGuestIPA:
+            pendingIPAInstallRoute = .guest
             ScarletDiagnosticRecorder.shared.record("guest_import", "file_picker_requested")
             showGuestFilePicker = true
         case .serviceBeginSignIn:
             ScarletDiagnosticRecorder.shared.record("auth", "login_sheet_requested")
             showScarletAppleIDLogin = true
         case .serviceInstallIPA:
-            prepareDeviceIPAInstall()
+            pendingIPAInstallRoute = .device
+            ScarletDiagnosticRecorder.shared.record("sidestore", "file_picker_requested")
+            showGuestFilePicker = true
         case .localOpenEmbeddedSideStore,
              .serviceRefreshApp, .serviceSyncAppIDs,
              .serviceSetSettings, .serviceReadSettings:
@@ -291,8 +302,15 @@ struct ScarletIntegratedHostView: View {
             switch result {
             case .success(let files):
                 if let selected = files.first {
-                    ScarletDiagnosticRecorder.shared.record("guest_import", "file_selected")
-                    stageGuestIPAFromFiles(selected)
+                    switch pendingIPAInstallRoute {
+                    case .guest:
+                        ScarletDiagnosticRecorder.shared.record("guest_import", "file_selected")
+                        stageGuestIPAFromFiles(selected)
+                    case .device:
+                        // Keep the selected Files original intact. No silent
+                        // LC fallback or simulated successful device install.
+                        prepareDeviceIPAInstall(selected)
+                    }
                 }
             case .failure(let error):
                 ScarletDiagnosticRecorder.shared.recordError(
