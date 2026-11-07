@@ -96,6 +96,21 @@ struct ScarletIntegratedHostView: View {
                      "team_match": teamMatch])
     }
 
+    private func validateJITLessSigner() {
+        // Pinned LC's original diagnostic signs only a temporary test dylib.
+        // Run its synchronous semaphore on a utility queue; never block UI.
+        // Existing certificates, profiles and installed guests are untouched.
+        ScarletDiagnosticRecorder.shared.record("guest", "jitless_probe_started")
+        DispatchQueue.global(qos: .utility).async {
+            LCUtils.validateJITLessSetup { verified, _ in
+                ScarletDiagnosticRecorder.shared.record(
+                    "guest", "jitless_probe_finished",
+                    status: verified ? "success" : "error",
+                    fields: ["result": verified ? "signature_valid" : "signature_invalid"])
+            }
+        }
+    }
+
     private func runGuest(_ key: String) {
         let guestRef = ScarletDiagnosticRecorder.shared.guestReference(key)
         ScarletDiagnosticRecorder.shared.record("guest", "launch_requested",
@@ -296,6 +311,7 @@ struct ScarletIntegratedHostView: View {
             signingRecoveryNeeded = true
             ScarletDiagnosticRecorder.shared.record("guest", "certificate_recovery_available",
                 status: "warning")
+            validateJITLessSigner()
         }
         .onReceive(NotificationCenter.default.publisher(
             for: UIApplication.didReceiveMemoryWarningNotification)) { _ in
