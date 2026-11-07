@@ -144,15 +144,6 @@ extension View {
             }
         }
     }
-
-    @ViewBuilder
-    func scarletDockUnderlayVisible() -> some View {
-        if #available(iOS 26.0, *) {
-            self.scrollEdgeEffectStyle(.hard, for: .bottom)
-        } else {
-            self
-        }
-    }
 }
 
 // The actual iOS 26+ implementation uses the SwiftUI glass compositor.
