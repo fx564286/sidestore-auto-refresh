@@ -45,7 +45,7 @@ class GuestSignInIntegration(unittest.TestCase):
     def test_original_credentials_never_published_to_logs(self):
         self.assertIn('record("auth", "transport_preflight_failed"',LOGIN)
         self.assertIn('record("auth", "request_started"',LOGIN)
-        self.assertIn('record("auth", "request_succeeded"',LOGIN)
+        self.assertIn('record("auth", "stored_session_verified"',LOGIN)
         self.assertIn('recordError("auth", "request_failed"',LOGIN)
         self.assertIn("remoteFailure(domain: String, code: Int)",XPC)
         self.assertIn("NotificationCenter.default.post",GUEST)
