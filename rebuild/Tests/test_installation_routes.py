@@ -27,7 +27,7 @@ class InstallerRouteTests(unittest.TestCase):
 
     def test_sidestore_device_install_path_is_not_embedded_guest_navigation(self):
         self.assertIn("case localOpenEmbeddedSideStore",ACTIONS)
-        self.assertIn('Label("iPhone에 직접 설치 (SideStore)"',UI)
+        self.assertIn('Label("IPA 설치하기"',UI)
         self.assertIn("onAction(.serviceInstallIPA)",UI)
         self.assertNotIn("LCUtils.openSideStore(",HOST)
         self.assertIn("prepareDeviceIPAInstall()",HOST)
