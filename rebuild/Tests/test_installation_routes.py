@@ -25,6 +25,21 @@ class InstallerRouteTests(unittest.TestCase):
         self.assertNotIn("showNativeAppLibrary",HOST)
         self.assertIn("try await app.runApp()",HOST)
 
+    def test_home_guest_uninstall_is_confirmed_and_keeps_data(self):
+        self.assertIn("SCARLET_GUEST_UNINSTALL_MENU", UI)
+        self.assertIn("onDeleteGuest: requestGuestUninstall", HOST)
+        self.assertIn("onDelete: onDeleteGuest", UI)
+        self.assertIn("confirmGuestUninstall = true", HOST)
+        self.assertIn("uninstallConfirmedGuest()", HOST)
+        self.assertIn("bundleURL.deletingLastPathComponent() == root", HOST)
+        self.assertIn("LCPath.lcGroupBundlePath : LCPath.bundlePath", HOST)
+        self.assertIn("guard !launchingGuestKeys.contains(key), !app.isAppRunning", HOST)
+        self.assertIn("try FileManager.default.removeItem(at: bundleURL)", HOST)
+        self.assertIn("sharedModel.apps.removeAll { $0 === app }", HOST)
+        self.assertIn("sharedModel.hiddenApps.removeAll { $0 === app }", HOST)
+        self.assertNotIn("removeAppKeychain", HOST)
+        self.assertNotIn("LCPath.dataPath.appendingPathComponent", HOST)
+
     def test_sidestore_device_install_path_is_not_embedded_guest_navigation(self):
         self.assertIn("case localOpenEmbeddedSideStore",ACTIONS)
         self.assertIn('Label("IPA 설치하기"',UI)
