@@ -22,8 +22,8 @@ def integrator():
 
 class FullSizeSettingsAndOnDeviceLog(unittest.TestCase):
     def test_original_native_settings_owns_full_screen_and_single_title(self):
-        segment=UI[UI.index("            if selected == .settings {"):
-                   UI.index("            } else if selected == .tweaks {")]
+        segment=UI[UI.index("            if tab == .settings {"):
+                   UI.index("            } else if tab == .tweaks {")]
         self.assertIn("nativeSettings()",segment)
         self.assertIn(".frame(maxWidth: .infinity, maxHeight: .infinity)",segment)
         self.assertIn("SCARLET_INLINE_NATIVE_LC_SETTINGS",segment)
