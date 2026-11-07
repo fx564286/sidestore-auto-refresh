@@ -44,7 +44,7 @@ class OwnerDeviceFailures(unittest.TestCase):
     def test_new_anisette_provider_avoids_stale_header_cache(self):
         self.assertIn("https://new.ani.sidestore.io", GUEST)
         self.assertIn("let dedicatedMacServer = profile == \"sidestore_new_mac\"", GUEST)
-        self.assertIn("let existingBlob: Data? = dedicatedMacServer ? nil", GUEST)
+        self.assertIn("let existingBlob: Data? = sameStoredIdentity ?", GUEST)
         self.assertIn("headers.clientInfo = nil", GUEST)
         self.assertIn("headers.userAgent = nil", GUEST)
         self.assertIn("SideSign.AnisetteDataManager()", GUEST)
