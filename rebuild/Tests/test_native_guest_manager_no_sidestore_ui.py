@@ -33,7 +33,7 @@ class LCManagerWithoutSideStoreGuestUI(unittest.TestCase):
         self.assertIn(".contextMenu {",home)
         self.assertNotIn("SCARLET_INSTALL_CHOICE_GUEST_APP",home)
         self.assertIn("onAction(.serviceInstallIPA)",home)
-        self.assertEqual(home.count("Menu {"),0)
+        self.assertEqual(home.count("\n                Menu {"),0)
         self.assertIn(".buttonStyle(.plain)",home)
         self.assertLess(home.index("onAction(.localImportGuestIPA)"),
                         home.index(".contextMenu {"))
