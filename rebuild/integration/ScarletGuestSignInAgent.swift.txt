@@ -119,32 +119,51 @@ final class ScarletGuestSignInAgent: NSObject {
     // Use a fresh manager because upstream remoteCache ignores header variants.
     @MainActor
     private static func fetchAuthAnisette(profile: String) async throws -> (ALTAnisetteData, Data?) {
-        guard profile == "windows" || profile == "mac" else {
+        guard ["windows", "mac", "sidestore_new_mac"].contains(profile) else {
             return (try await AnisetteProvider.fetch(), nil)
         }
+        let dedicatedMacServer = profile == "sidestore_new_mac"
 
         var headers = await AnisetteConfigManager.shared.makeRequestHeaders()
         if profile == "windows" {
             headers.clientInfo = "<PC> <Windows;6.2(0,0);9200> <com.apple.AuthKit/1 (com.apple.iTunes/12.12.4.1)>"
             headers.userAgent = "akd/1.0 CFNetwork/808.1.4"
-        } else {
+        } else if profile == "mac" {
             headers.clientInfo = "<MacBookPro13,3> <Mac OS X;27.2;26B118> <com.apple.AuthKit/1 (com.apple.akd/1.0)>"
             headers.userAgent = "akd/1.0 CFNetwork/811.5.4 Darwin/16.7.0"
+        } else {
+            // Only the explicitly selected official Mac-compatible server
+            // supplies the matching Client-Info/User-Agent. An old local
+            // Android/Windows header must not override its response.
+            headers.clientInfo = nil
+            headers.userAgent = nil
         }
         let urls = await AnisetteServersManager.shared.getActiveServerURLs()
         let servers = urls.compactMap(URL.init(string:)).filter { $0.scheme == "https" }
-        guard !servers.isEmpty else { throw AnisetteError.noServersConfigured }
-        let prior = UserDefaults.standard.menuAnisetteURL
-        let start = servers.firstIndex(where: { $0.absoluteString == prior }) ?? 0
-        let selected = UserDefaults.standard.disableAnisetteRotation
-            ? [servers[start]] : servers
+        let officialMacServers = URL(string: "https://new.ani.sidestore.io")
+            .map { [$0] } ?? []
+        let selected: [URL]
+        let start: Int
+        if dedicatedMacServer {
+            selected = officialMacServers
+            start = 0
+        } else {
+            let prior = UserDefaults.standard.menuAnisetteURL
+            start = servers.firstIndex(where: { $0.absoluteString == prior }) ?? 0
+            selected = UserDefaults.standard.disableAnisetteRotation && !servers.isEmpty
+                ? [servers[start]] : servers
+        }
+        guard !selected.isEmpty else { throw AnisetteError.noServersConfigured }
         let currentIdentifier = await AnisetteConfigManager.shared.resolveDeviceIdentifier()
-        let existingBlob = AnisetteConfigManager.shared.anisetteAdiBlob
-            .flatMap { Data(base64Encoded: $0) }
+        // Existing ADI may belong to a different Anisette identity. An
+        // explicit Mac-server attempt creates isolated ADI in memory only.
+        // The persistent ADI and server selection are never cleared here.
+        let existingBlob: Data? = dedicatedMacServer ? nil :
+            AnisetteConfigManager.shared.anisetteAdiBlob.flatMap { Data(base64Encoded: $0) }
         let temporaryProvider = SideSign.AnisetteDataManager()
         let (result, newAdiBlob) = try await temporaryProvider.fetchAnisetteDataWithFailover(
             servers: selected,
-            startIndex: selected.count == 1 ? 0 : start,
+            startIndex: start,
             identifier: currentIdentifier,
             existingAdiBlob: existingBlob,
             headers: headers,
