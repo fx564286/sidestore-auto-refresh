@@ -9,6 +9,8 @@ import argparse
 import base64
 import hashlib
 import json
+import os
+import re
 from pathlib import Path
 import shutil
 import struct
@@ -480,6 +482,13 @@ def main():
     for inp,name in sources.items():
         assert inp.is_file(),f"Required independent source missing: {inp}"
         shutil.copy2(inp,out/name)
+    recorder = out / "ScarletDiagnosticRecorder.swift"
+    report_source = recorder.read_text()
+    marker = "__SCARLET_BUILD_SHA__"
+    assert report_source.count(marker) == 1, "Diagnostic build identity anchor changed"
+    runner_sha = os.environ.get("GITHUB_SHA", "").strip()
+    build_sha = runner_sha[:12].lower() if re.fullmatch(r"[0-9a-fA-F]{40}", runner_sha) else "local-unverified"
+    recorder.write_text(report_source.replace(marker, build_sha))
     figma_icon=apply_figma_app_icon(root,engine)
     # Pinned LiveContainer initialization force-unwraps each persisted guest
     # bundle. A damaged/partial historical guest can otherwise terminate the
