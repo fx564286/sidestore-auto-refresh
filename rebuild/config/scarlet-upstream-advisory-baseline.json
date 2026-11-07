@@ -3,8 +3,8 @@
   "sideStoreAdvisory": {
     "repository": "SideStore/SideStore",
     "branch": "develop",
-    "head": "cd260851ae99bf1fc946b123db24e89c8cd21dc6"
+    "head": "4f3d18d98c5fbee72c80f787ceb2e8e09ded60a6"
   },
-  "observedAt": "2026-11-06",
+  "observedAt": "2026-11-07T12:58:08.690323+00:00",
   "notes": "Main parent LiveContainer/LiveContainer and embedded LiveContainer/SideStore pins remain authoritative. This advisory is never silently substituted for the embedded fork."
 }
