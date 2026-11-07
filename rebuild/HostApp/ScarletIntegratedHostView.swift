@@ -41,7 +41,7 @@ struct ScarletIntegratedHostView: View {
     private func refreshStoredLoginState() {
         guard #available(iOS 17.0, *) else { return }
         Task { @MainActor in
-            let stored = await ScarletNativeAuthTransport.shared.storedAuthenticated()
+            let stored = await ScarletConnectedSideSignEngine().storedAuthenticated()
             appleAuthVerified = stored
             ScarletDiagnosticRecorder.shared.record(
                 "auth", stored ? "host_session_restored" : "host_session_unavailable",
