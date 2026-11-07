@@ -355,6 +355,12 @@ public struct ScarletIndependentShell: View {
         .preferredColorScheme(.dark)
         .onAppear { onTabChanged(selected.rawValue) }
         .onChange(of: selected) { tab in onTabChanged(tab.rawValue) }
+        .onReceive(NotificationCenter.default.publisher(
+            for: Notification.Name("ScarletOpenSigningSettings"))) { _ in
+            // Navigate to the original LC certificate import / JIT-Less diagnose.
+            // Do not present an unrelated or duplicated settings modal.
+            selected = .settings
+        }
     }
 
     private func heading(_ overline: String, _ title: String, _ subtitle: String) -> some View {
