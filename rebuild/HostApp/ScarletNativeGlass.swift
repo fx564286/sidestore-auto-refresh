@@ -176,64 +176,7 @@ extension View {
 // The OS glass material, not a painted translucent Color, provides refraction.
 // The selected segment and the full 62pt dock have distinct compositor
 // boundaries so their overlapping shapes don't merge into a flat plate.
-@available(iOS 26.0, *)
-private struct SCInteractiveGlassTabs: View {
-    @Binding var selected: ScarletIndependentShell.Tab
-    @Namespace private var activeGlassNamespace
-
-    var body: some View {
-        GlassEffectContainer(spacing: 4) {
-            HStack(spacing: 6) {
-                ForEach(ScarletIndependentShell.Tab.allCases, id: \.self) { tab in
-                    Button {
-                        withAnimation(.spring(response: 0.34, dampingFraction: 0.78)) {
-                            selected = tab
-                        }
-                    } label: {
-                        VStack(spacing: 3) {
-                            Image(systemName: tab.icon)
-                                .font(.system(size: 19, weight: .medium))
-                            Text(tab.rawValue)
-                                .font(.system(size: 11.5, weight: .medium))
-                        }
-                        .frame(maxWidth: .infinity, minHeight: 52)
-                        .foregroundStyle(selected == tab ? .white : .white.opacity(0.78))
-                        .contentShape(Capsule())
-                    }
-                    .buttonStyle(.plain)
-                    .frame(maxWidth: .infinity)
-                    .background {
-                        if selected == tab {
-                            Capsule()
-                                .fill(.clear)
-                                .glassEffect(
-                                    .regular.tint(.white.opacity(0.12)).interactive(),
-                                    in: Capsule()
-                                )
-                                .glassEffectID("scarlet-active-tab", in: activeGlassNamespace)
-                        }
-                    }
-                    .accessibilityIdentifier("SCARLET_NATIVE_GLASS_TAB_" + tab.rawValue)
-                    .accessibilityAddTraits(selected == tab ? .isSelected : [])
-                }
-            }
-            .padding(.horizontal, 5)
-            .frame(height: 62)
-            .background {
-                Capsule()
-                    .fill(.clear)
-                    .glassEffect(.regular, in: Capsule())
-                    .accessibilityIdentifier("SCARLET_REAL_GLASS_TAB_BAR")
-            }
-        }
-        // Keep the glass compositor visible all the way to the outer edges.
-        // Do NOT add UIKit clipping/opaque tint on this native glass path.
-        .frame(height: 62)
-    }
-}
-
-
-@available(iOS 26.0, *)
+// The obsolete SCInteractiveGlassTabs variant was removed to prevent two\n// competing custom native-glass implementations in the same host source.\n// iOS 26+ main navigation is system TabView; SCInteractiveLiquidGlassTabs\n// remains a separate native host adapter and is not layered over TabView.\n@available(iOS 26.0, *)
 private struct SCInteractiveLiquidGlassTabs: View {
     @Binding var selected: ScarletIndependentShell.Tab
     @Namespace private var selectionNamespace
