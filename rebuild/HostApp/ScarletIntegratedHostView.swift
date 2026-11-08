@@ -26,6 +26,11 @@ struct ScarletIntegratedHostView: View {
     @State private var newSourceURL = ""
     @State private var sourceIsSaving = false
     @State private var sourceIsDownloading = false
+    @State private var sourceDownloadTask: Task<Void, Never>?
+    @State private var showSourceDownloadSheet = false
+    @State private var sourceDownloadStage = "IPA 서버에 연결 중"
+    @State private var sourceDownloadError: String?
+    @State private var sourceDownloadedIPA: URL?
     @State private var sourceInputError: String?
     @State private var showScarletAppleIDLogin = false
     @State private var appleAuthVerified = false
@@ -421,11 +426,25 @@ struct ScarletIntegratedHostView: View {
             return
         }
         sourceIsDownloading = true
+        sourceDownloadError = nil
+        sourceDownloadStage = "IPA 서버에 연결 중"
+        showSourceDownloadSheet = true
         ScarletDiagnosticRecorder.shared.record("sources", "guest_download_started")
-        Task { @MainActor in
-            defer { sourceIsDownloading = false }
+        sourceDownloadTask = Task { @MainActor in
+            defer {
+                sourceIsDownloading = false
+                sourceDownloadTask = nil
+            }
+            let config = URLSessionConfiguration.ephemeral
+            config.timeoutIntervalForRequest = 45
+            config.timeoutIntervalForResource = 900
+            config.waitsForConnectivity = false
+            let session = URLSession(configuration: config)
+            defer { session.invalidateAndCancel() }
             do {
-                let (downloaded, response) = try await URLSession.shared.download(from: url)
+                sourceDownloadStage = "소스에서 IPA 다운로드 중"
+                let (downloaded, response) = try await session.download(from: url)
+                try Task.checkCancellation()
                 defer { try? FileManager.default.removeItem(at: downloaded) }
                 guard let http = response as? HTTPURLResponse,
                       (200...299).contains(http.statusCode) else {
@@ -447,18 +466,26 @@ struct ScarletIntegratedHostView: View {
                     throw NSError(domain: "ScarletSourceImport", code: 3,
                         userInfo: [NSLocalizedDescriptionKey: "다운로드한 파일이 유효한 IPA ZIP 형식이 아닙니다."])
                 }
+                sourceDownloadStage = "파일 형식 확인 완료 · 가져오기 준비"
+                try Task.checkCancellation()
                 let staged = FileManager.default.temporaryDirectory
                     .appendingPathComponent("scarlet-source-\(UUID().uuidString).ipa")
                 try FileManager.default.copyItem(at: downloaded, to: staged)
-                defer { try? FileManager.default.removeItem(at: staged) }
-                // The existing pipeline performs actual LC import/signing and
-                // reports sign failures; download completion is not install success.
-                stageGuestIPAFromFiles(staged)
+                // Present the original LC import engine only AFTER this sheet
+                // closes; simultaneous SwiftUI sheets can silently fail.
+                sourceDownloadedIPA = staged
                 ScarletDiagnosticRecorder.shared.record("sources", "guest_download_completed",
-                    fields: ["route": "livecontainer"])
+                    fields: ["route": "livecontainer", "stage": "download_only"])
+                showSourceDownloadSheet = false
+            } catch is CancellationError {
+                ScarletDiagnosticRecorder.shared.record("sources", "guest_download_cancelled",
+                    status: "info")
+                sourceDownloadStage = "다운로드가 취소되었습니다."
+                showSourceDownloadSheet = false
             } catch {
                 ScarletDiagnosticRecorder.shared.recordError("sources", "guest_download_failed", error: error)
-                showOriginalError = "소스 IPA를 가져올 수 없습니다: \(error.localizedDescription)"
+                sourceDownloadStage = "다운로드 실패"
+                sourceDownloadError = "IPA를 가져오지 못했습니다. 네트워크 상태와 소스의 다운로드 주소를 확인하세요."
             }
         }
     }
@@ -741,14 +768,67 @@ struct ScarletIntegratedHostView: View {
                 }
             }
         }
-        .overlay(alignment: .top) {
-            if sourceIsDownloading {
-                ProgressView("소스 IPA 다운로드 중")
-                    .padding(14)
-                    .background(.regularMaterial, in: Capsule())
-                    .padding(.top, 8)
-                    .accessibilityIdentifier("SCARLET_SOURCE_DOWNLOAD_PROGRESS")
+        .sheet(isPresented: $showSourceDownloadSheet, onDismiss: {
+            if let staged = sourceDownloadedIPA {
+                sourceDownloadedIPA = nil
+                stageGuestIPAFromFiles(staged)
+                try? FileManager.default.removeItem(at: staged)
             }
+        }) {
+            VStack(spacing: 20) {
+                Image(systemName: sourceDownloadError == nil
+                      ? "arrow.down.doc.fill" : "exclamationmark.triangle.fill")
+                    .font(.system(size: 31, weight: .medium))
+                    .foregroundStyle(Color(red: 0.72, green: 0.63, blue: 0.99))
+                    .frame(width: 58, height: 58)
+                    .background(Color(red: 0.39, green: 0.32, blue: 0.60).opacity(0.24),
+                                in: RoundedRectangle(cornerRadius: 19))
+                VStack(spacing: 7) {
+                    Text(sourceDownloadError == nil ? "게스트 앱 설치" : "다운로드 실패")
+                        .font(.title3.bold())
+                        .foregroundStyle(Color.white)
+                    Text(sourceDownloadError ?? sourceDownloadStage)
+                        .font(.subheadline)
+                        .foregroundStyle(Color(red: 0.78, green: 0.75, blue: 0.85))
+                        .multilineTextAlignment(.center)
+                        .accessibilityIdentifier("SCARLET_SOURCE_DOWNLOAD_STAGE")
+                }
+                if sourceIsDownloading {
+                    ProgressView()
+                        .tint(Color(red: 0.72, green: 0.63, blue: 0.99))
+                        .accessibilityLabel("소스 IPA 다운로드 중")
+                }
+                Text("다운로드 후 LiveContainer 가져오기와 서명 검증을 진행합니다.")
+                    .font(.caption)
+                    .multilineTextAlignment(.center)
+                    .foregroundStyle(Color(red: 0.68, green: 0.65, blue: 0.75))
+                Button(sourceIsDownloading ? "다운로드 취소" : "닫기") {
+                    if sourceIsDownloading {
+                        sourceDownloadTask?.cancel()
+                        sourceIsDownloading = false
+                    }
+                    showSourceDownloadSheet = false
+                }
+                .buttonStyle(.borderedProminent)
+                .tint(Color(red: 0.44, green: 0.33, blue: 0.77))
+                .accessibilityIdentifier("SCARLET_SOURCE_DOWNLOAD_CANCEL")
+            }
+            .padding(24)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .background {
+                RoundedRectangle(cornerRadius: 28)
+                    .fill(Color(red: 0.12, green: 0.10, blue: 0.19))
+                    .overlay {
+                        RoundedRectangle(cornerRadius: 28)
+                            .stroke(Color(red: 0.45, green: 0.39, blue: 0.60).opacity(0.5))
+                    }
+            }
+            .padding(.horizontal, 16)
+            .background(Color(red: 0.051, green: 0.051, blue: 0.094).ignoresSafeArea())
+            .presentationDetents([.height(390)])
+            .presentationDragIndicator(.hidden)
+            .interactiveDismissDisabled(sourceIsDownloading)
+            .accessibilityIdentifier("SCARLET_BRANDED_SOURCE_DOWNLOAD_SHEET")
         }
         .sheet(isPresented: $showNativeSources) {
             NavigationStack {
