@@ -64,6 +64,7 @@ class AuthAndImportUIRegression(unittest.TestCase):
     def test_completed_guest_import_sheet_closes_without_swallowing_errors(self):
         # In the 2026-11-09 device log, import completed immediately but the
         # sheet was not dismissed until 2h 35m later. Keep sign failures visible.
+        self.assertIn('defer { installprogressVisible = false }', PATCH)
         self.assertIn('completed_sheet_auto_closed', PATCH)
         self.assertIn('try? await Task.sleep(for: .seconds(2))', PATCH)
         self.assertIn('!scarletGuestImportSignFailed && !errorShow', PATCH)
