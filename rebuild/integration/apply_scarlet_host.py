@@ -326,9 +326,23 @@ def hide_embedded_sidestore_guest_navigation(engine: Path) -> dict:
                     guard !scarletDidStartQueuedImport else { return }
                     scarletDidStartQueuedImport = true
                     if !didAppear { onAppear() }
-                    Task {
+                    Task { @MainActor in
                         await startInstallApp(queuedIPA)
+                        // Import completion is not proof that the guest can run.
+                        // In particular do not hide a failed-signature/IPA alert.
                         scarletQueuedImportFinished = true
+                        if !scarletGuestImportSignFailed && !errorShow {
+                            // Allow the completion text to be read, then return
+                            // to the independent four-column app launcher.
+                            try? await Task.sleep(for: .seconds(2))
+                            if !scarletGuestImportSignFailed &&
+                               !errorShow && !installprogressVisible {
+                                ScarletDiagnosticRecorder.shared.record(
+                                    "guest_import", "completed_sheet_auto_closed",
+                                    fields: ["result": "import_only_launch_unverified"])
+                                scarletOnImportFinished?()
+                            }
+                        }
                     }
                 }
                 .accessibilityIdentifier("SCARLET_GUEST_IMPORT_PROGRESS_ONLY")
