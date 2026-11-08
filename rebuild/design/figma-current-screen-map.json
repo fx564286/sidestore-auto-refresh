@@ -9,7 +9,9 @@
     "settings": "6:136",
     "signingDetail": "6:198",
     "runningGuestSwitcher": "6:254",
-    "sources": "26:2"
+    "sources": "26:2",
+    "sourceDownloadInProgress": "133:2",
+    "guestImportInProgress": "133:43"
   },
   "bottomTabs": [
     "소스",
@@ -31,5 +33,8 @@
     "LiveContainer",
     "SideStore",
     "SideSign"
-  ]
+  ],
+  "authSemantics": "SideStore guest Keychain stored session verified separately from LC signing certificate data and password; never show missing certificate as logout",
+  "sourceImportFlow": "One source install action -> bounded cancelable download sheet -> dismiss -> original LC guest importer sheet; never global floating toast",
+  "visualTheme": "Scarlet nocturne violet/cream, system iOS26 native Liquid Glass at runtime; Figma static sheet material is a reference, not real glass"
 }
