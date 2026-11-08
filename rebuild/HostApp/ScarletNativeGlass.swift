@@ -176,7 +176,11 @@ extension View {
 // The OS glass material, not a painted translucent Color, provides refraction.
 // The selected segment and the full 62pt dock have distinct compositor
 // boundaries so their overlapping shapes don't merge into a flat plate.
-// The obsolete SCInteractiveGlassTabs variant was removed to prevent two\n// competing custom native-glass implementations in the same host source.\n// iOS 26+ main navigation is system TabView; SCInteractiveLiquidGlassTabs\n// remains a separate native host adapter and is not layered over TabView.\n@available(iOS 26.0, *)
+// The obsolete SCInteractiveGlassTabs variant was removed to prevent two
+// competing custom native-glass implementations in the same host source.
+// iOS 26+ main navigation is system TabView; SCInteractiveLiquidGlassTabs
+// remains a separate native host adapter and is not layered over TabView.
+@available(iOS 26.0, *)
 private struct SCInteractiveLiquidGlassTabs: View {
     @Binding var selected: ScarletIndependentShell.Tab
     @Namespace private var selectionNamespace
