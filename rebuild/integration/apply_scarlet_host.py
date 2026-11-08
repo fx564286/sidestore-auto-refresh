@@ -260,30 +260,68 @@ def hide_embedded_sidestore_guest_navigation(engine: Path) -> dict:
     replacement = """        NavigationView {
             if let queuedIPA = scarletQueuedIPAURL {
                 VStack(spacing: 20) {
-                    Image(systemName: "square.and.arrow.down.on.square")
-                        .font(.system(size: 32))
-                    Text(scarletQueuedImportFinished
-                         ? (scarletGuestImportSignFailed
-                            ? "IPA 가져옴 · 서명 검증 실패"
-                            : "IPA 가져오기 종료 · 실행 별도 확인")
-                         : "IPA 가져오는 중")
-                        .font(.headline)
-                    if scarletGuestImportSignFailed {
-                        Text("앱 파일은 보관됐지만 서명 검증에 실패하여 실행할 수 없습니다. 설정의 JIT-Less 모드 진단과 SideStore 인증서 상태를 확인하세요.")
-                            .font(.footnote)
-                            .multilineTextAlignment(.center)
-                            .padding(.horizontal, 16)
+                    ZStack {
+                        RoundedRectangle(cornerRadius: 21, style: .continuous)
+                            .fill(Color(red: 0.39, green: 0.31, blue: 0.65).opacity(0.32))
+                            .frame(width: 72, height: 72)
+                        Image(systemName: scarletGuestImportSignFailed
+                              ? "exclamationmark.shield.fill"
+                              : "shippingbox.fill")
+                            .font(.system(size: 31, weight: .medium))
+                            .foregroundStyle(Color(red: 0.76, green: 0.67, blue: 1))
                     }
-                    ProgressView(value: Double(installProgressPercentage))
-                        .frame(maxWidth: 280)
+                    VStack(spacing: 7) {
+                        Text(scarletQueuedImportFinished
+                             ? (scarletGuestImportSignFailed
+                                ? "서명 확인이 필요합니다"
+                                : "게스트 앱 가져오기 완료")
+                             : "게스트 앱 설치")
+                            .font(.title3.bold())
+                            .foregroundStyle(Color.white)
+                        Text(scarletQueuedImportFinished
+                             ? (scarletGuestImportSignFailed
+                                ? "앱 파일은 가져왔지만 서명은 완료되지 않았습니다."
+                                : "실제 실행과 서명 상태는 앱 목록에서 별도로 확인하세요.")
+                             : "LiveContainer에서 IPA를 가져오는 중입니다.")
+                            .font(.subheadline)
+                            .foregroundStyle(Color(red: 0.76, green: 0.73, blue: 0.84))
+                            .multilineTextAlignment(.center)
+                            .accessibilityIdentifier("SCARLET_GUEST_IMPORT_STAGE")
+                    }
+                    ProgressView(value: Double(installProgressPercentage), total: 1.0)
+                        .tint(Color(red: 0.76, green: 0.67, blue: 1))
+                        .accessibilityIdentifier("SCARLET_GUEST_IMPORT_ACTUAL_PROGRESS")
+                    if !scarletQueuedImportFinished {
+                        Text("앱 데이터를 보존하면서 가져오기와 서명 검증을 진행합니다.")
+                            .font(.caption)
+                            .multilineTextAlignment(.center)
+                            .foregroundStyle(Color(red: 0.68, green: 0.65, blue: 0.75))
+                    }
                     Button("닫기") {
                         scarletOnImportFinished?()
                     }
-                    .disabled(installprogressVisible)
+                    .buttonStyle(.borderedProminent)
+                    .tint(Color(red: 0.44, green: 0.33, blue: 0.77))
+                    .disabled(!scarletQueuedImportFinished || installprogressVisible)
                     .accessibilityIdentifier("SCARLET_IMPORT_PROGRESS_CLOSE")
                 }
+                .padding(24)
+                .frame(maxWidth: 350)
+                .background {
+                    if #available(iOS 26.0, *) {
+                        RoundedRectangle(cornerRadius: 28, style: .continuous)
+                            .fill(.clear)
+                            .glassEffect()
+                    } else {
+                        RoundedRectangle(cornerRadius: 28, style: .continuous)
+                            .fill(.ultraThinMaterial)
+                    }
+                }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .background(Color(red: 13.0/255, green: 13.0/255, blue: 24.0/255).ignoresSafeArea())
+                .background(LinearGradient(
+                    colors: [Color(red: 0.104, green: 0.079, blue: 0.147),
+                             Color(red: 0.051, green: 0.051, blue: 0.094)],
+                    startPoint: .topLeading, endPoint: .bottomTrailing).ignoresSafeArea())
                 .onAppear {
                     guard !scarletDidStartQueuedImport else { return }
                     scarletDidStartQueuedImport = true
@@ -294,6 +332,7 @@ def hide_embedded_sidestore_guest_navigation(engine: Path) -> dict:
                     }
                 }
                 .accessibilityIdentifier("SCARLET_GUEST_IMPORT_PROGRESS_ONLY")
+                .accessibilityIdentifier("SCARLET_BRANDED_GUEST_IMPORT_CARD")
             } else {
                 ScrollView {
 """
