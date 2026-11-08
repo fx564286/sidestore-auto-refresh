@@ -22,6 +22,11 @@ struct ScarletIntegratedHostView: View {
     @State private var showGuestImportProgress = false
     @State private var queuedGuestIPAURL: URL?
     @State private var showNativeSources = false
+    @State private var showSourceURLInput = false
+    @State private var newSourceURL = ""
+    @State private var sourceIsSaving = false
+    @State private var sourceIsDownloading = false
+    @State private var sourceInputError: String?
     @State private var showScarletAppleIDLogin = false
     @State private var appleAuthVerified = false
     // Ignore delayed auth readbacks after a newer foreground/login transition.
@@ -98,7 +103,8 @@ struct ScarletIntegratedHostView: View {
                 detail: visible ? "실행 중"
                          : app.isAppRunning ? "실행 요청 중" : "설치됨",
                 isRunning: visible,
-                lastOpenedAt: app.appInfo.lastLaunched
+                lastOpenedAt: app.appInfo.lastLaunched,
+                iconPNG: app.appInfo.iconIsDarkIcon(false)?.pngData()
             )
         }
     }
@@ -304,6 +310,69 @@ struct ScarletIntegratedHostView: View {
         }
     }
 
+    // Source install routes through the same original LC guest IPA importer
+    // as Files, never through the unmounted upstream LCAppListView notification.
+    private func installSourceGuestApp(_ downloadID: String) {
+        guard !sourceIsDownloading, !showGuestImportProgress else { return }
+        guard let app = originalSources.sources.compactMap({ $0.source })
+                .flatMap({ $0.apps })
+                .first(where: { $0.latestVersion?.downloadURL.absoluteString == downloadID }),
+              let url = app.latestVersion?.downloadURL,
+              url.scheme?.lowercased() == "https", url.host != nil else {
+            showOriginalError = "설치할 앱의 안전한 HTTPS 다운로드 주소를 찾지 못했습니다."
+            ScarletDiagnosticRecorder.shared.record("sources", "install_blocked",
+                status: "blocked", fields: ["reason": "url_invalid"])
+            return
+        }
+        sourceIsDownloading = true
+        ScarletDiagnosticRecorder.shared.record("sources", "guest_download_started")
+        Task { @MainActor in
+            defer { sourceIsDownloading = false }
+            do {
+                let (downloaded, response) = try await URLSession.shared.download(from: url)
+                defer { try? FileManager.default.removeItem(at: downloaded) }
+                guard let http = response as? HTTPURLResponse,
+                      (200...299).contains(http.statusCode) else {
+                    throw NSError(domain: "ScarletSourceImport", code: 1,
+                        userInfo: [NSLocalizedDescriptionKey: "소스에서 IPA 다운로드에 실패했습니다."])
+                }
+                let attrs = try FileManager.default.attributesOfItem(atPath: downloaded.path)
+                let size = (attrs[.size] as? NSNumber)?.int64Value ?? 0
+                guard size > 0, size < 2_147_483_648 else {
+                    throw NSError(domain: "ScarletSourceImport", code: 2,
+                        userInfo: [NSLocalizedDescriptionKey: "다운로드 파일 크기가 올바르지 않습니다."])
+                }
+                let staged = FileManager.default.temporaryDirectory
+                    .appendingPathComponent("scarlet-source-\(UUID().uuidString).ipa")
+                try FileManager.default.copyItem(at: downloaded, to: staged)
+                defer { try? FileManager.default.removeItem(at: staged) }
+                // The existing pipeline performs actual LC import/signing and
+                // reports sign failures; download completion is not install success.
+                stageGuestIPAFromFiles(staged)
+                ScarletDiagnosticRecorder.shared.record("sources", "guest_download_completed",
+                    fields: ["route": "livecontainer"])
+            } catch {
+                ScarletDiagnosticRecorder.shared.recordError("sources", "guest_download_failed", error: error)
+                showOriginalError = "소스 IPA를 가져올 수 없습니다: \(error.localizedDescription)"
+            }
+        }
+    }
+
+    private func reportPreviousGuestLaunchFailure() {
+        if let previousError = UserDefaults.standard.string(forKey: "error"),
+           !previousError.isEmpty {
+            UserDefaults.standard.removeObject(forKey: "error")
+            ScarletDiagnosticRecorder.shared.record("guest", "previous_launch_error_detected",
+                status: "error")
+            showOriginalError = "이전 게스트 앱 실행 실패: \(previousError)"
+        } else if UserDefaults.standard.bool(forKey: "SigningInProgress") {
+            UserDefaults.standard.removeObject(forKey: "SigningInProgress")
+            ScarletDiagnosticRecorder.shared.record("guest", "signing_interrupted",
+                status: "error")
+            showOriginalError = "이전 게스트 앱의 서명 작업이 중단됐습니다. 인증서 상태를 확인하세요."
+        }
+    }
+
     private func handle(_ action: ScarletControl) {
         ScarletDiagnosticRecorder.shared.record("action", "requested",
             fields: ["action": action.rawValue])
@@ -353,7 +422,15 @@ struct ScarletIntegratedHostView: View {
                     id: item.id.absoluteString,
                     title: item.displayName,
                     detail: item.url.host ?? "",
-                    icon: "link"
+                    icon: "link",
+                    apps: (item.source?.apps ?? []).map { app in
+                        ScarletSourceAppPresentation(
+                            id: app.latestVersion?.downloadURL.absoluteString ?? app.bundleIdentifier,
+                            name: app.name,
+                            version: app.latestVersion?.version ?? "다운로드 없음",
+                            hasDownload: app.latestVersion?.downloadURL != nil
+                        )
+                    }
                 )
             },
             onAction: handle,
@@ -361,9 +438,12 @@ struct ScarletIntegratedHostView: View {
             onDeleteGuest: requestGuestUninstall,
             onOpenSource: { _ in showNativeSources = true },
             onAddSource: {
-                sharedModel.selectedTab = .sources
-                showNativeSources = true
+                ScarletDiagnosticRecorder.shared.record("sources", "direct_add_requested")
+                newSourceURL = ""
+                sourceInputError = nil
+                showSourceURLInput = true
             },
+            onInstallSourceApp: installSourceGuestApp,
             preservedGlassTabBar: { tab in
                 AnyView(ScarletNativeGlassTabBar(selected: tab))
             },
@@ -405,6 +485,7 @@ struct ScarletIntegratedHostView: View {
                          "engine": "livecontainer",
                          "available": UserDefaults.sideStoreExist() ? "true" : "false"])
             recordLayout()
+            reportPreviousGuestLaunchFailure()
             refreshStoredLoginState()
             // UIKit window creation can lag behind SwiftUI view construction.
             // The actual dock is initialized lazily and attached when ready.
@@ -509,6 +590,57 @@ struct ScarletIntegratedHostView: View {
                     .environmentObject(LCAppSortManager.shared)
                     .presentationDetents([.medium])
                     .interactiveDismissDisabled()
+            }
+        }
+        .sheet(isPresented: $showSourceURLInput) {
+            NavigationStack {
+                Form {
+                    Section("소스 주소") {
+                        TextField("https://example.com/source.json", text: $newSourceURL)
+                            .textInputAutocapitalization(.never)
+                            .keyboardType(.URL)
+                            .autocorrectionDisabled()
+                            .accessibilityIdentifier("SCARLET_DIRECT_SOURCE_URL_FIELD")
+                    }
+                    if let sourceInputError {
+                        Text(sourceInputError).foregroundStyle(.red)
+                    }
+                }
+                .navigationTitle("소스 추가")
+                .toolbar {
+                    ToolbarItem(placement: .cancellationAction) {
+                        Button("취소") { showSourceURLInput = false }
+                    }
+                    ToolbarItem(placement: .confirmationAction) {
+                        Button("추가") {
+                            guard !sourceIsSaving else { return }
+                            sourceIsSaving = true
+                            Task { @MainActor in
+                                defer { sourceIsSaving = false }
+                                let error = await originalSources.addSource(from: newSourceURL)
+                                if let error {
+                                    sourceInputError = error
+                                    ScarletDiagnosticRecorder.shared.record("sources", "direct_add_failed",
+                                        status: "error")
+                                } else {
+                                    ScarletDiagnosticRecorder.shared.record("sources", "direct_add_completed",
+                                        status: "success")
+                                    showSourceURLInput = false
+                                }
+                            }
+                        }
+                        .disabled(sourceIsSaving || newSourceURL.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                    }
+                }
+            }
+        }
+        .overlay(alignment: .top) {
+            if sourceIsDownloading {
+                ProgressView("소스 IPA 다운로드 중")
+                    .padding(14)
+                    .background(.regularMaterial, in: Capsule())
+                    .padding(.top, 8)
+                    .accessibilityIdentifier("SCARLET_SOURCE_DOWNLOAD_PROGRESS")
             }
         }
         .sheet(isPresented: $showNativeSources) {
