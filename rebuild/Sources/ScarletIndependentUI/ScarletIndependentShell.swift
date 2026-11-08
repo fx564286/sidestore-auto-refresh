@@ -295,6 +295,8 @@ public struct ScarletIndependentShell: View {
     public let nativeSettings: () -> AnyView
     // Only presentation state is emitted, no titles/guest IDs/credentials.
     public let onTabChanged: (String) -> Void
+    // A mounted native TabView is observable without drawing a second bar.
+    public let onSystemGlassMounted: () -> Void
 
     @State private var selected: Tab
     @State private var searchText = ""
@@ -312,6 +314,7 @@ public struct ScarletIndependentShell: View {
                 nativeTweaks: @escaping () -> AnyView = { AnyView(EmptyView()) },
                 nativeSettings: @escaping () -> AnyView = { AnyView(EmptyView()) },
                 onTabChanged: @escaping (String) -> Void = { _ in },
+                onSystemGlassMounted: @escaping () -> Void = {},
                 initialTab: Tab = .apps) {
         self.snapshot = snapshot
         self.guests = guests
@@ -325,6 +328,7 @@ public struct ScarletIndependentShell: View {
         self.nativeTweaks = nativeTweaks
         self.nativeSettings = nativeSettings
         self.onTabChanged = onTabChanged
+        self.onSystemGlassMounted = onSystemGlassMounted
         self._selected = State(initialValue: initialTab)
     }
 
@@ -390,6 +394,7 @@ public struct ScarletIndependentShell: View {
             }
         }
         .tabBarMinimizeBehavior(.onScrollDown)
+        .onAppear(perform: onSystemGlassMounted)
         .accessibilityIdentifier("SCARLET_IOS26_NATIVE_SYSTEM_GLASS_TABS")
     }
 
