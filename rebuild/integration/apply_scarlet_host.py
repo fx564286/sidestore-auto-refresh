@@ -389,7 +389,7 @@ def attach_native_settings_diagnostics(engine: Path) -> dict:
                     Text(scarletLoginVerified == true ? "인증 세션 복원됨 · 서명 인증서는 별도 확인" :
                          (scarletLoginVerified == nil ? "저장된 로그인 상태 확인 중" : "저장된 로그인 세션 없음"))
                         .font(.footnote)
-                        .foregroundStyle(scarletLoginVerified == true ? .green : .secondary)
+                        .foregroundStyle(scarletLoginVerified == true ? Color.green : Color.secondary)
                     if #available(iOS 16.0, *) {
                         NavigationLink {
                             ScarletDiagnosticLogView()
