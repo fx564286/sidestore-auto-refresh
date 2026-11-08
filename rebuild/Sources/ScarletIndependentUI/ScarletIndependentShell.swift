@@ -101,6 +101,16 @@ private enum ScarletPresentationColor {
     static let muted = Color(red: 0.72, green: 0.70, blue: 0.77)
     static let warning = Color(red: 1.0, green: 0.73, blue: 0.48)
     static let success = Color(red: 0.49, green: 0.85, blue: 0.78)
+    // Warm nocturne accent, not a painted glass replacement. System TabView
+    // still owns every interactive Liquid Glass surface.
+    static let ambientBackground = LinearGradient(
+        colors: [
+            Color(red: 0.104, green: 0.079, blue: 0.147),
+            Color(red: 0.063, green: 0.055, blue: 0.105),
+            Color(red: 0.051, green: 0.051, blue: 0.094)
+        ],
+        startPoint: .topLeading, endPoint: .bottomTrailing
+    )
 }
 
 // The independent presentation target typechecks without the LC host.
@@ -193,47 +203,6 @@ private struct ScarletStatusBadge: View {
     }
 }
 
-/// Rows and separators are based on REAL guest records. No trailing
-/// divider is rendered below the final app (fixes the Figma lone line).
-private struct ScarletGuestActionRow: View {
-    let guest: ScarletGuestPresentation
-    let onDelete: () -> Void
-    let action: () -> Void
-
-    var body: some View {
-        Button(action: action) {
-            HStack(alignment: .center, spacing: 12) {
-                Image(systemName: guest.icon)
-                    .font(.system(size: 17, weight: .semibold))
-                    .foregroundStyle(ScarletPresentationColor.accent)
-                    .frame(width: 36, height: 36, alignment: .center)
-                    .background(ScarletPresentationColor.stroke.opacity(0.4),
-                                in: RoundedRectangle(cornerRadius: 11))
-                Text(guest.title)
-                    .font(.system(size: 16, weight: .semibold))
-                    .foregroundStyle(ScarletPresentationColor.text)
-                    .lineLimit(1)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-            }
-            .frame(maxWidth: .infinity, minHeight: 62, alignment: .leading)
-            .padding(.horizontal, 8)
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .accessibilityLabel(guest.title)
-        .accessibilityHint(guest.isRunning ? "실행 중인 앱으로 전환" : "앱 실행")
-        .accessibilityIdentifier("SCARLET_GUEST_ACTION_ROW")
-        .contextMenu {
-            Button(role: .destructive) {
-                onDelete()
-            } label: {
-                Label("앱 삭제", systemImage: "trash")
-            }
-            .accessibilityIdentifier("SCARLET_GUEST_UNINSTALL_MENU")
-        }
-    }
-}
-
 // iPhone-style launcher: one independent icon per guest, no enclosing list card.
 private struct ScarletGuestLauncherTile: View {
     let guest: ScarletGuestPresentation
@@ -289,47 +258,7 @@ private struct ScarletGuestLauncherTile: View {
             Button(role: .destructive, action: onDelete) {
                 Label("앱 삭제", systemImage: "trash")
             }
-        }
-    }
-}
-
-private struct ScarletGuestListCard: View {
-    let guests: [ScarletGuestPresentation]
-    let emptyText: String
-    let onOpen: (String) -> Void
-    let onDelete: (String) -> Void
-
-    var body: some View {
-        VStack(spacing: 0) {
-            if guests.isEmpty {
-                Text(emptyText)
-                    .font(.footnote)
-                    .foregroundStyle(ScarletPresentationColor.muted)
-                    .frame(maxWidth: .infinity, minHeight: 62, alignment: .leading)
-                    .padding(.horizontal, 8)
-            } else {
-                ForEach(guests) { item in
-                    ScarletGuestActionRow(
-                        guest: item,
-                        onDelete: { onDelete(item.id) },
-                        action: { onOpen(item.id) }
-                    )
-                    if item.id != guests.last?.id {
-                        Rectangle()
-                            .fill(ScarletPresentationColor.stroke.opacity(0.55))
-                            .frame(height: 1)
-                            .padding(.horizontal, 8)
-                    }
-                }
-            }
-        }
-        .padding(7)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(ScarletPresentationColor.surface,
-                    in: RoundedRectangle(cornerRadius: 20, style: .continuous))
-        .overlay {
-            RoundedRectangle(cornerRadius: 20, style: .continuous)
-                .stroke(ScarletPresentationColor.stroke, lineWidth: 1)
+            .accessibilityIdentifier("SCARLET_GUEST_UNINSTALL_MENU")
         }
     }
 }
@@ -426,7 +355,7 @@ public struct ScarletIndependentShell: View {
                 legacyGlassTabs
             }
         }
-        .background(ScarletPresentationColor.background.ignoresSafeArea())
+        .background(ScarletPresentationColor.ambientBackground.ignoresSafeArea())
         .preferredColorScheme(.dark)
         .onAppear { onTabChanged(selected.rawValue) }
         .onChange(of: selected) { tab in onTabChanged(tab.rawValue) }
@@ -477,6 +406,7 @@ public struct ScarletIndependentShell: View {
             }
         }
         .tabBarMinimizeBehavior(.onScrollDown)
+        .tint(ScarletPresentationColor.accent)
         .onAppear(perform: onSystemGlassMounted)
         .accessibilityIdentifier("SCARLET_IOS26_NATIVE_SYSTEM_GLASS_TABS")
     }
@@ -484,7 +414,7 @@ public struct ScarletIndependentShell: View {
     private var legacyGlassTabs: some View {
         // Only old iOS uses the previous independent overlay bar.
         ZStack(alignment: .bottom) {
-            ScarletPresentationColor.background.ignoresSafeArea()
+            ScarletPresentationColor.ambientBackground.ignoresSafeArea()
             screen(for: selected)
             preservedGlassTabBar($selected)
                 .frame(maxWidth: .infinity, alignment: .center)
