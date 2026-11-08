@@ -144,10 +144,21 @@ jobs:
             --sidestore-ipa "$GITHUB_WORKSPACE/report/SideStore.ipa" \
             --phase sidestore --report "$GITHUB_WORKSPACE/report/sidestore-audit.json"
           echo "[PASS] Compiled SideStore with source-proven install/sign/refresh pipeline"
+      # Only publish a reusable native-engine artifact after SideStore.ipa
+      # and all build verification steps succeed. Failed attempts previously
+      # uploaded an artifact with the SAME name but without SideStore.ipa;
+      # a re-run then downloaded that stale/incomplete artifact by name.
       - uses: actions/upload-artifact@v4
-        if: always()
+        if: success()
         with:
           name: Scarlet-SideStore-Native-Engine
+          path: report/
+          retention-days: 14
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: Scarlet-SideStore-Failure-Logs-attempt-${{ github.run_attempt }}
           path: report/
           retention-days: 14
           if-no-files-found: warn
@@ -187,6 +198,17 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          # A completed workflow job is not proof that the downloaded artifact
+          # contains the binary; block incomplete/stale artifacts explicitly.
+          test -s artifacts/side/SideStore.ipa || {
+            echo "[BLOCK] Missing verified SideStore.ipa in downloaded artifact" >&2
+            find artifacts/side -maxdepth 2 -type f -print >&2
+            exit 1
+          }
+          test -s artifacts/lc/LiveContainer-app.tar || {
+            echo "[BLOCK] Missing compiled LiveContainer-app.tar" >&2
+            exit 1
+          }
           python3 rebuild/integration/package_paired.py \
             --lc-tar artifacts/lc/LiveContainer-app.tar \
             --sidestore-ipa artifacts/side/SideStore.ipa \
