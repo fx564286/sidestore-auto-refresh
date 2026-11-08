@@ -175,6 +175,9 @@ def hide_embedded_sidestore_guest_navigation(engine: Path) -> dict:
     native_events={
         "    func startInstallApp(_ fileUrl:URL) async {\n":
         '    func startInstallApp(_ fileUrl:URL) async {\n'
+        # Upstream installIpaFile contains nonthrowing early exits. Without
+        # defer, its spinner can stay active forever and disable "Close".
+        '        defer { installprogressVisible = false }\n'
         '        ScarletDiagnosticRecorder.shared.record("guest_import", "file_import_requested")\n',
         "            try await installIpaFile(fileUrl)\n":
         '            try await installIpaFile(fileUrl)\n'
