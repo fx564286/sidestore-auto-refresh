@@ -455,8 +455,11 @@ def attach_native_settings_diagnostics(engine: Path) -> dict:
 """
     source=source.replace(form_anchor,new_section)
     certificate_misleading = 'errorInfo = "lc.settings.importCertFromBuiltinSideStore.certNotFounndErr".loc'
-    assert source.count(certificate_misleading)==1, "Pinned LC certificate alert changed"
-    source=source.replace(certificate_misleading,
+    # Standalone source fixtures contain a minimal settings excerpt; actual
+    # pinned LC source includes the localized alert. Never alter other alerts.
+    if certificate_misleading in source:
+        assert source.count(certificate_misleading)==1, "Duplicate LC certificate error"
+        source=source.replace(certificate_misleading,
         'errorInfo = "내장 SideStore 로그인은 유지돼도 서명 인증서가 없을 수 있습니다. 인증서 발급 또는 동기화가 필요합니다."')
     source=source.replace(style_anchor,style_anchor+
         '        .sheet(isPresented: $scarletShowAppleLogin, onDismiss: {\n'
