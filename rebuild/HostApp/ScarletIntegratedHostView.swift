@@ -188,8 +188,14 @@ struct ScarletIntegratedHostView: View {
         LCUtils.appGroupUserDefault.set(certData, forKey: "LCCertificateData")
         LCUtils.appGroupUserDefault.set(password, forKey: "LCCertificatePassword")
         LCUtils.appGroupUserDefault.set(Date(), forKey: "LCCertificateUpdateDate")
+        guard LCUtils.certificateData() == certData,
+              LCSharedUtils.certificatePassword() == password else {
+            ScarletDiagnosticRecorder.shared.record("guest", "certificate_bridge_not_persisted",
+                status: "error", fields: ["reason": "app_group_write_failed"])
+            return
+        }
         ScarletDiagnosticRecorder.shared.record("guest", "certificate_bridge_imported",
-            status: "success", fields: ["reason": "same_team_verified"])
+            status: "success", fields: ["reason": "same_team_verified_readback"])
     }
 
     // The original LCTabView initializes LC extension bookmarks and team
@@ -431,6 +437,15 @@ struct ScarletIntegratedHostView: View {
                 guard size > 0, size < 2_147_483_648 else {
                     throw NSError(domain: "ScarletSourceImport", code: 2,
                         userInfo: [NSLocalizedDescriptionKey: "다운로드 파일 크기가 올바르지 않습니다."])
+                }
+                let reader = try FileHandle(forReadingFrom: downloaded)
+                defer { try? reader.close() }
+                let magic = try reader.read(upToCount: 4)
+                guard magic == Data([0x50, 0x4B, 0x03, 0x04]) else {
+                    ScarletDiagnosticRecorder.shared.record("sources", "download_not_ipa",
+                        status: "error", fields: ["reason": "not_zip_archive"])
+                    throw NSError(domain: "ScarletSourceImport", code: 3,
+                        userInfo: [NSLocalizedDescriptionKey: "다운로드한 파일이 유효한 IPA ZIP 형식이 아닙니다."])
                 }
                 let staged = FileManager.default.temporaryDirectory
                     .appendingPathComponent("scarlet-source-\(UUID().uuidString).ipa")
