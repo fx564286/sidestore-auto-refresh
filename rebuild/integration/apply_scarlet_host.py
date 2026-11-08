@@ -372,7 +372,8 @@ def attach_native_settings_diagnostics(engine: Path) -> dict:
     for anchor in (state_anchor,form_anchor,style_anchor):
         assert source.count(anchor)==1, "Pinned settings structure changed: "+repr(anchor)
     source=source.replace(state_anchor, state_anchor+
-        '    @State private var scarletShowAppleLogin = false\n')
+        '    @State private var scarletShowAppleLogin = false\n'
+        '    @State private var scarletLoginVerified: Bool? = nil\n')
     new_section="""        NavigationView {
             Form {
                 Section {
@@ -380,9 +381,15 @@ def attach_native_settings_diagnostics(engine: Path) -> dict:
                         ScarletDiagnosticRecorder.shared.record("auth", "open_from_settings")
                         scarletShowAppleLogin = true
                     } label: {
-                        Label("Apple ID 로그인", systemImage: "person.crop.circle")
+                        Label(scarletLoginVerified == true ? "Apple ID 로그인됨 · 계정 관리" :
+                              (scarletLoginVerified == nil ? "Apple ID 확인 중" : "Apple ID 로그인"),
+                              systemImage: scarletLoginVerified == true ? "checkmark.seal.fill" : "person.crop.circle")
                     }
                     .accessibilityIdentifier("SCARLET_SETTINGS_NATIVE_APPLE_LOGIN")
+                    Text(scarletLoginVerified == true ? "인증 세션 복원됨 · 서명 인증서는 별도 확인" :
+                         (scarletLoginVerified == nil ? "저장된 로그인 상태 확인 중" : "저장된 로그인 세션 없음"))
+                        .font(.footnote)
+                        .foregroundStyle(scarletLoginVerified == true ? .green : .secondary)
                     if #available(iOS 16.0, *) {
                         NavigationLink {
                             ScarletDiagnosticLogView()
@@ -399,7 +406,13 @@ def attach_native_settings_diagnostics(engine: Path) -> dict:
 """
     source=source.replace(form_anchor,new_section)
     source=source.replace(style_anchor,style_anchor+
-        '        .sheet(isPresented: $scarletShowAppleLogin) {\n'
+        '        .sheet(isPresented: $scarletShowAppleLogin, onDismiss: {\n'
+        '            Task { @MainActor in\n'
+        '                if #available(iOS 17.0, *) {\n'
+        '                    scarletLoginVerified = await ScarletConnectedSideSignEngine().storedAuthenticated()\n'
+        '                }\n'
+        '            }\n'
+        '        }) {\n'
         '            if #available(iOS 17.0, *) {\n'
         '                ScarletAppleIDLoginSheet(engine: ScarletConnectedSideSignEngine())\n'
         '            } else {\n'
@@ -408,6 +421,19 @@ def attach_native_settings_diagnostics(engine: Path) -> dict:
         '        }\n'
         '        .onAppear {\n'
         '            ScarletDiagnosticRecorder.shared.record("settings", "native_form_visible")\n'
+        '            Task { @MainActor in\n'
+        '                if #available(iOS 17.0, *) {\n'
+        '                    scarletLoginVerified = await ScarletConnectedSideSignEngine().storedAuthenticated()\n'
+        '                }\n'
+        '            }\n'
+        '        }\n'
+        '        .onReceive(NotificationCenter.default.publisher(\n'
+        '            for: Notification.Name("ScarletGuestAuthVerified"))) { _ in\n'
+        '            Task { @MainActor in\n'
+        '                if #available(iOS 17.0, *) {\n'
+        '                    scarletLoginVerified = await ScarletConnectedSideSignEngine().storedAuthenticated()\n'
+        '                }\n'
+        '            }\n'
         '        }\n'
         '        .onChange(of: dynamicColors) { enabled in\n'
         '            ScarletDiagnosticRecorder.shared.record("settings", "dynamic_colors_changed",\n'
