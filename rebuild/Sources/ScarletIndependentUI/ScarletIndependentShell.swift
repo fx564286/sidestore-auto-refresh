@@ -2,6 +2,7 @@
 // Native Liquid Glass, LiveContainer, SideStore and SideSign are injected via
 // host adapters. This file owns NO engine, glass renderer, credential or profile.
 import SwiftUI
+import UIKit
 
 public struct ScarletGuestPresentation: Identifiable, Equatable, Sendable {
     public let id: String
@@ -12,17 +13,34 @@ public struct ScarletGuestPresentation: Identifiable, Equatable, Sendable {
     // running state from a static Figma example or an installation timestamp.
     public let isRunning: Bool
     public let lastOpenedAt: Date?
+    public let iconPNG: Data?
 
     public init(id: String, title: String, detail: String,
                 icon: String = "app.fill",
                 isRunning: Bool = false,
-                lastOpenedAt: Date? = nil) {
+                lastOpenedAt: Date? = nil,
+                iconPNG: Data? = nil) {
         self.id = id
         self.title = title
         self.detail = detail
         self.icon = icon
         self.isRunning = isRunning
         self.lastOpenedAt = lastOpenedAt
+        self.iconPNG = iconPNG
+    }
+}
+
+public struct ScarletSourceAppPresentation: Identifiable, Equatable, Sendable {
+    public let id: String
+    public let name: String
+    public let version: String
+    public let hasDownload: Bool
+
+    public init(id: String, name: String, version: String, hasDownload: Bool) {
+        self.id = id
+        self.name = name
+        self.version = version
+        self.hasDownload = hasDownload
     }
 }
 
@@ -31,13 +49,16 @@ public struct ScarletSourcePresentation: Identifiable, Equatable, Sendable {
     public let title: String
     public let detail: String
     public let icon: String
+    public let apps: [ScarletSourceAppPresentation]
 
     public init(id: String, title: String, detail: String,
-                icon: String = "square.stack.fill") {
+                icon: String = "square.stack.fill",
+                apps: [ScarletSourceAppPresentation] = []) {
         self.id = id
         self.title = title
         self.detail = detail
         self.icon = icon
+        self.apps = apps
     }
 }
 
@@ -213,6 +234,65 @@ private struct ScarletGuestActionRow: View {
     }
 }
 
+// iPhone-style launcher: one independent icon per guest, no enclosing list card.
+private struct ScarletGuestLauncherTile: View {
+    let guest: ScarletGuestPresentation
+    let onDelete: () -> Void
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            VStack(spacing: 7) {
+                ZStack(alignment: .bottomTrailing) {
+                    Group {
+                        if let data = guest.iconPNG, let image = UIImage(data: data) {
+                            Image(uiImage: image)
+                                .resizable()
+                                .scaledToFit()
+                        } else {
+                            Image(systemName: guest.icon)
+                                .resizable()
+                                .scaledToFit()
+                                .padding(18)
+                                .foregroundStyle(ScarletPresentationColor.accent)
+                                .background(ScarletPresentationColor.surface)
+                        }
+                    }
+                    .frame(width: 66, height: 66)
+                    .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                    .overlay {
+                        RoundedRectangle(cornerRadius: 16, style: .continuous)
+                            .stroke(ScarletPresentationColor.stroke.opacity(0.65), lineWidth: 0.75)
+                    }
+                    if guest.isRunning {
+                        Circle()
+                            .fill(ScarletPresentationColor.success)
+                            .frame(width: 10, height: 10)
+                            .overlay(Circle().stroke(ScarletPresentationColor.background, lineWidth: 2))
+                    }
+                }
+                Text(guest.title)
+                    .font(.system(size: 11.5, weight: .medium))
+                    .foregroundStyle(ScarletPresentationColor.text)
+                    .lineLimit(2)
+                    .multilineTextAlignment(.center)
+                    .frame(maxWidth: .infinity, minHeight: 30, alignment: .top)
+            }
+            .frame(maxWidth: .infinity, alignment: .top)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(guest.title)
+        .accessibilityHint(guest.isRunning ? "실행 중인 게스트로 전환" : "게스트 앱 실행")
+        .accessibilityIdentifier("SCARLET_GUEST_LAUNCHER_TILE")
+        .contextMenu {
+            Button(role: .destructive, action: onDelete) {
+                Label("앱 삭제", systemImage: "trash")
+            }
+        }
+    }
+}
+
 private struct ScarletGuestListCard: View {
     let guests: [ScarletGuestPresentation]
     let emptyText: String
@@ -280,6 +360,7 @@ public struct ScarletIndependentShell: View {
     public let sources: [ScarletSourcePresentation]
     public let onOpenSource: (String) -> Void
     public let onAddSource: () -> Void
+    public let onInstallSourceApp: (String) -> Void
     public let onAction: (ScarletControl) -> Void
     public let onOpenGuest: (String) -> Void
     public let onDeleteGuest: (String) -> Void
@@ -310,6 +391,7 @@ public struct ScarletIndependentShell: View {
                 onDeleteGuest: @escaping (String) -> Void = { _ in },
                 onOpenSource: @escaping (String) -> Void,
                 onAddSource: @escaping () -> Void,
+                onInstallSourceApp: @escaping (String) -> Void = { _ in },
                 preservedGlassTabBar: @escaping (Binding<Tab>) -> AnyView,
                 nativeTweaks: @escaping () -> AnyView = { AnyView(EmptyView()) },
                 nativeSettings: @escaping () -> AnyView = { AnyView(EmptyView()) },
@@ -324,6 +406,7 @@ public struct ScarletIndependentShell: View {
         self.onDeleteGuest = onDeleteGuest
         self.onOpenSource = onOpenSource
         self.onAddSource = onAddSource
+        self.onInstallSourceApp = onInstallSourceApp
         self.preservedGlassTabBar = preservedGlassTabBar
         self.nativeTweaks = nativeTweaks
         self.nativeSettings = nativeSettings
@@ -502,12 +585,27 @@ public struct ScarletIndependentShell: View {
                 RoundedRectangle(cornerRadius: 20)
                     .stroke(ScarletPresentationColor.stroke, lineWidth: 1)
             }
-            ScarletGuestListCard(
-                guests: visibleGuests,
-                emptyText: "설치된 앱이 없습니다.",
-                onOpen: onOpenGuest,
-                onDelete: onDeleteGuest
-            )
+            if visibleGuests.isEmpty {
+                Text("설치된 앱이 없습니다.")
+                    .font(.subheadline)
+                    .foregroundStyle(ScarletPresentationColor.muted)
+                    .frame(maxWidth: .infinity, minHeight: 120)
+            } else {
+                LazyVGrid(
+                    columns: Array(repeating: GridItem(.flexible(minimum: 58), spacing: 12), count: 4),
+                    alignment: .center, spacing: 18
+                ) {
+                    ForEach(visibleGuests) { guest in
+                        ScarletGuestLauncherTile(
+                            guest: guest,
+                            onDelete: { onDeleteGuest(guest.id) },
+                            action: { onOpenGuest(guest.id) }
+                        )
+                    }
+                }
+                .padding(.top, 12)
+                .accessibilityIdentifier("SCARLET_APPS_FOUR_COLUMN_LAUNCHER")
+            }
         }
         .foregroundStyle(ScarletPresentationColor.text)
     }
@@ -521,17 +619,54 @@ public struct ScarletIndependentShell: View {
     private var sourcesScreen: some View {
         Group {
             heading("", "소스", "")
-            ScarletPanel {
-                ForEach(sources) { source in
-                    ScarletActionRow(title: source.title, detail: source.detail,
-                                     icon: source.icon, enabled: true) {
-                        onOpenSource(source.id)
-                    }
-                }
-                if sources.isEmpty {
+            if sources.isEmpty {
+                ScarletPanel {
                     Text("소스를 추가해 앱 목록을 확인하세요.")
                         .font(.footnote)
                         .foregroundStyle(ScarletPresentationColor.muted)
+                }
+            } else {
+                ForEach(sources) { source in
+                    ScarletPanel {
+                        HStack {
+                            Image(systemName: source.icon)
+                                .foregroundStyle(ScarletPresentationColor.accent)
+                            VStack(alignment: .leading, spacing: 3) {
+                                Text(source.title).font(.headline)
+                                Text(source.detail).font(.caption)
+                                    .foregroundStyle(ScarletPresentationColor.muted)
+                            }
+                            Spacer()
+                            Button { onOpenSource(source.id) } label: {
+                                Image(systemName: "ellipsis.circle")
+                            }
+                            .accessibilityLabel("소스 관리")
+                        }
+                        if source.apps.isEmpty {
+                            Text("앱 목록이 비어 있거나 소스를 불러오는 중입니다.")
+                                .font(.footnote)
+                                .foregroundStyle(ScarletPresentationColor.muted)
+                        }
+                        ForEach(source.apps) { app in
+                            HStack(spacing: 10) {
+                                Image(systemName: "app.fill")
+                                    .foregroundStyle(ScarletPresentationColor.accent)
+                                    .frame(width: 38, height: 38)
+                                VStack(alignment: .leading, spacing: 3) {
+                                    Text(app.name).font(.subheadline.weight(.medium))
+                                        .lineLimit(1)
+                                    Text(app.version).font(.caption2)
+                                        .foregroundStyle(ScarletPresentationColor.muted)
+                                }
+                                Spacer(minLength: 6)
+                                Button("게스트 설치") { onInstallSourceApp(app.id) }
+                                    .font(.caption.weight(.semibold))
+                                    .disabled(!app.hasDownload)
+                                    .accessibilityIdentifier("SCARLET_SOURCE_APP_INSTALL")
+                            }
+                            .frame(minHeight: 49)
+                        }
+                    }
                 }
             }
             Button(action: onAddSource) {
