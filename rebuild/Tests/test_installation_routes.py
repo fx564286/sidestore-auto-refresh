@@ -28,7 +28,8 @@ class InstallerRouteTests(unittest.TestCase):
     def test_home_guest_uninstall_is_confirmed_and_keeps_data(self):
         self.assertIn("SCARLET_GUEST_UNINSTALL_MENU", UI)
         self.assertIn("onDeleteGuest: requestGuestUninstall", HOST)
-        self.assertIn("onDelete: onDeleteGuest", UI)
+        self.assertIn("onDelete: { onDeleteGuest(guest.id) }", UI)
+        self.assertIn("SCARLET_GUEST_LAUNCHER_TILE", UI)
         self.assertIn("confirmGuestUninstall = true", HOST)
         self.assertIn("uninstallConfirmedGuest()", HOST)
         self.assertIn("bundleURL.deletingLastPathComponent() == root", HOST)
