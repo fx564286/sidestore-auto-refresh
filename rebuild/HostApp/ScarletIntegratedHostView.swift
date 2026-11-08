@@ -145,6 +145,38 @@ struct ScarletIntegratedHostView: View {
         }
     }
 
+    // The original LCTabView initializes LC extension bookmarks and team
+    // identity in .task. The independent Scarlet root replaces that tab view;
+    // preserve its nonvisual bootstrap before launching any guest.
+    private func ensureOriginalLCGuestBootstrap() -> Bool {
+        if sharedModel.multiLCStatus == 2 {
+            let scheme = UserDefaults.lcAppUrlScheme() ?? ""
+            LCUtils.appGroupUserDefault.set(Bundle.main.bundleIdentifier,
+                forKey: "LCBundleID.\(scheme)")
+        } else if LCUtils.appGroupUserDefault.object(forKey: "LCLaunchExtensionPrivateDocBookmark") == nil {
+            guard let bookmark = LCUtils.bookmark(for: LCPath.docPath) else {
+                ScarletDiagnosticRecorder.shared.record("guest", "bootstrap_failed",
+                    status: "error", fields: ["reason": "private_docs_bookmark"])
+                showOriginalError = "LiveContainer 개인 저장소 접근 정보를 생성하지 못했습니다. 설치된 앱 데이터는 유지됩니다."
+                return false
+            }
+            LCUtils.appGroupUserDefault.set(bookmark,
+                forKey: "LCLaunchExtensionPrivateDocBookmark")
+            ScarletDiagnosticRecorder.shared.record("guest", "private_docs_bookmark_created",
+                status: "success")
+        }
+
+        if UserDefaults.standard.string(forKey: "LCCertificateTeamId") == nil,
+           let team = LCSharedUtils.teamIdentifier() {
+            UserDefaults.standard.set(team, forKey: "LCCertificateTeamId")
+            ScarletDiagnosticRecorder.shared.record("guest", "team_identity_initialized",
+                status: "info")
+        }
+        ScarletDiagnosticRecorder.shared.record("guest", "bootstrap_checked",
+            status: "success")
+        return true
+    }
+
     private func runGuest(_ key: String) {
         let guestRef = ScarletDiagnosticRecorder.shared.guestReference(key)
         ScarletDiagnosticRecorder.shared.record("guest", "launch_requested",
@@ -166,9 +198,19 @@ struct ScarletIntegratedHostView: View {
             }
             defer { launchingGuestKeys.remove(key) }
             do {
-                // Record host/certificate compatibility without modifying it.
+                guard ensureOriginalLCGuestBootstrap() else { return }
+                // The removed LCAppListView normally owns the JIT delegate.
+                // Do not silently claim a JIT guest launched when no delegate
+                // can display/complete the original JIT enablement process.
+                if (app.appInfo.isJITNeeded || app.appInfo.is32bit),
+                   app.delegate == nil {
+                    ScarletDiagnosticRecorder.shared.record("guest", "jit_delegate_unavailable",
+                        status: "blocked", fields: ["reason": "original_ui_not_mounted"])
+                    showOriginalError = "이 게스트 앱은 JIT 지원이 필요합니다. 현재 런처의 JIT 연결이 준비되지 않아 실행을 중단했습니다."
+                    return
+                }
                 recordGuestCertificatePreflight()
-                // Delegates and guest bundle identity remain original LC.
+                // Original LC remains the owner of signature/launch/handoff.
                 try await app.runApp()
                 // runApp returning is NOT proof the guest scene is on-screen.
                 ScarletDiagnosticRecorder.shared.record("guest", "runapp_returned",
@@ -485,6 +527,7 @@ struct ScarletIntegratedHostView: View {
                          "engine": "livecontainer",
                          "available": UserDefaults.sideStoreExist() ? "true" : "false"])
             recordLayout()
+            _ = ensureOriginalLCGuestBootstrap()
             reportPreviousGuestLaunchFailure()
             refreshStoredLoginState()
             // UIKit window creation can lag behind SwiftUI view construction.
