@@ -386,7 +386,17 @@ struct ScarletIntegratedHostView: View {
                         .environmentObject(downloadHelper)
                 )
             },
-            onTabChanged: recordTab
+            onTabChanged: recordTab,
+            onSystemGlassMounted: {
+                // Records which code path actually mounted on iOS 26+.
+                // It deliberately does not claim optical proof from a device.
+                ScarletDiagnosticRecorder.shared.record(
+                    "glass", "system_tabbar_mounted",
+                    status: "info",
+                    fields: ["api": "SwiftUI.TabView",
+                             "material_owner": "system",
+                             "optical_verified": "false"])
+            }
         )
         .environmentObject(downloadHelper)
         .onAppear {
