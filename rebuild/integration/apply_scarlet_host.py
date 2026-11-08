@@ -412,7 +412,8 @@ def attach_native_settings_diagnostics(engine: Path) -> dict:
         assert source.count(anchor)==1, "Pinned settings structure changed: "+repr(anchor)
     source=source.replace(state_anchor, state_anchor+
         '    @State private var scarletShowAppleLogin = false\n'
-        '    @State private var scarletLoginVerified: Bool? = nil\n')
+        '    @State private var scarletLoginVerified: Bool? = nil\n'
+        '    @State private var scarletSigningCertAvailable = false\n')
     new_section="""        NavigationView {
             Form {
                 Section {
@@ -425,10 +426,19 @@ def attach_native_settings_diagnostics(engine: Path) -> dict:
                               systemImage: scarletLoginVerified == true ? "checkmark.seal.fill" : "person.crop.circle")
                     }
                     .accessibilityIdentifier("SCARLET_SETTINGS_NATIVE_APPLE_LOGIN")
-                    Text(scarletLoginVerified == true ? "인증 세션 복원됨 · 서명 인증서는 별도 확인" :
-                         (scarletLoginVerified == nil ? "저장된 로그인 상태 확인 중" : "저장된 로그인 세션 없음"))
+                    Text(scarletLoginVerified == true
+                         ? "내장 SideStore · 인증 세션 복원됨"
+                         : (scarletLoginVerified == nil
+                            ? "내장 SideStore 인증 확인 중"
+                            : "내장 SideStore 저장 세션 없음"))
                         .font(.footnote)
                         .foregroundStyle(scarletLoginVerified == true ? Color.green : Color.secondary)
+                    Text(scarletSigningCertAvailable
+                         ? "서명 인증서 · 준비됨"
+                         : "서명 인증서 · 없음 (로그인과 별도)")
+                        .font(.footnote)
+                        .foregroundStyle(scarletSigningCertAvailable ? Color.green : Color.orange)
+                        .accessibilityIdentifier("SCARLET_CERTIFICATE_SEPARATE_FROM_LOGIN")
                     if #available(iOS 16.0, *) {
                         NavigationLink {
                             ScarletDiagnosticLogView()
@@ -444,11 +454,16 @@ def attach_native_settings_diagnostics(engine: Path) -> dict:
                 }
 """
     source=source.replace(form_anchor,new_section)
+    certificate_misleading = 'errorInfo = "lc.settings.importCertFromBuiltinSideStore.certNotFounndErr".loc'
+    assert source.count(certificate_misleading)==1, "Pinned LC certificate alert changed"
+    source=source.replace(certificate_misleading,
+        'errorInfo = "내장 SideStore 로그인은 유지돼도 서명 인증서가 없을 수 있습니다. 인증서 발급 또는 동기화가 필요합니다."')
     source=source.replace(style_anchor,style_anchor+
         '        .sheet(isPresented: $scarletShowAppleLogin, onDismiss: {\n'
         '            Task { @MainActor in\n'
         '                if #available(iOS 17.0, *) {\n'
-        '                    scarletLoginVerified = await ScarletConnectedSideSignEngine().storedAuthenticated()\n'
+        '                    scarletLoginVerified = await ScarletConnectedSideSignEngine().storedAuthenticated()\n'        '                    scarletSigningCertAvailable = LCUtils.certificateData() != nil &&\n'
+        '                        !(LCSharedUtils.certificatePassword() ?? "").isEmpty\n'
         '                }\n'
         '            }\n'
         '        }) {\n'
@@ -462,7 +477,8 @@ def attach_native_settings_diagnostics(engine: Path) -> dict:
         '            ScarletDiagnosticRecorder.shared.record("settings", "native_form_visible")\n'
         '            Task { @MainActor in\n'
         '                if #available(iOS 17.0, *) {\n'
-        '                    scarletLoginVerified = await ScarletConnectedSideSignEngine().storedAuthenticated()\n'
+        '                    scarletLoginVerified = await ScarletConnectedSideSignEngine().storedAuthenticated()\n'        '                    scarletSigningCertAvailable = LCUtils.certificateData() != nil &&\n'
+        '                        !(LCSharedUtils.certificatePassword() ?? "").isEmpty\n'
         '                }\n'
         '            }\n'
         '        }\n'
@@ -470,7 +486,8 @@ def attach_native_settings_diagnostics(engine: Path) -> dict:
         '            for: Notification.Name("ScarletGuestAuthVerified"))) { _ in\n'
         '            Task { @MainActor in\n'
         '                if #available(iOS 17.0, *) {\n'
-        '                    scarletLoginVerified = await ScarletConnectedSideSignEngine().storedAuthenticated()\n'
+        '                    scarletLoginVerified = await ScarletConnectedSideSignEngine().storedAuthenticated()\n'        '                    scarletSigningCertAvailable = LCUtils.certificateData() != nil &&\n'
+        '                        !(LCSharedUtils.certificatePassword() ?? "").isEmpty\n'
         '                }\n'
         '            }\n'
         '        }\n'
