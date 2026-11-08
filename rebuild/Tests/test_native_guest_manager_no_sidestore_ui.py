@@ -152,7 +152,7 @@ class LCManagerWithoutSideStoreGuestUI(unittest.TestCase):
             self.assertIn("import_pipeline_failed",source)
             self.assertIn("import_signing_failed",source)
             self.assertIn("scarletGuestImportSignFailed = true",source)
-            self.assertIn("IPA 가져옴 · 서명 검증 실패",source)
+            self.assertIn("서명 확인이 필요합니다",source)
             self.assertNotIn("IPA 처리 완료",source)
             self.assertIn("launch_unverified",source)
             self.assertIn("url_import_requested",source)
