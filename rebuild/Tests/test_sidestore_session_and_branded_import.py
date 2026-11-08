@@ -61,6 +61,16 @@ class AuthAndImportUIRegression(unittest.TestCase):
         self.assertIn('.glassEffect()', PATCH)
         self.assertIn('.disabled(!scarletQueuedImportFinished || installprogressVisible)', PATCH)
 
+    def test_completed_guest_import_sheet_closes_without_swallowing_errors(self):
+        # In the 2026-11-09 device log, import completed immediately but the
+        # sheet was not dismissed until 2h 35m later. Keep sign failures visible.
+        self.assertIn('completed_sheet_auto_closed', PATCH)
+        self.assertIn('try? await Task.sleep(for: .seconds(2))', PATCH)
+        self.assertIn('!scarletGuestImportSignFailed && !errorShow', PATCH)
+        self.assertIn('!errorShow && !installprogressVisible', PATCH)
+        self.assertIn('scarletOnImportFinished?()', PATCH)
+        self.assertIn('import_only_launch_unverified', PATCH)
+
     def test_figma_tracks_both_install_steps(self):
         self.assertEqual(MAP["screens"]["sourceDownloadInProgress"], "133:2")
         self.assertEqual(MAP["screens"]["guestImportInProgress"], "133:43")
