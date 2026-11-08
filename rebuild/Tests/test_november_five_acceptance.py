@@ -16,7 +16,7 @@ class FivePointNovemberAccept(unittest.TestCase):
         self.assertIn("scarletLoginVerified: Bool? = nil", PATCH)
         self.assertIn('Apple ID 로그인됨 · 계정 관리', PATCH)
         self.assertIn('ScarletConnectedSideSignEngine().storedAuthenticated()', PATCH)
-        self.assertIn("서명 인증서는 별도 확인", PATCH)
+        self.assertIn("서명 인증서 · 없음 (로그인과 별도)", PATCH)
         self.assertIn("onDismiss:", PATCH)
 
     def test_2_real_independent_four_column_guest_launcher(self):
@@ -54,7 +54,7 @@ class FivePointNovemberAccept(unittest.TestCase):
         self.assertIn("SCARLET_SOURCE_APP_INSTALL",UI)
         self.assertIn("onInstallSourceApp(app.id)",UI)
         self.assertIn("onInstallSourceApp: installSourceGuestApp",HOST)
-        self.assertIn("URLSession.shared.download(from: url)",HOST)
+        self.assertIn("session.download(from: url)",HOST)
         self.assertIn("stageGuestIPAFromFiles(staged)",HOST)
         self.assertIn("LCAppListView(scarletQueuedIPAURL: queuedGuestIPAURL,",HOST)
         self.assertIn("guest_download_started",HOST)
