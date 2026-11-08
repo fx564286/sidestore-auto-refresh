@@ -1,0 +1,35 @@
+{
+  "schema": 1,
+  "figmaFile": "https://www.figma.com/design/QESg6S7oJS47PmlPpEX5w5",
+  "verifiedDesignRevisionDate": "2026-11-08",
+  "sourceOfTruth": "rebuild/Sources/ScarletIndependentUI/ScarletIndependentShell.swift",
+  "screens": {
+    "appsMain": "6:75",
+    "appsInstallMenuOpen": "6:15",
+    "settings": "6:136",
+    "signingDetail": "6:198",
+    "runningGuestSwitcher": "6:254",
+    "sources": "26:2"
+  },
+  "bottomTabs": [
+    "소스",
+    "앱",
+    "트윅",
+    "설정"
+  ],
+  "independentHomeTab": false,
+  "appsInstallTriggerCount": 1,
+  "installRoutes": [
+    "IPA 설치하기",
+    "게스트 앱 설치하기"
+  ],
+  "installTrigger": "One 44pt leading + in installed-apps heading; one tap opens native Menu",
+  "displayGlass": "Figma uses an editable static optical reference only, not an executable Liquid Glass API",
+  "ios26RuntimeGlass": "SwiftUI TabView owns system Liquid Glass; the native bar is not overlaid a second time",
+  "opticalAcceptance": "Pending actual iPhone visual/gesture recording; source tests cannot validate optical appearance",
+  "preservedEngines": [
+    "LiveContainer",
+    "SideStore",
+    "SideSign"
+  ]
+}
