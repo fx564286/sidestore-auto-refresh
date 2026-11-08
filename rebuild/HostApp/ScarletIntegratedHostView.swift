@@ -145,6 +145,53 @@ struct ScarletIntegratedHostView: View {
         }
     }
 
+    // The original LC settings can read the bundled SideStore certificate,
+    // but independent Scarlet has no second app-list/SideStore screen to visit.
+    // Import only a VALID same-team existing P12, and only when LC has none.
+    // Never log a P12, password, account, team ID or Keychain value.
+    private func bridgeExistingSideStoreCertificateIfSafe() {
+        guard LCUtils.certificateData() == nil else { return }
+        let certificateQuery: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrAccount as String: "signingCertificate",
+            kSecReturnData as String: true,
+            kSecMatchLimit as String: kSecMatchLimitOne,
+            kSecAttrService as String: "com.kdt.livecontainer",
+            kSecAttrSynchronizable as String: kSecAttrSynchronizableAny
+        ]
+        let passwordQuery: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrAccount as String: "signingCertificatePassword",
+            kSecReturnData as String: true,
+            kSecMatchLimit as String: kSecMatchLimitOne,
+            kSecAttrService as String: "com.kdt.livecontainer",
+            kSecAttrSynchronizable as String: kSecAttrSynchronizableAny
+        ]
+        var item: CFTypeRef?
+        var passwordItem: CFTypeRef?
+        let certStatus = SecItemCopyMatching(certificateQuery as CFDictionary, &item)
+        let pwdStatus = SecItemCopyMatching(passwordQuery as CFDictionary, &passwordItem)
+        guard certStatus == errSecSuccess, pwdStatus == errSecSuccess,
+              let certData = item as? Data,
+              let pwdData = passwordItem as? Data,
+              let password = String(data: pwdData, encoding: .utf8),
+              !certData.isEmpty, !password.isEmpty,
+              let signingTeam = LCUtils.getCertTeamId(
+                  withKeyData: certData, password: password),
+              let hostTeam = LCSharedUtils.teamIdentifier(),
+              signingTeam == hostTeam else {
+            ScarletDiagnosticRecorder.shared.record("guest", "certificate_bridge_skipped",
+                fields: ["reason": certStatus == errSecItemNotFound ? "missing" : "not_verified"])
+            return
+        }
+        // Same storage keys used by the original LCSettingsView.
+        LCUtils.appGroupUserDefault.set(certData, forKey: "LCCertificateData")
+        LCUtils.appGroupUserDefault.set(password, forKey: "LCCertificatePassword")
+        LCUtils.appGroupUserDefault.set(Date(), forKey: "LCCertificateUpdateDate")
+        ScarletDiagnosticRecorder.shared.record("guest", "certificate_bridge_imported",
+            status: "success", fields: ["reason": "same_team_verified"])
+    }
+
     // The original LCTabView initializes LC extension bookmarks and team
     // identity in .task. The independent Scarlet root replaces that tab view;
     // preserve its nonvisual bootstrap before launching any guest.
@@ -209,6 +256,7 @@ struct ScarletIntegratedHostView: View {
                     showOriginalError = "이 게스트 앱은 JIT 지원이 필요합니다. 현재 런처의 JIT 연결이 준비되지 않아 실행을 중단했습니다."
                     return
                 }
+                bridgeExistingSideStoreCertificateIfSafe()
                 recordGuestCertificatePreflight()
                 // Original LC remains the owner of signature/launch/handoff.
                 try await app.runApp()
@@ -528,6 +576,7 @@ struct ScarletIntegratedHostView: View {
                          "available": UserDefaults.sideStoreExist() ? "true" : "false"])
             recordLayout()
             _ = ensureOriginalLCGuestBootstrap()
+            bridgeExistingSideStoreCertificateIfSafe()
             reportPreviousGuestLaunchFailure()
             refreshStoredLoginState()
             // UIKit window creation can lag behind SwiftUI view construction.
