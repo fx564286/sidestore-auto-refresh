@@ -484,6 +484,17 @@ def attach_native_settings_diagnostics(engine: Path) -> dict:
                     Text("실행 오류, 게스트 앱 동작, 엔진 상태를 기기 안에서 기록하고 공유할 수 있습니다.")
                 }
 """
+    # Surface the *actual* signed runtime entitlements and original SideStore
+    # refresh entry inside the existing LC settings Form, never a second UI.
+    extension_anchor='''                } footer: {
+                    Text("실행 오류, 게스트 앱 동작, 엔진 상태를 기기 안에서 기록하고 공유할 수 있습니다.")
+                }
+'''
+    assert new_section.count(extension_anchor) == 1, "Scarlet settings section moved"
+    new_section=new_section.replace(extension_anchor, extension_anchor+
+        '                if #available(iOS 17.0, *) {\n'
+        '                    ScarletSigningReadinessPanel()\n'
+        '                }\n')
     source=source.replace(form_anchor,new_section)
     certificate_misleading = 'errorInfo = "lc.settings.importCertFromBuiltinSideStore.certNotFounndErr".loc'
     # Standalone source fixtures contain a minimal settings excerpt; actual
@@ -623,6 +634,7 @@ def main():
     sources={
         root/"rebuild/HostApp/ScarletIntegratedHostView.swift":"ScarletIntegratedHostView.swift",
         root/"rebuild/HostApp/ScarletNativeGlass.swift":"ScarletNativeGlass.swift",
+        root/"rebuild/HostApp/ScarletSigningReadinessPanel.swift":"ScarletSigningReadinessPanel.swift",
         root/"rebuild/HostApp/ScarletGuestSwitcherOverlay.swift":"ScarletGuestSwitcherOverlay.swift",
         root/"rebuild/HostApp/ScarletAppleIDLoginSheet.swift":"ScarletAppleIDLoginSheet.swift",
         root/"rebuild/HostApp/ScarletSideStoreAuthenticationBridge.swift":"ScarletSideStoreAuthenticationBridge.swift",
