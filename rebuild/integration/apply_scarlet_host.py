@@ -488,21 +488,35 @@ def attach_native_settings_diagnostics(engine: Path) -> dict:
         assert source.count(anchor)==1, "Pinned settings structure changed: "+repr(anchor)
     source=source.replace(state_anchor, state_anchor+
         '    @State private var scarletShowAppleLogin = false\n'
+        '    @State private var scarletShowAccountAdditionNotice = false\n'
         '    @State private var scarletLoginVerified: Bool? = nil\n'
         '    @State private var scarletSigningCertAvailable = false\n')
     new_section="""        NavigationView {
             Form {
                 Section {
-                    Button {
-                        ScarletDiagnosticRecorder.shared.record("auth", "open_from_settings")
-                        scarletShowAppleLogin = true
-                    } label: {
-                        // Keep the existing action label stable. State belongs to
-                        // the status row below, never inside this button title.
-                        Label("Apple ID 로그인",
-                              systemImage: scarletLoginVerified == true ? "checkmark.seal.fill" : "person.crop.circle")
+                    if scarletLoginVerified == true {
+                        Label("로그인됨", systemImage: "checkmark.seal.fill")
+                            .foregroundStyle(.green)
+                            .accessibilityIdentifier("SCARLET_SETTINGS_LOGIN_VERIFIED")
+                        Button {
+                            ScarletDiagnosticRecorder.shared.record("auth", "add_account_requested")
+                            scarletShowAccountAdditionNotice = true
+                        } label: {
+                            Label("추가 로그인", systemImage: "person.badge.plus")
+                        }
+                        .accessibilityIdentifier("SCARLET_SETTINGS_ADD_LOGIN")
+                    } else if scarletLoginVerified == nil {
+                        Label("로그인 상태 확인 중", systemImage: "clock")
+                            .foregroundStyle(.secondary)
+                    } else {
+                        Button {
+                            ScarletDiagnosticRecorder.shared.record("auth", "open_from_settings")
+                            scarletShowAppleLogin = true
+                        } label: {
+                            Label("로그인", systemImage: "person.crop.circle")
+                        }
+                        .accessibilityIdentifier("SCARLET_SETTINGS_NATIVE_APPLE_LOGIN")
                     }
-                    .accessibilityIdentifier("SCARLET_SETTINGS_NATIVE_APPLE_LOGIN")
                     Text(scarletLoginVerified == true
                          ? "로그인됨 · 내장 SideStore 세션 복원"
                          : (scarletLoginVerified == nil
@@ -545,6 +559,11 @@ def attach_native_settings_diagnostics(engine: Path) -> dict:
     # Preserve upstream localized certificate alerts verbatim.
     # Supplemental verification status is shown by Scarlet separately.
     source=source.replace(style_anchor,style_anchor+
+        '        .alert("추가 로그인", isPresented: $scarletShowAccountAdditionNotice) {\n'
+        '            Button("확인", role: .cancel) { }\n'
+        '        } message: {\n'
+        '            Text("현재 연결된 SideStore 인증 엔진은 단일 활성 계정만 유지합니다. 이 상태에서 다른 Apple ID로 로그인하면 기존 계정이 교체될 수 있어 자동 추가를 제한합니다. 다중 계정은 계정별 보안 저장소와 서명 팀 전환을 연결해야 합니다.")\n'
+        '        }\n'
         '        .sheet(isPresented: $scarletShowAppleLogin, onDismiss: {\n'
         '            Task { @MainActor in\n'
         '                if #available(iOS 17.0, *) {\n'
