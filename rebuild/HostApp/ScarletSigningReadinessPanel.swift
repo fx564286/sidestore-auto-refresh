@@ -146,7 +146,7 @@ struct ScarletSigningReadinessPanel: View {
             LabeledContent("SideStore 로그인",
                            value: authenticated == nil ? "확인 중" :
                                   (authenticated == true ? "인증됨" : "인증 필요"))
-            LabeledContent("App Group 서명 권한",
+            LabeledContent("앱 그룹 권한",
                            value: readiness.sideStoreAppGroupEntitled ?
                                   (readiness.sideStoreAppGroupAccessible ? "확인됨" : "접근 불가")
                                   : "프로파일 권한 없음")
@@ -155,9 +155,6 @@ struct ScarletSigningReadinessPanel: View {
                                   readiness.actualHostIdentity &&
                                   readiness.signedApplicationIdentifierMatches ?
                                   "실제 서명과 일치" : "서명 불일치 / 권한 차단")
-            LabeledContent("설치된 앱 서명 검증",
-                           value: readiness.signedApplicationIdentifierMatches ?
-                                  "앱 식별자 일치" : "application-identifier 불일치")
             LabeledContent("LiveContainer 서명 인증서",
                            value: readiness.liveContainerCertificatePresent &&
                                   readiness.liveContainerPasswordPresent ? "존재" : "없음")
