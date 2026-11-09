@@ -24,14 +24,14 @@ jobs:
         with:
           name: Scarlet-LiveContainer-Native-Engine
           path: artifacts/lc
-          run-id: 42330372803
+          run-id: 42562171414
           github-token: ${{ github.token }}
 
       - uses: actions/download-artifact@v4
         with:
           name: Scarlet-SideStore-Native-Engine
           path: artifacts/side
-          run-id: 42327658622
+          run-id: 42559140232
           github-token: ${{ github.token }}
 
       - name: Fail closed unless cached artifacts match reviewed current sources/pins
@@ -48,6 +48,7 @@ jobs:
           files={Path(x["path"]).name:x["sha256"] for x in host["sources"]}
           for filename in ("ScarletIndependentShell.swift",
                            "ScarletIntegratedHostView.swift",
+                           "ScarletGuestSwitcherOverlay.swift",
                            "ScarletNativeGlass.swift"):
               path=Path("rebuild/Sources/ScarletIndependentUI" if filename=="ScarletIndependentShell.swift"
                         else "rebuild/HostApp") / filename
@@ -89,8 +90,8 @@ jobs:
             --phase combined \
             --combined-ipa report/Scarlet-LiveContainer+SideStore-ENGINES-UNSIGNED.ipa \
             --report report/combined-ipa-verification.json
-          cp report/Scarlet-LiveContainer+SideStore-ENGINES-UNSIGNED.ipa Scarlet-Integrated-UNSIGNED.ipa
-          shasum -a 256 Scarlet-Integrated-UNSIGNED.ipa > Scarlet-Integrated-UNSIGNED.ipa.sha256
+          cp report/Scarlet-LiveContainer+SideStore-ENGINES-UNSIGNED.ipa Scarlet-GuestGlass-UNSIGNED.ipa
+          shasum -a 256 Scarlet-GuestGlass-UNSIGNED.ipa > Scarlet-GuestGlass-UNSIGNED.ipa.sha256
 
       - name: Publish public permanent GitHub Release download
         shell: bash
@@ -98,28 +99,28 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -Eeuo pipefail
-          tag=scarlet-integrated-unsigned-latest
+          tag=scarlet-guest-glass-20261109
           cat > release-notes.md <<'EOF'
           ## Scarlet integrated LiveContainer + SideStore — unsigned IPA
 
-          Public permanent GitHub download of the new integrated app.
+          Built from guest-only round switcher + exit-scene reset source SHA 229a680b21a081f0fe133de0551e23b118596b3e.\n          Includes actual guest window close and source-based validation against compiled LiveContainer artifact.
           **UNSIGNED, DIAGNOSTIC ONLY. Not directly installable on iPhone.**
           Native signing, Apple login, app execution and Liquid Glass real-device
           verification remain unconfirmed. Original users' data is unchanged.
           EOF
-          printf "\nCompiled new UI: %s\nReused audited pinned SideStore: 42327658622\n" \
-            "42330372803" >> release-notes.md
+          printf "\nCompiled new UI: %s\nReused audited pinned SideStore: 42559140232\n" \
+            "42562171414" >> release-notes.md
           if ! gh release view "$tag" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
             gh release create "$tag" --repo "$GITHUB_REPOSITORY" \
-              --target "$GITHUB_SHA" --title "Scarlet integrated — unsigned diagnostic IPA" \
+              --target "$GITHUB_SHA" --title "Scarlet Crystal guest-only Liquid Glass — unsigned IPA" \
               --prerelease --latest=false --notes-file release-notes.md
           fi
           gh release upload "$tag" --repo "$GITHUB_REPOSITORY" \
-            Scarlet-Integrated-UNSIGNED.ipa \
-            Scarlet-Integrated-UNSIGNED.ipa.sha256 --clobber
+            Scarlet-GuestGlass-UNSIGNED.ipa \
+            Scarlet-GuestGlass-UNSIGNED.ipa.sha256 --clobber
           gh release edit "$tag" --repo "$GITHUB_REPOSITORY" \
-            --title "Scarlet integrated — unsigned diagnostic IPA" \
+            --title "Scarlet Crystal guest-only Liquid Glass — unsigned IPA" \
             --prerelease --notes-file release-notes.md
           gh release view "$tag" --repo "$GITHUB_REPOSITORY" \
-            --json assets --jq '.assets[].name' | grep -Fx "Scarlet-Integrated-UNSIGNED.ipa"
-          echo "https://github.com/$GITHUB_REPOSITORY/releases/download/$tag/Scarlet-Integrated-UNSIGNED.ipa" >> "$GITHUB_STEP_SUMMARY"
+            --json assets --jq '.assets[].name' | grep -Fx "Scarlet-GuestGlass-UNSIGNED.ipa"
+          echo "https://github.com/$GITHUB_REPOSITORY/releases/download/$tag/Scarlet-GuestGlass-UNSIGNED.ipa" >> "$GITHUB_STEP_SUMMARY"
