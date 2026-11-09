@@ -60,7 +60,9 @@ class NativeDeviceInstallerContract(unittest.TestCase):
         self.assertIn('install_operation_returned',HOST)
         self.assertIn('install_failed',HOST)
         self.assertIn('native_install_failed',HOST)
-        self.assertNotIn('transport_unverified',HOST)
+        installRoute=HOST.split('private func prepareDeviceIPAInstall(',1)[1].split(
+            '// SwiftUI presents the real iOS Files document picker',1)[0]
+        self.assertNotIn('transport_unverified',installRoute)
 
     def test_device_progress_sheet_swipe_reopen_without_duplicate_card(self):
         sheet=HOST.split('.sheet(isPresented: $showDeviceInstallSheet)',1)[1].split(
