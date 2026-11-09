@@ -183,6 +183,7 @@ final class ScarletAutomaticRenewal {
         defer { running = false; scheduleNext(); notifyStateChanged() }
 
         prefs.set(now, forKey: attemptKey)
+        prefs.set(now, forKey: "Scarlet.Refresh.LastAttemptStartedAt")
         prefs.set(origin, forKey: sourceKey)
         prefs.set("요청 중 · 검증 전", forKey: outcomeKey)
         prefs.removeObject(forKey: failureReasonKey)
