@@ -912,12 +912,16 @@ struct ScarletIntegratedHostView: View {
                         .tint(Color(red: 0.76, green: 0.67, blue: 1))
                         .accessibilityIdentifier("SCARLET_GUEST_IMPORT_ACTUAL_PROGRESS")
                 }
-                Button(guestImportActivity.isRunning ? "내리기" : "닫기") {
-                    showGuestImportProgress = false
+                // During import, swipe down the sheet to minimize it; no
+                // redundant '내리기' button competes with the system gesture.
+                if !guestImportActivity.isRunning {
+                    Button("닫기") {
+                        showGuestImportProgress = false
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .tint(Color(red: 0.44, green: 0.33, blue: 0.77))
+                    .accessibilityIdentifier("SCARLET_IMPORT_PROGRESS_CLOSE")
                 }
-                .buttonStyle(.borderedProminent)
-                .tint(Color(red: 0.44, green: 0.33, blue: 0.77))
-                .accessibilityIdentifier("SCARLET_IMPORT_PROGRESS_CLOSE")
             }
             .padding(.horizontal, 26)
             .padding(.vertical, 16)
@@ -1012,11 +1016,12 @@ struct ScarletIntegratedHostView: View {
                         }
                         .accessibilityIdentifier("SCARLET_SOURCE_DOWNLOAD_CANCEL")
                     }
-                    Button(sourceIsDownloading ? "내리기" : "닫기") {
-                        if sourceIsDownloading { installProgressMinimized = true }
-                        showSourceDownloadSheet = false
+                    if !sourceIsDownloading {
+                        Button("닫기") {
+                            showSourceDownloadSheet = false
+                        }
+                        .accessibilityIdentifier("SCARLET_SOURCE_DOWNLOAD_CLOSE")
                     }
-                    .accessibilityIdentifier("SCARLET_SOURCE_DOWNLOAD_MINIMIZE")
                 }
                 .buttonStyle(.borderedProminent)
                 .tint(Color(red: 0.44, green: 0.33, blue: 0.77))
