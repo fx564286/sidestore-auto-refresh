@@ -133,14 +133,8 @@ struct ScarletFullscreenGuestFloatingTab: View {
     @ViewBuilder
     private func glassPlate(radius: CGFloat) -> some View {
         // Exact native material owner used by the main container tab.
-        ZStack {
-            SCNativeLiquidGlassSurface(cornerRadius: radius, showsRim: false)
-            // Preserve the native optical material but prevent underlying
-            // messaging-app text from reading through the switcher rows.
-            RoundedRectangle(cornerRadius: radius, style: .continuous)
-                .fill(Color(uiColor: .systemBackground).opacity(0.88))
-        }
-        .clipShape(RoundedRectangle(cornerRadius: radius, style: .continuous))
+        SCNativeLiquidGlassSurface(cornerRadius: radius, showsRim: false)
+            .clipShape(RoundedRectangle(cornerRadius: radius, style: .continuous))
     }
 
     // The title passed from UIKit can be a bundle identifier. Only show
