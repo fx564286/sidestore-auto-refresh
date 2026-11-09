@@ -96,7 +96,7 @@ class LCAppModel {
             self.assertTrue(report["originalLCLauncherUnchanged"])
             self.assertEqual(result.count("try await signApp(force: false)"), 1)
             self.assertEqual(result.count("throw signError.loc"), 1)
-            for name in ("signing_started", "signing_completed", "signing_failed",
+            for name in ("signing_started", "signing_call_returned", "signing_failed",
                          "signing_reason", "certificate_missing", "encrypted_binary"):
                 self.assertIn(name, result)
             self.assertIn("ScarletGuestCertificateInvalid", result)
