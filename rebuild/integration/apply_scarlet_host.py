@@ -415,8 +415,8 @@ def hide_embedded_sidestore_guest_navigation(engine: Path) -> dict:
 
     # Search belongs to upstream app list ONLY; never render its floating
     # search bar across the queued guest installation progress sheet.
-    original_search = "        .searchable(text: $searchContext.query)\\n"
-    original_scroll = "            .navigationBarProgressBar(show:$installprogressVisible, progress: $installProgressPercentage)\\n"
+    original_search = "        .searchable(text: $searchContext.query)\n"
+    original_scroll = "            .navigationBarProgressBar(show:$installprogressVisible, progress: $installProgressPercentage)\n"
     assert source.count(original_search) == 1, "Pinned upstream searchable moved"
     assert source.count(original_scroll) == 1, "Pinned upstream progress scroll moved"
     source = source.replace(original_search, "", 1)
