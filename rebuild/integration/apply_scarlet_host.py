@@ -452,16 +452,17 @@ def attach_native_settings_diagnostics(engine: Path) -> dict:
                         ScarletDiagnosticRecorder.shared.record("auth", "open_from_settings")
                         scarletShowAppleLogin = true
                     } label: {
-                        Label(scarletLoginVerified == true ? "Apple ID 로그인됨 · 계정 관리" :
-                              (scarletLoginVerified == nil ? "Apple ID 확인 중" : "Apple ID 로그인"),
+                        // Keep the existing action label stable. State belongs to
+                        // the status row below, never inside this button title.
+                        Label("Apple ID 로그인",
                               systemImage: scarletLoginVerified == true ? "checkmark.seal.fill" : "person.crop.circle")
                     }
                     .accessibilityIdentifier("SCARLET_SETTINGS_NATIVE_APPLE_LOGIN")
                     Text(scarletLoginVerified == true
-                         ? "내장 SideStore · 인증 세션 복원됨"
+                         ? "로그인됨 · 내장 SideStore 세션 복원"
                          : (scarletLoginVerified == nil
-                            ? "내장 SideStore 인증 확인 중"
-                            : "내장 SideStore 저장 세션 없음"))
+                            ? "로그인 상태 확인 중"
+                            : "로그인 필요 · 저장 세션 없음"))
                         .font(.footnote)
                         .foregroundStyle(scarletLoginVerified == true ? Color.green : Color.secondary)
                     Text(scarletSigningCertAvailable
@@ -496,13 +497,8 @@ def attach_native_settings_diagnostics(engine: Path) -> dict:
         '                    ScarletSigningReadinessPanel()\n'
         '                }\n')
     source=source.replace(form_anchor,new_section)
-    certificate_misleading = 'errorInfo = "lc.settings.importCertFromBuiltinSideStore.certNotFounndErr".loc'
-    # Standalone source fixtures contain a minimal settings excerpt; actual
-    # pinned LC source includes the localized alert. Never alter other alerts.
-    if certificate_misleading in source:
-        assert source.count(certificate_misleading)==1, "Duplicate LC certificate error"
-        source=source.replace(certificate_misleading,
-        'errorInfo = "내장 SideStore 로그인은 유지돼도 서명 인증서가 없을 수 있습니다. 인증서 발급 또는 동기화가 필요합니다."')
+    # Preserve upstream localized certificate alerts verbatim.
+    # Supplemental verification status is shown by Scarlet separately.
     source=source.replace(style_anchor,style_anchor+
         '        .sheet(isPresented: $scarletShowAppleLogin, onDismiss: {\n'
         '            Task { @MainActor in\n'
