@@ -25,7 +25,32 @@ final class ScarletGuestCertificateAgent: NSObject {
                     report(requestID, code: -5202, domain: "scarlet.certificate.login_required")
                     return
                 }
-                let team = try await AuthManager.shared.getAuthenticatedTeam()
+                // Headless login stores Apple tokens but may not persist the
+                // SideStore-specific activeTeam record. Resolve the team from
+                // the real authenticated Apple portal instead of guessing.
+                let team: ALTTeam
+                if let stored = try? await AuthManager.shared.getAuthenticatedTeam(),
+                   stored.identifier == "P8EZT3U5N4" {
+                    team = stored
+                } else {
+                    guard let email = AuthManager.shared.currentAppleID,
+                          let dsid = AuthManager.shared.adsid else {
+                        report(requestID, code: -5205,
+                               domain: "scarlet.certificate.saved_account_unavailable")
+                        return
+                    }
+                    let account = ALTAccount(appleID: email, identifier: dsid)
+                    let portalTeams = try await DeveloperPortalProxy.shared.fetchTeams(
+                        for: account)
+                    guard let matched = portalTeams.first(where: {
+                        $0.identifier == "P8EZT3U5N4"
+                    }) else {
+                        report(requestID, code: -5203,
+                               domain: "scarlet.certificate.team_mismatch")
+                        return
+                    }
+                    team = matched
+                }
                 guard team.identifier == "P8EZT3U5N4" else {
                     report(requestID, code: -5203, domain: "scarlet.certificate.team_mismatch")
                     return
