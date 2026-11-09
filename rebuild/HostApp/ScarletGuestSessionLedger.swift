@@ -1,6 +1,7 @@
-// V19: bounded *current switcher session* rather than a permanent
-// installed/ever-launched app list. This is NOT proof that a process
-// remains in memory. Stored in the existing LC host; no extra App ID.
+// V23: explicit host/guest work-session switcher. Never infer that an
+// installed or previously launched app is still resident in memory.
+// Only launched apps from the CURRENT session appear. Old ledgers remain
+// untouched for rollback, and guest data/certificates are not modified.
 import Foundation
 
 @available(iOS 17.0, *)
@@ -12,14 +13,47 @@ enum ScarletGuestSessionLedger {
         let title: String?
         let dataUUID: String?
     }
-    // Keep the old V14 history intact for rollback, but never load it into
-    // the switcher: it accumulated every installed app after a few days.
+    // Preserve V14 and V19 keys for rollback; no migrating stale entries.
     // Legacy key: Scarlet.Guest.RecentSessions.V14
-    private static let key = "Scarlet.Guest.ActiveSwitcherSession.V19"
+    // Legacy key: Scarlet.Guest.ActiveSwitcherSession.V19
+    private static let key = "Scarlet.Guest.ActiveSwitcherSession.V23"
+    private static let hostReturnKey = "Scarlet.Guest.HostReturnTicket.V23"
     private static let maxItems = 8
-    private static let inactivityTimeout: TimeInterval = 30 * 60
+    private static let returnTicketValidity: TimeInterval = 120
+    private static var hasEnteredHostWorkSession = false
 
     private static var store: UserDefaults { LCUtils.appGroupUserDefault }
+
+    // A->the Scarlet app list->B is a continuation of the same session.
+    // Mark the return only when the guest explicitly requests that route.
+    static func beginReturnToHost() {
+        store.set(Date(), forKey: hostReturnKey)
+    }
+
+    static func cancelReturnToHost() {
+        store.removeObject(forKey: hostReturnKey)
+    }
+
+    // Called at the *first* appearance of the Scarlet host, not at every
+    // tab change or guest switch. A cold host entry starts with an empty
+    // switcher; a recent explicit guest->host return retains A so launching
+    // B shows A,B. Never touch actual guest app/container data.
+    static func prepareForHostAppearance() {
+        let ticket = store.object(forKey: hostReturnKey) as? Date
+        store.removeObject(forKey: hostReturnKey)
+        guard !hasEnteredHostWorkSession else { return }
+        hasEnteredHostWorkSession = true
+        let age = ticket.map { Date().timeIntervalSince($0) }
+        let isContinuation = age.map { $0 >= 0 && $0 <= returnTicketValidity } ?? false
+        if !isContinuation {
+            guard let empty = try? JSONEncoder().encode([Entry]()) else { return }
+            store.set(empty, forKey: key)
+        }
+        ScarletDiagnosticRecorder.shared.record(
+            "guest", "switcher_work_session_started",
+            fields: ["result": isContinuation ? "guest_return_continued"
+                                               : "cold_host_new_session"])
+    }
 
     // The actual full-screen guest has a virtualized app sandbox, so its
     // private JSONL cannot be read from the host's diagnostic viewer.
@@ -99,24 +133,15 @@ enum ScarletGuestSessionLedger {
         guard let data = store.data(forKey: key),
               let raw = try? JSONDecoder().decode([Entry].self, from: data)
         else { return [] }
-        // Require a simple installed .app name, never untrusted paths.
-        // A new work session starts after 30 minutes with no guest launch.
-        // This prevents previously opened apps from masquerading as open tabs
-        // after overnight restarts, while A->Home->B within a session survives
-        // the full-screen LC process handoff.
-        let valid = Array(raw.filter {
+        // A session lasts until a fresh, unrelated host entry, not an
+        // arbitrary 30-minute timeout. Background pauses must not silently
+        // remove A during a legitimate A->host->B workflow.
+        return Array(raw.filter {
             $0.folder.hasSuffix(".app") &&
             !$0.folder.contains("/") &&
             !$0.folder.contains("\\") &&
             $0.folder != ".app"
         }.prefix(maxItems))
-        // Expire EACH cold tab independently. A recently relaunched B must
-        // not keep an unrelated, much older installed C in the switcher.
-        let now = Date()
-        return valid.filter { entry in
-            let idle = now.timeIntervalSince(entry.lastOpened)
-            return idle >= -120 && idle <= inactivityTimeout
-        }
     }
 
     static func noteLaunch(folder: String, title: String, dataUUID: String?) {

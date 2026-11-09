@@ -914,9 +914,15 @@ final class ScarletFullscreenGuestTabInstaller: NSObject {
                 ScarletDiagnosticRecorder.shared.record(
                     "guest", "fullscreen_tab_exit_requested")
                 guard let defaults = UserDefaults.lc() else { return }
+                ScarletGuestSessionLedger.beginReturnToHost()
                 defaults.set("ui", forKey: "selected")
                 defaults.removeObject(forKey: "selectedContainer")
-                _ = LCSharedUtils.launchToGuestApp(withClassicMode: 0)
+                if !LCSharedUtils.launchToGuestApp(withClassicMode: 0) {
+                    ScarletGuestSessionLedger.cancelReturnToHost()
+                    ScarletDiagnosticRecorder.shared.record(
+                        "guest", "return_to_host_request_failed",
+                        status: "warning")
+                }
             }
         )
         let overlay = ScarletGuestTouchPassthroughWindow(windowScene: scene)

@@ -8,7 +8,6 @@ This source contract is not a substitute for real iPhone UI testing.
 """
 from pathlib import Path
 import unittest
-from datetime import datetime, timedelta, timezone
 
 ROOT = Path(__file__).resolve().parents[1]
 LEDGER = (ROOT / "HostApp/ScarletGuestSessionLedger.swift").read_text()
@@ -18,15 +17,17 @@ NATIVE = (ROOT / "HostApp/ScarletGuestSwitcherOverlay.swift").read_text()
 
 class V19SessionSwitcher(unittest.TestCase):
     def test_old_installed_and_lifetime_history_is_not_loaded(self):
-        self.assertIn('private static let key = "Scarlet.Guest.ActiveSwitcherSession.V19"', LEDGER)
+        self.assertIn('private static let key = "Scarlet.Guest.ActiveSwitcherSession.V23"', LEDGER)
+        self.assertIn('Legacy key: Scarlet.Guest.ActiveSwitcherSession.V19', LEDGER)
+        self.assertNotIn('store.data(forKey: "Scarlet.Guest.ActiveSwitcherSession.V19")', LEDGER)
         self.assertIn('Legacy key: Scarlet.Guest.RecentSessions.V14', LEDGER)
         self.assertNotIn('store.data(forKey: "Scarlet.Guest.RecentSessions.V14")', LEDGER)
         self.assertIn('private static let maxItems = 8', LEDGER)
-        self.assertIn('private static let inactivityTimeout: TimeInterval = 30 * 60', LEDGER)
-        self.assertIn('let idle = now.timeIntervalSince(entry.lastOpened)', LEDGER)
-        self.assertIn('return valid.filter { entry in', LEDGER)
-        self.assertIn('idle <= inactivityTimeout', LEDGER)
-        self.assertIn('idle >= -120 && idle <= inactivityTimeout', LEDGER)
+        self.assertNotIn('inactivityTimeout:', LEDGER)
+        self.assertIn('static func prepareForHostAppearance()', LEDGER)
+        self.assertIn('Scarlet.Guest.HostReturnTicket.V23', LEDGER)
+        self.assertIn('isContinuation', LEDGER)
+        self.assertIn('return Array(raw.filter {', LEDGER)
 
     def test_a_home_b_retained_without_ever_installed_fallback(self):
         self.assertIn('ScarletGuestSessionLedger.noteLaunch(', HOST)
@@ -49,24 +50,20 @@ class V19SessionSwitcher(unittest.TestCase):
         self.assertIn('(meta["isLocked"] as? Bool) != true', PANEL)
 
     def test_strict_session_model_examples(self):
-        # Reference for the Swift V19 policy; direct runtime validation
-        # remains a separate acceptance criterion.
-        now = datetime(2026, 11, 10, 6, 0, tzinfo=timezone.utc)
-        def visible(installed, history, current, live, max_age=timedelta(minutes=30)):
-            valid = [name for name, when in history if name in installed and
-                     name.endswith(".app") and now - when <= max_age]
-            return {x for x in installed if x == current or x in live or x in valid}
+        # V23 no longer merges a prior 30-minute ledger into a fresh host.
+        # Reference simulation; iPhone runtime still requires device tests.
         installed = {"A.app", "B.app", "C.app", "D.app"}
-        self.assertEqual(visible(installed, [], "A.app", set()), {"A.app"})
-        history = [("A.app", now-timedelta(minutes=3)),
-                   ("B.app", now-timedelta(minutes=1))]
-        self.assertEqual(visible(installed, history, "B.app", set()),
-                         {"A.app", "B.app"})
-        old = history + [("C.app", now-timedelta(days=1))]
-        self.assertEqual(visible(installed, old, "B.app", set()),
-                         {"A.app", "B.app"})
-        self.assertEqual(visible(installed, [], "B.app", {"A.app"}),
-                         {"A.app", "B.app"})
+        previous_session = ["B.app", "C.app"]
+        session = []  # fresh host entry clears V23 only
+        session = ["A.app"] + [x for x in session if x != "A.app"]
+        self.assertEqual(set(session) & installed, {"A.app"})
+        self.assertEqual(set(session) & set(previous_session), set())
+        # Explicit guest->Scarlet app list return retains the same session.
+        session = ["B.app"] + [x for x in session if x != "B.app"]
+        self.assertEqual(set(session) & installed, {"A.app", "B.app"})
+        # A host opened independently starts another session even within 30m.
+        session = []
+        self.assertEqual(set(session) & installed, set())
 
     def test_glass_is_unchanged_by_switcher_filter(self):
         self.assertIn('SCNativeLiquidGlassSurface(cornerRadius: radius, showsRim: false)', PANEL)
