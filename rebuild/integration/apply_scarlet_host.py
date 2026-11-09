@@ -38,7 +38,9 @@ def instrument_original_guest_signing(engine: Path) -> dict:
     source = source.replace(original, """        ScarletDiagnosticRecorder.shared.record("guest", "signing_started")
         do {
             try await signApp(force: false)
-            ScarletDiagnosticRecorder.shared.record("guest", "signing_completed", status: "success")
+            // The async return does not prove a usable signature.
+            ScarletDiagnosticRecorder.shared.record("guest", "signing_call_returned",
+                fields: ["result": "signature_not_read_back"])
         } catch {
             ScarletDiagnosticRecorder.shared.recordError("guest", "signing_failed", error: error)
             throw error
@@ -182,7 +184,9 @@ def hide_embedded_sidestore_guest_navigation(engine: Path) -> dict:
         "            try await installIpaFile(fileUrl)\n":
         '            try await installIpaFile(fileUrl)\n'
         '            ScarletDiagnosticRecorder.shared.record("guest_import", "import_pipeline_completed",\n'
-        '                fields: ["result": "launch_unverified"])\n',
+        '                status: scarletGuestImportSignFailed ? "warning" : "info",\n'
+        '                fields: ["result": scarletGuestImportSignFailed\n'
+        '                         ? "import_only_signing_unverified" : "launch_unverified"])\n',
         "        } catch {\n            errorInfo = error.localizedDescription\n":
         '        } catch {\n'
         '            ScarletDiagnosticRecorder.shared.recordError("guest_import", "import_pipeline_failed", error: error)\n'
@@ -233,6 +237,29 @@ def hide_embedded_sidestore_guest_navigation(engine: Path) -> dict:
             }
 """
     source = source.replace(sign_marker, sign_patch)
+    # The pinned upstream importer may return with signSuccess=false and
+    # signError=nil. Never label that case as an actually usable guest.
+    guard_after_sign = "        if let appToReplace {\\n            // copy previous configration to new app\\n"
+    assert source.count(guard_after_sign) == 1, "Pinned sign result boundary changed"
+    source = source.replace(guard_after_sign, """        if !signSuccess {
+            scarletGuestImportSignFailed = true
+            if signError == nil {
+                ScarletDiagnosticRecorder.shared.record(
+                    "guest_import", "import_signing_unverified",
+                    status: "warning",
+                    fields: ["reason": "signer_returned_false_without_error"])
+            }
+        }
+        if #available(iOS 26.0, *),
+           (LCUtils.certificateData() == nil ||
+            (LCSharedUtils.certificatePassword() ?? "").isEmpty) {
+            scarletGuestImportSignFailed = true
+            ScarletDiagnosticRecorder.shared.record(
+                "guest_import", "import_signing_unverified",
+                status: "warning",
+                fields: ["reason": "jitless_certificate_missing"])
+        }
+""" + guard_after_sign, 1)
     # The Scarlet + button presents Files directly, never LC's app-list page.
     # Only the existing LC import/replace/signing state machine is retained.
     # The original manager remains available to original LC entry points,
