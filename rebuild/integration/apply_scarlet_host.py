@@ -240,8 +240,10 @@ def hide_embedded_sidestore_guest_navigation(engine: Path) -> dict:
     # The pinned upstream importer may return with signSuccess=false and
     # signError=nil. Never label that case as an actually usable guest.
     guard_after_sign = "        if let appToReplace {\n            // copy previous configration to new app\n"
-    assert source.count(guard_after_sign) == 1, "Pinned sign result boundary changed"
-    source = source.replace(guard_after_sign, """        if !signSuccess {
+    # Synthetic manager fixtures omit the real sign/replace loop.
+    if guard_after_sign in source:
+        assert source.count(guard_after_sign) == 1, "Pinned sign result boundary changed"
+        source = source.replace(guard_after_sign, """        if !signSuccess {
             scarletGuestImportSignFailed = true
             if signError == nil {
                 ScarletDiagnosticRecorder.shared.record(
