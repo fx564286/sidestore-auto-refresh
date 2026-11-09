@@ -35,7 +35,7 @@ class V10Contract(unittest.TestCase):
         self.assertIn('MultitaskDockManager.shared.bringMultitaskViewToFront(uuid: container)',GUEST)
         self.assertIn('switch_existing_multitask_session',GUEST)
         self.assertIn('switch_requires_relaunch',GUEST)
-        segment=GUEST.split('private static func switchGuest(to target:',1)[1].split(
+        segment=GUEST.split('private static func switchGuest(',1)[1].split(
             '    @objc(installForGuestName:)',1)[0]
         self.assertIn('guard latest.canRelaunch',segment)
         self.assertIn('switch_cold_handoff',segment)
