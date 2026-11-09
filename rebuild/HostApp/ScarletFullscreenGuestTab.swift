@@ -474,7 +474,15 @@ final class ScarletFullscreenGuestTabInstaller: NSObject {
     }
 
     private static func placeFloatingWindow() {
-        guard let guestWindow, let floatingWindow else { return }
+        guard let floatingWindow else { return }
+        // Rotation can replace the guest's key UIWindow. Reacquire the
+        // current real owner instead of tracking a stale weak window pointer.
+        if let key = floatingWindow.windowScene?.windows.first(where: {
+            $0 !== floatingWindow && $0.isKeyWindow
+        }) {
+            guestWindow = key
+        }
+        guard let guestWindow else { return }
         let next = frame(in: guestWindow)
         if floatingWindow.frame != next { floatingWindow.frame = next }
         floatingWindow.panelRect = panelFrame(in: floatingWindow)
@@ -541,7 +549,9 @@ final class ScarletFullscreenGuestTabInstaller: NSObject {
     // V7 set alpha=0 for every event, causing flicker in portrait use.
     // Probe while visible; suspend only after real geometry changes.
     private static func settleOverlayAfterRotation() {
-        guard let floatingWindow, let guestWindow else { return }
+        guard let floatingWindow else { return }
+        placeFloatingWindow()
+        guard let guestWindow else { return }
         // A second orientation/foreground event must supersede the previous
         // probe; the old task must not leave a transparent overlay behind.
         rotationGeneration += 1
