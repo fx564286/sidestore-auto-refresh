@@ -365,19 +365,13 @@ def hide_embedded_sidestore_guest_navigation(engine: Path) -> dict:
                     .disabled(!scarletQueuedImportFinished || installprogressVisible)
                     .accessibilityIdentifier("SCARLET_IMPORT_PROGRESS_CLOSE")
                 }
-                .padding(22)
-                .frame(maxWidth: 330)
-                .background {
-                    RoundedRectangle(cornerRadius: 24, style: .continuous)
-                        .fill(Color(red: 0.14, green: 0.12, blue: 0.22))
-                        .overlay {
-                            RoundedRectangle(cornerRadius: 24, style: .continuous)
-                                .stroke(Color(red: 0.62, green: 0.54, blue: 0.81).opacity(0.3))
-                        }
-                }
-                .padding(.horizontal, 18)
+                // The parent .sheet has the only rounded surface.
+                // Do not draw a second rounded card, border, or black scrim
+                // inside the native LiveContainer importer.
+                .padding(.horizontal, 26)
+                .padding(.vertical, 16)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .background(Color(red: 0.065, green: 0.058, blue: 0.10).ignoresSafeArea())
+                .background(Color.clear)
                 .onAppear {
                     guard !scarletDidStartQueuedImport else { return }
                     scarletDidStartQueuedImport = true
