@@ -3,7 +3,7 @@ name: Scarlet integrated IPA - cached engine public release
 on:
   workflow_dispatch:
   push:
-    branches: [rebuild/scarlet-from-zero-20261106, fix/scarlet-pr48-guest-overlay-no-resize-20261109, fix/scarlet-pr48-airpods-glass-guest-switch-v3-20261109, fix/scarlet-pr48-draggable-guest-tab-v4-20261109, fix/scarlet-pr48-v5-glass-drag-cert-recovery-20261109, fix/scarlet-pr48-v6-unified-cert-glass-20261109]
+    branches: [rebuild/scarlet-from-zero-20261106, fix/scarlet-pr48-guest-overlay-no-resize-20261109, fix/scarlet-pr48-airpods-glass-guest-switch-v3-20261109, fix/scarlet-pr48-draggable-guest-tab-v4-20261109, fix/scarlet-pr48-v5-glass-drag-cert-recovery-20261109, fix/scarlet-pr48-v6-unified-cert-glass-20261109, fix/scarlet-pr48-v7-cert-jitless-unify-panel-rim-20261109]
     paths: [".github/workflows/scarlet-integrated-download-fast.yml"]
 
 permissions:
@@ -24,14 +24,14 @@ jobs:
         with:
           name: Scarlet-LiveContainer-Native-Engine
           path: artifacts/lc
-          run-id: 42581290976
+          run-id: 42588970113
           github-token: ${{ github.token }}
 
       - uses: actions/download-artifact@v4
         with:
           name: Scarlet-SideStore-Native-Engine
           path: artifacts/side
-          run-id: 42581290976
+          run-id: 42587699536
           github-token: ${{ github.token }}
 
       - name: Fail closed unless cached artifacts match reviewed current sources/pins
@@ -96,8 +96,8 @@ jobs:
             --phase combined \
             --combined-ipa report/Scarlet-LiveContainer+SideStore-ENGINES-UNSIGNED.ipa \
             --report report/combined-ipa-verification.json
-          cp report/Scarlet-LiveContainer+SideStore-ENGINES-UNSIGNED.ipa Scarlet-PR48-Certificate-Glass-V6-UNSIGNED.ipa
-          shasum -a 256 Scarlet-PR48-Certificate-Glass-V6-UNSIGNED.ipa > Scarlet-PR48-Certificate-Glass-V6-UNSIGNED.ipa.sha256
+          cp report/Scarlet-LiveContainer+SideStore-ENGINES-UNSIGNED.ipa Scarlet-PR48-JITLess-Glass-V7-UNSIGNED.ipa
+          shasum -a 256 Scarlet-PR48-JITLess-Glass-V7-UNSIGNED.ipa > Scarlet-PR48-JITLess-Glass-V7-UNSIGNED.ipa.sha256
 
       - name: Publish public permanent GitHub Release download
         shell: bash
@@ -105,31 +105,31 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -Eeuo pipefail
-          tag=scarlet-pr48-certificate-glass-v6-20261109
+          tag=scarlet-pr48-jitless-glass-v7-20261109
           cat > release-notes.md <<'EOF'
           ## Scarlet integrated LiveContainer + SideStore — unsigned IPA
 
-          V6: in-app SideStore certificate issuance and SideInstaller-style existing certificate reuse; same native glass material as main container, symmetric switch panel, removable brand labels. PR48 full-screen guest frame, keyboard and orientation unchanged. Both engine Xcode jobs and integrated IPA pipeline succeeded in run 42581290976. Device issuance, signing and the optical UI remain unverified.\n          Existing full-screen guest app geometry, host tabs, runApp() and orientation code UNCHANGED.\n          No forced landscape or simultaneous multi-process claim.\n          Signed installation and real iPhone UI validation still required.
+          V7: JIT-Less/certificate in one place, safe provenance classification (new portal vs existing), symmetric native glass outline, and rotation-stable guest switch overlay. No forced rotation of portrait-only guests, no guest frame resizing. Signed install, iPhone optical and certificate issuance verification still required.\n          Existing full-screen guest app geometry, host tabs, runApp() and orientation code UNCHANGED.\n          No forced landscape or simultaneous multi-process claim.\n          Signed installation and real iPhone UI validation still required.
           **UNSIGNED, DIAGNOSTIC ONLY. Not directly installable on iPhone.**
           Native signing, Apple login, app execution and Liquid Glass real-device
           verification remain unconfirmed. Original users' data is unchanged.
           EOF
-          printf "\nCompiled new UI: %s\nCompiled pinned SideStore: 42581290976\n" \
-            "42576909438" >> release-notes.md
+          printf "\nCompiled new UI: %s\nCompiled pinned SideStore: 42587699536\n" \
+            "42588970113" >> release-notes.md
           if ! gh release view "$tag" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
             gh release create "$tag" --repo "$GITHUB_REPOSITORY" \
-              --target "$GITHUB_SHA" --title "Scarlet PR48 V6 in-app SideStore certificate and unified glass - unsigned IPA" \
+              --target "$GITHUB_SHA" --title "Scarlet PR48 V7 JIT-Less certificates and rotation-safe native glass - unsigned IPA" \
               --prerelease --latest=false --notes-file release-notes.md
           fi
           gh release upload "$tag" --repo "$GITHUB_REPOSITORY" \
-            Scarlet-PR48-Certificate-Glass-V6-UNSIGNED.ipa \
-            Scarlet-PR48-Certificate-Glass-V6-UNSIGNED.ipa.sha256 --clobber
+            Scarlet-PR48-JITLess-Glass-V7-UNSIGNED.ipa \
+            Scarlet-PR48-JITLess-Glass-V7-UNSIGNED.ipa.sha256 --clobber
           gh release edit "$tag" --repo "$GITHUB_REPOSITORY" \
-            --title "Scarlet PR48 V6 in-app SideStore certificate and unified glass - unsigned IPA" \
+            --title "Scarlet PR48 V7 JIT-Less certificates and rotation-safe native glass - unsigned IPA" \
             --prerelease --notes-file release-notes.md
           gh release view "$tag" --repo "$GITHUB_REPOSITORY" \
-            --json assets --jq '.assets[].name' | grep -Fx "Scarlet-PR48-Certificate-Glass-V6-UNSIGNED.ipa"
-          echo "https://github.com/$GITHUB_REPOSITORY/releases/download/$tag/Scarlet-PR48-Certificate-Glass-V6-UNSIGNED.ipa" >> "$GITHUB_STEP_SUMMARY"
+            --json assets --jq '.assets[].name' | grep -Fx "Scarlet-PR48-JITLess-Glass-V7-UNSIGNED.ipa"
+          echo "https://github.com/$GITHUB_REPOSITORY/releases/download/$tag/Scarlet-PR48-JITLess-Glass-V7-UNSIGNED.ipa" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Check out existing GitHub Pages without changing website files
         uses: actions/checkout@v4
@@ -142,13 +142,13 @@ jobs:
         shell: bash
         run: |
           set -Eeuo pipefail
-          cp Scarlet-PR48-Certificate-Glass-V6-UNSIGNED.ipa pages/
-          (cd pages && sha256sum Scarlet-PR48-Certificate-Glass-V6-UNSIGNED.ipa)
+          cp Scarlet-PR48-JITLess-Glass-V7-UNSIGNED.ipa pages/
+          (cd pages && sha256sum Scarlet-PR48-JITLess-Glass-V7-UNSIGNED.ipa)
           git -C pages config user.name "scarlet-pages-asset-bot"
           git -C pages config user.email "github-actions[bot]@users.noreply.github.com"
-          git -C pages add -f -- Scarlet-PR48-Certificate-Glass-V6-UNSIGNED.ipa
+          git -C pages add -f -- Scarlet-PR48-JITLess-Glass-V7-UNSIGNED.ipa
           if ! git -C pages diff --cached --quiet; then
-            git -C pages commit -m "downloads: verified Scarlet PR48 GlassSwitch V5 unsigned IPA"
+            git -C pages commit -m "downloads: verified Scarlet PR48 JITLess Glass V7 unsigned IPA"
             git -C pages push origin HEAD:gh-pages
           fi
-          echo "https://fx564286.github.io/sidestore-auto-refresh/Scarlet-PR48-Certificate-Glass-V6-UNSIGNED.ipa" >> "$GITHUB_STEP_SUMMARY"
+          echo "https://fx564286.github.io/sidestore-auto-refresh/Scarlet-PR48-JITLess-Glass-V7-UNSIGNED.ipa" >> "$GITHUB_STEP_SUMMARY"
