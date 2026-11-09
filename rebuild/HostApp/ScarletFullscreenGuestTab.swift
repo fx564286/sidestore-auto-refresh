@@ -838,10 +838,20 @@ final class ScarletFullscreenGuestTabInstaller: NSObject {
                 .compactMap({ $0 as? UIWindowScene })
                 .first(where: { $0.activationState == .foregroundActive ||
                                 $0.activationState == .foregroundInactive }),
-              let original = scene.windows.first(where: { $0.isKeyWindow }),
-              original.rootViewController?.viewIfLoaded?.window != nil else {
+              // Some full-screen LC guest scenes never expose a key window
+              // after an app-to-app handoff. Recover only the visible normal
+              // level root guest window, not an alert/keyboard/our overlay.
+              let original = scene.windows.first(where: { window in
+                    window !== floatingWindow && window.isKeyWindow &&
+                    window.rootViewController?.viewIfLoaded?.window != nil
+              }) ?? scene.windows.first(where: { window in
+                    window !== floatingWindow && !window.isHidden &&
+                    window.windowLevel == .normal &&
+                    window.rootViewController?.viewIfLoaded?.window != nil
+              }) else {
             if lastFailure != "window_not_ready" {
                 lastFailure = "window_not_ready"
+                ScarletGuestSessionLedger.traceSwitcher("mount_window_not_ready")
                 NSLog("[SCARLET_GUEST_TAB] window_not_ready")
             }
             return
@@ -926,6 +936,9 @@ final class ScarletFullscreenGuestTabInstaller: NSObject {
                     settleOverlayAfterRotation()
                 }
             }
+        }
+        if lastFailure == "window_not_ready" {
+            ScarletGuestSessionLedger.traceSwitcher("mount_window_recovered")
         }
         lastFailure = nil
         ScarletGuestSessionLedger.traceSwitcher("fullscreen_tab_mounted")

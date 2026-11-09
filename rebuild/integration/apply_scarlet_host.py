@@ -911,9 +911,50 @@ def main():
     guest_hook_source = guest_hook_source.replace(
         '#import "Localization.h"\n',
         '#import "Localization.h"\n#import <objc/message.h>\n#import <dlfcn.h>\n')
+    # This can execute before the SwiftUI framework exists. The host can
+    # distinguish a missing TweakLoader hook from a broken Swift overlay.
+    # Only fixed event names; bounded to 48, and never a guest title/ID.
+    hook_probe_anchor = "UIInterfaceOrientation LCOrientationLock = UIInterfaceOrientationUnknown;\n"
+    assert guest_hook_source.count(hook_probe_anchor) == 1
+    hook_probe_helper = """
+static void ScarletGuestHookTrace(NSString *event) {
+    static NSSet *allowed;
+    static dispatch_once_t once;
+    dispatch_once(&once, ^{
+        allowed = [NSSet setWithArray:@[@"hook_entered", @"framework_loaded",
+            @"framework_missing", @"provider_ready", @"provider_missing"]];
+    });
+    if(![allowed containsObject:event]) return;
+    NSUserDefaults *shared = NSUserDefaults.lcSharedDefaults;
+    if(!shared) return;
+    NSData *raw = [shared dataForKey:@"Scarlet.Guest.SwitcherTrace.V20"];
+    NSMutableArray *entries = [NSMutableArray array];
+    if(raw) {
+        id previous = [NSJSONSerialization JSONObjectWithData:raw
+            options:NSJSONReadingMutableContainers error:NULL];
+        if([previous isKindOfClass:NSArray.class]) [entries addObjectsFromArray:previous];
+    }
+    [entries addObject:@{@"id":NSUUID.UUID.UUIDString,
+                         @"event":event, @"count":@0}];
+    if(entries.count > 48) {
+        [entries removeObjectsInRange:NSMakeRange(0, entries.count - 48)];
+    }
+    NSData *encoded = [NSJSONSerialization dataWithJSONObject:entries options:0 error:NULL];
+    if(encoded) {
+        [shared setObject:encoded forKey:@"Scarlet.Guest.SwitcherTrace.V20"];
+        if(![[shared dataForKey:@"Scarlet.Guest.SwitcherTrace.V20"] isEqualToData:encoded]) {
+            NSLog(@"[SCARLET_GUEST_TAB] shared_trace_readback_failed");
+        }
+    }
+}
+
+"""
+    guest_hook_source = guest_hook_source.replace(
+        hook_probe_anchor, hook_probe_helper + hook_probe_anchor)
     guest_hook_source = guest_hook_source.replace(
         guest_hook_anchor,
         guest_hook_anchor +
+        "    ScarletGuestHookTrace(@\"hook_entered\");\n"
         "    // The full-screen LC guest skips LiveContainerSwiftUI's main().\n"
         "    // Its classes are in a separate dylib, not in the main executable.\n"
         "    // Explicitly load the exact built-in framework before NSClassFromString.\n"
@@ -923,19 +964,25 @@ def main():
         "        void *framework = dlopen(frameworkPath.UTF8String, RTLD_LAZY | RTLD_GLOBAL);\n"
         "        if(!framework) {\n"
         "            NSLog(@\"[SCARLET_GUEST_TAB] framework_unavailable\");\n"
+        "            ScarletGuestHookTrace(@\"framework_missing\");\n"
         "        } else {\n"
         "            NSLog(@\"[SCARLET_GUEST_TAB] framework_loaded\");\n"
+        "            ScarletGuestHookTrace(@\"framework_loaded\");\n"
         "        }\n"
         "        void (^mount)(void) = ^{\n"
         "            Class provider = NSClassFromString(@\"ScarletFullscreenGuestTabInstaller\");\n"
         "            SEL callback = NSSelectorFromString(@\"installForGuestName:\");\n"
         "            if (provider && [provider respondsToSelector:callback]) {\n"
+        "                static BOOL providerTraced = NO;\n"
+        "                if(!providerTraced) { providerTraced = YES; ScarletGuestHookTrace(@\"provider_ready\"); }\n"
         "                NSString *title = NSUserDefaults.guestAppInfo[@\"CFBundleDisplayName\"]\n"
         "                    ?: NSUserDefaults.guestAppInfo[@\"CFBundleName\"]\n"
         "                    ?: NSUserDefaults.lcGuestAppId;\n"
         "                ((void(*)(id,SEL,id))objc_msgSend)(provider,callback,title);\n"
         "            } else {\n"
         "                NSLog(@\"[SCARLET_GUEST_TAB] installer_class_unavailable\");\n"
+        "                static BOOL providerMissingTraced = NO;\n"
+        "                if(!providerMissingTraced) { providerMissingTraced = YES; ScarletGuestHookTrace(@\"provider_missing\"); }\n"
         "            }\n"
         "        };\n"
         "        for(NSNotificationName name in @[UIApplicationDidBecomeActiveNotification,\n"

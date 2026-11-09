@@ -32,7 +32,10 @@ enum ScarletGuestSessionLedger {
         "switch_tapped_live", "switch_tapped_cold", "switch_tapped_current",
         "switch_rejected", "switch_submitted", "switch_submit_failed",
         "rotation_relayout", "native_panel_opened", "native_switch_tapped",
-        "native_switch_rejected", "native_switch_activated"
+        "native_switch_rejected", "native_switch_activated",
+        "hook_entered", "framework_loaded", "framework_missing",
+        "provider_ready", "provider_missing",
+        "mount_window_not_ready", "mount_window_recovered"
     ]
 
     struct SwitchTrace: Codable {
@@ -53,10 +56,28 @@ enum ScarletGuestSessionLedger {
         }
     }
 
+    private static var traceReaderReported = false
+
     static func replaySwitcherTraceToHostJournal() {
         guard let raw = store.data(forKey: switchTraceKey),
               let entries = try? JSONDecoder().decode([SwitchTrace].self, from: raw),
-              !entries.isEmpty else { return }
+              !entries.isEmpty else {
+            // Only report the absence once per host process. Do not erase
+            // the cursor or legacy session data when guest trace is missing.
+            if !traceReaderReported {
+                traceReaderReported = true
+                ScarletDiagnosticRecorder.shared.record(
+                    "guest_switcher", "trace_bridge_empty",
+                    fields: ["reason": "missing_or_unreadable"])
+            }
+            return
+        }
+        if !traceReaderReported {
+            traceReaderReported = true
+            ScarletDiagnosticRecorder.shared.record(
+                "guest_switcher", "trace_bridge_readable",
+                fields: ["count": String(entries.count)])
+        }
         let cursor = UserDefaults.standard.string(forKey: switchTraceCursor)
         let start = cursor.flatMap { previous in
             entries.lastIndex(where: { $0.id == previous }).map { $0 + 1 }
