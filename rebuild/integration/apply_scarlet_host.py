@@ -365,7 +365,7 @@ def hide_embedded_sidestore_guest_navigation(engine: Path) -> dict:
 """
     assert source.count(begin) == 1, "Pinned LC app manager body changed"
     source = source.replace(begin, replacement)
-    body_anchor = "    var body: some View {\\n"
+    body_anchor = "    var body: some View {" + chr(10)
     assert source.count(body_anchor) == 1, "Pinned LC body changed"
     source = source.replace(body_anchor, progress_view + body_anchor, 1)
     end = """        }
