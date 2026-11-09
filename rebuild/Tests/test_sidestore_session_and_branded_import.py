@@ -32,6 +32,26 @@ class AuthAndImportUIRegression(unittest.TestCase):
         self.assertIn("same_team_verified_readback", HOST)
         self.assertIn("Preserve upstream localized certificate alerts verbatim", PATCH)
 
+    def test_pinned_sidestore_keychain_certificate_bridge_reads_both_services(self):
+        # Pinned SideStore KeychainAccess service is com.SideStore.SideStore.
+        # An older LC fork also used com.kdt.livecontainer; both are read-only.
+        self.assertIn('["com.SideStore.SideStore", "com.kdt.livecontainer"]', HOST)
+        self.assertIn('certificateTeam == hostTeam', HOST)
+        self.assertIn('LCUtils.getCertTeamId(', HOST)
+        self.assertIn('verifiedCertificate = candidate', HOST)
+        self.assertIn('verifiedPassword = password', HOST)
+        self.assertIn('LCUtils.certificateData() == certData', HOST)
+        self.assertIn('LCSharedUtils.certificatePassword() == password', HOST)
+        self.assertNotIn('!password.isEmpty,', HOST)
+
+    def test_guest_jitless_execution_requires_actual_certificate_not_just_login(self):
+        self.assertIn('jitless_signing_certificate_missing', HOST)
+        self.assertIn('LCUtils.certificateData() == nil', HOST)
+        self.assertIn('LCSharedUtils.certificatePassword() == nil', HOST)
+        self.assertIn('signing_call_returned', PATCH)
+        self.assertIn('import_signing_unverified', PATCH)
+        self.assertNotIn('"signing_completed", status: "success"', PATCH)
+
     def test_global_source_toast_was_removed(self):
         self.assertNotIn('.overlay(alignment: .top) {\n            if sourceIsDownloading', HOST)
         self.assertIn("SCARLET_BRANDED_SOURCE_DOWNLOAD_SHEET", HOST)
