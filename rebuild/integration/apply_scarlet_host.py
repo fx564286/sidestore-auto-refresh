@@ -262,6 +262,16 @@ def hide_embedded_sidestore_guest_navigation(engine: Path) -> dict:
 """
     replacement = """        NavigationView {
             if let queuedIPA = scarletQueuedIPAURL {
+                scarletQueuedInstallView(queuedIPA)
+            } else {
+                ScrollView {
+"""
+    # The original LC app manager body is a large SwiftUI ViewBuilder.
+    # Keeping this complex branded install UI inline inside NavigationView
+    # caused Xcode 27.2 to time out type checking at LCAppListView.swift:270.
+    # Move it into a dedicated helper, isolating the result builder.
+    progress_view = """    @ViewBuilder
+    private func scarletQueuedInstallView(_ queuedIPA: URL) -> some View {
                 VStack(spacing: 20) {
                     ZStack {
                         RoundedRectangle(cornerRadius: 21, style: .continuous)
@@ -350,11 +360,14 @@ def hide_embedded_sidestore_guest_navigation(engine: Path) -> dict:
                 }
                 .accessibilityIdentifier("SCARLET_GUEST_IMPORT_PROGRESS_ONLY")
                 .accessibilityIdentifier("SCARLET_BRANDED_GUEST_IMPORT_CARD")
-            } else {
-                ScrollView {
+    }
+
 """
     assert source.count(begin) == 1, "Pinned LC app manager body changed"
     source = source.replace(begin, replacement)
+    body_anchor = "    var body: some View {\\n"
+    assert source.count(body_anchor) == 1, "Pinned LC body changed"
+    source = source.replace(body_anchor, progress_view + body_anchor, 1)
     end = """        }
         .navigationViewStyle(StackNavigationViewStyle())
 """
