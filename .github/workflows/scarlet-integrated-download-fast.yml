@@ -66,12 +66,12 @@ jobs:
           set -Eeuo pipefail
           brew install ldid
           mkdir -p report build-tools
-          # Fetch the EXACT official GitHub Release asset via API: the
-          # browser release CDN returned HTTP 504. Never use third-party mirrors.
-          curl -fLSs --retry 8 --retry-all-errors --retry-delay 3 \
-            -H "Accept: application/octet-stream" \
+          # Pinned upstream official release download; exact SHA256 below.
+          # API binary Accept route currently returns HTTP 403 on macOS runner.
+          # Browser endpoint was independently fetched and SHA256 verified.
+          curl -fLSs --retry 5 --retry-all-errors --retry-delay 3 \
             -H "User-Agent: scarlet-ci-pinned-artifact" \
-            https://api.github.com/repos/LiveContainer/dylibify/releases/assets/474085434 \
+            https://github.com/LiveContainer/dylibify/releases/download/1.0/dylibify \
             -o build-tools/dylibify
           printf '6d23f6a2fc4d8442f87caa1161aebe6ecaafd0e8c41ce205da007efb04fc82c7  build-tools/dylibify\n' | shasum -a 256 -c -
           chmod +x build-tools/dylibify
