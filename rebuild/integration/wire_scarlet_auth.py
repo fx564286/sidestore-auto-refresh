@@ -301,6 +301,30 @@ public enum ScarletDeviceInstaller {
 
 
 def patch_sidestore(engine: Path) -> None:
+    # SideStore's original self-registration returns immediately inside ALL
+    # .appex processes. Scarlet intentionally runs SideStore headlessly in
+    # LiveProcess.appex, unlike the upstream UI setup that first opens the
+    # embedded SideStore as an app. Allow only this signed LC host + exact
+    # LiveProcess extension to run the ORIGINAL prepareDatabase() pipeline.
+    # The original pipeline verifies embedded.mobileprovision, creates the
+    # correct InstalledApp + StoreApp records, and caches its signed IPA.
+    # No synthetic database rows or certificate replacement.
+    database = engine / "AltStore/Core/Model/DatabaseManager/DatabaseManager.swift"
+    db = database.read_text()
+    db = replace_one(db,
+        "        guard !Bundle.isAppExtension() else { return }",
+        """        let isEmbeddedLCRefreshWorker =
+            (Bundle.main.executablePath?.contains("LiveProcess.appex/") == true) &&
+            getenv("LC_HOME_PATH") != nil &&
+            Bundle.Info.activeBundleURL.pathExtension.lowercased() == "app"
+        guard !Bundle.isAppExtension() || isEmbeddedLCRefreshWorker else { return }""",
+        "SideStore headless LiveProcess self registration")
+    db = replace_one(db,
+        "                    guard let pluginURL = Bundle.main.builtInPlugInsURL else {",
+        "                    guard let pluginURL = Bundle.Info.activeBundle.builtInPlugInsURL else {",
+        "signed LC host extension receipt for self registration")
+    database.write_text(db)
+    print("[PASS] Embedded SideStore LiveProcess may run original signed-host DB self registration")
     target = engine / "SideStore/Core/Auth/AuthManager.swift"
     assert target.is_file(), target
     source = target.read_text()
