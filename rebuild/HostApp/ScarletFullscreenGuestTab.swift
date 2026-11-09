@@ -72,7 +72,6 @@ struct ScarletFullscreenGuestFloatingTab: View {
     let guestTitle: String
     let reloadApps: () -> [ScarletGuestSwitchTarget]
     let onPanel: (Bool, Int) -> Void
-    let onDrag: (CGSize, Bool) -> Bool
     let initialDockRight: Bool
     let onSwitch: (ScarletGuestSwitchTarget) -> Bool
     let onExit: () -> Void
@@ -81,9 +80,7 @@ struct ScarletFullscreenGuestFloatingTab: View {
     @State private var apps: [ScarletGuestSwitchTarget] = []
     @State private var feedback: String?
     @State private var transitionVersion = 0
-    @State private var draggingButton = false
     @State private var dockRight = false
-    @Namespace private var glassMotion
 
     private let spring = Animation.spring(response: 0.47, dampingFraction: 0.82)
 
@@ -133,15 +130,15 @@ struct ScarletFullscreenGuestFloatingTab: View {
         }
     }
 
+    // Draw the optical surface behind independent readable foreground content.
+    // SwiftUI glass matched-IDs across a resizing UIWindow blanked the card.
     @ViewBuilder
-    private func glassPlate(radius: CGFloat, interactive: Bool) -> some View {
+    private func glassPlate(radius: CGFloat) -> some View {
         if #available(iOS 26.0, *),
            !UIAccessibility.isReduceTransparencyEnabled {
-            RoundedRectangle(cornerRadius: radius, style: .continuous)
-                .fill(.clear)
-                .background(ScarletUIKitGlassBackdrop(radius: radius))
-                .glassEffect(interactive ? .regular.interactive() : .regular,
-                             in: .rect(cornerRadius: radius))
+            ScarletUIKitGlassBackdrop(radius: radius)
+                .clipShape(RoundedRectangle(cornerRadius: radius,
+                                             style: .continuous))
         } else {
             RoundedRectangle(cornerRadius: radius, style: .continuous)
                 .fill(.regularMaterial)
@@ -159,9 +156,9 @@ struct ScarletFullscreenGuestFloatingTab: View {
                 Text(guestTitle)
                     .font(.subheadline.weight(.semibold))
                     .lineLimit(1)
-                Label("전체화면 실행 중", systemImage: "checkmark.circle.fill")
-                    .font(.caption2)
-                    .foregroundStyle(.green)
+                Image(systemName: "checkmark.circle.fill")
+                    .font(.caption).foregroundStyle(.green)
+                    .accessibilityLabel("현재 실행 중")
             }
             Spacer(minLength: 0)
         }
@@ -187,13 +184,8 @@ struct ScarletFullscreenGuestFloatingTab: View {
                 .background(.white.opacity(0.13),
                             in: RoundedRectangle(cornerRadius: 11))
                 .clipShape(RoundedRectangle(cornerRadius: 11))
-                VStack(alignment: .leading, spacing: 3) {
-                    Text(app.title).font(.subheadline.weight(.semibold)).lineLimit(1)
-                    Text(app.canSwitch ? "탭하여 앱 전환 · 재실행"
-                                      : "홍수정에서 먼저 설정 필요")
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
-                }
+                Text(app.title)
+                    .font(.subheadline.weight(.medium)).lineLimit(1)
                 Spacer(minLength: 0)
                 Image(systemName: app.canSwitch ? "arrow.left.arrow.right.circle.fill"
                                                : "exclamationmark.circle")
@@ -208,97 +200,75 @@ struct ScarletFullscreenGuestFloatingTab: View {
     }
 
     private var appPanelContent: some View {
-        VStack(alignment: .leading, spacing: 11) {
-            HStack {
-                Image(systemName: "sparkles")
-                    .symbolRenderingMode(.hierarchical)
-                    .foregroundStyle(.tint)
-                Text("앱 전환")
-                    .font(.headline.weight(.semibold))
-                Spacer()
-                Text("\(apps.count)개")
-                    .font(.caption.monospacedDigit())
-                    .foregroundStyle(.secondary)
-            }
-            Text("실행 중인 앱")
-                .font(.caption.weight(.semibold))
-                .foregroundStyle(.secondary)
-            currentAppCard
-            Divider().opacity(0.55)
-            HStack {
-                Text("설치된 다른 앱")
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(.secondary)
-                Spacer()
-            }
-            if otherApps.isEmpty {
-                Text("전환할 다른 게스트 앱이 없습니다.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .padding(.vertical, 5)
-            } else {
-                ScrollView {
-                    LazyVStack(alignment: .leading, spacing: 8) {
-                        ForEach(otherApps) { entry in
-                            otherAppRow(entry)
+        ZStack(alignment: .topLeading) {
+            glassPlate(radius: 28)
+                .allowsHitTesting(false)
+            VStack(alignment: .leading, spacing: 16) {
+                HStack(spacing: 9) {
+                    Image(systemName: "square.stack.3d.up.fill").font(.headline)
+                    Text("앱 전환").font(.title3.weight(.semibold))
+                    Spacer(minLength: 0)
+                }
+                currentAppCard
+                Divider().opacity(0.5)
+                if otherApps.isEmpty {
+                    Text("전환 가능한 앱 없음")
+                        .font(.footnote).foregroundStyle(.secondary)
+                } else {
+                    ScrollView {
+                        LazyVStack(alignment: .leading, spacing: 12) {
+                            ForEach(otherApps) { entry in otherAppRow(entry) }
                         }
                     }
+                    .frame(maxHeight: 300)
                 }
-                .frame(maxHeight: 260)
+                if let feedback {
+                    Text(feedback).font(.caption).foregroundStyle(.orange)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                Spacer(minLength: 0)
+                Button {
+                    UINotificationFeedbackGenerator().notificationOccurred(.success)
+                    ScarletDiagnosticRecorder.shared.record(
+                        "guest", "fullscreen_tab_exit_requested")
+                    onExit()
+                } label: {
+                    Label("홍수정으로", systemImage: "rectangle.portrait.and.arrow.right")
+                        .font(.subheadline.weight(.semibold))
+                        .frame(maxWidth: .infinity, minHeight: 46)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityIdentifier("SCARLET_PR48_GUEST_EXIT")
             }
-            if let feedback {
-                Text(feedback)
-                    .font(.caption)
-                    .foregroundStyle(.orange)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-            Divider().opacity(0.45)
-            Button {
-                UINotificationFeedbackGenerator().notificationOccurred(.success)
-                ScarletDiagnosticRecorder.shared.record(
-                    "guest", "fullscreen_tab_exit_requested")
-                onExit()
-            } label: {
-                Label("게스트 종료 · 홍수정으로", systemImage: "rectangle.portrait.and.arrow.right")
-                    .font(.subheadline.weight(.semibold))
-                    .frame(maxWidth: .infinity, minHeight: 42)
-                    .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-            .accessibilityIdentifier("SCARLET_PR48_GUEST_EXIT")
+            .padding(19)
+            .foregroundStyle(.primary)
+            .zIndex(2)
         }
-        .padding(16)
-        .frame(maxWidth: 326, alignment: .leading)
-        .background {
-            glassPlate(radius: 28, interactive: false)
-        }
+        .frame(maxWidth: 380, minHeight: 300, maxHeight: 435)
         .overlay {
             RoundedRectangle(cornerRadius: 28, style: .continuous)
                 .strokeBorder(
-                    LinearGradient(
-                        colors: [.white.opacity(0.65), .white.opacity(0.09),
-                                 .white.opacity(0.42)],
-                        startPoint: .topLeading, endPoint: .bottomTrailing),
+                    LinearGradient(colors: [.white.opacity(0.58),
+                                            .white.opacity(0.12),
+                                            .white.opacity(0.42)],
+                                   startPoint: .topLeading, endPoint: .bottomTrailing),
                     lineWidth: 0.9)
+                .allowsHitTesting(false)
         }
-        .shadow(color: .black.opacity(0.22), radius: 22, y: 10)
+        .shadow(color: .black.opacity(0.19), radius: 20, y: 9)
+        .onAppear {
+            ScarletDiagnosticRecorder.shared.record(
+                "guest", "switch_panel_content_rendered",
+                fields: ["count": String(apps.count)])
+        }
         .accessibilityIdentifier("SCARLET_PR48_AIRPODS_GLASS_PANEL")
     }
 
-    @ViewBuilder
-    private var appPanel: some View {
-        if #available(iOS 26.0, *) {
-            appPanelContent
-                .glassEffectID("guest-expanded", in: glassMotion)
-                .glassEffectTransition(.matchedGeometry)
-        } else {
-            appPanelContent
-        }
-    }
+    private var appPanel: some View { appPanelContent }
 
     private var roundTabButton: some View {
         Button {
-            guard !draggingButton else { return }
             if isOpen { closePanel() } else { openPanel() }
         } label: {
             ZStack {
@@ -325,27 +295,7 @@ struct ScarletFullscreenGuestFloatingTab: View {
             .contentShape(Circle())
         }
         .buttonStyle(.plain)
-        .simultaneousGesture(
-            DragGesture(minimumDistance: 12, coordinateSpace: .global)
-                .onChanged { value in
-                    guard !isOpen else { return }
-                    if !draggingButton {
-                        draggingButton = true
-                        UISelectionFeedbackGenerator().selectionChanged()
-                    }
-                    dockRight = onDrag(value.translation, false)
-                }
-                .onEnded { value in
-                    guard !isOpen else { return }
-                    dockRight = onDrag(value.translation, true)
-                    // The drag's gesture-end can also finish a Button tap;
-                    // keep the suppression flag until that event settles.
-                    Task { @MainActor in
-                        try? await Task.sleep(for: .milliseconds(160))
-                        draggingButton = false
-                    }
-                }
-        )
+        // Native pan handles dragging in stable screen coordinates.
         .accessibilityHint("드래그하여 위치를 옮길 수 있습니다")
         .accessibilityIdentifier("SCARLET_PR48_GUEST_ROUND_TAB")
     }
@@ -355,7 +305,6 @@ struct ScarletFullscreenGuestFloatingTab: View {
         if #available(iOS 26.0, *) {
             roundTabButton
                 .glassEffect(.regular.interactive(), in: .circle)
-                .glassEffectID("guest-collapsed", in: glassMotion)
         } else {
             roundTabButton
         }
@@ -385,10 +334,44 @@ struct ScarletFullscreenGuestFloatingTab: View {
             GlassEffectContainer(spacing: 14) { panelStack }
                 .animation(spring, value: isOpen)
                 .onAppear { dockRight = initialDockRight }
+                .onReceive(NotificationCenter.default.publisher(
+                    for: Notification.Name("ScarletGuestFloatingDockChanged"))) { note in
+                    if let right = note.userInfo?["right"] as? Bool { dockRight = right }
+                }
         } else {
             panelStack.animation(spring, value: isOpen)
                 .onAppear { dockRight = initialDockRight }
+                .onReceive(NotificationCenter.default.publisher(
+                    for: Notification.Name("ScarletGuestFloatingDockChanged"))) { note in
+                    if let right = note.userInfo?["right"] as? Bool { dockRight = right }
+                }
         }
+    }
+}
+
+// UIkit pan tracks finger in fixed screen space; no moving-window feedback.
+@available(iOS 17.0, *)
+@MainActor
+private final class ScarletGuestScreenPan: NSObject, UIGestureRecognizerDelegate {
+    let onChange: (CGPoint, UIGestureRecognizer.State) -> Void
+    init(onChange: @escaping (CGPoint, UIGestureRecognizer.State) -> Void) {
+        self.onChange = onChange
+        super.init()
+    }
+    func gestureRecognizerShouldBegin(_ recognizer: UIGestureRecognizer) -> Bool {
+        guard let view = recognizer.view,
+              let overlay = view.window as? ScarletGuestTouchPassthroughWindow,
+              !overlay.isExpanded else { return false }
+        let point = recognizer.location(in: overlay)
+        let cx = overlay.dockRight ? overlay.bounds.width - 36 : CGFloat(36)
+        let cy = overlay.bounds.height - 36
+        return hypot(point.x - cx, point.y - cy) <= 35
+    }
+    @objc func didPan(_ gesture: UIPanGestureRecognizer) {
+        guard let window = gesture.view?.window else { return }
+        let point = gesture.location(in: window)
+        let screenPoint = window.convert(point, to: window.screen.coordinateSpace)
+        onChange(screenPoint, gesture.state)
     }
 }
 
@@ -402,6 +385,8 @@ final class ScarletFullscreenGuestTabInstaller: NSObject {
     private static var height: CGFloat = 72
     private static var dragOrigin: CGPoint?
     private static var dragCenter: CGPoint?
+    private static var dragStartScreen: CGPoint?
+    private static var dragHandler: ScarletGuestScreenPan?
     private static var rotationObserver: NSObjectProtocol?
     private static var lastFailure: String?
     private static let positionXKey = "ScarletGuestRoundTabCenterXFractionV1"
@@ -457,49 +442,66 @@ final class ScarletFullscreenGuestTabInstaller: NSObject {
         if floatingWindow.frame != next { floatingWindow.frame = next }
     }
 
-    // Gestures move the overlay only. Drag 12pt or more; ordinary taps still
-    // expand the AirPods-style panel. Persist normalized center to survive
-    // guest relaunch and portrait/landscape rotation.
-    private static func moveButton(_ translation: CGSize, finished: Bool) -> Bool {
-        guard let host = guestWindow else { return false }
-        let b = host.windowScene?.coordinateSpace.bounds ?? host.bounds
-        if dragOrigin == nil { dragOrigin = center(in: host) }
-        let origin = dragOrigin ?? center(in: host)
-        let value = allowedCenter(
-            CGPoint(x: origin.x + translation.width,
-                    y: origin.y + translation.height), in: host)
-        dragCenter = value
-        placeFloatingWindow()
-        if finished {
-            let defaults = UserDefaults.lc()
-            defaults?.set(Double(value.x / max(b.width, 1)), forKey: positionXKey)
-            defaults?.set(Double(value.y / max(b.height, 1)), forKey: positionYKey)
+    private static func panChanged(screenPoint: CGPoint, state: UIGestureRecognizer.State) {
+        guard let host = guestWindow else { return }
+        let bounds = host.windowScene?.coordinateSpace.bounds ?? host.bounds
+        switch state {
+        case .began:
+            dragStartScreen = screenPoint
+            dragOrigin = center(in: host)
+        case .changed:
+            guard let touch = dragStartScreen, let initial = dragOrigin else { return }
+            dragCenter = allowedCenter(
+                CGPoint(x: initial.x + screenPoint.x - touch.x,
+                        y: initial.y + screenPoint.y - touch.y), in: host)
+            placeFloatingWindow()
+        case .ended:
+            if let current = dragCenter {
+                let defaults = UserDefaults.lc()
+                defaults?.set(Double(current.x / max(bounds.width, 1)), forKey: positionXKey)
+                defaults?.set(Double(current.y / max(bounds.height, 1)), forKey: positionYKey)
+                dragCenter = nil
+                dragOrigin = nil
+                dragStartScreen = nil
+                placeFloatingWindow()
+                NotificationCenter.default.post(
+                    name: Notification.Name("ScarletGuestFloatingDockChanged"),
+                    object: nil, userInfo: ["right": current.x >= bounds.midX])
+                UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                ScarletDiagnosticRecorder.shared.record(
+                    "guest", "floating_tab_position_saved",
+                    fields: ["result": "normalized_screen_center"])
+            } else {
+                dragStartScreen = nil
+                dragOrigin = nil
+            }
+        case .cancelled, .failed:
             dragCenter = nil
             dragOrigin = nil
+            dragStartScreen = nil
             placeFloatingWindow()
-            UIImpactFeedbackGenerator(style: .light).impactOccurred()
-            ScarletDiagnosticRecorder.shared.record(
-                "guest", "floating_tab_position_saved",
-                fields: ["result": "normalized_position"])
+        default: break
         }
-        return value.x >= b.midX
     }
 
     private static func resizeOverlay(open: Bool, appCount: Int) {
         guard let host = guestWindow, let floating = floatingWindow else { return }
         let bounds = host.windowScene?.coordinateSpace.bounds ?? host.bounds
-        width = open ? min(358, max(72, bounds.width - 16)) : 72
-        let desiredHeight: CGFloat = min(590, CGFloat(410 + max(0, appCount - 1) * 64))
-        height = open ? min(desiredHeight, max(170, bounds.height - 80)) : 72
+        width = open ? min(410, max(72, bounds.width - 18)) : 72
+        let cardHeight = width * 1.02
+        height = open ? min(cardHeight, max(260, bounds.height - 135)) + 84 : 72
         floating.isExpanded = open
-        floating.panelHitHeight = min(430, CGFloat(260 + max(0, appCount - 1) * 62))
+        floating.panelHitHeight = max(0, height - 78)
         let next = frame(in: host)
-        UIView.animate(withDuration: 0.47, delay: 0,
-                       usingSpringWithDamping: 0.82,
-                       initialSpringVelocity: 0.34,
-                       options: [.beginFromCurrentState, .allowUserInteraction]) {
+        // Animate inner SwiftUI content only; never double-animate UIWindow.
+        UIView.performWithoutAnimation {
             floating.frame = next
+            floating.rootViewController?.view.setNeedsLayout()
+            floating.rootViewController?.view.layoutIfNeeded()
         }
+        ScarletDiagnosticRecorder.shared.record(
+            "guest", "switch_panel_geometry_applied",
+            fields: ["state": open ? "expanded" : "collapsed"])
     }
 
     // Use the host's real LC_HOME_PATH rather than the guest-virtualized
@@ -642,13 +644,14 @@ final class ScarletFullscreenGuestTabInstaller: NSObject {
         height = 72
         dragOrigin = nil
         dragCenter = nil
+        dragStartScreen = nil
+        dragHandler = nil
 
         let name = (rawName as String).isEmpty ? "현재 게스트" : rawName as String
         let content = ScarletFullscreenGuestFloatingTab(
             guestTitle: name,
             reloadApps: installedApps,
             onPanel: resizeOverlay,
-            onDrag: moveButton,
             initialDockRight: center(in: original).x >=
                 (original.windowScene?.coordinateSpace.bounds ?? original.bounds).midX,
             onSwitch: switchGuest,
@@ -668,6 +671,13 @@ final class ScarletFullscreenGuestTabInstaller: NSObject {
         let controller = UIHostingController(rootView: content)
         controller.view.backgroundColor = .clear
         controller.view.isOpaque = false
+        let panHandler = ScarletGuestScreenPan(onChange: panChanged)
+        let pan = UIPanGestureRecognizer(target: panHandler,
+                                        action: #selector(ScarletGuestScreenPan.didPan(_:)))
+        pan.delegate = panHandler
+        pan.cancelsTouchesInView = true
+        controller.view.addGestureRecognizer(pan)
+        dragHandler = panHandler
         overlay.rootViewController = controller
         overlay.frame = frame(in: original)
         // Stay non-key to protect guest keyboard and all native presentations.
