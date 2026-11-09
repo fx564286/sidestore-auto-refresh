@@ -500,7 +500,11 @@ struct ScarletIntegratedHostView: View {
     // security-scoped original into a scratch IPA: LiveContainer's original
     // startInstallApp removes its input URL after importing; the user's Files
     // original must never be removed.
-    private func stageGuestIPAFromFiles(_ source: URL) {
+    private func stageGuestIPAFromFiles(_ source: URL, presentProgress: Bool = true) {
+        guard !guestImportActivity.isRunning, queuedGuestIPAURL == nil else {
+            showOriginalError = "다른 게스트 앱 가져오기가 진행 중입니다."
+            return
+        }
         let ext = source.pathExtension.lowercased()
         guard ext == "ipa" || ext == "tipa" else {
             showOriginalError = "IPA 또는 TIPA 파일을 선택하세요."
@@ -512,19 +516,49 @@ struct ScarletIntegratedHostView: View {
             .appendingPathComponent("scarlet-guest-\(UUID().uuidString).\(ext)")
         do {
             try FileManager.default.copyItem(at: source, to: temporary)
+            guestImportActivity.start()
             queuedGuestIPAURL = temporary
+            installProgressMinimized = !presentProgress
             ScarletDiagnosticRecorder.shared.record("guest_import", "file_staged")
-            showGuestImportProgress = true
+            showGuestImportProgress = presentProgress
         } catch {
             ScarletDiagnosticRecorder.shared.recordError("guest_import", "file_stage_failed", error: error)
             showOriginalError = "파일을 가져올 수 없습니다: \(error.localizedDescription)"
         }
     }
 
+    // The hidden worker calls this ONLY when the original importer returns.
+    // A sheet dismissal must never delete a file that the importer still owns.
+    private func guestImportWorkerFinished() {
+        if let staged = queuedGuestIPAURL {
+            try? FileManager.default.removeItem(at: staged)
+        }
+        queuedGuestIPAURL = nil
+    }
+
+    private func handoffDownloadedSourceIfReady() {
+        guard let staged = sourceDownloadedIPA else { return }
+        sourceDownloadedIPA = nil
+        stageGuestIPAFromFiles(staged, presentProgress: !installProgressMinimized)
+        try? FileManager.default.removeItem(at: staged)
+    }
+
+    private func openActiveInstallProgress() {
+        if sourceIsDownloading || sourceDownloadedIPA != nil {
+            showSourceDownloadSheet = true
+        } else if guestImportActivity.hasActivity {
+            showGuestImportProgress = true
+        }
+    }
+
     // Source install routes through the same original LC guest IPA importer
     // as Files, never through the unmounted upstream LCAppListView notification.
     private func installSourceGuestApp(_ downloadID: String) {
-        guard !sourceIsDownloading, !showGuestImportProgress else { return }
+        guard !sourceIsDownloading, !guestImportActivity.isRunning,
+              queuedGuestIPAURL == nil else {
+            showOriginalError = "다른 게스트 앱 가져오기가 진행 중입니다."
+            return
+        }
         guard let app = originalSources.sources.compactMap({ $0.source })
                 .flatMap({ $0.apps })
                 .first(where: { $0.latestVersion?.downloadURL.absoluteString == downloadID }),
@@ -538,6 +572,7 @@ struct ScarletIntegratedHostView: View {
         sourceIsDownloading = true
         sourceDownloadError = nil
         sourceDownloadStage = "IPA 서버에 연결 중"
+        installProgressMinimized = false
         showSourceDownloadSheet = true
         ScarletDiagnosticRecorder.shared.record("sources", "guest_download_started")
         sourceDownloadTask = Task { @MainActor in
@@ -581,12 +616,17 @@ struct ScarletIntegratedHostView: View {
                 let staged = FileManager.default.temporaryDirectory
                     .appendingPathComponent("scarlet-source-\(UUID().uuidString).ipa")
                 try FileManager.default.copyItem(at: downloaded, to: staged)
-                // Present the original LC import engine only AFTER this sheet
-                // closes; simultaneous SwiftUI sheets can silently fail.
+                // A sheet may have been swiped away minutes earlier. Stage
+                // immediately if already minimized; otherwise onDismiss
+                // transfers after SwiftUI has closed the first native sheet.
                 sourceDownloadedIPA = staged
                 ScarletDiagnosticRecorder.shared.record("sources", "guest_download_completed",
                     fields: ["route": "livecontainer", "stage": "download_only"])
-                showSourceDownloadSheet = false
+                if showSourceDownloadSheet {
+                    showSourceDownloadSheet = false
+                } else {
+                    handoffDownloadedSourceIfReady()
+                }
             } catch is CancellationError {
                 ScarletDiagnosticRecorder.shared.record("sources", "guest_download_cancelled",
                     status: "info")
