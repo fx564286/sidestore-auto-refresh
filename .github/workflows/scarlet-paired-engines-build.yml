@@ -9,6 +9,8 @@ on:
       - "rebuild/integration/**"
       - "rebuild/HostApp/**"
       - "rebuild/Sources/**"
+      - "rebuild/Tests/**"
+      - ".github/workflows/scarlet-paired-engines-build.yml"
 
 permissions:
   contents: read
