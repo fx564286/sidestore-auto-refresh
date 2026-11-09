@@ -837,6 +837,13 @@ final class ScarletFullscreenGuestTabInstaller: NSObject {
                 status: "error", fields: ["reason": "selection_readback_failed"])
             return false
         }
+        // A successful launch API return only accepts an OS handoff request.
+        // Preserve old session membership for rollback and verify that the
+        // next boot actually loads the exact requested guest.
+        let oldSession = ScarletGuestSessionLedger.recent()
+        ScarletGuestSessionLedger.noteSwitchHandoff(to: [
+            latest.id, latest.bundleID ?? ""
+        ])
         ScarletGuestSessionLedger.noteLaunch(
             folder: latest.id, title: latest.title, dataUUID: container)
         ScarletDiagnosticRecorder.shared.record(
@@ -848,6 +855,8 @@ final class ScarletFullscreenGuestTabInstaller: NSObject {
         let submitted = LCSharedUtils.launchToGuestApp(
             withClassicMode: latest.classicMode)
         if !submitted {
+            ScarletGuestSessionLedger.cancelSwitchHandoff()
+            ScarletGuestSessionLedger.restore(oldSession)
             if let previousApp { defaults.set(previousApp, forKey: "selected") }
             else { defaults.removeObject(forKey: "selected") }
             if let previousContainer {
@@ -902,6 +911,7 @@ final class ScarletFullscreenGuestTabInstaller: NSObject {
         dragHandler = nil
 
         let runtimeGuestID = rawName as String
+        ScarletGuestSessionLedger.confirmSwitchHandoff(runtimeGuestID: runtimeGuestID)
         let content = ScarletFullscreenGuestFloatingTab(
             guestTitle: "현재 실행 중인 앱",
             reloadApps: { installedApps(guestIdentifier: runtimeGuestID) },
