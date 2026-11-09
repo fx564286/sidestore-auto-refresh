@@ -36,10 +36,13 @@ enum ScarletGuestSessionLedger {
             !$0.folder.contains("\\") &&
             $0.folder != ".app"
         }.prefix(maxItems))
-        guard let newest = valid.map(\.lastOpened).max() else { return [] }
-        let idle = Date().timeIntervalSince(newest)
-        guard idle >= -120, idle <= inactivityTimeout else { return [] }
-        return valid
+        // Expire EACH cold tab independently. A recently relaunched B must
+        // not keep an unrelated, much older installed C in the switcher.
+        let now = Date()
+        return valid.filter { entry in
+            let idle = now.timeIntervalSince(entry.lastOpened)
+            return idle >= -120 && idle <= inactivityTimeout
+        }
     }
 
     static func noteLaunch(folder: String, title: String, dataUUID: String?) {
