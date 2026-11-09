@@ -34,7 +34,8 @@ class V14(unittest.TestCase):
     def test_history_and_live_process_distinct(self):
         self.assertIn('recentFolders.contains(folder)',G)
         self.assertIn('apps.filter { !$0.isCurrent }',G)
-        self.assertIn('app.canSwitch ? "실행 중 · 작업 유지" : "최근 실행 · 재시작 필요"',G)
+        self.assertIn('app.canSwitch ? "실행 중 · 작업 유지"',G)
+        self.assertIn('app.canRelaunch ? "최근 실행 · 누르면 다시 열기"',G)
         self.assertIn('MultitaskManager.isUsing(container:',G)
         self.assertIn('MultitaskWindowManager.openExistingAppWindow(',G)
         self.assertIn('switch_requires_relaunch',G)
