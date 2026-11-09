@@ -284,6 +284,21 @@ struct ScarletIntegratedHostView: View {
                 }
                 bridgeExistingSideStoreCertificateIfSafe()
                 recordGuestCertificatePreflight()
+                // Since iOS 26 the original LiveContainer guest JIT-less
+                // launcher needs a usable signing certificate. A saved Apple
+                // login or an import-complete state is not that certificate.
+                // Do not attempt a launch that the pinned engine cannot sign.
+                if #available(iOS 26.0, *),
+                   (LCUtils.certificateData() == nil ||
+                    (LCSharedUtils.certificatePassword() ?? "").isEmpty) {
+                    signingRecoveryNeeded = true
+                    ScarletDiagnosticRecorder.shared.record(
+                        "guest", "launch_blocked", status: "blocked",
+                        fields: ["reason": "jitless_signing_certificate_missing",
+                                 "guest_ref": guestRef])
+                    showOriginalError = "JIT-Less 실행에 필요한 LiveContainer 서명 인증서가 없습니다. 설정의 인증서 가져오기에서 인증서를 확인하세요."
+                    return
+                }
                 // Original LC remains the owner of signature/launch/handoff.
                 try await app.runApp()
                 // runApp returning is NOT proof the guest scene is on-screen.
@@ -737,7 +752,9 @@ struct ScarletIntegratedHostView: View {
                     .environmentObject(downloadHelper)
                     .environmentObject(sharedModel)
                     .environmentObject(LCAppSortManager.shared)
-                    .presentationDetents([.medium])
+                    .presentationDetents([.height(340)])
+                    .presentationDragIndicator(.visible)
+                    .presentationBackground(Color(red: 0.065, green: 0.058, blue: 0.10))
                     .interactiveDismissDisabled()
             }
         }
