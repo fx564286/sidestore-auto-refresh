@@ -604,6 +604,57 @@ def attach_native_settings_diagnostics(engine: Path) -> dict:
         '            .scarletNativeListTheme()\n'
         '            .scarletDockScrollClearance()\n'
         '            .navigationBarTitle("lc.tabView.settings".loc)\n')
+    # The original LC settings action only searches the legacy Keychain
+    # service. Pinned SideStore uses com.SideStore.SideStore. Add a guarded
+    # same-team read before the untouched original fallback; keep its label.
+    import_method = "    func importCertificateFromSideStore() async {\n"
+    if import_method in source:
+        assert source.count(import_method) == 1
+        helper = """    private func scarletReadSideStoreCertForCurrentTeam() -> (Data, String)? {
+        for service in ["com.SideStore.SideStore", "com.kdt.livecontainer"] {
+            let q: [String: Any] = [
+                kSecClass as String: kSecClassGenericPassword,
+                kSecAttrAccount as String: "signingCertificate",
+                kSecReturnData as String: true,
+                kSecMatchLimit as String: kSecMatchLimitOne,
+                kSecAttrService as String: service,
+                kSecAttrSynchronizable as String: kSecAttrSynchronizableAny
+            ]
+            var value: CFTypeRef?
+            guard SecItemCopyMatching(q as CFDictionary, &value) == errSecSuccess,
+                  let data = value as? Data, !data.isEmpty else { continue }
+            var passwordQuery = q
+            passwordQuery[kSecAttrAccount as String] = "signingCertificatePassword"
+            var pwd: CFTypeRef?
+            let passwordStatus = SecItemCopyMatching(passwordQuery as CFDictionary, &pwd)
+            guard passwordStatus == errSecSuccess ||
+                  passwordStatus == errSecItemNotFound else { continue }
+            let password = (pwd as? Data)
+                .flatMap { String(data: $0, encoding: .utf8) } ?? ""
+            guard let certificateTeam = LCUtils.getCertTeamId(
+                withKeyData: data, password: password),
+                  let hostTeam = LCSharedUtils.teamIdentifier(),
+                  certificateTeam == hostTeam else { continue }
+            return (data, password)
+        }
+        return nil
+    }
+
+"""
+        source = source.replace(import_method, helper + import_method, 1)
+        confirmation = "            if let ans = await certificateImportFromBuiltInSideStoreAlert.open(), ans {\n"
+        assert source.count(confirmation) == 1, "Pinned LC certificate confirmation changed"
+        source = source.replace(confirmation, confirmation + """                if let (certData, password) = scarletReadSideStoreCertForCurrentTeam() {
+                    onSideStoreCertificateCallback(certificateData: certData, password: password)
+                    if LCUtils.certificateData() == certData &&
+                       LCSharedUtils.certificatePassword() == password {
+                        ScarletDiagnosticRecorder.shared.record(
+                            "guest", "certificate_bridge_imported",
+                            status: "success", fields: ["reason": "manual_same_team_readback"])
+                    }
+                    return
+                }
+""", 1)
     source, styled_rows = theme_native_settings_section_rows(source)
     target.write_text(source)
     return {"settings":"original-LCSettingsView","styledSections":styled_rows,"singleTitle":True,
