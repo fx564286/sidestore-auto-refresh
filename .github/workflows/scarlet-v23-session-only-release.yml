@@ -127,7 +127,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -Eeuo pipefail
-          tag=scarlet-v23-runtime-identity-20261110
+          tag=scarlet-v23-session-only-switcher-20261110
           cat > release-notes.md <<'EOF'
           Scarlet Crystal V23 — no stale Instagram from previous work sessions.
 
