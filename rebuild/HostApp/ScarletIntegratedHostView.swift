@@ -918,6 +918,13 @@ struct ScarletIntegratedHostView: View {
             }
         }
         .onReceive(NotificationCenter.default.publisher(
+            for: Notification.Name("ScarletCertificateAutoBridgeRequested"))) { _ in
+            bridgeExistingSideStoreCertificateIfSafe()
+            NotificationCenter.default.post(
+                name: Notification.Name("ScarletCertificateAutoBridgeFinished"),
+                object: nil)
+        }
+        .onReceive(NotificationCenter.default.publisher(
             for: Notification.Name("ScarletGuestAuthVerified"))) { _ in
             // State must come from persisted SideStore Keychain, never from
             // the success notification alone.

@@ -11,10 +11,10 @@ class GuestAirPodsGlassSwitcher(unittest.TestCase):
     def test_native_ios26_material_and_airpods_style_spring(self):
         for s in ('UIGlassEffect(style: .regular)', 'UIVisualEffectView(effect: glass)',
                   'GlassEffectContainer(spacing: 14)',
-                  '.glassEffectTransition(.matchedGeometry)',
-                  'glassEffectID("guest-expanded"',
+                  'ScarletUIKitGlassBackdrop(radius: radius)',
+                  'switch_panel_content_rendered',
                   'spring(response: 0.47, dampingFraction: 0.82)',
-                  'usingSpringWithDamping: 0.82',
+                  'UIView.performWithoutAnimation',
                   'UIImpactFeedbackGenerator(style: .soft)',
                   'SCARLET_PR48_AIRPODS_GLASS_PANEL'):
             self.assertIn(s,GUEST)
@@ -27,7 +27,7 @@ class GuestAirPodsGlassSwitcher(unittest.TestCase):
                   'UserDefaults.lc()', 'switch_candidates_scanned',
                   'switch_relaunch_requested', 'switchGuest(to target:',
                   'LCSharedUtils.launchToGuestApp(withClassicMode: target.classicMode)',
-                  'SCARLET_PR48_GUEST_SWITCH_TARGET', '설치된 다른 앱'):
+                  'SCARLET_PR48_GUEST_SWITCH_TARGET', '전환 가능한 앱 없음'):
             self.assertIn(s,GUEST)
         self.assertIn('for url in items where url.pathExtension.lowercased() == "app"', GUEST)
         self.assertIn('guard !found.contains(folder)',GUEST)

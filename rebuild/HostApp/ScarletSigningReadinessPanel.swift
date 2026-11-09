@@ -5,6 +5,7 @@ import Foundation
 import Security
 import SwiftUI
 import SideStoreSupport
+import UniformTypeIdentifiers
 
 @available(iOS 17.0, *)
 struct ScarletSigningReadiness {
@@ -89,6 +90,13 @@ struct ScarletSigningReadinessPanel: View {
     @State private var authenticated: Bool? = nil
     @State private var refreshing = false
     @State private var statusMessage: String?
+    @State private var certificateRecoveryStatus: String?
+    @State private var isSelectingP12 = false
+    @State private var pendingP12: Data?
+    @State private var isAskingP12Password = false
+    @State private var p12Password = ""
+    @State private var isConfirmingCertReplacement = false
+    @State private var hadCertificateBeforeBridge = false
 
     private func inspect() {
         readiness = ScarletSigningReadiness.inspect()
@@ -132,13 +140,178 @@ struct ScarletSigningReadinessPanel: View {
                     status: "info", fields: ["installation_verified": "false"])
                 inspect()
             } catch {
-                statusMessage = "SideStore 새로고침이 실패했습니다. 인증·페어링·프로파일을 진단 로그에서 확인하세요."
+                statusMessage = "SideStore 갱신 실패. 아래 인증서 복구에서 SideInstaller 대체 발급을 이용할 수 있습니다."
+                certificateRecoveryStatus = "현재 P12가 있어도 SideStore 재발급 성공은 아닙니다. SideInstaller에서 새 인증서를 내보낸 후 교체할 수 있습니다."
+                ScarletDiagnosticRecorder.shared.record(
+                    "certificate", "provider_fallback_available",
+                    fields: ["reason": "sidestore_refresh_error"])
                 ScarletDiagnosticRecorder.shared.record("refresh", "manual_request_failed",
                     status: "error", fields: ["reason": "sidestore_refresh_error"])
                 ScarletDiagnosticRecorder.shared.recordError(
                     "refresh", "manual_request_underlying_error", error: error)
             }
         }
+    }
+
+    // Stage 1: recover an EXISTING SideStore certificate from the same-team,
+    // entitled Keychain service. The host, not a duplicate login screen,
+    // performs the established readback-validated bridge.
+    private func recoverSideStoreCertificate() {
+        inspect()
+        hadCertificateBeforeBridge = readiness.liveContainerCertificatePresent &&
+            readiness.liveContainerPasswordPresent
+        if hadCertificateBeforeBridge {
+            // Host cannot read SideStore's private Keychain after a valid
+            // certificate has already been placed in LC storage. Keep it
+            // intact, and provide the explicit provider fallback instead
+            // of falsely declaring a renewed certificate.
+            certificateRecoveryStatus = "기존 P12는 보존됩니다. SideStore 새 인증서 발급은 확인되지 않았으므로 SideInstaller에서 발급·내보내기 후 교체할 수 있습니다."
+            ScarletDiagnosticRecorder.shared.record(
+                "certificate", "existing_cert_reissue_unverified",
+                fields: ["reason": "provider_isolated"])
+            return
+        }
+        guard readiness.canRequestNativeRefresh else {
+            certificateRecoveryStatus = "Apple 서명·App Group 권한이 맞지 않아 인증서 복구를 중단했습니다."
+            ScarletDiagnosticRecorder.shared.record(
+                "certificate", "provider_blocked", status: "blocked",
+                fields: ["reason": readiness.safeBlockCategory])
+            return
+        }
+        certificateRecoveryStatus = "SideStore에 이미 보관된 인증서를 확인하고 있습니다."
+        ScarletDiagnosticRecorder.shared.record(
+            "certificate", "sidestore_provider_requested")
+        NotificationCenter.default.post(
+            name: Notification.Name("ScarletCertificateAutoBridgeRequested"),
+            object: nil)
+    }
+
+    // Stage 2: SideInstaller exposes its own Apple-authorized certificate
+    // issuance/export UI. It does NOT publish an export-to-Scarlet deep link,
+    // and iOS does not allow us to read its private key store. Launch its app
+    // only when the user explicitly chooses the fallback.
+    private func openSideInstaller() {
+        guard let url = URL(string: "sideinstaller://") else { return }
+        ScarletDiagnosticRecorder.shared.record(
+            "certificate", "sideinstaller_fallback_requested")
+        UIApplication.shared.open(url, options: [:]) { opened in
+            Task { @MainActor in
+                certificateRecoveryStatus = opened
+                    ? "SideInstaller에서 인증서 → 발급 또는 현재 서명 인증서 → 내보내기 → 파일에 저장을 선택한 후 홍수정으로 돌아와 P12 가져오기를 누르세요."
+                    : "SideInstaller를 실행할 수 없습니다. 설치 상태를 확인하세요. 이미 내보낸 P12는 파일 앱에서 직접 가져올 수 있습니다."
+                ScarletDiagnosticRecorder.shared.record(
+                    "certificate", opened ? "sideinstaller_opened" : "sideinstaller_unavailable",
+                    status: opened ? "info" : "blocked")
+            }
+        }
+    }
+
+    // Stage 3: Explicit Files picker; never read another app's sandbox,
+    // transmit the signing key, write an unverified archive, or revoke certs.
+    private func stageExportedP12(_ result: Result<URL, Error>) {
+        switch result {
+        case .failure:
+            certificateRecoveryStatus = "P12 파일을 선택하지 않았습니다."
+        case .success(let url):
+            guard ["p12", "pfx"].contains(url.pathExtension.lowercased()) else {
+                certificateRecoveryStatus = "확장자가 .p12 또는 .pfx인 인증서를 선택하세요."
+                return
+            }
+            let accessed = url.startAccessingSecurityScopedResource()
+            defer { if accessed { url.stopAccessingSecurityScopedResource() } }
+            do {
+                let metadata = try FileManager.default.attributesOfItem(atPath: url.path)
+                guard let bytes = metadata[.size] as? NSNumber,
+                      bytes.int64Value > 0 && bytes.int64Value < 10_000_000 else {
+                    certificateRecoveryStatus = "P12 파일 크기가 올바르지 않습니다(최대 10MB)."
+                    return
+                }
+                let data = try Data(contentsOf: url)
+                guard data.count == bytes.intValue else {
+                    certificateRecoveryStatus = "인증서 파일의 읽기 크기가 일치하지 않습니다."
+                    return
+                }
+                pendingP12 = data
+                p12Password = ""
+                isAskingP12Password = true
+                ScarletDiagnosticRecorder.shared.record(
+                    "certificate", "sideinstaller_export_selected")
+            } catch {
+                certificateRecoveryStatus = "파일 앱에서 P12를 읽지 못했습니다. 접근 권한을 확인하세요."
+                ScarletDiagnosticRecorder.shared.record(
+                    "certificate", "file_read_failed", status: "error")
+            }
+        }
+    }
+
+    private func clearStagedCertificate() {
+        pendingP12 = nil
+        p12Password = ""
+    }
+
+    private func importExportedP12(replaceExisting: Bool = false) {
+        inspect()
+        guard readiness.canRequestNativeRefresh else {
+            certificateRecoveryStatus = "App Group 또는 서명 팀 권한 불일치로 적용하지 않았습니다."
+            clearStagedCertificate()
+            return
+        }
+        guard let archive = pendingP12, !archive.isEmpty else {
+            certificateRecoveryStatus = "선택한 P12가 없습니다."
+            clearStagedCertificate()
+            return
+        }
+        guard let hostTeam = LCSharedUtils.teamIdentifier(),
+              let archiveTeam = LCUtils.getCertTeamId(
+                  withKeyData: archive, password: p12Password),
+              hostTeam == archiveTeam else {
+            certificateRecoveryStatus = "P12 암호 오류 또는 현재 개발 팀과 불일치합니다."
+            ScarletDiagnosticRecorder.shared.record(
+                "certificate", "import_blocked", status: "blocked",
+                fields: ["reason": "password_or_team_mismatch"])
+            clearStagedCertificate()
+            return
+        }
+        let existingCert = LCUtils.certificateData()
+        let existingPassword = LCSharedUtils.certificatePassword()
+        let existingDate = LCUtils.appGroupUserDefault.object(
+            forKey: "LCCertificateUpdateDate")
+        if existingCert != nil && !replaceExisting {
+            certificateRecoveryStatus = "새 P12의 팀 일치 검증을 통과했습니다. 기존 인증서를 교체하려면 확인이 필요합니다."
+            isConfirmingCertReplacement = true
+            return
+        }
+
+        let password = p12Password
+        let defaults = LCUtils.appGroupUserDefault
+        defaults.set(archive, forKey: "LCCertificateData")
+        defaults.set(password, forKey: "LCCertificatePassword")
+        let stored = LCUtils.certificateData() == archive &&
+            LCSharedUtils.certificatePassword() == password
+        if !stored {
+            // Restore the previously working signing material on any error.
+            if let existingCert { defaults.set(existingCert, forKey: "LCCertificateData") }
+            else { defaults.removeObject(forKey: "LCCertificateData") }
+            if let existingPassword {
+                defaults.set(existingPassword, forKey: "LCCertificatePassword")
+            } else { defaults.removeObject(forKey: "LCCertificatePassword") }
+            if let existingDate { defaults.set(existingDate, forKey: "LCCertificateUpdateDate") }
+            else { defaults.removeObject(forKey: "LCCertificateUpdateDate") }
+            certificateRecoveryStatus = "새 P12 저장·읽기 검증 실패. 이전 인증서를 복원했습니다."
+            ScarletDiagnosticRecorder.shared.record(
+                "certificate", "replacement_readback_failed", status: "error")
+            clearStagedCertificate()
+            return
+        }
+        defaults.set(Date(), forKey: "LCCertificateUpdateDate")
+        certificateRecoveryStatus = "새 P12 팀 일치 및 저장·읽기 검증 완료. 실제 서명과 프로파일 갱신은 별도 확인이 필요합니다."
+        ScarletDiagnosticRecorder.shared.record(
+            "certificate", "sideinstaller_p12_stored",
+            status: "success",
+            fields: ["reason": existingCert == nil ? "new_same_team_readback"
+                                                 : "explicit_replacement_same_team"])
+        clearStagedCertificate()
+        inspect()
     }
 
     var body: some View {
@@ -160,6 +333,28 @@ struct ScarletSigningReadinessPanel: View {
             LabeledContent("LiveContainer 서명 인증서",
                            value: readiness.liveContainerCertificatePresent &&
                                   readiness.liveContainerPasswordPresent ? "존재" : "없음")
+            Section {
+                Button(action: recoverSideStoreCertificate) {
+                    Label("1. SideStore 인증서 재확인", systemImage: "arrow.triangle.2.circlepath")
+                }
+                .accessibilityIdentifier("SCARLET_P12_FROM_SIDESTORE")
+                Button(action: openSideInstaller) {
+                    Label("2. SideInstaller 새 P12 발급·내보내기", systemImage: "checkmark.shield")
+                }
+                .accessibilityIdentifier("SCARLET_P12_SIDEINSTALLER_FALLBACK")
+                Button {
+                    isSelectingP12 = true
+                } label: {
+                    Label("3. 파일에서 P12 가져오기", systemImage: "doc.badge.plus")
+                }
+                .accessibilityIdentifier("SCARLET_P12_IMPORT_FROM_FILES")
+            }
+            if let certificateRecoveryStatus {
+                Text(certificateRecoveryStatus)
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+                    .accessibilityIdentifier("SCARLET_P12_PIPELINE_RESULT")
+            }
             Button("권한 상태 다시 검사", action: inspect)
                 .accessibilityIdentifier("SCARLET_REFRESH_ENTITLEMENT_READBACK")
             Button(action: requestManualRefresh) {
@@ -184,5 +379,48 @@ struct ScarletSigningReadinessPanel: View {
             Text("로그인, 서명 인증서, App Group 접근, 실제 재설치는 서로 다른 상태입니다. 자동 7일 갱신은 아직 연결되지 않았습니다.")
         }
         .onAppear(perform: inspect)
+        .onReceive(NotificationCenter.default.publisher(
+            for: Notification.Name("ScarletCertificateAutoBridgeFinished"))) { _ in
+            inspect()
+            let newlyRecovered = !hadCertificateBeforeBridge &&
+                readiness.liveContainerCertificatePresent &&
+                readiness.liveContainerPasswordPresent
+            certificateRecoveryStatus = newlyRecovered
+                ? "SideStore의 기존 P12를 가져와 읽기 검증했습니다."
+                : "SideStore에서 새 P12를 확인하지 못했습니다. SideInstaller 발급·내보내기를 이용하세요."
+            ScarletDiagnosticRecorder.shared.record(
+                "certificate",
+                newlyRecovered ? "sidestore_imported" : "sidestore_reissue_unverified",
+                status: newlyRecovered ? "success" : "blocked")
+        }
+        .fileImporter(isPresented: $isSelectingP12,
+                      allowedContentTypes: [
+                        UTType(filenameExtension: "p12") ?? .data,
+                        UTType(filenameExtension: "pfx") ?? .data
+                      ]) { result in
+            stageExportedP12(result)
+        }
+        .alert("P12 인증서 암호", isPresented: $isAskingP12Password) {
+            SecureField("암호가 없으면 비워 두세요", text: $p12Password)
+            Button("검증 후 가져오기") { importExportedP12() }
+            Button("취소", role: .cancel) {
+                clearStagedCertificate()
+            }
+        } message: {
+            Text("SideInstaller에서 내보낸 P12를 팀 ID 검증 후 적용합니다. 기존 인증서가 있으면 별도로 교체 확인을 받습니다.")
+        }
+        .confirmationDialog(
+            "기존 서명 인증서를 교체하시겠습니까?",
+            isPresented: $isConfirmingCertReplacement,
+            titleVisibility: .visible) {
+                Button("팀 일치 검증된 P12로 교체") {
+                    importExportedP12(replaceExisting: true)
+                }
+                Button("기존 인증서 유지", role: .cancel) {
+                    clearStagedCertificate()
+                }
+            } message: {
+                Text("교체 후에도 SideStore 로그인·서명·설치 프로파일의 갱신은 별도 검증이 필요합니다. 실패 시 기존 인증서를 복원합니다.")
+            }
     }
 }

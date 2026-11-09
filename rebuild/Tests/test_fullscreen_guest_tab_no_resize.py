@@ -50,6 +50,6 @@ class GuestTabNoResize(unittest.TestCase):
         self.assertIn('LCSharedUtils.launchToGuestApp(withClassicMode: 0)',TAB)
         self.assertNotIn('removeItem(',TAB)
         self.assertNotIn('LCCertificateData',TAB)
-        self.assertIn('실행 중인 앱',TAB)
-        self.assertIn('전체화면 실행 중',TAB)
+        self.assertIn('앱 전환',TAB)
+        self.assertIn('accessibilityLabel("현재 실행 중")',TAB)
 if __name__=='__main__':unittest.main()

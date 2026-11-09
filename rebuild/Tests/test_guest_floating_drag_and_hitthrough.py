@@ -19,15 +19,15 @@ class GuestFloatingDragHitThrough(unittest.TestCase):
             self.assertIn(fragment,GUEST)
 
     def test_drag_saves_normalized_relative_center_not_guest_frame(self):
-        for fragment in ('DragGesture(minimumDistance: 12, coordinateSpace: .global)',
-                         'dockRight = onDrag(value.translation, false)',
-                         'dockRight = onDrag(value.translation, true)',
-                         'guard !draggingButton else { return }',
+        for fragment in ('UIGestureRecognizerDelegate',
+                         'ScarletGuestScreenPan',
+                         'UIPanGestureRecognizer(target: panHandler',
+                         'window.convert(point, to: window.screen.coordinateSpace)',
                          'positionXKey', 'positionYKey',
                          'allowedCenter(',
                          'floating_tab_position_saved',
-                         'defaults?.set(Double(value.x / max(b.width, 1))',
-                         'defaults?.set(Double(value.y / max(b.height, 1))',
+                         'defaults?.set(Double(current.x / max(bounds.width, 1))',
+                         'defaults?.set(Double(current.y / max(bounds.height, 1))',
                          'initialDockRight:',
                          'floating.frame = next',
                          'case .foregroundActive'):
