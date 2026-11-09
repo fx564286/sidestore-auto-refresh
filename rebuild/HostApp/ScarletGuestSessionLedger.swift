@@ -34,7 +34,8 @@ enum ScarletGuestSessionLedger {
         "rotation_relayout", "native_panel_opened", "native_switch_tapped",
         "native_switch_rejected", "native_switch_activated",
         "hook_entered", "framework_loaded", "framework_missing",
-        "provider_ready", "provider_missing"
+        "provider_ready", "provider_missing",
+        "mount_window_not_ready", "mount_window_recovered"
     ]
 
     struct SwitchTrace: Codable {
