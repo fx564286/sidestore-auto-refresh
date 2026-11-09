@@ -272,13 +272,16 @@ def hide_embedded_sidestore_guest_navigation(engine: Path) -> dict:
 """
     importer_new="""    private let scarletQueuedIPAURL: URL?
     private let scarletOnImportFinished: (() -> Void)?
+    private let scarletActivity: ScarletGuestImportActivity?
     @State private var scarletDidStartQueuedImport = false
     @State private var scarletQueuedImportFinished = false
     @State private var scarletGuestImportSignFailed = false
 
     init(scarletQueuedIPAURL: URL? = nil,
+         scarletActivity: ScarletGuestImportActivity? = nil,
          scarletOnImportFinished: (() -> Void)? = nil) {
         self.scarletQueuedIPAURL = scarletQueuedIPAURL
+        self.scarletActivity = scarletActivity
         self.scarletOnImportFinished = scarletOnImportFinished
         _installOptions = State(initialValue: [])
     }
@@ -372,28 +375,22 @@ def hide_embedded_sidestore_guest_navigation(engine: Path) -> dict:
                 .padding(.vertical, 16)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .background(Color.clear)
+                .onChange(of: installProgressPercentage) { value in
+                    scarletActivity?.update(Double(value))
+                }
                 .onAppear {
                     guard !scarletDidStartQueuedImport else { return }
                     scarletDidStartQueuedImport = true
                     if !didAppear { onAppear() }
                     Task { @MainActor in
                         await startInstallApp(queuedIPA)
-                        // Import completion is not proof that the guest can run.
-                        // In particular do not hide a failed-signature/IPA alert.
+                        // This SwiftUI worker is hosted independently from
+                        // the progress sheet. Completion is not launch success.
                         scarletQueuedImportFinished = true
-                        if !scarletGuestImportSignFailed && !errorShow {
-                            // Allow the completion text to be read, then return
-                            // to the independent four-column app launcher.
-                            // Task.sleep(nanoseconds:) supports the pinned LC iOS deployment target.
-                            try? await Task.sleep(nanoseconds: 2_000_000_000)
-                            if !scarletGuestImportSignFailed &&
-                               !errorShow && !installprogressVisible {
-                                ScarletDiagnosticRecorder.shared.record(
-                                    "guest_import", "completed_sheet_auto_closed",
-                                    fields: ["result": "import_only_launch_unverified"])
-                                scarletOnImportFinished?()
-                            }
-                        }
+                        scarletActivity?.finish(
+                            signingUnverified: scarletGuestImportSignFailed,
+                            failed: errorShow)
+                        scarletOnImportFinished?()
                     }
                 }
                 .accessibilityIdentifier("SCARLET_GUEST_IMPORT_PROGRESS_ONLY")
