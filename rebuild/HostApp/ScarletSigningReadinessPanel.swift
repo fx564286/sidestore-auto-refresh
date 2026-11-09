@@ -109,8 +109,23 @@ struct ScarletSigningReadinessPanel: View {
 
     private func inspect() {
         readiness = ScarletSigningReadiness.inspect()
-        lastRefreshAttemptState = UserDefaults.standard.string(
-            forKey: "Scarlet.Refresh.LastAttemptOutcome") ?? "기록 없음"
+        let defaults = UserDefaults.standard
+        let outcomeKey = "Scarlet.Refresh.LastAttemptOutcome"
+        let prior = defaults.string(forKey: outcomeKey) ?? "기록 없음"
+        if prior.hasPrefix("요청 중") {
+            // V23 could leave a forever-pending state after returning early
+            // without a completion write. Do not pretend a renewal succeeded.
+            let start = defaults.object(forKey:
+                "Scarlet.Refresh.LastAttemptStartedAt") as? Date
+            if start == nil || Date().timeIntervalSince(start!) > 7 * 60 {
+                defaults.set("상태 불명 · 이전 요청의 설치 완료 기록 없음",
+                             forKey: outcomeKey)
+                ScarletDiagnosticRecorder.shared.record(
+                    "refresh", "orphaned_request_state_reconciled",
+                    status: "warning", fields: ["reason": "no_terminal_receipt"])
+            }
+        }
+        lastRefreshAttemptState = defaults.string(forKey: outcomeKey) ?? "기록 없음"
         lastRefreshFailureReason = UserDefaults.standard.string(
             forKey: "Scarlet.Refresh.LastFailureReason")
         ScarletDiagnosticRecorder.shared.record("refresh", "preflight_checked",
@@ -132,6 +147,8 @@ struct ScarletSigningReadinessPanel: View {
             return
         }
         refreshing = true
+        UserDefaults.standard.set(Date(), forKey:
+            "Scarlet.Refresh.LastAttemptStartedAt")
         UserDefaults.standard.set("요청 중 · 검증 전",
             forKey: "Scarlet.Refresh.LastAttemptOutcome")
         UserDefaults.standard.removeObject(forKey: "Scarlet.Refresh.LastFailureReason")
