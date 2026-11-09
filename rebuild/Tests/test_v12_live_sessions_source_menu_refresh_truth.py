@@ -22,7 +22,12 @@ class V12LiveTruth(unittest.TestCase):
             '    @objc(installForGuestName:)',1)[0]
         self.assertIn('switch_existing_multitask_session',segment)
         self.assertIn('switch_requires_relaunch',segment)
-        self.assertNotIn('= LCSharedUtils.launchToGuestApp(',segment)
+        # Resident scenes are reused without restart; only unavailable
+        # cold targets take the explicitly guarded original LC handoff.
+        self.assertIn('if latest.canSwitch, let container = latest.containerID',segment)
+        self.assertIn('guard latest.canRelaunch',segment)
+        self.assertIn('let submitted = LCSharedUtils.launchToGuestApp(',segment)
+        self.assertIn('switch_cold_handoff',segment)
         self.assertNotIn('defaults.set(target.id',segment)
         self.assertIn('return false',segment)
         self.assertIn('LCSharedUtils.launchToGuestApp(withClassicMode: 0)',GUEST) # explicit exit only
