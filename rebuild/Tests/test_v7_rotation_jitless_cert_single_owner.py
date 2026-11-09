@@ -28,7 +28,8 @@ class V7SafetyContracts(unittest.TestCase):
                   "let usableHeight = max(CGFloat(260)",
                   "height = open ? min(cardHeight + 84, usableHeight) : 72",
                   "overlay.layer.masksToBounds = true",
-                  "if consecutiveStable >= 4", "rotationGeneration == token"):
+                  "if consecutiveStable >= 4", "rotationGeneration == token",
+                  "Last-resort recovery"):
             self.assertIn(x,UI)
         self.assertIn('let orientationList = appData["UISupportedInterfaceOrientations"]', UI)
         self.assertIn("portrait_only",UI)
