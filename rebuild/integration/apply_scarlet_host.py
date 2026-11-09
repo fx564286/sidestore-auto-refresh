@@ -254,7 +254,7 @@ def hide_embedded_sidestore_guest_navigation(engine: Path) -> dict:
         }
         if #available(iOS 26.0, *),
            (LCUtils.certificateData() == nil ||
-            (LCSharedUtils.certificatePassword() ?? "").isEmpty) {
+            LCSharedUtils.certificatePassword() == nil) {
             scarletGuestImportSignFailed = true
             ScarletDiagnosticRecorder.shared.record(
                 "guest_import", "import_signing_unverified",
