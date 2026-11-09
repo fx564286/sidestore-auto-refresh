@@ -74,7 +74,9 @@ class IndependentUIContractTests(unittest.TestCase):
         self.assertIn("if tab == .sources {",UI)
         self.assertIn('heading("", "소스", "")',UI)
         self.assertIn("Button(action: onAddSource)",UI)
-        self.assertIn("LCSourcesView()",HOST)
+        self.assertIn("originalSources.refreshSource(item)",HOST)
+        self.assertIn("originalSources.removeSource(item)",HOST)
+        self.assertNotIn("LCSourcesView()",HOST)
 
     def test_tweaks_tab_embeds_real_livecontainer_manager_without_new_modal(self):
         self.assertIn("if tab == .tweaks {",UI)

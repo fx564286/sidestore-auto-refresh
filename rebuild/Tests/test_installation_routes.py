@@ -55,7 +55,9 @@ class InstallerRouteTests(unittest.TestCase):
         self.assertIn("serviceRefreshApp",HOST)
 
     def test_real_engine_sources_are_not_replaced_by_fake_importers(self):
-        self.assertIn("LCSourcesView()",HOST)
+        self.assertIn("originalSources.sources.map",HOST)
+        self.assertIn("originalSources.refreshSource(item)",HOST)
+        self.assertNotIn("LCSourcesView()",HOST)
         self.assertIn("LCSettingsView()",HOST)
         self.assertIn('str(out.glob("*.swift"))' if False else "out.glob",PATCH)
         self.assertIn('ScarletIntegratedHostView()',PATCH)

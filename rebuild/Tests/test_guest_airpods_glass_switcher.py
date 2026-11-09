@@ -24,9 +24,9 @@ class GuestAirPodsGlassSwitcher(unittest.TestCase):
                   'lastLaunched', 'selectedContainer',
                   'getenv("LC_HOME_PATH")',
                   'UserDefaults.lc()', 'switch_candidates_scanned',
-                  'switch_relaunch_requested', 'switchGuest(to target:',
-                  'LCSharedUtils.launchToGuestApp(withClassicMode: target.classicMode)',
-                  'SCARLET_PR48_GUEST_SWITCH_TARGET', '전환 가능한 앱 없음'):
+                  'switch_requires_relaunch', 'switchGuest(to target:',
+                  'MultitaskWindowManager.openExistingAppWindow(dataUUID: container)',
+                  'SCARLET_PR48_GUEST_SWITCH_TARGET', '다른 실행 중인 앱 없음'):
             self.assertIn(s,GUEST)
         self.assertIn('for url in items where url.pathExtension.lowercased() == "app"', GUEST)
         self.assertIn('guard !found.contains(folder)',GUEST)

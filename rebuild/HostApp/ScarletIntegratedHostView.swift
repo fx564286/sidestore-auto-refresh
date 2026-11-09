@@ -75,7 +75,9 @@ struct ScarletIntegratedHostView: View {
     @State private var showGuestImportProgress = false
     @State private var queuedGuestIPAURL: URL?
     @State private var installProgressMinimized = false
-    @State private var showNativeSources = false
+    @State private var showSourceActions = false
+    @State private var confirmRemoveSource = false
+    @State private var selectedSourceURL: URL?
     @State private var showSourceURLInput = false
     @State private var newSourceURL = ""
     @State private var sourceIsSaving = false
@@ -823,7 +825,15 @@ struct ScarletIntegratedHostView: View {
             onAction: handle,
             onOpenGuest: runGuest,
             onDeleteGuest: requestGuestUninstall,
-            onOpenSource: { _ in showNativeSources = true },
+            onOpenSource: { raw in
+                guard let source = originalSources.sources.first(where: {
+                    $0.id.absoluteString == raw
+                }) else { return }
+                selectedSourceURL = source.id
+                showSourceActions = true
+                ScarletDiagnosticRecorder.shared.record(
+                    "sources", "source_actions_opened")
+            },
             onAddSource: {
                 ScarletDiagnosticRecorder.shared.record("sources", "direct_add_requested")
                 newSourceURL = ""
@@ -902,6 +912,9 @@ struct ScarletIntegratedHostView: View {
             refreshStoredLoginState()
             // UIKit window creation can lag behind SwiftUI view construction.
             // The actual dock is initialized lazily and attached when ready.
+            Task { @MainActor in
+                await ScarletAutomaticRenewal.shared.foregroundCatchUp()
+            }
             DispatchQueue.main.async {
                 MultitaskDockManager.shared.scarletEnsureWindowHost()
                 let mounted = MultitaskDockManager.shared.windowHostingView.superview != nil
@@ -915,6 +928,9 @@ struct ScarletIntegratedHostView: View {
                 fields: ["state": String(describing: phase)])
             if phase == .active && !showScarletAppleIDLogin {
                 refreshStoredLoginState()
+                Task { @MainActor in
+                    await ScarletAutomaticRenewal.shared.foregroundCatchUp()
+                }
             }
         }
         .onReceive(NotificationCenter.default.publisher(
@@ -951,9 +967,9 @@ struct ScarletIntegratedHostView: View {
             ScarletDiagnosticRecorder.shared.record("guest_import",
                 visible ? "import_progress_visible" : "import_progress_dismissed")
         }
-        .onChange(of: showNativeSources) { visible in
+        .onChange(of: showSourceActions) { visible in
             ScarletDiagnosticRecorder.shared.record("sources",
-                visible ? "manager_visible" : "manager_dismissed")
+                visible ? "source_actions_visible" : "source_actions_dismissed")
         }
         .onChange(of: showScarletAppleIDLogin) { visible in
             ScarletDiagnosticRecorder.shared.record("auth",
@@ -1185,12 +1201,46 @@ struct ScarletIntegratedHostView: View {
             .presentationDragIndicator(.visible)
             .accessibilityIdentifier("SCARLET_BRANDED_SOURCE_DOWNLOAD_SHEET")
         }
-        .sheet(isPresented: $showNativeSources) {
-            NavigationStack {
-                LCSourcesView()
+        .confirmationDialog(
+            "소스 관리", isPresented: $showSourceActions,
+            titleVisibility: .visible
+        ) {
+            if let selectedSourceURL,
+               let item = originalSources.sources.first(where: { $0.id == selectedSourceURL }) {
+                Button("소스 새로고침") {
+                    Task { @MainActor in
+                        await originalSources.refreshSource(item)
+                        ScarletDiagnosticRecorder.shared.record(
+                            "sources", "single_source_refresh_requested")
+                    }
+                }
+                .accessibilityIdentifier("SCARLET_SINGLE_SOURCE_REFRESH")
+                Button("소스 삭제", role: .destructive) {
+                    confirmRemoveSource = true
+                }
+                .accessibilityIdentifier("SCARLET_SINGLE_SOURCE_REMOVE")
             }
-            .environmentObject(sharedModel)
-            .environmentObject(LCAppSortManager.shared)
+            Button("취소", role: .cancel) { selectedSourceURL = nil }
+        } message: {
+            Text("이 소스만 관리합니다. 추가는 화면 아래 소스 추가 버튼에서 진행합니다.")
+        }
+        .confirmationDialog(
+            "선택한 소스를 삭제하시겠습니까?",
+            isPresented: $confirmRemoveSource,
+            titleVisibility: .visible
+        ) {
+            Button("소스만 삭제", role: .destructive) {
+                if let selectedSourceURL,
+                   let item = originalSources.sources.first(where: { $0.id == selectedSourceURL }) {
+                    originalSources.removeSource(item)
+                    ScarletDiagnosticRecorder.shared.record(
+                        "sources", "single_source_removed")
+                }
+                selectedSourceURL = nil
+            }
+            Button("취소", role: .cancel) { selectedSourceURL = nil }
+        } message: {
+            Text("등록된 소스와 캐시만 삭제하며 이미 설치한 게스트 앱과 앱 데이터는 유지합니다.")
         }
         .confirmationDialog(
             "게스트 앱 삭제",

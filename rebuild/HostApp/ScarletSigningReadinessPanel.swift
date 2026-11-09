@@ -89,6 +89,7 @@ struct ScarletSigningReadinessPanel: View {
     @State private var readiness = ScarletSigningReadiness.inspect()
     @State private var authenticated: Bool? = nil
     @State private var refreshing = false
+    @State private var lastRefreshAttemptState: String = "없음"
     @State private var statusMessage: String?
     @State private var certificateRecoveryStatus: String?
     @State private var isSelectingP12 = false
@@ -105,6 +106,8 @@ struct ScarletSigningReadinessPanel: View {
 
     private func inspect() {
         readiness = ScarletSigningReadiness.inspect()
+        lastRefreshAttemptState = UserDefaults.standard.string(
+            forKey: "Scarlet.Refresh.LastAttemptOutcome") ?? "기록 없음"
         ScarletDiagnosticRecorder.shared.record("refresh", "preflight_checked",
             fields: [
                 "result": readiness.canRequestNativeRefresh ? "ready" : "blocked",
@@ -124,6 +127,8 @@ struct ScarletSigningReadinessPanel: View {
             return
         }
         refreshing = true
+        UserDefaults.standard.set("요청 중 · 검증 전",
+            forKey: "Scarlet.Refresh.LastAttemptOutcome")
         statusMessage = "내장 SideStore에서 앱 새로고침을 요청하는 중입니다."
         Task { @MainActor in
             defer { refreshing = false }
@@ -141,11 +146,15 @@ struct ScarletSigningReadinessPanel: View {
                 // this Scarlet host was re-signed and reinstalled.
                 _ = try await RefreshAllAppsIntent().perform()
                 statusMessage = "SideStore 새로고침 요청이 종료됐습니다. 실제 프로파일 만료일과 iPhone 설치 상태는 아직 별도 확인이 필요합니다."
+                UserDefaults.standard.set("요청 반환 · 재설치 확인 안 됨",
+                    forKey: "Scarlet.Refresh.LastAttemptOutcome")
                 ScarletDiagnosticRecorder.shared.record("refresh", "manual_request_returned",
                     status: "info", fields: ["installation_verified": "false"])
                 inspect()
             } catch {
                 statusMessage = "SideStore 갱신 실패. 아래 인증서 받기를 다시 시도하거나 다른 P12를 가져올 수 있습니다."
+                UserDefaults.standard.set("실패 · SideStore 갱신 오류",
+                    forKey: "Scarlet.Refresh.LastAttemptOutcome")
                 certificateRecoveryStatus = "기존 P12가 있어도 새로 발급받은 상태는 아닙니다. 아래에서 인증서를 다시 요청할 수 있습니다."
                 ScarletDiagnosticRecorder.shared.record(
                     "certificate", "provider_fallback_available",
@@ -420,7 +429,12 @@ struct ScarletSigningReadinessPanel: View {
 
     var body: some View {
         Section {
-            LabeledContent("자동 갱신", value: "미연결 · 실행 안 됨")
+            LabeledContent("자동 갱신", value: "앱 실행·복귀 + iOS 예약")
+            LabeledContent("백그라운드 예약",
+                value: UserDefaults.standard.string(
+                    forKey: "Scarlet.Refresh.BackgroundSchedule") ?? "예약 상태 확인 전")
+            LabeledContent("마지막 갱신 요청", value: lastRefreshAttemptState)
+            LabeledContent("설치 갱신 완료", value: "검증된 성공 기록 없음")
             LabeledContent("SideStore 로그인",
                            value: authenticated == nil ? "확인 중" :
                                   (authenticated == true ? "인증됨" : "인증 필요"))
@@ -469,7 +483,7 @@ struct ScarletSigningReadinessPanel: View {
         } header: {
             Text("JIT-Less · 인증서")
         } footer: {
-            Text("로그인, 서명 인증서, App Group 접근, 실제 재설치는 서로 다른 상태입니다. 자동 7일 갱신은 아직 연결되지 않았습니다.")
+            Text("로그인, 서명 인증서, App Group 접근, 실제 재설치는 서로 다른 상태입니다. 자동 요청은 연결됐지만 실제 갱신에는 iOS 백그라운드 실행·네트워크·Apple 서명이 필요합니다.")
         }
         .onAppear(perform: inspect)
         .onReceive(NotificationCenter.default.publisher(

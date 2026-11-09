@@ -44,7 +44,7 @@ class MinimizedGuestInstall(unittest.TestCase):
         self.assertIn('handoffDownloadedSourceIfReady()',HOST)
         self.assertIn('stageGuestIPAFromFiles(staged, presentProgress: !installProgressMinimized)',HOST)
         download_sheet = HOST.split('.sheet(isPresented: $showSourceDownloadSheet',1)[1].split(
-            '.sheet(isPresented: $showNativeSources',1)[0]
+            '.confirmationDialog(\n            "소스 관리"',1)[0]
         self.assertIn('download_kept_alive',download_sheet)
         self.assertNotIn('Button(sourceIsDownloading ? "내리기" : "닫기")',download_sheet)
         self.assertNotIn('SCARLET_SOURCE_DOWNLOAD_MINIMIZE',download_sheet)
