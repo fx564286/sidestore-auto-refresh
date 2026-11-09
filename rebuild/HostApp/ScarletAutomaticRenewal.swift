@@ -5,6 +5,54 @@ import Foundation
 import BackgroundTasks
 import SideStoreSupport
 
+// SideStore wraps very different internal failures in domain SideStore,
+// code 1. Classify ONLY known constant phrases from the upstream native
+// implementation; raw NSError descriptions can contain private user data.
+@available(iOS 17.0, *)
+enum ScarletRefreshFailureDiagnosis {
+    static func category(_ error: Error) -> String {
+        let e = error as NSError
+        guard e.domain == "SideStore" else {
+            return e.domain == NSCocoaErrorDomain
+                ? "system_io_failure" : "native_refresh_unknown_error"
+        }
+        let description = e.localizedDescription.lowercased()
+        if description.contains("another refresh task is in progress") {
+            return "refresh_already_running"
+        }
+        if description.contains("unable to locate liveprocess bundle") {
+            return "liveprocess_missing"
+        }
+        if description.contains("failed to start extension") {
+            return "liveprocess_start_failed"
+        }
+        if description.contains("built-in sidestore quit unexpectedly") {
+            return "embedded_sidestore_exited"
+        }
+        if description.contains("failed to start in reasonable time") {
+            return "embedded_sidestore_start_timeout"
+        }
+        return "sidestore_internal_failure"
+    }
+
+    static func guidance(_ category: String) -> String {
+        switch category {
+        case "refresh_already_running":
+            return "다른 갱신 작업이 진행 중입니다. 중복 실행 여부를 확인하세요."
+        case "liveprocess_missing":
+            return "LiveProcess 확장을 설치본에서 찾지 못했습니다. 확장을 유지한 서명·설치가 필요합니다."
+        case "liveprocess_start_failed":
+            return "LiveProcess 확장을 시작하지 못했습니다. 확장 서명과 프로비저닝 권한을 확인하세요."
+        case "embedded_sidestore_exited":
+            return "내장 SideStore 실행 프로세스가 종료됐습니다. SideStore 실행 오류 진단이 필요합니다."
+        case "embedded_sidestore_start_timeout":
+            return "내장 SideStore 실행 응답이 시간 내에 도착하지 않았습니다."
+        default:
+            return "내장 SideStore 갱신 단계가 실패했습니다. 인증서 존재만으로 설치 갱신을 보장할 수 없습니다."
+        }
+    }
+}
+
 @available(iOS 17.0, *)
 @MainActor
 final class ScarletAutomaticRenewal {
@@ -13,6 +61,7 @@ final class ScarletAutomaticRenewal {
     private let attemptKey = "Scarlet.Refresh.LastAttemptAt"
     private let outcomeKey = "Scarlet.Refresh.LastAttemptOutcome"
     private let sourceKey = "Scarlet.Refresh.LastAttemptSource"
+    private let failureReasonKey = "Scarlet.Refresh.LastFailureReason"
     private var registered = false
     private var running = false
     private var lastScheduledFor: Date?
@@ -79,8 +128,16 @@ final class ScarletAutomaticRenewal {
     private func handle(_ bg: BGAppRefreshTask) {
         scheduleNext()
         let operation = Task { @MainActor in
-            await refreshIfDue(origin: "background")
-            bg.setTaskCompleted(success: !Task.isCancelled)
+            let requestReturned = await refreshIfDue(origin: "background")
+            // BG task completion is NOT a provisioning renewal receipt.
+            // Previously even a thrown SideStore error was reported to iOS
+            // as a completed-successful background refresh.
+            let taskSucceeded = requestReturned && !Task.isCancelled
+            bg.setTaskCompleted(success: taskSucceeded)
+            ScarletDiagnosticRecorder.shared.record(
+                "refresh", "automatic_background_task_completed",
+                status: taskSucceeded ? "info" : "warning",
+                fields: ["result": taskSucceeded ? "request_returned" : "request_failed"])
         }
         bg.expirationHandler = {
             operation.cancel()
@@ -92,18 +149,20 @@ final class ScarletAutomaticRenewal {
         }
     }
 
-    private func refreshIfDue(origin: String) async {
-        guard !running else { return }
+    @discardableResult
+    private func refreshIfDue(origin: String) async -> Bool {
+        guard !running else { return false }
         let prefs = UserDefaults.standard
         let now = Date()
         if let last = prefs.object(forKey: attemptKey) as? Date,
-           now.timeIntervalSince(last) < interval { return }
+           now.timeIntervalSince(last) < interval { return true }
         running = true
         defer { running = false; scheduleNext() }
 
         prefs.set(now, forKey: attemptKey)
         prefs.set(origin, forKey: sourceKey)
         prefs.set("요청 중 · 검증 전", forKey: outcomeKey)
+        prefs.removeObject(forKey: failureReasonKey)
         ScarletDiagnosticRecorder.shared.record(
             "refresh", "automatic_attempt_started",
             fields: ["result": origin])
@@ -114,16 +173,18 @@ final class ScarletAutomaticRenewal {
             ScarletDiagnosticRecorder.shared.record(
                 "refresh", "automatic_attempt_blocked", status: "blocked",
                 fields: ["reason": gate.safeBlockCategory])
-            return
+            prefs.set(gate.safeBlockCategory, forKey: failureReasonKey)
+            return false
         }
         guard await ScarletConnectedSideSignEngine().storedAuthenticated() else {
             prefs.set("차단 · SideStore 로그인 세션 없음", forKey: outcomeKey)
             ScarletDiagnosticRecorder.shared.record(
                 "refresh", "automatic_attempt_blocked", status: "blocked",
                 fields: ["reason": "auth_unavailable"])
-            return
+            prefs.set("auth_unavailable", forKey: failureReasonKey)
+            return false
         }
-        guard !Task.isCancelled else { return }
+        guard !Task.isCancelled else { return false }
         do {
             // Calls the pinned SideStore native signing+installation workflow.
             // This may return with no registered apps. Do not claim success.
@@ -132,10 +193,17 @@ final class ScarletAutomaticRenewal {
             ScarletDiagnosticRecorder.shared.record(
                 "refresh", "automatic_intent_returned",
                 fields: ["installation_verified": "false"])
+            return true
         } catch {
+            let reason = ScarletRefreshFailureDiagnosis.category(error)
             prefs.set("실패 · SideStore 갱신 오류", forKey: outcomeKey)
+            prefs.set(reason, forKey: failureReasonKey)
             ScarletDiagnosticRecorder.shared.recordError(
                 "refresh", "automatic_request_failed", error: error)
+            ScarletDiagnosticRecorder.shared.record(
+                "refresh", "automatic_failure_categorized",
+                status: "error", fields: ["reason": reason])
+            return false
         }
     }
 }

@@ -56,7 +56,8 @@ class V17ColdSwitchRotation(unittest.TestCase):
 
     def test_guest_switcher_still_uses_native_glass_with_readable_overlay(self):
         self.assertIn('SCNativeLiquidGlassSurface(cornerRadius: radius, showsRim: false)', GUEST)
-        self.assertIn('Color(uiColor: .systemBackground).opacity(0.88)', GUEST)
+        self.assertNotIn('Color(uiColor: .systemBackground).opacity(0.88)', GUEST)
+        self.assertIn('.clipShape(RoundedRectangle(cornerRadius: radius, style: .continuous))', GUEST)
         self.assertIn('SCARLET_PR48_AIRPODS_GLASS_PANEL', GUEST)
         self.assertIn('SCARLET_PR48_GUEST_ROUND_TAB', GUEST)
         self.assertNotIn('original.frame =', GUEST)
