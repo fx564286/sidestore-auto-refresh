@@ -102,7 +102,6 @@ struct ScarletSigningReadinessPanel: View {
     @State private var hadCertificateBeforeBridge = false
     @State private var isIssuingNativeCertificate = false
     @State private var isRetrievingSideStoreCertificate = false
-    @State private var isAdvancedCertificateExpanded = false
 
     private func inspect() {
         readiness = ScarletSigningReadiness.inspect()
@@ -451,39 +450,16 @@ struct ScarletSigningReadinessPanel: View {
                       isRetrievingSideStoreCertificate ||
                       !readiness.canRequestNativeRefresh)
             .accessibilityIdentifier("SCARLET_P12_NATIVE_ISSUE")
-            DisclosureGroup(isExpanded: $isAdvancedCertificateExpanded) {
-                Button { isSelectingP12 = true } label: {
-                    Label("P12 파일 선택", systemImage: "doc.badge.plus")
-                }
-                .accessibilityIdentifier("SCARLET_P12_IMPORT_FROM_FILES")
-                Button("권한 상태 다시 검사", action: inspect)
-                    .accessibilityIdentifier("SCARLET_REFRESH_ENTITLEMENT_READBACK")
-            } label: {
-                Label("추가 인증서 관리", systemImage: "ellipsis.circle")
+            Button { isSelectingP12 = true } label: {
+                Label("P12 파일 선택", systemImage: "doc.badge.plus")
             }
-            .accessibilityIdentifier("SCARLET_CERTIFICATE_ADVANCED")
+            .accessibilityIdentifier("SCARLET_P12_IMPORT_FROM_FILES")
             if let certificateRecoveryStatus {
                 Text(certificateRecoveryStatus)
                     .font(.footnote)
                     .foregroundStyle(.secondary)
                     .accessibilityIdentifier("SCARLET_P12_PIPELINE_RESULT")
             }
-            Button(action: requestManualRefresh) {
-                if refreshing {
-                    ProgressView()
-                } else {
-                    Label("SideStore 수동 새로고침", systemImage: "arrow.clockwise")
-                }
-            }
-            .disabled(refreshing || !readiness.canRequestNativeRefresh ||
-                      authenticated != true)
-            .accessibilityIdentifier("SCARLET_MANUAL_SIDESTORE_REFRESH")
-            NavigationLink {
-                LCJITLessDiagnoseView()
-            } label: {
-                Label("JIT-Less 모드 진단", systemImage: "stethoscope")
-            }
-            .accessibilityIdentifier("SCARLET_JITLESS_SINGLE_DIAGNOSTIC")
             if let statusMessage {
                 Text(statusMessage)
                     .font(.footnote)

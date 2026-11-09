@@ -14,7 +14,7 @@ class InAppCertAndGlassContracts(unittest.TestCase):
     def test_certificate_is_one_native_screen_without_external_launch(self):
         self.assertIn('Label("SideStore 인증서 받기"',SIGN)
         self.assertIn('Label("P12 파일 선택"',SIGN)
-        self.assertIn('Label("추가 인증서 관리"',SIGN)
+        self.assertNotIn('Label("추가 인증서 관리"',SIGN)
         self.assertNotIn('Label("SideInstaller 방식 · SideStore 인증서 가져오기"',SIGN)
         self.assertIn('retrieveSideInstallerStyleCertificate()',SIGN)
         self.assertIn('sideinstaller_style_local_fallback',SIGN)
@@ -59,9 +59,9 @@ class InAppCertAndGlassContracts(unittest.TestCase):
         self.assertIn("SCNativeLiquidGlassSurface(cornerRadius: radius, showsRim: false)",UI)
         self.assertIn("SCNativeLiquidGlassSurface(cornerRadius: 31, showsRim: false)",UI)
         self.assertNotIn("ScarletUIKitGlassBackdrop",UI)
-        self.assertIn("let x = (b.width - width) / 2",UI)
-        self.assertIn("width = open ? min(430",UI)
-        self.assertIn("let panel = CGRect(x: 12",UI)
+        self.assertIn("x: (b.width - panelWidth) / 2",UI)
+        self.assertIn("let panelWidth = min(CGFloat(430)",UI)
+        self.assertIn("return isExpanded && panelRect.contains(point)",UI)
 
     def test_remove_requested_visible_brand_label(self):
         self.assertNotIn("홍수정",UI)

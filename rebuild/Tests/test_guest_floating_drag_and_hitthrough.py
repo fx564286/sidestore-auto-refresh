@@ -10,10 +10,10 @@ class GuestFloatingDragHitThrough(unittest.TestCase):
     def test_pass_through_invisible_window_area(self):
         for fragment in ('class ScarletGuestTouchPassthroughWindow: UIWindow',
                          'override func point(inside point: CGPoint, with event: UIEvent?) -> Bool',
-                         'guard isExpanded else { return false }',
-                         'let panel = CGRect(',
-                         'panel.contains(point) && super.point(inside: point, with: event)',
-                         'dx * dx + dy * dy <= 35 * 35',
+                         'return isExpanded && panelRect.contains(point)',
+                         'private static func panelFrame(in window: UIWindow)',
+                         'super.point(inside: point, with: event)',
+                         'hypot(point.x - buttonCenter.x, point.y - buttonCenter.y) <= 35',
                          'overlay.windowLevel = UIWindow.Level.alert + 1',
                          'overlay.isHidden = false'):
             self.assertIn(fragment,GUEST)
@@ -29,7 +29,7 @@ class GuestFloatingDragHitThrough(unittest.TestCase):
                          'defaults?.set(Double(current.x / max(bounds.width, 1))',
                          'defaults?.set(Double(current.y / max(bounds.height, 1))',
                          'initialDockRight:',
-                         'floating.frame = next',
+                         'floatingWindow.frame = next',
                          'case .foregroundActive'):
             if fragment=='case .foregroundActive':continue
             self.assertIn(fragment,GUEST)

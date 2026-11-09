@@ -29,7 +29,6 @@ class UserVisibleLabelStability(unittest.TestCase):
             'LabeledContent("개발 팀·앱 식별자",',
             'LabeledContent("LiveContainer 서명 인증서",',
             'LabeledContent("자동 갱신",',
-            'Label("SideStore 수동 새로고침",',
         ):
             self.assertIn(label,CAP)
         self.assertNotIn('LabeledContent("App Group 서명 권한",',CAP)

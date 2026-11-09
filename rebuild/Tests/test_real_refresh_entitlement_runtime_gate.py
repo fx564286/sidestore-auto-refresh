@@ -14,9 +14,9 @@ class SignedRuntimeCapabilityGate(unittest.TestCase):
     def test_1_manual_refresh_invokes_original_sidestore_engine(self):
         self.assertIn("import SideStoreSupport", CAP)
         self.assertIn("RefreshAllAppsIntent().perform()", CAP)
-        self.assertIn("SideStore 수동 새로고침", CAP)
+        self.assertNotIn('Label("SideStore 수동 새로고침"', CAP)
         self.assertIn("storedAuthenticated()", CAP)
-        self.assertIn("SCARLET_MANUAL_SIDESTORE_REFRESH", CAP)
+        self.assertNotIn("SCARLET_MANUAL_SIDESTORE_REFRESH", CAP)
         self.assertIn("installation_verified", CAP)
         self.assertIn('"false"', CAP)
 
@@ -35,7 +35,7 @@ class SignedRuntimeCapabilityGate(unittest.TestCase):
         self.assertIn('group.com.SideStore.SideStore.', CAP)
         self.assertIn('P8EZT3U5N4', CAP)
         self.assertIn("safeBlockCategory", CAP)
-        self.assertIn("SCARLET_REFRESH_ENTITLEMENT_READBACK", CAP)
+        self.assertNotIn("SCARLET_REFRESH_ENTITLEMENT_READBACK", CAP)
 
     def test_3b_signer_app_id_variants_are_not_automatically_entitled(self):
         # Screenshot shows a suffix-duplicated host bundle. Both observed
@@ -64,7 +64,7 @@ class SignedRuntimeCapabilityGate(unittest.TestCase):
         self.assertIn("ScarletSigningReadinessPanel()", PATCH)
         self.assertIn("SCARLET_CERTIFICATE_SEPARATE_FROM_LOGIN", PATCH)
         self.assertIn("canRequestNativeRefresh", CAP)
-        self.assertIn(".disabled(refreshing || !readiness.canRequestNativeRefresh ||", CAP)
+        self.assertIn(".disabled(isIssuingNativeCertificate ||", CAP)
 
 if __name__ == "__main__":
     unittest.main()

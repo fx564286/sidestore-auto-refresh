@@ -25,9 +25,8 @@ class V7SafetyContracts(unittest.TestCase):
         for x in ("settleOverlayAfterRotation()", "overlay_rotation_suspended",
                   "overlay_rotation_resumed","overlay.alpha = 0",
                   "overlay.alpha = 1",
-                  "let usableHeight = max(CGFloat(260)",
-                  "height = open ? min(cardHeight + 84, usableHeight) : 72",
-                  "overlay.layer.masksToBounds = true",
+                  "let panelHeight = min(panelWidth * 1.02",
+                  "overlay.layer.masksToBounds = false",
                   "if stableSamples >= 4", "rotationGeneration == token",
                   "No real scene rotation"):
             self.assertIn(x,UI)
@@ -45,9 +44,8 @@ class V7SafetyContracts(unittest.TestCase):
                   "LCJITLessDiagnoseView()", "if jitless_begin not in source"):
             self.assertIn(x,PATCH)
         self.assertIn('Text("JIT-Less · 인증서")',PANEL)
-        self.assertIn('Label("JIT-Less 모드 진단"',PANEL)
-        self.assertIn("SCARLET_JITLESS_SINGLE_DIAGNOSTIC",PANEL)
-        self.assertIn("LCJITLessDiagnoseView()",PANEL)
+        self.assertNotIn('Label("JIT-Less 모드 진단"',PANEL)
+        self.assertNotIn("SCARLET_JITLESS_SINGLE_DIAGNOSTIC",PANEL)
         self.assertIn('Label("SideStore 인증서 받기"',PANEL)
         self.assertIn('Label("P12 파일 선택"',PANEL)
 

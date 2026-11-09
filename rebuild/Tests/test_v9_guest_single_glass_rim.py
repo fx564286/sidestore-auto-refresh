@@ -22,8 +22,8 @@ class V9SingleSurface(unittest.TestCase):
         self.assertNotIn('.shadow(color: .black.opacity(0.19)',GUEST)
         self.assertNotIn('.strokeBorder(.white.opacity(0.58)',GUEST)
     def test_overlay_and_host_geometry_preserved(self):
-        for x in ('ScarletGuestTouchPassthroughWindow','overlay.layer.masksToBounds = true',
-                  'width = open ? min(430','height = open ? min(cardHeight + 84',
+        for x in ('ScarletGuestTouchPassthroughWindow','overlay.layer.masksToBounds = false',
+                  'let panelWidth = min(CGFloat(430)','let panelHeight = min(panelWidth * 1.02',
                   'case .changed:', 'settleOverlayAfterRotation()'):
             self.assertIn(x,GUEST)
         self.assertIn('try await app.runApp()',HOST)

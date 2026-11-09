@@ -8,18 +8,20 @@ WORKER=(ROOT/'integration/ScarletGuestCertificateAgent.swift.txt').read_text()
 WIRE=(ROOT/'integration/wire_scarlet_auth.py').read_text()
 
 class SideInstallerStyleRetrieval(unittest.TestCase):
-    def test_single_button_auto_fallback_and_manual_picker_folded(self):
+    def test_exactly_two_user_actions_no_nested_menu(self):
         issue=UI.index('Label("SideStore 인증서 받기"')
-        menu=UI.index('Label("추가 인증서 관리"')
         files=UI.index('Label("P12 파일 선택"')
-        self.assertLess(issue,menu)
-        # SwiftUI DisclosureGroup trailing label is authored after its content.
-        self.assertLess(files,menu)
+        self.assertLess(issue,files)
+        self.assertEqual(UI.count('Label("SideStore 인증서 받기"'),1)
+        self.assertEqual(UI.count('Label("P12 파일 선택"'),1)
+        for old in ("추가 인증서 관리", "권한 상태 다시 검사",
+                    'Label("SideStore 수동 새로고침"',
+                    'Label("JIT-Less 모드 진단"'):
+            self.assertNotIn(old,UI[UI.index('    var body: some View {'):])
         self.assertIn('SCARLET_P12_NATIVE_ISSUE',UI)
         self.assertIn('SCARLET_P12_IMPORT_FROM_FILES',UI)
         self.assertIn('retrieveSideInstallerStyleCertificate()',UI)
         self.assertIn('SideInstaller-style retrieval is an internal fallback',UI)
-        self.assertNotIn('Label("SideInstaller 방식 · SideStore 인증서 가져오기"',UI)
         self.assertNotIn('sideinstaller://',UI)
         self.assertNotIn('UIApplication.shared.open(',UI)
 
