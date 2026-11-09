@@ -6,6 +6,7 @@ import SwiftUI
 import UIKit
 import UniformTypeIdentifiers
 import Security
+import SideStoreSupport
 
 // Host-owned task state survives dismissing or reopening a progress sheet.
 // The original LC importer remains responsible for actual guest installation.
@@ -624,7 +625,9 @@ struct ScarletIntegratedHostView: View {
     }
 
     private func openActiveInstallProgress() {
-        if sourceIsDownloading || sourceDownloadedIPA != nil || sourceDownloadError != nil {
+        if deviceInstallRunning || deviceInstallStatus != nil {
+            showDeviceInstallSheet = true
+        } else if sourceIsDownloading || sourceDownloadedIPA != nil || sourceDownloadError != nil {
             showSourceDownloadSheet = true
         } else if guestImportActivity.hasActivity {
             showGuestImportProgress = true
@@ -806,9 +809,10 @@ struct ScarletIntegratedHostView: View {
                 showSourceURLInput = true
             },
             onInstallSourceApp: installSourceGuestApp,
-            activeInstallText: sourceIsDownloading ? sourceDownloadStage :
-                (sourceDownloadError != nil ? "다운로드 실패" :
-                 (guestImportActivity.hasActivity ? guestImportActivity.title : nil)),
+            activeInstallText: deviceInstallRunning ? (deviceInstallStatus ?? "기기 설치 중") :
+                (sourceIsDownloading ? sourceDownloadStage :
+                 (sourceDownloadError != nil ? "다운로드 실패" :
+                  (guestImportActivity.hasActivity ? guestImportActivity.title : deviceInstallStatus))),
             onShowActiveInstall: openActiveInstallProgress,
             preservedGlassTabBar: { tab in
                 AnyView(ScarletNativeGlassTabBar(selected: tab))
@@ -1052,6 +1056,41 @@ struct ScarletIntegratedHostView: View {
                     }
                 }
             }
+        }
+        .sheet(isPresented: $showDeviceInstallSheet) {
+            // Presentation only. The XPC install task is owned by the host
+            // and can continue while the user browses Scarlet's other tabs.
+            VStack(spacing: 12) {
+                Image(systemName: "iphone.gen3")
+                    .font(.system(size: 27))
+                    .foregroundStyle(Color(red: 0.76, green: 0.67, blue: 1))
+                Text("앱 설치")
+                    .font(.title3.bold())
+                    .foregroundStyle(.white)
+                Text(deviceInstallStatus ?? "내장 SideStore 처리 중")
+                    .font(.subheadline)
+                    .foregroundStyle(Color(red: 0.82, green: 0.78, blue: 0.89))
+                    .multilineTextAlignment(.center)
+                    .accessibilityIdentifier("SCARLET_DEVICE_INSTALL_STATUS")
+                if deviceInstallRunning {
+                    ProgressView()
+                        .tint(Color(red: 0.76, green: 0.67, blue: 1))
+                    Text("창을 내려도 앱 내부에서 설치 작업이 계속됩니다.")
+                        .font(.caption)
+                        .multilineTextAlignment(.center)
+                        .foregroundStyle(.secondary)
+                } else {
+                    Button("닫기") { showDeviceInstallSheet = false }
+                        .buttonStyle(.borderedProminent)
+                        .accessibilityIdentifier("SCARLET_DEVICE_INSTALL_DONE")
+                }
+            }
+            .padding(.horizontal, 24)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .presentationDetents([.height(300)])
+            .presentationDragIndicator(.visible)
+            .presentationBackground(Color(red: 0.14, green: 0.12, blue: 0.22))
+            .accessibilityIdentifier("SCARLET_NATIVE_DEVICE_INSTALL_SHEET")
         }
         .sheet(isPresented: $showSourceDownloadSheet, onDismiss: {
             if sourceIsDownloading && sourceDownloadedIPA == nil {
