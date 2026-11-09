@@ -29,14 +29,16 @@ class V10Contract(unittest.TestCase):
         self.assertIn('overlay.windowLevel = UIWindow.Level.alert + 1',GUEST)
         self.assertNotIn('original.frame =',GUEST)
         self.assertNotIn('host.frame =',GUEST)
-    def test_native_existing_session_before_host_relaunch(self):
+    def test_native_session_resume_without_silent_relaunch(self):
         self.assertIn('MultitaskManager.isUsing(container: container)',GUEST)
         self.assertIn('MultitaskWindowManager.openExistingAppWindow(dataUUID: container)',GUEST)
         self.assertIn('MultitaskDockManager.shared.bringMultitaskViewToFront(uuid: container)',GUEST)
-        self.assertLess(GUEST.index('switch_existing_multitask_session'),
-                        GUEST.index('let success = LCSharedUtils.launchToGuestApp'))
+        self.assertIn('switch_existing_multitask_session',GUEST)
         self.assertIn('switch_requires_relaunch',GUEST)
-        self.assertIn('existing',GUEST)
+        segment=GUEST.split('private static func switchGuest(to target:',1)[1].split(
+            '    @objc(installForGuestName:)',1)[0]
+        self.assertNotIn('LCSharedUtils.launchToGuestApp',segment)
+        self.assertNotIn('defaults.set(target.id',segment)
         self.assertNotIn('removeItem(at:',GUEST)
     def test_only_two_jitless_certificate_buttons(self):
         body=CERT.split('    var body: some View {',1)[1]

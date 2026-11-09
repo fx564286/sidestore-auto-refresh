@@ -42,7 +42,7 @@ class GuestFloatingDragHitThrough(unittest.TestCase):
     def test_works_with_airpods_glass_and_real_guest_candidates(self):
         for fragment in ('SCNativeLiquidGlassSurface(cornerRadius: radius, showsRim: false)',
                                 'switch_candidates_scanned',
-                         'switch_relaunch_requested',
+                         'switch_requires_relaunch',
                          'installForGuestName', 'SCARLET_PR48_GUEST_SWITCH_TARGET'):
             self.assertIn(fragment,GUEST)
 

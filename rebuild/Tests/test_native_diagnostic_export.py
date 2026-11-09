@@ -97,7 +97,7 @@ struct LCSettingsView: View {
         for required in ("recordTab(", "recordLayout()", "safe_top_pt",
                          "safe_bottom_pt", "orientation_observed",
                          "launch_requested", "launch_failed", "install_blocked",
-                         "transport_unverified", "manager_visible",
+                         "transport_unverified", "source_actions_visible",
                          "memory_warning", "scene_phase"):
             self.assertIn(required,HOST)
         for required in ("twofactor_prompt_requested", "twofactor_code_submitted",

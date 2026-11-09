@@ -45,7 +45,7 @@ class LCManagerWithoutSideStoreGuestUI(unittest.TestCase):
         self.assertNotIn("showNativeAppLibrary",HOST)
         self.assertNotIn("guestIPAImportFromAddMenu",HOST)
         fragment=HOST[HOST.index(".sheet(isPresented: $showGuestImportProgress, onDismiss: {"):
-                      HOST.index(".sheet(isPresented: $showNativeSources) {")]
+                      HOST.index(".confirmationDialog(\n            \"소스 관리\"")]
         self.assertNotIn("LCAppListView(scarletQueuedIPAURL:",fragment)
         self.assertIn("LCAppListView(scarletQueuedIPAURL: queuedGuestIPAURL,",HOST)
         self.assertIn(".background(alignment: .topLeading) {",HOST)

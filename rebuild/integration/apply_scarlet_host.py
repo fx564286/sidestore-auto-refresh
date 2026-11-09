@@ -784,6 +784,7 @@ def main():
         root/"rebuild/HostApp/ScarletIntegratedHostView.swift":"ScarletIntegratedHostView.swift",
         root/"rebuild/HostApp/ScarletNativeGlass.swift":"ScarletNativeGlass.swift",
         root/"rebuild/HostApp/ScarletFeatureModulesSection.swift":"ScarletFeatureModulesSection.swift",
+        root/"rebuild/HostApp/ScarletAutomaticRenewal.swift":"ScarletAutomaticRenewal.swift",
         root/"rebuild/HostApp/ScarletSigningReadinessPanel.swift":"ScarletSigningReadinessPanel.swift",
         root/"rebuild/HostApp/ScarletGuestSwitcherOverlay.swift":"ScarletGuestSwitcherOverlay.swift",
         root/"rebuild/HostApp/ScarletFullscreenGuestTab.swift":"ScarletFullscreenGuestTab.swift",
@@ -798,6 +799,26 @@ def main():
     for inp,name in sources.items():
         assert inp.is_file(),f"Required independent source missing: {inp}"
         shutil.copy2(inp,out/name)
+    # Register a native BG refresh handler during LC's original app launch.
+    delegate_file=engine/"LiveContainerSwiftUI/App/AppDelegate.swift"
+    delegate=delegate_file.read_text()
+    launch='        application.shortcutItems = nil\n        UserDefaults.standard.removeObject(forKey: "LCNeedToAcquireJIT")\n'
+    assert delegate.count(launch)==1, "Pinned LC AppDelegate changed"
+    delegate=delegate.replace(launch,launch+
+        "        if #available(iOS 17.0, *) {\n"+
+        "            ScarletAutomaticRenewal.shared.registerAtLaunch()\n"+
+        "        }\n",1)
+    delegate_file.write_text(delegate)
+    # Keep every original Info.plist entry; grant only our BG task identifier.
+    import plistlib
+    info_file=engine/"LiveContainer/Info.plist"
+    with info_file.open("rb") as handle: info=plistlib.load(handle)
+    identifiers=list(info.get("BGTaskSchedulerPermittedIdentifiers",[]))
+    identifier="com.kdt.livecontainer.P8EZT3U5N4.refresh"
+    if identifier not in identifiers: identifiers.append(identifier)
+    info["BGTaskSchedulerPermittedIdentifiers"]=identifiers
+    assert "fetch" in info.get("UIBackgroundModes",[])
+    with info_file.open("wb") as handle: plistlib.dump(info,handle)
     recorder = out / "ScarletDiagnosticRecorder.swift"
     report_source = recorder.read_text()
     marker = "__SCARLET_BUILD_SHA__"

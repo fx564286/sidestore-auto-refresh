@@ -66,7 +66,9 @@ struct ScarletFullscreenGuestFloatingTab: View {
     private let spring = Animation.spring(response: 0.47, dampingFraction: 0.82)
 
     private var otherApps: [ScarletGuestSwitchTarget] {
-        apps.filter { !$0.isCurrent }
+        // Only an actual active LiveProcess/guest scene is switchable.
+        // Previously launched-but-terminated apps belong in the App List.
+        apps.filter { !$0.isCurrent && $0.canSwitch }
     }
 
     private func openPanel() {
@@ -114,7 +116,7 @@ struct ScarletFullscreenGuestFloatingTab: View {
             UIImpactFeedbackGenerator(style: .medium).impactOccurred()
         }
         if !onSwitch(target) {
-            feedback = "전환 요청에 실패했습니다. 앱 목록에서 실행해 주세요."
+            feedback = "실행 중이던 세션이 종료됐습니다. 앱 목록에서 다시 실행할 수 있습니다."
             if switcherHaptics {
                 UINotificationFeedbackGenerator().notificationOccurred(.error)
             }
@@ -130,23 +132,10 @@ struct ScarletFullscreenGuestFloatingTab: View {
             .clipShape(RoundedRectangle(cornerRadius: radius, style: .continuous))
     }
 
-    private var currentAppCard: some View {
-        HStack(spacing: 11) {
-            Image(systemName: "app.fill")
-                .font(.system(size: 25))
-                .frame(width: 43, height: 43)
-                .background(.white.opacity(0.13),
-                            in: RoundedRectangle(cornerRadius: 13))
-            VStack(alignment: .leading, spacing: 3) {
-                Text(guestTitle)
-                    .font(.subheadline.weight(.semibold))
-                    .lineLimit(1)
-                Image(systemName: "checkmark.circle.fill")
-                    .font(.caption).foregroundStyle(.green)
-                    .accessibilityLabel("현재 실행 중")
-            }
-            Spacer(minLength: 0)
-        }
+    // The title passed from UIKit can be a bundle identifier. Only show
+    // the name read from a current, real guest Info.plist, not a virtual path.
+    private var currentAppName: String {
+        apps.first(where: { $0.isCurrent })?.title ?? "현재 실행 중인 앱"
     }
 
     private func otherAppRow(_ app: ScarletGuestSwitchTarget) -> some View {
@@ -194,10 +183,9 @@ struct ScarletFullscreenGuestFloatingTab: View {
                     Text("앱 전환").font(.title3.weight(.semibold))
                     Spacer(minLength: 0)
                 }
-                currentAppCard
-                Divider().opacity(0.5)
                 if otherApps.isEmpty {
-                    Text("전환 가능한 앱 없음")
+                    Text("다른 실행 중인 앱 없음")
+
                         .font(.footnote).foregroundStyle(.secondary)
                 } else {
                     ScrollView {
@@ -596,6 +584,10 @@ final class ScarletFullscreenGuestTabInstaller: NSObject {
         }
 
         let selected = UserDefaults.lc()?.string(forKey: "selected")
+        // Registry includes only attached, visible native LiveProcess scenes.
+        // A prior "lastLaunched" plist entry does NOT prove a process lives.
+        let activeSceneIDs = Set(
+            ScarletGuestSceneRegistry.availableGuests().map(\.id))
         var found = Set<String>()
         var result: [ScarletGuestSwitchTarget] = []
 
@@ -645,6 +637,11 @@ final class ScarletFullscreenGuestTabInstaller: NSObject {
                                                 : "portrait_only")])
                 }
                 let hasExecuted = meta["lastLaunched"] is Date
+                let isCurrent = folder == selected
+                let activeScene = containerExists.map {
+                    activeSceneIDs.contains($0) && MultitaskManager.isUsing(container: $0)
+                } ?? false
+                guard isCurrent || activeScene else { continue }
                 let needsJIT = (meta["isJITNeeded"] as? Bool) == true
                         || (appData["LC32BitTranslationLayer"] != nil)
                 let nonInjected = (meta["dontLoadTweakLoader"] as? Bool) == true
@@ -656,14 +653,15 @@ final class ScarletFullscreenGuestTabInstaller: NSObject {
                         == ProcessInfo.processInfo.operatingSystemVersion.majorVersion
                 let compatibleClassic = !requestedClassic
                         || (cachedMode != nil && modeIsCurrent)
-                let canSwitch = containerExists != nil
+                let canSwitch = activeScene
+                        && containerExists != nil
                         && hasExecuted && !needsJIT && !nonInjected
                         && compatibleClassic
                 let iconFile = url.appendingPathComponent("LCAppIconLight.png")
                 result.append(ScarletGuestSwitchTarget(
                     id: folder, title: display, containerID: containerExists,
                     classicMode: requestedClassic ? UInt(cachedMode?.uintValue ?? 0) : 0,
-                    isCurrent: folder == selected, canSwitch: canSwitch,
+                    isCurrent: isCurrent, canSwitch: canSwitch,
                     isShared: shared,
                     icon: UIImage(contentsOfFile: iconFile.path),
                     reason: canSwitch ? nil : "needs_host_setup"))
@@ -675,7 +673,8 @@ final class ScarletFullscreenGuestTabInstaller: NSObject {
         }
         ScarletDiagnosticRecorder.shared.record(
             "guest", "switch_candidates_scanned",
-            fields: ["count": String(result.count)])
+            fields: ["count": String(result.count),
+                     "result": "live_scenes_only"])
         return result
     }
 
@@ -701,27 +700,13 @@ final class ScarletFullscreenGuestTabInstaller: NSObject {
                 status: "success", fields: ["result": "memory_session_resumed"])
             return true
         }
-        // Single-process fullscreen LC cannot keep another guest's live
-        // UIApplication state alive while it boots a different guest.
-        // Keep the original per-guest data directory; no deleting/resetting.
+        // Do not silently kill the current fullscreen guest by invoking
+        // launchToGuestApp. This would destroy in-memory work in the app.
+        // A terminated target is available through the host's App List.
         ScarletDiagnosticRecorder.shared.record(
             "guest", "switch_requires_relaunch",
-            fields: ["reason": "single_process_fullscreen"])
-        let priorApp = defaults.string(forKey: "selected")
-        let priorContainer = defaults.string(forKey: "selectedContainer")
-        defaults.set(target.id, forKey: "selected")
-        defaults.set(container, forKey: "selectedContainer")
-        ScarletDiagnosticRecorder.shared.record(
-            "guest", "switch_relaunch_requested",
-            fields: ["result": "prepared_guest"])
-        let success = LCSharedUtils.launchToGuestApp(withClassicMode: target.classicMode)
-        if !success {
-            if let priorApp { defaults.set(priorApp, forKey: "selected") }
-            else { defaults.removeObject(forKey: "selected") }
-            if let priorContainer { defaults.set(priorContainer, forKey: "selectedContainer") }
-            else { defaults.removeObject(forKey: "selectedContainer") }
-        }
-        return success
+            status: "blocked", fields: ["reason": "single_process_fullscreen"])
+        return false
     }
 
     @objc(installForGuestName:)

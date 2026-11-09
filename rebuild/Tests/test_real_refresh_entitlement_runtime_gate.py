@@ -21,8 +21,8 @@ class SignedRuntimeCapabilityGate(unittest.TestCase):
         self.assertIn('"false"', CAP)
 
     def test_2_automatic_refresh_not_falsely_reported(self):
-        self.assertIn('LabeledContent("자동 갱신", value: "미연결 · 실행 안 됨")', CAP)
-        self.assertIn("자동 7일 갱신은 아직 연결되지 않았습니다", CAP)
+        self.assertIn('LabeledContent("자동 갱신", value: "앱 실행·복귀 + iOS 예약")', CAP)
+        self.assertIn("자동 요청은 연결됐지만 실제 갱신에는 iOS 백그라운드 실행·네트워크·Apple 서명이 필요합니다", CAP)
         self.assertIn("recommendedLeadTime: TimeInterval = 72 * 3600", POLICY)
 
     def test_3_actual_entitlement_and_container_both_required(self):
