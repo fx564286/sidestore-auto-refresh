@@ -53,6 +53,7 @@ class LCManagerWithoutSideStoreGuestUI(unittest.TestCase):
 
     def test_surgical_patch_removes_only_the_native_sidestore_guest_buttons(self):
         fixture='''// Upstream app list
+    var body: some View {
         NavigationView {
             ScrollView {
             }
@@ -147,6 +148,8 @@ class LCManagerWithoutSideStoreGuestUI(unittest.TestCase):
             self.assertIn("file_import_requested",source)
             self.assertIn("scarletQueuedIPAURL",source)
             self.assertIn("SCARLET_GUEST_IMPORT_PROGRESS_ONLY",source)
+            self.assertIn("private func scarletQueuedInstallView(_ queuedIPA: URL)",source)
+            self.assertIn("scarletQueuedInstallView(queuedIPA)",source)
             self.assertIn("await startInstallApp(queuedIPA)",source)
             self.assertTrue(report["scarletAppListNotPresentedDuringImport"])
             self.assertIn("import_pipeline_failed",source)
