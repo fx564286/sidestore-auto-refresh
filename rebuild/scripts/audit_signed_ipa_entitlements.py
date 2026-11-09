@@ -123,19 +123,32 @@ def inspect_bundle(path: Path) -> dict:
 def audit(ipa: Path) -> dict:
     with tempfile.TemporaryDirectory(prefix="scarlet-signed-audit-") as td:
         root = Path(td)
+        # Preserve Mach-O executable permissions and Framework symlinks:
+        # naive zipfile extraction corrupts the codesign seal.
         with zipfile.ZipFile(ipa) as z:
             for member in z.infolist():
                 p = Path(member.filename)
-                if p.is_absolute() or ".." in p.parts or member.is_dir():
-                    continue
-                # Avoid any writes outside temporary extraction root.
-                target = root / p
-                target.parent.mkdir(parents=True, exist_ok=True)
+                if p.is_absolute() or ".." in p.parts:
+                    raise RuntimeError("Unsafe IPA path")
                 if member.file_size > 200_000_000:
                     raise RuntimeError("Unexpectedly large IPA entry")
-                with z.open(member) as source, target.open("wb") as dest:
-                    import shutil
-                    shutil.copyfileobj(source, dest)
+                if member.is_dir():
+                    continue
+                mode = (member.external_attr >> 16) & 0xffff
+                target = root / p
+                target.parent.mkdir(parents=True, exist_ok=True)
+                if __import__("stat").S_ISLNK(mode):
+                    link = z.read(member).decode("utf-8")
+                    resolved = (target.parent / link).resolve()
+                    if not resolved.is_relative_to(root):
+                        raise RuntimeError("Unsafe IPA symlink")
+                    os.symlink(link, target)
+                else:
+                    with z.open(member) as source, target.open("wb") as dest:
+                        import shutil
+                        shutil.copyfileobj(source, dest)
+                    if mode:
+                        target.chmod(mode & 0o777)
         apps = list((root / "Payload").glob("*.app"))
         if len(apps) != 1:
             raise RuntimeError("Expected exactly one signed host application")
