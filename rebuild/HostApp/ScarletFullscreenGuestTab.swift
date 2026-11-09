@@ -15,6 +15,7 @@ struct ScarletGuestSwitchTarget: Identifiable {
     let classicMode: UInt
     let isCurrent: Bool
     let canSwitch: Bool
+    let canRelaunch: Bool
     let isShared: Bool
     let icon: UIImage?
     let reason: String?
@@ -103,21 +104,24 @@ struct ScarletFullscreenGuestFloatingTab: View {
             closePanel()
             return
         }
-        guard target.canSwitch else {
+        guard target.canSwitch || target.canRelaunch else {
             if switcherHaptics {
                 UINotificationFeedbackGenerator().notificationOccurred(.warning)
             }
-            feedback = "이전 앱은 메모리에 없습니다. 앱 목록에서 다시 열 수 있지만 마지막 화면 복원은 앱 자체의 저장 기능에 달려 있습니다."
+            feedback = "이 앱은 실행 준비가 필요합니다. 앱 목록에서 서명·실행 상태를 확인하세요."
             ScarletDiagnosticRecorder.shared.record(
                 "guest", "switch_target_needs_setup",
-                fields: ["reason": "unprepared_guest"])
+                fields: ["reason": "guest_not_ready_for_relaunch"])
             return
         }
         if switcherHaptics {
             UIImpactFeedbackGenerator(style: .medium).impactOccurred()
         }
-        if !onSwitch(target) {
-            feedback = "실행 중이던 세션이 종료됐습니다. 앱 목록에서 다시 실행할 수 있습니다."
+        if onSwitch(target) {
+            // A cold target restarts through LC; it is not a preserved RAM scene.
+            closePanel()
+        } else {
+            feedback = "앱 전환 요청이 실패했습니다. 앱 목록에서 서명·실행 상태를 확인하세요."
             if switcherHaptics {
                 UINotificationFeedbackGenerator().notificationOccurred(.error)
             }
@@ -193,7 +197,9 @@ struct ScarletFullscreenGuestFloatingTab: View {
                 .clipShape(RoundedRectangle(cornerRadius: 11))
                 VStack(alignment: .leading, spacing: 3) {
                     Text(app.title).font(.subheadline.weight(.medium)).lineLimit(1)
-                    Text(app.canSwitch ? "실행 중 · 작업 유지" : "최근 실행 · 재시작 필요")
+                    Text(app.canSwitch ? "실행 중 · 작업 유지"
+                         : (app.canRelaunch ? "최근 실행 · 누르면 다시 열기"
+                                            : "최근 실행 · 실행 준비 필요"))
                         .font(.caption2).foregroundStyle(.secondary)
                 }
                 Spacer(minLength: 0)
@@ -699,15 +705,17 @@ final class ScarletFullscreenGuestTabInstaller: NSObject {
                         == ProcessInfo.processInfo.operatingSystemVersion.majorVersion
                 let compatibleClassic = !requestedClassic
                         || (cachedMode != nil && modeIsCurrent)
+                let canRelaunch = containerExists != nil
+                        && !needsJIT && !nonInjected && compatibleClassic
+                        && (recentFolders.contains(folder) || hasExecuted)
                 let canSwitch = activeScene
-                        && containerExists != nil
-                        && hasExecuted && !needsJIT && !nonInjected
-                        && compatibleClassic
+                        && canRelaunch
                 let iconFile = url.appendingPathComponent("LCAppIconLight.png")
                 result.append(ScarletGuestSwitchTarget(
                     id: folder, title: display, containerID: containerExists,
                     classicMode: requestedClassic ? UInt(cachedMode?.uintValue ?? 0) : 0,
                     isCurrent: isCurrent, canSwitch: canSwitch,
+                    canRelaunch: canRelaunch,
                     isShared: shared,
                     icon: UIImage(contentsOfFile: iconFile.path) ??
                           ScarletGuestIconCatalog.icon(forFolder: folder),
@@ -729,20 +737,16 @@ final class ScarletFullscreenGuestTabInstaller: NSObject {
         return result
     }
 
-    // The previously launched target is already prepared by the exact native
-    // LCAppModel.runApp signing/container workflow. We use LC's own existing
-    // selected / selectedContainer boot keys, not any virtual-window API.
+    // Two distinct routes: revive an owned native LiveProcess scene if
+    // still resident; otherwise relaunch a previously registered guest via
+    // LC's original host bootstrap. Cold reopening does NOT preserve RAM.
     private static func switchGuest(to target: ScarletGuestSwitchTarget) -> Bool {
-        guard target.canSwitch, !target.isCurrent,
-              let container = target.containerID,
-              let defaults = UserDefaults.lc() else { return false }
-        // Revalidate that it is still a prepared, accessible LC guest.
-        guard installedApps().contains(where: { $0.id == target.id && $0.canSwitch })
-        else { return false }
-        // A running native LiveContainer multitask scene owns live RAM state.
-        // Activate it in place instead of terminating it via the legacy
-        // launchToGuestApp path. Never create a virtual-sized app window here.
-        if #available(iOS 16.1, *),
+        guard !target.isCurrent, target.id.hasSuffix(".app"),
+              !target.id.contains("/"), !target.id.contains("\\"),
+              let latest = installedApps().first(where: {
+                  $0.id == target.id && !$0.isCurrent
+              }) else { return false }
+        if latest.canSwitch, let container = latest.containerID,
            MultitaskManager.isUsing(container: container),
            (MultitaskWindowManager.openExistingAppWindow(dataUUID: container) ||
             MultitaskDockManager.shared.bringMultitaskViewToFront(uuid: container)) {
@@ -751,13 +755,49 @@ final class ScarletFullscreenGuestTabInstaller: NSObject {
                 status: "success", fields: ["result": "memory_session_resumed"])
             return true
         }
-        // Do not silently kill the current fullscreen guest by invoking
-        // launchToGuestApp. This would destroy in-memory work in the app.
-        // A terminated target is available through the host's App List.
+        // The iPhone diagnostic reports multi_scene_unavailable. This must
+        // take a working cold path instead of rendering an inert A/B row.
+        guard latest.canRelaunch, let container = latest.containerID,
+              let defaults = UserDefaults.lc() else {
+            ScarletDiagnosticRecorder.shared.record(
+                "guest", "switch_requires_relaunch",
+                status: "blocked", fields: ["reason": "guest_not_prepared"])
+            return false
+        }
+        let previousApp = defaults.object(forKey: "selected")
+        let previousContainer = defaults.object(forKey: "selectedContainer")
+        defaults.set(latest.id, forKey: "selected")
+        defaults.set(container, forKey: "selectedContainer")
+        guard defaults.string(forKey: "selected") == latest.id,
+              defaults.string(forKey: "selectedContainer") == container else {
+            if let previousApp { defaults.set(previousApp, forKey: "selected") }
+            else { defaults.removeObject(forKey: "selected") }
+            if let previousContainer {
+                defaults.set(previousContainer, forKey: "selectedContainer")
+            } else { defaults.removeObject(forKey: "selectedContainer") }
+            ScarletDiagnosticRecorder.shared.record(
+                "guest", "switch_cold_handoff",
+                status: "error", fields: ["reason": "selection_readback_failed"])
+            return false
+        }
+        ScarletGuestSessionLedger.noteLaunch(
+            folder: latest.id, title: latest.title, dataUUID: container)
         ScarletDiagnosticRecorder.shared.record(
-            "guest", "switch_requires_relaunch",
-            status: "blocked", fields: ["reason": "single_process_fullscreen"])
-        return false
+            "guest", "switch_cold_handoff",
+            fields: ["result": "submitted_to_original_lc",
+                     "memory": "not_preserved"])
+        // Original LC returns acceptance of a relaunch request, not proof
+        // the newly selected guest finished launching.
+        let submitted = LCSharedUtils.launchToGuestApp(
+            withClassicMode: latest.classicMode)
+        if !submitted {
+            if let previousApp { defaults.set(previousApp, forKey: "selected") }
+            else { defaults.removeObject(forKey: "selected") }
+            if let previousContainer {
+                defaults.set(previousContainer, forKey: "selectedContainer")
+            } else { defaults.removeObject(forKey: "selectedContainer") }
+        }
+        return submitted
     }
 
     @objc(installForGuestName:)
