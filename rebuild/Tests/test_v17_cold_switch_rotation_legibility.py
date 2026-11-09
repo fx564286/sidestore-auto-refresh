@@ -22,10 +22,10 @@ class V17ColdSwitchRotation(unittest.TestCase):
         self.assertNotIn("이전 앱은 메모리에 없습니다. 앱 목록에서 다시 열 수", code)
 
     def test_original_lc_relaunch_uses_verified_installed_folder_and_container(self):
-        code = GUEST.split("private static func switchGuest(to target:", 1)[1].split(
+        code = GUEST.split("private static func switchGuest(", 1)[1].split(
             "    @objc(installForGuestName:)", 1)[0]
         self.assertIn('target.id.hasSuffix(".app")', code)
-        self.assertIn('let latest = installedApps().first(where:', code)
+        self.assertIn('let latest = installedApps(guestIdentifier: runtimeGuestID).first(where:', code)
         self.assertIn("if latest.canSwitch, let container = latest.containerID", code)
         self.assertIn("guard latest.canRelaunch, let container = latest.containerID", code)
         self.assertIn('defaults.set(latest.id, forKey: "selected")', code)

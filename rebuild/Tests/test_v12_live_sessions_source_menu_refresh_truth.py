@@ -18,7 +18,7 @@ class V12LiveTruth(unittest.TestCase):
         self.assertIn('SCARLET_GUEST_CURRENT_RUNNING',GUEST)
 
     def test_no_silent_guest_kill_switching(self):
-        segment=GUEST.split('private static func switchGuest(to target:',1)[1].split(
+        segment=GUEST.split('private static func switchGuest(',1)[1].split(
             '    @objc(installForGuestName:)',1)[0]
         self.assertIn('switch_existing_multitask_session',segment)
         self.assertIn('switch_requires_relaunch',segment)

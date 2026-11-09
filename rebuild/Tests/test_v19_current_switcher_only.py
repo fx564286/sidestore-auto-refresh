@@ -39,7 +39,9 @@ class V19SessionSwitcher(unittest.TestCase):
         self.assertNotIn('lastLaunched != nil && !isCurrent', PANEL)
 
     def test_shared_data_uuid_is_not_app_identity(self):
-        self.assertIn('let isCurrent = folder == selected || bundleID == selected ||', PANEL)
+        self.assertIn('let isCurrent = hasRuntimeIdentity', PANEL)
+        self.assertIn(': (folder == selected || bundleID == selected)', PANEL)
+        self.assertIn('let matchesRuntime = folder == runtimeID || bundleID == runtimeID ||', PANEL)
         self.assertNotIn('containerExists == selectedContainer', PANEL)
         self.assertIn('guard !found.contains(folder)', PANEL)
         self.assertIn('!display.isEmpty', PANEL)

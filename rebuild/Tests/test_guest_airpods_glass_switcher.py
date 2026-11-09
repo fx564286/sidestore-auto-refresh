@@ -24,7 +24,7 @@ class GuestAirPodsGlassSwitcher(unittest.TestCase):
                   'lastLaunched', 'selectedContainer',
                   'getenv("LC_HOME_PATH")',
                   'UserDefaults.lc()', 'switch_candidates_scanned',
-                  'switch_requires_relaunch', 'switchGuest(to target:',
+                  'switch_requires_relaunch', 'private static func switchGuest(',
                   'MultitaskWindowManager.openExistingAppWindow(dataUUID: container)',
                   'SCARLET_PR48_GUEST_SWITCH_TARGET', 'SCARLET_GUEST_CURRENT_RUNNING'):
             self.assertIn(s,GUEST)
