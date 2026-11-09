@@ -42,7 +42,7 @@ jobs:
           set -Eeuo pipefail
           git -C pages config user.name "scarlet-pages-asset-bot"
           git -C pages config user.email "github-actions[bot]@users.noreply.github.com"
-          git -C pages add -- Scarlet-PR48-FloatingTab-V2-UNSIGNED.ipa
+          git -C pages add -f -- Scarlet-PR48-FloatingTab-V2-UNSIGNED.ipa
           if git -C pages diff --cached --quiet; then
             echo "[PASS] already published"
           else
