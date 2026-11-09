@@ -872,19 +872,14 @@ struct ScarletIntegratedHostView: View {
                 .tint(Color(red: 0.44, green: 0.33, blue: 0.77))
                 .accessibilityIdentifier("SCARLET_SOURCE_DOWNLOAD_CANCEL")
             }
-            .padding(24)
+            // The system sheet IS the visible rounded surface. The former
+            // extra RoundedRectangle + opaque sheet background produced two
+            // concentric panels over the source list on iPhone.
+            .padding(.horizontal, 24)
+            .padding(.vertical, 18)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .background {
-                RoundedRectangle(cornerRadius: 28)
-                    .fill(Color(red: 0.12, green: 0.10, blue: 0.19))
-                    .overlay {
-                        RoundedRectangle(cornerRadius: 28)
-                            .stroke(Color(red: 0.45, green: 0.39, blue: 0.60).opacity(0.5))
-                    }
-            }
-            .padding(.horizontal, 16)
-            .background(Color(red: 0.051, green: 0.051, blue: 0.094).ignoresSafeArea())
-            .presentationDetents([.height(390)])
+            .presentationDetents([.height(340)])
+            .presentationBackground(Color(red: 0.14, green: 0.12, blue: 0.22))
             .presentationDragIndicator(.hidden)
             .interactiveDismissDisabled(sourceIsDownloading)
             .accessibilityIdentifier("SCARLET_BRANDED_SOURCE_DOWNLOAD_SHEET")
