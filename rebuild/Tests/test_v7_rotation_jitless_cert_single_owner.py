@@ -23,13 +23,13 @@ class V7SafetyContracts(unittest.TestCase):
 
     def test_landscape_rotation_no_intermediate_rectangles(self):
         for x in ("settleOverlayAfterRotation()", "overlay_rotation_suspended",
-                  "overlay_rotation_resumed","floatingWindow.alpha = 0",
+                  "overlay_rotation_resumed","overlay.alpha = 0",
                   "overlay.alpha = 1",
                   "let usableHeight = max(CGFloat(260)",
                   "height = open ? min(cardHeight + 84, usableHeight) : 72",
                   "overlay.layer.masksToBounds = true",
-                  "if consecutiveStable >= 4", "rotationGeneration == token",
-                  "Last-resort recovery"):
+                  "if stableSamples >= 4", "rotationGeneration == token",
+                  "No real scene rotation"):
             self.assertIn(x,UI)
         self.assertIn('let orientationList = appData["UISupportedInterfaceOrientations"]', UI)
         self.assertIn("portrait_only",UI)
@@ -48,8 +48,8 @@ class V7SafetyContracts(unittest.TestCase):
         self.assertIn('Label("JIT-Less 모드 진단"',PANEL)
         self.assertIn("SCARLET_JITLESS_SINGLE_DIAGNOSTIC",PANEL)
         self.assertIn("LCJITLessDiagnoseView()",PANEL)
-        self.assertIn('Label("SideStore에서 인증서 받기"',PANEL)
-        self.assertIn('Label("다른 인증서 가져오기"',PANEL)
+        self.assertIn('Label("SideStore 인증서 받기"',PANEL)
+        self.assertIn('Label("P12 파일 선택"',PANEL)
 
     def test_cert_origin_categorized_without_private_key_in_logs(self):
         for x in ("oldPortalSerials","oldActiveSerial",

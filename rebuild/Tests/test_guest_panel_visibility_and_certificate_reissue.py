@@ -31,7 +31,7 @@ class V5Contracts(unittest.TestCase):
         self.assertIn("try await app.runApp()", HOST)
 
     def test_certificate_reissue_requires_consent_and_rollback(self):
-        for fragment in ("SideStore에서 인증서 받기",
+        for fragment in ("SideStore 인증서 받기",
                          "isConfirmingCertReplacement = true",
                          "importExportedP12(replaceExisting: true)",
                          "existingCert", "existingPassword", "existingDate",
