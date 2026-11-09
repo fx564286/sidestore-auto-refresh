@@ -49,7 +49,7 @@ class V17ColdSwitchRotation(unittest.TestCase):
         self.assertNotIn("overlay.alpha = 0", code)
         self.assertIn('"overlay_rotation_resumed"', code)
         self.assertIn("UIApplication.didBecomeActiveNotification", GUEST)
-        self.assertIn("overlay.frame = next", GUEST)
+        self.assertIn("floatingWindow.frame = next", GUEST)
         self.assertIn('positionXKey', GUEST)
         self.assertIn('positionYKey', GUEST)
         self.assertIn('.position(x: screenButtonCenter.x, y: screenButtonCenter.y)', GUEST)
