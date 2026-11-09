@@ -709,7 +709,8 @@ final class ScarletFullscreenGuestTabInstaller: NSObject {
                     classicMode: requestedClassic ? UInt(cachedMode?.uintValue ?? 0) : 0,
                     isCurrent: isCurrent, canSwitch: canSwitch,
                     isShared: shared,
-                    icon: UIImage(contentsOfFile: iconFile.path),
+                    icon: UIImage(contentsOfFile: iconFile.path) ??
+                          ScarletGuestIconCatalog.icon(forFolder: folder),
                     reason: canSwitch ? nil : "needs_host_setup"))
             }
         }
