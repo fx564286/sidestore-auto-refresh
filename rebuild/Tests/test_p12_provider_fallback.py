@@ -7,10 +7,8 @@ PANEL=(ROOT/"HostApp/ScarletSigningReadinessPanel.swift").read_text()
 HOST=(ROOT/"HostApp/ScarletIntegratedHostView.swift").read_text()
 class CertificateRecoveryContract(unittest.TestCase):
     def test_sidestore_first_and_explicit_external_fallback(self):
-        for s in ("SCARLET_P12_FROM_SIDESTORE",
-                  "SCARLET_P12_SIDEINSTALLER_FALLBACK",
+        for s in ("SCARLET_P12_NATIVE_ISSUE",
                   "SCARLET_P12_IMPORT_FROM_FILES",
-                  "sideinstaller://",
                   "ScarletCertificateAutoBridgeRequested",
                   "ScarletCertificateAutoBridgeFinished"):
             self.assertIn(s,PANEL if s!="ScarletCertificateAutoBridgeRequested" else HOST)

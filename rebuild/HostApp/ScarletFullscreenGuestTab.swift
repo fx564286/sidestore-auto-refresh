@@ -19,27 +19,6 @@ struct ScarletGuestSwitchTarget: Identifiable {
     let reason: String?
 }
 
-@available(iOS 26.0, *)
-private struct ScarletUIKitGlassBackdrop: UIViewRepresentable {
-    let radius: CGFloat
-
-    func makeUIView(context: Context) -> UIVisualEffectView {
-        let glass = UIGlassEffect(style: .regular)
-        glass.isInteractive = true
-        glass.tintColor = UIColor.systemIndigo.withAlphaComponent(0.08)
-        let view = UIVisualEffectView(effect: glass)
-        view.isUserInteractionEnabled = false
-        view.layer.cornerRadius = radius
-        view.layer.cornerCurve = .continuous
-        view.clipsToBounds = true
-        return view
-    }
-
-    func updateUIView(_ view: UIVisualEffectView, context: Context) {
-        view.layer.cornerRadius = radius
-    }
-}
-
 // A separate non-key UIWindow can still swallow touches in transparent
 // corners. Only the visible round button or the expanded card is interactive;
 // all other touches fall through to the full-screen guest.
@@ -60,9 +39,9 @@ final class ScarletGuestTouchPassthroughWindow: UIWindow {
         guard isExpanded else { return false }
         let panelBottom = bounds.height - 79
         let top = max(CGFloat(0), panelBottom - panelHitHeight)
-        let left = dockRight ? max(CGFloat(0), bounds.width - 342) : CGFloat(0)
-        let panel = CGRect(x: left, y: top,
-                           width: min(342, bounds.width), height: max(0, panelBottom - top))
+        let panel = CGRect(x: 12, y: top,
+                           width: max(0, bounds.width - 24),
+                           height: max(0, panelBottom - top))
         return panel.contains(point) && super.point(inside: point, with: event)
     }
 }
@@ -117,7 +96,7 @@ struct ScarletFullscreenGuestFloatingTab: View {
         }
         guard target.canSwitch else {
             UINotificationFeedbackGenerator().notificationOccurred(.warning)
-            feedback = "이 앱은 먼저 홍수정에서 한 번 실행·서명해야 합니다."
+            feedback = "이 앱은 먼저 앱 목록에서 한 번 실행·서명해야 합니다."
             ScarletDiagnosticRecorder.shared.record(
                 "guest", "switch_target_needs_setup",
                 fields: ["reason": "unprepared_guest"])
@@ -125,7 +104,7 @@ struct ScarletFullscreenGuestFloatingTab: View {
         }
         UIImpactFeedbackGenerator(style: .medium).impactOccurred()
         if !onSwitch(target) {
-            feedback = "전환 요청을 완료하지 못했습니다. 홍수정에서 실행해 주세요."
+            feedback = "전환 요청에 실패했습니다. 앱 목록에서 실행해 주세요."
             UINotificationFeedbackGenerator().notificationOccurred(.error)
         }
     }
@@ -134,22 +113,16 @@ struct ScarletFullscreenGuestFloatingTab: View {
     // SwiftUI glass matched-IDs across a resizing UIWindow blanked the card.
     @ViewBuilder
     private func glassPlate(radius: CGFloat) -> some View {
-        if #available(iOS 26.0, *),
-           !UIAccessibility.isReduceTransparencyEnabled {
-            ScarletUIKitGlassBackdrop(radius: radius)
-                .clipShape(RoundedRectangle(cornerRadius: radius,
-                                             style: .continuous))
-        } else {
-            RoundedRectangle(cornerRadius: radius, style: .continuous)
-                .fill(.regularMaterial)
-        }
+        // Exact native material owner used by the main container tab.
+        SCNativeLiquidGlassSurface(cornerRadius: radius)
+            .clipShape(RoundedRectangle(cornerRadius: radius, style: .continuous))
     }
 
     private var currentAppCard: some View {
-        HStack(spacing: 12) {
+        HStack(spacing: 11) {
             Image(systemName: "app.fill")
                 .font(.system(size: 25))
-                .frame(width: 48, height: 48)
+                .frame(width: 43, height: 43)
                 .background(.white.opacity(0.13),
                             in: RoundedRectangle(cornerRadius: 13))
             VStack(alignment: .leading, spacing: 3) {
@@ -192,7 +165,7 @@ struct ScarletFullscreenGuestFloatingTab: View {
                     .font(.title3)
                     .foregroundStyle(app.canSwitch ? Color.accentColor : Color.secondary)
             }
-            .padding(.vertical, 3)
+            .padding(.vertical, 5)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
@@ -233,7 +206,7 @@ struct ScarletFullscreenGuestFloatingTab: View {
                         "guest", "fullscreen_tab_exit_requested")
                     onExit()
                 } label: {
-                    Label("홍수정으로", systemImage: "rectangle.portrait.and.arrow.right")
+                    Label("앱 목록", systemImage: "rectangle.portrait.and.arrow.right")
                         .font(.subheadline.weight(.semibold))
                         .frame(maxWidth: .infinity, minHeight: 46)
                         .contentShape(Rectangle())
@@ -245,7 +218,8 @@ struct ScarletFullscreenGuestFloatingTab: View {
             .foregroundStyle(.primary)
             .zIndex(2)
         }
-        .frame(maxWidth: 380, minHeight: 300, maxHeight: 435)
+        .frame(maxWidth: .infinity, minHeight: 300, maxHeight: 435)
+        .padding(.horizontal, 12)
         .overlay {
             RoundedRectangle(cornerRadius: 28, style: .continuous)
                 .strokeBorder(
@@ -277,7 +251,7 @@ struct ScarletFullscreenGuestFloatingTab: View {
                     .background {
                         if #available(iOS 26.0, *),
                            !UIAccessibility.isReduceTransparencyEnabled {
-                            ScarletUIKitGlassBackdrop(radius: 31).clipShape(Circle())
+                            SCNativeLiquidGlassSurface(cornerRadius: 31).clipShape(Circle())
                         } else {
                             Circle().fill(.regularMaterial)
                         }
@@ -302,12 +276,7 @@ struct ScarletFullscreenGuestFloatingTab: View {
 
     @ViewBuilder
     private var roundTab: some View {
-        if #available(iOS 26.0, *) {
-            roundTabButton
-                .glassEffect(.regular.interactive(), in: .circle)
-        } else {
-            roundTabButton
-        }
+        roundTabButton
     }
 
     private var panelStack: some View {
@@ -422,18 +391,22 @@ final class ScarletFullscreenGuestTabInstaller: NSObject {
     private static func frame(in window: UIWindow) -> CGRect {
         let b = window.windowScene?.coordinateSpace.bounds ?? window.bounds
         let safe = window.safeAreaInsets
-        let center = center(in: window)
-        let isRight = center.x >= b.midX
+        let point = center(in: window)
+        let isRight = point.x >= b.midX
         floatingWindow?.dockRight = isRight
-        let x = center.x - (width > 72 && isRight ? width - 36 : 36)
-        let y = center.y - (height > 72 ? height - 36 : 36)
-        let loX = max(CGFloat(0), safe.left + 5)
-        let hiX = max(loX, b.width - width - safe.right - 5)
-        let loY = max(CGFloat(0), safe.top + 5)
-        let hiY = max(loY, b.height - height - safe.bottom - 5)
-        return CGRect(x: min(max(x, loX), hiX),
-                      y: min(max(y, loY), hiY),
-                      width: width, height: height)
+        // Expanded card is CENTERED in the guest scene, while the collapsed
+        // button keeps its saved draggable location. Neither changes the guest.
+        if width > 72 {
+            let x = (b.width - width) / 2
+            let y = min(max(point.y - height + 36, max(CGFloat(0),safe.top + 5)),
+                        max(CGFloat(0),b.height - height - safe.bottom - 5))
+            return CGRect(x: x, y: y, width: width, height: height)
+        }
+        let x = min(max(point.x - 36, safe.left + 5),
+                    max(safe.left + 5, b.width - 72 - safe.right - 5))
+        let y = min(max(point.y - 36, safe.top + 5),
+                    max(safe.top + 5, b.height - 72 - safe.bottom - 5))
+        return CGRect(x: x, y: y, width: 72, height: 72)
     }
 
     private static func placeFloatingWindow() {
@@ -487,7 +460,7 @@ final class ScarletFullscreenGuestTabInstaller: NSObject {
     private static func resizeOverlay(open: Bool, appCount: Int) {
         guard let host = guestWindow, let floating = floatingWindow else { return }
         let bounds = host.windowScene?.coordinateSpace.bounds ?? host.bounds
-        width = open ? min(410, max(72, bounds.width - 18)) : 72
+        width = open ? min(430, max(72, bounds.width - 32)) : 72
         let cardHeight = width * 1.02
         height = open ? min(cardHeight, max(260, bounds.height - 135)) + 84 : 72
         floating.isExpanded = open

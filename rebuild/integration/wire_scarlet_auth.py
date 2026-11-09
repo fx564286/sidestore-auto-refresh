@@ -215,7 +215,64 @@ public enum ScarletDeviceInstaller {
 """
     bridge.write_text(support_source)
 
-    print("[PASS] SideStoreSupport XPC auth and headless device-install transport staged")
+    # In-app Apple certificate issuance runs in the same SideStore worker and
+    # is opt-in, preserving the authenticated XPC transport and Apple identity.
+    cert_server = engine / "SideStoreSupport/XPCServer.h"
+    h = cert_server.read_text()
+    h = replace_one(h,
+        '- (void)scarletAuthCompleted:(NSString*)requestID code:(NSInteger)code domain:(NSString*)domain;',
+        '- (void)scarletAuthCompleted:(NSString*)requestID code:(NSInteger)code domain:(NSString*)domain;\n'
+        '- (void)scarletCertificateCompleted:(NSString*)requestID code:(NSInteger)code domain:(NSString*)domain certificateData:(NSData*)certificateData password:(NSString*)password;',
+        "certificate result XPC")
+    h = replace_one(h,
+        '- (void)scarletCancelAuth:(NSString*)requestID;',
+        '- (void)scarletCancelAuth:(NSString*)requestID;\n'
+        '- (void)scarletIssueCertificate:(NSString*)requestID;',
+        "certificate request XPC")
+    cert_server.write_text(h)
+    cert_client = engine / "SideStoreSupport/XPCClient.m"
+    s = cert_client.read_text()
+    s = replace_one(s,
+        '                                                 name:@"ScarletGuestAuthCompleted" object:nil];',
+        '                                                 name:@"ScarletGuestAuthCompleted" object:nil];\n'
+        '    [[NSNotificationCenter defaultCenter] addObserver:self\n'
+        '                                             selector:@selector(scarletCertificateReady:)\n'
+        '                                                 name:@"ScarletGuestCertificateCompleted" object:nil];',
+        "certificate notifications")
+    assert s.count("@end") == 2
+    head, tail = s.rsplit("@end", 1)
+    head += """
++ (void)scarletCertificateReady:(NSNotification*)note {
+    NSString* requestID = note.userInfo[@"requestID"];
+    NSNumber* code = note.userInfo[@"code"];
+    NSString* domain = note.userInfo[@"domain"];
+    NSData* archive = note.userInfo[@"archive"];
+    NSString* password = note.userInfo[@"password"];
+    if (requestID.length && handler.server) {
+        [handler.server scarletCertificateCompleted:requestID
+            code:code.integerValue domain:domain ?: @"scarlet.cert.unknown"
+            certificateData:archive ?: [NSData data] password:password ?: @""];
+    }
+}
+
+- (void)scarletIssueCertificate:(NSString*)requestID {
+    Class worker = NSClassFromString(@"ScarletGuestCertificateAgent");
+    if (!worker || ![worker respondsToSelector:@selector(issue:)]) {
+        [handler.server scarletCertificateCompleted:requestID
+            code:-5200 domain:@"scarlet.cert.worker_missing"
+            certificateData:[NSData data] password:@""];
+        return;
+    }
+    ((void (*)(id, SEL, id))objc_msgSend)(
+        worker, @selector(issue:), @{@"requestID": requestID});
+}
+"""
+    cert_client.write_text(head + "@end" + tail)
+    support = engine / "SideStoreSupport/ScarletCertificateXPCSupport.swift"
+    assert not support.exists(), "cert transport is already staged"
+    shutil.copyfile(ROOT / "rebuild/HostApp/ScarletCertificateXPCSupport.swift", support)
+    print("[PASS] SideStoreSupport authenticated certificate XPC staged")
+
 
 
 def patch_sidestore(engine: Path) -> None:
@@ -236,6 +293,11 @@ def patch_sidestore(engine: Path) -> None:
     extra = (ROOT / "rebuild/integration/ScarletGuestSignInAgent.swift.txt").read_text()
     installer = (ROOT / "rebuild/integration/ScarletDeviceInstallAgent.swift.txt").read_text()
     target.write_text(source.rstrip() + "\n\n" + extra + "\n\n" + installer)
+    cert_agent = (ROOT / "rebuild/integration/ScarletGuestCertificateAgent.swift.txt").read_text()
+    assert "ScarletGuestCertificateAgent" not in source
+    target.write_text(source.rstrip() + "\n\n" + extra + "\n\n" +
+                      installer + "\n\n" + cert_agent)
+    print("[PASS] SideStore authenticated certificate worker staged")
     print("[PASS] SideStore SideSign auth + headless installer workers staged")
 
 

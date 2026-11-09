@@ -14,7 +14,7 @@ class V5Contracts(unittest.TestCase):
                          "switch_panel_content_rendered",
                          "UIView.performWithoutAnimation",
                          "switch_panel_geometry_applied",
-                         "width = open ? min(410",
+                         "width = open ? min(430",
                          "GlassEffectContainer(spacing: 14)"):
             self.assertIn(fragment, UI)
         self.assertNotIn('glassEffectID("guest-expanded"', UI)
@@ -31,7 +31,7 @@ class V5Contracts(unittest.TestCase):
         self.assertIn("try await app.runApp()", HOST)
 
     def test_certificate_reissue_requires_consent_and_rollback(self):
-        for fragment in ("SideInstaller 새 P12 발급·내보내기",
+        for fragment in ("SideStore에서 인증서 받기",
                          "isConfirmingCertReplacement = true",
                          "importExportedP12(replaceExisting: true)",
                          "existingCert", "existingPassword", "existingDate",
