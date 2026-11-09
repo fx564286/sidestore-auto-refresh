@@ -523,11 +523,16 @@ final class ScarletFullscreenGuestTabInstaller: NSObject {
                     return
                 }
             }
-            // No stable geometry: protect the foreground guest; the existing
-            // retry trigger can remount the button when the scene stabilizes.
-            ScarletDiagnosticRecorder.shared.record(
-                "guest", "overlay_rotation_unstable",
-                status: "warning", fields: ["reason": "scene_unstable"])
+            // Last-resort recovery: preserve a usable exit/switch button
+            // even if a third-party guest continually changes its bounds.
+            // Only update this overlay window, never the guest root view.
+            if rotationGeneration == token, let overlay = floatingWindow {
+                resizeOverlay(open: overlay.isExpanded, appCount: 0)
+                overlay.alpha = 1
+                ScarletDiagnosticRecorder.shared.record(
+                    "guest", "overlay_rotation_unstable",
+                    status: "warning", fields: ["reason": "scene_unstable"])
+            }
         }
     }
 
