@@ -41,7 +41,8 @@ class V16NativeGuestRegression(unittest.TestCase):
 
     def test_cold_rows_never_claim_ram_was_kept(self):
         self.assertIn('guard item.isLive else', NATIVE)
-        self.assertIn('app.canSwitch ? "실행 중 · 작업 유지" : "최근 실행 · 재시작 필요"', FULL)
+        self.assertIn('app.canSwitch ? "실행 중 · 작업 유지"', FULL)
+        self.assertIn('app.canRelaunch ? "최근 실행 · 누르면 다시 열기"', FULL)
         self.assertIn('ScarletGuestSceneRegistry.activate(item.id)', NATIVE)
 
 if __name__ == "__main__":

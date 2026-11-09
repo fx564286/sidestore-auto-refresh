@@ -37,7 +37,10 @@ class V10Contract(unittest.TestCase):
         self.assertIn('switch_requires_relaunch',GUEST)
         segment=GUEST.split('private static func switchGuest(to target:',1)[1].split(
             '    @objc(installForGuestName:)',1)[0]
-        self.assertNotIn('LCSharedUtils.launchToGuestApp',segment)
+        self.assertIn('guard latest.canRelaunch',segment)
+        self.assertIn('switch_cold_handoff',segment)
+        self.assertIn('LCSharedUtils.launchToGuestApp(',segment)
+        self.assertIn('switch_existing_multitask_session',segment)
         self.assertNotIn('defaults.set(target.id',segment)
         self.assertNotIn('removeItem(at:',GUEST)
     def test_only_two_jitless_certificate_buttons(self):
