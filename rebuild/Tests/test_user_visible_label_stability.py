@@ -13,10 +13,14 @@ HOST=(ROOT/"HostApp/ScarletIntegratedHostView.swift").read_text()
 UI=(ROOT/"Sources/ScarletIndependentUI/ScarletIndependentShell.swift").read_text()
 
 class UserVisibleLabelStability(unittest.TestCase):
-    def test_apple_id_action_label_does_not_change_with_auth_state(self):
-        self.assertIn('Label("Apple ID 로그인",',PATCH)
-        self.assertNotIn('Apple ID 로그인됨 · 계정 관리',PATCH)
-        self.assertNotIn('Apple ID 확인 중',PATCH)
+    def test_login_button_reflects_verified_state(self):
+        self.assertIn('if scarletLoginVerified == true {',PATCH)
+        self.assertIn('Label("로그인됨", systemImage:',PATCH)
+        self.assertIn('Label("추가 로그인", systemImage:',PATCH)
+        self.assertIn('Label("로그인", systemImage:',PATCH)
+        self.assertIn('SCARLET_SETTINGS_ADD_LOGIN',PATCH)
+        self.assertIn('scarletShowAccountAdditionNotice',PATCH)
+        self.assertNotIn('Label("Apple ID 로그인",',PATCH)
         self.assertIn('로그인됨 · 내장 SideStore 세션 복원',PATCH)
 
     def test_original_settings_and_manual_refresh_labels_are_preserved(self):
