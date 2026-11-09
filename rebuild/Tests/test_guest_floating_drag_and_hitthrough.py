@@ -40,9 +40,8 @@ class GuestFloatingDragHitThrough(unittest.TestCase):
         self.assertIn('try await app.runApp()',HOST)
 
     def test_works_with_airpods_glass_and_real_guest_candidates(self):
-        for fragment in ('SCNativeLiquidGlassSurface(cornerRadius: radius)',
-                         'GlassEffectContainer(spacing: 14)',
-                         'switch_candidates_scanned',
+        for fragment in ('SCNativeLiquidGlassSurface(cornerRadius: radius, showsRim: false)',
+                                'switch_candidates_scanned',
                          'switch_relaunch_requested',
                          'installForGuestName', 'SCARLET_PR48_GUEST_SWITCH_TARGET'):
             self.assertIn(fragment,GUEST)

@@ -3,7 +3,7 @@ name: Scarlet integrated IPA - cached engine public release
 on:
   workflow_dispatch:
   push:
-    branches: [rebuild/scarlet-from-zero-20261106, fix/scarlet-pr48-guest-overlay-no-resize-20261109, fix/scarlet-pr48-airpods-glass-guest-switch-v3-20261109, fix/scarlet-pr48-draggable-guest-tab-v4-20261109, fix/scarlet-pr48-v5-glass-drag-cert-recovery-20261109, fix/scarlet-pr48-v6-unified-cert-glass-20261109, fix/scarlet-pr48-v7-cert-jitless-unify-panel-rim-20261109, fix/scarlet-pr48-v8-flicker-certificate-menu-20261109]
+    branches: [rebuild/scarlet-from-zero-20261106, fix/scarlet-pr48-guest-overlay-no-resize-20261109, fix/scarlet-pr48-airpods-glass-guest-switch-v3-20261109, fix/scarlet-pr48-draggable-guest-tab-v4-20261109, fix/scarlet-pr48-v5-glass-drag-cert-recovery-20261109, fix/scarlet-pr48-v6-unified-cert-glass-20261109, fix/scarlet-pr48-v7-cert-jitless-unify-panel-rim-20261109, fix/scarlet-pr48-v8-flicker-certificate-menu-20261109, fix/scarlet-pr48-v9-single-glass-rim-20261109]
     paths: [".github/workflows/scarlet-integrated-download-fast.yml"]
 
 permissions:
@@ -24,7 +24,7 @@ jobs:
         with:
           name: Scarlet-LiveContainer-Native-Engine
           path: artifacts/lc
-          run-id: 42596598248
+          run-id: 42597742351
           github-token: ${{ github.token }}
 
       - uses: actions/download-artifact@v4
@@ -96,8 +96,8 @@ jobs:
             --phase combined \
             --combined-ipa report/Scarlet-LiveContainer+SideStore-ENGINES-UNSIGNED.ipa \
             --report report/combined-ipa-verification.json
-          cp report/Scarlet-LiveContainer+SideStore-ENGINES-UNSIGNED.ipa Scarlet-PR48-FlickerFix-V8-UNSIGNED.ipa
-          shasum -a 256 Scarlet-PR48-FlickerFix-V8-UNSIGNED.ipa > Scarlet-PR48-FlickerFix-V8-UNSIGNED.ipa.sha256
+          cp report/Scarlet-LiveContainer+SideStore-ENGINES-UNSIGNED.ipa Scarlet-PR48-SingleGlass-V9-UNSIGNED.ipa
+          shasum -a 256 Scarlet-PR48-SingleGlass-V9-UNSIGNED.ipa > Scarlet-PR48-SingleGlass-V9-UNSIGNED.ipa.sha256
 
       - name: Publish public permanent GitHub Release download
         shell: bash
@@ -105,31 +105,31 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -Eeuo pipefail
-          tag=scarlet-pr48-flicker-fix-v8-20261109
+          tag=scarlet-pr48-single-glass-v9-20261109
           cat > release-notes.md <<'EOF'
           ## Scarlet integrated LiveContainer + SideStore — unsigned IPA
 
-          V8: repeat orientation notifications with unchanged scene dimensions no longer hide the non-key guest overlay. Actual geometry change is debounced until stable. Certificate issuance and SideInstaller-style existing certificate retrieval share one primary SideStore button; manual P12 import and entitlement recheck are collapsed under Advanced. iPhone runtime visual verification remains required. No guest resize, no change to app identity or P12.\n          Existing full-screen guest app geometry, host tabs, runApp() and orientation code UNCHANGED.\n          No forced landscape or simultaneous multi-process claim.\n          Signed installation and real iPhone UI validation still required.
+          V9: native UIKit clear Liquid Glass still draws panel and round switcher. One guest-only contrast rim; duplicate main-tab specular rim, oversized panel shadow, and redundant SwiftUI GlassEffectContainer removed. V8 anti-flicker rotation and single SideStore certificate button retained. iPhone optical result unverified; host full-screen guest, touches, app identity and signing unchanged.\n          Existing full-screen guest app geometry, host tabs, runApp() and orientation code UNCHANGED.\n          No forced landscape or simultaneous multi-process claim.\n          Signed installation and real iPhone UI validation still required.
           **UNSIGNED, DIAGNOSTIC ONLY. Not directly installable on iPhone.**
           Native signing, Apple login, app execution and Liquid Glass real-device
           verification remain unconfirmed. Original users' data is unchanged.
           EOF
           printf "\nCompiled new UI: %s\nReused audited pinned SideStore: 42588970113\n" \
-            "42596598248" >> release-notes.md
+            "42597742351" >> release-notes.md
           if ! gh release view "$tag" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
             gh release create "$tag" --repo "$GITHUB_REPOSITORY" \
-              --target "$GITHUB_SHA" --title "Scarlet PR48 V8 flicker-free guest tab and unified SideStore certificate UI - unsigned IPA" \
+              --target "$GITHUB_SHA" --title "Scarlet PR48 V9 single glass rim without halo and doubled shadows - unsigned IPA" \
               --prerelease --latest=false --notes-file release-notes.md
           fi
           gh release upload "$tag" --repo "$GITHUB_REPOSITORY" \
-            Scarlet-PR48-FlickerFix-V8-UNSIGNED.ipa \
-            Scarlet-PR48-FlickerFix-V8-UNSIGNED.ipa.sha256 --clobber
+            Scarlet-PR48-SingleGlass-V9-UNSIGNED.ipa \
+            Scarlet-PR48-SingleGlass-V9-UNSIGNED.ipa.sha256 --clobber
           gh release edit "$tag" --repo "$GITHUB_REPOSITORY" \
-            --title "Scarlet PR48 V8 flicker-free guest tab and unified SideStore certificate UI - unsigned IPA" \
+            --title "Scarlet PR48 V9 single glass rim without halo and doubled shadows - unsigned IPA" \
             --prerelease --notes-file release-notes.md
           gh release view "$tag" --repo "$GITHUB_REPOSITORY" \
-            --json assets --jq '.assets[].name' | grep -Fx "Scarlet-PR48-FlickerFix-V8-UNSIGNED.ipa"
-          echo "https://github.com/$GITHUB_REPOSITORY/releases/download/$tag/Scarlet-PR48-FlickerFix-V8-UNSIGNED.ipa" >> "$GITHUB_STEP_SUMMARY"
+            --json assets --jq '.assets[].name' | grep -Fx "Scarlet-PR48-SingleGlass-V9-UNSIGNED.ipa"
+          echo "https://github.com/$GITHUB_REPOSITORY/releases/download/$tag/Scarlet-PR48-SingleGlass-V9-UNSIGNED.ipa" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Check out existing GitHub Pages without changing website files
         uses: actions/checkout@v4
@@ -142,13 +142,13 @@ jobs:
         shell: bash
         run: |
           set -Eeuo pipefail
-          cp Scarlet-PR48-FlickerFix-V8-UNSIGNED.ipa pages/
-          (cd pages && sha256sum Scarlet-PR48-FlickerFix-V8-UNSIGNED.ipa)
+          cp Scarlet-PR48-SingleGlass-V9-UNSIGNED.ipa pages/
+          (cd pages && sha256sum Scarlet-PR48-SingleGlass-V9-UNSIGNED.ipa)
           git -C pages config user.name "scarlet-pages-asset-bot"
           git -C pages config user.email "github-actions[bot]@users.noreply.github.com"
-          git -C pages add -f -- Scarlet-PR48-FlickerFix-V8-UNSIGNED.ipa
+          git -C pages add -f -- Scarlet-PR48-SingleGlass-V9-UNSIGNED.ipa
           if ! git -C pages diff --cached --quiet; then
-            git -C pages commit -m "downloads: verified Scarlet PR48 V8 blink-fix and certificate menu unsigned IPA"
+            git -C pages commit -m "downloads: verified Scarlet PR48 V9 single-glass guest-switcher unsigned IPA"
             git -C pages push origin HEAD:gh-pages
           fi
-          echo "https://fx564286.github.io/sidestore-auto-refresh/Scarlet-PR48-FlickerFix-V8-UNSIGNED.ipa" >> "$GITHUB_STEP_SUMMARY"
+          echo "https://fx564286.github.io/sidestore-auto-refresh/Scarlet-PR48-SingleGlass-V9-UNSIGNED.ipa" >> "$GITHUB_STEP_SUMMARY"

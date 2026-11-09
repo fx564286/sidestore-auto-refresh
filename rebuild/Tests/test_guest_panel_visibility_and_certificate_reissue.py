@@ -15,7 +15,7 @@ class V5Contracts(unittest.TestCase):
                          "UIView.performWithoutAnimation",
                          "switch_panel_geometry_applied",
                          "width = open ? min(430",
-                         "GlassEffectContainer(spacing: 14)"):
+                         "showsRim: false"):
             self.assertIn(fragment, UI)
         self.assertNotIn('glassEffectID("guest-expanded"', UI)
         self.assertNotIn(".glassEffectTransition(.matchedGeometry)", UI)

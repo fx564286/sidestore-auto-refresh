@@ -56,8 +56,8 @@ class InAppCertAndGlassContracts(unittest.TestCase):
 
     def test_guest_reuses_main_tab_clear_glass_not_regular(self):
         self.assertIn("let glass = UIGlassEffect(style: .clear)",MAIN_GLASS)
-        self.assertIn("SCNativeLiquidGlassSurface(cornerRadius: radius)",UI)
-        self.assertIn("SCNativeLiquidGlassSurface(cornerRadius: 31)",UI)
+        self.assertIn("SCNativeLiquidGlassSurface(cornerRadius: radius, showsRim: false)",UI)
+        self.assertIn("SCNativeLiquidGlassSurface(cornerRadius: 31, showsRim: false)",UI)
         self.assertNotIn("ScarletUIKitGlassBackdrop",UI)
         self.assertIn("let x = (b.width - width) / 2",UI)
         self.assertIn("width = open ? min(430",UI)
