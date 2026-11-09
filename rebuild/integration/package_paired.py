@@ -18,6 +18,12 @@ import zipfile
 
 HOST_ID="com.kdt.livecontainer.P8EZT3U5N4"
 EXTENSIONS=("LiveProcess","ShareExtension","LaunchAppExtension")
+# The user imports via the in-app native Files picker and URL sources.
+# Remove the optional iOS system Share Sheet extension from the combined IPA,
+# retaining necessary LiveProcess and LaunchAppExtension. Diagnostic upstream
+# baseline still retains all three extensions for provenance comparison.
+RELEASE_EXTENSIONS=("LiveProcess","LaunchAppExtension")
+
 
 def call(*args):
     print("[RUN]", " ".join(map(str,args)),flush=True)
@@ -134,12 +140,16 @@ def main():
     combined=work/"combined"/"Payload"/"LiveContainer.app"
     combined.parent.mkdir(parents=True)
     shutil.copytree(original,combined,symlinks=True)
+    optional_share = combined/"PlugIns"/"ShareExtension.appex"
+    assert optional_share.is_dir(), "Pinned optional share extension changed"
+    shutil.rmtree(optional_share)
+    assert not optional_share.exists()
     info=read(combined/"Info.plist")
     info["CFBundleIdentifier"]=HOST_ID
     info["CFBundleDisplayName"]="Scarlet Crystal"
     side_urls(info)
     write(combined/"Info.plist",info)
-    for ext in EXTENSIONS:
+    for ext in RELEASE_EXTENSIONS:
         f=combined/"PlugIns"/(ext+".appex")/"Info.plist"
         ei=read(f)
         ei["CFBundleIdentifier"]=HOST_ID+"."+ext
@@ -207,6 +217,11 @@ def main():
     report={
         "schema":1,"hostBundleID":HOST_ID,
         "threeOriginalExtensions":list(EXTENSIONS),
+        "releaseExtensions":list(RELEASE_EXTENSIONS),
+        "releaseAppIDCount":1 + len(RELEASE_EXTENSIONS),
+        "optionalShareExtensionExcluded":True,
+        "systemShareSheetImportAvailable":False,
+        "nativeFilesPickerImportPreserved":True,
         "separateEngineIPAs":True,"embeddedSideStore":True,
         "nativeSideStoreSupport":True,"sourceProvenancePinned":True,
         "upstreamDylibifySHA256":sha256(args.dylibify),

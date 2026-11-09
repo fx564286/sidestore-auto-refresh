@@ -15,6 +15,12 @@ private final class ScarletWeakGuestController {
 struct ScarletGuestTarget: Identifiable {
     let id: String
     let title: String
+    let isLive: Bool
+    init(id: String, title: String, isLive: Bool = true) {
+        self.id = id
+        self.title = title
+        self.isLive = isLive
+    }
 }
 
 @available(iOS 16.1, *)
@@ -96,12 +102,30 @@ struct ScarletGuestSwitcherOverlay: View {
     @Namespace private var guestGlassSelection
     @State private var targets: [ScarletGuestTarget] = []
     @State private var previews: [String: UIImage] = [:]
+    @State private var feedback: String?
+    @Environment(\.openWindow) private var openWindow
 
     private func openSwitcher() {
         let active = ScarletGuestSceneRegistry.availableGuests()
-        targets = active.isEmpty
-            ? [ScarletGuestTarget(id: dataUUID, title: displayName)]
-            : active
+        var combined = active
+        var ids = Set(active.map(\.id))
+        // Native LiveProcess window is necessarily alive even if registry
+        // registration races with the first overlay appearance.
+        if ids.insert(dataUUID).inserted {
+            combined.insert(ScarletGuestTarget(id: dataUUID, title: displayName),
+                            at: 0)
+        }
+        // A->Home->B must list A even when it has been terminated by iOS.
+        // A cold entry is NEVER a promise of retained in-memory state.
+        for entry in ScarletGuestSessionLedger.recent() {
+            let id = entry.dataUUID ?? entry.folder
+            if ids.insert(id).inserted {
+                combined.append(ScarletGuestTarget(
+                    id: id, title: entry.title ?? entry.folder, isLive: false))
+            }
+        }
+        targets = combined
+        feedback = nil
         previews = [:]
         for item in targets {
             if let image = ScarletGuestSceneRegistry.screenshot(dataUUID: item.id) {
@@ -195,6 +219,10 @@ struct ScarletGuestSwitcherOverlay: View {
                                 closeSwitcher()
                                 return
                             }
+                            guard item.isLive else {
+                                feedback = "종료된 앱은 목록에서 다시 실행해야 합니다. 작업 상태 복원은 앱 자체 저장 기능에 따라 달라집니다."
+                                return
+                            }
                             if ScarletGuestSceneRegistry.activate(item.id) {
                                 closeSwitcher()
                             }
@@ -223,6 +251,8 @@ struct ScarletGuestSwitcherOverlay: View {
                                         .font(.subheadline.weight(.semibold))
                                         .lineLimit(2)
                                         .frame(maxWidth: .infinity, alignment: .leading)
+                                    Text(item.isLive ? "실행 중 · 작업 유지" : "최근 실행 · 재시작 필요")
+                                        .font(.caption2).foregroundStyle(.secondary)
                                 }
                                 Spacer(minLength: 2)
                             }
@@ -235,6 +265,21 @@ struct ScarletGuestSwitcherOverlay: View {
                 }
             }
             .frame(maxHeight: 224)
+            if let feedback {
+                Text(feedback)
+                    .font(.caption2)
+                    .foregroundStyle(.orange)
+            }
+            Button {
+                // Open the existing LC host scene without terminating a
+                // resident native LiveProcess guest or resetting its UIWindow.
+                openWindow(id: "Main")
+                closeSwitcher()
+            } label: {
+                Label("앱 목록", systemImage: "rectangle.portrait.and.arrow.right")
+                    .frame(maxWidth: .infinity, minHeight: 36)
+            }
+            .accessibilityIdentifier("SCARLET_NATIVE_GUEST_RETURN_TO_HOST")
             if selectedSegment == 1 {
                 HStack(spacing: 7) {
                     guestWindowCommand("최소화", symbol: "minus") {

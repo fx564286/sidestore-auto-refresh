@@ -25,7 +25,7 @@ def fixture(path, *, include_launch=True, extra=False):
         for name,ext_id in AUDIT.REQUIRED_EXTENSIONS.items():
             if name=="LaunchAppExtension" and not include_launch: continue
             typ=("com.apple.appintents-extension" if name=="LaunchAppExtension"
-                 else "com.apple.share-services")
+                 else "com.apple.extensionkit-service")
             info={"CFBundleIdentifier":ext_id,
                   "NSExtension":{"NSExtensionPointIdentifier":typ}}
             if name=="LaunchAppExtension":
@@ -68,14 +68,14 @@ class ScarletModularArchitecture(unittest.TestCase):
             ipa=Path(d)/"test.ipa"
             fixture(ipa)
             report=AUDIT.inspect_ipa(ipa)
-            self.assertEqual(report["total_bundle_ids"],4)
-            self.assertEqual(report["extension_app_ids"],3)
+            self.assertEqual(report["total_bundle_ids"],3)
+            self.assertEqual(report["extension_app_ids"],2)
             self.assertFalse(report["built_in_feature_modules_add_app_ids"])
             self.assertFalse(report["free_team_provisioning_verified"])
             self.assertFalse(report["safe_to_merge_extensions_automatically"])
             ext={item["name"]:item["extension_point"] for item in report["extensions"]}
             self.assertEqual(ext["LaunchAppExtension"],"com.apple.appintents-extension")
-            self.assertEqual(ext["ShareExtension"],"com.apple.share-services")
+            self.assertNotIn("ShareExtension", ext)
 
     def test_unknown_missing_or_duplicate_extension_blocks_packaging(self):
         with tempfile.TemporaryDirectory() as d:

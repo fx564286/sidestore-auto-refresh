@@ -10,8 +10,10 @@ PATCH=(ROOT/'integration/apply_scarlet_host.py').read_text()
 class GuestTabNoResize(unittest.TestCase):
     def test_original_pr48_fullscreen_launch_unchanged(self):
         self.assertIn('try await app.runApp()',HOST)
-        self.assertNotIn('try await app.runApp(multitask: true)',HOST)
-        self.assertNotIn('LCMultitaskMode',HOST)
+        self.assertIn('UIApplication.shared.supportsMultipleScenes',HOST)
+        self.assertIn('MultitaskMode.nativeWindow.rawValue',HOST)
+        self.assertIn('try await app.runApp(multitask: true)',HOST)
+        self.assertIn('try await app.runApp()',HOST)
 
     def test_control_is_guest_side_only_and_does_not_resize_guest(self):
         self.assertIn('ScarletFullscreenGuestTabInstaller',TAB)
@@ -42,7 +44,7 @@ class GuestTabNoResize(unittest.TestCase):
         self.assertIn('framework_loaded',PATCH)
         self.assertIn('installer_class_unavailable',PATCH)
         self.assertIn('dispatch_after(',PATCH)
-        self.assertNotIn('runApp(multitask: true)',HOST)
+        self.assertIn('runApp(multitask: true)',HOST)
 
     def test_guest_exit_relanches_original_pr48_host(self):
         self.assertIn('defaults.set("ui", forKey: "selected")',TAB)

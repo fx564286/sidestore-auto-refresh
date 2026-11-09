@@ -15,6 +15,7 @@ from datetime import datetime,timezone
 
 HOST_ID="com.kdt.livecontainer.P8EZT3U5N4"
 EXTENSIONS=("LiveProcess","ShareExtension","LaunchAppExtension")
+RELEASE_EXTENSIONS=("LiveProcess","LaunchAppExtension")
 ROOT=Path(__file__).resolve().parents[2]
 PINS=json.loads((ROOT/"config/scarlet-upstream-pins.json").read_text())
 
@@ -139,16 +140,20 @@ def main():
             p="Payload/LiveContainer.app/"
             host=plistlib.loads(z.read(p+"Info.plist"))
             assert host.get("CFBundleIdentifier")==HOST_ID,host.get("CFBundleIdentifier")
-            for ext in EXTENSIONS:
+            for ext in RELEASE_EXTENSIONS:
                 ep=p+"PlugIns/"+ext+".appex/Info.plist"
                 d=plistlib.loads(z.read(ep))
                 assert d["CFBundleIdentifier"]==HOST_ID+"."+ext,d["CFBundleIdentifier"]
+            assert not any(x.startswith(p+"PlugIns/ShareExtension.appex/") for x in infolist), (
+                "Optional ShareExtension still consumes one signing slot")
             assert any(x.startswith(p+"Frameworks/SideStoreApp.framework/") for x in infolist)
             assert p+"Frameworks/SideStoreApp.framework/SideStore" in infolist
             report["sideStoreSettingsScreenNavigationAbsent"]=verify_no_sidestore_screen_toggle(z,p)
             report["combinedIPAProduced"]=True
             report["originalHostIdentity"]=HOST_ID
-            report["threeExtensionsPreserved"]=True
+            report["releaseRequiredExtensionsPreserved"]=True
+            report["optionalShareExtensionExcluded"]=True
+            report["packagedHostAppIDs"]=3
             report["sideStoreEmbedded"]=True
             report["signingOrAppInstallationCertified"]=False
     args.report.parent.mkdir(parents=True,exist_ok=True)

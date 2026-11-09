@@ -9,11 +9,11 @@ CERT=(ROOT/'HostApp/ScarletSigningReadinessPanel.swift').read_text()
 class V12LiveTruth(unittest.TestCase):
     def test_no_phantom_installed_guest_rows(self):
         self.assertIn('ScarletGuestSceneRegistry.availableGuests().map(\\.id)',GUEST)
-        self.assertIn('guard isCurrent || activeScene else { continue }',GUEST)
+        self.assertIn('guard isCurrent || activeScene || recentFolders.contains(folder)',GUEST)
         self.assertIn('activeSceneIDs.contains($0)',GUEST)
         self.assertIn('MultitaskManager.isUsing(container: $0)',GUEST)
-        self.assertIn('apps.filter { !$0.isCurrent && $0.canSwitch }',GUEST)
-        self.assertIn('"result": "live_scenes_only"',GUEST)
+        self.assertIn('apps.filter { !$0.isCurrent }',GUEST)
+        self.assertIn('"result": "live_and_launched_history"',GUEST)
         self.assertNotIn('currentAppCard',GUEST)
         self.assertIn('SCARLET_GUEST_CURRENT_RUNNING',GUEST)
 

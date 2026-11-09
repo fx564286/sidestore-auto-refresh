@@ -796,6 +796,7 @@ def main():
         root/"rebuild/HostApp/ScarletSigningReadinessPanel.swift":"ScarletSigningReadinessPanel.swift",
         root/"rebuild/HostApp/ScarletGuestSwitcherOverlay.swift":"ScarletGuestSwitcherOverlay.swift",
         root/"rebuild/HostApp/ScarletFullscreenGuestTab.swift":"ScarletFullscreenGuestTab.swift",
+        root/"rebuild/HostApp/ScarletGuestSessionLedger.swift":"ScarletGuestSessionLedger.swift",
         root/"rebuild/HostApp/ScarletAppleIDLoginSheet.swift":"ScarletAppleIDLoginSheet.swift",
         root/"rebuild/HostApp/ScarletSideStoreAuthenticationBridge.swift":"ScarletSideStoreAuthenticationBridge.swift",
         root/"rebuild/HostApp/ScarletDiagnosticRecorder.swift":"ScarletDiagnosticRecorder.swift",

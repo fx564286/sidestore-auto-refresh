@@ -17,7 +17,7 @@ class V13(unittest.TestCase):
   self.assertIn('UserDefaults.standard.string(forKey: "selected")',GUEST)
   self.assertIn('bundleID == guestIdentifier',GUEST)
   self.assertIn('reloadApps: { installedApps(guestIdentifier: name) }',GUEST)
-  self.assertIn('apps.filter { !$0.isCurrent && $0.canSwitch }',GUEST)
+  self.assertIn('apps.filter { !$0.isCurrent }',GUEST)
  def test_compact_controls_preserve_function(self):
   self.assertNotIn('LabeledContent("LiveContainer 서명 인증서"',CAP)
   self.assertIn('LabeledContent("서명 상태"',CAP)

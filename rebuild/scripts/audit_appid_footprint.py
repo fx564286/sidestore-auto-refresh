@@ -16,7 +16,6 @@ from pathlib import Path
 HOST_ID = "com.kdt.livecontainer.P8EZT3U5N4"
 REQUIRED_EXTENSIONS = {
     "LiveProcess": HOST_ID + ".LiveProcess",
-    "ShareExtension": HOST_ID + ".ShareExtension",
     "LaunchAppExtension": HOST_ID + ".LaunchAppExtension",
 }
 HOST_INFO = re.compile(r"^Payload/[^/]+\.app/Info\.plist$")
@@ -64,8 +63,6 @@ def inspect_ipa(path: Path, *, strict: bool = True) -> dict:
             if actual != REQUIRED_EXTENSIONS:
                 raise ValueError("Extension set changed: manual API/permission review required")
             types = {e["name"]: e["extension_point"] for e in extensions}
-            if types["ShareExtension"] != "com.apple.share-services":
-                raise ValueError("Pinned share extension point changed")
             if types["LaunchAppExtension"] != "com.apple.appintents-extension":
                 raise ValueError("Pinned App Intents extension point changed")
         return {
@@ -82,10 +79,14 @@ def inspect_ipa(path: Path, *, strict: bool = True) -> dict:
             "device_running_verified": False,
             "safe_to_merge_extensions_automatically": False,
             "reduction_note": (
-                "ShareExtension is share-services, LaunchAppExtension has "
-                "App Intents extension point; merging needs functional and "
-                "entitlement compatibility tests, not just a renamed bundle."
+                "Optional system Share Sheet import excluded (one fewer app ID). "
+                "LiveProcess and LaunchAppExtension retain separate entitlement "
+                "and extension points. Scarlet's in-app Files picker is retained. "
+                "No claim is made about an Apple Personal Team resetting or "
+                "automatically revoking its previously provisioned App ID."
             ),
+            "system_share_sheet_extension_present":False,
+            "in_app_files_picker_source_unmodified":True,
         }
 
 
