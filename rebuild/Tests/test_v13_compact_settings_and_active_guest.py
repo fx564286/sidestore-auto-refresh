@@ -14,9 +14,9 @@ class V13(unittest.TestCase):
  def test_running_fullscreen_guest_present_not_phantom_apps(self):
   self.assertIn('currentAppRow',GUEST)
   self.assertIn('SCARLET_GUEST_CURRENT_RUNNING',GUEST)
-  self.assertIn('UserDefaults.standard.string(forKey: "selected")',GUEST)
-  self.assertIn('bundleID == guestIdentifier',GUEST)
-  self.assertIn('reloadApps: { installedApps(guestIdentifier: name) }',GUEST)
+  self.assertNotIn('UserDefaults.standard.string(forKey: "selected")',GUEST)
+  self.assertIn('bundleID == runtimeID',GUEST)
+  self.assertIn('reloadApps: { installedApps(guestIdentifier: runtimeGuestID) }',GUEST)
   self.assertIn('apps.filter { !$0.isCurrent }',GUEST)
  def test_compact_controls_preserve_function(self):
   self.assertNotIn('LabeledContent("LiveContainer 서명 인증서"',CAP)
