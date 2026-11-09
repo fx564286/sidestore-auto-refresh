@@ -23,9 +23,10 @@ class V19SessionSwitcher(unittest.TestCase):
         self.assertNotIn('store.data(forKey: "Scarlet.Guest.RecentSessions.V14")', LEDGER)
         self.assertIn('private static let maxItems = 8', LEDGER)
         self.assertIn('private static let inactivityTimeout: TimeInterval = 30 * 60', LEDGER)
-        self.assertIn('let idle = Date().timeIntervalSince(newest)', LEDGER)
+        self.assertIn('let idle = now.timeIntervalSince(entry.lastOpened)', LEDGER)
+        self.assertIn('return valid.filter { entry in', LEDGER)
         self.assertIn('idle <= inactivityTimeout', LEDGER)
-        self.assertIn('return valid', LEDGER)
+        self.assertIn('idle >= -120 && idle <= inactivityTimeout', LEDGER)
 
     def test_a_home_b_retained_without_ever_installed_fallback(self):
         self.assertIn('ScarletGuestSessionLedger.noteLaunch(', HOST)
