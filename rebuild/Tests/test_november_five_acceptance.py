@@ -14,7 +14,8 @@ PATCH=(ROOT/"integration/apply_scarlet_host.py").read_text()
 class FivePointNovemberAccept(unittest.TestCase):
     def test_1_verified_auth_session_drives_account_state(self):
         self.assertIn("scarletLoginVerified: Bool? = nil", PATCH)
-        self.assertIn('Label("Apple ID 로그인",', PATCH)
+        self.assertIn('Label("추가 로그인", systemImage:', PATCH)
+        self.assertIn('SCARLET_SETTINGS_LOGIN_VERIFIED', PATCH)
         self.assertIn('로그인됨 · 내장 SideStore 세션 복원', PATCH)
         self.assertIn('ScarletConnectedSideSignEngine().storedAuthenticated()', PATCH)
         self.assertIn("서명 인증서 · 없음 (로그인과 별도)", PATCH)
