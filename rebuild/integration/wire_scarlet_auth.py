@@ -53,6 +53,9 @@ def patch_livecontainer(engine: Path) -> None:
     [[NSNotificationCenter defaultCenter] addObserver:self
                                              selector:@selector(scarletCompleted:)
                                                  name:@"ScarletGuestAuthCompleted" object:nil];
+    [[NSNotificationCenter defaultCenter] addObserver:self
+                                             selector:@selector(scarletInstallCompleted:)
+                                                 name:@"ScarletDeviceInstallCompleted" object:nil];
 """, "auth notifications")
     extra = """
 + (void)scarletNeedsCode:(NSNotification*)notification {
@@ -68,6 +71,18 @@ def patch_livecontainer(engine: Path) -> None:
     NSString* domain = notification.userInfo[@"domain"];
     if (requestID.length && handler.server) {
         [handler.server scarletAuthCompleted:requestID code:code.integerValue domain:domain ?: @"scarlet.auth.unknown"];
+    }
+}
+
++ (void)scarletInstallCompleted:(NSNotification*)notification {
+    NSString* result = notification.userInfo[@"result"];
+    if (handler.server) {
+        if ([result isEqualToString:@"installed"]) {
+            [handler.server finish:nil];
+        } else {
+            [handler.server finish:[@"scarlet.install." stringByAppendingString:
+                result ?: @"unknown"]];
+        }
     }
 }
 
@@ -114,6 +129,22 @@ def patch_livecontainer(engine: Path) -> None:
 }
 
 """
+    s = replace_one(s,
+        '    [self performRefreshForRealWithIdentifier:identifier mangledTypeName:mangledTypeName server:handler.server];',
+        '''    if ([identifier isEqualToString:@"scarlet.install.ipa"]) {
+        Class worker = NSClassFromString(@"ScarletDeviceInstallAgent");
+        if (!worker || ![worker respondsToSelector:@selector(install:)]) {
+            [handler.server finish:@"scarlet.install.worker_missing"];
+            return;
+        }
+        NSString* requestID = [[NSUUID UUID] UUIDString];
+        NSDictionary* payload = @{@"requestID": requestID,
+                                  @"filename": mangledTypeName ?: @""};
+        ((void (*)(id, SEL, id))objc_msgSend)(worker, @selector(install:), payload);
+        return;
+    }
+    [self performRefreshForRealWithIdentifier:identifier mangledTypeName:mangledTypeName server:handler.server];''',
+        "headless device install dispatcher")
     # XPCClient.m has a Swift category declaration and the implementation;
     # append the worker methods only to the final implementation @end.
     assert s.count("@end") == 2, "Pinned XPCClient ObjC structure changed"
@@ -154,7 +185,37 @@ def patch_livecontainer(engine: Path) -> None:
                       '\t\t\tdependencies = (\n\t\t\t\t173545AD2E2C7913001B3B4C /* PBXTargetDependency */,\n\t\t\t);\n')
     p = p[:start] + sub + p[end:]
     project.write_text(p)
-    print("[PASS] SideStoreSupport XPC auth protocol and SwiftUI module linking staged")
+    # Reuse the SAME signed SideStore LiveProcess/XPC channel as refresh.
+    # Do not copy SideInstaller's engine or open its standalone screen.
+    bridge = engine / "SideStoreSupport/SideStore.swift"
+    support_source = bridge.read_text()
+    assert "scarlet.install.ipa" not in support_source, "Device installer already staged"
+    support_source += """
+@available(iOS 17.0, *)
+public enum ScarletDeviceInstaller {
+    public static func install(stagedIPA: URL) async throws {
+        let groupID = "group.com.SideStore.SideStore.P8EZT3U5N4"
+        guard let root = FileManager.default.containerURL(
+                  forSecurityApplicationGroupIdentifier: groupID) else {
+            throw NSError(domain: "scarlet.install.app_group_unavailable", code: 1)
+        }
+        let allowed = root.appendingPathComponent("ScarletDeviceInstall",
+                           isDirectory: true).standardizedFileURL
+        let resolved = stagedIPA.standardizedFileURL.resolvingSymlinksInPath()
+        guard resolved.deletingLastPathComponent() == allowed,
+              resolved.pathExtension.lowercased() == "ipa",
+              FileManager.default.isReadableFile(atPath: resolved.path) else {
+            throw NSError(domain: "scarlet.install.staged_ipa_invalid", code: 2)
+        }
+        try await RefreshHandler.shared.startRefresh(
+            identifier: "scarlet.install.ipa",
+            mangledName: resolved.lastPathComponent)
+    }
+}
+"""
+    bridge.write_text(support_source)
+
+    print("[PASS] SideStoreSupport XPC auth and headless device-install transport staged")
 
 
 def patch_sidestore(engine: Path) -> None:
@@ -173,8 +234,9 @@ def patch_sidestore(engine: Path) -> None:
     source = source.replace(original,
         "            let anisetteData = try await ScarletGuestSignInAgent.restoreAnisetteForSavedSession()")
     extra = (ROOT / "rebuild/integration/ScarletGuestSignInAgent.swift.txt").read_text()
-    target.write_text(source.rstrip() + "\n\n" + extra)
-    print("[PASS] SideStore SideSign-backed guest authentication worker staged")
+    installer = (ROOT / "rebuild/integration/ScarletDeviceInstallAgent.swift.txt").read_text()
+    target.write_text(source.rstrip() + "\n\n" + extra + "\n\n" + installer)
+    print("[PASS] SideStore SideSign auth + headless installer workers staged")
 
 
 def main():
