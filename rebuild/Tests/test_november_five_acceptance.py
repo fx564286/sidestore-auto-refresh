@@ -56,7 +56,7 @@ class FivePointNovemberAccept(unittest.TestCase):
         self.assertIn("onInstallSourceApp(app.id)",UI)
         self.assertIn("onInstallSourceApp: installSourceGuestApp",HOST)
         self.assertIn("session.download(from: url)",HOST)
-        self.assertIn("stageGuestIPAFromFiles(staged)",HOST)
+        self.assertIn("stageGuestIPAFromFiles(staged, presentProgress: !installProgressMinimized)",HOST)
         self.assertIn("LCAppListView(scarletQueuedIPAURL: queuedGuestIPAURL,",HOST)
         self.assertIn("guest_download_started",HOST)
         self.assertIn("guest_download_completed",HOST)
