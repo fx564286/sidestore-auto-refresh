@@ -147,7 +147,7 @@ final class ScarletFullscreenGuestTabInstaller: NSObject {
                 // The LC launcher recognizes the "ui" sentinel and returns
                 // to PR48 host on a fresh process launch. Guest files, P12,
                 // installed bundles and native orientation masks are untouched.
-                guard let defaults = UserDefaults.lcUserDefaults() else { return }
+                guard let defaults = UserDefaults.lc() else { return }
                 defaults.set("ui", forKey: "selected")
                 defaults.removeObject(forKey: "selectedContainer")
                 _ = LCSharedUtils.launchToGuestApp(withClassicMode: 0)
