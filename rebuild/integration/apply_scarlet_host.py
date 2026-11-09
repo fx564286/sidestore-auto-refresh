@@ -593,7 +593,7 @@ def attach_native_settings_diagnostics(engine: Path) -> dict:
     source = source.replace(form_style_anchor,
         '            }\n'
         '            .scarletNativeListTheme()\n'
-        '            .scarletDockScrollClearance()\n'
+        '            .scarletSettingsScrollLimit()\n'
         '            .navigationBarTitle("lc.tabView.settings".loc)\n')
     # The original LC settings action only searches the legacy Keychain
     # service. Pinned SideStore uses com.SideStore.SideStore. Add a guarded
