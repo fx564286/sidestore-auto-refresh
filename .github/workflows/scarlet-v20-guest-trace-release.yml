@@ -1,0 +1,149 @@
+name: Scarlet V20 switcher guest-side trace direct IPA
+
+on:
+  push:
+    branches:
+      - fix/scarlet-v20-guest-switcher-trace-20261110
+    paths:
+      - .github/workflows/scarlet-v20-guest-trace-release.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  actions: read
+
+jobs:
+  package-verified-v20:
+    runs-on: xcode-27
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download actual V20 compiled LiveContainer native engine
+        uses: actions/download-artifact@v4
+        with:
+          name: Scarlet-LiveContainer-Native-Engine
+          path: artifacts/lc
+          run-id: 42709618290
+          github-token: ${{ github.token }}
+      - name: Reuse exact pinned and already compiled SideStore from V16
+        uses: actions/download-artifact@v4
+        with:
+          name: Scarlet-SideStore-Native-Engine
+          path: artifacts/side
+          run-id: 42685084334
+          github-token: ${{ github.token }}
+      - name: Fail closed on source/pin mismatches
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          python3 - <<'PY'
+          import hashlib, json
+          from pathlib import Path
+          pins=json.loads(Path("config/scarlet-upstream-pins.json").read_text())
+          side=json.loads(Path("artifacts/side/source-gitlink-audit.json").read_text())
+          assert side["sourcePins"]==pins, "Cached SideStore source pins changed"
+          host=json.loads(Path("artifacts/lc/scarlet-host-integration.json").read_text())
+          files={Path(x["path"]).name:x["sha256"] for x in host["sources"]}
+          expected=("ScarletIndependentShell.swift","ScarletIntegratedHostView.swift",
+                    "ScarletFullscreenGuestTab.swift","ScarletGuestSwitcherOverlay.swift",
+                    "ScarletGuestSessionLedger.swift","ScarletNativeGlass.swift",
+                    "ScarletSigningReadinessPanel.swift","ScarletAutomaticRenewal.swift",
+                    "ScarletFeatureModulesSection.swift")
+          for filename in expected:
+              path=Path("rebuild/Sources/ScarletIndependentUI" if
+                        filename=="ScarletIndependentShell.swift" else "rebuild/HostApp")/filename
+              digest=hashlib.sha256(path.read_bytes()).hexdigest()
+              assert files.get(filename)==digest, f"Not the V20 compiled code: {filename}"
+          assert Path("artifacts/side/SideStore.ipa").stat().st_size>1_000_000
+          assert Path("artifacts/lc/LiveContainer-app.tar").stat().st_size>1_000_000
+          print("[PASS] V20 exact compiled source hashes and pinned SideStore engine")
+          PY
+      - name: Prepare official LiveContainer integrated packager
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          brew install ldid
+          mkdir -p report build-tools
+          curl -fLSs --retry 5 --retry-all-errors --retry-delay 3 \
+            https://github.com/LiveContainer/dylibify/releases/download/1.0/dylibify \
+            -o build-tools/dylibify
+          printf '6d23f6a2fc4d8442f87caa1161aebe6ecaafd0e8c41ce205da007efb04fc82c7  build-tools/dylibify\n' | shasum -a 256 -c -
+          chmod +x build-tools/dylibify
+          pin="$(python3 -c 'import json;print(json.load(open("config/scarlet-upstream-pins.json"))["LIVE_CONTAINER_REF"])')"
+          curl -fLSs --retry 3 \
+            "https://raw.githubusercontent.com/LiveContainer/LiveContainer/$pin/.github/sidelc/LCAppInfo.plist" \
+            -o build-tools/LCAppInfo.plist
+          plutil -lint build-tools/LCAppInfo.plist
+      - name: Package and strictly verify V20 unified unsigned IPA
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          python3 rebuild/integration/package_paired.py \
+            --lc-tar artifacts/lc/LiveContainer-app.tar \
+            --sidestore-ipa artifacts/side/SideStore.ipa \
+            --lc-appinfo build-tools/LCAppInfo.plist \
+            --dylibify build-tools/dylibify \
+            --host-report artifacts/lc/scarlet-host-integration.json \
+            --out report
+          python3 rebuild/integration/verify_engines.py \
+            --phase combined \
+            --combined-ipa report/Scarlet-LiveContainer+SideStore-ENGINES-UNSIGNED.ipa \
+            --report report/combined-ipa-verification.json
+          python3 rebuild/scripts/audit_appid_footprint.py \
+            --ipa report/Scarlet-LiveContainer+SideStore-ENGINES-UNSIGNED.ipa \
+            --out report/scarlet-app-id-footprint.json
+          cp report/Scarlet-LiveContainer+SideStore-ENGINES-UNSIGNED.ipa Scarlet-Crystal-V20-UNSIGNED.ipa
+          shasum -a 256 Scarlet-Crystal-V20-UNSIGNED.ipa > Scarlet-Crystal-V20-UNSIGNED.ipa.sha256
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          report=json.loads(Path("report/scarlet-app-id-footprint.json").read_text())
+          print("[APP ID AUDIT]", report)
+          assert report["total_bundle_ids"]==4,"Unexpected Apple App ID footprint"
+          assert Path("Scarlet-Crystal-V20-UNSIGNED.ipa").stat().st_size>20_000_000
+          PY
+      - name: Publish permanent direct Safari IPA link
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -Eeuo pipefail
+          tag=scarlet-v20-guest-switcher-trace-20261110
+          cat > release-notes.md <<'EOF'
+          Scarlet Crystal V20 — trace real guest switcher lifecycle into host logs.
+
+          Native LiveContainer source commit f17db18e6b29a6669cb6f2deee3e9dd38d996194
+          compiled by Xcode 27.2 paired CI run 42709618290. Pinned unchanged
+          SideStore engine reused from verified V16 paired CI run 42685084334,
+          with exact upstream pin and compiled source SHA256 checks.
+
+          V19 iPhone log SourceCommit 620a6096ebb8 showed A,B guest ledger
+          success (count=1 then count=2) but did not capture guest panel
+          open / switch taps because the full-screen guest may virtualize
+          its diagnostics sandbox. V20 copies only whitelisted anonymous
+          event names (mount, panel open, switch tap / accepted / rejected,
+          orientation relayout) via the existing App Group to the host
+          diagnostics viewer on return to Scarlet Crystal.
+
+          No guest title, bundle identifier, credentials, screenshot or
+          user-specific text is included in the trace. Bounded to 48 events;
+          replay cursor avoids duplicate log lines.
+          All V19 functionality and original native Liquid Glass kept.
+          Four Apple App IDs unchanged. No data/cert/profile replacement.
+
+          UNSIGNED IPA: requires valid Apple signing/provisioning profile
+          for iPhone installation. A working A-to-B guest switch and a
+          7-day refresh remain unverified until real device tests.
+          EOF
+          if ! gh release view "$tag" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release create "$tag" --repo "$GITHUB_REPOSITORY" \
+              --target f17db18e6b29a6669cb6f2deee3e9dd38d996194 \
+              --title "Scarlet Crystal V20 — native guest switcher diagnostic trace — UNSIGNED" \
+              --prerelease --latest=false --notes-file release-notes.md
+          fi
+          gh release upload "$tag" --repo "$GITHUB_REPOSITORY" \
+            Scarlet-Crystal-V20-UNSIGNED.ipa Scarlet-Crystal-V20-UNSIGNED.ipa.sha256 \
+            report/scarlet-app-id-footprint.json --clobber
+          gh release view "$tag" --repo "$GITHUB_REPOSITORY" --json assets \
+            --jq '.assets[].name' | grep -Fx 'Scarlet-Crystal-V20-UNSIGNED.ipa'
+          echo "https://github.com/$GITHUB_REPOSITORY/releases/download/$tag/Scarlet-Crystal-V20-UNSIGNED.ipa" >> "$GITHUB_STEP_SUMMARY"
