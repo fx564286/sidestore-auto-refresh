@@ -300,18 +300,24 @@ def hide_embedded_sidestore_guest_navigation(engine: Path) -> dict:
     progress_view = """    @ViewBuilder
     private func scarletQueuedInstallView(_ queuedIPA: URL) -> some View {
                 VStack(spacing: 20) {
-                    ZStack {
-                        RoundedRectangle(cornerRadius: 21, style: .continuous)
-                            .fill(Color(red: 0.39, green: 0.31, blue: 0.65).opacity(0.32))
-                            .frame(width: 72, height: 72)
+                    if #available(iOS 26.0, *) {
                         Image(systemName: scarletGuestImportSignFailed
                               ? "exclamationmark.shield.fill"
                               : "shippingbox.fill")
-                            .font(.system(size: 31, weight: .medium))
+                            .font(.system(size: 29, weight: .medium))
                             .foregroundStyle(Color(red: 0.76, green: 0.67, blue: 1))
+                            .frame(width: 62, height: 62)
+                            .glassEffect()
+                    } else {
+                        Image(systemName: scarletGuestImportSignFailed
+                              ? "exclamationmark.shield.fill"
+                              : "shippingbox.fill")
+                            .font(.system(size: 29, weight: .medium))
+                            .foregroundStyle(Color(red: 0.76, green: 0.67, blue: 1))
+                            .frame(width: 62, height: 62)
+                            .background(.ultraThinMaterial,
+                                        in: RoundedRectangle(cornerRadius: 18))
                     }
-                    .frame(width: 60, height: 60)
-                    .glassEffect()
                     VStack(spacing: 7) {
                         Text(scarletQueuedImportFinished
                              ? (scarletGuestImportSignFailed
