@@ -169,6 +169,11 @@ struct ScarletDiagnosticLogView: View {
     @State private var shareFile: URL?
 
     private func reload() {
+        // A returned guest can hand off without a fresh host .onAppear.
+        // Import shared guest hook/switcher events whenever logs are opened.
+        if #available(iOS 17.0, *) {
+            ScarletGuestSessionLedger.replaySwitcherTraceToHostJournal()
+        }
         ScarletDiagnosticRecorder.shared.record("diagnostics", "viewer_opened")
         let content = ScarletDiagnosticRecorder.shared.readRecent()
         text = content.isEmpty ? "기록된 이벤트가 없습니다." : content
