@@ -310,6 +310,8 @@ def hide_embedded_sidestore_guest_navigation(engine: Path) -> dict:
                             .font(.system(size: 31, weight: .medium))
                             .foregroundStyle(Color(red: 0.76, green: 0.67, blue: 1))
                     }
+                    .frame(width: 60, height: 60)
+                    .glassEffect()
                     VStack(spacing: 7) {
                         Text(scarletQueuedImportFinished
                              ? (scarletGuestImportSignFailed
@@ -328,9 +330,19 @@ def hide_embedded_sidestore_guest_navigation(engine: Path) -> dict:
                             .multilineTextAlignment(.center)
                             .accessibilityIdentifier("SCARLET_GUEST_IMPORT_STAGE")
                     }
-                    ProgressView(value: Double(installProgressPercentage), total: 1.0)
-                        .tint(Color(red: 0.76, green: 0.67, blue: 1))
-                        .accessibilityIdentifier("SCARLET_GUEST_IMPORT_ACTUAL_PROGRESS")
+                    if !scarletQueuedImportFinished {
+                        ProgressView(value: Double(installProgressPercentage), total: 1.0)
+                            .tint(Color(red: 0.76, green: 0.67, blue: 1))
+                            .accessibilityIdentifier("SCARLET_GUEST_IMPORT_ACTUAL_PROGRESS")
+                    } else if scarletGuestImportSignFailed {
+                        Label("서명 인증서 확인 필요", systemImage: "exclamationmark.shield")
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(Color.orange)
+                    } else {
+                        Image(systemName: "checkmark.circle.fill")
+                            .foregroundStyle(Color(red: 0.76, green: 0.67, blue: 1))
+                            .accessibilityLabel("가져오기 완료")
+                    }
                     if !scarletQueuedImportFinished {
                         Text("앱 데이터를 보존하면서 가져오기와 서명 검증을 진행합니다.")
                             .font(.caption)
@@ -345,23 +357,19 @@ def hide_embedded_sidestore_guest_navigation(engine: Path) -> dict:
                     .disabled(!scarletQueuedImportFinished || installprogressVisible)
                     .accessibilityIdentifier("SCARLET_IMPORT_PROGRESS_CLOSE")
                 }
-                .padding(24)
-                .frame(maxWidth: 350)
+                .padding(22)
+                .frame(maxWidth: 330)
                 .background {
-                    if #available(iOS 26.0, *) {
-                        RoundedRectangle(cornerRadius: 28, style: .continuous)
-                            .fill(.clear)
-                            .glassEffect()
-                    } else {
-                        RoundedRectangle(cornerRadius: 28, style: .continuous)
-                            .fill(.ultraThinMaterial)
-                    }
+                    RoundedRectangle(cornerRadius: 24, style: .continuous)
+                        .fill(Color(red: 0.14, green: 0.12, blue: 0.22))
+                        .overlay {
+                            RoundedRectangle(cornerRadius: 24, style: .continuous)
+                                .stroke(Color(red: 0.62, green: 0.54, blue: 0.81).opacity(0.3))
+                        }
                 }
+                .padding(.horizontal, 18)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .background(LinearGradient(
-                    colors: [Color(red: 0.104, green: 0.079, blue: 0.147),
-                             Color(red: 0.051, green: 0.051, blue: 0.094)],
-                    startPoint: .topLeading, endPoint: .bottomTrailing).ignoresSafeArea())
+                .background(Color(red: 0.065, green: 0.058, blue: 0.10).ignoresSafeArea())
                 .onAppear {
                     guard !scarletDidStartQueuedImport else { return }
                     scarletDidStartQueuedImport = true
@@ -404,6 +412,16 @@ def hide_embedded_sidestore_guest_navigation(engine: Path) -> dict:
         }
         .navigationViewStyle(StackNavigationViewStyle())
 """)
+
+    # Search belongs to upstream app list ONLY; never render its floating
+    # search bar across the queued guest installation progress sheet.
+    original_search = "        .searchable(text: $searchContext.query)\\n"
+    original_scroll = "            .navigationBarProgressBar(show:$installprogressVisible, progress: $installProgressPercentage)\\n"
+    assert source.count(original_search) == 1, "Pinned upstream searchable moved"
+    assert source.count(original_scroll) == 1, "Pinned upstream progress scroll moved"
+    source = source.replace(original_search, "", 1)
+    source = source.replace(original_scroll,
+        "            .searchable(text: $searchContext.query)\\n" + original_scroll, 1)
 
     # The existing betterFileImporter, replacement confirmation and errors
     # remain attached to NavigationView; the queued branch never shows ScrollView.
