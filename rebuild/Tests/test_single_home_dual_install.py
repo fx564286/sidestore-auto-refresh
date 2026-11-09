@@ -29,7 +29,7 @@ class DualInstallRoutes(unittest.TestCase):
         self.assertIn("case .serviceInstallIPA:",HOST)
         self.assertNotIn("LCUtils.openSideStore(",HOST)
         self.assertIn("prepareDeviceIPAInstall(selected)",HOST)
-        self.assertIn("아직 검증되지 않았습니다",HOST)
+        self.assertIn("ScarletDeviceInstaller.install(stagedIPA: staged)",HOST)
         self.assertIn("UserDefaults.sideStoreExist()",HOST)
         self.assertIn("showGuestFilePicker = true",HOST)
         self.assertIn("pendingIPAInstallRoute = .guest",HOST)
