@@ -290,6 +290,10 @@ public struct ScarletIndependentShell: View {
     public let onOpenSource: (String) -> Void
     public let onAddSource: () -> Void
     public let onInstallSourceApp: (String) -> Void
+    // A compact status row offers reopening minimized work without drawing
+    // a floating overlay over the native Liquid Glass tabs.
+    public let activeInstallText: String?
+    public let onShowActiveInstall: () -> Void
     public let onAction: (ScarletControl) -> Void
     public let onOpenGuest: (String) -> Void
     public let onDeleteGuest: (String) -> Void
@@ -321,6 +325,8 @@ public struct ScarletIndependentShell: View {
                 onOpenSource: @escaping (String) -> Void,
                 onAddSource: @escaping () -> Void,
                 onInstallSourceApp: @escaping (String) -> Void = { _ in },
+                activeInstallText: String? = nil,
+                onShowActiveInstall: @escaping () -> Void = {},
                 preservedGlassTabBar: @escaping (Binding<Tab>) -> AnyView,
                 nativeTweaks: @escaping () -> AnyView = { AnyView(EmptyView()) },
                 nativeSettings: @escaping () -> AnyView = { AnyView(EmptyView()) },
@@ -336,6 +342,8 @@ public struct ScarletIndependentShell: View {
         self.onOpenSource = onOpenSource
         self.onAddSource = onAddSource
         self.onInstallSourceApp = onInstallSourceApp
+        self.activeInstallText = activeInstallText
+        self.onShowActiveInstall = onShowActiveInstall
         self.preservedGlassTabBar = preservedGlassTabBar
         self.nativeTweaks = nativeTweaks
         self.nativeSettings = nativeSettings
@@ -497,6 +505,8 @@ public struct ScarletIndependentShell: View {
             }
             .frame(maxWidth: .infinity, alignment: .leading)
 
+            activeInstallRow
+
             HStack(spacing: 10) {
                 Image(systemName: "magnifyingglass")
                     .foregroundStyle(ScarletPresentationColor.accent)
@@ -540,6 +550,31 @@ public struct ScarletIndependentShell: View {
         .foregroundStyle(ScarletPresentationColor.text)
     }
 
+    @ViewBuilder
+    private var activeInstallRow: some View {
+        if let activeInstallText, !activeInstallText.isEmpty {
+            Button(action: onShowActiveInstall) {
+                HStack(spacing: 9) {
+                    Image(systemName: "shippingbox")
+                        .foregroundStyle(ScarletPresentationColor.accent)
+                    Text(activeInstallText)
+                        .font(.subheadline.weight(.medium))
+                        .lineLimit(1)
+                    Spacer(minLength: 4)
+                    Image(systemName: "chevron.up.circle")
+                        .accessibilityHidden(true)
+                }
+                .padding(.horizontal, 14)
+                .frame(height: 42)
+                .foregroundStyle(ScarletPresentationColor.text)
+                .background(ScarletPresentationColor.surface,
+                            in: RoundedRectangle(cornerRadius: 19))
+            }
+            .buttonStyle(.plain)
+            .accessibilityIdentifier("SCARLET_REOPEN_MINIMIZED_INSTALL")
+        }
+    }
+
     private var visibleGuests: [ScarletGuestPresentation] {
         guests.filter {
             searchText.isEmpty || $0.title.localizedCaseInsensitiveContains(searchText)
@@ -549,6 +584,7 @@ public struct ScarletIndependentShell: View {
     private var sourcesScreen: some View {
         Group {
             heading("", "소스", "")
+            activeInstallRow
             if sources.isEmpty {
                 ScarletPanel {
                     Text("소스를 추가해 앱 목록을 확인하세요.")
