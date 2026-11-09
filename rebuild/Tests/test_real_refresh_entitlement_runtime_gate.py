@@ -35,6 +35,19 @@ class SignedRuntimeCapabilityGate(unittest.TestCase):
         self.assertIn("safeBlockCategory", CAP)
         self.assertIn("SCARLET_REFRESH_ENTITLEMENT_READBACK", CAP)
 
+    def test_3b_signer_app_id_variants_are_not_automatically_entitled(self):
+        # Screenshot shows a suffix-duplicated host bundle. Both observed
+        # spellings are eligible only if Apple's signed app ID matches exactly.
+        self.assertIn('baseBundleID + ".P8EZT3U5N4"', CAP)
+        self.assertIn('"application-identifier" as CFString', CAP)
+        self.assertIn('applicationID == (team! + "." + bundleID!)', CAP)
+        self.assertIn("signedApplicationIdentifierMatches: signedIDMatches", CAP)
+        self.assertIn("actualHostIdentity && signedApplicationIdentifierMatches", CAP)
+        self.assertIn("signed_application_identifier_mismatch", CAP)
+        self.assertIn('"실제 서명과 일치"', CAP)
+        self.assertIn("FileManager.default.containerURL(", CAP)
+        self.assertNotIn("SecTaskCopyValueForEntitlement = ", CAP)
+
     def test_4_fail_closed_existing_signer_bridge(self):
         first = HOST.index("private func bridgeExistingSideStoreCertificateIfSafe()")
         body = HOST[first: HOST.index("private func ensureOriginalLCGuestBootstrap()", first)]
