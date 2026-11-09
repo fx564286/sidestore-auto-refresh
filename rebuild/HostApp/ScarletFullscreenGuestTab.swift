@@ -114,7 +114,7 @@ struct ScarletFullscreenGuestFloatingTab: View {
     @ViewBuilder
     private func glassPlate(radius: CGFloat) -> some View {
         // Exact native material owner used by the main container tab.
-        SCNativeLiquidGlassSurface(cornerRadius: radius)
+        SCNativeLiquidGlassSurface(cornerRadius: radius, showsRim: false)
             .clipShape(RoundedRectangle(cornerRadius: radius, style: .continuous))
     }
 
@@ -220,17 +220,15 @@ struct ScarletFullscreenGuestFloatingTab: View {
         }
         .frame(maxWidth: .infinity, minHeight: 210, maxHeight: 435)
         .clipShape(RoundedRectangle(cornerRadius: 28, style: .continuous))
-        // Contrast-aware INSIDE stroke around the one clipped card.
-        // Unlike V6 this is before outer padding, so never draws two
-        // unconnected vertical rails beside the glass surface.
+        // One contrast-aware boundary, not the two overlapping UIKit and
+        // SwiftUI rims. The main tab still uses the original UIKit rim.
         .overlay {
             RoundedRectangle(cornerRadius: 28, style: .continuous)
-                .strokeBorder(Color.primary.opacity(0.22), lineWidth: 0.9)
+                .strokeBorder(Color.primary.opacity(0.24), lineWidth: 0.75)
                 .allowsHitTesting(false)
         }
-        // Main-tab native glass owns the optical rim; the extra SwiftUI
-        // stroke after horizontal padding drew V6's two vertical side rails.
-        .shadow(color: .black.opacity(0.19), radius: 20, y: 9)
+        // No oversized translucent shadow: its layer was clipped to the
+        // separate transparent UIWindow and left rectangular/halo artifacts.
         .padding(.horizontal, 12)
         .onAppear {
             ScarletDiagnosticRecorder.shared.record(
@@ -252,14 +250,15 @@ struct ScarletFullscreenGuestFloatingTab: View {
                     .background {
                         if #available(iOS 26.0, *),
                            !UIAccessibility.isReduceTransparencyEnabled {
-                            SCNativeLiquidGlassSurface(cornerRadius: 31).clipShape(Circle())
+                            SCNativeLiquidGlassSurface(cornerRadius: 31, showsRim: false)
+                                .clipShape(Circle())
                         } else {
                             Circle().fill(.regularMaterial)
                         }
                     }
                     .overlay {
                         Circle()
-                            .strokeBorder(.white.opacity(0.58), lineWidth: 0.85)
+                            .strokeBorder(Color.primary.opacity(0.28), lineWidth: 0.8)
                     }
                 Image(systemName: isOpen ? "xmark" : "square.stack.3d.up.fill")
                     .font(.system(size: 23, weight: .semibold))
@@ -298,24 +297,17 @@ struct ScarletFullscreenGuestFloatingTab: View {
                alignment: dockRight ? .bottomTrailing : .bottomLeading)
     }
 
-    @ViewBuilder
     var body: some View {
-        if #available(iOS 26.0, *) {
-            GlassEffectContainer(spacing: 14) { panelStack }
-                .animation(spring, value: isOpen)
-                .onAppear { dockRight = initialDockRight }
-                .onReceive(NotificationCenter.default.publisher(
-                    for: Notification.Name("ScarletGuestFloatingDockChanged"))) { note in
-                    if let right = note.userInfo?["right"] as? Bool { dockRight = right }
-                }
-        } else {
-            panelStack.animation(spring, value: isOpen)
-                .onAppear { dockRight = initialDockRight }
-                .onReceive(NotificationCenter.default.publisher(
-                    for: Notification.Name("ScarletGuestFloatingDockChanged"))) { note in
-                    if let right = note.userInfo?["right"] as? Bool { dockRight = right }
-                }
-        }
+        // Only UIVisualEffectView owns the native glass surface. Wrapping
+        // another GlassEffectContainer around the entire non-key window
+        // unnecessarily adds a second compositor during opening/closing.
+        panelStack
+            .animation(spring, value: isOpen)
+            .onAppear { dockRight = initialDockRight }
+            .onReceive(NotificationCenter.default.publisher(
+                for: Notification.Name("ScarletGuestFloatingDockChanged"))) { note in
+                if let right = note.userInfo?["right"] as? Bool { dockRight = right }
+            }
     }
 }
 

@@ -12,12 +12,12 @@ RECORDER=(ROOT/"HostApp/ScarletDiagnosticRecorder.swift").read_text()
 
 class V7SafetyContracts(unittest.TestCase):
     def test_rim_inside_one_clipped_glass_card(self):
-        self.assertIn("SCNativeLiquidGlassSurface(cornerRadius: radius)", UI)
-        self.assertIn(".strokeBorder(Color.primary.opacity(0.22), lineWidth: 0.9)",UI)
+        self.assertIn("SCNativeLiquidGlassSurface(cornerRadius: radius, showsRim: false)", UI)
+        self.assertIn(".strokeBorder(Color.primary.opacity(0.24), lineWidth: 0.75)",UI)
         self.assertIn(".padding(.horizontal, 12)",UI)
         self.assertLess(UI.index(".clipShape(RoundedRectangle(cornerRadius: 28"),
-                        UI.index(".strokeBorder(Color.primary.opacity(0.22)"))
-        self.assertLess(UI.index(".strokeBorder(Color.primary.opacity(0.22)"),
+                        UI.index(".strokeBorder(Color.primary.opacity(0.24)"))
+        self.assertLess(UI.index(".strokeBorder(Color.primary.opacity(0.24)"),
                         UI.index(".padding(.horizontal, 12)",UI.index("private var appPanelContent")))
         self.assertNotIn("LinearGradient(colors: [.white.opacity(0.58)",UI)
 

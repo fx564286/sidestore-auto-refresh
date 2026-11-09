@@ -59,6 +59,10 @@ private final class SCNativeGlassRimView: UIView {
 struct SCNativeLiquidGlassSurface: UIViewRepresentable {
     var cornerRadius: CGFloat
     var selectedIndex: Int = 0
+    // The host's main tab retains its specular UIKit rim. Guest overlays
+    // have a single contrast-aware SwiftUI border instead: stacking both
+    // previously created doubled outlines/bright seams on white content.
+    var showsRim: Bool = true
 
     func makeUIView(context: Context) -> UIView {
         let container = UIView(frame: .zero)
@@ -85,7 +89,7 @@ struct SCNativeLiquidGlassSurface: UIViewRepresentable {
             effect.topAnchor.constraint(equalTo: container.topAnchor),
             effect.bottomAnchor.constraint(equalTo: container.bottomAnchor)
         ])
-        if #available(iOS 26.0, *) {
+        if #available(iOS 26.0, *), showsRim {
             let rim = SCNativeGlassRimView(frame: .zero)
             rim.rimRadius = cornerRadius
             rim.accessibilityIdentifier = "SCARLET_ORIGINAL_LIQUID_GLASS_RIM"
