@@ -108,11 +108,11 @@ private enum ScarletGuestIconCatalog {
         let home = getenv("LC_HOME_PATH").map {
             URL(fileURLWithPath: String(cString: $0))
         } ?? URL(fileURLWithPath: NSHomeDirectory())
-        var roots = [home.appendingPathComponent("Documents/Applications",
-                                               isDirectory: true)]
+        var roots = [home.appendingPathComponent("Documents", isDirectory: true)
+                             .appendingPathComponent("Applications", isDirectory: true)]
         if let shared = LCSharedUtils.appGroupPath() {
-            roots.append(shared.appendingPathComponent("LiveContainer/Applications",
-                                                       isDirectory: true))
+            roots.append(shared.appendingPathComponent("LiveContainer", isDirectory: true)
+                               .appendingPathComponent("Applications", isDirectory: true))
         }
         for root in roots {
             let appURL = root.appendingPathComponent(folder, isDirectory: true)
