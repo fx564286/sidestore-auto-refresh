@@ -59,7 +59,8 @@ class MinimizedGuestInstall(unittest.TestCase):
         self.assertIn('SCARLET_REOPEN_MINIMIZED_INSTALL',UI)
         self.assertIn('activeInstallRow',UI)
         self.assertIn('onShowActiveInstall: openActiveInstallProgress',HOST)
-        self.assertIn('activeInstallText: sourceIsDownloading',HOST)
+        self.assertIn('activeInstallText: deviceInstallRunning',HOST)
+        self.assertIn('sourceIsDownloading ? sourceDownloadStage',HOST)
         self.assertIn('guard !sourceIsDownloading, !guestImportActivity.isRunning,',HOST)
 
     def test_no_claim_of_guest_execution_or_extra_glass_overlay(self):
