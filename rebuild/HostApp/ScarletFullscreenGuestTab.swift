@@ -526,7 +526,7 @@ final class ScarletFullscreenGuestTabInstaller: NSObject {
             // Last-resort recovery: preserve a usable exit/switch button
             // even if a third-party guest continually changes its bounds.
             // Only update this overlay window, never the guest root view.
-            if rotationGeneration == token, let overlay = floatingWindow {
+            if rotationGeneration == token, let overlay = self.floatingWindow {
                 resizeOverlay(open: overlay.isExpanded, appCount: 0)
                 overlay.alpha = 1
                 ScarletDiagnosticRecorder.shared.record(
