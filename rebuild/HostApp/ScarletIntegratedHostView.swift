@@ -557,9 +557,16 @@ struct ScarletIntegratedHostView: View {
                     fields: ["result": "native_operation_completed"])
             } catch {
                 let nsError = error as NSError
-                let reason = nsError.domain.hasPrefix("scarlet.install.")
-                    ? String(nsError.domain.dropFirst("scarlet.install.".count))
-                    : "native_install_failed"
+                // SideStoreSupport wraps its worker error into the
+                // SideStore NSError domain. Parse only known, non-secret
+                // categorical codes rather than exposing Apple responses.
+                let categoryText = nsError.domain + " " + nsError.localizedDescription
+                let knownReasons = ["certificate_missing", "certificate_unavailable",
+                    "pairing_unavailable", "profile_unavailable",
+                    "app_group_unavailable", "staged_ipa_missing",
+                    "worker_missing", "native_install_failed"]
+                let reason = knownReasons.first { categoryText.contains(
+                    "scarlet.install." + $0) } ?? "native_install_failed"
                 ScarletDiagnosticRecorder.shared.record("sidestore",
                     "install_failed", status: "error",
                     fields: ["reason": reason])
