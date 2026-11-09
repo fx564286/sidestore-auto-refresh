@@ -952,6 +952,10 @@ struct ScarletIntegratedHostView: View {
             }
         }
         .onAppear {
+            // A new host entry must NOT display tabs from a previous user
+            // session. A guest->Scarlet app-list return carries a short
+            // one-use continuation ticket, so A->host->B still shows A,B.
+            ScarletGuestSessionLedger.prepareForHostAppearance()
             // Guest apps virtualize Application Support. Collect the previous
             // guest's anonymous switcher trace before showing host diagnostics.
             ScarletGuestSessionLedger.replaySwitcherTraceToHostJournal()
