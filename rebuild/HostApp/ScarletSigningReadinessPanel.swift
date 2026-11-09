@@ -9,6 +9,7 @@ import SideStoreSupport
 @available(iOS 17.0, *)
 struct ScarletSigningReadiness {
     let actualHostIdentity: Bool
+    let signedApplicationIdentifierMatches: Bool
     let developerTeamEntitled: Bool
     let sideStoreAppGroupEntitled: Bool
     let sideStoreAppGroupAccessible: Bool
@@ -17,8 +18,9 @@ struct ScarletSigningReadiness {
     let liveContainerPasswordPresent: Bool
 
     var canRequestNativeRefresh: Bool {
-        actualHostIdentity && developerTeamEntitled &&
-        sideStoreAppGroupEntitled && sideStoreAppGroupAccessible
+        actualHostIdentity && signedApplicationIdentifierMatches &&
+        developerTeamEntitled && sideStoreAppGroupEntitled &&
+        sideStoreAppGroupAccessible
     }
 
     static func inspect() -> ScarletSigningReadiness {
@@ -32,6 +34,22 @@ struct ScarletSigningReadiness {
         let isDevelopment = SecTaskCopyValueForEntitlement(
             task, "get-task-allow" as CFString, nil)?
             .takeRetainedValue() as? Bool ?? false
+        let applicationID = SecTaskCopyValueForEntitlement(
+            task, "application-identifier" as CFString, nil)?
+            .takeRetainedValue() as? String
+        let bundleID = Bundle.main.bundleIdentifier
+        let baseBundleID = "com.kdt.livecontainer.P8EZT3U5N4"
+        // The user's signer may append a team suffix to a preserved
+        // bundle ID. Accept ONLY these two already-observed exact forms.
+        // The signed application-identifier entitlement must ALSO match
+        // the actual installed bundle ID and declared developer team.
+        let approvedBundles = [
+            baseBundleID,
+            baseBundleID + ".P8EZT3U5N4"
+        ]
+        let approvedBundle = bundleID.map { approvedBundles.contains($0) } ?? false
+        let signedIDMatches = team != nil && bundleID != nil &&
+            applicationID == (team! + "." + bundleID!)
 
         // The selected SideStore group must be explicitly authorized.
         // UserDefaults(suiteName:) may otherwise silently fall back to
@@ -43,8 +61,8 @@ struct ScarletSigningReadiness {
                 forSecurityApplicationGroupIdentifier: expectedGroup) != nil
 
         return ScarletSigningReadiness(
-            actualHostIdentity: Bundle.main.bundleIdentifier ==
-                "com.kdt.livecontainer.P8EZT3U5N4",
+            actualHostIdentity: approvedBundle,
+            signedApplicationIdentifierMatches: signedIDMatches,
             developerTeamEntitled: team == "P8EZT3U5N4",
             sideStoreAppGroupEntitled: declared,
             sideStoreAppGroupAccessible: accessible,
@@ -57,6 +75,7 @@ struct ScarletSigningReadiness {
 
     var safeBlockCategory: String {
         if !actualHostIdentity { return "host_bundle_mismatch" }
+        if !signedApplicationIdentifierMatches { return "signed_application_identifier_mismatch" }
         if !developerTeamEntitled { return "developer_team_entitlement_missing" }
         if !sideStoreAppGroupEntitled { return "sidestore_app_group_not_entitled" }
         if !sideStoreAppGroupAccessible { return "sidestore_app_group_inaccessible" }
@@ -127,13 +146,18 @@ struct ScarletSigningReadinessPanel: View {
             LabeledContent("SideStore 로그인",
                            value: authenticated == nil ? "확인 중" :
                                   (authenticated == true ? "인증됨" : "인증 필요"))
-            LabeledContent("앱 그룹 권한",
+            LabeledContent("App Group 서명 권한",
                            value: readiness.sideStoreAppGroupEntitled ?
                                   (readiness.sideStoreAppGroupAccessible ? "확인됨" : "접근 불가")
                                   : "프로파일 권한 없음")
             LabeledContent("개발 팀·앱 식별자",
                            value: readiness.developerTeamEntitled &&
-                                  readiness.actualHostIdentity ? "일치" : "불일치")
+                                  readiness.actualHostIdentity &&
+                                  readiness.signedApplicationIdentifierMatches ?
+                                  "실제 서명과 일치" : "서명 불일치 / 권한 차단")
+            LabeledContent("설치된 앱 서명 검증",
+                           value: readiness.signedApplicationIdentifierMatches ?
+                                  "앱 식별자 일치" : "application-identifier 불일치")
             LabeledContent("LiveContainer 서명 인증서",
                            value: readiness.liveContainerCertificatePresent &&
                                   readiness.liveContainerPasswordPresent ? "존재" : "없음")
