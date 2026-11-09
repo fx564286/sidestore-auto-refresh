@@ -14,6 +14,10 @@ class InAppCertAndGlassContracts(unittest.TestCase):
     def test_certificate_is_one_native_screen_without_external_launch(self):
         self.assertIn('Label("SideStore에서 인증서 받기"',SIGN)
         self.assertIn('Label("다른 인증서 가져오기"',SIGN)
+        self.assertIn('Label("SideInstaller 방식 · SideStore 인증서 가져오기"',SIGN)
+        self.assertIn('retrieveSideInstallerStyleCertificate()',SIGN)
+        self.assertIn('sideinstaller_style_local_fallback',SIGN)
+        self.assertIn('sideinstaller_style_retrieval_missing',SIGN)
         self.assertIn("ScarletNativeCertificateTransport.shared.obtain()",SIGN)
         self.assertNotIn('UIApplication.shared.open(',SIGN)
         self.assertNotIn("sideinstaller://",SIGN)
@@ -40,6 +44,11 @@ class InAppCertAndGlassContracts(unittest.TestCase):
                          "ScarletGuestCertificateCompleted"):
             self.assertIn(fragment,WIRE)
         self.assertIn("scarletIssueCertificate(id)",SUPPORT)
+        self.assertIn("scarletRetrieveCertificate(id)",SUPPORT)
+        self.assertIn("retrieveSideStoreCertificate()",SUPPORT)
+        self.assertIn("@objc(retrieve:)",WORKER)
+        self.assertIn("CertificateManager.shared.activeCertificate",WORKER)
+        self.assertIn('stored_p12_missing',WORKER)
         self.assertIn("CheckedContinuation<(Data, String), Error>",SUPPORT)
         self.assertNotIn("URLSession",SUPPORT)
         self.assertNotIn("base64EncodedString()",SUPPORT)

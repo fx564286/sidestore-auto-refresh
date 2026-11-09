@@ -11,6 +11,17 @@ public final class ScarletNativeCertificateTransport {
     private init() {}
 
     public func obtain() async throws -> (Data, String) {
+        try await performRequest(issuing: true)
+    }
+
+    // SideInstaller-compatible stored certificate retrieval: no new Apple
+    // certificate request and no revocation. The credential data stays within
+    // the existing authenticated XPC and the host validates Team ID.
+    public func retrieveSideStoreCertificate() async throws -> (Data, String) {
+        try await performRequest(issuing: false)
+    }
+
+    private func performRequest(issuing: Bool) async throws -> (Data, String) {
         guard requestID == nil else { throw ScarletNativeAuthError.alreadyRunning }
         try await ScarletNativeAuthTransport.shared.prepare()
         guard await ScarletNativeAuthTransport.shared.storedAuthenticated(),
@@ -23,7 +34,11 @@ public final class ScarletNativeCertificateTransport {
         return try await withCheckedThrowingContinuation {
             (c: CheckedContinuation<(Data, String), Error>) in
             completion = c
-            remote.scarletIssueCertificate(id)
+            if issuing {
+                remote.scarletIssueCertificate(id)
+            } else {
+                remote.scarletRetrieveCertificate(id)
+            }
             Task { @MainActor in
                 try? await Task.sleep(for: .seconds(120))
                 if self.requestID == id, let pending = self.completion {

@@ -98,6 +98,7 @@ struct ScarletSigningReadinessPanel: View {
     @State private var isConfirmingCertReplacement = false
     @State private var hadCertificateBeforeBridge = false
     @State private var isIssuingNativeCertificate = false
+    @State private var isRetrievingSideStoreCertificate = false
 
     private func inspect() {
         readiness = ScarletSigningReadiness.inspect()
@@ -222,6 +223,55 @@ struct ScarletSigningReadinessPanel: View {
                     status: "error",
                     fields: ["domain": "scarlet.certificate.worker",
                              "code": String(failure.code)])
+            }
+        }
+    }
+
+    // SideInstaller's original "Use SideStore certificate" action requests
+    // SideStore's EXISTING signing archive rather than issuing a new cert.
+    // In LiveContainer, SideInstaller falls back to the locally held P12.
+    // Perform both operations inside this app; the existing XPC connection
+    // carries the archive, and this host verifies its Team ID before saving.
+    private func retrieveSideInstallerStyleCertificate() {
+        guard !isRetrievingSideStoreCertificate else { return }
+        isRetrievingSideStoreCertificate = true
+        certificateRecoveryStatus = "SideStore가 보유한 인증서를 확인하는 중입니다."
+        ScarletDiagnosticRecorder.shared.record(
+            "certificate", "sideinstaller_style_retrieval_started")
+        Task { @MainActor in
+            defer { isRetrievingSideStoreCertificate = false }
+            do {
+                let (archive, password) =
+                    try await ScarletNativeCertificateTransport.shared
+                        .retrieveSideStoreCertificate()
+                pendingP12 = archive
+                p12Password = password
+                importExportedP12()
+                ScarletDiagnosticRecorder.shared.record(
+                    "certificate", "sideinstaller_style_retrieval_finished",
+                    fields: ["result": "host_team_check_applied"])
+            } catch {
+                // SideInstaller in LiveContainer reads LC's already-held
+                // certificate when SideStore cannot provide a callback.
+                // This fallback confirms presence, not newly issued cert.
+                inspect()
+                if let localCert = LCUtils.certificateData(),
+                   let password = LCSharedUtils.certificatePassword(),
+                   let hostTeam = LCSharedUtils.teamIdentifier(),
+                   LCUtils.getCertTeamId(withKeyData: localCert,
+                                         password: password) == hostTeam {
+                    certificateRecoveryStatus =
+                        "기존 인증서는 현재 앱에 보관돼 있습니다. 새 발급·갱신은 확인되지 않았습니다."
+                    ScarletDiagnosticRecorder.shared.record(
+                        "certificate", "sideinstaller_style_local_fallback",
+                        fields: ["result": "existing_same_team_archive"])
+                } else {
+                    certificateRecoveryStatus =
+                        "SideStore 보유 인증서를 찾지 못했습니다. 먼저 SideStore에서 인증서를 발급받거나 다른 P12를 가져오세요."
+                    ScarletDiagnosticRecorder.shared.record(
+                        "certificate", "sideinstaller_style_retrieval_missing",
+                        status: "blocked", fields: ["reason": "missing_signable_archive"])
+                }
             }
         }
     }
@@ -373,6 +423,19 @@ struct ScarletSigningReadinessPanel: View {
             }
             .disabled(isIssuingNativeCertificate || !readiness.canRequestNativeRefresh)
             .accessibilityIdentifier("SCARLET_P12_NATIVE_ISSUE")
+            Button(action: retrieveSideInstallerStyleCertificate) {
+                if isRetrievingSideStoreCertificate {
+                    HStack(spacing: 9) {
+                        ProgressView()
+                        Text("SideStore 인증서 확인 중")
+                    }
+                } else {
+                    Label("SideInstaller 방식 · SideStore 인증서 가져오기",
+                          systemImage: "arrow.down.document")
+                }
+            }
+            .disabled(isRetrievingSideStoreCertificate || !readiness.canRequestNativeRefresh)
+            .accessibilityIdentifier("SCARLET_P12_SIDEINSTALLER_STYLE_IMPORT")
             Button { isSelectingP12 = true } label: {
                 Label("다른 인증서 가져오기", systemImage: "doc.badge.plus")
             }

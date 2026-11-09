@@ -227,7 +227,8 @@ public enum ScarletDeviceInstaller {
     h = replace_one(h,
         '- (void)scarletCancelAuth:(NSString*)requestID;',
         '- (void)scarletCancelAuth:(NSString*)requestID;\n'
-        '- (void)scarletIssueCertificate:(NSString*)requestID;',
+        '- (void)scarletIssueCertificate:(NSString*)requestID;\n'
+        '- (void)scarletRetrieveCertificate:(NSString*)requestID;',
         "certificate request XPC")
     cert_server.write_text(h)
     cert_client = engine / "SideStoreSupport/XPCClient.m"
@@ -253,6 +254,18 @@ public enum ScarletDeviceInstaller {
             code:code.integerValue domain:domain ?: @"scarlet.cert.unknown"
             certificateData:archive ?: [NSData data] password:password ?: @""];
     }
+}
+
+- (void)scarletRetrieveCertificate:(NSString*)requestID {
+    Class worker = NSClassFromString(@"ScarletGuestCertificateAgent");
+    if (!worker || ![worker respondsToSelector:@selector(retrieve:)]) {
+        [handler.server scarletCertificateCompleted:requestID
+            code:-5300 domain:@"scarlet.cert.retrieve_worker_missing"
+            certificateData:[NSData data] password:@""];
+        return;
+    }
+    ((void (*)(id, SEL, id))objc_msgSend)(
+        worker, @selector(retrieve:), @{@"requestID": requestID});
 }
 
 - (void)scarletIssueCertificate:(NSString*)requestID {

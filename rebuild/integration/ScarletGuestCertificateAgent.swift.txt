@@ -80,6 +80,34 @@ final class ScarletGuestCertificateAgent: NSObject {
         }
     }
 
+    // SideInstaller's "Use SideStore certificate" action is a *retrieval*
+    // path, not another issuance flow. In LiveContainer it reads an existing
+    // signable P12; outside it asks SideStore to hand off its existing P12.
+    // This agent is already inside the authenticated SideStore LiveProcess,
+    // so it can return ONLY the stored certificate without touching Apple's
+    // portal, generating a new key, or revoking another certificate.
+    @objc(retrieve:)
+    static func retrieve(_ payload: NSDictionary) {
+        guard let requestID = payload["requestID"] as? String,
+              !requestID.isEmpty else { return }
+        Task { @MainActor in
+            guard ScarletGuestSignInAgent.persistedState() else {
+                report(requestID, code: -5301,
+                       domain: "scarlet.certificate.login_required")
+                return
+            }
+            guard let active = CertificateManager.shared.activeCertificate,
+                  !active.p12Data.isEmpty,
+                  active.p12Data.count <= 64 * 1024 else {
+                report(requestID, code: -5302,
+                       domain: "scarlet.certificate.stored_p12_missing")
+                return
+            }
+            report(requestID, code: 0, domain: "success",
+                   archive: active.p12Data, password: active.password ?? "")
+        }
+    }
+
     @MainActor
     private static func report(_ requestID: String, code: Int,
                                domain: String, archive: Data = Data(),
