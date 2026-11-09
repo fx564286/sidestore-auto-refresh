@@ -61,7 +61,7 @@ class ResponsiveSimulatorSelection(unittest.TestCase):
             self.assertTrue(any(x[:3] == ("xcrun", "simctl", "io") for x in commands))
             self.assertFalse(any("killall" in x for x in commands))
 
-    def test_unresponsive_borrowed_device_falls_back_to_newest_disposable(self):
+    def test_unresponsive_booted_device_falls_back_to_preconfigured_template(self):
         commands = []
         def fake_call(*args, **kwargs):
             commands.append(args)
@@ -79,11 +79,13 @@ class ResponsiveSimulatorSelection(unittest.TestCase):
             td = Path(td)
             with mock.patch.object(SIM, "call", side_effect=fake_call):
                 self.assertTrue(SIM.select(td, td / "id", td / "owned"))
-            self.assertEqual((td / "id").read_text().strip(), "disposable-id")
-            self.assertEqual((td / "owned").read_text().strip(), "1")
+            self.assertEqual((td / "id").read_text().strip(), "new")
+            self.assertEqual((td / "owned").read_text().strip(), "2")
             report = json.loads((td / "simulator-selection.json").read_text())
             self.assertEqual(report["runtime"].split(".")[-1], "iOS-27-2")
-            self.assertTrue(any(x[:3] == ("xcrun", "simctl", "create") for x in commands))
+            self.assertEqual(report["mode"], "preconfigured_booted_verified")
+            self.assertTrue(any(x[:3] == ("xcrun", "simctl", "boot") for x in commands))
+            self.assertFalse(any(x[:3] == ("xcrun", "simctl", "create") for x in commands))
 
     def test_hung_simulator_is_infrastructure_failure_not_fake_success(self):
         def fake_call(*args, **kwargs):
@@ -103,7 +105,9 @@ class ResponsiveSimulatorSelection(unittest.TestCase):
 
     def test_capture_script_only_deletes_an_owned_device(self):
         text = (FILE.parent / "capture_simulator_ui.sh").read_text()
-        self.assertIn('if [[ "$(cat "$SIM_OWNED_FILE")" != "1" ]]', text)
+        self.assertIn('mode="$(cat "$SIM_OWNED_FILE")"', text)
+        self.assertIn('if [[ "$mode" == "0" ]]', text)
+        self.assertIn('actions=("shutdown", "delete") if sys.argv[2]=="1" else ("shutdown",)', text)
         self.assertNotIn('killall', text)
         self.assertIn("boot_preview_simulator.py", text)
         self.assertIn('[[ -s "$OUT/$screen.png" ]]', text)
