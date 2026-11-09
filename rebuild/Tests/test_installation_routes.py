@@ -74,6 +74,6 @@ class InstallerRouteTests(unittest.TestCase):
         self.assertIn('"nativeOriginalLiquidGlassVerified":False',PACKAGE)
         self.assertIn('HOST_ID="com.kdt.livecontainer.P8EZT3U5N4"',PACKAGE)
         self.assertIn('EXTENSIONS=("LiveProcess","ShareExtension","LaunchAppExtension")',PACKAGE)
-        self.assertIn('RELEASE_EXTENSIONS=("LiveProcess","LaunchAppExtension")',PACKAGE)
+        self.assertIn('RELEASE_EXTENSIONS=EXTENSIONS',PACKAGE)
 
 if __name__=="__main__":unittest.main()

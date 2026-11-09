@@ -92,6 +92,67 @@ enum ScarletGuestSceneRegistry {
     }
 }
 
+// Resolve installed guest artwork from the original LC Applications roots.
+// Never use the host icon as a guest placeholder or persist decoded bitmaps.
+@available(iOS 17.0, *)
+@MainActor
+enum ScarletGuestIconCatalog {
+    static func icon(for item: ScarletGuestTarget,
+                     history: [ScarletGuestSessionLedger.Entry]) -> UIImage? {
+        guard let folder = history.first(where: {
+            $0.dataUUID == item.id || $0.folder == item.id
+        })?.folder else { return nil }
+        return icon(forFolder: folder)
+    }
+
+    static func icon(forFolder folder: String) -> UIImage? {
+        guard folder.hasSuffix(".app"), folder != ".app",
+              !folder.contains("/"), !folder.contains("\\") else { return nil }
+
+        let home = getenv("LC_HOME_PATH").map {
+            URL(fileURLWithPath: String(cString: $0))
+        } ?? URL(fileURLWithPath: NSHomeDirectory())
+        var roots = [home.appendingPathComponent("Documents", isDirectory: true)
+                             .appendingPathComponent("Applications", isDirectory: true)]
+        if let shared = LCSharedUtils.appGroupPath() {
+            roots.append(shared.appendingPathComponent("LiveContainer", isDirectory: true)
+                               .appendingPathComponent("Applications", isDirectory: true))
+        }
+        for root in roots {
+            let appURL = root.appendingPathComponent(folder, isDirectory: true)
+            guard FileManager.default.fileExists(
+                atPath: appURL.appendingPathComponent("Info.plist").path)
+            else { continue }
+            for cached in ["LCAppIconLight.png", "LCAppIconDark.png"] {
+                if let icon = UIImage(contentsOfFile:
+                    appURL.appendingPathComponent(cached).path) {
+                    return icon
+                }
+            }
+            // LC may not have generated its thumbnail yet. Use only literal,
+            // path-safe icon names from this exact installed app's Info.plist.
+            guard let info = NSDictionary(contentsOf:
+                appURL.appendingPathComponent("Info.plist")) as? [String: Any],
+                let icons = info["CFBundleIcons"] as? [String: Any],
+                let primary = icons["CFBundlePrimaryIcon"] as? [String: Any],
+                let filenames = primary["CFBundleIconFiles"] as? [String] else {
+                continue
+            }
+            for name in filenames.reversed() where
+                !name.isEmpty && !name.contains("/") && !name.contains("\\") {
+                for suffix in [".png", "@3x.png", "@2x.png"] {
+                    let filename = name.hasSuffix(".png") ? name : name + suffix
+                    if let icon = UIImage(contentsOfFile:
+                        appURL.appendingPathComponent(filename).path) {
+                        return icon
+                    }
+                }
+            }
+        }
+        return nil
+    }
+}
+
 @available(iOS 17.0, *)
 struct ScarletGuestSwitcherOverlay: View {
     let dataUUID: String
@@ -102,6 +163,7 @@ struct ScarletGuestSwitcherOverlay: View {
     @Namespace private var guestGlassSelection
     @State private var targets: [ScarletGuestTarget] = []
     @State private var previews: [String: UIImage] = [:]
+    @State private var guestIcons: [String: UIImage] = [:]
     @State private var feedback: String?
     @Environment(\.openWindow) private var openWindow
 
@@ -117,7 +179,8 @@ struct ScarletGuestSwitcherOverlay: View {
         }
         // A->Home->B must list A even when it has been terminated by iOS.
         // A cold entry is NEVER a promise of retained in-memory state.
-        for entry in ScarletGuestSessionLedger.recent() {
+        let history = ScarletGuestSessionLedger.recent()
+        for entry in history {
             let id = entry.dataUUID ?? entry.folder
             if ids.insert(id).inserted {
                 combined.append(ScarletGuestTarget(
@@ -127,7 +190,11 @@ struct ScarletGuestSwitcherOverlay: View {
         targets = combined
         feedback = nil
         previews = [:]
+        guestIcons = [:]
         for item in targets {
+            if let icon = ScarletGuestIconCatalog.icon(for: item, history: history) {
+                guestIcons[item.id] = icon
+            }
             if let image = ScarletGuestSceneRegistry.screenshot(dataUUID: item.id) {
                 previews[item.id] = image
             }
@@ -139,6 +206,7 @@ struct ScarletGuestSwitcherOverlay: View {
     private func closeSwitcher() {
         isOpen = false
         previews.removeAll(keepingCapacity: false)
+        guestIcons.removeAll(keepingCapacity: false)
     }
 
     var body: some View {
@@ -247,10 +315,29 @@ struct ScarletGuestSwitcherOverlay: View {
                                 .background(Color.black.opacity(0.32))
                                 .clipShape(RoundedRectangle(cornerRadius: 12))
                                 VStack(alignment: .leading, spacing: 6) {
-                                    Text(item.title)
-                                        .font(.subheadline.weight(.semibold))
-                                        .lineLimit(2)
-                                        .frame(maxWidth: .infinity, alignment: .leading)
+                                    HStack(spacing: 8) {
+                                        Group {
+                                            if let icon = guestIcons[item.id] {
+                                                Image(uiImage: icon)
+                                                    .resizable()
+                                                    .scaledToFit()
+                                            } else {
+                                                Image(systemName: "app.fill")
+                                                    .resizable()
+                                                    .scaledToFit()
+                                                    .padding(8)
+                                            }
+                                        }
+                                        .frame(width: 36, height: 36)
+                                        .background(Color.white.opacity(0.12),
+                                                    in: RoundedRectangle(cornerRadius: 9))
+                                        .clipShape(RoundedRectangle(cornerRadius: 9))
+                                        .accessibilityIdentifier("SCARLET_GUEST_APP_ICON")
+                                        Text(item.title)
+                                            .font(.subheadline.weight(.semibold))
+                                            .lineLimit(2)
+                                    }
+                                    .frame(maxWidth: .infinity, alignment: .leading)
                                     Text(item.isLive ? "실행 중 · 작업 유지" : "최근 실행 · 재시작 필요")
                                         .font(.caption2).foregroundStyle(.secondary)
                                 }

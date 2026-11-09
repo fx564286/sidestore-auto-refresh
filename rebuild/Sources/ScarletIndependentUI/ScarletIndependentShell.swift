@@ -35,12 +35,16 @@ public struct ScarletSourceAppPresentation: Identifiable, Equatable, Sendable {
     public let name: String
     public let version: String
     public let hasDownload: Bool
+    // The source's own verified JSON iconURL, not a fabricated SF Symbol.
+    public let iconURL: URL?
 
-    public init(id: String, name: String, version: String, hasDownload: Bool) {
+    public init(id: String, name: String, version: String, hasDownload: Bool,
+                iconURL: URL? = nil) {
         self.id = id
         self.name = name
         self.version = version
         self.hasDownload = hasDownload
+        self.iconURL = iconURL
     }
 }
 
@@ -314,6 +318,9 @@ public struct ScarletIndependentShell: View {
 
     @State private var selected: Tab
     @State private var searchText = ""
+    // Default closed for every source, including after app restart.
+    // Explicit user taps expand ONLY the selected source group.
+    @State private var expandedSourceIDs: Set<String> = []
     @ScaledMetric(relativeTo: .largeTitle) private var screenTitleSize: CGFloat = 28
 
     public init(snapshot: ScarletHostPresentationSnapshot,
@@ -594,43 +601,87 @@ public struct ScarletIndependentShell: View {
             } else {
                 ForEach(sources) { source in
                     ScarletPanel {
-                        HStack {
-                            Image(systemName: source.icon)
-                                .foregroundStyle(ScarletPresentationColor.accent)
-                            VStack(alignment: .leading, spacing: 3) {
-                                Text(source.title).font(.headline)
-                                Text(source.detail).font(.caption)
-                                    .foregroundStyle(ScarletPresentationColor.muted)
+                        HStack(spacing: 12) {
+                            Button {
+                                withAnimation(.easeInOut(duration: 0.18)) {
+                                    if !expandedSourceIDs.insert(source.id).inserted {
+                                        expandedSourceIDs.remove(source.id)
+                                    }
+                                }
+                            } label: {
+                                HStack(spacing: 11) {
+                                    Image(systemName: source.icon)
+                                        .foregroundStyle(ScarletPresentationColor.accent)
+                                        .font(.title3)
+                                    VStack(alignment: .leading, spacing: 4) {
+                                        Text(source.title)
+                                            .font(.headline)
+                                            .lineLimit(1)
+                                        Text("\(source.apps.count)개 앱 · \(source.detail)")
+                                            .font(.caption)
+                                            .foregroundStyle(ScarletPresentationColor.muted)
+                                            .lineLimit(1)
+                                    }
+                                    Spacer(minLength: 0)
+                                    Image(systemName: expandedSourceIDs.contains(source.id)
+                                          ? "chevron.up" : "chevron.down")
+                                        .foregroundStyle(ScarletPresentationColor.muted)
+                                        .font(.subheadline.weight(.semibold))
+                                }
+                                .contentShape(Rectangle())
                             }
-                            Spacer()
+                            .buttonStyle(.plain)
+                            .accessibilityLabel("\(source.title) 앱 목록")
+                            .accessibilityValue(expandedSourceIDs.contains(source.id)
+                                                ? "펼침" : "접힘")
+                            .accessibilityIdentifier("SCARLET_SOURCE_DISCLOSURE")
                             Button { onOpenSource(source.id) } label: {
                                 Image(systemName: "ellipsis.circle")
+                                    .font(.title3)
+                                    .frame(minWidth: 40, minHeight: 44)
                             }
-                            .accessibilityLabel("소스 관리")
+                            .buttonStyle(.plain)
+                            .accessibilityLabel("\(source.title) 소스 관리")
                         }
-                        if source.apps.isEmpty {
-                            Text("앱 목록이 비어 있거나 소스를 불러오는 중입니다.")
-                                .font(.footnote)
-                                .foregroundStyle(ScarletPresentationColor.muted)
-                        }
-                        ForEach(source.apps) { app in
-                            HStack(spacing: 10) {
-                                Image(systemName: "app.fill")
-                                    .foregroundStyle(ScarletPresentationColor.accent)
-                                    .frame(width: 38, height: 38)
-                                VStack(alignment: .leading, spacing: 3) {
-                                    Text(app.name).font(.subheadline.weight(.medium))
-                                        .lineLimit(1)
-                                    Text(app.version).font(.caption2)
-                                        .foregroundStyle(ScarletPresentationColor.muted)
+                        if expandedSourceIDs.contains(source.id) {
+                            if source.apps.isEmpty {
+                                Text("앱 목록이 비어 있거나 소스를 불러오는 중입니다.")
+                                    .font(.footnote)
+                                    .foregroundStyle(ScarletPresentationColor.muted)
+                            }
+                            ForEach(source.apps) { app in
+                                HStack(spacing: 10) {
+                                    AsyncImage(url: app.iconURL) { phase in
+                                        if case .success(let image) = phase {
+                                            image.resizable().scaledToFit()
+                                        } else {
+                                            Image(systemName: "app.fill")
+                                                .resizable()
+                                                .scaledToFit()
+                                                .padding(10)
+                                                .foregroundStyle(ScarletPresentationColor.accent)
+                                                .background(ScarletPresentationColor.stroke.opacity(0.2))
+                                        }
+                                    }
+                                    .frame(width: 43, height: 43)
+                                    .clipShape(RoundedRectangle(cornerRadius: 11))
+                                    .accessibilityIdentifier("SCARLET_SOURCE_APP_ICON")
+                                    VStack(alignment: .leading, spacing: 3) {
+                                        Text(app.name)
+                                            .font(.subheadline.weight(.medium))
+                                            .lineLimit(1)
+                                        Text(app.version)
+                                            .font(.caption2)
+                                            .foregroundStyle(ScarletPresentationColor.muted)
+                                    }
+                                    Spacer(minLength: 6)
+                                    Button("게스트 설치") { onInstallSourceApp(app.id) }
+                                        .font(.caption.weight(.semibold))
+                                        .disabled(!app.hasDownload)
+                                        .accessibilityIdentifier("SCARLET_SOURCE_APP_INSTALL")
                                 }
-                                Spacer(minLength: 6)
-                                Button("게스트 설치") { onInstallSourceApp(app.id) }
-                                    .font(.caption.weight(.semibold))
-                                    .disabled(!app.hasDownload)
-                                    .accessibilityIdentifier("SCARLET_SOURCE_APP_INSTALL")
+                                .frame(minHeight: 49)
                             }
-                            .frame(minHeight: 49)
                         }
                     }
                 }

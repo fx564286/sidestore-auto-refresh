@@ -3,7 +3,7 @@ name: Scarlet integrated IPA - cached engine public release
 on:
   workflow_dispatch:
   push:
-    branches: [rebuild/scarlet-from-zero-20261106, fix/scarlet-pr48-guest-overlay-no-resize-20261109, fix/scarlet-pr48-airpods-glass-guest-switch-v3-20261109, fix/scarlet-pr48-draggable-guest-tab-v4-20261109, fix/scarlet-pr48-v5-glass-drag-cert-recovery-20261109, fix/scarlet-pr48-v6-unified-cert-glass-20261109, fix/scarlet-pr48-v7-cert-jitless-unify-panel-rim-20261109, fix/scarlet-pr48-v8-flicker-certificate-menu-20261109, fix/scarlet-pr48-v9-single-glass-rim-20261109, fix/scarlet-pr48-v11-module-settings-appid-20261109, fix/scarlet-pr48-v12-live-sessions-source-auto-refresh-20261109, fix/scarlet-pr48-v13-compact-settings-current-app-20261109, fix/scarlet-pr48-v14-guest-history-native-scenes-three-ids-20261109]
+    branches: [rebuild/scarlet-from-zero-20261106, fix/scarlet-pr48-guest-overlay-no-resize-20261109, fix/scarlet-pr48-airpods-glass-guest-switch-v3-20261109, fix/scarlet-pr48-draggable-guest-tab-v4-20261109, fix/scarlet-pr48-v5-glass-drag-cert-recovery-20261109, fix/scarlet-pr48-v6-unified-cert-glass-20261109, fix/scarlet-pr48-v7-cert-jitless-unify-panel-rim-20261109, fix/scarlet-pr48-v8-flicker-certificate-menu-20261109, fix/scarlet-pr48-v9-single-glass-rim-20261109, fix/scarlet-pr48-v11-module-settings-appid-20261109, fix/scarlet-pr48-v12-live-sessions-source-auto-refresh-20261109, fix/scarlet-pr48-v13-compact-settings-current-app-20261109, fix/scarlet-pr48-v14-guest-history-native-scenes-three-ids-20261109, fix/scarlet-pr48-v15-source-disclosure-icons-guest-handoff-20261109]
     paths: [".github/workflows/scarlet-integrated-download-fast.yml"]
 
 permissions:
@@ -24,7 +24,7 @@ jobs:
         with:
           name: Scarlet-LiveContainer-Native-Engine
           path: artifacts/lc
-          run-id: 42618887858
+          run-id: 42622154748
           github-token: ${{ github.token }}
 
       - uses: actions/download-artifact@v4
@@ -103,8 +103,8 @@ jobs:
           python3 rebuild/scripts/audit_appid_footprint.py \
             --ipa report/Scarlet-LiveContainer+SideStore-ENGINES-UNSIGNED.ipa \
             --out report/scarlet-app-id-footprint.json
-          cp report/Scarlet-LiveContainer+SideStore-ENGINES-UNSIGNED.ipa Scarlet-PR48-V14-Multitask-ThreeIDs-UNSIGNED.ipa
-          shasum -a 256 Scarlet-PR48-V14-Multitask-ThreeIDs-UNSIGNED.ipa > Scarlet-PR48-V14-Multitask-ThreeIDs-UNSIGNED.ipa.sha256
+          cp report/Scarlet-LiveContainer+SideStore-ENGINES-UNSIGNED.ipa Scarlet-PR48-V15-Sources-Icons-History-UNSIGNED.ipa
+          shasum -a 256 Scarlet-PR48-V15-Sources-Icons-History-UNSIGNED.ipa > Scarlet-PR48-V15-Sources-Icons-History-UNSIGNED.ipa.sha256
 
       - name: Publish public permanent GitHub Release download
         shell: bash
@@ -112,32 +112,32 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -Eeuo pipefail
-          tag=scarlet-pr48-v14-multitask-threeids-20261109
+          tag=scarlet-pr48-v15-sources-icons-history-20261109
           cat > release-notes.md <<'EOF'
           ## Scarlet integrated LiveContainer + SideStore — unsigned IPA
 
-          V14: A and B stay listed after A->Home->B. LiveProcess sessions can be resumed without rerunning where platform supports native multiple scenes; unavailable sessions truthfully labeled recent/cold. Combined IPA packages only host plus LiveProcess plus LaunchAppExtension, excluding optional system Share Sheet extension to reduce required App IDs 4 to 3. In-app Files picker and SideStore backend retained. No iPhone live-memory or automatic certificate renewal success claim.\n          Original guest UIWindow dimensions and orientation hooks untouched. The original LCAppModel.runApp implementation is unchanged, but V14 requests native multi-scene launch when the device supports it.\n          No forced landscape. Multiple in-memory LiveProcess windows remain device capability dependent, not a guaranteed result.\n          Signed installation and real iPhone UI validation still required.
+          V15: A and B launch history is recorded into existing App Group BEFORE LC runApp may transfer control without returning, and rolled back upon thrown error. Source cards start collapsed; tap the source name to expand, and apps show their original source icon URLs (or a fallback if unavailable). The V14 three-ID build accidentally removed ShareExtension even though pinned LaunchAppExtension directly calls it. V15 restores the four-ID full-runtime deployment until equivalent Shortcuts and Share Sheet functionality is actually demonstrated without an extension. No iPhone RAM or signing-auto-renewal guarantee.\n          Original guest UIWindow dimensions and orientation hooks untouched; the native multiscene launch path from V14 is retained. V15 fixes the ledger timing and restores shortcut/share dependencies.\n          No forced landscape. Multiple in-memory LiveProcess windows remain device capability dependent, not a guaranteed result.\n          Signed installation and real iPhone UI validation still required.
           **UNSIGNED, DIAGNOSTIC ONLY. Not directly installable on iPhone.**
           Native signing, Apple login, app execution and Liquid Glass real-device
           verification remain unconfirmed. Original users' data is unchanged.
           EOF
           printf "\nCompiled new UI: %s\nReused audited pinned SideStore: 42601848111\n" \
-            "42618887858" >> release-notes.md
+            "42622154748" >> release-notes.md
           if ! gh release view "$tag" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
             gh release create "$tag" --repo "$GITHUB_REPOSITORY" \
-              --target "$GITHUB_SHA" --title "Scarlet PR48 V14 guest session history and fewer signing IDs - unsigned IPA" \
+              --target "$GITHUB_SHA" --title "Scarlet PR48 V15 collapsed sources, real icons and A/B recent history - unsigned IPA" \
               --prerelease --latest=false --notes-file release-notes.md
           fi
           gh release upload "$tag" --repo "$GITHUB_REPOSITORY" \
-            Scarlet-PR48-V14-Multitask-ThreeIDs-UNSIGNED.ipa \
-            Scarlet-PR48-V14-Multitask-ThreeIDs-UNSIGNED.ipa.sha256 \
+            Scarlet-PR48-V15-Sources-Icons-History-UNSIGNED.ipa \
+            Scarlet-PR48-V15-Sources-Icons-History-UNSIGNED.ipa.sha256 \
             report/scarlet-app-id-footprint.json --clobber
           gh release edit "$tag" --repo "$GITHUB_REPOSITORY" \
-            --title "Scarlet PR48 V14 guest session history and fewer signing IDs - unsigned IPA" \
+            --title "Scarlet PR48 V15 collapsed sources, real icons and A/B recent history - unsigned IPA" \
             --prerelease --notes-file release-notes.md
           gh release view "$tag" --repo "$GITHUB_REPOSITORY" \
-            --json assets --jq '.assets[].name' | grep -Fx "Scarlet-PR48-V14-Multitask-ThreeIDs-UNSIGNED.ipa"
-          echo "https://github.com/$GITHUB_REPOSITORY/releases/download/$tag/Scarlet-PR48-V14-Multitask-ThreeIDs-UNSIGNED.ipa" >> "$GITHUB_STEP_SUMMARY"
+            --json assets --jq '.assets[].name' | grep -Fx "Scarlet-PR48-V15-Sources-Icons-History-UNSIGNED.ipa"
+          echo "https://github.com/$GITHUB_REPOSITORY/releases/download/$tag/Scarlet-PR48-V15-Sources-Icons-History-UNSIGNED.ipa" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Check out existing GitHub Pages without changing website files
         uses: actions/checkout@v4
@@ -150,13 +150,13 @@ jobs:
         shell: bash
         run: |
           set -Eeuo pipefail
-          cp Scarlet-PR48-V14-Multitask-ThreeIDs-UNSIGNED.ipa pages/
-          (cd pages && sha256sum Scarlet-PR48-V14-Multitask-ThreeIDs-UNSIGNED.ipa)
+          cp Scarlet-PR48-V15-Sources-Icons-History-UNSIGNED.ipa pages/
+          (cd pages && sha256sum Scarlet-PR48-V15-Sources-Icons-History-UNSIGNED.ipa)
           git -C pages config user.name "scarlet-pages-asset-bot"
           git -C pages config user.email "github-actions[bot]@users.noreply.github.com"
-          git -C pages add -f -- Scarlet-PR48-V14-Multitask-ThreeIDs-UNSIGNED.ipa
+          git -C pages add -f -- Scarlet-PR48-V15-Sources-Icons-History-UNSIGNED.ipa
           if ! git -C pages diff --cached --quiet; then
-            git -C pages commit -m "downloads: verified Scarlet PR48 V14 guest history and three App IDs unsigned IPA"
+            git -C pages commit -m "downloads: verified Scarlet PR48 V15 collapsed sources and runtime-safe signing IDs unsigned IPA"
             git -C pages push origin HEAD:gh-pages
           fi
-          echo "https://fx564286.github.io/sidestore-auto-refresh/Scarlet-PR48-V14-Multitask-ThreeIDs-UNSIGNED.ipa" >> "$GITHUB_STEP_SUMMARY"
+          echo "https://fx564286.github.io/sidestore-auto-refresh/Scarlet-PR48-V15-Sources-Icons-History-UNSIGNED.ipa" >> "$GITHUB_STEP_SUMMARY"

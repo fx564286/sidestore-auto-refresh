@@ -40,9 +40,23 @@ enum ScarletGuestSessionLedger {
         guard let encoded = try? JSONEncoder().encode(Array(items.prefix(maxItems)))
         else { return }
         store.set(encoded, forKey: key)
+        // Detect App Group/entitlement storage failures at the exact
+        // pre-handoff write point, rather than reporting a saved A/B list
+        // that the next guest cannot read. No credentials are recorded.
+        let persisted = store.data(forKey: key) == encoded
         ScarletDiagnosticRecorder.shared.record(
             "guest", "recent_session_registered",
-            fields: ["count": String(min(items.count, maxItems))])
+            status: persisted ? "success" : "warning",
+            fields: [
+                "count": String(min(items.count, maxItems)),
+                "readback": persisted ? "persisted" : "failed"
+            ])
+    }
+
+    static func restore(_ entries: [Entry]) {
+        guard let data = try? JSONEncoder().encode(Array(entries.prefix(maxItems)))
+        else { return }
+        store.set(data, forKey: key)
     }
 
     static func remove(folder: String) {
