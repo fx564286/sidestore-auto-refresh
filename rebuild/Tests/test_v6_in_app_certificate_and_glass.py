@@ -12,9 +12,10 @@ WORKER=(ROOT/"integration/ScarletGuestCertificateAgent.swift.txt").read_text()
 
 class InAppCertAndGlassContracts(unittest.TestCase):
     def test_certificate_is_one_native_screen_without_external_launch(self):
-        self.assertIn('Label("SideStore에서 인증서 받기"',SIGN)
-        self.assertIn('Label("다른 인증서 가져오기"',SIGN)
-        self.assertIn('Label("SideInstaller 방식 · SideStore 인증서 가져오기"',SIGN)
+        self.assertIn('Label("SideStore 인증서 받기"',SIGN)
+        self.assertIn('Label("P12 파일 선택"',SIGN)
+        self.assertIn('Label("추가 인증서 관리"',SIGN)
+        self.assertNotIn('Label("SideInstaller 방식 · SideStore 인증서 가져오기"',SIGN)
         self.assertIn('retrieveSideInstallerStyleCertificate()',SIGN)
         self.assertIn('sideinstaller_style_local_fallback',SIGN)
         self.assertIn('sideinstaller_style_retrieval_missing',SIGN)
@@ -26,8 +27,8 @@ class InAppCertAndGlassContracts(unittest.TestCase):
         self.assertNotIn('Label("SideStore 인증서 재확인"',SIGN)
         self.assertIn("hostTeam == archiveTeam",SIGN)
         self.assertIn("replacement_readback_failed",SIGN)
-        i=SIGN.index('Label("SideStore에서 인증서 받기"')
-        j=SIGN.index('Label("다른 인증서 가져오기"')
+        i=SIGN.index('Label("SideStore 인증서 받기"')
+        j=SIGN.index('Label("P12 파일 선택"')
         self.assertLess(i,j)
 
     def test_worker_uses_authorized_original_provisioning_no_revoke(self):

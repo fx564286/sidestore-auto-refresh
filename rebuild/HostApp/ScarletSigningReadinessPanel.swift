@@ -102,6 +102,7 @@ struct ScarletSigningReadinessPanel: View {
     @State private var hadCertificateBeforeBridge = false
     @State private var isIssuingNativeCertificate = false
     @State private var isRetrievingSideStoreCertificate = false
+    @State private var isAdvancedCertificateExpanded = false
 
     private func inspect() {
         readiness = ScarletSigningReadiness.inspect()
@@ -196,7 +197,7 @@ struct ScarletSigningReadinessPanel: View {
     // transfer URL. The P12 comes back only on the existing XPC endpoint;
     // this host validates team and obtains explicit replacement consent.
     private func requestNativeCertificate() {
-        guard !isIssuingNativeCertificate else { return }
+        guard !isIssuingNativeCertificate && !isRetrievingSideStoreCertificate else { return }
         inspect()
         guard readiness.canRequestNativeRefresh else {
             certificateRecoveryStatus = "서명 팀 또는 앱 그룹 권한을 확인할 수 없습니다."
@@ -225,12 +226,15 @@ struct ScarletSigningReadinessPanel: View {
             } catch {
                 let failure = error as NSError
                 certificateRecoveryStatus =
-                    "SideStore 인증서 발급에 실패했습니다. 로그인·Apple 발급 한도를 확인하거나 아래에서 인증서를 가져오세요."
+                    "SideStore 발급 요청 실패. 기존 SideStore 인증서를 자동 확인합니다."
                 ScarletDiagnosticRecorder.shared.record(
                     "certificate", "native_provider_failed",
                     status: "error",
                     fields: ["domain": "scarlet.certificate.worker",
                              "code": String(failure.code)])
+                // SideInstaller-style retrieval is an internal fallback, not
+                // a second user-facing certificate import button.
+                retrieveSideInstallerStyleCertificate()
             }
         }
     }
@@ -276,7 +280,7 @@ struct ScarletSigningReadinessPanel: View {
                         fields: ["result": "existing_same_team_archive"])
                 } else {
                     certificateRecoveryStatus =
-                        "SideStore 보유 인증서를 찾지 못했습니다. 먼저 SideStore에서 인증서를 발급받거나 다른 P12를 가져오세요."
+                        "SideStore 기존 인증서를 찾지 못했습니다. 추가 인증서 관리에서 P12 파일을 선택할 수 있습니다."
                     ScarletDiagnosticRecorder.shared.record(
                         "certificate", "sideinstaller_style_retrieval_missing",
                         status: "blocked", fields: ["reason": "missing_signable_archive"])
@@ -434,42 +438,36 @@ struct ScarletSigningReadinessPanel: View {
                            value: readiness.liveContainerCertificatePresent &&
                                   readiness.liveContainerPasswordPresent ? "존재" : "없음")
             Button(action: requestNativeCertificate) {
-                if isIssuingNativeCertificate {
-                    HStack(spacing: 9) {
-                        ProgressView()
-                        Text("인증서 발급 중")
-                    }
-                } else {
-                    Label("SideStore에서 인증서 받기", systemImage: "checkmark.shield")
-                }
-            }
-            .disabled(isIssuingNativeCertificate || !readiness.canRequestNativeRefresh)
-            .accessibilityIdentifier("SCARLET_P12_NATIVE_ISSUE")
-            Button(action: retrieveSideInstallerStyleCertificate) {
-                if isRetrievingSideStoreCertificate {
+                if isIssuingNativeCertificate || isRetrievingSideStoreCertificate {
                     HStack(spacing: 9) {
                         ProgressView()
                         Text("SideStore 인증서 확인 중")
                     }
                 } else {
-                    Label("SideInstaller 방식 · SideStore 인증서 가져오기",
-                          systemImage: "arrow.down.document")
+                    Label("SideStore 인증서 받기", systemImage: "checkmark.shield")
                 }
             }
-            .disabled(isRetrievingSideStoreCertificate || !readiness.canRequestNativeRefresh)
-            .accessibilityIdentifier("SCARLET_P12_SIDEINSTALLER_STYLE_IMPORT")
-            Button { isSelectingP12 = true } label: {
-                Label("다른 인증서 가져오기", systemImage: "doc.badge.plus")
+            .disabled(isIssuingNativeCertificate ||
+                      isRetrievingSideStoreCertificate ||
+                      !readiness.canRequestNativeRefresh)
+            .accessibilityIdentifier("SCARLET_P12_NATIVE_ISSUE")
+            DisclosureGroup(isExpanded: $isAdvancedCertificateExpanded) {
+                Button { isSelectingP12 = true } label: {
+                    Label("P12 파일 선택", systemImage: "doc.badge.plus")
+                }
+                .accessibilityIdentifier("SCARLET_P12_IMPORT_FROM_FILES")
+                Button("권한 상태 다시 검사", action: inspect)
+                    .accessibilityIdentifier("SCARLET_REFRESH_ENTITLEMENT_READBACK")
+            } label: {
+                Label("추가 인증서 관리", systemImage: "ellipsis.circle")
             }
-            .accessibilityIdentifier("SCARLET_P12_IMPORT_FROM_FILES")
+            .accessibilityIdentifier("SCARLET_CERTIFICATE_ADVANCED")
             if let certificateRecoveryStatus {
                 Text(certificateRecoveryStatus)
                     .font(.footnote)
                     .foregroundStyle(.secondary)
                     .accessibilityIdentifier("SCARLET_P12_PIPELINE_RESULT")
             }
-            Button("권한 상태 다시 검사", action: inspect)
-                .accessibilityIdentifier("SCARLET_REFRESH_ENTITLEMENT_READBACK")
             Button(action: requestManualRefresh) {
                 if refreshing {
                     ProgressView()

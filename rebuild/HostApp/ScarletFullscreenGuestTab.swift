@@ -359,6 +359,8 @@ final class ScarletFullscreenGuestTabInstaller: NSObject {
     private static var dragHandler: ScarletGuestScreenPan?
     private static var rotationObserver: NSObjectProtocol?
     private static var rotationGeneration = 0
+    private static var lastStableSceneSize: CGSize?
+    private static var rotationWatchTask: Task<Void, Never>?
     private static var lastFailure: String?
     private static let positionXKey = "ScarletGuestRoundTabCenterXFractionV1"
     private static let positionYKey = "ScarletGuestRoundTabCenterYFractionV1"
@@ -482,57 +484,78 @@ final class ScarletFullscreenGuestTabInstaller: NSObject {
             fields: ["state": open ? "expanded" : "collapsed"])
     }
 
-    // Device orientation notifications fire BEFORE UIWindowScene has settled
-    // on the new width/height. Native UIKit glass then briefly rasterized an
-    // opaque rectangle with the old portrait bounds on landscape transitions.
-    // Hide ONLY the transparent non-key overlay until the scene geometry has
-    // been stable across three samples; never rotate/resize guest itself.
+    // UIDevice.orientationDidChangeNotification fires for face-up, sensor
+    // jitter, and repeated orientations even if UIWindowScene does not resize.
+    // V7 set alpha=0 for every event, causing flicker in portrait use.
+    // Probe while visible; suspend only after real geometry changes.
     private static func settleOverlayAfterRotation() {
         guard let floatingWindow, let guestWindow else { return }
+        guard rotationWatchTask == nil else { return }
+        let original = guestWindow.windowScene?.coordinateSpace.bounds.size
+            ?? guestWindow.bounds.size
+        let baseline = lastStableSceneSize ?? original
+        lastStableSceneSize = baseline
+        let overlayIdentity = ObjectIdentifier(floatingWindow)
         rotationGeneration += 1
         let token = rotationGeneration
-        floatingWindow.alpha = 0
-        ScarletDiagnosticRecorder.shared.record(
-            "guest", "overlay_rotation_suspended",
-            fields: ["reason": "geometry_transition"])
-        Task { @MainActor in
-            var previous = guestWindow.windowScene?.coordinateSpace.bounds
-                ?? guestWindow.bounds
-            var consecutiveStable = 0
+        rotationWatchTask = Task { @MainActor in
+            defer {
+                if rotationGeneration == token { rotationWatchTask = nil }
+            }
+            var previous = original
+            var geometryChanged = false
+            var stableSamples = 0
             for _ in 0..<18 {
                 try? await Task.sleep(for: .milliseconds(65))
-                guard rotationGeneration == token, let host = self.guestWindow,
-                      let overlay = self.floatingWindow else { return }
-                let current = host.windowScene?.coordinateSpace.bounds ?? host.bounds
-                if current == previous {
-                    consecutiveStable += 1
-                } else {
-                    previous = current
-                    consecutiveStable = 0
+                guard !Task.isCancelled, rotationGeneration == token,
+                      let host = self.guestWindow,
+                      let overlay = self.floatingWindow,
+                      ObjectIdentifier(overlay) == overlayIdentity
+                else { return }
+                let current = host.windowScene?.coordinateSpace.bounds.size
+                    ?? host.bounds.size
+                if abs(current.width - baseline.width) > 1 ||
+                   abs(current.height - baseline.height) > 1 {
+                    if !geometryChanged {
+                        geometryChanged = true
+                        overlay.alpha = 0
+                        ScarletDiagnosticRecorder.shared.record(
+                            "guest", "overlay_rotation_suspended",
+                            fields: ["reason": "geometry_changed"])
+                    }
+                    if abs(current.width - previous.width) < 0.5 &&
+                       abs(current.height - previous.height) < 0.5 {
+                        stableSamples += 1
+                    } else {
+                        stableSamples = 0
+                    }
+                    if stableSamples >= 4 {
+                        resizeOverlay(open: overlay.isExpanded, appCount: 0)
+                        overlay.rootViewController?.view.setNeedsLayout()
+                        overlay.rootViewController?.view.layoutIfNeeded()
+                        lastStableSceneSize = current
+                        overlay.alpha = 1
+                        ScarletDiagnosticRecorder.shared.record(
+                            "guest", "overlay_rotation_resumed",
+                            fields: ["result": current.width > current.height
+                                ? "landscape" : "portrait"])
+                        return
+                    }
                 }
-                if consecutiveStable >= 4 {
-                    // Recalculate both panel and button within FINAL geometry.
-                    resizeOverlay(open: overlay.isExpanded, appCount: 0)
-                    overlay.rootViewController?.view.setNeedsLayout()
-                    overlay.rootViewController?.view.layoutIfNeeded()
-                    overlay.alpha = 1
-                    ScarletDiagnosticRecorder.shared.record(
-                        "guest", "overlay_rotation_resumed",
-                        fields: ["result": current.width > current.height
-                                             ? "landscape" : "portrait"])
-                    return
-                }
+                previous = current
             }
-            // Last-resort recovery: preserve a usable exit/switch button
-            // even if a third-party guest continually changes its bounds.
-            // Only update this overlay window, never the guest root view.
-            if rotationGeneration == token, let overlay = self.floatingWindow {
-                resizeOverlay(open: overlay.isExpanded, appCount: 0)
-                overlay.alpha = 1
-                ScarletDiagnosticRecorder.shared.record(
-                    "guest", "overlay_rotation_unstable",
-                    status: "warning", fields: ["reason": "scene_unstable"])
-            }
+            // No real scene rotation: do not hide, remount, or resize.
+            guard geometryChanged, rotationGeneration == token,
+                  let overlay = self.floatingWindow,
+                  ObjectIdentifier(overlay) == overlayIdentity,
+                  let host = self.guestWindow else { return }
+            resizeOverlay(open: overlay.isExpanded, appCount: 0)
+            lastStableSceneSize =
+                host.windowScene?.coordinateSpace.bounds.size ?? host.bounds.size
+            overlay.alpha = 1
+            ScarletDiagnosticRecorder.shared.record(
+                "guest", "overlay_rotation_unstable",
+                status: "warning", fields: ["reason": "geometry_did_not_settle"])
         }
     }
 
@@ -685,9 +708,13 @@ final class ScarletFullscreenGuestTabInstaller: NSObject {
             if floatingWindow.alpha > 0 { placeFloatingWindow() }
             return
         }
+        rotationGeneration += 1
+        rotationWatchTask?.cancel()
+        rotationWatchTask = nil
         floatingWindow?.isHidden = true
         floatingWindow = nil
         guestWindow = original
+        lastStableSceneSize = scene.coordinateSpace.bounds.size
         width = 72
         height = 72
         dragOrigin = nil
