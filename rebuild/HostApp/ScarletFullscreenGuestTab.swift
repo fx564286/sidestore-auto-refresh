@@ -58,6 +58,10 @@ struct ScarletFullscreenGuestFloatingTab: View {
     @State private var transitionVersion = 0
     @State private var dockRight = false
     @State private var screenButtonCenter = CGPoint.zero
+    @AppStorage("Scarlet.Feature.SwitcherMotion.V1",
+                store: LCUtils.appGroupUserDefault) private var switcherMotion = true
+    @AppStorage("Scarlet.Feature.SwitcherHaptics.V1",
+                store: LCUtils.appGroupUserDefault) private var switcherHaptics = true
 
     private let spring = Animation.spring(response: 0.47, dampingFraction: 0.82)
 
@@ -70,8 +74,10 @@ struct ScarletFullscreenGuestFloatingTab: View {
         feedback = nil
         transitionVersion += 1
         onPanel(true, apps.count)
-        UIImpactFeedbackGenerator(style: .soft).impactOccurred()
-        withAnimation(spring) { isOpen = true }
+        if switcherHaptics {
+            UIImpactFeedbackGenerator(style: .soft).impactOccurred()
+        }
+        withAnimation(switcherMotion ? spring : nil) { isOpen = true }
         ScarletDiagnosticRecorder.shared.record(
             "guest", "switch_panel_opened",
             fields: ["count": String(apps.count), "api": "UIKit.UIGlassEffect"])
@@ -80,9 +86,11 @@ struct ScarletFullscreenGuestFloatingTab: View {
     private func closePanel() {
         transitionVersion += 1
         let version = transitionVersion
-        withAnimation(spring) { isOpen = false }
+        withAnimation(switcherMotion ? spring : nil) { isOpen = false }
         Task { @MainActor in
-            try? await Task.sleep(for: .milliseconds(390))
+            if switcherMotion {
+                try? await Task.sleep(for: .milliseconds(390))
+            }
             if version == transitionVersion && !isOpen { onPanel(false, apps.count) }
         }
     }
@@ -93,17 +101,23 @@ struct ScarletFullscreenGuestFloatingTab: View {
             return
         }
         guard target.canSwitch else {
-            UINotificationFeedbackGenerator().notificationOccurred(.warning)
+            if switcherHaptics {
+                UINotificationFeedbackGenerator().notificationOccurred(.warning)
+            }
             feedback = "이 앱은 먼저 앱 목록에서 한 번 실행·서명해야 합니다."
             ScarletDiagnosticRecorder.shared.record(
                 "guest", "switch_target_needs_setup",
                 fields: ["reason": "unprepared_guest"])
             return
         }
-        UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+        if switcherHaptics {
+            UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+        }
         if !onSwitch(target) {
             feedback = "전환 요청에 실패했습니다. 앱 목록에서 실행해 주세요."
-            UINotificationFeedbackGenerator().notificationOccurred(.error)
+            if switcherHaptics {
+                UINotificationFeedbackGenerator().notificationOccurred(.error)
+            }
         }
     }
 
@@ -199,7 +213,9 @@ struct ScarletFullscreenGuestFloatingTab: View {
                 }
                 Spacer(minLength: 0)
                 Button {
-                    UINotificationFeedbackGenerator().notificationOccurred(.success)
+                    if switcherHaptics {
+                        UINotificationFeedbackGenerator().notificationOccurred(.success)
+                    }
                     ScarletDiagnosticRecorder.shared.record(
                         "guest", "fullscreen_tab_exit_requested")
                     onExit()
@@ -258,10 +274,16 @@ struct ScarletFullscreenGuestFloatingTab: View {
                         Circle()
                             .strokeBorder(Color.primary.opacity(0.28), lineWidth: 0.8)
                     }
-                Image(systemName: isOpen ? "xmark" : "square.stack.3d.up.fill")
-                    .font(.system(size: 23, weight: .semibold))
-                    .symbolEffect(.bounce, value: isOpen)
-                    .foregroundStyle(.primary)
+                Group {
+                    if switcherMotion {
+                        Image(systemName: isOpen ? "xmark" : "square.stack.3d.up.fill")
+                            .symbolEffect(.bounce, value: isOpen)
+                    } else {
+                        Image(systemName: isOpen ? "xmark" : "square.stack.3d.up.fill")
+                    }
+                }
+                .font(.system(size: 23, weight: .semibold))
+                .foregroundStyle(.primary)
             }
             .frame(width: 62, height: 62)
             .contentShape(Circle())
@@ -299,7 +321,7 @@ struct ScarletFullscreenGuestFloatingTab: View {
             .frame(width: geometry.size.width, height: geometry.size.height)
         }
         .ignoresSafeArea()
-        .animation(spring, value: isOpen)
+        .animation(switcherMotion ? spring : nil, value: isOpen)
         .onAppear {
             screenButtonCenter = initialButtonCenter
             dockRight = initialDockRight
@@ -331,9 +353,10 @@ private final class ScarletGuestScreenPan: NSObject, UIGestureRecognizerDelegate
               let overlay = view.window as? ScarletGuestTouchPassthroughWindow,
               !overlay.isExpanded else { return false }
         let point = recognizer.location(in: overlay)
-        let cx = overlay.dockRight ? overlay.bounds.width - 36 : CGFloat(36)
-        let cy = overlay.bounds.height - 36
-        return hypot(point.x - cx, point.y - cy) <= 35
+        // V10 is a full-scene overlay. The button is at a persisted absolute
+        // screen point, NOT the bottom corner of the UIWindow.
+        return hypot(point.x - overlay.buttonCenter.x,
+                     point.y - overlay.buttonCenter.y) <= 35
     }
     @objc func didPan(_ gesture: UIPanGestureRecognizer) {
         guard let window = gesture.view?.window else { return }

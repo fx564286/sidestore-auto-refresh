@@ -574,6 +574,7 @@ def attach_native_settings_diagnostics(engine: Path) -> dict:
         source=(source[:i] +
             '                if #available(iOS 17.0, *) {\n'
             '                    ScarletSigningReadinessPanel()\n'
+            '                    ScarletFeatureModulesSection()\n'
             '                } else {\n' + original_jit +
             '                }\n' + source[j:])
         extra_jit="""                        if(sharedModel.multiLCStatus == 2) {
@@ -782,6 +783,7 @@ def main():
     sources={
         root/"rebuild/HostApp/ScarletIntegratedHostView.swift":"ScarletIntegratedHostView.swift",
         root/"rebuild/HostApp/ScarletNativeGlass.swift":"ScarletNativeGlass.swift",
+        root/"rebuild/HostApp/ScarletFeatureModulesSection.swift":"ScarletFeatureModulesSection.swift",
         root/"rebuild/HostApp/ScarletSigningReadinessPanel.swift":"ScarletSigningReadinessPanel.swift",
         root/"rebuild/HostApp/ScarletGuestSwitcherOverlay.swift":"ScarletGuestSwitcherOverlay.swift",
         root/"rebuild/HostApp/ScarletFullscreenGuestTab.swift":"ScarletFullscreenGuestTab.swift",

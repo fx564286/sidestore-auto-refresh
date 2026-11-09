@@ -3,7 +3,7 @@ name: Scarlet paired LiveContainer and SideStore iOS build
 on:
   workflow_dispatch:
   push:
-    branches: [rebuild/scarlet-from-zero-20261106, fix/scarlet-auth-status-rootcause-20261109, fix/scarlet-pr48-guest-overlay-no-resize-20261109, fix/scarlet-pr48-airpods-glass-guest-switch-v3-20261109, fix/scarlet-pr48-draggable-guest-tab-v4-20261109, fix/scarlet-pr48-v5-glass-drag-cert-recovery-20261109, fix/scarlet-pr48-v6-unified-cert-glass-20261109, fix/scarlet-pr48-v7-cert-jitless-unify-panel-rim-20261109, fix/scarlet-pr48-v8-flicker-certificate-menu-20261109, fix/scarlet-pr48-v9-single-glass-rim-20261109, fix/scarlet-pr48-v10-fixed-tab-cert-and-session-20261109]
+    branches: [rebuild/scarlet-from-zero-20261106, fix/scarlet-auth-status-rootcause-20261109, fix/scarlet-pr48-guest-overlay-no-resize-20261109, fix/scarlet-pr48-airpods-glass-guest-switch-v3-20261109, fix/scarlet-pr48-draggable-guest-tab-v4-20261109, fix/scarlet-pr48-v5-glass-drag-cert-recovery-20261109, fix/scarlet-pr48-v6-unified-cert-glass-20261109, fix/scarlet-pr48-v7-cert-jitless-unify-panel-rim-20261109, fix/scarlet-pr48-v8-flicker-certificate-menu-20261109, fix/scarlet-pr48-v9-single-glass-rim-20261109, fix/scarlet-pr48-v10-fixed-tab-cert-and-session-20261109, fix/scarlet-pr48-v11-module-settings-appid-20261109]
     paths:
       - ".github/workflows/scarlet-paired-engines-build.yml"
       - "rebuild/integration/**"
@@ -26,6 +26,17 @@ jobs:
       - uses: maxim-lobanov/setup-xcode@v1.6.0
         with:
           xcode-version: "27.2"
+      - name: Validate modular feature controls and signing footprint contracts
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p report
+          python3 -m unittest discover -s rebuild/Tests -p 'test_*.py' \
+            > report/scarlet-regression-tests.log 2>&1 || {
+              tail -90 report/scarlet-regression-tests.log
+              exit 1
+            }
+          tail -4 report/scarlet-regression-tests.log
       - name: Fetch exact pinned LiveContainer with all native app extensions
         shell: bash
         run: |
@@ -78,7 +89,7 @@ jobs:
           data=json.loads(p.read_text())
           log=(root/"report/livecontainer-build.log").read_text(errors="replace")
           required=("ScarletIntegratedHostView.swift", "ScarletNativeGlass.swift",
-                    "ScarletIndependentShell.swift")
+                    "ScarletFeatureModulesSection.swift", "ScarletIndependentShell.swift")
           missing=[x for x in required if x not in log]
           assert not missing, "Original Xcode sources absent from build log: "+str(missing)
           data["newRootCompiled"]=True
@@ -220,7 +231,10 @@ jobs:
             --phase combined \
             --combined-ipa report/Scarlet-LiveContainer+SideStore-ENGINES-UNSIGNED.ipa \
             --report report/combined-ipa-verification.json
-          echo "[PASS] Pinned SideStore embedded as native LC framework. User installation not performed."
+          python3 rebuild/scripts/audit_appid_footprint.py \
+            --ipa report/Scarlet-LiveContainer+SideStore-ENGINES-UNSIGNED.ipa \
+            --out report/scarlet-app-id-footprint.json
+          echo "[PASS] Pinned SideStore embedded, no new App IDs or unknown .appex; user installation not performed."
       - name: Upload exact binary artifacts and signing limitations
         if: always()
         uses: actions/upload-artifact@v4
