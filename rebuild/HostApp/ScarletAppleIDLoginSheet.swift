@@ -139,7 +139,9 @@ struct ScarletAppleIDLoginSheet: View {
                         Text("SideStore 보안 저장소에서 Apple 인증 토큰을 확인했습니다. 서명 인증서와 활성 팀 설정은 별도로 검증됩니다.")
                             .font(.footnote)
                             .foregroundStyle(.secondary)
-                        Button("다른 계정으로 다시 인증") {
+                        Button("계정 전환 (기존 세션 교체)") {
+                            // Pinned SideStore has one active token slot; label must not
+                            // imply multi-account retention before worker support exists.
                             explicitlyReauthenticating = true
                         }
                     }
