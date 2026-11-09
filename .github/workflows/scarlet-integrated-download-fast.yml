@@ -3,7 +3,7 @@ name: Scarlet integrated IPA - cached engine public release
 on:
   workflow_dispatch:
   push:
-    branches: [rebuild/scarlet-from-zero-20261106, fix/scarlet-pr48-guest-overlay-no-resize-20261109, fix/scarlet-pr48-airpods-glass-guest-switch-v3-20261109]
+    branches: [rebuild/scarlet-from-zero-20261106, fix/scarlet-pr48-guest-overlay-no-resize-20261109, fix/scarlet-pr48-airpods-glass-guest-switch-v3-20261109, fix/scarlet-pr48-draggable-guest-tab-v4-20261109]
     paths: [".github/workflows/scarlet-integrated-download-fast.yml"]
 
 permissions:
@@ -24,7 +24,7 @@ jobs:
         with:
           name: Scarlet-LiveContainer-Native-Engine
           path: artifacts/lc
-          run-id: 42572766410
+          run-id: 42573832116
           github-token: ${{ github.token }}
 
       - uses: actions/download-artifact@v4
@@ -95,8 +95,8 @@ jobs:
             --phase combined \
             --combined-ipa report/Scarlet-LiveContainer+SideStore-ENGINES-UNSIGNED.ipa \
             --report report/combined-ipa-verification.json
-          cp report/Scarlet-LiveContainer+SideStore-ENGINES-UNSIGNED.ipa Scarlet-PR48-AirPods-Glass-Switch-V3-UNSIGNED.ipa
-          shasum -a 256 Scarlet-PR48-AirPods-Glass-Switch-V3-UNSIGNED.ipa > Scarlet-PR48-AirPods-Glass-Switch-V3-UNSIGNED.ipa.sha256
+          cp report/Scarlet-LiveContainer+SideStore-ENGINES-UNSIGNED.ipa Scarlet-PR48-Drag-Glass-Switch-V4-UNSIGNED.ipa
+          shasum -a 256 Scarlet-PR48-Drag-Glass-Switch-V4-UNSIGNED.ipa > Scarlet-PR48-Drag-Glass-Switch-V4-UNSIGNED.ipa.sha256
 
       - name: Publish public permanent GitHub Release download
         shell: bash
@@ -104,31 +104,31 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -Eeuo pipefail
-          tag=scarlet-pr48-airpods-glass-switch-v3-20261109
+          tag=scarlet-pr48-draggable-glass-switch-v4-20261109
           cat > release-notes.md <<'EOF'
           ## Scarlet integrated LiveContainer + SideStore — unsigned IPA
 
-          V3: native UIGlassEffect + GlassEffectContainer AirPods-style spring panel and actual installed guest app switching using PR48 relaunch. Xcode 27.2 native LC archive run 42572766410 success. No guest resize, no concurrent multi-process claim. On-device visual parity not verified.\n          Existing full-screen guest app geometry, host tabs, runApp() and orientation code UNCHANGED.\n          No forced landscape or simultaneous multi-process claim.\n          Signed installation and real iPhone UI validation still required.
+          V4: move AirPods-style Liquid Glass round tab with drag, persist relative position across guest launch and rotation, passthrough touches outside round button and expanded panel. PR48 runApp, guest frame and keyboard untouched. Xcode archive run 42573832116 success. On-device interaction still requires confirmation.\n          Existing full-screen guest app geometry, host tabs, runApp() and orientation code UNCHANGED.\n          No forced landscape or simultaneous multi-process claim.\n          Signed installation and real iPhone UI validation still required.
           **UNSIGNED, DIAGNOSTIC ONLY. Not directly installable on iPhone.**
           Native signing, Apple login, app execution and Liquid Glass real-device
           verification remain unconfirmed. Original users' data is unchanged.
           EOF
           printf "\nCompiled new UI: %s\nReused audited pinned SideStore: 42564856912\n" \
-            "42572766410" >> release-notes.md
+            "42573832116" >> release-notes.md
           if ! gh release view "$tag" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
             gh release create "$tag" --repo "$GITHUB_REPOSITORY" \
-              --target "$GITHUB_SHA" --title "Scarlet PR48 AirPods Glass guest switcher V3 - unsigned IPA" \
+              --target "$GITHUB_SHA" --title "Scarlet PR48 draggable Liquid Glass switcher V4 - unsigned IPA" \
               --prerelease --latest=false --notes-file release-notes.md
           fi
           gh release upload "$tag" --repo "$GITHUB_REPOSITORY" \
-            Scarlet-PR48-AirPods-Glass-Switch-V3-UNSIGNED.ipa \
-            Scarlet-PR48-AirPods-Glass-Switch-V3-UNSIGNED.ipa.sha256 --clobber
+            Scarlet-PR48-Drag-Glass-Switch-V4-UNSIGNED.ipa \
+            Scarlet-PR48-Drag-Glass-Switch-V4-UNSIGNED.ipa.sha256 --clobber
           gh release edit "$tag" --repo "$GITHUB_REPOSITORY" \
-            --title "Scarlet PR48 AirPods Glass guest switcher V3 - unsigned IPA" \
+            --title "Scarlet PR48 draggable Liquid Glass switcher V4 - unsigned IPA" \
             --prerelease --notes-file release-notes.md
           gh release view "$tag" --repo "$GITHUB_REPOSITORY" \
-            --json assets --jq '.assets[].name' | grep -Fx "Scarlet-PR48-AirPods-Glass-Switch-V3-UNSIGNED.ipa"
-          echo "https://github.com/$GITHUB_REPOSITORY/releases/download/$tag/Scarlet-PR48-AirPods-Glass-Switch-V3-UNSIGNED.ipa" >> "$GITHUB_STEP_SUMMARY"
+            --json assets --jq '.assets[].name' | grep -Fx "Scarlet-PR48-Drag-Glass-Switch-V4-UNSIGNED.ipa"
+          echo "https://github.com/$GITHUB_REPOSITORY/releases/download/$tag/Scarlet-PR48-Drag-Glass-Switch-V4-UNSIGNED.ipa" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Check out existing GitHub Pages without changing website files
         uses: actions/checkout@v4
@@ -141,13 +141,13 @@ jobs:
         shell: bash
         run: |
           set -Eeuo pipefail
-          cp Scarlet-PR48-AirPods-Glass-Switch-V3-UNSIGNED.ipa pages/
-          (cd pages && sha256sum Scarlet-PR48-AirPods-Glass-Switch-V3-UNSIGNED.ipa)
+          cp Scarlet-PR48-Drag-Glass-Switch-V4-UNSIGNED.ipa pages/
+          (cd pages && sha256sum Scarlet-PR48-Drag-Glass-Switch-V4-UNSIGNED.ipa)
           git -C pages config user.name "scarlet-pages-asset-bot"
           git -C pages config user.email "github-actions[bot]@users.noreply.github.com"
-          git -C pages add -f -- Scarlet-PR48-AirPods-Glass-Switch-V3-UNSIGNED.ipa
+          git -C pages add -f -- Scarlet-PR48-Drag-Glass-Switch-V4-UNSIGNED.ipa
           if ! git -C pages diff --cached --quiet; then
             git -C pages commit -m "downloads: verified Scarlet PR48 AirPods Glass V3 unsigned IPA"
             git -C pages push origin HEAD:gh-pages
           fi
-          echo "https://fx564286.github.io/sidestore-auto-refresh/Scarlet-PR48-AirPods-Glass-Switch-V3-UNSIGNED.ipa" >> "$GITHUB_STEP_SUMMARY"
+          echo "https://fx564286.github.io/sidestore-auto-refresh/Scarlet-PR48-Drag-Glass-Switch-V4-UNSIGNED.ipa" >> "$GITHUB_STEP_SUMMARY"
