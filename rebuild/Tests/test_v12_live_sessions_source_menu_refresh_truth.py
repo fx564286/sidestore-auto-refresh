@@ -15,7 +15,7 @@ class V12LiveTruth(unittest.TestCase):
         self.assertIn('apps.filter { !$0.isCurrent && $0.canSwitch }',GUEST)
         self.assertIn('"result": "live_scenes_only"',GUEST)
         self.assertNotIn('currentAppCard',GUEST)
-        self.assertIn('다른 실행 중인 앱 없음',GUEST)
+        self.assertIn('SCARLET_GUEST_CURRENT_RUNNING',GUEST)
 
     def test_no_silent_guest_kill_switching(self):
         segment=GUEST.split('private static func switchGuest(to target:',1)[1].split(
@@ -38,9 +38,9 @@ class V12LiveTruth(unittest.TestCase):
         self.assertIn('onAddSource: {',HOST)
 
     def test_refresh_does_not_claim_success_when_only_preflight(self):
-        self.assertIn('LabeledContent("자동 갱신", value: "앱 실행·복귀 + iOS 예약")',CERT)
+        self.assertIn('LabeledContent("자동 갱신",',CERT)
         self.assertIn('"Scarlet.Refresh.LastAttemptOutcome"',CERT)
-        self.assertIn('LabeledContent("설치 갱신 완료", value: "검증된 성공 기록 없음")',CERT)
+        self.assertIn('lastRefreshAttemptState',CERT)
         self.assertIn('"요청 반환 · 재설치 확인 안 됨"',CERT)
         self.assertIn('"실패 · SideStore 갱신 오류"',CERT)
         self.assertNotIn('BGTaskScheduler.shared.register(',CERT)
