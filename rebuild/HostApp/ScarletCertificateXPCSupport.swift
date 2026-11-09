@@ -7,6 +7,7 @@ import Foundation
 public final class ScarletNativeCertificateTransport {
     public static let shared = ScarletNativeCertificateTransport()
     private var requestID: String?
+    public private(set) var lastResolution = "unknown"
     private var completion: CheckedContinuation<(Data, String), Error>?
     private init() {}
 
@@ -29,6 +30,7 @@ public final class ScarletNativeCertificateTransport {
             throw ScarletNativeAuthError.guestUnavailable
         }
         let id = UUID().uuidString
+        lastResolution = "unknown"
         requestID = id
         defer { requestID = nil; completion = nil }
         return try await withCheckedThrowingContinuation {
@@ -54,6 +56,19 @@ public final class ScarletNativeCertificateTransport {
         guard id == requestID, let pending = completion else { return }
         completion = nil
         if code == 0 && !archive.isEmpty && archive.count <= 64 * 1024 {
+            // Accept only safe, pinned worker classification enums.
+            switch domain {
+            case "scarlet.cert.new_apple_portal":
+                lastResolution = "new_apple_portal"
+            case "scarlet.cert.existing_active":
+                lastResolution = "existing_active"
+            case "scarlet.cert.existing_portal":
+                lastResolution = "existing_portal"
+            case "scarlet.cert.existing_stored":
+                lastResolution = "existing_stored"
+            default:
+                lastResolution = "unknown"
+            }
             pending.resume(returning: (archive, password))
         } else {
             pending.resume(throwing:

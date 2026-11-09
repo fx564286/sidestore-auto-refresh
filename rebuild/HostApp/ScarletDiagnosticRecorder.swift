@@ -30,7 +30,7 @@ final class ScarletDiagnosticRecorder: @unchecked Sendable {
         // App Group and certificate failures on the installed iPhone.
         "entitled_app_group", "group_accessible", "signed_host_identity",
         "lc_cert_present", "installation_verified", "material_owner",
-        "optical_verified", "api"
+        "optical_verified", "api", "source"
     ]
 
     private init() {

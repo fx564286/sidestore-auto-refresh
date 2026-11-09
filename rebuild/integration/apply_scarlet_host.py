@@ -551,11 +551,48 @@ def attach_native_settings_diagnostics(engine: Path) -> dict:
                 }
 '''
     assert new_section.count(extension_anchor) == 1, "Scarlet settings section moved"
-    new_section=new_section.replace(extension_anchor, extension_anchor+
-        '                if #available(iOS 17.0, *) {\n'
-        '                    ScarletSigningReadinessPanel()\n'
-        '                }\n')
+    # V7: put one certificate/JIT-Less control card in the native
+    # JIT-Less slot, not a second independent settings section.
     source=source.replace(form_anchor,new_section)
+    jitless_begin = '                if sharedModel.multiLCStatus != 2 {\n                    Section{'
+    jitless_after = '                if (store != .Unknown && store != .ADP) || LCUtils.isAppGroupAltStoreLike() {'
+    # Small, synthetic 15-section test fixture has no real JIT-Less block;
+    # retain its pre-existing one-section injection contract.
+    if jitless_begin not in source or jitless_after not in source:
+        assert source.count(extension_anchor)==1
+        source=source.replace(extension_anchor, extension_anchor+
+            '                if #available(iOS 17.0, *) {\n'
+            '                    ScarletSigningReadinessPanel()\n'
+            '                }\n')
+    else:
+        i=source.index(jitless_begin)
+        j=source.index(jitless_after,i)
+        original_jit=source[i:j]
+        assert 'importCertificateFromSideStore()' in original_jit
+        assert 'removeCertificate()' in original_jit
+        assert 'LCJITLessDiagnoseView()' in original_jit
+        source=(source[:i] +
+            '                if #available(iOS 17.0, *) {\n'
+            '                    ScarletSigningReadinessPanel()\n'
+            '                } else {\n' + original_jit +
+            '                }\n' + source[j:])
+        extra_jit="""                        if(sharedModel.multiLCStatus == 2) {
+                            NavigationLink {
+                                LCJITLessDiagnoseView()
+                            } label: {
+                                Text("lc.settings.jitlessDiagnose".loc)
+                            }
+                        }"""
+        assert source.count(extra_jit)==1
+        source=source.replace(extra_jit,"""                        if #available(iOS 17.0, *) {
+                            // JIT-Less is now in one combined certificate section.
+                        } else if sharedModel.multiLCStatus == 2 {
+                            NavigationLink {
+                                LCJITLessDiagnoseView()
+                            } label: {
+                                Text("lc.settings.jitlessDiagnose".loc)
+                            }
+                        }""")
     # Preserve upstream localized certificate alerts verbatim.
     # Supplemental verification status is shown by Scarlet separately.
     source=source.replace(style_anchor,style_anchor+

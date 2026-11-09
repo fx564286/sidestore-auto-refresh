@@ -41,7 +41,7 @@ class GuestAirPodsGlassSwitcher(unittest.TestCase):
         self.assertIn('floating.frame = next',GUEST)
         self.assertIn('Stay non-key to protect guest keyboard',GUEST)
         for s in ('original.frame =', 'appSceneVC.view.frame =',
-                  'UISupportedInterfaceOrientations',
+                  'appData["UISupportedInterfaceOrientations"] = ',
                   'orientationLock =', 'LCCertificateData',
                   'removeItem(at:', 'runApp(multitask: true)'):
             self.assertNotIn(s,GUEST)

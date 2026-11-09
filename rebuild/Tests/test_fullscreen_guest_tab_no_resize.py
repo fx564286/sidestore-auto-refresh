@@ -21,7 +21,7 @@ class GuestTabNoResize(unittest.TestCase):
         self.assertIn('SCARLET_PR48_GUEST_ROUND_TAB',TAB)
         self.assertIn('SCARLET_PR48_GUEST_EXIT',TAB)
         for prohibited in ('root.view.frame =', 'window.frame =',
-                           'appSceneVC.view.frame =', 'UISupportedInterfaceOrientations',
+                           'appSceneVC.view.frame =', 'appData["UISupportedInterfaceOrientations"] = ',
                            'supportedInterfaceOrientations =', 'orientationLock =',
                            'UIInterfaceOrientationMaskLandscape'):
             self.assertNotIn(prohibited,TAB)

@@ -208,6 +208,10 @@ struct ScarletSigningReadinessPanel: View {
             do {
                 let (archive, password) =
                     try await ScarletNativeCertificateTransport.shared.obtain()
+                let source = ScarletNativeCertificateTransport.shared.lastResolution
+                ScarletDiagnosticRecorder.shared.record(
+                    "certificate", "provider_origin_checked",
+                    fields: ["source": source])
                 pendingP12 = archive
                 p12Password = password
                 importExportedP12()
@@ -384,7 +388,7 @@ struct ScarletSigningReadinessPanel: View {
         defaults.set(Date(), forKey: "LCCertificateUpdateDate")
         certificateRecoveryStatus = "새 P12 팀 일치 및 저장·읽기 검증 완료. 실제 서명과 프로파일 갱신은 별도 확인이 필요합니다."
         ScarletDiagnosticRecorder.shared.record(
-            "certificate", "sideinstaller_p12_stored",
+            "certificate", "p12_stored_verified",
             status: "success",
             fields: ["reason": existingCert == nil ? "new_same_team_readback"
                                                  : "explicit_replacement_same_team"])
@@ -395,7 +399,6 @@ struct ScarletSigningReadinessPanel: View {
     var body: some View {
         Section {
             LabeledContent("자동 갱신", value: "미연결 · 실행 안 됨")
-            LabeledContent("수동 갱신", value: "내장 SideStore 엔진")
             LabeledContent("SideStore 로그인",
                            value: authenticated == nil ? "확인 중" :
                                   (authenticated == true ? "인증됨" : "인증 필요"))
@@ -458,6 +461,12 @@ struct ScarletSigningReadinessPanel: View {
             .disabled(refreshing || !readiness.canRequestNativeRefresh ||
                       authenticated != true)
             .accessibilityIdentifier("SCARLET_MANUAL_SIDESTORE_REFRESH")
+            NavigationLink {
+                LCJITLessDiagnoseView()
+            } label: {
+                Label("JIT-Less 모드 진단", systemImage: "stethoscope")
+            }
+            .accessibilityIdentifier("SCARLET_JITLESS_SINGLE_DIAGNOSTIC")
             if let statusMessage {
                 Text(statusMessage)
                     .font(.footnote)
@@ -465,7 +474,7 @@ struct ScarletSigningReadinessPanel: View {
                     .accessibilityIdentifier("SCARLET_REFRESH_STATUS")
             }
         } header: {
-            Text("서명 갱신 · 권한")
+            Text("JIT-Less · 인증서")
         } footer: {
             Text("로그인, 서명 인증서, App Group 접근, 실제 재설치는 서로 다른 상태입니다. 자동 7일 갱신은 아직 연결되지 않았습니다.")
         }
