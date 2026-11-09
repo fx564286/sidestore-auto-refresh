@@ -24,7 +24,7 @@ jobs:
         with:
           name: Scarlet-LiveContainer-Native-Engine
           path: artifacts/lc
-          run-id: 42567476055
+          run-id: 42569926798
           github-token: ${{ github.token }}
 
       - uses: actions/download-artifact@v4
@@ -95,8 +95,8 @@ jobs:
             --phase combined \
             --combined-ipa report/Scarlet-LiveContainer+SideStore-ENGINES-UNSIGNED.ipa \
             --report report/combined-ipa-verification.json
-          cp report/Scarlet-LiveContainer+SideStore-ENGINES-UNSIGNED.ipa Scarlet-PR48-FloatingTab-UNSIGNED.ipa
-          shasum -a 256 Scarlet-PR48-FloatingTab-UNSIGNED.ipa > Scarlet-PR48-FloatingTab-UNSIGNED.ipa.sha256
+          cp report/Scarlet-LiveContainer+SideStore-ENGINES-UNSIGNED.ipa Scarlet-PR48-FloatingTab-V2-UNSIGNED.ipa
+          shasum -a 256 Scarlet-PR48-FloatingTab-V2-UNSIGNED.ipa > Scarlet-PR48-FloatingTab-V2-UNSIGNED.ipa.sha256
 
       - name: Publish public permanent GitHub Release download
         shell: bash
@@ -104,11 +104,11 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -Eeuo pipefail
-          tag=scarlet-pr48-floating-tab-20261109
+          tag=scarlet-pr48-floating-tab-visible-v2-20261109
           cat > release-notes.md <<'EOF'
           ## Scarlet integrated LiveContainer + SideStore — unsigned IPA
 
-          Experimental PR48 guest-only Liquid Glass tab overlay.\n          Existing full-screen guest app geometry, host tabs, runApp() and orientation code UNCHANGED.\n          No forced landscape or simultaneous multi-process claim.\n          Signed installation and real iPhone UI validation still required.
+          Experimental PR48 guest-only Liquid Glass tab visibility fix: explicitly dlopen SwiftUI module from TweakLoader, retry lifecycle, floating non-key UIWindow. Xcode 27.2 successfully compiled this source. User device not yet verified.\n          Existing full-screen guest app geometry, host tabs, runApp() and orientation code UNCHANGED.\n          No forced landscape or simultaneous multi-process claim.\n          Signed installation and real iPhone UI validation still required.
           **UNSIGNED, DIAGNOSTIC ONLY. Not directly installable on iPhone.**
           Native signing, Apple login, app execution and Liquid Glass real-device
           verification remain unconfirmed. Original users' data is unchanged.
@@ -117,15 +117,15 @@ jobs:
             "42567476055" >> release-notes.md
           if ! gh release view "$tag" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
             gh release create "$tag" --repo "$GITHUB_REPOSITORY" \
-              --target "$GITHUB_SHA" --title "Scarlet PR48 floating tab - unsigned IPA" \
+              --target "$GITHUB_SHA" --title "Scarlet PR48 guest-tab visibility FIX v2 - unsigned IPA" \
               --prerelease --latest=false --notes-file release-notes.md
           fi
           gh release upload "$tag" --repo "$GITHUB_REPOSITORY" \
-            Scarlet-PR48-FloatingTab-UNSIGNED.ipa \
-            Scarlet-PR48-FloatingTab-UNSIGNED.ipa.sha256 --clobber
+            Scarlet-PR48-FloatingTab-V2-UNSIGNED.ipa \
+            Scarlet-PR48-FloatingTab-V2-UNSIGNED.ipa.sha256 --clobber
           gh release edit "$tag" --repo "$GITHUB_REPOSITORY" \
-            --title "Scarlet PR48 floating tab - unsigned IPA" \
+            --title "Scarlet PR48 guest-tab visibility FIX v2 - unsigned IPA" \
             --prerelease --notes-file release-notes.md
           gh release view "$tag" --repo "$GITHUB_REPOSITORY" \
-            --json assets --jq '.assets[].name' | grep -Fx "Scarlet-PR48-FloatingTab-UNSIGNED.ipa"
-          echo "https://github.com/$GITHUB_REPOSITORY/releases/download/$tag/Scarlet-PR48-FloatingTab-UNSIGNED.ipa" >> "$GITHUB_STEP_SUMMARY"
+            --json assets --jq '.assets[].name' | grep -Fx "Scarlet-PR48-FloatingTab-V2-UNSIGNED.ipa"
+          echo "https://github.com/$GITHUB_REPOSITORY/releases/download/$tag/Scarlet-PR48-FloatingTab-V2-UNSIGNED.ipa" >> "$GITHUB_STEP_SUMMARY"
