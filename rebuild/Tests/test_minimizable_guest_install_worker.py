@@ -23,6 +23,9 @@ class MinimizedGuestInstall(unittest.TestCase):
         self.assertNotIn('LCAppListView(',guest_sheet)
         self.assertNotIn('removeItem(at:',guest_sheet)
         self.assertIn('.presentationDragIndicator(.visible)',guest_sheet)
+        self.assertNotIn('Button(guestImportActivity.isRunning ? "내리기" : "닫기")',guest_sheet)
+        self.assertIn('if !guestImportActivity.isRunning {',guest_sheet)
+        self.assertIn('Button("닫기")',guest_sheet)
         self.assertNotIn('.interactiveDismissDisabled()',guest_sheet)
 
     def test_worker_cleans_up_only_after_original_importer_returns(self):
@@ -43,7 +46,11 @@ class MinimizedGuestInstall(unittest.TestCase):
         download_sheet = HOST.split('.sheet(isPresented: $showSourceDownloadSheet',1)[1].split(
             '.sheet(isPresented: $showNativeSources',1)[0]
         self.assertIn('download_kept_alive',download_sheet)
-        self.assertIn('Button(sourceIsDownloading ? "내리기" : "닫기")',download_sheet)
+        self.assertNotIn('Button(sourceIsDownloading ? "내리기" : "닫기")',download_sheet)
+        self.assertNotIn('SCARLET_SOURCE_DOWNLOAD_MINIMIZE',download_sheet)
+        self.assertIn('Button("다운로드 취소")',download_sheet)
+        self.assertIn('if !sourceIsDownloading {',download_sheet)
+        self.assertIn('SCARLET_SOURCE_DOWNLOAD_CLOSE',download_sheet)
         self.assertIn('sourceDownloadTask?.cancel()',download_sheet)
         self.assertIn('.presentationDragIndicator(.visible)',download_sheet)
         self.assertNotIn('.interactiveDismissDisabled(sourceIsDownloading)',download_sheet)
