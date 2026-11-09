@@ -9,6 +9,8 @@ enum ScarletGuestSessionLedger {
     struct Entry: Codable, Equatable {
         let folder: String
         let lastOpened: Date
+        let title: String?
+        let dataUUID: String?
     }
     private static let key = "Scarlet.Guest.RecentSessions.V14"
     private static let maxItems = 24
@@ -28,10 +30,12 @@ enum ScarletGuestSessionLedger {
         }.prefix(maxItems))
     }
 
-    static func noteLaunch(folder: String) {
+    static func noteLaunch(folder: String, title: String, dataUUID: String?) {
         guard folder.hasSuffix(".app"), !folder.contains("/"),
               !folder.contains("\\"), folder != ".app" else { return }
-        let items = [Entry(folder: folder, lastOpened: Date())] +
+        let items = [Entry(folder: folder, lastOpened: Date(),
+                           title: String(title.prefix(100)),
+                           dataUUID: dataUUID)] +
             recent().filter { $0.folder != folder }
         guard let encoded = try? JSONEncoder().encode(Array(items.prefix(maxItems)))
         else { return }

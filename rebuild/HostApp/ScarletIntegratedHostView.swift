@@ -429,7 +429,10 @@ struct ScarletIntegratedHostView: View {
                 }
                 // Only record actual runApp return, not uninstalled catalog apps.
                 if let folder = app.appInfo.relativeBundlePath {
-                    ScarletGuestSessionLedger.noteLaunch(folder: folder)
+                    ScarletGuestSessionLedger.noteLaunch(
+                        folder: folder,
+                        title: app.displayName,
+                        dataUUID: app.uiSelectedContainer?.folderName)
                 }
                 // runApp returning is NOT proof the guest scene is on-screen.
                 ScarletDiagnosticRecorder.shared.record("guest", "runapp_returned",

@@ -91,6 +91,8 @@ jobs:
           required=("ScarletIntegratedHostView.swift", "ScarletNativeGlass.swift",
                     "ScarletFeatureModulesSection.swift", "ScarletAutomaticRenewal.swift",
                     "ScarletGuestSessionLedger.swift",
+                    "ScarletGuestSwitcherOverlay.swift",
+                    "ScarletFullscreenGuestTab.swift",
                     "ScarletIndependentShell.swift")
           missing=[x for x in required if x not in log]
           assert not missing, "Original Xcode sources absent from build log: "+str(missing)

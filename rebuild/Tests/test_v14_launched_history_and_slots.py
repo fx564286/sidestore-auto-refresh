@@ -16,7 +16,7 @@ AUD=(R/"scripts/audit_appid_footprint.py").read_text()
 
 class V14(unittest.TestCase):
     def test_run_history_added_only_after_real_original_launch(self):
-        self.assertIn('ScarletGuestSessionLedger.noteLaunch(folder: folder)',H)
+        self.assertIn('ScarletGuestSessionLedger.noteLaunch(',H)
         self.assertIn('try await app.runApp(multitask: true)',H)
         self.assertIn('UIApplication.shared.supportsMultipleScenes',H)
         self.assertIn('MultitaskMode.nativeWindow.rawValue',H)
@@ -25,6 +25,11 @@ class V14(unittest.TestCase):
         self.assertIn('Scarlet.Guest.RecentSessions.V14',L)
         self.assertIn('LCUtils.appGroupUserDefault',L)
         self.assertIn('recent().filter { $0.folder != folder }',L)
+        native=(R/"HostApp/ScarletGuestSwitcherOverlay.swift").read_text()
+        self.assertIn('ScarletGuestSessionLedger.recent()',native)
+        self.assertIn('entry.dataUUID ?? entry.folder',native)
+        self.assertIn('openWindow(id: "Main")',native)
+        self.assertIn('guard item.isLive else',native)
 
     def test_history_and_live_process_distinct(self):
         self.assertIn('recentFolders.contains(folder)',G)
