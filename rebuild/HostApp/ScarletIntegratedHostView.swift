@@ -129,10 +129,14 @@ struct ScarletIntegratedHostView: View {
                 teamMatch = certificateTeam == hostTeam ? "match" : "mismatch"
             }
         }
+        let permissions = ScarletSigningReadiness.inspect()
         ScarletDiagnosticRecorder.shared.record("guest", "certificate_preflight",
             fields: ["certificate_present": cert == nil ? "false" : "true",
                      "password_present": password == nil ? "false" : "true",
-                     "team_match": teamMatch])
+                     "team_match": teamMatch,
+                     "entitled_app_group": permissions.sideStoreAppGroupEntitled ? "true" : "false",
+                     "group_accessible": permissions.sideStoreAppGroupAccessible ? "true" : "false",
+                     "signed_host_identity": permissions.actualHostIdentity ? "match" : "mismatch"])
     }
 
     private func validateJITLessSigner() {
@@ -156,6 +160,17 @@ struct ScarletIntegratedHostView: View {
     // Never log a P12, password, account, team ID or Keychain value.
     private func bridgeExistingSideStoreCertificateIfSafe() {
         guard LCUtils.certificateData() == nil else { return }
+        // UserDefaults(suiteName:) in pinned LC can fall back to standard defaults.
+        // Writing a certificate there is NOT granting an App Group entitlement.
+        // Only Apple-issued signed entitlement + actual group container access
+        // can authorize guest certificate storage; do not mutate on failure.
+        let permissions = ScarletSigningReadiness.inspect()
+        guard permissions.canRequestNativeRefresh else {
+            ScarletDiagnosticRecorder.shared.record(
+                "guest", "certificate_bridge_skipped", status: "blocked",
+                fields: ["reason": permissions.safeBlockCategory])
+            return
+        }
         let certificateQuery: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrAccount as String: "signingCertificate",
