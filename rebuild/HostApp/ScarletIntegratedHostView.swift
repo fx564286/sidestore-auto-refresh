@@ -726,6 +726,9 @@ struct ScarletIntegratedHostView: View {
                 showSourceURLInput = true
             },
             onInstallSourceApp: installSourceGuestApp,
+            activeInstallText: sourceIsDownloading ? sourceDownloadStage :
+                (guestImportActivity.hasActivity ? guestImportActivity.title : nil),
+            onShowActiveInstall: openActiveInstallProgress,
             preservedGlassTabBar: { tab in
                 AnyView(ScarletNativeGlassTabBar(selected: tab))
             },
