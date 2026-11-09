@@ -41,82 +41,20 @@ codesign --force --sign - --timestamp=none "$APP"
 # while launchd and SpringBoard are unresponsive. Isolate a new disposable
 # simulator from an available iOS runtime and device type.
 SIM_UDID_FILE="$RUNNER_TEMP/scarlet-preview-udid.txt"
-python3 - "$SIM_UDID_FILE" <<'PY'
-import json,subprocess,sys,time,uuid
-from pathlib import Path
-
-def run(*args, seconds=30, checked=True):
-    cp=subprocess.run(args,stdout=subprocess.PIPE,stderr=subprocess.PIPE,
-                      text=True,timeout=seconds)
-    if checked and cp.returncode:
-        raise RuntimeError(f"{args[:4]} failed rc={cp.returncode}: {cp.stderr[-600:]}")
-    return cp
-
-# Pair each simulated device type with the *same* runtime as an actual
-# available runner image. Selecting newest runtime + newest phone separately
-# yielded CoreSimulator.SimError 403 ("Incompatible device") on Xcode 27.2.
-try:
-    data=json.loads(run("xcrun","simctl","list","devices","available",
-                        "--json",seconds=40).stdout)["devices"]
-except Exception as e:
-    print(f"[SIM][INFRA] Available simulator discovery failed: {e}",file=sys.stderr)
-    sys.exit(2)
-pairs=[]
-for runtime_id,devices in data.items():
-    if "iOS" not in runtime_id:
-        continue
-    for device in devices:
-        name=device.get("name","")
-        type_id=device.get("deviceTypeIdentifier")
-        if device.get("isAvailable") and name.startswith("iPhone") and type_id:
-            pairs.append((runtime_id,type_id,name,device.get("udid",""),device.get("state","")))
-if not pairs:
-    print("[SIM][INFRA] No preconfigured compatible iPhone/runtime pair",file=sys.stderr)
-    sys.exit(2)
-# Prefer a non-running template so the runner's stuck booted simulator remains
-# undisturbed. Always use the complete device/runtime pair from the same row.
-pairs.sort(key=lambda p:(p[4]!="Shutdown",not p[2].startswith("iPhone 17"),p[2]))
-print(f"[SIM] Available compatible combinations: {len(pairs)}",file=sys.stderr)
-
-for attempt in (1,2):
-    udid=None
-    try:
-        runtime,device_type,device_name,template_udid,_ = pairs[min(attempt-1,len(pairs)-1)]
-        print(f"[SIM] Attempt {attempt} using {device_name} / {runtime}",file=sys.stderr)
-        if attempt==2:
-            # The first try may leave a stuck simulator daemon on hosted macOS.
-            # Restart only CoreSimulatorService, never user data / host keychains.
-            run("killall","-9","com.apple.CoreSimulator.CoreSimulatorService",
-                seconds=12,checked=False)
-            time.sleep(4)
-        name="Scarlet-Preview-CI-"+uuid.uuid4().hex[:8]
-        udid=run("xcrun","simctl","create",name,device_type,runtime,
-                 seconds=50).stdout.strip()
-        if not udid:
-            raise RuntimeError("Simulator create returned empty UDID")
-        run("xcrun","simctl","boot",udid,seconds=45)
-        try:
-            run("xcrun","simctl","bootstatus",udid,"-b",seconds=115)
-        except (subprocess.TimeoutExpired,RuntimeError):
-            # bootstatus sometimes stalls even if launchd is responsive.
-            # Positive launchd evidence is mandatory before proceeding.
-            run("xcrun","simctl","spawn",udid,"launchctl","list",seconds=25)
-        print(f"[SIM] Verified disposable runtime (attempt {attempt})",file=sys.stderr)
-        Path(sys.argv[1]).write_text(udid + "\n")
-        sys.exit(0)
-    except Exception as e:
-        print(f"[SIM][INFRA] Attempt {attempt} failed: {e}",file=sys.stderr)
-        if udid:
-            for command in ("shutdown","delete"):
-                try:
-                    run("xcrun","simctl",command,udid,seconds=12,checked=False)
-                except Exception: pass
-print("[SIM][INFRA] No responsive iPhone Simulator: capture not verified",file=sys.stderr)
-sys.exit(2)
-PY
+SIM_OWNED_FILE="$RUNNER_TEMP/scarlet-preview-owned.txt"
+# Positive readiness evidence is required. The selector first probes an
+# already-booted device and then fresh isolated compatible runtime pairs.
+# It never kills the machine-wide CoreSimulatorService.
+python3 "$ROOT/rebuild/scripts/boot_preview_simulator.py" \
+    "$SIM_UDID_FILE" "$SIM_OWNED_FILE" "$OUT"
 UDID="$(cat "$SIM_UDID_FILE")"
 echo "[SIM] Dedicated device $UDID"
 cleanup() {
+  # A verified prebooted runner simulator is borrowed, NOT ours to delete.
+  if [[ "$(cat "$SIM_OWNED_FILE")" != "1" ]]; then
+    echo "[SIM] Borrowed simulator retained (no global shutdown/delete)"
+    return
+  fi
   python3 - "$UDID" <<'PY'
 import subprocess,sys
 for command in ("shutdown","delete"):
