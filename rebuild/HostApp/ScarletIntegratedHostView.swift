@@ -952,6 +952,9 @@ struct ScarletIntegratedHostView: View {
             }
         }
         .onAppear {
+            // Guest apps virtualize Application Support. Collect the previous
+            // guest's anonymous switcher trace before showing host diagnostics.
+            ScarletGuestSessionLedger.replaySwitcherTraceToHostJournal()
             ScarletDiagnosticRecorder.shared.record("boot", "host_visible",
                 fields: ["count": String(sharedModel.apps.count),
                          "engine": "livecontainer",
@@ -978,6 +981,7 @@ struct ScarletIntegratedHostView: View {
             ScarletDiagnosticRecorder.shared.record("lifecycle", "scene_phase",
                 fields: ["state": String(describing: phase)])
             if phase == .active && !showScarletAppleIDLogin {
+                ScarletGuestSessionLedger.replaySwitcherTraceToHostJournal()
                 refreshStoredLoginState()
                 Task { @MainActor in
                     await ScarletAutomaticRenewal.shared.foregroundCatchUp()

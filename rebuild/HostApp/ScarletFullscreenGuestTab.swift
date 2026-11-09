@@ -75,6 +75,7 @@ struct ScarletFullscreenGuestFloatingTab: View {
 
     private func openPanel() {
         apps = reloadApps()
+        ScarletGuestSessionLedger.traceSwitcher("panel_opened", count: apps.count)
         feedback = nil
         transitionVersion += 1
         onPanel(true, apps.count)
@@ -88,6 +89,7 @@ struct ScarletFullscreenGuestFloatingTab: View {
     }
 
     private func closePanel() {
+        ScarletGuestSessionLedger.traceSwitcher("panel_closed")
         transitionVersion += 1
         let version = transitionVersion
         withAnimation(switcherMotion ? spring : nil) { isOpen = false }
@@ -100,6 +102,9 @@ struct ScarletFullscreenGuestFloatingTab: View {
     }
 
     private func switchTo(_ target: ScarletGuestSwitchTarget) {
+        ScarletGuestSessionLedger.traceSwitcher(
+            target.isCurrent ? "switch_tapped_current"
+                : (target.canSwitch ? "switch_tapped_live" : "switch_tapped_cold"))
         if target.isCurrent {
             closePanel()
             return
@@ -109,6 +114,7 @@ struct ScarletFullscreenGuestFloatingTab: View {
                 UINotificationFeedbackGenerator().notificationOccurred(.warning)
             }
             feedback = "이 앱은 실행 준비가 필요합니다. 앱 목록에서 서명·실행 상태를 확인하세요."
+            ScarletGuestSessionLedger.traceSwitcher("switch_rejected")
             ScarletDiagnosticRecorder.shared.record(
                 "guest", "switch_target_needs_setup",
                 fields: ["reason": "guest_not_ready_for_relaunch"])
@@ -119,8 +125,10 @@ struct ScarletFullscreenGuestFloatingTab: View {
         }
         if onSwitch(target) {
             // A cold target restarts through LC; it is not a preserved RAM scene.
+            ScarletGuestSessionLedger.traceSwitcher("switch_submitted")
             closePanel()
         } else {
+            ScarletGuestSessionLedger.traceSwitcher("switch_submit_failed")
             feedback = "앱 전환 요청이 실패했습니다. 앱 목록에서 서명·실행 상태를 확인하세요."
             if switcherHaptics {
                 UINotificationFeedbackGenerator().notificationOccurred(.error)
@@ -597,6 +605,7 @@ final class ScarletFullscreenGuestTabInstaller: NSObject {
                     }
                     if stableSamples >= 4 {
                         placeFloatingWindow()
+                        ScarletGuestSessionLedger.traceSwitcher("rotation_relayout")
                         resizeOverlay(open: overlay.isExpanded, appCount: 0)
                         overlay.rootViewController?.view.setNeedsLayout()
                         overlay.rootViewController?.view.layoutIfNeeded()
@@ -919,6 +928,7 @@ final class ScarletFullscreenGuestTabInstaller: NSObject {
             }
         }
         lastFailure = nil
+        ScarletGuestSessionLedger.traceSwitcher("fullscreen_tab_mounted")
         NSLog("[SCARLET_GUEST_TAB] mounted_nonkey_window")
         ScarletDiagnosticRecorder.shared.record(
             "guest", "fullscreen_tab_mounted",
