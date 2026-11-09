@@ -84,6 +84,9 @@ struct ScarletIntegratedHostView: View {
     @State private var sourceDownloadStage = "IPA 서버에 연결 중"
     @State private var sourceDownloadError: String?
     @State private var sourceDownloadedIPA: URL?
+    @State private var deviceInstallRunning = false
+    @State private var deviceInstallStatus: String?
+    @State private var showDeviceInstallSheet = false
     @State private var sourceInputError: String?
     @State private var showScarletAppleIDLogin = false
     @State private var appleAuthVerified = false
@@ -474,26 +477,103 @@ struct ScarletIntegratedHostView: View {
     }
 
     private func prepareDeviceIPAInstall(_ source: URL) {
-        guard ["ipa", "tipa"].contains(source.pathExtension.lowercased()) else {
-            showOriginalError = "IPA 또는 TIPA 파일을 선택하세요."
+        guard source.pathExtension.lowercased() == "ipa" else {
+            showOriginalError = "기기 직접 설치에는 .ipa 파일이 필요합니다. .tipa는 게스트 앱으로 가져올 수 있습니다."
             return
         }
-        ScarletDiagnosticRecorder.shared.record("sidestore", "device_file_selected")
-        ScarletDiagnosticRecorder.shared.record("sidestore", "install_requested",
-            fields: ["engine": "sidestore"])
-        // Do not open SideStore's UI. Device installation requires the
-        // SideStore headless install/signing engine and verified profiles.
-        // The older integrated app implements IPA staging -> installSharedIPA.
-        // This rebuild has not yet ported and verified that transport.
+        guard !deviceInstallRunning, !guestImportActivity.isRunning,
+              !sourceIsDownloading else {
+            showOriginalError = "다른 앱 설치가 진행 중입니다."
+            return
+        }
         guard UserDefaults.sideStoreExist() else {
             ScarletDiagnosticRecorder.shared.record("sidestore", "engine_missing",
                 status: "blocked", fields: ["reason": "engine_missing"])
             showOriginalError = "내장 SideStore 설치 엔진을 찾지 못했습니다."
             return
         }
-        ScarletDiagnosticRecorder.shared.record("sidestore", "install_blocked",
-            status: "blocked", fields: ["reason": "transport_unverified"])
-        showOriginalError = "iOS 앱 설치 엔진의 서명·기기 설치 연결이 아직 검증되지 않았습니다. 원본 IPA와 기존 인증서·프로파일은 변경하지 않았습니다."
+        let readiness = ScarletSigningReadiness.inspect()
+        guard readiness.canRequestNativeRefresh else {
+            ScarletDiagnosticRecorder.shared.record("sidestore", "install_blocked",
+                status: "blocked", fields: ["reason": readiness.safeBlockCategory])
+            showOriginalError = "서명된 App Group 권한이나 개발팀이 일치하지 않아 기기 설치가 차단됐습니다."
+            return
+        }
+        deviceInstallRunning = true
+        deviceInstallStatus = "설치 파일 준비 중"
+        showDeviceInstallSheet = true
+        ScarletDiagnosticRecorder.shared.record("sidestore", "install_requested",
+            fields: ["engine": "headless_appmanager", "route": "device"])
+        Task { @MainActor in
+            defer { deviceInstallRunning = false }
+            let authenticated = await ScarletConnectedSideSignEngine().storedAuthenticated()
+            guard authenticated else {
+                deviceInstallStatus = "SideStore 로그인 확인이 필요합니다."
+                ScarletDiagnosticRecorder.shared.record("sidestore", "install_blocked",
+                    status: "blocked", fields: ["reason": "auth_unavailable"])
+                return
+            }
+            let groupID = "group.com.SideStore.SideStore.P8EZT3U5N4"
+            guard let containerURL = FileManager.default.containerURL(
+                      forSecurityApplicationGroupIdentifier: groupID) else {
+                deviceInstallStatus = "App Group 저장소에 접근할 수 없습니다."
+                ScarletDiagnosticRecorder.shared.record("sidestore", "install_blocked",
+                    status: "blocked", fields: ["reason": "app_group_unavailable"])
+                return
+            }
+            let directory = containerURL.appendingPathComponent(
+                "ScarletDeviceInstall", isDirectory: true)
+            let staged = directory.appendingPathComponent(
+                "scarlet-device-\(UUID().uuidString).ipa")
+            // Filename is a random UUID; only the matching installer worker
+            // is allowed to open files from this one group container.
+            do {
+                deviceInstallStatus = "IPA 파일 준비 중"
+                try FileManager.default.createDirectory(at: directory,
+                    withIntermediateDirectories: true)
+                let copied: Bool = await Task.detached(priority: .userInitiated) {
+                    let scoped = source.startAccessingSecurityScopedResource()
+                    defer { if scoped { source.stopAccessingSecurityScopedResource() } }
+                    do {
+                        try FileManager.default.copyItem(at: source, to: staged)
+                        return true
+                    } catch { return false }
+                }.value
+                guard copied else {
+                    deviceInstallStatus = "IPA 파일을 읽을 수 없습니다."
+                    ScarletDiagnosticRecorder.shared.record("sidestore", "install_failed",
+                        status: "error", fields: ["reason": "staging_failed"])
+                    return
+                }
+                defer { try? FileManager.default.removeItem(at: staged) }
+                deviceInstallStatus = "내장 SideStore에서 서명·설치 중"
+                // Original SideStore AppManager installs through its own
+                // signing/provisioning/pairing engine. No SideInstaller UI.
+                try await ScarletDeviceInstaller.install(stagedIPA: staged)
+                deviceInstallStatus = "기기 설치 작업 완료 · iPhone에서 앱 확인"
+                ScarletDiagnosticRecorder.shared.record("sidestore",
+                    "install_operation_returned", status: "success",
+                    fields: ["result": "native_operation_completed"])
+            } catch {
+                let nsError = error as NSError
+                let reason = nsError.domain.hasPrefix("scarlet.install.")
+                    ? String(nsError.domain.dropFirst("scarlet.install.".count))
+                    : "native_install_failed"
+                ScarletDiagnosticRecorder.shared.record("sidestore",
+                    "install_failed", status: "error",
+                    fields: ["reason": reason])
+                switch reason {
+                case "certificate_missing", "certificate_unavailable":
+                    deviceInstallStatus = "기존 서명 인증서를 찾을 수 없습니다. 인증서 발급·동기화가 필요합니다."
+                case "pairing_unavailable":
+                    deviceInstallStatus = "페어링 연결을 확인해야 합니다."
+                case "profile_unavailable":
+                    deviceInstallStatus = "Apple 프로비저닝 프로파일을 확인해야 합니다."
+                default:
+                    deviceInstallStatus = "기기 설치에 실패했습니다. 진단 로그에서 상태를 확인하세요."
+                }
+            }
+        }
     }
 
     // SwiftUI presents the real iOS Files document picker. Copy the
