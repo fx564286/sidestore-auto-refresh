@@ -1,0 +1,80 @@
+
+// Scarlet-owned headless IPA installation adapter (separate from SideInstaller).
+// This runs inside the pinned SideStore guest LiveProcess, NOT in a second UI.
+// Uses SideStore's ORIGINAL AppManager install/sign/provisioning pipeline.
+// No SideInstaller source code, binary or dependency is copied into Scarlet.
+@objc(ScarletDeviceInstallAgent)
+final class ScarletDeviceInstallAgent: NSObject {
+    private static let groupID = "group.com.SideStore.SideStore.P8EZT3U5N4"
+    private static let directory = "ScarletDeviceInstall"
+
+    @objc(install:)
+    static func install(_ payload: NSDictionary) {
+        guard let requestID = payload["requestID"] as? String,
+              UUID(uuidString: requestID) != nil,
+              let filename = payload["filename"] as? String,
+              filename.hasSuffix(".ipa"),
+              filename == URL(fileURLWithPath: filename).lastPathComponent,
+              !filename.contains("..") else {
+            notify("invalid_request")
+            return
+        }
+        Task {
+            do {
+                // The host and SideStore LiveProcess must possess the same
+                // Apple-authorized group. The staged file stays in its own
+                // dedicated folder; paths provided by third parties are never
+                // accepted by this endpoint.
+                guard let groupURL = FileManager.default.containerURL(
+                          forSecurityApplicationGroupIdentifier: groupID) else {
+                    notify("app_group_unavailable")
+                    return
+                }
+                let workDirectory = groupURL.appendingPathComponent(
+                    directory, isDirectory: true).standardizedFileURL
+                let fileURL = workDirectory.appendingPathComponent(
+                    filename, isDirectory: false).standardizedFileURL
+                guard fileURL.deletingLastPathComponent() == workDirectory,
+                      fileURL.pathExtension.lowercased() == "ipa",
+                      FileManager.default.isReadableFile(atPath: fileURL.path),
+                      let fileSize = (try? fileURL.resourceValues(
+                        forKeys: [.fileSizeKey])).flatMap({ $0.fileSize }),
+                      fileSize > 100 else {
+                    notify("staged_ipa_missing")
+                    return
+                }
+                // Free Personal Teams should reuse their EXISTING valid
+                // certificate. Never silently revoke/replace it just to
+                // satisfy an installation request from Scarlet.
+                guard (try? CertificateManager.shared.loadActiveCertificate()) != nil else {
+                    notify("certificate_missing")
+                    return
+                }
+                try await DatabaseManager.shared.start()
+                _ = try await withCheckedThrowingContinuation {
+                    (continuation: CheckedContinuation<InstalledApp, Error>) in
+                    _ = AppManager.shared.install(.url(fileURL)) { result in
+                        continuation.resume(with: result)
+                    }
+                }
+                notify("installed")
+            } catch {
+                // XPC only reports a categorical result, never Apple IDs,
+                // arbitrary exception strings, IPA filenames or P12 data.
+                let message = error.localizedDescription.lowercased()
+                let reason: String
+                if message.contains("pair") { reason = "pairing_unavailable" }
+                else if message.contains("certificate") { reason = "certificate_unavailable" }
+                else if message.contains("provision") { reason = "profile_unavailable" }
+                else { reason = "native_install_failed" }
+                notify(reason)
+            }
+        }
+    }
+
+    private static func notify(_ result: String) {
+        NotificationCenter.default.post(
+            name: Notification.Name("ScarletDeviceInstallCompleted"),
+            object: nil, userInfo: ["result": result])
+    }
+}
