@@ -544,7 +544,7 @@ struct ScarletIntegratedHostView: View {
     }
 
     private func openActiveInstallProgress() {
-        if sourceIsDownloading || sourceDownloadedIPA != nil {
+        if sourceIsDownloading || sourceDownloadedIPA != nil || sourceDownloadError != nil {
             showSourceDownloadSheet = true
         } else if guestImportActivity.hasActivity {
             showGuestImportProgress = true
@@ -727,7 +727,8 @@ struct ScarletIntegratedHostView: View {
             },
             onInstallSourceApp: installSourceGuestApp,
             activeInstallText: sourceIsDownloading ? sourceDownloadStage :
-                (guestImportActivity.hasActivity ? guestImportActivity.title : nil),
+                (sourceDownloadError != nil ? "다운로드 실패" :
+                 (guestImportActivity.hasActivity ? guestImportActivity.title : nil)),
             onShowActiveInstall: openActiveInstallProgress,
             preservedGlassTabBar: { tab in
                 AnyView(ScarletNativeGlassTabBar(selected: tab))
