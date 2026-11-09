@@ -404,6 +404,7 @@ final class ScarletFullscreenGuestTabInstaller: NSObject {
     private static var dragStartScreen: CGPoint?
     private static var dragHandler: ScarletGuestScreenPan?
     private static var rotationObserver: NSObjectProtocol?
+    private static var foregroundObserver: NSObjectProtocol?
     private static var rotationGeneration = 0
     private static var lastStableSceneSize: CGSize?
     private static var rotationWatchTask: Task<Void, Never>?
@@ -535,13 +536,19 @@ final class ScarletFullscreenGuestTabInstaller: NSObject {
     // Probe while visible; suspend only after real geometry changes.
     private static func settleOverlayAfterRotation() {
         guard let floatingWindow, let guestWindow else { return }
-        guard rotationWatchTask == nil else { return }
+        // A second orientation/foreground event must supersede the previous
+        // probe; the old task must not leave a transparent overlay behind.
+        rotationGeneration += 1
+        rotationWatchTask?.cancel()
+        rotationWatchTask = nil
+        floatingWindow.alpha = 1
+        floatingWindow.isHidden = false
+        placeFloatingWindow()
         let original = guestWindow.windowScene?.coordinateSpace.bounds.size
             ?? guestWindow.bounds.size
         let baseline = lastStableSceneSize ?? original
         lastStableSceneSize = baseline
         let overlayIdentity = ObjectIdentifier(floatingWindow)
-        rotationGeneration += 1
         let token = rotationGeneration
         rotationWatchTask = Task { @MainActor in
             defer {
@@ -563,11 +570,15 @@ final class ScarletFullscreenGuestTabInstaller: NSObject {
                    abs(current.height - baseline.height) > 1 {
                     if !geometryChanged {
                         geometryChanged = true
-                        overlay.alpha = 0
                         ScarletDiagnosticRecorder.shared.record(
-                            "guest", "overlay_rotation_suspended",
-                            fields: ["reason": "geometry_changed"])
+                            "guest", "overlay_rotation_geometry_changed",
+                            fields: ["result": "visible_relayout"])
                     }
+                    // Never blank the floating button during rotation. Resize
+                    // the overlay frame and recompute its normalized center on
+                    // every observed scene size change.
+                    placeFloatingWindow()
+                    overlay.alpha = 1
                     if abs(current.width - previous.width) < 0.5 &&
                        abs(current.height - previous.height) < 0.5 {
                         stableSamples += 1
@@ -575,6 +586,7 @@ final class ScarletFullscreenGuestTabInstaller: NSObject {
                         stableSamples = 0
                     }
                     if stableSamples >= 4 {
+                        placeFloatingWindow()
                         resizeOverlay(open: overlay.isExpanded, appCount: 0)
                         overlay.rootViewController?.view.setNeedsLayout()
                         overlay.rootViewController?.view.layoutIfNeeded()
@@ -594,6 +606,7 @@ final class ScarletFullscreenGuestTabInstaller: NSObject {
                   let overlay = self.floatingWindow,
                   ObjectIdentifier(overlay) == overlayIdentity,
                   let host = self.guestWindow else { return }
+            placeFloatingWindow()
             resizeOverlay(open: overlay.isExpanded, appCount: 0)
             lastStableSceneSize =
                 host.windowScene?.coordinateSpace.bounds.size ?? host.bounds.size
@@ -817,7 +830,9 @@ final class ScarletFullscreenGuestTabInstaller: NSObject {
         if let floatingWindow, floatingWindow.windowScene === scene,
            !floatingWindow.isHidden {
             guestWindow = original
-            if floatingWindow.alpha > 0 { placeFloatingWindow() }
+            floatingWindow.alpha = 1
+            placeFloatingWindow()
+            settleOverlayAfterRotation()
             return
         }
         rotationGeneration += 1
@@ -878,6 +893,17 @@ final class ScarletFullscreenGuestTabInstaller: NSObject {
                 forName: UIDevice.orientationDidChangeNotification,
                 object: nil, queue: .main) { _ in
                 Task { @MainActor in
+                    settleOverlayAfterRotation()
+                }
+            }
+        }
+        if foregroundObserver == nil {
+            foregroundObserver = NotificationCenter.default.addObserver(
+                forName: UIApplication.didBecomeActiveNotification,
+                object: nil, queue: .main) { _ in
+                Task { @MainActor in
+                    // A guest may rotate while inactive, without producing an
+                    // observable UIDevice.orientationDidChangeNotification.
                     settleOverlayAfterRotation()
                 }
             }
