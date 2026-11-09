@@ -171,37 +171,64 @@ struct ScarletIntegratedHostView: View {
                 fields: ["reason": permissions.safeBlockCategory])
             return
         }
-        let certificateQuery: [String: Any] = [
-            kSecClass as String: kSecClassGenericPassword,
-            kSecAttrAccount as String: "signingCertificate",
-            kSecReturnData as String: true,
-            kSecMatchLimit as String: kSecMatchLimitOne,
-            kSecAttrService as String: "com.kdt.livecontainer",
-            kSecAttrSynchronizable as String: kSecAttrSynchronizableAny
-        ]
-        let passwordQuery: [String: Any] = [
-            kSecClass as String: kSecClassGenericPassword,
-            kSecAttrAccount as String: "signingCertificatePassword",
-            kSecReturnData as String: true,
-            kSecMatchLimit as String: kSecMatchLimitOne,
-            kSecAttrService as String: "com.kdt.livecontainer",
-            kSecAttrSynchronizable as String: kSecAttrSynchronizableAny
-        ]
-        var item: CFTypeRef?
-        var passwordItem: CFTypeRef?
-        let certStatus = SecItemCopyMatching(certificateQuery as CFDictionary, &item)
-        let pwdStatus = SecItemCopyMatching(passwordQuery as CFDictionary, &passwordItem)
-        guard certStatus == errSecSuccess, pwdStatus == errSecSuccess,
-              let certData = item as? Data,
-              let pwdData = passwordItem as? Data,
-              let password = String(data: pwdData, encoding: .utf8),
-              !certData.isEmpty, !password.isEmpty,
-              let signingTeam = LCUtils.getCertTeamId(
-                  withKeyData: certData, password: password),
-              let hostTeam = LCSharedUtils.teamIdentifier(),
-              signingTeam == hostTeam else {
-            ScarletDiagnosticRecorder.shared.record("guest", "certificate_bridge_skipped",
-                fields: ["reason": certStatus == errSecItemNotFound ? "missing" : "not_verified"])
+        // Pinned SideStore KeychainAccess uses Bundle.Info.appbundleIdentifier
+        // ("com.SideStore.SideStore"). Older bundled LC exports may instead
+        // use the LiveContainer service. Verify each candidate's PKCS#12 team
+        // before importing; never overwrite an existing LC certificate.
+        let sideStoreServices = ["com.SideStore.SideStore", "com.kdt.livecontainer"]
+        var verifiedCertificate: Data?
+        var verifiedPassword: String?
+        var lastReason = "missing"
+        for service in sideStoreServices {
+            let certificateQuery: [String: Any] = [
+                kSecClass as String: kSecClassGenericPassword,
+                kSecAttrAccount as String: "signingCertificate",
+                kSecReturnData as String: true,
+                kSecMatchLimit as String: kSecMatchLimitOne,
+                kSecAttrService as String: service,
+                kSecAttrSynchronizable as String: kSecAttrSynchronizableAny
+            ]
+            var item: CFTypeRef?
+            let certStatus = SecItemCopyMatching(certificateQuery as CFDictionary, &item)
+            guard certStatus == errSecSuccess,
+                  let candidate = item as? Data, !candidate.isEmpty else {
+                if certStatus != errSecItemNotFound { lastReason = "keychain_unavailable" }
+                continue
+            }
+            let passwordQuery: [String: Any] = [
+                kSecClass as String: kSecClassGenericPassword,
+                kSecAttrAccount as String: "signingCertificatePassword",
+                kSecReturnData as String: true,
+                kSecMatchLimit as String: kSecMatchLimitOne,
+                kSecAttrService as String: service,
+                kSecAttrSynchronizable as String: kSecAttrSynchronizableAny
+            ]
+            var passwordItem: CFTypeRef?
+            let pwdStatus = SecItemCopyMatching(passwordQuery as CFDictionary, &passwordItem)
+            if pwdStatus != errSecSuccess && pwdStatus != errSecItemNotFound {
+                lastReason = "password_keychain_unavailable"
+                continue
+            }
+            // SideStore supports unencrypted PKCS#12: nil/empty password
+            // is valid only when the actual certificate team verifies.
+            let password = (passwordItem as? Data)
+                .flatMap { String(data: $0, encoding: .utf8) } ?? ""
+            guard let certificateTeam = LCUtils.getCertTeamId(
+                withKeyData: candidate, password: password),
+                  let hostTeam = LCSharedUtils.teamIdentifier(),
+                  certificateTeam == hostTeam else {
+                lastReason = "certificate_team_or_password_invalid"
+                continue
+            }
+            verifiedCertificate = candidate
+            verifiedPassword = password
+            break
+        }
+        guard let certData = verifiedCertificate,
+              let password = verifiedPassword else {
+            ScarletDiagnosticRecorder.shared.record(
+                "guest", "certificate_bridge_skipped",
+                fields: ["reason": lastReason])
             return
         }
         // Same storage keys used by the original LCSettingsView.
@@ -290,7 +317,7 @@ struct ScarletIntegratedHostView: View {
                 // Do not attempt a launch that the pinned engine cannot sign.
                 if #available(iOS 26.0, *),
                    (LCUtils.certificateData() == nil ||
-                    (LCSharedUtils.certificatePassword() ?? "").isEmpty) {
+                    LCSharedUtils.certificatePassword() == nil) {
                     signingRecoveryNeeded = true
                     ScarletDiagnosticRecorder.shared.record(
                         "guest", "launch_blocked", status: "blocked",
