@@ -647,7 +647,6 @@ final class ScarletFullscreenGuestTabInstaller: NSObject {
 
         let selected = UserDefaults.standard.string(forKey: "selected") ??
                        UserDefaults.lc()?.string(forKey: "selected")
-        let selectedContainer = UserDefaults.standard.string(forKey: "selectedContainer")
         // Registry includes only attached, visible native LiveProcess scenes.
         // The current full-screen guest is detected independently via the
         // actual LCAppModel boot keys or the bootstrap's guest identifier.
@@ -706,11 +705,12 @@ final class ScarletFullscreenGuestTabInstaller: NSObject {
                 }
                 let hasExecuted = meta["lastLaunched"] is Date
                 let bundleID = appData["CFBundleIdentifier"] as? String
+                // A shared data container is not unique guest identity:
+                // multiple installed apps can point at the same data folder.
+                // Only an exact LC selected bundle/folder or explicitly
+                // bootstrapped guest identifier qualifies as "current".
                 let isCurrent = folder == selected || bundleID == selected ||
-                                folder == guestIdentifier || bundleID == guestIdentifier ||
-                                (containerExists != nil &&
-                                 containerExists == selectedContainer &&
-                                 selected != nil)
+                                folder == guestIdentifier || bundleID == guestIdentifier
                 let activeScene = containerExists.map {
                     activeSceneIDs.contains($0) && MultitaskManager.isUsing(container: $0)
                 } ?? false
