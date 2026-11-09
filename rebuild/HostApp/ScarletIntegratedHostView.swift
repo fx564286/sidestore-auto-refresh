@@ -202,11 +202,26 @@ struct ScarletIntegratedHostView: View {
         // Existing certificates, profiles and installed guests are untouched.
         ScarletDiagnosticRecorder.shared.record("guest", "jitless_probe_started")
         DispatchQueue.global(qos: .utility).async {
-            LCUtils.validateJITLessSetup { verified, _ in
+            LCUtils.validateJITLessSetup { verified, validationError in
                 ScarletDiagnosticRecorder.shared.record(
                     "guest", "jitless_probe_finished",
                     status: verified ? "success" : "error",
                     fields: ["result": verified ? "signature_valid" : "signature_invalid"])
+                // The pinned LC callback distinguishes a zsign failure from
+                // a successful write that fails its code-signature postcheck.
+                // Record only a safe NSError category/code, not payloads.
+                if !verified, let validationError {
+                    let nsError = validationError as NSError
+                    let category = nsError.code == 2 &&
+                        nsError.domain == Bundle.main.bundleIdentifier
+                        ? "signature_postcheck_invalid" : "signer_operation_failed"
+                    ScarletDiagnosticRecorder.shared.record(
+                        "guest", "jitless_probe_failure_classified",
+                        status: "error", fields: ["reason": category])
+                    ScarletDiagnosticRecorder.shared.recordError(
+                        "guest", "jitless_probe_underlying_error",
+                        error: validationError)
+                }
             }
         }
     }
