@@ -46,9 +46,12 @@ class LCManagerWithoutSideStoreGuestUI(unittest.TestCase):
         self.assertNotIn("guestIPAImportFromAddMenu",HOST)
         fragment=HOST[HOST.index(".sheet(isPresented: $showGuestImportProgress, onDismiss: {"):
                       HOST.index(".sheet(isPresented: $showNativeSources) {")]
-        self.assertIn("LCAppListView(scarletQueuedIPAURL: queuedGuestIPAURL,",fragment)
+        self.assertNotIn("LCAppListView(scarletQueuedIPAURL:",fragment)
+        self.assertIn("LCAppListView(scarletQueuedIPAURL: queuedGuestIPAURL,",HOST)
+        self.assertIn(".background(alignment: .topLeading) {",HOST)
         self.assertNotIn(".sheet(isPresented: $showNativeAppLibrary",fragment)
-        self.assertIn(".interactiveDismissDisabled()",fragment)
+        self.assertIn(".presentationDragIndicator(.visible)",fragment)
+        self.assertNotIn(".interactiveDismissDisabled()",fragment)
 
 
     def test_surgical_patch_removes_only_the_native_sidestore_guest_buttons(self):
