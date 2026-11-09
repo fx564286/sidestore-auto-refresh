@@ -654,8 +654,13 @@ final class ScarletFullscreenGuestTabInstaller: NSObject {
                               base.appendingPathComponent("Data/Application"), true))
         }
 
-        let selected = UserDefaults.standard.string(forKey: "selected") ??
-                       UserDefaults.lc()?.string(forKey: "selected")
+        // During LC guest bootstrap selected is consumed/removed. The guest
+        // TweakLoader passes NSUserDefaults.lcGuestAppId, which remains the
+        // true runtime bundle identity. Never treat the guest's virtualized
+        // standard UserDefaults or a display title as current-app authority.
+        let selected = UserDefaults.lc()?.string(forKey: "selected")
+        let runtimeID = guestIdentifier?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let hasRuntimeIdentity = runtimeID.map { !$0.isEmpty } ?? false
         // Registry includes only attached, visible native LiveProcess scenes.
         // The current full-screen guest is detected independently via the
         // actual LCAppModel boot keys or the bootstrap's guest identifier.
@@ -714,12 +719,17 @@ final class ScarletFullscreenGuestTabInstaller: NSObject {
                 }
                 let hasExecuted = meta["lastLaunched"] is Date
                 let bundleID = appData["CFBundleIdentifier"] as? String
-                // A shared data container is not unique guest identity:
-                // multiple installed apps can point at the same data folder.
-                // Only an exact LC selected bundle/folder or explicitly
-                // bootstrapped guest identifier qualifies as "current".
-                let isCurrent = folder == selected || bundleID == selected ||
-                                folder == guestIdentifier || bundleID == guestIdentifier
+                // Only the bootstrapped LC guest bundle ID may identify
+                // the current full-screen guest. The original guest bundle
+                // identifier can differ for LC's doUseLCBundleId override.
+                // Host's selected key is a launch request, not running state.
+                let originalBundleID = meta["LCOrignalBundleIdentifier"] as? String
+                let matchesRuntime = folder == runtimeID || bundleID == runtimeID ||
+                    ((meta["doUseLCBundleId"] as? Bool) == true &&
+                     originalBundleID == runtimeID)
+                let isCurrent = hasRuntimeIdentity
+                    ? matchesRuntime
+                    : (folder == selected || bundleID == selected)
                 let activeScene = containerExists.map {
                     activeSceneIDs.contains($0) && MultitaskManager.isUsing(container: $0)
                 } ?? false
@@ -766,16 +776,31 @@ final class ScarletFullscreenGuestTabInstaller: NSObject {
             "guest", "switch_candidates_scanned",
             fields: ["count": String(result.count),
                      "result": "live_and_launched_history"])
+        if hasRuntimeIdentity {
+            let currentCount = result.filter(\.isCurrent).count
+            ScarletGuestSessionLedger.traceSwitcher(
+                currentCount == 1 ? "runtime_current_resolved"
+                                  : "runtime_current_unresolved",
+                count: currentCount)
+            ScarletDiagnosticRecorder.shared.record(
+                "guest", "runtime_identity_classified",
+                status: currentCount == 1 ? "success" : "warning",
+                fields: ["count": String(currentCount),
+                         "result": currentCount == 1
+                             ? "current_guest_identified" : "current_guest_unresolved"])
+        }
         return result
     }
 
     // Two distinct routes: revive an owned native LiveProcess scene if
     // still resident; otherwise relaunch a previously registered guest via
     // LC's original host bootstrap. Cold reopening does NOT preserve RAM.
-    private static func switchGuest(to target: ScarletGuestSwitchTarget) -> Bool {
+    private static func switchGuest(
+        to target: ScarletGuestSwitchTarget, runtimeGuestID: String
+    ) -> Bool {
         guard !target.isCurrent, target.id.hasSuffix(".app"),
               !target.id.contains("/"), !target.id.contains("\\"),
-              let latest = installedApps().first(where: {
+              let latest = installedApps(guestIdentifier: runtimeGuestID).first(where: {
                   $0.id == target.id && !$0.isCurrent
               }) else { return false }
         if latest.canSwitch, let container = latest.containerID,
@@ -876,15 +901,15 @@ final class ScarletFullscreenGuestTabInstaller: NSObject {
         dragStartScreen = nil
         dragHandler = nil
 
-        let name = (rawName as String).isEmpty ? "현재 게스트" : rawName as String
+        let runtimeGuestID = rawName as String
         let content = ScarletFullscreenGuestFloatingTab(
-            guestTitle: name,
-            reloadApps: { installedApps(guestIdentifier: name) },
+            guestTitle: "현재 실행 중인 앱",
+            reloadApps: { installedApps(guestIdentifier: runtimeGuestID) },
             onPanel: resizeOverlay,
             initialDockRight: center(in: original).x >=
                 (original.windowScene?.coordinateSpace.bounds ?? original.bounds).midX,
             initialButtonCenter: center(in: original),
-            onSwitch: switchGuest,
+            onSwitch: { switchGuest(to: $0, runtimeGuestID: runtimeGuestID) },
             onExit: {
                 ScarletDiagnosticRecorder.shared.record(
                     "guest", "fullscreen_tab_exit_requested")
