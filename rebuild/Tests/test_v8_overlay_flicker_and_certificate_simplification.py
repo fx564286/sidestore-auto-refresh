@@ -19,7 +19,7 @@ class V8Contracts(unittest.TestCase):
     def test_one_certificate_button_fallback_and_manual_foldout(self):
         self.assertIn('Label("SideStore 인증서 받기"',PANEL)
         self.assertEqual(PANEL.count('Label("SideStore 인증서 받기"'),1)
-        self.assertIn('DisclosureGroup(isExpanded: $isAdvancedCertificateExpanded)',PANEL)
+        self.assertNotIn('DisclosureGroup(isExpanded: $isAdvancedCertificateExpanded)',PANEL)
         self.assertIn('Label("P12 파일 선택"',PANEL)
         self.assertIn('retrieveSideInstallerStyleCertificate()',PANEL)
         self.assertNotIn('Label("SideInstaller 방식 · SideStore 인증서 가져오기"',PANEL)
