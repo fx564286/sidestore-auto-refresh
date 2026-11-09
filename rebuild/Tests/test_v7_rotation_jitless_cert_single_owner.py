@@ -63,6 +63,10 @@ class V7SafetyContracts(unittest.TestCase):
         self.assertIn("lastResolution",TRANSPORT)
         self.assertIn('"certificate", "provider_origin_checked"',PANEL)
         self.assertIn('"source"',RECORDER)
+        for x in ("pendingCertificateOrigin", "new_apple_portal",
+                  "existing_active", "existing_stored", "external_file",
+                  '"certificate", "p12_origin_at_storage"'):
+            self.assertIn(x,PANEL)
         for forbidden in ("fields: [\"serialNumber\"", "fields: [\"p12\"", "revokeCertificate("):
             self.assertNotIn(forbidden,WORKER+PANEL)
 if __name__=="__main__":
