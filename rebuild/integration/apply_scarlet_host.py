@@ -818,7 +818,8 @@ def main():
         "                .frame(maxWidth: .infinity, maxHeight: .infinity)\n"
         "                .overlay(alignment: .bottomLeading) {\n"
         "                    if #available(iOS 17.0, *) {\n"
-        "                        ScarletGuestSwitcherOverlay(dataUUID: appInfo.dataUUID, displayName: appInfo.displayName)\n"
+        "                        ScarletGuestSwitcherOverlay(dataUUID: appInfo.dataUUID, displayName: appInfo.displayName,\n"
+        "                            exitGuest: { self.exitCurrentGuestAndReturnToScarlet() })\n"
         "                    }\n"
         "                }\n"
         "                .onDisappear { ScarletGuestSceneRegistry.unregister(appInfo.dataUUID) }\n"
@@ -827,7 +828,61 @@ def main():
         if guest_src.count(before)!=1:
             raise RuntimeError(f"Unexpected pinned guest scene layout; anchor count={guest_src.count(before)}: {before!r}")
         guest_src=guest_src.replace(before,after)
+    # The upstream native window terminator is only reachable from an
+    # existing LC close screen. Expose explicit close+host return so the
+    # circular control remains available in every native guest scene.
+    native_anchor = "    private func requestSceneDestruction(isManual: Bool = false) {\n"
+    assert guest_src.count(native_anchor) == 1, "Native guest close anchor changed"
+    guest_src = guest_src.replace(native_anchor, """    private func exitCurrentGuestAndReturnToScarlet() {
+        guard show else { return }
+        didRequestManualClose = true
+        if let info = appInfo {
+            ScarletGuestSceneRegistry.unregister(info.dataUUID)
+            MultitaskWindowManager.appDict.removeValue(forKey: info.dataUUID)
+            ScarletDiagnosticRecorder.shared.record(
+                "guest", "native_scene_exit_requested",
+                fields: ["guest_ref": ScarletDiagnosticRecorder.shared.guestReference(info.dataUUID)])
+        }
+        show = false
+        openWindow(id: "Main")
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+            requestSceneDestruction(isManual: true)
+        }
+    }
+
+""" + native_anchor)
+    # Any spontaneous termination also retires the scene from the active
+    # switcher list; a later launch creates a fresh scene, not the old PID.
+    close_anchor = "        Coordinator(onAppInitialize: onAppInitialize, onExit: {\n            show = false\n        })"
+    assert guest_src.count(close_anchor) == 1, "Native exit callback anchor changed"
+    guest_src = guest_src.replace(close_anchor,
+        "        Coordinator(onAppInitialize: onAppInitialize, onExit: {\n"
+        "            ScarletGuestSceneRegistry.unregister(dataUUID)\n"
+        "            MultitaskWindowManager.appDict.removeValue(forKey: dataUUID)\n"
+        "            show = false\n"
+        "        })")
     guest_window.write_text(guest_src)
+
+    # The original virtual-window path bypasses MultitaskAppWindow entirely.
+    # Mount the existing circular glass control on the actual decorated
+    # controller and call the upstream closeWindow for safe process cleanup.
+    virtual_window = engine / "MultitaskSupport/DecoratedAppSceneViewController.m"
+    assert virtual_window.is_file(), "Pinned LC virtual guest controller missing"
+    virtual_src = virtual_window.read_text()
+    virtual_anchor = "    [self setupDecoratedView];\n"
+    assert virtual_src.count(virtual_anchor) == 1, "Virtual window init anchor changed"
+    virtual_src = virtual_src.replace(virtual_anchor,
+        virtual_anchor +
+        "    if (@available(iOS 17.0, *)) {\n"
+        "        [ScarletGuestOverlayInstaller installOnController:self dataUUID:dataUUID displayName:windowName];\n"
+        "    }\n")
+    close_anchor = "- (void)closeWindow {\n"
+    assert virtual_src.count(close_anchor) == 1, "Virtual window close anchor changed"
+    virtual_src = virtual_src.replace(close_anchor,
+        "- (void)scarletExitToHost {\n"
+        "    [self closeWindow];\n"
+        "}\n\n" + close_anchor)
+    virtual_window.write_text(virtual_src)
 
     # The 2026-11-06 on-device crashes (four identical SIGTRAP/BRK #1 in
     # LiveContainerSwiftUI UUID A87CD742-820E-3F50-A48B-481388DCF3B1,

@@ -71,8 +71,9 @@ class NativeLiquidGlassContract(unittest.TestCase):
         self.assertIn(".glassEffect(.regular.interactive(), in: .circle)",GLASS)
         self.assertIn("SCARLET_GUEST_PANEL_NATIVE_GLASS_MATERIAL",GUEST)
         self.assertIn(".glassEffect(.regular, in: .rect(cornerRadius: 24))",GUEST)
-        self.assertIn(".glassEffectID(\"guest-segment\", in: guestGlassSelection)",GUEST)
-        self.assertIn("withAnimation(.spring(",GUEST)
+        self.assertIn(".glassEffect(.regular.tint(.purple.opacity(0.28)).interactive(),",GUEST)
+        self.assertIn("SCARLET_GUEST_EXIT_TO_SCARLET",GUEST)
+        self.assertIn("SCARLET_GUEST_ONLY_ROUND_SWITCHER",GUEST)
 
     def test_existing_geometry_and_four_tab_destinations(self):
         self.assertIn(".frame(height: 62)",TABS)

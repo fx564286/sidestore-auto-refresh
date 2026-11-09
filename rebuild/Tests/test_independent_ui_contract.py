@@ -125,7 +125,7 @@ class IndependentUIContractTests(unittest.TestCase):
         self.assertIn("queuedGuestIPAURL = nil",HOST)
         self.assertNotIn("removeItem(at: source)",HOST)
         self.assertNotIn("removeItem(at: selected)",HOST)
-        self.assertIn("try await app.runApp()",HOST)
+        self.assertIn("try await app.runApp(multitask: true)",HOST)
 
 if __name__=="__main__":
     unittest.main()

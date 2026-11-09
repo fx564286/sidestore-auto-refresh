@@ -399,7 +399,20 @@ struct ScarletIntegratedHostView: View {
                     return
                 }
                 // Original LC remains the owner of signature/launch/handoff.
-                try await app.runApp()
+                // Always use an owned LiveContainer guest scene.  The default
+                // runApp() may replace Scarlet's host UI, leaving no way back.
+                // Classic mode bypasses the scene owner, so do not enter it.
+                guard app.appInfo.defaultClassicMode == 0 else {
+                    ScarletDiagnosticRecorder.shared.record(
+                        "guest", "launch_blocked", status: "blocked",
+                        fields: ["reason": "classic_mode_has_no_exit_control",
+                                 "guest_ref": guestRef])
+                    showOriginalError = "클래식 실행 모드에서는 홍수정의 앱 나가기 버튼을 표시할 수 없습니다. 앱 실행 모드를 기본으로 바꾼 후 실행하세요."
+                    return
+                }
+                ScarletDiagnosticRecorder.shared.record(
+                    "guest", "owned_scene_launch_requested", fields: ["guest_ref": guestRef])
+                try await app.runApp(multitask: true)
                 // runApp returning is NOT proof the guest scene is on-screen.
                 ScarletDiagnosticRecorder.shared.record("guest", "runapp_returned",
                     fields: ["guest_ref": guestRef])

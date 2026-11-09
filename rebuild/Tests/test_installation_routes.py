@@ -23,7 +23,7 @@ class InstallerRouteTests(unittest.TestCase):
         self.assertIn("stageGuestIPAFromFiles(selected)",HOST)
         self.assertIn("LCAppListView(scarletQueuedIPAURL: queuedGuestIPAURL,",HOST)
         self.assertNotIn("showNativeAppLibrary",HOST)
-        self.assertIn("try await app.runApp()",HOST)
+        self.assertIn("try await app.runApp(multitask: true)",HOST)
 
     def test_home_guest_uninstall_is_confirmed_and_keeps_data(self):
         self.assertIn("SCARLET_GUEST_UNINSTALL_MENU", UI)

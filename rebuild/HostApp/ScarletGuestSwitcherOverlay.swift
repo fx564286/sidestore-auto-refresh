@@ -33,7 +33,7 @@ enum ScarletGuestSceneRegistry {
     static func availableGuests() -> [ScarletGuestTarget] {
         var found: [String: ScarletGuestTarget] = [:]
         for app in MultitaskDockManager.shared.apps {
-            guard let view = app.view, view.window != nil, !view.isHidden else { continue }
+            guard let view = app.view, view.superview != nil, view.window != nil else { continue }
             found[app.appUUID] = ScarletGuestTarget(id: app.appUUID, title: app.appName)
         }
         for (uuid, info) in MultitaskWindowManager.appDict {
@@ -90,10 +90,10 @@ enum ScarletGuestSceneRegistry {
 struct ScarletGuestSwitcherOverlay: View {
     let dataUUID: String
     let displayName: String
+    let exitGuest: () -> Void
+    var panelVisibilityChanged: (Bool) -> Void = { _ in }
 
     @State private var isOpen = false
-    @State private var selectedSegment = 0
-    @Namespace private var guestGlassSelection
     @State private var targets: [ScarletGuestTarget] = []
     @State private var previews: [String: UIImage] = [:]
 
@@ -108,13 +108,16 @@ struct ScarletGuestSwitcherOverlay: View {
                 previews[item.id] = image
             }
         }
-        selectedSegment = 0
         isOpen = true
+        panelVisibilityChanged(true)
+        ScarletDiagnosticRecorder.shared.record("guest", "switcher_opened",
+            fields: ["running_count": String(targets.count)])
     }
 
     private func closeSwitcher() {
         isOpen = false
         previews.removeAll(keepingCapacity: false)
+        panelVisibilityChanged(false)
     }
 
     var body: some View {
@@ -137,96 +140,62 @@ struct ScarletGuestSwitcherOverlay: View {
                 .accessibilityIdentifier("SCARLET_GUEST_ONLY_ROUND_SWITCHER")
             }
             .padding(.leading, 18)
-            .padding(.bottom, 76)
+            .padding(.bottom, 5)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
     }
 
+    // Only actual running guests are listed.  Closing a guest destroys its
+    // runtime scene; user Documents, App Groups and certificates are untouched.
     private var windowPanel: some View {
         VStack(alignment: .leading, spacing: 12) {
-            HStack(spacing: 6) {
-                ForEach(0..<2, id: \.self) { index in
-                    Button {
-                        withAnimation(.spring(response: 0.34, dampingFraction: 0.78)) {
-                            selectedSegment = index
-                        }
-                    } label: {
-                        Text(index == 0 ? "최근 앱" : "창 관리")
-                            .font(.subheadline.weight(.semibold))
-                            .frame(maxWidth: .infinity, minHeight: 36)
-                            .background {
-                                if selectedSegment == index {
-                                    if #available(iOS 26.0, *),
-                                       !UIAccessibility.isReduceTransparencyEnabled {
-                                        Capsule()
-                                            .glassEffect(
-                                                .regular.tint(Color.purple.opacity(0.24)).interactive(),
-                                                in: .capsule
-                                            )
-                                            .glassEffectID("guest-segment", in: guestGlassSelection)
-                                            .matchedGeometryEffect(id: "guest-selection",
-                                                                   in: guestGlassSelection)
-                                    } else {
-                                        Capsule()
-                                            .fill(Color(red: 0.39, green: 0.30, blue: 0.89))
-                                    }
-                                }
-                            }
-                    }
-                    .buttonStyle(.plain)
-                }
-            }
-            .padding(7)
-            .frame(maxWidth: .infinity)
-            .background {
-                if #available(iOS 26.0, *),
-                   !UIAccessibility.isReduceTransparencyEnabled {
-                    Capsule()
-                        .glassEffect(.regular.interactive(), in: .capsule)
-                } else {
-                    Capsule().fill(Color.black.opacity(0.25))
-                }
+            HStack {
+                Image(systemName: "square.stack.3d.up.fill")
+                Text("실행 중인 앱")
+                    .font(.headline.weight(.semibold))
+                Spacer()
+                Text("\(targets.count)")
+                    .font(.subheadline.monospacedDigit())
+                    .foregroundStyle(.white.opacity(0.7))
             }
             ScrollView {
                 LazyVStack(spacing: 8) {
                     ForEach(targets) { item in
                         Button {
-                            guard item.id != dataUUID else {
+                            if item.id == dataUUID {
                                 closeSwitcher()
-                                return
-                            }
-                            if ScarletGuestSceneRegistry.activate(item.id) {
+                            } else if ScarletGuestSceneRegistry.activate(item.id) {
                                 closeSwitcher()
                             }
                         } label: {
-                            HStack(alignment: .center, spacing: 12) {
+                            HStack(spacing: 12) {
                                 Group {
                                     if let image = previews[item.id] {
-                                        Image(uiImage: image)
-                                            .resizable()
-                                            .scaledToFill()
+                                        Image(uiImage: image).resizable().scaledToFill()
                                     } else {
-                                        VStack(spacing: 4) {
-                                            Image(systemName: "photo.on.rectangle.angled")
-                                            Text("미리보기 없음")
-                                                .font(.system(size: 10))
-                                        }
-                                        .foregroundStyle(.white.opacity(0.65))
-                                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                                        Image(systemName: "app.fill")
+                                            .font(.system(size: 25))
+                                            .foregroundStyle(.white.opacity(0.7))
+                                            .frame(maxWidth: .infinity, maxHeight: .infinity)
                                     }
                                 }
-                                .frame(width: 116, height: 86)
-                                .background(Color.black.opacity(0.32))
-                                .clipShape(RoundedRectangle(cornerRadius: 12))
-                                VStack(alignment: .leading, spacing: 6) {
+                                .frame(width: 74, height: 58)
+                                .background(.black.opacity(0.25))
+                                .clipShape(RoundedRectangle(cornerRadius: 11))
+                                VStack(alignment: .leading, spacing: 4) {
                                     Text(item.title)
                                         .font(.subheadline.weight(.semibold))
-                                        .lineLimit(2)
-                                        .frame(maxWidth: .infinity, alignment: .leading)
+                                        .lineLimit(1)
+                                    if item.id == dataUUID {
+                                        Text("현재 실행 중")
+                                            .font(.caption2)
+                                            .foregroundStyle(.white.opacity(0.72))
+                                    }
                                 }
-                                Spacer(minLength: 2)
+                                Spacer(minLength: 0)
+                                Image(systemName: "chevron.right")
+                                    .font(.caption.weight(.semibold))
                             }
-                            .frame(maxWidth: .infinity, alignment: .leading)
                             .contentShape(Rectangle())
                         }
                         .buttonStyle(.plain)
@@ -234,21 +203,32 @@ struct ScarletGuestSwitcherOverlay: View {
                     }
                 }
             }
-            .frame(maxHeight: 224)
-            if selectedSegment == 1 {
-                HStack(spacing: 7) {
-                    guestWindowCommand("최소화", symbol: "minus") {
-                        MultitaskDockManager.shared.minimizeAllWindows()
-                        closeSwitcher()
-                    }
-                    guestWindowCommand("최대화",
-                                       symbol: "arrow.up.left.and.arrow.down.right",
-                                       isEnabled: false) {}
-                    guestWindowCommand("닫기", symbol: "xmark", isEnabled: false) {}
-                }
-                .frame(maxWidth: .infinity)
-                .accessibilityHint("창별 소유권 연결 전에는 최대화와 닫기를 실행할 수 없습니다.")
+            .frame(maxHeight: 228)
+            Button {
+                ScarletDiagnosticRecorder.shared.record(
+                    "guest", "exit_requested",
+                    fields: ["guest_ref":
+                        ScarletDiagnosticRecorder.shared.guestReference(dataUUID)])
+                closeSwitcher()
+                exitGuest()
+            } label: {
+                Label("앱 종료 · 홍수정으로", systemImage: "rectangle.portrait.and.arrow.right")
+                    .font(.subheadline.weight(.semibold))
+                    .frame(maxWidth: .infinity, minHeight: 48)
+                    .contentShape(RoundedRectangle(cornerRadius: 15))
             }
+            .buttonStyle(.plain)
+            .background {
+                if #available(iOS 26.0, *),
+                   !UIAccessibility.isReduceTransparencyEnabled {
+                    RoundedRectangle(cornerRadius: 15)
+                        .glassEffect(.regular.tint(.purple.opacity(0.28)).interactive(),
+                                     in: .rect(cornerRadius: 15))
+                } else {
+                    RoundedRectangle(cornerRadius: 15).fill(.white.opacity(0.16))
+                }
+            }
+            .accessibilityIdentifier("SCARLET_GUEST_EXIT_TO_SCARLET")
         }
         .padding(16)
         .foregroundStyle(.white)
@@ -260,8 +240,7 @@ struct ScarletGuestSwitcherOverlay: View {
                     .glassEffect(.regular, in: .rect(cornerRadius: 24))
                     .accessibilityIdentifier("SCARLET_GUEST_PANEL_NATIVE_GLASS_MATERIAL")
             } else {
-                SCNativeLiquidGlassSurface(cornerRadius: 24,
-                                            selectedIndex: selectedSegment)
+                SCNativeLiquidGlassSurface(cornerRadius: 24)
                     .clipShape(RoundedRectangle(cornerRadius: 24))
             }
         }
@@ -271,29 +250,61 @@ struct ScarletGuestSwitcherOverlay: View {
         }
         .accessibilityIdentifier("SCARLET_GUEST_LIVE_PREVIEW_PANEL")
     }
+}
 
-    // Centered 320pt three-column window actions; unavailable actions
-    // remain disabled until the original window owner can be verified.
-    private func guestWindowCommand(_ title: String, symbol: String,
-                                    isEnabled: Bool = true,
-                                    action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            VStack(spacing: 2) {
-                Image(systemName: symbol)
-                    .font(.system(size: 16, weight: .semibold))
-                    .frame(height: 23, alignment: .center)
-                Text(title)
-                    .font(.system(size: 12, weight: .semibold))
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.85)
+// The upstream default virtual-window mode is implemented in Objective-C,
+// not MultitaskAppWindow.  Install the same SwiftUI control directly inside
+// the genuine DecoratedAppSceneViewController after its guest view is mounted.
+// The hosting view starts at 96×90pt and expands only when the user opens it:
+// guest touches outside the control remain available.
+@available(iOS 17.0, *)
+@MainActor
+@objc(ScarletGuestOverlayInstaller)
+final class ScarletGuestOverlayInstaller: NSObject {
+    @objc(installOnController:dataUUID:displayName:)
+    static func install(onController owner: UIViewController,
+                        dataUUID: String, displayName: String) {
+        let wrapper = UIView()
+        wrapper.backgroundColor = .clear
+        wrapper.translatesAutoresizingMaskIntoConstraints = false
+        owner.view.addSubview(wrapper)
+        let width = wrapper.widthAnchor.constraint(equalToConstant: 96)
+        let height = wrapper.heightAnchor.constraint(equalToConstant: 90)
+        NSLayoutConstraint.activate([
+            width, height,
+            wrapper.leadingAnchor.constraint(equalTo: owner.view.leadingAnchor, constant: 6),
+            wrapper.bottomAnchor.constraint(equalTo: owner.view.safeAreaLayoutGuide.bottomAnchor,
+                                            constant: -6)
+        ])
+        let content = ScarletGuestSwitcherOverlay(
+            dataUUID: dataUUID,
+            displayName: displayName,
+            exitGuest: { [weak owner] in
+                let exitSelector = NSSelectorFromString("scarletExitToHost")
+                if let owner, owner.responds(to: exitSelector) {
+                    owner.perform(exitSelector)
+                }
+            },
+            panelVisibilityChanged: { [weak owner] expanded in
+                guard let owner else { return }
+                width.constant = expanded ? min(376, max(250, owner.view.bounds.width - 12)) : 96
+                height.constant = expanded ? min(480, max(340, owner.view.bounds.height - 8)) : 90
+                UIView.animate(withDuration: 0.26) { owner.view.layoutIfNeeded() }
             }
-            .frame(maxWidth: .infinity, minHeight: 55, alignment: .center)
-            .background(Color.black.opacity(0.26),
-                        in: RoundedRectangle(cornerRadius: 12))
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .frame(maxWidth: .infinity)
-        .disabled(!isEnabled)
+        )
+        let hosting = UIHostingController(rootView: content)
+        hosting.view.backgroundColor = .clear
+        hosting.view.translatesAutoresizingMaskIntoConstraints = false
+        owner.addChild(hosting)
+        wrapper.addSubview(hosting.view)
+        NSLayoutConstraint.activate([
+            hosting.view.leadingAnchor.constraint(equalTo: wrapper.leadingAnchor),
+            hosting.view.trailingAnchor.constraint(equalTo: wrapper.trailingAnchor),
+            hosting.view.topAnchor.constraint(equalTo: wrapper.topAnchor),
+            hosting.view.bottomAnchor.constraint(equalTo: wrapper.bottomAnchor)
+        ])
+        hosting.didMove(toParent: owner)
+        ScarletDiagnosticRecorder.shared.record("guest", "virtual_switcher_mounted",
+            fields: ["api": "SwiftUI.UIHostingController"])
     }
 }

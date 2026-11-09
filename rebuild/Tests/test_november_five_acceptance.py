@@ -39,7 +39,7 @@ class FivePointNovemberAccept(unittest.TestCase):
         self.assertIn("reportPreviousGuestLaunchFailure()",HOST)
         self.assertIn('"previous_launch_error_detected"',HOST)
         self.assertIn('"jit_delegate_unavailable"',HOST)
-        self.assertIn("try await app.runApp()",HOST)
+        self.assertIn("try await app.runApp(multitask: true)",HOST)
         self.assertNotIn("forceJIT: false",HOST)
 
     def test_4_source_add_entry_goes_to_actual_url_sheet(self):

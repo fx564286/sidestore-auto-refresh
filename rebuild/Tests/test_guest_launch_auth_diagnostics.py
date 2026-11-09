@@ -29,7 +29,7 @@ class LiveGuestAuthDiagnostics(unittest.TestCase):
     def test_duplicate_taps_are_deduplicated_before_original_runapp(self):
         self.assertIn("launchingGuestKeys.insert(key).inserted", HOST)
         self.assertIn("defer { launchingGuestKeys.remove(key) }", HOST)
-        self.assertIn("try await app.runApp()", HOST)
+        self.assertIn("try await app.runApp(multitask: true)", HOST)
         self.assertIn("launch_duplicate_ignored", HOST)
 
     def test_remote_error_reports_original_worker_domain_not_swift_enum_code_zero(self):
