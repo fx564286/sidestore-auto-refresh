@@ -66,7 +66,7 @@ class AuthAndImportUIRegression(unittest.TestCase):
         # sheet was not dismissed until 2h 35m later. Keep sign failures visible.
         self.assertIn('defer { installprogressVisible = false }', PATCH)
         self.assertIn('completed_sheet_auto_closed', PATCH)
-        self.assertIn('try? await Task.sleep(for: .seconds(2))', PATCH)
+        self.assertIn('try? await Task.sleep(nanoseconds: 2_000_000_000)', PATCH)
         self.assertIn('!scarletGuestImportSignFailed && !errorShow', PATCH)
         self.assertIn('!errorShow && !installprogressVisible', PATCH)
         self.assertIn('scarletOnImportFinished?()', PATCH)
