@@ -120,7 +120,9 @@ class IndependentUIContractTests(unittest.TestCase):
         # Only the copied temporary IPA can be cleaned, not the Files original.
         self.assertIn("startAccessingSecurityScopedResource()",HOST)
         self.assertIn("FileManager.default.copyItem(at: source, to: temporary)",HOST)
-        self.assertIn("removeItem(at: queuedGuestIPAURL)",HOST)
+        self.assertIn("private func guestImportWorkerFinished()",HOST)
+        self.assertIn("try? FileManager.default.removeItem(at: staged)",HOST)
+        self.assertIn("queuedGuestIPAURL = nil",HOST)
         self.assertNotIn("removeItem(at: source)",HOST)
         self.assertNotIn("removeItem(at: selected)",HOST)
         self.assertIn("try await app.runApp()",HOST)
