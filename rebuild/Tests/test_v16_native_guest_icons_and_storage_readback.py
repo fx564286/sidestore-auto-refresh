@@ -10,7 +10,8 @@ HOST = (ROOT / "HostApp/ScarletIntegratedHostView.swift").read_text()
 
 class V16NativeGuestRegression(unittest.TestCase):
     def test_native_guest_rows_show_installed_app_icons(self):
-        self.assertIn("private enum ScarletGuestIconCatalog", NATIVE)
+        self.assertIn("enum ScarletGuestIconCatalog", NATIVE)
+        self.assertIn("ScarletGuestIconCatalog.icon(forFolder: folder)", FULL)
         self.assertIn("ScarletGuestIconCatalog.icon(for: item, history: history)", NATIVE)
         self.assertIn("Image(uiImage: icon)", NATIVE)
         self.assertIn('SCARLET_GUEST_APP_ICON', NATIVE)
