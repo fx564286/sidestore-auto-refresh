@@ -22,8 +22,8 @@ class V7SafetyContracts(unittest.TestCase):
         self.assertNotIn("LinearGradient(colors: [.white.opacity(0.58)",UI)
 
     def test_landscape_rotation_no_intermediate_rectangles(self):
-        for x in ("settleOverlayAfterRotation()", "overlay_rotation_suspended",
-                  "overlay_rotation_resumed","overlay.alpha = 0",
+        for x in ("settleOverlayAfterRotation()", "overlay_rotation_geometry_changed",
+                  "overlay_rotation_resumed",
                   "overlay.alpha = 1",
                   "let panelHeight = min(panelWidth * 1.02",
                   "overlay.layer.masksToBounds = false",
@@ -31,6 +31,7 @@ class V7SafetyContracts(unittest.TestCase):
                   "No real scene rotation"):
             self.assertIn(x,UI)
         self.assertIn('let orientationList = appData["UISupportedInterfaceOrientations"]', UI)
+        self.assertNotIn("overlay.alpha = 0", UI)
         self.assertIn("portrait_only",UI)
         self.assertIn("landscape_supported",UI)
         self.assertNotIn("appData[\"UISupportedInterfaceOrientations\"] = ",UI)
