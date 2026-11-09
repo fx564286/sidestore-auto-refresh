@@ -347,7 +347,8 @@ def hide_embedded_sidestore_guest_navigation(engine: Path) -> dict:
                         if !scarletGuestImportSignFailed && !errorShow {
                             // Allow the completion text to be read, then return
                             // to the independent four-column app launcher.
-                            try? await Task.sleep(for: .seconds(2))
+                            // Task.sleep(nanoseconds:) supports the pinned LC iOS deployment target.
+                            try? await Task.sleep(nanoseconds: 2_000_000_000)
                             if !scarletGuestImportSignFailed &&
                                !errorShow && !installprogressVisible {
                                 ScarletDiagnosticRecorder.shared.record(
