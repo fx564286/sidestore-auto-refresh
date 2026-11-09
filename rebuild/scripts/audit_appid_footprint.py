@@ -16,6 +16,7 @@ from pathlib import Path
 HOST_ID = "com.kdt.livecontainer.P8EZT3U5N4"
 REQUIRED_EXTENSIONS = {
     "LiveProcess": HOST_ID + ".LiveProcess",
+    "ShareExtension": HOST_ID + ".ShareExtension",
     "LaunchAppExtension": HOST_ID + ".LaunchAppExtension",
 }
 HOST_INFO = re.compile(r"^Payload/[^/]+\.app/Info\.plist$")
@@ -65,6 +66,8 @@ def inspect_ipa(path: Path, *, strict: bool = True) -> dict:
             types = {e["name"]: e["extension_point"] for e in extensions}
             if types["LaunchAppExtension"] != "com.apple.appintents-extension":
                 raise ValueError("Pinned App Intents extension point changed")
+            if types["ShareExtension"] != "com.apple.share-services":
+                raise ValueError("Pinned shortcut URL transport/share extension changed")
         return {
             "schema": 1,
             "scope": "packaged host and app extensions only",
@@ -79,14 +82,15 @@ def inspect_ipa(path: Path, *, strict: bool = True) -> dict:
             "device_running_verified": False,
             "safe_to_merge_extensions_automatically": False,
             "reduction_note": (
-                "Optional system Share Sheet import excluded (one fewer app ID). "
-                "LiveProcess and LaunchAppExtension retain separate entitlement "
-                "and extension points. Scarlet's in-app Files picker is retained. "
-                "No claim is made about an Apple Personal Team resetting or "
-                "automatically revoking its previously provisioned App ID."
+                "V14 3-ID package omitted ShareExtension but the pinned "
+                "LaunchAppExtension.openURL() calls it by its own bundle ID. "
+                "Full-functionality packaging retains all four identities. "
+                "Further consolidation requires a replacement shortcut and "
+                "share transport implementation with signed iOS runtime tests."
             ),
-            "system_share_sheet_extension_present":False,
-            "in_app_files_picker_source_unmodified":True,
+            "system_share_sheet_extension_present": True,
+            "launch_app_shortcut_share_dependency_preserved": True,
+            "in_app_files_picker_source_unmodified": True,
         }
 
 

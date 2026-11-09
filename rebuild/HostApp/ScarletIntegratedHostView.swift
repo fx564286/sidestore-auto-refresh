@@ -400,6 +400,22 @@ struct ScarletIntegratedHostView: View {
                     showOriginalError = "JIT-Less 실행에 필요한 LiveContainer 서명 인증서가 없습니다. 설정의 인증서 가져오기에서 인증서를 확인하세요."
                     return
                 }
+                // V14 registered AFTER await runApp, but classic
+                // launchToGuestApp can transfer the process without returning.
+                // Persist A before the handoff so A->Home->B retains A in the
+                // menu, even if the current scene is replaced. A failed
+                // throwing runApp restores the previous list transactionally.
+                let guestFolderForHistory = app.appInfo.relativeBundlePath
+                let historyBeforeLaunch = ScarletGuestSessionLedger.recent()
+                if let folder = guestFolderForHistory {
+                    ScarletGuestSessionLedger.noteLaunch(
+                        folder: folder,
+                        title: app.displayName,
+                        dataUUID: app.uiSelectedContainer?.folderName)
+                    ScarletDiagnosticRecorder.shared.record(
+                        "guest", "session_history_pre_handoff",
+                        fields: ["result": "persisted_before_bootstrap"])
+                }
                 // Native scene path, where genuinely supported, retains each
                 // guest's RAM without changing the guest UIWindow geometry.
                 // On devices lacking multi-scene support retain the original
@@ -416,23 +432,22 @@ struct ScarletIntegratedHostView: View {
                     } catch {
                         LCUtils.appGroupUserDefault.set(previousMode,
                                                         forKey: "LCMultitaskMode")
+                        ScarletGuestSessionLedger.restore(historyBeforeLaunch)
                         throw error
                     }
                     ScarletDiagnosticRecorder.shared.record(
                         "guest", "native_multiscene_launch_requested",
                         fields: ["result": "native_window"])
                 } else {
-                    try await app.runApp()
+                    do {
+                        try await app.runApp()
+                    } catch {
+                        ScarletGuestSessionLedger.restore(historyBeforeLaunch)
+                        throw error
+                    }
                     ScarletDiagnosticRecorder.shared.record(
                         "guest", "legacy_fullscreen_launch_requested",
                         fields: ["reason": "multi_scene_unavailable"])
-                }
-                // Only record actual runApp return, not uninstalled catalog apps.
-                if let folder = app.appInfo.relativeBundlePath {
-                    ScarletGuestSessionLedger.noteLaunch(
-                        folder: folder,
-                        title: app.displayName,
-                        dataUUID: app.uiSelectedContainer?.folderName)
                 }
                 // runApp returning is NOT proof the guest scene is on-screen.
                 ScarletDiagnosticRecorder.shared.record("guest", "runapp_returned",
@@ -852,7 +867,8 @@ struct ScarletIntegratedHostView: View {
                             id: app.latestVersion?.downloadURL.absoluteString ?? app.bundleIdentifier,
                             name: app.name,
                             version: app.latestVersion?.version ?? "다운로드 없음",
-                            hasDownload: app.latestVersion?.downloadURL != nil
+                            hasDownload: app.latestVersion?.downloadURL != nil,
+                            iconURL: app.iconURL
                         )
                     }
                 )

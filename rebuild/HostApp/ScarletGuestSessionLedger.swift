@@ -45,6 +45,12 @@ enum ScarletGuestSessionLedger {
             fields: ["count": String(min(items.count, maxItems))])
     }
 
+    static func restore(_ entries: [Entry]) {
+        guard let data = try? JSONEncoder().encode(Array(entries.prefix(maxItems)))
+        else { return }
+        store.set(data, forKey: key)
+    }
+
     static func remove(folder: String) {
         let remaining = recent().filter { $0.folder != folder }
         guard let encoded = try? JSONEncoder().encode(remaining) else { return }

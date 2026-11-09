@@ -18,11 +18,12 @@ import zipfile
 
 HOST_ID="com.kdt.livecontainer.P8EZT3U5N4"
 EXTENSIONS=("LiveProcess","ShareExtension","LaunchAppExtension")
-# The user imports via the in-app native Files picker and URL sources.
-# Remove the optional iOS system Share Sheet extension from the combined IPA,
-# retaining necessary LiveProcess and LaunchAppExtension. Diagnostic upstream
-# baseline still retains all three extensions for provenance comparison.
-RELEASE_EXTENSIONS=("LiveProcess","LaunchAppExtension")
+# Preserve both the system Share Sheet and the App Intents shortcut route.
+# Pinned LaunchAppExtension.openURL() explicitly instantiates
+# NSExtension(identifier: HOST_ID + ".ShareExtension") and will fail without
+# the ShareExtension, even when the shortcut metadata remains packaged.
+# A lossless 2- or 3-ID build must migrate AND test this dependency first.
+RELEASE_EXTENSIONS=EXTENSIONS
 
 
 def call(*args):
@@ -140,10 +141,8 @@ def main():
     combined=work/"combined"/"Payload"/"LiveContainer.app"
     combined.parent.mkdir(parents=True)
     shutil.copytree(original,combined,symlinks=True)
-    optional_share = combined/"PlugIns"/"ShareExtension.appex"
-    assert optional_share.is_dir(), "Pinned optional share extension changed"
-    shutil.rmtree(optional_share)
-    assert not optional_share.exists()
+    assert (combined/"PlugIns"/"ShareExtension.appex").is_dir(), (
+        "LaunchAppExtension relies on the original ShareExtension")
     info=read(combined/"Info.plist")
     info["CFBundleIdentifier"]=HOST_ID
     info["CFBundleDisplayName"]="Scarlet Crystal"
@@ -219,8 +218,9 @@ def main():
         "threeOriginalExtensions":list(EXTENSIONS),
         "releaseExtensions":list(RELEASE_EXTENSIONS),
         "releaseAppIDCount":1 + len(RELEASE_EXTENSIONS),
-        "optionalShareExtensionExcluded":True,
-        "systemShareSheetImportAvailable":False,
+        "optionalShareExtensionExcluded":False,
+        "systemShareSheetImportAvailable":True,
+        "launchShortcutShareExtensionDependencyPreserved":True,
         "nativeFilesPickerImportPreserved":True,
         "separateEngineIPAs":True,"embeddedSideStore":True,
         "nativeSideStoreSupport":True,"sourceProvenancePinned":True,

@@ -42,13 +42,12 @@ class V14(unittest.TestCase):
         self.assertNotIn('apps.filter { !$0.isCurrent && $0.canSwitch }',G)
 
     def test_no_unapproved_new_app_ids(self):
-        self.assertIn('RELEASE_EXTENSIONS=("LiveProcess","LaunchAppExtension")',PACKAGE)
-        self.assertIn('shutil.rmtree(optional_share)',PACKAGE)
-        self.assertIn('assert not optional_share.exists()',PACKAGE)
+        self.assertIn('RELEASE_EXTENSIONS=EXTENSIONS',PACKAGE)
+        self.assertIn('LaunchAppExtension relies on the original ShareExtension',PACKAGE)
         self.assertIn('systemShareSheetImportAvailable',PACKAGE)
-        self.assertIn('RELEASE_EXTENSIONS=("LiveProcess","LaunchAppExtension")',VERIFY)
-        self.assertIn('ShareExtension still consumes one signing slot',VERIFY)
-        self.assertNotIn('"ShareExtension": HOST_ID + ".ShareExtension"',AUD)
+        self.assertIn('RELEASE_EXTENSIONS=EXTENSIONS',VERIFY)
+        self.assertIn('Launch App shortcut requires ShareExtension',VERIFY)
+        self.assertIn('"ShareExtension": HOST_ID + ".ShareExtension"',AUD)
 
     def test_strict_package_audit_three_ids(self):
         spec=importlib.util.spec_from_file_location("appid_v14",R/"scripts/audit_appid_footprint.py")
@@ -68,14 +67,14 @@ class V14(unittest.TestCase):
                            info(host+".LiveProcess","com.apple.extensionkit-service"))
                 z.writestr("Payload/LiveContainer.app/PlugIns/LaunchAppExtension.appex/Info.plist",
                            info(host+".LaunchAppExtension","com.apple.appintents-extension"))
-            r=module.inspect_ipa(path)
-            self.assertEqual(r["total_bundle_ids"],3)
-            self.assertEqual(r["extension_app_ids"],2)
+            with self.assertRaisesRegex(ValueError,"Extension set changed"):
+                module.inspect_ipa(path)
             with zipfile.ZipFile(path,"a") as z:
                 z.writestr("Payload/LiveContainer.app/PlugIns/ShareExtension.appex/Info.plist",
                            info(host+".ShareExtension","com.apple.share-services"))
-            with self.assertRaisesRegex(ValueError,"Extension set changed"):
-                module.inspect_ipa(path)
+            r=module.inspect_ipa(path)
+            self.assertEqual(r["total_bundle_ids"],4)
+            self.assertEqual(r["extension_app_ids"],3)
 
 if __name__=="__main__":
     unittest.main()
