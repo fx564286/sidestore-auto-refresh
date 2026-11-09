@@ -11,6 +11,7 @@ import UIKit
 struct ScarletGuestSwitchTarget: Identifiable {
     let id: String                       // verified *.app directory name
     let title: String
+    let bundleID: String?
     let containerID: String?
     let classicMode: UInt
     let isCurrent: Bool
@@ -754,7 +755,8 @@ final class ScarletFullscreenGuestTabInstaller: NSObject {
                         && canRelaunch
                 let iconFile = url.appendingPathComponent("LCAppIconLight.png")
                 result.append(ScarletGuestSwitchTarget(
-                    id: folder, title: display, containerID: containerExists,
+                    id: folder, title: display, bundleID: bundleID,
+                    containerID: containerExists,
                     classicMode: requestedClassic ? UInt(cachedMode?.uintValue ?? 0) : 0,
                     isCurrent: isCurrent, canSwitch: canSwitch,
                     canRelaunch: canRelaunch,
