@@ -1,0 +1,122 @@
+
+// Explicit user-requested certificate resolution in the pinned SideStore
+// LiveProcess. Uses the *existing* authenticated SideSign portal and original
+// CertificateProvisioningFlow. No silent revocation, new account, or deep link.
+// The private key stays in memory until the existing authenticated XPC
+// connection returns it to the host; the host verifies the Apple team before
+// changing its existing LC signing certificate.
+@objc(ScarletGuestCertificateAgent)
+final class ScarletGuestCertificateAgent: NSObject {
+    @MainActor private static var busy = false
+
+    @objc(issue:)
+    static func issue(_ payload: NSDictionary) {
+        guard let requestID = payload["requestID"] as? String,
+              !requestID.isEmpty else { return }
+        Task { @MainActor in
+            guard !busy else {
+                report(requestID, code: -5201, domain: "scarlet.certificate.busy")
+                return
+            }
+            busy = true
+            defer { busy = false }
+            do {
+                guard ScarletGuestSignInAgent.persistedState() else {
+                    report(requestID, code: -5202, domain: "scarlet.certificate.login_required")
+                    return
+                }
+                // Headless login stores Apple tokens but may not persist the
+                // SideStore-specific activeTeam record. Resolve the team from
+                // the real authenticated Apple portal instead of guessing.
+                let team: ALTTeam
+                if let stored = try? await AuthManager.shared.getAuthenticatedTeam(),
+                   stored.identifier == "P8EZT3U5N4" {
+                    team = stored
+                } else {
+                    guard let email = AuthManager.shared.currentAppleID,
+                          let dsid = AuthManager.shared.adsid else {
+                        report(requestID, code: -5205,
+                               domain: "scarlet.certificate.saved_account_unavailable")
+                        return
+                    }
+                    let account = ALTAccount(appleID: email, identifier: dsid)
+                    let portalTeams = try await DeveloperPortalProxy.shared.fetchTeams(
+                        for: account)
+                    guard let matched = portalTeams.first(where: {
+                        $0.identifier == "P8EZT3U5N4"
+                    }) else {
+                        report(requestID, code: -5203,
+                               domain: "scarlet.certificate.team_mismatch")
+                        return
+                    }
+                    team = matched
+                }
+                guard team.identifier == "P8EZT3U5N4" else {
+                    report(requestID, code: -5203, domain: "scarlet.certificate.team_mismatch")
+                    return
+                }
+                // nil handler NEVER auto-revokes an existing Apple certificate.
+                // A free account may already have its one allowed certificate;
+                // upstream then reuses its verified private key or Apple's
+                // portal returns a quota error without revoking anything.
+                let flow = CertificateProvisioningFlow(handler: nil)
+                guard let issued = try await flow.resolveCertificate(for: team),
+                      let active = CertificateManager.shared.activeCertificate,
+                      active.serialNumber == issued.serialNumber,
+                      active.p12Data.count > 0, active.p12Data.count <= 64 * 1024 else {
+                    report(requestID, code: -5204, domain: "scarlet.certificate.unavailable")
+                    return
+                }
+                report(requestID, code: 0, domain: "success",
+                       archive: active.p12Data, password: active.password ?? "")
+            } catch {
+                let ns = error as NSError
+                // Error category only. Never cross the XPC/log boundary with
+                // Apple's raw response, account, certificate serial or key.
+                report(requestID,
+                       code: ns.code == 0 ? -5299 : ns.code,
+                       domain: "scarlet.certificate.portal_error")
+            }
+        }
+    }
+
+    // SideInstaller's "Use SideStore certificate" action is a *retrieval*
+    // path, not another issuance flow. In LiveContainer it reads an existing
+    // signable P12; outside it asks SideStore to hand off its existing P12.
+    // This agent is already inside the authenticated SideStore LiveProcess,
+    // so it can return ONLY the stored certificate without touching Apple's
+    // portal, generating a new key, or revoking another certificate.
+    @objc(retrieve:)
+    static func retrieve(_ payload: NSDictionary) {
+        guard let requestID = payload["requestID"] as? String,
+              !requestID.isEmpty else { return }
+        Task { @MainActor in
+            guard ScarletGuestSignInAgent.persistedState() else {
+                report(requestID, code: -5301,
+                       domain: "scarlet.certificate.login_required")
+                return
+            }
+            guard let active = CertificateManager.shared.activeCertificate,
+                  !active.p12Data.isEmpty,
+                  active.p12Data.count <= 64 * 1024 else {
+                report(requestID, code: -5302,
+                       domain: "scarlet.certificate.stored_p12_missing")
+                return
+            }
+            report(requestID, code: 0, domain: "success",
+                   archive: active.p12Data, password: active.password ?? "")
+        }
+    }
+
+    @MainActor
+    private static func report(_ requestID: String, code: Int,
+                               domain: String, archive: Data = Data(),
+                               password: String = "") {
+        NotificationCenter.default.post(
+            name: Notification.Name("ScarletGuestCertificateCompleted"),
+            object: nil,
+            userInfo: ["requestID": requestID,
+                       "code": code, "domain": domain,
+                       "archive": archive, "password": password])
+    }
+}
