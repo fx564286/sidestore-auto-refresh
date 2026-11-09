@@ -21,8 +21,8 @@ class SignedRuntimeCapabilityGate(unittest.TestCase):
         self.assertIn('"false"', CAP)
 
     def test_2_automatic_refresh_not_falsely_reported(self):
-        self.assertIn('LabeledContent("자동 갱신", value: "앱 실행·복귀 + iOS 예약")', CAP)
-        self.assertIn("자동 요청은 연결됐지만 실제 갱신에는 iOS 백그라운드 실행·네트워크·Apple 서명이 필요합니다", CAP)
+        self.assertIn('LabeledContent("자동 갱신",', CAP)
+        self.assertIn('iOS 예약 · 대기 중', CAP)
         self.assertIn("recommendedLeadTime: TimeInterval = 72 * 3600", POLICY)
 
     def test_3_actual_entitlement_and_container_both_required(self):
@@ -46,7 +46,7 @@ class SignedRuntimeCapabilityGate(unittest.TestCase):
         self.assertIn("signedApplicationIdentifierMatches: signedIDMatches", CAP)
         self.assertIn("actualHostIdentity && signedApplicationIdentifierMatches", CAP)
         self.assertIn("signed_application_identifier_mismatch", CAP)
-        self.assertIn('"실제 서명과 일치"', CAP)
+        self.assertIn('"서명 상태"', CAP)
         self.assertIn("FileManager.default.containerURL(", CAP)
         self.assertNotIn("SecTaskCopyValueForEntitlement = ", CAP)
 

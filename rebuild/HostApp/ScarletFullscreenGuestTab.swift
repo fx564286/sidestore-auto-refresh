@@ -135,7 +135,39 @@ struct ScarletFullscreenGuestFloatingTab: View {
     // The title passed from UIKit can be a bundle identifier. Only show
     // the name read from a current, real guest Info.plist, not a virtual path.
     private var currentAppName: String {
-        apps.first(where: { $0.isCurrent })?.title ?? "현재 실행 중인 앱"
+        apps.first(where: { $0.isCurrent })?.title ??
+            (guestTitle.isEmpty || guestTitle == "현재 게스트"
+                ? "현재 실행 중인 앱" : guestTitle)
+    }
+
+    // A full-screen guest is a single real process but may not be tracked
+    // as an LC LiveProcess native multitask scene. Always show this one
+    // running guest; do not put every installed/previously launched app here.
+    private var currentAppRow: some View {
+        Button { closePanel() } label: {
+            HStack(spacing: 11) {
+                Group {
+                    if let icon = apps.first(where: { $0.isCurrent })?.icon {
+                        Image(uiImage: icon).resizable().scaledToFit()
+                    } else {
+                        Image(systemName: "app.fill").font(.title2)
+                    }
+                }
+                .frame(width: 43, height: 43)
+                .background(.white.opacity(0.13),
+                            in: RoundedRectangle(cornerRadius: 11))
+                .clipShape(RoundedRectangle(cornerRadius: 11))
+                Text(currentAppName).font(.subheadline.weight(.semibold))
+                    .lineLimit(1)
+                Spacer(minLength: 0)
+                Image(systemName: "checkmark.circle.fill")
+                    .foregroundStyle(.green)
+            }
+            .padding(.vertical, 5)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityIdentifier("SCARLET_GUEST_CURRENT_RUNNING")
     }
 
     private func otherAppRow(_ app: ScarletGuestSwitchTarget) -> some View {
@@ -183,11 +215,8 @@ struct ScarletFullscreenGuestFloatingTab: View {
                     Text("앱 전환").font(.title3.weight(.semibold))
                     Spacer(minLength: 0)
                 }
-                if otherApps.isEmpty {
-                    Text("다른 실행 중인 앱 없음")
-
-                        .font(.footnote).foregroundStyle(.secondary)
-                } else {
+                currentAppRow
+                if !otherApps.isEmpty {
                     ScrollView {
                         LazyVStack(alignment: .leading, spacing: 12) {
                             ForEach(otherApps) { entry in otherAppRow(entry) }
@@ -568,7 +597,7 @@ final class ScarletFullscreenGuestTabInstaller: NSObject {
     // Use the host's real LC_HOME_PATH rather than the guest-virtualized
     // Documents path. Only inspect existing bundles; do not create folders
     // or alter app metadata, certificates, or guest sandboxes.
-    private static func installedApps() -> [ScarletGuestSwitchTarget] {
+    private static func installedApps(guestIdentifier: String? = nil) -> [ScarletGuestSwitchTarget] {
         let fm = FileManager.default
         guard let home = getenv("LC_HOME_PATH") else { return [] }
         let localHome = URL(fileURLWithPath: String(cString: home))
@@ -583,8 +612,12 @@ final class ScarletFullscreenGuestTabInstaller: NSObject {
                               base.appendingPathComponent("Data/Application"), true))
         }
 
-        let selected = UserDefaults.lc()?.string(forKey: "selected")
+        let selected = UserDefaults.standard.string(forKey: "selected") ??
+                       UserDefaults.lc()?.string(forKey: "selected")
+        let selectedContainer = UserDefaults.standard.string(forKey: "selectedContainer")
         // Registry includes only attached, visible native LiveProcess scenes.
+        // The current full-screen guest is detected independently via the
+        // actual LCAppModel boot keys or the bootstrap's guest identifier.
         // A prior "lastLaunched" plist entry does NOT prove a process lives.
         let activeSceneIDs = Set(
             ScarletGuestSceneRegistry.availableGuests().map(\.id))
@@ -637,7 +670,12 @@ final class ScarletFullscreenGuestTabInstaller: NSObject {
                                                 : "portrait_only")])
                 }
                 let hasExecuted = meta["lastLaunched"] is Date
-                let isCurrent = folder == selected
+                let bundleID = appData["CFBundleIdentifier"] as? String
+                let isCurrent = folder == selected || bundleID == selected ||
+                                folder == guestIdentifier || bundleID == guestIdentifier ||
+                                (containerExists != nil &&
+                                 containerExists == selectedContainer &&
+                                 selected != nil)
                 let activeScene = containerExists.map {
                     activeSceneIDs.contains($0) && MultitaskManager.isUsing(container: $0)
                 } ?? false
@@ -744,7 +782,7 @@ final class ScarletFullscreenGuestTabInstaller: NSObject {
         let name = (rawName as String).isEmpty ? "현재 게스트" : rawName as String
         let content = ScarletFullscreenGuestFloatingTab(
             guestTitle: name,
-            reloadApps: installedApps,
+            reloadApps: { installedApps(guestIdentifier: name) },
             onPanel: resizeOverlay,
             initialDockRight: center(in: original).x >=
                 (original.windowScene?.coordinateSpace.bounds ?? original.bounds).midX,

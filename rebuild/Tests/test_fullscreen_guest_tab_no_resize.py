@@ -51,5 +51,5 @@ class GuestTabNoResize(unittest.TestCase):
         self.assertNotIn('removeItem(',TAB)
         self.assertNotIn('LCCertificateData',TAB)
         self.assertIn('앱 전환',TAB)
-        self.assertIn('다른 실행 중인 앱 없음',TAB)
+        self.assertIn('SCARLET_GUEST_CURRENT_RUNNING',TAB)
 if __name__=='__main__':unittest.main()

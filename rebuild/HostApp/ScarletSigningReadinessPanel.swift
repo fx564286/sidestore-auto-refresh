@@ -429,27 +429,13 @@ struct ScarletSigningReadinessPanel: View {
 
     var body: some View {
         Section {
-            LabeledContent("자동 갱신", value: "앱 실행·복귀 + iOS 예약")
-            LabeledContent("백그라운드 예약",
-                value: UserDefaults.standard.string(
-                    forKey: "Scarlet.Refresh.BackgroundSchedule") ?? "예약 상태 확인 전")
-            LabeledContent("마지막 갱신 요청", value: lastRefreshAttemptState)
-            LabeledContent("설치 갱신 완료", value: "검증된 성공 기록 없음")
-            LabeledContent("SideStore 로그인",
-                           value: authenticated == nil ? "확인 중" :
-                                  (authenticated == true ? "인증됨" : "인증 필요"))
-            LabeledContent("앱 그룹 권한",
-                           value: readiness.sideStoreAppGroupEntitled ?
-                                  (readiness.sideStoreAppGroupAccessible ? "확인됨" : "접근 불가")
-                                  : "프로파일 권한 없음")
-            LabeledContent("개발 팀·앱 식별자",
-                           value: readiness.developerTeamEntitled &&
-                                  readiness.actualHostIdentity &&
-                                  readiness.signedApplicationIdentifierMatches ?
-                                  "실제 서명과 일치" : "서명 불일치 / 권한 차단")
-            LabeledContent("LiveContainer 서명 인증서",
-                           value: readiness.liveContainerCertificatePresent &&
-                                  readiness.liveContainerPasswordPresent ? "존재" : "없음")
+            LabeledContent("자동 갱신",
+                value: lastRefreshAttemptState == "기록 없음" ?
+                       "iOS 예약 · 대기 중" : lastRefreshAttemptState)
+            LabeledContent("서명 상태",
+                value: readiness.canRequestNativeRefresh &&
+                       readiness.liveContainerCertificatePresent &&
+                       readiness.liveContainerPasswordPresent ? "준비됨" : "확인 필요")
             Button(action: requestNativeCertificate) {
                 if isIssuingNativeCertificate || isRetrievingSideStoreCertificate {
                     HStack(spacing: 9) {
@@ -482,8 +468,6 @@ struct ScarletSigningReadinessPanel: View {
             }
         } header: {
             Text("JIT-Less · 인증서")
-        } footer: {
-            Text("로그인, 서명 인증서, App Group 접근, 실제 재설치는 서로 다른 상태입니다. 자동 요청은 연결됐지만 실제 갱신에는 iOS 백그라운드 실행·네트워크·Apple 서명이 필요합니다.")
         }
         .onAppear(perform: inspect)
         .onReceive(NotificationCenter.default.publisher(

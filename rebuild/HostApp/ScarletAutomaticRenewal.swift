@@ -15,6 +15,8 @@ final class ScarletAutomaticRenewal {
     private let sourceKey = "Scarlet.Refresh.LastAttemptSource"
     private var registered = false
     private var running = false
+    private var lastScheduledFor: Date?
+    private var lastScheduleSubmitAt: Date?
 
     private var interval: TimeInterval {
         let status = UserDefaults.standard.string(forKey: outcomeKey) ?? ""
@@ -40,13 +42,23 @@ final class ScarletAutomaticRenewal {
     }
 
     func scheduleNext() {
+        // Avoid repeatedly canceling a healthy iOS background refresh slot.
+        guard registered else { return }
         let last = UserDefaults.standard.object(forKey: attemptKey) as? Date
         let due = last?.addingTimeInterval(interval) ?? .now
+        let requestedStart = max(Date().addingTimeInterval(15 * 60), due)
+        if let lastScheduledFor, let lastScheduleSubmitAt,
+           abs(lastScheduledFor.timeIntervalSince(requestedStart)) < 60,
+           Date().timeIntervalSince(lastScheduleSubmitAt) < 5 * 60 {
+            return
+        }
         let request = BGAppRefreshTaskRequest(identifier: Self.identifier)
-        request.earliestBeginDate = max(.now.addingTimeInterval(15 * 60), due)
+        request.earliestBeginDate = requestedStart
         BGTaskScheduler.shared.cancel(taskRequestWithIdentifier: Self.identifier)
         do {
             try BGTaskScheduler.shared.submit(request)
+            lastScheduledFor = requestedStart
+            lastScheduleSubmitAt = Date()
             UserDefaults.standard.set("예약됨 · iOS 실행 시각은 미보장",
                                       forKey: "Scarlet.Refresh.BackgroundSchedule")
             ScarletDiagnosticRecorder.shared.record(

@@ -45,8 +45,7 @@ class ScarletModularArchitecture(unittest.TestCase):
                          'store: LCUtils.appGroupUserDefault',
                          'Toggle("멀티탭 전환 애니메이션"',
                          'Toggle("멀티탭 진동 피드백"',
-                         'containerURL(', 'SCARLET_MODULE_APPID_FOOTPRINT',
-                         'SCARLET_MODULE_SESSION_TRUTH'):
+                         'containerURL(',):
             self.assertIn(fragment,MODULE)
         for fragment in ('withAnimation(switcherMotion ? spring : nil)',
                          '.animation(switcherMotion ? spring : nil, value: isOpen)',

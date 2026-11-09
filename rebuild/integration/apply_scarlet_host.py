@@ -517,18 +517,9 @@ def attach_native_settings_diagnostics(engine: Path) -> dict:
                         }
                         .accessibilityIdentifier("SCARLET_SETTINGS_NATIVE_APPLE_LOGIN")
                     }
-                    Text(scarletLoginVerified == true
-                         ? "로그인됨 · 내장 SideStore 세션 복원"
-                         : (scarletLoginVerified == nil
-                            ? "로그인 상태 확인 중"
-                            : "로그인 필요 · 저장 세션 없음"))
+                    Text(scarletSigningCertAvailable ? "서명 준비됨" : "서명 확인 필요")
                         .font(.footnote)
-                        .foregroundStyle(scarletLoginVerified == true ? Color.green : Color.secondary)
-                    Text(scarletSigningCertAvailable
-                         ? "서명 인증서 · 준비됨"
-                         : "서명 인증서 · 없음 (로그인과 별도)")
-                        .font(.footnote)
-                        .foregroundStyle(scarletSigningCertAvailable ? Color.green : Color.orange)
+                        .foregroundStyle(scarletSigningCertAvailable ? Color.green : Color.secondary)
                         .accessibilityIdentifier("SCARLET_CERTIFICATE_SEPARATE_FROM_LOGIN")
                     if #available(iOS 16.0, *) {
                         NavigationLink {
@@ -539,15 +530,13 @@ def attach_native_settings_diagnostics(engine: Path) -> dict:
                         .accessibilityIdentifier("SCARLET_NATIVE_DIAGNOSTICS_ENTRY")
                     }
                 } header: {
-                    Text("Scarlet Crystal")
-                } footer: {
-                    Text("실행 오류, 게스트 앱 동작, 엔진 상태를 기기 안에서 기록하고 공유할 수 있습니다.")
+                    Text("계정")
                 }
 """
     # Surface the *actual* signed runtime entitlements and original SideStore
     # refresh entry inside the existing LC settings Form, never a second UI.
-    extension_anchor='''                } footer: {
-                    Text("실행 오류, 게스트 앱 동작, 엔진 상태를 기기 안에서 기록하고 공유할 수 있습니다.")
+    extension_anchor='''                } header: {
+                    Text("계정")
                 }
 '''
     assert new_section.count(extension_anchor) == 1, "Scarlet settings section moved"
@@ -704,6 +693,25 @@ def attach_native_settings_diagnostics(engine: Path) -> dict:
                 }
 """, 1)
     source, styled_rows = theme_native_settings_section_rows(source)
+    # Remove obsolete upstream multitasking SETTINGS menu; engine stays.
+    multitask_menu = """                if #available(iOS 16.1, *) {
+                    Section {
+                        NavigationLink {
+                            LCMultitaskSettingView()
+                        } label: {
+                            Text("lc.appBanner.multitask".loc)
+                        }
+                    } footer: {
+                        Text("lc.settings.multitaskDesc".loc)
+                    }
+                    .listRowBackground(Color(red: 36.0/255, green: 35.0/255, blue: 58.0/255).opacity(0.80))
+                }
+"""
+    if multitask_menu in source:
+        assert source.count(multitask_menu) == 1
+        source = source.replace(multitask_menu, "")
+    elif "LCMultitaskSettingView()" in source:
+        raise RuntimeError("Upstream multitask menu changed; refuse unsafe removal")
     target.write_text(source)
     return {"settings":"original-LCSettingsView","styledSections":styled_rows,"singleTitle":True,
             "diagnosticSectionAtTop":True,"nativeLoginEntry":True,
