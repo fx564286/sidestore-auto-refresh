@@ -75,96 +75,119 @@ struct ScarletFullscreenGuestFloatingTab: View {
     }
 }
 
+// The normal full-screen guest runs a completely separate UIApplicationMain
+// path, so do not attach to the guest's root controller or alter its size.
+// A small non-key UIWindow drawn above it stays visible even when the guest
+// replaces its own root controller (e.g. after login).
 @available(iOS 17.0, *)
 @MainActor
 @objc(ScarletFullscreenGuestTabInstaller)
 final class ScarletFullscreenGuestTabInstaller: NSObject {
-    private static weak var installedRoot: UIViewController?
-    private static var hosting: UIHostingController<ScarletFullscreenGuestFloatingTab>?
-    private static var wrapper: UIView?
-    private static var widthConstraint: NSLayoutConstraint?
-    private static var heightConstraint: NSLayoutConstraint?
-    private static var expanded = false
+    private static var floatingWindow: UIWindow?
+    private static weak var guestWindow: UIWindow?
+    private static var width: CGFloat = 72
+    private static var height: CGFloat = 72
+    private static var rotationObserver: NSObjectProtocol?
+    private static var lastFailure: String?
 
-    // Invoked by the existing guest TweakLoader after UIApplication becomes
-    // active. No swizzle of supportedInterfaceOrientations or guest view size.
+    private static func frame(in window: UIWindow) -> CGRect {
+        let scene = window.windowScene
+        let bounds = scene?.coordinateSpace.bounds ?? window.bounds
+        let inset = window.safeAreaInsets
+        return CGRect(x: max(8, inset.left + 12),
+                      y: max(0, bounds.height - max(12, inset.bottom + 9) - height),
+                      width: min(width, max(64, bounds.width - 16)),
+                      height: min(height, max(64, bounds.height - 16)))
+    }
+
+    private static func placeFloatingWindow() {
+        guard let guestWindow, let floatingWindow else { return }
+        let target = frame(in: guestWindow)
+        if floatingWindow.frame != target {
+            floatingWindow.frame = target
+        }
+    }
+
     @objc(installForGuestName:)
     static func installForGuestName(_ rawName: NSString) {
         guard let scene = UIApplication.shared.connectedScenes
                 .compactMap({ $0 as? UIWindowScene })
-                .first(where: { $0.activationState == .foregroundActive }),
-              let window = scene.windows.first(where: { $0.isKeyWindow }),
-              let root = window.rootViewController,
-              root.viewIfLoaded?.window != nil else { return }
-        if installedRoot === root, wrapper?.superview != nil { return }
+                .first(where: { $0.activationState == .foregroundActive ||
+                                $0.activationState == .foregroundInactive }),
+              let original = scene.windows.first(where: { $0.isKeyWindow }),
+              original.rootViewController?.viewIfLoaded?.window != nil else {
+            if lastFailure != "window_not_ready" {
+                lastFailure = "window_not_ready"
+                NSLog("[SCARLET_GUEST_TAB] window_not_ready")
+            }
+            return
+        }
 
-        // An application may rebuild its root VC after login/rotation. Clean
-        // only our own independent overlay, never the guest application tree.
-        wrapper?.removeFromSuperview()
-        hosting?.willMove(toParent: nil)
-        hosting?.removeFromParent()
-        hosting = nil
-        wrapper = nil
-        installedRoot = root
-        expanded = false
+        if let floatingWindow, floatingWindow.windowScene === scene,
+           !floatingWindow.isHidden {
+            guestWindow = original
+            placeFloatingWindow()
+            return
+        }
+        floatingWindow?.isHidden = true
+        floatingWindow = nil
+        guestWindow = original
+        width = 72
+        height = 72
 
-        let container = UIView()
-        container.backgroundColor = .clear
-        container.translatesAutoresizingMaskIntoConstraints = false
-        root.view.addSubview(container)
-        let w = container.widthAnchor.constraint(equalToConstant: 72)
-        let h = container.heightAnchor.constraint(equalToConstant: 72)
-        NSLayoutConstraint.activate([
-            w, h,
-            container.leadingAnchor.constraint(
-                equalTo: root.view.safeAreaLayoutGuide.leadingAnchor,
-                constant: 12),
-            container.bottomAnchor.constraint(
-                equalTo: root.view.safeAreaLayoutGuide.bottomAnchor,
-                constant: -9),
-            container.widthAnchor.constraint(
-                lessThanOrEqualTo: root.view.safeAreaLayoutGuide.widthAnchor),
-            container.heightAnchor.constraint(
-                lessThanOrEqualTo: root.view.safeAreaLayoutGuide.heightAnchor)
-        ])
-        widthConstraint = w
-        heightConstraint = h
-        wrapper = container
-
-        let title = (rawName as String).isEmpty ? "현재 게스트" : rawName as String
-        let view = ScarletFullscreenGuestFloatingTab(
-            guestTitle: title,
+        let name = (rawName as String).isEmpty ? "현재 게스트" : rawName as String
+        let content = ScarletFullscreenGuestFloatingTab(
+            guestTitle: name,
             onPanel: { shown in
-                expanded = shown
-                // Only our 72pt floating control changes size. Never resize
-                // the underlying guest UIWindow, VC, view, or root safe area.
-                let bounds = root.view.safeAreaLayoutGuide.layoutFrame
-                widthConstraint?.constant = shown ? min(340, max(72, bounds.width - 12)) : 72
-                heightConstraint?.constant = shown ? min(262, max(72, bounds.height - 12)) : 72
-                UIView.animate(withDuration: 0.23) { root.view.layoutIfNeeded() }
+                // Expand ONLY this transparent floating UIWindow, not the
+                // guest UIWindow, UIViewController or safe-area constraints.
+                let bounds = original.windowScene?.coordinateSpace.bounds ?? original.bounds
+                width = shown ? min(340, max(72, bounds.width - 16)) : 72
+                height = shown ? min(262, max(72, bounds.height - 16)) : 72
+                placeFloatingWindow()
+                ScarletDiagnosticRecorder.shared.record(
+                    "guest", shown ? "fullscreen_tab_opened" : "fullscreen_tab_closed")
             },
             onExit: {
-                // The LC launcher recognizes the "ui" sentinel and returns
-                // to PR48 host on a fresh process launch. Guest files, P12,
-                // installed bundles and native orientation masks are untouched.
+                ScarletDiagnosticRecorder.shared.record(
+                    "guest", "fullscreen_tab_exit_requested")
+                // Re-launch PR48's original host via its existing sentinel
+                // without deleting guest data, P12, or altering orientation.
                 guard let defaults = UserDefaults.lc() else { return }
                 defaults.set("ui", forKey: "selected")
                 defaults.removeObject(forKey: "selectedContainer")
                 _ = LCSharedUtils.launchToGuestApp(withClassicMode: 0)
             }
         )
-        let vc = UIHostingController(rootView: view)
-        vc.view.backgroundColor = .clear
-        vc.view.translatesAutoresizingMaskIntoConstraints = false
-        root.addChild(vc)
-        container.addSubview(vc.view)
-        NSLayoutConstraint.activate([
-            vc.view.leadingAnchor.constraint(equalTo: container.leadingAnchor),
-            vc.view.trailingAnchor.constraint(equalTo: container.trailingAnchor),
-            vc.view.topAnchor.constraint(equalTo: container.topAnchor),
-            vc.view.bottomAnchor.constraint(equalTo: container.bottomAnchor)
-        ])
-        vc.didMove(toParent: root)
-        hosting = vc
+
+        let overlay = UIWindow(windowScene: scene)
+        overlay.windowLevel = UIWindow.Level.alert + 1
+        overlay.backgroundColor = .clear
+        overlay.isOpaque = false
+        let controller = UIHostingController(rootView: content)
+        controller.view.backgroundColor = .clear
+        controller.view.isOpaque = false
+        overlay.rootViewController = controller
+        overlay.frame = frame(in: original)
+        // Do not makeKeyAndVisible(): stealing the key window breaks the guest
+        // keyboard, scrolling and presentation stack.
+        overlay.isHidden = false
+        floatingWindow = overlay
+        if rotationObserver == nil {
+            rotationObserver = NotificationCenter.default.addObserver(
+                forName: UIDevice.orientationDidChangeNotification,
+                object: nil, queue: .main) { _ in
+                Task { @MainActor in
+                    placeFloatingWindow()
+                    try? await Task.sleep(for: .milliseconds(200))
+                    placeFloatingWindow()
+                }
+            }
+        }
+        lastFailure = nil
+        NSLog("[SCARLET_GUEST_TAB] mounted_nonkey_window")
+        ScarletDiagnosticRecorder.shared.record(
+            "guest", "fullscreen_tab_mounted",
+            fields: ["api": "UIKit.UIWindow", "material_owner": "system"])
     }
 }

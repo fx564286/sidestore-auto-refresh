@@ -25,8 +25,24 @@ class GuestTabNoResize(unittest.TestCase):
                            'supportedInterfaceOrientations =', 'orientationLock =',
                            'UIInterfaceOrientationMaskLandscape'):
             self.assertNotIn(prohibited,TAB)
-        self.assertIn('widthConstraint?.constant',TAB)
-        self.assertIn('heightConstraint?.constant',TAB)
+        self.assertIn('UIWindow(windowScene: scene)',TAB)
+        self.assertIn('floatingWindow.frame = target',TAB)
+        self.assertIn('overlay.isHidden = false',TAB)
+        self.assertIn('overlay.windowLevel = UIWindow.Level.alert + 1',TAB)
+        self.assertIn('fullscreen_tab_mounted',TAB)
+        self.assertIn('floatingWindow?.isHidden = true',TAB)
+        self.assertNotIn('original.frame =', TAB)
+
+    def test_essential_framework_loaded_in_guest_and_lifecycle_retry(self):
+        self.assertIn('LiveContainerSwiftUI.framework/LiveContainerSwiftUI',PATCH)
+        self.assertIn('dlopen(frameworkPath.UTF8String, RTLD_LAZY | RTLD_GLOBAL)',PATCH)
+        self.assertIn('NSUserDefaults.lcMainBundle.bundlePath',PATCH)
+        self.assertIn('UIWindowDidBecomeKeyNotification',PATCH)
+        self.assertIn('UISceneDidActivateNotification',PATCH)
+        self.assertIn('framework_loaded',PATCH)
+        self.assertIn('installer_class_unavailable',PATCH)
+        self.assertIn('dispatch_after(',PATCH)
+        self.assertNotIn('runApp(multitask: true)',HOST)
 
     def test_guest_exit_relanches_original_pr48_host(self):
         self.assertIn('defaults.set("ui", forKey: "selected")',TAB)

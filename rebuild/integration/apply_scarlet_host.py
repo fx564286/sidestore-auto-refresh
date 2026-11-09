@@ -841,13 +841,23 @@ def main():
     assert guest_hook_source.count(guest_hook_anchor)==1, "Guest hook changed"
     guest_hook_source = guest_hook_source.replace(
         '#import "Localization.h"\n',
-        '#import "Localization.h"\n#import <objc/message.h>\n')
-    guest_hook_source = guest_hook_source.replace(guest_hook_anchor,
+        '#import "Localization.h"\n#import <objc/message.h>\n#import <dlfcn.h>\n')
+    guest_hook_source = guest_hook_source.replace(
+        guest_hook_anchor,
         guest_hook_anchor +
-        "    // PR48 independent floating guest tab; no virtual windows.\n"
+        "    // The full-screen LC guest skips LiveContainerSwiftUI's main().\n"
+        "    // Its classes are in a separate dylib, not in the main executable.\n"
+        "    // Explicitly load the exact built-in framework before NSClassFromString.\n"
         "    if(!NSUserDefaults.isLiveProcess) {\n"
-        "        [[NSNotificationCenter defaultCenter] addObserverForName:UIApplicationDidBecomeActiveNotification\n"
-        "          object:nil queue:NSOperationQueue.mainQueue usingBlock:^(NSNotification *note) {\n"
+        "        NSString *frameworkPath = [NSUserDefaults.lcMainBundle.bundlePath\n"
+        "            stringByAppendingPathComponent:@\"Frameworks/LiveContainerSwiftUI.framework/LiveContainerSwiftUI\"];\n"
+        "        void *framework = dlopen(frameworkPath.UTF8String, RTLD_LAZY | RTLD_GLOBAL);\n"
+        "        if(!framework) {\n"
+        "            NSLog(@\"[SCARLET_GUEST_TAB] framework_unavailable\");\n"
+        "        } else {\n"
+        "            NSLog(@\"[SCARLET_GUEST_TAB] framework_loaded\");\n"
+        "        }\n"
+        "        void (^mount)(void) = ^{\n"
         "            Class provider = NSClassFromString(@\"ScarletFullscreenGuestTabInstaller\");\n"
         "            SEL callback = NSSelectorFromString(@\"installForGuestName:\");\n"
         "            if (provider && [provider respondsToSelector:callback]) {\n"
@@ -855,8 +865,21 @@ def main():
         "                    ?: NSUserDefaults.guestAppInfo[@\"CFBundleName\"]\n"
         "                    ?: NSUserDefaults.lcGuestAppId;\n"
         "                ((void(*)(id,SEL,id))objc_msgSend)(provider,callback,title);\n"
+        "            } else {\n"
+        "                NSLog(@\"[SCARLET_GUEST_TAB] installer_class_unavailable\");\n"
         "            }\n"
-        "        }];\n"
+        "        };\n"
+        "        for(NSNotificationName name in @[UIApplicationDidBecomeActiveNotification,\n"
+        "              UIWindowDidBecomeKeyNotification, UISceneDidActivateNotification]) {\n"
+        "            [[NSNotificationCenter defaultCenter] addObserverForName:name\n"
+        "              object:nil queue:NSOperationQueue.mainQueue usingBlock:^(NSNotification *note) {\n"
+        "                mount();\n"
+        "            }];\n"
+        "        }\n"
+        "        for(NSNumber *delay in @[@0.2,@0.75,@1.5,@3.0]) {\n"
+        "            dispatch_after(dispatch_time(DISPATCH_TIME_NOW,(int64_t)(delay.doubleValue * NSEC_PER_SEC)),\n"
+        "                           dispatch_get_main_queue(), mount);\n"
+        "        }\n"
         "    }\n")
     guest_hook_file.write_text(guest_hook_source)
 
