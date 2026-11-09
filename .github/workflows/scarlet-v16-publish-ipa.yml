@@ -1,0 +1,86 @@
+name: Scarlet V16 direct unsigned IPA release
+
+on:
+  push:
+    branches:
+      - fix/scarlet-pr48-v16-guest-switcher-icons-readback-20261110
+    paths:
+      - .github/workflows/scarlet-v16-publish-ipa.yml
+  workflow_dispatch:
+
+permissions:
+  actions: read
+  contents: write
+
+jobs:
+  publish-verified-v16:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Fetch completed native-paired V16 artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: Scarlet-Paired-Engines-UNSIGNED-DIAGNOSTIC-ONLY
+          run-id: 42685084334
+          github-token: ${{ github.token }}
+          path: paired
+
+      - name: Audit exact V16 IPA and create direct download
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          python3 - <<'PY'
+          import hashlib, json, pathlib, plistlib, shutil, zipfile
+          src=pathlib.Path("paired/Scarlet-LiveContainer+SideStore-ENGINES-UNSIGNED.ipa")
+          assert src.is_file() and src.stat().st_size>20_000_000, f"Missing V16 IPA: {src}"
+          host="com.kdt.livecontainer.P8EZT3U5N4"
+          required={host,host+".LiveProcess",host+".ShareExtension",host+".LaunchAppExtension"}
+          with zipfile.ZipFile(src) as z:
+              assert z.testzip() is None,"IPA ZIP CRC failure"
+              infos=[n for n in z.namelist() if n.startswith("Payload/") and
+                    n.endswith("/Info.plist") and
+                    (n.count(".app/")==1 and (n.count(".appex/")<=1))]
+              ids=set()
+              for n in infos:
+                  if ".app/" not in n: continue
+                  if n.count("/")>5: continue
+                  try: info=plistlib.loads(z.read(n))
+                  except Exception: continue
+                  bid=info.get("CFBundleIdentifier")
+                  if bid in required: ids.add(bid)
+              assert ids == required,f"Required Apple App IDs missing: {sorted(required-ids)}"
+              names=z.namelist()
+              assert any("SideStoreSupport.framework/" in n for n in names),"SideStoreSupport missing"
+          dest=pathlib.Path("Scarlet-Crystal-V16-UNSIGNED.ipa")
+          shutil.copy2(src,dest)
+          digest=hashlib.sha256(dest.read_bytes()).hexdigest()
+          pathlib.Path(str(dest)+".sha256").write_text(f"{digest}  {dest.name}\n")
+          pathlib.Path("release-notes.md").write_text(
+              "# Scarlet Crystal V16 — native guest app icons and A/B launch ledger\n\n"
+              "Built by Xcode 27.2 paired engines CI run 42685084334.\n"
+              "Host + LiveProcess + ShareExtension + LaunchAppExtension (4 Bundle IDs).\n"
+              "This IPA is unsigned and requires valid Apple signing before iPhone installation.\n"
+              "Guest A/B state retention on a physical iPhone is not proven by source CI.\n"
+              f"SHA256: {digest}\n")
+          print(f"[PASS] V16 unsigned IPA {dest.stat().st_size} bytes; 4 IDs; SHA256={digest}")
+          PY
+
+      - name: Publish direct IPA GitHub Release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -Eeuo pipefail
+          tag=scarlet-pr48-v16-guest-icons-20261110
+          if ! gh release view "$tag" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release create "$tag" --repo "$GITHUB_REPOSITORY" \
+              --target caa12a41e95960fa711cf0ef04188da5fa1ab2c8 \
+              --title "Scarlet Crystal V16 — UNSIGNED IPA" --prerelease \
+              --latest=false --notes-file release-notes.md
+          fi
+          gh release upload "$tag" --repo "$GITHUB_REPOSITORY" \
+            Scarlet-Crystal-V16-UNSIGNED.ipa \
+            Scarlet-Crystal-V16-UNSIGNED.ipa.sha256 --clobber
+          gh release view "$tag" --repo "$GITHUB_REPOSITORY" \
+            --json assets --jq '.assets[].name' | grep -Fx 'Scarlet-Crystal-V16-UNSIGNED.ipa'
+          echo "https://github.com/$GITHUB_REPOSITORY/releases/download/$tag/Scarlet-Crystal-V16-UNSIGNED.ipa" >> "$GITHUB_STEP_SUMMARY"
