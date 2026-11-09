@@ -153,6 +153,25 @@ extension View {
     }
 }
 
+// Settings has a system-managed tab bar on iOS 26+.
+// Adding a second 140pt bottom safeAreaInset to the Settings Form created
+// an extra ~140pt of maximum scroll travel (the user's second screenshot),
+// lifting the version/developer rows too high and leaving a blank footer.
+// Keep the upstream Form and the native tabbar as the only inset owners.
+// The legacy custom dock needs only enough clearance for its 62pt height.
+extension View {
+    @ViewBuilder
+    func scarletSettingsScrollLimit() -> some View {
+        if #available(iOS 26.0, *) {
+            self
+        } else {
+            self.safeAreaInset(edge: .bottom, spacing: 0) {
+                Color.clear.frame(height: 72).accessibilityHidden(true)
+            }
+        }
+    }
+}
+
 // The nested JIT-Less diagnostics and entitlement pages each own a Form.
 // Native iOS 26 TabView protects the navigation-stack safe area; an explicit
 // scroll-content margin preserves the last test/help buttons at full scroll.
