@@ -761,6 +761,25 @@ struct ScarletIntegratedHostView: View {
             }
         )
         .environmentObject(downloadHelper)
+        // Keep the real LiveContainer importer mounted OUTSIDE the sheet.
+        // The sheet is a read-only view of host-owned progress, so swiping
+        // it down cannot cancel work or delete its staged input IPA.
+        .background(alignment: .topLeading) {
+            if let queuedGuestIPAURL {
+                LCAppListView(scarletQueuedIPAURL: queuedGuestIPAURL,
+                              scarletActivity: guestImportActivity,
+                              scarletOnImportFinished: guestImportWorkerFinished)
+                    .environmentObject(downloadHelper)
+                    .environmentObject(sharedModel)
+                    .environmentObject(LCAppSortManager.shared)
+                    .frame(width: 1, height: 1)
+                    .clipped()
+                    .opacity(0)
+                    .allowsHitTesting(false)
+                    .accessibilityHidden(true)
+                    .accessibilityIdentifier("SCARLET_HIDDEN_GUEST_IMPORT_WORKER")
+            }
+        }
         .onAppear {
             ScarletDiagnosticRecorder.shared.record("boot", "host_visible",
                 fields: ["count": String(sharedModel.apps.count),
@@ -857,26 +876,52 @@ struct ScarletIntegratedHostView: View {
             }
         }
         .sheet(isPresented: $showGuestImportProgress, onDismiss: {
-            if let queuedGuestIPAURL {
-                try? FileManager.default.removeItem(at: queuedGuestIPAURL)
+            if guestImportActivity.isRunning {
+                installProgressMinimized = true
+                ScarletDiagnosticRecorder.shared.record("guest_import",
+                    "sheet_minimized", fields: ["worker_kept_alive": "true"])
             }
-            queuedGuestIPAURL = nil
         }) {
-            if let queuedGuestIPAURL {
-                // Only the original LC installer runs here. The old app-list
-                // UI branch is never constructed for Scarlet's IPA flow.
-                LCAppListView(scarletQueuedIPAURL: queuedGuestIPAURL,
-                              scarletOnImportFinished: {
-                                  showGuestImportProgress = false
-                              })
-                    .environmentObject(downloadHelper)
-                    .environmentObject(sharedModel)
-                    .environmentObject(LCAppSortManager.shared)
-                    .presentationDetents([.height(340)])
-                    .presentationDragIndicator(.visible)
-                    .presentationBackground(Color(red: 0.065, green: 0.058, blue: 0.10))
-                    .interactiveDismissDisabled()
+            VStack(spacing: 13) {
+                if #available(iOS 26.0, *) {
+                    Image(systemName: guestImportActivity.phase == .signingUnverified
+                          ? "exclamationmark.shield.fill" : "shippingbox.fill")
+                        .font(.system(size: 28))
+                        .foregroundStyle(Color(red: 0.76, green: 0.67, blue: 1))
+                        .frame(width: 58, height: 58)
+                        .glassEffect()
+                } else {
+                    Image(systemName: "shippingbox.fill")
+                        .font(.system(size: 28))
+                        .foregroundStyle(Color(red: 0.76, green: 0.67, blue: 1))
+                }
+                Text(guestImportActivity.title)
+                    .font(.title3.bold())
+                    .foregroundStyle(.white)
+                Text(guestImportActivity.detail)
+                    .font(.subheadline)
+                    .multilineTextAlignment(.center)
+                    .foregroundStyle(Color(red: 0.78, green: 0.75, blue: 0.85))
+                    .accessibilityIdentifier("SCARLET_GUEST_IMPORT_STAGE")
+                if guestImportActivity.isRunning {
+                    ProgressView(value: guestImportActivity.progress, total: 1)
+                        .tint(Color(red: 0.76, green: 0.67, blue: 1))
+                        .accessibilityIdentifier("SCARLET_GUEST_IMPORT_ACTUAL_PROGRESS")
+                }
+                Button(guestImportActivity.isRunning ? "내리기" : "닫기") {
+                    showGuestImportProgress = false
+                }
+                .buttonStyle(.borderedProminent)
+                .tint(Color(red: 0.44, green: 0.33, blue: 0.77))
+                .accessibilityIdentifier("SCARLET_IMPORT_PROGRESS_CLOSE")
             }
+            .padding(.horizontal, 26)
+            .padding(.vertical, 16)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .presentationDetents([.height(325)])
+            .presentationDragIndicator(.visible)
+            .presentationBackground(Color(red: 0.14, green: 0.12, blue: 0.22))
+            .accessibilityIdentifier("SCARLET_BRANDED_GUEST_IMPORT_CARD")
         }
         .sheet(isPresented: $showSourceURLInput) {
             NavigationStack {
@@ -921,11 +966,12 @@ struct ScarletIntegratedHostView: View {
             }
         }
         .sheet(isPresented: $showSourceDownloadSheet, onDismiss: {
-            if let staged = sourceDownloadedIPA {
-                sourceDownloadedIPA = nil
-                stageGuestIPAFromFiles(staged)
-                try? FileManager.default.removeItem(at: staged)
+            if sourceIsDownloading && sourceDownloadedIPA == nil {
+                installProgressMinimized = true
+                ScarletDiagnosticRecorder.shared.record("sources", "sheet_minimized",
+                    fields: ["download_kept_alive": "true"])
             }
+            handoffDownloadedSourceIfReady()
         }) {
             VStack(spacing: 20) {
                 Image(systemName: sourceDownloadError == nil
@@ -954,16 +1000,22 @@ struct ScarletIntegratedHostView: View {
                     .font(.caption)
                     .multilineTextAlignment(.center)
                     .foregroundStyle(Color(red: 0.68, green: 0.65, blue: 0.75))
-                Button(sourceIsDownloading ? "다운로드 취소" : "닫기") {
+                HStack(spacing: 12) {
                     if sourceIsDownloading {
-                        sourceDownloadTask?.cancel()
-                        sourceIsDownloading = false
+                        Button("다운로드 취소") {
+                            sourceDownloadTask?.cancel()
+                            showSourceDownloadSheet = false
+                        }
+                        .accessibilityIdentifier("SCARLET_SOURCE_DOWNLOAD_CANCEL")
                     }
-                    showSourceDownloadSheet = false
+                    Button(sourceIsDownloading ? "내리기" : "닫기") {
+                        if sourceIsDownloading { installProgressMinimized = true }
+                        showSourceDownloadSheet = false
+                    }
+                    .accessibilityIdentifier("SCARLET_SOURCE_DOWNLOAD_MINIMIZE")
                 }
                 .buttonStyle(.borderedProminent)
                 .tint(Color(red: 0.44, green: 0.33, blue: 0.77))
-                .accessibilityIdentifier("SCARLET_SOURCE_DOWNLOAD_CANCEL")
             }
             // The system sheet IS the visible rounded surface. The former
             // extra RoundedRectangle + opaque sheet background produced two
@@ -973,8 +1025,7 @@ struct ScarletIntegratedHostView: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .presentationDetents([.height(340)])
             .presentationBackground(Color(red: 0.14, green: 0.12, blue: 0.22))
-            .presentationDragIndicator(.hidden)
-            .interactiveDismissDisabled(sourceIsDownloading)
+            .presentationDragIndicator(.visible)
             .accessibilityIdentifier("SCARLET_BRANDED_SOURCE_DOWNLOAD_SHEET")
         }
         .sheet(isPresented: $showNativeSources) {
