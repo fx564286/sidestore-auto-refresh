@@ -188,6 +188,7 @@ struct ScarletGuestSwitcherOverlay: View {
             }
         }
         targets = combined
+        ScarletGuestSessionLedger.traceSwitcher("native_panel_opened", count: combined.count)
         feedback = nil
         previews = [:]
         guestIcons = [:]
@@ -283,16 +284,21 @@ struct ScarletGuestSwitcherOverlay: View {
                 LazyVStack(spacing: 8) {
                     ForEach(targets) { item in
                         Button {
+                            ScarletGuestSessionLedger.traceSwitcher("native_switch_tapped")
                             guard item.id != dataUUID else {
                                 closeSwitcher()
                                 return
                             }
                             guard item.isLive else {
+                                ScarletGuestSessionLedger.traceSwitcher("native_switch_rejected")
                                 feedback = "종료된 앱은 목록에서 다시 실행해야 합니다. 작업 상태 복원은 앱 자체 저장 기능에 따라 달라집니다."
                                 return
                             }
                             if ScarletGuestSceneRegistry.activate(item.id) {
+                                ScarletGuestSessionLedger.traceSwitcher("native_switch_activated")
                                 closeSwitcher()
+                            } else {
+                                ScarletGuestSessionLedger.traceSwitcher("native_switch_rejected")
                             }
                         } label: {
                             HStack(alignment: .center, spacing: 12) {
