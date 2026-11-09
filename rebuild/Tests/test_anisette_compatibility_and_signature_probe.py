@@ -61,7 +61,7 @@ class OwnerDeviceFailures(unittest.TestCase):
 
     def test_jitless_failure_uses_original_non_destructive_check(self):
         self.assertIn("DispatchQueue.global(qos: .utility).async", HOST)
-        self.assertIn("LCUtils.validateJITLessSetup { verified, _ in", HOST)
+        self.assertIn("LCUtils.validateJITLessSetup { verified, validationError in", HOST)
         self.assertIn('"jitless_probe_finished"', HOST)
         self.assertIn("ScarletGuestCertificateInvalid", HOST)
         self.assertIn('"certificate_invalid"', INSTRUMENTATION)

@@ -135,6 +135,8 @@ struct ScarletSigningReadinessPanel: View {
                 statusMessage = "SideStore 새로고침이 실패했습니다. 인증·페어링·프로파일을 진단 로그에서 확인하세요."
                 ScarletDiagnosticRecorder.shared.record("refresh", "manual_request_failed",
                     status: "error", fields: ["reason": "sidestore_refresh_error"])
+                ScarletDiagnosticRecorder.shared.recordError(
+                    "refresh", "manual_request_underlying_error", error: error)
             }
         }
     }

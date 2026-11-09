@@ -1,0 +1,88 @@
+name: Scarlet PR48 public unsigned IPA download
+
+on:
+  push:
+    branches: [fix/scarlet-auth-status-rootcause-20261109]
+    paths:
+      - ".github/workflows/scarlet-pr48-public-ipa.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  actions: read
+
+jobs:
+  publish-verified-ipa:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download actual successful iOS build artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: Scarlet-Paired-Engines-UNSIGNED-DIAGNOSTIC-ONLY
+          run-id: 42559140232
+          github-token: ${{ github.token }}
+          path: package
+      - name: Verify pinned IPA and prepare public file
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          python3 - <<'PY'
+          import hashlib, json, pathlib, shutil, zipfile
+          root=pathlib.Path("package")
+          src=root/"Scarlet-LiveContainer+SideStore-ENGINES-UNSIGNED.ipa"
+          report=json.loads((root/"integrated-build-report.json").read_text())
+          assert src.is_file() and src.stat().st_size > 20_000_000, "Missing integrated IPA"
+          expected="169d70b861d13365a979d733380df36d808335e5b85939cfc52e801958c6d3f0"
+          actual=hashlib.sha256(src.read_bytes()).hexdigest()
+          assert actual==expected, (actual,expected)
+          with zipfile.ZipFile(src) as z:
+              assert z.testzip() is None
+              names=z.namelist()
+              assert any(x.startswith("Payload/") and x.endswith(".app/Info.plist") for x in names)
+              for extension in ("LiveProcess","ShareExtension","LaunchAppExtension"):
+                  assert any(x.endswith("/"+extension+".appex/Info.plist") for x in names)
+              assert not any(x.endswith("embedded.mobileprovision") for x in names)
+          assert report["hostBundleID"]=="com.kdt.livecontainer.P8EZT3U5N4"
+          assert report["codesignedWithAppleProfile"] is False
+          shutil.copyfile(src,"Scarlet-PR48-UNSIGNED.ipa")
+          pathlib.Path("Scarlet-PR48-UNSIGNED.ipa.sha256").write_text(
+              actual+"  Scarlet-PR48-UNSIGNED.ipa\n")
+          print("[PASS] SHA256, 3 extensions, correct Bundle ID, unsigned status")
+          print("[FILE] Scarlet-PR48-UNSIGNED.ipa size",src.stat().st_size)
+          PY
+      - name: Publish permanent GitHub Release asset
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -Eeuo pipefail
+          tag=scarlet-pr48-unsigned-20261109
+          cat > release-notes.md <<'EOF'
+          Scarlet Crystal - 2026-11-09 PR #48 source build
+
+          Source branch: fix/scarlet-auth-status-rootcause-20261109
+          Build run: 42559140232
+          Compiled commit: 3ee259cba97d98a569c86a286382b3bade22abee
+          Bundle ID: com.kdt.livecontainer.P8EZT3U5N4
+
+          This is a genuine unsigned diagnostic IPA (37,600,655 bytes).
+          NOT Apple-signed. Direct installation on iPhone will fail until
+          it is signed with a valid certificate and provisioning profile.
+          Guest app execution and multiple-account signing are not device-verified.
+          EOF
+          if ! gh release view "$tag" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release create "$tag" --repo "$GITHUB_REPOSITORY" \
+              --target "$GITHUB_SHA" \
+              --title "Scarlet Crystal PR48 - UNSIGNED IPA" \
+              --prerelease --latest=false --notes-file release-notes.md
+          fi
+          gh release upload "$tag" --repo "$GITHUB_REPOSITORY" \
+            Scarlet-PR48-UNSIGNED.ipa \
+            Scarlet-PR48-UNSIGNED.ipa.sha256 --clobber
+          gh release view "$tag" --repo "$GITHUB_REPOSITORY" \
+            --json assets --jq '.assets[].name' | grep -Fx 'Scarlet-PR48-UNSIGNED.ipa'
+          url="https://github.com/$GITHUB_REPOSITORY/releases/download/$tag/Scarlet-PR48-UNSIGNED.ipa"
+          printf '### Direct Safari download\n%s\n' "$url" >> "$GITHUB_STEP_SUMMARY"
+          echo "PUBLIC_IPA_URL=$url"

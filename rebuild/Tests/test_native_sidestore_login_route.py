@@ -52,6 +52,8 @@ class NativeScarletLoginContract(unittest.TestCase):
         self.assertIn("if tab == .settings {",UI)
         self.assertIn("case .serviceBeginSignIn:",HOST)
         self.assertIn("SCARLET_SETTINGS_NATIVE_APPLE_LOGIN",INTEGRATOR)
+        self.assertIn("SCARLET_SETTINGS_ADD_LOGIN",INTEGRATOR)
+        self.assertIn("scarletShowAccountAdditionNotice",INTEGRATOR)
         self.assertIn("ScarletDiagnosticLogView()",INTEGRATOR)
         self.assertIn("nativeSettings()",UI)
         self.assertIn("SCARLET_INLINE_NATIVE_LC_SETTINGS",UI)
