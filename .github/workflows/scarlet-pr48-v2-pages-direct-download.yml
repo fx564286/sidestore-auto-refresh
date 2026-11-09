@@ -1,0 +1,52 @@
+name: Scarlet PR48 v2 direct IPA on GitHub Pages
+on:
+  push:
+    branches: [fix/scarlet-pr48-guest-overlay-no-resize-20261109]
+    paths:
+      - ".github/workflows/scarlet-pr48-v2-pages-direct-download.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  publish-ipa-only:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: gh-pages
+          path: pages
+          fetch-depth: 1
+          persist-credentials: true
+      - name: Fetch previously verified public release asset from official GitHub API
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -Eeuo pipefail
+          path="pages/Scarlet-PR48-FloatingTab-V2-UNSIGNED.ipa"
+          curl -fLSs --retry 6 --retry-all-errors --retry-delay 3 \
+            -H "Authorization: Bearer ${GH_TOKEN}" \
+            -H "Accept: application/octet-stream" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            "https://api.github.com/repos/${GITHUB_REPOSITORY}/releases/assets/726405962" \
+            -o "$path"
+          echo "a01e68d1a75598bdfea5551fda4505104bd241adff6e3a6d913b6bb4c55f63cd  $path" | sha256sum -c -
+          test "$(stat -c %s "$path")" -eq 37615179
+          printf "[PASS] exact reviewed native IPA; page contents not changed\n"
+      - name: Commit only versioned IPA to existing Pages branch
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          git -C pages config user.name "scarlet-pages-asset-bot"
+          git -C pages config user.email "github-actions[bot]@users.noreply.github.com"
+          git -C pages add -f -- Scarlet-PR48-FloatingTab-V2-UNSIGNED.ipa
+          if git -C pages diff --cached --quiet; then
+            echo "[PASS] already published"
+          else
+            git -C pages commit -m "docs(download): publish verified PR48 floating guest tab V2 unsigned IPA"
+            git -C pages push origin HEAD:gh-pages
+          fi
+          echo "https://fx564286.github.io/sidestore-auto-refresh/Scarlet-PR48-FloatingTab-V2-UNSIGNED.ipa" >> "$GITHUB_STEP_SUMMARY"
