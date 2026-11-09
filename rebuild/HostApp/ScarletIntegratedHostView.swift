@@ -7,6 +7,57 @@ import UIKit
 import UniformTypeIdentifiers
 import Security
 
+// Host-owned task state survives dismissing or reopening a progress sheet.
+// The original LC importer remains responsible for actual guest installation.
+@MainActor
+final class ScarletGuestImportActivity: ObservableObject {
+    enum Phase: Equatable {
+        case idle, importing, imported, signingUnverified, failed
+    }
+    @Published private(set) var phase: Phase = .idle
+    @Published private(set) var progress: Double = 0
+
+    var isRunning: Bool { phase == .importing }
+    var hasActivity: Bool { phase != .idle }
+    var title: String {
+        switch phase {
+        case .idle: return ""
+        case .importing: return "게스트 앱 가져오는 중"
+        case .imported: return "게스트 앱 가져오기 완료"
+        case .signingUnverified: return "서명 확인이 필요합니다"
+        case .failed: return "게스트 앱 가져오기 실패"
+        }
+    }
+    var detail: String {
+        switch phase {
+        case .idle: return ""
+        case .importing: return "창을 내려도 가져오기가 계속됩니다."
+        case .imported: return "가져오기 완료 · 실제 실행은 별도 확인"
+        case .signingUnverified: return "가져왔지만 JIT-Less 서명 확인이 필요합니다."
+        case .failed: return "원본 LiveContainer 가져오기에서 오류가 발생했습니다."
+        }
+    }
+    func start() {
+        progress = 0
+        phase = .importing
+        ScarletDiagnosticRecorder.shared.record("guest_import", "worker_started",
+            fields: ["owner": "host_view"])
+    }
+    func update(_ value: Double) {
+        guard isRunning else { return }
+        progress = min(1, max(0, value))
+    }
+    func finish(signingUnverified: Bool, failed: Bool) {
+        guard isRunning else { return }
+        phase = failed ? .failed :
+            (signingUnverified ? .signingUnverified : .imported)
+        ScarletDiagnosticRecorder.shared.record("guest_import", "worker_finished",
+            status: failed ? "error" : (signingUnverified ? "warning" : "info"),
+            fields: ["result": failed ? "import_failed" :
+                (signingUnverified ? "imported_signing_unverified" : "imported_launch_unverified")])
+    }
+}
+
 @available(iOS 17.0, *)
 struct ScarletIntegratedHostView: View {
     @Environment(\.scenePhase) private var scenePhase
@@ -15,12 +66,14 @@ struct ScarletIntegratedHostView: View {
     // Avoid initializing the dock before UIWindow and its view tree exist.
     @StateObject private var downloadHelper = DownloadHelper()
     @StateObject private var originalSources = AltStoreSourcesViewModel()
+    @StateObject private var guestImportActivity = ScarletGuestImportActivity()
     // A single Files picker serves both explicitly selected installation routes.
     private enum IPAInstallRoute { case guest, device }
     @State private var pendingIPAInstallRoute: IPAInstallRoute = .guest
     @State private var showGuestFilePicker = false
     @State private var showGuestImportProgress = false
     @State private var queuedGuestIPAURL: URL?
+    @State private var installProgressMinimized = false
     @State private var showNativeSources = false
     @State private var showSourceURLInput = false
     @State private var newSourceURL = ""
