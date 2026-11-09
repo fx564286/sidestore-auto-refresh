@@ -35,7 +35,8 @@ enum ScarletGuestSessionLedger {
         "native_switch_rejected", "native_switch_activated",
         "hook_entered", "framework_loaded", "framework_missing",
         "provider_ready", "provider_missing",
-        "mount_window_not_ready", "mount_window_recovered"
+        "mount_window_not_ready", "mount_window_recovered",
+        "runtime_current_resolved", "runtime_current_unresolved"
     ]
 
     struct SwitchTrace: Codable {
