@@ -50,14 +50,19 @@ python3 "$ROOT/rebuild/scripts/boot_preview_simulator.py" \
 UDID="$(cat "$SIM_UDID_FILE")"
 echo "[SIM] Dedicated device $UDID"
 cleanup() {
-  # A verified prebooted runner simulator is borrowed, NOT ours to delete.
-  if [[ "$(cat "$SIM_OWNED_FILE")" != "1" ]]; then
-    echo "[SIM] Borrowed simulator retained (no global shutdown/delete)"
+  # Mode 0: already booted runner template -- leave untouched.
+  # Mode 2: we booted a runner template -- shut down only.
+  # Mode 1: our disposable simulator -- shut down and delete.
+  local mode
+  mode="$(cat "$SIM_OWNED_FILE")"
+  if [[ "$mode" == "0" ]]; then
+    echo "[SIM] Existing runner simulator retained"
     return
   fi
-  python3 - "$UDID" <<'PY'
+  python3 - "$UDID" "$mode" <<'PY'
 import subprocess,sys
-for command in ("shutdown","delete"):
+actions=("shutdown", "delete") if sys.argv[2]=="1" else ("shutdown",)
+for command in actions:
     try: subprocess.run(["xcrun","simctl",command,sys.argv[1]],
                         timeout=12,stdout=subprocess.DEVNULL,
                         stderr=subprocess.DEVNULL)
