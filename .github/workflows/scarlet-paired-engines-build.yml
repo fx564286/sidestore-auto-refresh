@@ -3,7 +3,7 @@ name: Scarlet paired LiveContainer and SideStore iOS build
 on:
   workflow_dispatch:
   push:
-    branches: [rebuild/scarlet-from-zero-20261106, fix/scarlet-auth-status-rootcause-20261109, fix/scarlet-pr48-guest-overlay-no-resize-20261109]
+    branches: [rebuild/scarlet-from-zero-20261106, fix/scarlet-auth-status-rootcause-20261109, fix/scarlet-pr48-guest-overlay-no-resize-20261109, fix/scarlet-pr48-airpods-glass-guest-switch-v3-20261109]
     paths:
       - ".github/workflows/scarlet-paired-engines-build.yml"
       - "rebuild/integration/**"
