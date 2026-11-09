@@ -25,7 +25,7 @@ class GuestTabNoResize(unittest.TestCase):
                            'supportedInterfaceOrientations =', 'orientationLock =',
                            'UIInterfaceOrientationMaskLandscape'):
             self.assertNotIn(prohibited,TAB)
-        self.assertIn('UIWindow(windowScene: scene)',TAB)
+        self.assertIn('ScarletGuestTouchPassthroughWindow(windowScene: scene)',TAB)
         self.assertIn('floatingWindow.frame = next',TAB)
         self.assertIn('overlay.isHidden = false',TAB)
         self.assertIn('overlay.windowLevel = UIWindow.Level.alert + 1',TAB)

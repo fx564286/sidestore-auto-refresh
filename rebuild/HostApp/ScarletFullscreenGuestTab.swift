@@ -40,11 +40,40 @@ private struct ScarletUIKitGlassBackdrop: UIViewRepresentable {
     }
 }
 
+// A separate non-key UIWindow can still swallow touches in transparent
+// corners. Only the visible round button or the expanded card is interactive;
+// all other touches fall through to the full-screen guest.
+@available(iOS 17.0, *)
+final class ScarletGuestTouchPassthroughWindow: UIWindow {
+    var isExpanded = false
+    var dockRight = false
+    var panelHitHeight: CGFloat = 270
+
+    override func point(inside point: CGPoint, with event: UIEvent?) -> Bool {
+        let circleX = dockRight ? bounds.width - 36 : CGFloat(36)
+        let circleY = bounds.height - 36
+        let dx = point.x - circleX
+        let dy = point.y - circleY
+        if dx * dx + dy * dy <= 35 * 35 {
+            return super.point(inside: point, with: event)
+        }
+        guard isExpanded else { return false }
+        let panelBottom = bounds.height - 79
+        let top = max(CGFloat(0), panelBottom - panelHitHeight)
+        let left = dockRight ? max(CGFloat(0), bounds.width - 342) : CGFloat(0)
+        let panel = CGRect(x: left, y: top,
+                           width: min(342, bounds.width), height: max(0, panelBottom - top))
+        return panel.contains(point) && super.point(inside: point, with: event)
+    }
+}
+
 @available(iOS 17.0, *)
 struct ScarletFullscreenGuestFloatingTab: View {
     let guestTitle: String
     let reloadApps: () -> [ScarletGuestSwitchTarget]
     let onPanel: (Bool, Int) -> Void
+    let onDrag: (CGSize, Bool) -> Bool
+    let initialDockRight: Bool
     let onSwitch: (ScarletGuestSwitchTarget) -> Bool
     let onExit: () -> Void
 
@@ -52,6 +81,8 @@ struct ScarletFullscreenGuestFloatingTab: View {
     @State private var apps: [ScarletGuestSwitchTarget] = []
     @State private var feedback: String?
     @State private var transitionVersion = 0
+    @State private var draggingButton = false
+    @State private var dockRight = false
     @Namespace private var glassMotion
 
     private let spring = Animation.spring(response: 0.47, dampingFraction: 0.82)
@@ -267,6 +298,7 @@ struct ScarletFullscreenGuestFloatingTab: View {
 
     private var roundTabButton: some View {
         Button {
+            guard !draggingButton else { return }
             if isOpen { closePanel() } else { openPanel() }
         } label: {
             ZStack {
@@ -293,6 +325,28 @@ struct ScarletFullscreenGuestFloatingTab: View {
             .contentShape(Circle())
         }
         .buttonStyle(.plain)
+        .simultaneousGesture(
+            DragGesture(minimumDistance: 12, coordinateSpace: .global)
+                .onChanged { value in
+                    guard !isOpen else { return }
+                    if !draggingButton {
+                        draggingButton = true
+                        UISelectionFeedbackGenerator().selectionChanged()
+                    }
+                    dockRight = onDrag(value.translation, false)
+                }
+                .onEnded { value in
+                    guard !isOpen else { return }
+                    dockRight = onDrag(value.translation, true)
+                    // The drag's gesture-end can also finish a Button tap;
+                    // keep the suppression flag until that event settles.
+                    Task { @MainActor in
+                        try? await Task.sleep(for: .milliseconds(160))
+                        draggingButton = false
+                    }
+                }
+        )
+        .accessibilityHint("드래그하여 위치를 옮길 수 있습니다")
         .accessibilityIdentifier("SCARLET_PR48_GUEST_ROUND_TAB")
     }
 
@@ -308,7 +362,7 @@ struct ScarletFullscreenGuestFloatingTab: View {
     }
 
     private var panelStack: some View {
-        VStack(alignment: .leading, spacing: 9) {
+        VStack(alignment: dockRight ? .trailing : .leading, spacing: 9) {
             if isOpen {
                 appPanel
                     .transition(.asymmetric(
@@ -317,9 +371,12 @@ struct ScarletFullscreenGuestFloatingTab: View {
                         removal: .scale(scale: 0.88, anchor: .bottomLeading)
                             .combined(with: .opacity)))
             }
-            roundTab.padding(.leading, 5).padding(.bottom, 5)
+            roundTab
+                .padding(dockRight ? .trailing : .leading, 5)
+                .padding(.bottom, 5)
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
+        .frame(maxWidth: .infinity, maxHeight: .infinity,
+               alignment: dockRight ? .bottomTrailing : .bottomLeading)
     }
 
     @ViewBuilder
@@ -327,8 +384,10 @@ struct ScarletFullscreenGuestFloatingTab: View {
         if #available(iOS 26.0, *) {
             GlassEffectContainer(spacing: 14) { panelStack }
                 .animation(spring, value: isOpen)
+                .onAppear { dockRight = initialDockRight }
         } else {
             panelStack.animation(spring, value: isOpen)
+                .onAppear { dockRight = initialDockRight }
         }
     }
 }
@@ -337,20 +396,59 @@ struct ScarletFullscreenGuestFloatingTab: View {
 @MainActor
 @objc(ScarletFullscreenGuestTabInstaller)
 final class ScarletFullscreenGuestTabInstaller: NSObject {
-    private static var floatingWindow: UIWindow?
+    private static var floatingWindow: ScarletGuestTouchPassthroughWindow?
     private static weak var guestWindow: UIWindow?
     private static var width: CGFloat = 72
     private static var height: CGFloat = 72
+    private static var dragOrigin: CGPoint?
+    private static var dragCenter: CGPoint?
     private static var rotationObserver: NSObjectProtocol?
     private static var lastFailure: String?
+    private static let positionXKey = "ScarletGuestRoundTabCenterXFractionV1"
+    private static let positionYKey = "ScarletGuestRoundTabCenterYFractionV1"
+
+    private static func allowedCenter(_ value: CGPoint, in window: UIWindow) -> CGPoint {
+        let b = window.windowScene?.coordinateSpace.bounds ?? window.bounds
+        let safe = window.safeAreaInsets
+        let loX = safe.left + 38
+        let hiX = max(loX, b.width - safe.right - 38)
+        let loY = safe.top + 38
+        let hiY = max(loY, b.height - safe.bottom - 38)
+        return CGPoint(x: min(max(value.x, loX), hiX),
+                       y: min(max(value.y, loY), hiY))
+    }
+
+    private static func center(in window: UIWindow) -> CGPoint {
+        if let dragCenter { return allowedCenter(dragCenter, in: window) }
+        let b = window.windowScene?.coordinateSpace.bounds ?? window.bounds
+        let defaults = UserDefaults.lc()
+        let x = (defaults?.object(forKey: positionXKey) as? NSNumber)?.doubleValue
+        let y = (defaults?.object(forKey: positionYKey) as? NSNumber)?.doubleValue
+        let xFraction = (x?.isFinite == true && x! >= 0 && x! <= 1) ? x! : 0
+        let yFraction = (y?.isFinite == true && y! >= 0 && y! <= 1) ? y! : 1
+        let fallback = CGPoint(x: window.safeAreaInsets.left + 44,
+                               y: b.height - window.safeAreaInsets.bottom - 44)
+        return allowedCenter(
+            CGPoint(x: x == nil ? fallback.x : b.width * xFraction,
+                    y: y == nil ? fallback.y : b.height * yFraction),
+            in: window)
+    }
 
     private static func frame(in window: UIWindow) -> CGRect {
-        let bounds = window.windowScene?.coordinateSpace.bounds ?? window.bounds
-        let inset = window.safeAreaInsets
-        return CGRect(x: max(8, inset.left + 12),
-                      y: max(0, bounds.height - max(12, inset.bottom + 9) - height),
-                      width: min(width, max(64, bounds.width - 16)),
-                      height: min(height, max(64, bounds.height - 16)))
+        let b = window.windowScene?.coordinateSpace.bounds ?? window.bounds
+        let safe = window.safeAreaInsets
+        let center = center(in: window)
+        let isRight = center.x >= b.midX
+        floatingWindow?.dockRight = isRight
+        let x = center.x - (width > 72 && isRight ? width - 36 : 36)
+        let y = center.y - (height > 72 ? height - 36 : 36)
+        let loX = max(CGFloat(0), safe.left + 5)
+        let hiX = max(loX, b.width - width - safe.right - 5)
+        let loY = max(CGFloat(0), safe.top + 5)
+        let hiY = max(loY, b.height - height - safe.bottom - 5)
+        return CGRect(x: min(max(x, loX), hiX),
+                      y: min(max(y, loY), hiY),
+                      width: width, height: height)
     }
 
     private static func placeFloatingWindow() {
@@ -359,12 +457,42 @@ final class ScarletFullscreenGuestTabInstaller: NSObject {
         if floatingWindow.frame != next { floatingWindow.frame = next }
     }
 
+    // Gestures move the overlay only. Drag 12pt or more; ordinary taps still
+    // expand the AirPods-style panel. Persist normalized center to survive
+    // guest relaunch and portrait/landscape rotation.
+    private static func moveButton(_ translation: CGSize, finished: Bool) -> Bool {
+        guard let host = guestWindow else { return false }
+        let b = host.windowScene?.coordinateSpace.bounds ?? host.bounds
+        if dragOrigin == nil { dragOrigin = center(in: host) }
+        let origin = dragOrigin ?? center(in: host)
+        let value = allowedCenter(
+            CGPoint(x: origin.x + translation.width,
+                    y: origin.y + translation.height), in: host)
+        dragCenter = value
+        placeFloatingWindow()
+        if finished {
+            let defaults = UserDefaults.lc()
+            defaults?.set(Double(value.x / max(b.width, 1)), forKey: positionXKey)
+            defaults?.set(Double(value.y / max(b.height, 1)), forKey: positionYKey)
+            dragCenter = nil
+            dragOrigin = nil
+            placeFloatingWindow()
+            UIImpactFeedbackGenerator(style: .light).impactOccurred()
+            ScarletDiagnosticRecorder.shared.record(
+                "guest", "floating_tab_position_saved",
+                fields: ["result": "normalized_position"])
+        }
+        return value.x >= b.midX
+    }
+
     private static func resizeOverlay(open: Bool, appCount: Int) {
         guard let host = guestWindow, let floating = floatingWindow else { return }
         let bounds = host.windowScene?.coordinateSpace.bounds ?? host.bounds
         width = open ? min(358, max(72, bounds.width - 16)) : 72
-        let desiredHeight: CGFloat = min(590, CGFloat(270 + max(0, appCount - 1) * 59))
+        let desiredHeight: CGFloat = min(590, CGFloat(410 + max(0, appCount - 1) * 64))
         height = open ? min(desiredHeight, max(170, bounds.height - 80)) : 72
+        floating.isExpanded = open
+        floating.panelHitHeight = min(430, CGFloat(260 + max(0, appCount - 1) * 62))
         let next = frame(in: host)
         UIView.animate(withDuration: 0.47, delay: 0,
                        usingSpringWithDamping: 0.82,
@@ -512,12 +640,17 @@ final class ScarletFullscreenGuestTabInstaller: NSObject {
         guestWindow = original
         width = 72
         height = 72
+        dragOrigin = nil
+        dragCenter = nil
 
         let name = (rawName as String).isEmpty ? "현재 게스트" : rawName as String
         let content = ScarletFullscreenGuestFloatingTab(
             guestTitle: name,
             reloadApps: installedApps,
             onPanel: resizeOverlay,
+            onDrag: moveButton,
+            initialDockRight: center(in: original).x >=
+                (original.windowScene?.coordinateSpace.bounds ?? original.bounds).midX,
             onSwitch: switchGuest,
             onExit: {
                 ScarletDiagnosticRecorder.shared.record(
@@ -528,7 +661,7 @@ final class ScarletFullscreenGuestTabInstaller: NSObject {
                 _ = LCSharedUtils.launchToGuestApp(withClassicMode: 0)
             }
         )
-        let overlay = UIWindow(windowScene: scene)
+        let overlay = ScarletGuestTouchPassthroughWindow(windowScene: scene)
         overlay.windowLevel = UIWindow.Level.alert + 1
         overlay.backgroundColor = .clear
         overlay.isOpaque = false
