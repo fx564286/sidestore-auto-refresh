@@ -59,6 +59,14 @@ final class ScarletGuestCertificateAgent: NSObject {
                 // A free account may already have its one allowed certificate;
                 // upstream then reuses its verified private key or Apple's
                 // portal returns a quota error without revoking anything.
+                let oldActiveSerial = CertificateManager.shared.activeCertificate?.serialNumber
+                // Before-resolution portal snapshot distinguishes a newly
+                // issued certificate from an existing, signable P12.
+                // Failed snapshot -> unknown, never claim new issuance.
+                let portalBefore = try? await DeveloperPortalProxy.shared.fetchCertificates(team: team)
+                let oldPortalSerials = portalBefore.map {
+                    Set($0.map { $0.serialNumber.lowercased() })
+                }
                 let flow = CertificateProvisioningFlow(handler: nil)
                 guard let issued = try await flow.resolveCertificate(for: team),
                       let active = CertificateManager.shared.activeCertificate,
@@ -67,7 +75,23 @@ final class ScarletGuestCertificateAgent: NSObject {
                     report(requestID, code: -5204, domain: "scarlet.certificate.unavailable")
                     return
                 }
-                report(requestID, code: 0, domain: "success",
+                let resolvedSerial = issued.serialNumber.lowercased()
+                let portalVerified = flow.portalCertificates?.contains(where: {
+                    $0.serialNumber.lowercased() == resolvedSerial
+                }) ?? false
+                let origin: String
+                if portalVerified, let previous = oldPortalSerials,
+                   !previous.contains(resolvedSerial) {
+                    origin = "scarlet.cert.new_apple_portal"
+                } else if oldActiveSerial?.lowercased() == resolvedSerial {
+                    origin = "scarlet.cert.existing_active"
+                } else if portalVerified,
+                          oldPortalSerials?.contains(resolvedSerial) == true {
+                    origin = "scarlet.cert.existing_portal"
+                } else {
+                    origin = "scarlet.cert.unknown"
+                }
+                report(requestID, code: 0, domain: origin,
                        archive: active.p12Data, password: active.password ?? "")
             } catch {
                 let ns = error as NSError
@@ -103,7 +127,7 @@ final class ScarletGuestCertificateAgent: NSObject {
                        domain: "scarlet.certificate.stored_p12_missing")
                 return
             }
-            report(requestID, code: 0, domain: "success",
+            report(requestID, code: 0, domain: "scarlet.cert.existing_stored",
                    archive: active.p12Data, password: active.password ?? "")
         }
     }

@@ -93,6 +93,9 @@ struct ScarletSigningReadinessPanel: View {
     @State private var certificateRecoveryStatus: String?
     @State private var isSelectingP12 = false
     @State private var pendingP12: Data?
+    // Safe enum only, never serial/key/password. Preserve through explicit
+    // P12 replacement confirmation so success copy matches the real source.
+    @State private var pendingCertificateOrigin = "unknown"
     @State private var isAskingP12Password = false
     @State private var p12Password = ""
     @State private var isConfirmingCertReplacement = false
@@ -208,7 +211,12 @@ struct ScarletSigningReadinessPanel: View {
             do {
                 let (archive, password) =
                     try await ScarletNativeCertificateTransport.shared.obtain()
+                let source = ScarletNativeCertificateTransport.shared.lastResolution
+                ScarletDiagnosticRecorder.shared.record(
+                    "certificate", "provider_origin_checked",
+                    fields: ["source": source])
                 pendingP12 = archive
+                pendingCertificateOrigin = source
                 p12Password = password
                 importExportedP12()
                 ScarletDiagnosticRecorder.shared.record(
@@ -245,6 +253,7 @@ struct ScarletSigningReadinessPanel: View {
                     try await ScarletNativeCertificateTransport.shared
                         .retrieveSideStoreCertificate()
                 pendingP12 = archive
+                pendingCertificateOrigin = "existing_stored"
                 p12Password = password
                 importExportedP12()
                 ScarletDiagnosticRecorder.shared.record(
@@ -302,6 +311,7 @@ struct ScarletSigningReadinessPanel: View {
                     return
                 }
                 pendingP12 = data
+                pendingCertificateOrigin = "external_file"
                 p12Password = ""
                 isAskingP12Password = true
                 ScarletDiagnosticRecorder.shared.record(
@@ -317,6 +327,7 @@ struct ScarletSigningReadinessPanel: View {
     private func clearStagedCertificate() {
         pendingP12 = nil
         p12Password = ""
+        pendingCertificateOrigin = "unknown"
     }
 
     private func importExportedP12(replaceExisting: Bool = false) {
@@ -345,7 +356,7 @@ struct ScarletSigningReadinessPanel: View {
         let existingCert = LCUtils.certificateData()
         let existingPassword = LCSharedUtils.certificatePassword()
         if existingCert == archive && existingPassword == p12Password {
-            certificateRecoveryStatus = "기존 인증서와 동일합니다. 재발급이나 갱신이 새로 완료된 상태는 아닙니다."
+            certificateRecoveryStatus = "기존 P12와 동일합니다. 신규 발급·갱신은 발생하지 않았습니다."
             ScarletDiagnosticRecorder.shared.record(
                 "certificate", "native_provider_same_certificate",
                 fields: ["reason": "unchanged"])
@@ -382,9 +393,21 @@ struct ScarletSigningReadinessPanel: View {
             return
         }
         defaults.set(Date(), forKey: "LCCertificateUpdateDate")
-        certificateRecoveryStatus = "새 P12 팀 일치 및 저장·읽기 검증 완료. 실제 서명과 프로파일 갱신은 별도 확인이 필요합니다."
+        switch pendingCertificateOrigin {
+        case "new_apple_portal":
+            certificateRecoveryStatus = "Apple 포털 신규 발급 확인 · P12 팀 일치 및 저장 검증 완료. 실제 앱 재설치는 별도 확인이 필요합니다."
+        case "existing_active", "existing_portal", "existing_stored":
+            certificateRecoveryStatus = "SideStore 기존 인증서 가져오기·저장 완료. Apple에서 새 인증서가 발급된 것은 아닙니다."
+        case "external_file":
+            certificateRecoveryStatus = "선택한 P12 저장 검증 완료. Apple 신규 발급 여부는 파일만으로 확인할 수 없습니다."
+        default:
+            certificateRecoveryStatus = "P12 팀 일치 및 저장 검증 완료. 신규 발급 여부는 확인되지 않았습니다."
+        }
         ScarletDiagnosticRecorder.shared.record(
-            "certificate", "sideinstaller_p12_stored",
+            "certificate", "p12_origin_at_storage",
+            fields: ["source": pendingCertificateOrigin])
+        ScarletDiagnosticRecorder.shared.record(
+            "certificate", "p12_stored_verified",
             status: "success",
             fields: ["reason": existingCert == nil ? "new_same_team_readback"
                                                  : "explicit_replacement_same_team"])
@@ -395,7 +418,6 @@ struct ScarletSigningReadinessPanel: View {
     var body: some View {
         Section {
             LabeledContent("자동 갱신", value: "미연결 · 실행 안 됨")
-            LabeledContent("수동 갱신", value: "내장 SideStore 엔진")
             LabeledContent("SideStore 로그인",
                            value: authenticated == nil ? "확인 중" :
                                   (authenticated == true ? "인증됨" : "인증 필요"))
@@ -458,6 +480,12 @@ struct ScarletSigningReadinessPanel: View {
             .disabled(refreshing || !readiness.canRequestNativeRefresh ||
                       authenticated != true)
             .accessibilityIdentifier("SCARLET_MANUAL_SIDESTORE_REFRESH")
+            NavigationLink {
+                LCJITLessDiagnoseView()
+            } label: {
+                Label("JIT-Less 모드 진단", systemImage: "stethoscope")
+            }
+            .accessibilityIdentifier("SCARLET_JITLESS_SINGLE_DIAGNOSTIC")
             if let statusMessage {
                 Text(statusMessage)
                     .font(.footnote)
@@ -465,7 +493,7 @@ struct ScarletSigningReadinessPanel: View {
                     .accessibilityIdentifier("SCARLET_REFRESH_STATUS")
             }
         } header: {
-            Text("서명 갱신 · 권한")
+            Text("JIT-Less · 인증서")
         } footer: {
             Text("로그인, 서명 인증서, App Group 접근, 실제 재설치는 서로 다른 상태입니다. 자동 7일 갱신은 아직 연결되지 않았습니다.")
         }

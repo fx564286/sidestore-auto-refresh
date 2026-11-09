@@ -36,7 +36,7 @@ class V5Contracts(unittest.TestCase):
                          "importExportedP12(replaceExisting: true)",
                          "existingCert", "existingPassword", "existingDate",
                          "replacement_readback_failed", "provider_fallback_available",
-                         "sideinstaller_p12_stored"):
+                         "p12_stored_verified"):
             self.assertIn(fragment, SIGN)
         self.assertNotIn("if !readiness.liveContainerCertificatePresent", SIGN)
 

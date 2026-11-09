@@ -218,19 +218,20 @@ struct ScarletFullscreenGuestFloatingTab: View {
             .foregroundStyle(.primary)
             .zIndex(2)
         }
-        .frame(maxWidth: .infinity, minHeight: 300, maxHeight: 435)
-        .padding(.horizontal, 12)
+        .frame(maxWidth: .infinity, minHeight: 210, maxHeight: 435)
+        .clipShape(RoundedRectangle(cornerRadius: 28, style: .continuous))
+        // Contrast-aware INSIDE stroke around the one clipped card.
+        // Unlike V6 this is before outer padding, so never draws two
+        // unconnected vertical rails beside the glass surface.
         .overlay {
             RoundedRectangle(cornerRadius: 28, style: .continuous)
-                .strokeBorder(
-                    LinearGradient(colors: [.white.opacity(0.58),
-                                            .white.opacity(0.12),
-                                            .white.opacity(0.42)],
-                                   startPoint: .topLeading, endPoint: .bottomTrailing),
-                    lineWidth: 0.9)
+                .strokeBorder(Color.primary.opacity(0.22), lineWidth: 0.9)
                 .allowsHitTesting(false)
         }
+        // Main-tab native glass owns the optical rim; the extra SwiftUI
+        // stroke after horizontal padding drew V6's two vertical side rails.
         .shadow(color: .black.opacity(0.19), radius: 20, y: 9)
+        .padding(.horizontal, 12)
         .onAppear {
             ScarletDiagnosticRecorder.shared.record(
                 "guest", "switch_panel_content_rendered",
@@ -357,6 +358,7 @@ final class ScarletFullscreenGuestTabInstaller: NSObject {
     private static var dragStartScreen: CGPoint?
     private static var dragHandler: ScarletGuestScreenPan?
     private static var rotationObserver: NSObjectProtocol?
+    private static var rotationGeneration = 0
     private static var lastFailure: String?
     private static let positionXKey = "ScarletGuestRoundTabCenterXFractionV1"
     private static let positionYKey = "ScarletGuestRoundTabCenterYFractionV1"
@@ -462,7 +464,10 @@ final class ScarletFullscreenGuestTabInstaller: NSObject {
         let bounds = host.windowScene?.coordinateSpace.bounds ?? host.bounds
         width = open ? min(430, max(72, bounds.width - 32)) : 72
         let cardHeight = width * 1.02
-        height = open ? min(cardHeight, max(260, bounds.height - 135)) + 84 : 72
+        let usableHeight = max(CGFloat(260),
+                               bounds.height - host.safeAreaInsets.top
+                               - host.safeAreaInsets.bottom - 14)
+        height = open ? min(cardHeight + 84, usableHeight) : 72
         floating.isExpanded = open
         floating.panelHitHeight = max(0, height - 78)
         let next = frame(in: host)
@@ -475,6 +480,60 @@ final class ScarletFullscreenGuestTabInstaller: NSObject {
         ScarletDiagnosticRecorder.shared.record(
             "guest", "switch_panel_geometry_applied",
             fields: ["state": open ? "expanded" : "collapsed"])
+    }
+
+    // Device orientation notifications fire BEFORE UIWindowScene has settled
+    // on the new width/height. Native UIKit glass then briefly rasterized an
+    // opaque rectangle with the old portrait bounds on landscape transitions.
+    // Hide ONLY the transparent non-key overlay until the scene geometry has
+    // been stable across three samples; never rotate/resize guest itself.
+    private static func settleOverlayAfterRotation() {
+        guard let floatingWindow, let guestWindow else { return }
+        rotationGeneration += 1
+        let token = rotationGeneration
+        floatingWindow.alpha = 0
+        ScarletDiagnosticRecorder.shared.record(
+            "guest", "overlay_rotation_suspended",
+            fields: ["reason": "geometry_transition"])
+        Task { @MainActor in
+            var previous = guestWindow.windowScene?.coordinateSpace.bounds
+                ?? guestWindow.bounds
+            var consecutiveStable = 0
+            for _ in 0..<18 {
+                try? await Task.sleep(for: .milliseconds(65))
+                guard rotationGeneration == token, let host = self.guestWindow,
+                      let overlay = self.floatingWindow else { return }
+                let current = host.windowScene?.coordinateSpace.bounds ?? host.bounds
+                if current == previous {
+                    consecutiveStable += 1
+                } else {
+                    previous = current
+                    consecutiveStable = 0
+                }
+                if consecutiveStable >= 4 {
+                    // Recalculate both panel and button within FINAL geometry.
+                    resizeOverlay(open: overlay.isExpanded, appCount: 0)
+                    overlay.rootViewController?.view.setNeedsLayout()
+                    overlay.rootViewController?.view.layoutIfNeeded()
+                    overlay.alpha = 1
+                    ScarletDiagnosticRecorder.shared.record(
+                        "guest", "overlay_rotation_resumed",
+                        fields: ["result": current.width > current.height
+                                             ? "landscape" : "portrait"])
+                    return
+                }
+            }
+            // Last-resort recovery: preserve a usable exit/switch button
+            // even if a third-party guest continually changes its bounds.
+            // Only update this overlay window, never the guest root view.
+            if rotationGeneration == token, let overlay = self.floatingWindow {
+                resizeOverlay(open: overlay.isExpanded, appCount: 0)
+                overlay.alpha = 1
+                ScarletDiagnosticRecorder.shared.record(
+                    "guest", "overlay_rotation_unstable",
+                    status: "warning", fields: ["reason": "scene_unstable"])
+            }
+        }
     }
 
     // Use the host's real LC_HOME_PATH rather than the guest-virtualized
@@ -527,6 +586,22 @@ final class ScarletFullscreenGuestTabInstaller: NSObject {
                     var directory = ObjCBool(false)
                     return fm.fileExists(atPath: p, isDirectory: &directory) &&
                             directory.boolValue ? id : nil
+                }
+                // Guest orientation is declared by its signed app itself.
+                // Host supports landscape already; portrait-only guests cannot
+                // safely be forced without stretching their UIWindow.
+                let orientationList = appData["UISupportedInterfaceOrientations"]
+                    as? [String] ?? []
+                let supportsLandscape = orientationList.contains(
+                    "UIInterfaceOrientationLandscapeLeft") ||
+                    orientationList.contains("UIInterfaceOrientationLandscapeRight")
+                if folder == selected {
+                    ScarletDiagnosticRecorder.shared.record(
+                        "guest", "orientation_capability_checked",
+                        fields: ["result": orientationList.isEmpty
+                            ? "unspecified"
+                            : (supportsLandscape ? "landscape_supported"
+                                                : "portrait_only")])
                 }
                 let hasExecuted = meta["lastLaunched"] is Date
                 let needsJIT = (meta["isJITNeeded"] as? Bool) == true
@@ -607,7 +682,7 @@ final class ScarletFullscreenGuestTabInstaller: NSObject {
         if let floatingWindow, floatingWindow.windowScene === scene,
            !floatingWindow.isHidden {
             guestWindow = original
-            placeFloatingWindow()
+            if floatingWindow.alpha > 0 { placeFloatingWindow() }
             return
         }
         floatingWindow?.isHidden = true
@@ -641,6 +716,8 @@ final class ScarletFullscreenGuestTabInstaller: NSObject {
         overlay.windowLevel = UIWindow.Level.alert + 1
         overlay.backgroundColor = .clear
         overlay.isOpaque = false
+        overlay.layer.backgroundColor = UIColor.clear.cgColor
+        overlay.layer.masksToBounds = true
         let controller = UIHostingController(rootView: content)
         controller.view.backgroundColor = .clear
         controller.view.isOpaque = false
@@ -661,9 +738,7 @@ final class ScarletFullscreenGuestTabInstaller: NSObject {
                 forName: UIDevice.orientationDidChangeNotification,
                 object: nil, queue: .main) { _ in
                 Task { @MainActor in
-                    placeFloatingWindow()
-                    try? await Task.sleep(for: .milliseconds(200))
-                    placeFloatingWindow()
+                    settleOverlayAfterRotation()
                 }
             }
         }
