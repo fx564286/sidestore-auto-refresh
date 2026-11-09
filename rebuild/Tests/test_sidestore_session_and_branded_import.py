@@ -67,30 +67,30 @@ class AuthAndImportUIRegression(unittest.TestCase):
         self.assertIn("guest_download_cancelled", HOST)
         self.assertIn("guest_download_failed", HOST)
         self.assertIn("sourceDownloadedIPA = staged", HOST)
-        self.assertIn("stageGuestIPAFromFiles(staged)", HOST)
+        self.assertIn("stageGuestIPAFromFiles(staged, presentProgress: !installProgressMinimized)", HOST)
         self.assertIn('"stage": "download_only"', HOST)
         self.assertIn("showSourceDownloadSheet = false", HOST)
 
     def test_branded_original_lc_guest_importer_still_owns_actual_install(self):
         self.assertIn("LCAppListView(scarletQueuedIPAURL: queuedGuestIPAURL,", HOST)
         self.assertIn("await startInstallApp(queuedIPA)", PATCH)
-        self.assertIn('SCARLET_BRANDED_GUEST_IMPORT_CARD', PATCH)
-        self.assertIn('SCARLET_GUEST_IMPORT_ACTUAL_PROGRESS', PATCH)
-        self.assertIn('ProgressView(value: Double(installProgressPercentage), total: 1.0)', PATCH)
-        self.assertIn('if #available(iOS 26.0, *)', PATCH)
-        self.assertIn('.glassEffect()', PATCH)
-        self.assertIn('.disabled(!scarletQueuedImportFinished || installprogressVisible)', PATCH)
+        self.assertIn('SCARLET_BRANDED_GUEST_IMPORT_CARD', HOST)
+        self.assertIn('SCARLET_GUEST_IMPORT_ACTUAL_PROGRESS', HOST)
+        self.assertIn('ProgressView(value: guestImportActivity.progress, total: 1)', HOST)
+        self.assertIn('if #available(iOS 26.0, *)', HOST)
+        self.assertIn('.glassEffect()', HOST)
+        self.assertIn('.presentationDragIndicator(.visible)', HOST)
 
     def test_completed_guest_import_sheet_closes_without_swallowing_errors(self):
         # In the 2026-11-09 device log, import completed immediately but the
         # sheet was not dismissed until 2h 35m later. Keep sign failures visible.
         self.assertIn('defer { installprogressVisible = false }', PATCH)
-        self.assertIn('completed_sheet_auto_closed', PATCH)
-        self.assertIn('try? await Task.sleep(nanoseconds: 2_000_000_000)', PATCH)
-        self.assertIn('!scarletGuestImportSignFailed && !errorShow', PATCH)
-        self.assertIn('!errorShow && !installprogressVisible', PATCH)
+        self.assertIn('scarletActivity?.finish(', PATCH)
+        self.assertIn('guestImportWorkerFinished()', HOST)
+        self.assertIn('signingUnverified: scarletGuestImportSignFailed', PATCH)
+        self.assertIn('failed: errorShow', PATCH)
         self.assertIn('scarletOnImportFinished?()', PATCH)
-        self.assertIn('import_only_launch_unverified', PATCH)
+        self.assertIn('imported_launch_unverified', HOST)
 
     def test_figma_tracks_both_install_steps(self):
         self.assertEqual(MAP["screens"]["sourceDownloadInProgress"], "133:2")
