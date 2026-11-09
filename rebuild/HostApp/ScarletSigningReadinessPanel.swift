@@ -69,7 +69,7 @@ struct ScarletSigningReadiness {
             developmentProfile: isDevelopment,
             liveContainerCertificatePresent: LCUtils.certificateData() != nil,
             liveContainerPasswordPresent:
-                !(LCSharedUtils.certificatePassword() ?? "").isEmpty
+                LCSharedUtils.certificatePassword() != nil
         )
     }
 
