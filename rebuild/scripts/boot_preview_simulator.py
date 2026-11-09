@@ -115,6 +115,37 @@ def select(out: Path, id_file: Path, owned_file: Path) -> bool:
                                        "runtime": device["runtime"], "error": str(e)[:250]})
             print(f"[SIM][INFRA] Prebooted probe {idx} unresponsive: {type(e).__name__}", flush=True)
 
+    # A preconfigured shutdown device already has a prepared runner disk.
+    # Before creating another virtual device (which stalled on two runners),
+    # boot the matching preconfigured device in place. Restore its Shutdown
+    # state after capture; never delete or erase a runner-owned template.
+    for idx, device in enumerate(disposable[:2], start=1):
+        udid = device["udid"]
+        try:
+            print(f"[SIM] Preconfigured boot attempt {idx}: {device['name']} / {device['runtime']}", flush=True)
+            call("xcrun", "simctl", "boot", udid, timeout=45)
+            try:
+                call("xcrun", "simctl", "bootstatus", udid, "-b", timeout=80)
+            except (RuntimeError, subprocess.TimeoutExpired):
+                print("[SIM][INFRA] Preconfigured bootstatus inconclusive; running active probe", flush=True)
+            responsive(udid, out)
+            id_file.write_text(udid + "\n")
+            owned_file.write_text("2\n")
+            record.update(status="ready", mode="preconfigured_booted_verified",
+                          runtime=device["runtime"], device=device["name"])
+            save()
+            print(f"[SIM][PASS] Preconfigured simulator responsive attempt {idx}", flush=True)
+            return True
+        except (OSError, RuntimeError, subprocess.TimeoutExpired) as e:
+            record["attempts"].append({"mode": "preconfigured_boot",
+                                       "index": idx, "runtime": device["runtime"],
+                                       "error": str(e)[:250]})
+            print(f"[SIM][INFRA] Preconfigured attempt {idx} failed: {type(e).__name__}", flush=True)
+            try:
+                call("xcrun", "simctl", "shutdown", udid, timeout=10, checked=False)
+            except (OSError, RuntimeError, subprocess.TimeoutExpired):
+                pass
+
     for idx, device in enumerate(disposable, start=1):
         udid = None
         try:
