@@ -747,6 +747,7 @@ def main():
         root/"rebuild/HostApp/ScarletNativeGlass.swift":"ScarletNativeGlass.swift",
         root/"rebuild/HostApp/ScarletSigningReadinessPanel.swift":"ScarletSigningReadinessPanel.swift",
         root/"rebuild/HostApp/ScarletGuestSwitcherOverlay.swift":"ScarletGuestSwitcherOverlay.swift",
+        root/"rebuild/HostApp/ScarletFullscreenGuestTab.swift":"ScarletFullscreenGuestTab.swift",
         root/"rebuild/HostApp/ScarletAppleIDLoginSheet.swift":"ScarletAppleIDLoginSheet.swift",
         root/"rebuild/HostApp/ScarletSideStoreAuthenticationBridge.swift":"ScarletSideStoreAuthenticationBridge.swift",
         root/"rebuild/HostApp/ScarletDiagnosticRecorder.swift":"ScarletDiagnosticRecorder.swift",
@@ -828,6 +829,36 @@ def main():
             raise RuntimeError(f"Unexpected pinned guest scene layout; anchor count={guest_src.count(before)}: {before!r}")
         guest_src=guest_src.replace(before,after)
     guest_window.write_text(guest_src)
+
+    # Overlay only: the PR48 default runApp() relaunches an entire guest
+    # process and does NOT create a MultitaskAppWindow. Inject the floating
+    # control via existing guest UIKit hook after its UIApplication is active.
+    # Avoid touching guest bounds, transforms, orientation policies, host tabs.
+    guest_hook_file = engine/"TweakLoader/UIKit+GuestHooks.m"
+    assert guest_hook_file.is_file(), "Pinned LC guest UIKit hook missing"
+    guest_hook_source = guest_hook_file.read_text()
+    guest_hook_anchor = "    if(!NSUserDefaults.lcGuestAppId) return;\n"
+    assert guest_hook_source.count(guest_hook_anchor)==1, "Guest hook changed"
+    guest_hook_source = guest_hook_source.replace(
+        '#import "Localization.h"\n',
+        '#import "Localization.h"\n#import <objc/message.h>\n')
+    guest_hook_source = guest_hook_source.replace(guest_hook_anchor,
+        guest_hook_anchor +
+        "    // PR48 independent floating guest tab; no virtual windows.\n"
+        "    if(!NSUserDefaults.isLiveProcess) {\n"
+        "        [[NSNotificationCenter defaultCenter] addObserverForName:UIApplicationDidBecomeActiveNotification\n"
+        "          object:nil queue:NSOperationQueue.mainQueue usingBlock:^(NSNotification *note) {\n"
+        "            Class provider = NSClassFromString(@\"ScarletFullscreenGuestTabInstaller\");\n"
+        "            SEL callback = NSSelectorFromString(@\"installForGuestName:\");\n"
+        "            if (provider && [provider respondsToSelector:callback]) {\n"
+        "                NSString *title = NSUserDefaults.guestAppInfo[@\"CFBundleDisplayName\"]\n"
+        "                    ?: NSUserDefaults.guestAppInfo[@\"CFBundleName\"]\n"
+        "                    ?: NSUserDefaults.lcGuestAppId;\n"
+        "                ((void(*)(id,SEL,id))objc_msgSend)(provider,callback,title);\n"
+        "            }\n"
+        "        }];\n"
+        "    }\n")
+    guest_hook_file.write_text(guest_hook_source)
 
     # The 2026-11-06 on-device crashes (four identical SIGTRAP/BRK #1 in
     # LiveContainerSwiftUI UUID A87CD742-820E-3F50-A48B-481388DCF3B1,
