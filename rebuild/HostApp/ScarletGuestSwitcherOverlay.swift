@@ -96,14 +96,18 @@ enum ScarletGuestSceneRegistry {
 // Never use the host icon as a guest placeholder or persist decoded bitmaps.
 @available(iOS 17.0, *)
 @MainActor
-private enum ScarletGuestIconCatalog {
+enum ScarletGuestIconCatalog {
     static func icon(for item: ScarletGuestTarget,
                      history: [ScarletGuestSessionLedger.Entry]) -> UIImage? {
         guard let folder = history.first(where: {
             $0.dataUUID == item.id || $0.folder == item.id
-        })?.folder,
-        folder.hasSuffix(".app"), folder != ".app",
-        !folder.contains("/"), !folder.contains("\\") else { return nil }
+        })?.folder else { return nil }
+        return icon(forFolder: folder)
+    }
+
+    static func icon(forFolder folder: String) -> UIImage? {
+        guard folder.hasSuffix(".app"), folder != ".app",
+              !folder.contains("/"), !folder.contains("\\") else { return nil }
 
         let home = getenv("LC_HOME_PATH").map {
             URL(fileURLWithPath: String(cString: $0))
