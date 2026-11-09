@@ -26,7 +26,7 @@ class GuestTabNoResize(unittest.TestCase):
                            'UIInterfaceOrientationMaskLandscape'):
             self.assertNotIn(prohibited,TAB)
         self.assertIn('UIWindow(windowScene: scene)',TAB)
-        self.assertIn('floatingWindow.frame = target',TAB)
+        self.assertIn('floatingWindow.frame = next',TAB)
         self.assertIn('overlay.isHidden = false',TAB)
         self.assertIn('overlay.windowLevel = UIWindow.Level.alert + 1',TAB)
         self.assertIn('fullscreen_tab_mounted',TAB)
@@ -51,5 +51,5 @@ class GuestTabNoResize(unittest.TestCase):
         self.assertNotIn('removeItem(',TAB)
         self.assertNotIn('LCCertificateData',TAB)
         self.assertIn('실행 중인 앱',TAB)
-        self.assertIn('현재 실행 중 · 전체화면',TAB)
+        self.assertIn('전체화면 실행 중',TAB)
 if __name__=='__main__':unittest.main()
