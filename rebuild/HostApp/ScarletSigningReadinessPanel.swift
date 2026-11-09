@@ -90,6 +90,7 @@ struct ScarletSigningReadinessPanel: View {
     @State private var authenticated: Bool? = nil
     @State private var refreshing = false
     @State private var lastRefreshAttemptState: String = "없음"
+    @State private var lastRefreshFailureReason: String?
     @State private var statusMessage: String?
     @State private var certificateRecoveryStatus: String?
     @State private var isSelectingP12 = false
@@ -108,6 +109,8 @@ struct ScarletSigningReadinessPanel: View {
         readiness = ScarletSigningReadiness.inspect()
         lastRefreshAttemptState = UserDefaults.standard.string(
             forKey: "Scarlet.Refresh.LastAttemptOutcome") ?? "기록 없음"
+        lastRefreshFailureReason = UserDefaults.standard.string(
+            forKey: "Scarlet.Refresh.LastFailureReason")
         ScarletDiagnosticRecorder.shared.record("refresh", "preflight_checked",
             fields: [
                 "result": readiness.canRequestNativeRefresh ? "ready" : "blocked",
@@ -129,6 +132,8 @@ struct ScarletSigningReadinessPanel: View {
         refreshing = true
         UserDefaults.standard.set("요청 중 · 검증 전",
             forKey: "Scarlet.Refresh.LastAttemptOutcome")
+        UserDefaults.standard.removeObject(forKey: "Scarlet.Refresh.LastFailureReason")
+        lastRefreshFailureReason = nil
         statusMessage = "내장 SideStore에서 앱 새로고침을 요청하는 중입니다."
         Task { @MainActor in
             defer { refreshing = false }
@@ -148,19 +153,24 @@ struct ScarletSigningReadinessPanel: View {
                 statusMessage = "SideStore 새로고침 요청이 종료됐습니다. 실제 프로파일 만료일과 iPhone 설치 상태는 아직 별도 확인이 필요합니다."
                 UserDefaults.standard.set("요청 반환 · 재설치 확인 안 됨",
                     forKey: "Scarlet.Refresh.LastAttemptOutcome")
+                UserDefaults.standard.removeObject(forKey: "Scarlet.Refresh.LastFailureReason")
                 ScarletDiagnosticRecorder.shared.record("refresh", "manual_request_returned",
                     status: "info", fields: ["installation_verified": "false"])
                 inspect()
             } catch {
-                statusMessage = "SideStore 갱신 실패. 아래 인증서 받기를 다시 시도하거나 다른 P12를 가져올 수 있습니다."
+                let failure = ScarletRefreshFailureDiagnosis.category(error)
+                statusMessage = ScarletRefreshFailureDiagnosis.guidance(failure)
                 UserDefaults.standard.set("실패 · SideStore 갱신 오류",
                     forKey: "Scarlet.Refresh.LastAttemptOutcome")
-                certificateRecoveryStatus = "기존 P12가 있어도 새로 발급받은 상태는 아닙니다. 아래에서 인증서를 다시 요청할 수 있습니다."
-                ScarletDiagnosticRecorder.shared.record(
-                    "certificate", "provider_fallback_available",
-                    fields: ["reason": "sidestore_refresh_error"])
+                UserDefaults.standard.set(failure,
+                    forKey: "Scarlet.Refresh.LastFailureReason")
+                lastRefreshFailureReason = failure
+                // The P12 may be healthy. A SideStore runtime crash or
+                // extension launch failure is NOT a certificate-expiry
+                // diagnosis and must not trigger certificate replacement.
+                certificateRecoveryStatus = nil
                 ScarletDiagnosticRecorder.shared.record("refresh", "manual_request_failed",
-                    status: "error", fields: ["reason": "sidestore_refresh_error"])
+                    status: "error", fields: ["reason": failure])
                 ScarletDiagnosticRecorder.shared.recordError(
                     "refresh", "manual_request_underlying_error", error: error)
             }
@@ -432,6 +442,10 @@ struct ScarletSigningReadinessPanel: View {
             LabeledContent("자동 갱신",
                 value: lastRefreshAttemptState == "기록 없음" ?
                        "iOS 예약 · 대기 중" : lastRefreshAttemptState)
+            if let lastRefreshFailureReason {
+                LabeledContent("갱신 오류 분류", value: lastRefreshFailureReason)
+                    .accessibilityIdentifier("SCARLET_REFRESH_FAILURE_CATEGORY")
+            }
             LabeledContent("서명 상태",
                 value: readiness.canRequestNativeRefresh &&
                        readiness.liveContainerCertificatePresent &&
