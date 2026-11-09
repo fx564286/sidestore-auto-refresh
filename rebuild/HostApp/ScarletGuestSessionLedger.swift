@@ -1,6 +1,6 @@
-// V14: persistent *launched* guest list. This is NOT a claim that a process
-// is still in memory. Runs inside the host and its original LiveContainer
-// framework, never in a separate signed extension or additional App ID.
+// V19: bounded *current switcher session* rather than a permanent
+// installed/ever-launched app list. This is NOT proof that a process
+// remains in memory. Stored in the existing LC host; no extra App ID.
 import Foundation
 
 @available(iOS 17.0, *)
@@ -12,8 +12,12 @@ enum ScarletGuestSessionLedger {
         let title: String?
         let dataUUID: String?
     }
-    private static let key = "Scarlet.Guest.RecentSessions.V14"
-    private static let maxItems = 24
+    // Keep the old V14 history intact for rollback, but never load it into
+    // the switcher: it accumulated every installed app after a few days.
+    // Legacy key: Scarlet.Guest.RecentSessions.V14
+    private static let key = "Scarlet.Guest.ActiveSwitcherSession.V19"
+    private static let maxItems = 8
+    private static let inactivityTimeout: TimeInterval = 30 * 60
 
     private static var store: UserDefaults { LCUtils.appGroupUserDefault }
 
@@ -22,17 +26,27 @@ enum ScarletGuestSessionLedger {
               let raw = try? JSONDecoder().decode([Entry].self, from: data)
         else { return [] }
         // Require a simple installed .app name, never untrusted paths.
-        return Array(raw.filter {
+        // A new work session starts after 30 minutes with no guest launch.
+        // This prevents previously opened apps from masquerading as open tabs
+        // after overnight restarts, while A->Home->B within a session survives
+        // the full-screen LC process handoff.
+        let valid = Array(raw.filter {
             $0.folder.hasSuffix(".app") &&
             !$0.folder.contains("/") &&
             !$0.folder.contains("\\") &&
             $0.folder != ".app"
         }.prefix(maxItems))
+        guard let newest = valid.map(\.lastOpened).max() else { return [] }
+        let idle = Date().timeIntervalSince(newest)
+        guard idle >= -120, idle <= inactivityTimeout else { return [] }
+        return valid
     }
 
     static func noteLaunch(folder: String, title: String, dataUUID: String?) {
         guard folder.hasSuffix(".app"), !folder.contains("/"),
               !folder.contains("\\"), folder != ".app" else { return }
+        // Only truly launched guests are inserted. Importing or scanning an
+        // installed .app must never create a switcher tab.
         let items = [Entry(folder: folder, lastOpened: Date(),
                            title: String(title.prefix(100)),
                            dataUUID: dataUUID)] +
