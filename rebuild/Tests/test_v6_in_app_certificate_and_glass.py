@@ -33,6 +33,8 @@ class InAppCertAndGlassContracts(unittest.TestCase):
                          "CertificateManager.shared.activeCertificate",
                          "scarlet.certificate.portal_error"):
             self.assertIn(fragment,WORKER)
+        self.assertIn("ALTAccount(appleID: email, identifier: dsid)",WORKER)
+        self.assertIn("DeveloperPortalProxy.shared.fetchTeams",WORKER)
         self.assertNotIn('revokeCertificate(',WORKER)
         for fragment in ("scarletIssueCertificate", "scarletCertificateCompleted",
                          "ScarletGuestCertificateCompleted"):
