@@ -21,6 +21,58 @@ enum ScarletGuestSessionLedger {
 
     private static var store: UserDefaults { LCUtils.appGroupUserDefault }
 
+    // The actual full-screen guest has a virtualized app sandbox, so its
+    // private JSONL cannot be read from the host's diagnostic viewer.
+    // Relay ONLY a fixed whitelist of anonymous switcher lifecycle events.
+    // This never includes guest names, bundle IDs, credentials or screenshots.
+    private static let switchTraceKey = "Scarlet.Guest.SwitcherTrace.V20"
+    private static let switchTraceCursor = "Scarlet.Guest.SwitcherTraceCursor.V20"
+    private static let switchTraceEvents: Set<String> = [
+        "fullscreen_tab_mounted", "panel_opened", "panel_closed",
+        "switch_tapped_live", "switch_tapped_cold", "switch_tapped_current",
+        "switch_rejected", "switch_submitted", "switch_submit_failed",
+        "rotation_relayout", "native_panel_opened", "native_switch_tapped",
+        "native_switch_rejected", "native_switch_activated"
+    ]
+
+    struct SwitchTrace: Codable {
+        let id: String
+        let event: String
+        let count: Int
+    }
+
+    static func traceSwitcher(_ event: String, count: Int = 0) {
+        guard switchTraceEvents.contains(event) else { return }
+        let previous = (store.data(forKey: switchTraceKey))
+            .flatMap { try? JSONDecoder().decode([SwitchTrace].self, from: $0) } ?? []
+        let entry = SwitchTrace(id: UUID().uuidString, event: event,
+                                count: max(0, min(count, 8)))
+        if let encoded = try? JSONEncoder().encode(
+            Array((previous + [entry]).suffix(48))) {
+            store.set(encoded, forKey: switchTraceKey)
+        }
+    }
+
+    static func replaySwitcherTraceToHostJournal() {
+        guard let raw = store.data(forKey: switchTraceKey),
+              let entries = try? JSONDecoder().decode([SwitchTrace].self, from: raw),
+              !entries.isEmpty else { return }
+        let cursor = UserDefaults.standard.string(forKey: switchTraceCursor)
+        let start = cursor.flatMap { previous in
+            entries.lastIndex(where: { $0.id == previous }).map { $0 + 1 }
+        } ?? 0
+        if start < entries.count {
+            for entry in entries[start...] where switchTraceEvents.contains(entry.event) {
+                ScarletDiagnosticRecorder.shared.record(
+                    "guest_switcher", entry.event,
+                    fields: ["count": String(entry.count), "source": "guest_app_group"])
+            }
+        }
+        if let newest = entries.last?.id {
+            UserDefaults.standard.set(newest, forKey: switchTraceCursor)
+        }
+    }
+
     static func recent() -> [Entry] {
         guard let data = store.data(forKey: key),
               let raw = try? JSONDecoder().decode([Entry].self, from: data)
