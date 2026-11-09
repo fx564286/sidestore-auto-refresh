@@ -25,12 +25,12 @@ class AuthAndImportUIRegression(unittest.TestCase):
         self.assertIn("scarletAuthStored", XPC)
         self.assertIn("persistedState", XPC)
         self.assertIn("host_session_restored", HOST)
-        self.assertIn("내장 SideStore · 인증 세션 복원됨", PATCH)
+        self.assertIn("로그인됨 · 내장 SideStore 세션 복원", PATCH)
         self.assertIn("scarletSigningCertAvailable", PATCH)
         self.assertIn("서명 인증서 · 없음 (로그인과 별도)", PATCH)
         self.assertIn("certificate_bridge_skipped", HOST)
         self.assertIn("same_team_verified_readback", HOST)
-        self.assertIn("인증서 발급 또는 동기화가 필요합니다", PATCH)
+        self.assertIn("Preserve upstream localized certificate alerts verbatim", PATCH)
 
     def test_global_source_toast_was_removed(self):
         self.assertNotIn('.overlay(alignment: .top) {\n            if sourceIsDownloading', HOST)
