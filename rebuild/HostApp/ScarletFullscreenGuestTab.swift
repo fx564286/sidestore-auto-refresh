@@ -5,8 +5,9 @@ import Foundation
 import SwiftUI
 import UIKit
 
-// PR48 uses one foreground guest process. Listed installed guests are relaunch
-// targets, not concurrently running processes.
+// V14 distinguishes recent launched guests from live native scenes.
+ // A recent guest remains in the menu after Home -> launch another app,
+ // but only live scenes promise in-memory switching.
 struct ScarletGuestSwitchTarget: Identifiable {
     let id: String                       // verified *.app directory name
     let title: String
@@ -66,9 +67,9 @@ struct ScarletFullscreenGuestFloatingTab: View {
     private let spring = Animation.spring(response: 0.47, dampingFraction: 0.82)
 
     private var otherApps: [ScarletGuestSwitchTarget] {
-        // Only an actual active LiveProcess/guest scene is switchable.
-        // Previously launched-but-terminated apps belong in the App List.
-        apps.filter { !$0.isCurrent && $0.canSwitch }
+        // A -> Home -> B keeps A visible even when iOS terminated A.
+        // Mark cold rows explicitly rather than claiming restored RAM state.
+        apps.filter { !$0.isCurrent }
     }
 
     private func openPanel() {
@@ -106,7 +107,7 @@ struct ScarletFullscreenGuestFloatingTab: View {
             if switcherHaptics {
                 UINotificationFeedbackGenerator().notificationOccurred(.warning)
             }
-            feedback = "이 앱은 먼저 앱 목록에서 한 번 실행·서명해야 합니다."
+            feedback = "이전 앱은 메모리에 없습니다. 앱 목록에서 다시 열 수 있지만 마지막 화면 복원은 앱 자체의 저장 기능에 달려 있습니다."
             ScarletDiagnosticRecorder.shared.record(
                 "guest", "switch_target_needs_setup",
                 fields: ["reason": "unprepared_guest"])
@@ -190,8 +191,11 @@ struct ScarletFullscreenGuestFloatingTab: View {
                 .background(.white.opacity(0.13),
                             in: RoundedRectangle(cornerRadius: 11))
                 .clipShape(RoundedRectangle(cornerRadius: 11))
-                Text(app.title)
-                    .font(.subheadline.weight(.medium)).lineLimit(1)
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(app.title).font(.subheadline.weight(.medium)).lineLimit(1)
+                    Text(app.canSwitch ? "실행 중 · 작업 유지" : "최근 실행 · 재시작 필요")
+                        .font(.caption2).foregroundStyle(.secondary)
+                }
                 Spacer(minLength: 0)
                 Image(systemName: app.canSwitch ? "arrow.left.arrow.right.circle.fill"
                                                : "exclamationmark.circle")
@@ -623,6 +627,8 @@ final class ScarletFullscreenGuestTabInstaller: NSObject {
             ScarletGuestSceneRegistry.availableGuests().map(\.id))
         var found = Set<String>()
         var result: [ScarletGuestSwitchTarget] = []
+        let recent = ScarletGuestSessionLedger.recent()
+        let recentFolders = Set(recent.map(\.folder))
 
         for (appRoot, dataRoot, shared) in locations {
             guard let items = try? fm.contentsOfDirectory(at: appRoot,
@@ -679,7 +685,9 @@ final class ScarletFullscreenGuestTabInstaller: NSObject {
                 let activeScene = containerExists.map {
                     activeSceneIDs.contains($0) && MultitaskManager.isUsing(container: $0)
                 } ?? false
-                guard isCurrent || activeScene else { continue }
+                guard isCurrent || activeScene || recentFolders.contains(folder) else {
+                    continue
+                }
                 let needsJIT = (meta["isJITNeeded"] as? Bool) == true
                         || (appData["LC32BitTranslationLayer"] != nil)
                 let nonInjected = (meta["dontLoadTweakLoader"] as? Bool) == true
@@ -707,12 +715,16 @@ final class ScarletFullscreenGuestTabInstaller: NSObject {
         }
         result.sort {
             if $0.isCurrent != $1.isCurrent { return $0.isCurrent }
+            if $0.canSwitch != $1.canSwitch { return $0.canSwitch }
+            let lRank = ScarletGuestSessionLedger.rank(folder: $0.id) ?? 999
+            let rRank = ScarletGuestSessionLedger.rank(folder: $1.id) ?? 999
+            if lRank != rRank { return lRank < rRank }
             return $0.title.localizedStandardCompare($1.title) == .orderedAscending
         }
         ScarletDiagnosticRecorder.shared.record(
             "guest", "switch_candidates_scanned",
             fields: ["count": String(result.count),
-                     "result": "live_scenes_only"])
+                     "result": "live_and_launched_history"])
         return result
     }
 

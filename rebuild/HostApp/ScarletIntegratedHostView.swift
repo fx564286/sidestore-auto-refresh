@@ -400,8 +400,37 @@ struct ScarletIntegratedHostView: View {
                     showOriginalError = "JIT-Less 실행에 필요한 LiveContainer 서명 인증서가 없습니다. 설정의 인증서 가져오기에서 인증서를 확인하세요."
                     return
                 }
-                // Original LC remains the owner of signature/launch/handoff.
-                try await app.runApp()
+                // Native scene path, where genuinely supported, retains each
+                // guest's RAM without changing the guest UIWindow geometry.
+                // On devices lacking multi-scene support retain the original
+                // full-screen LC bootstrap; never force a resized virtual dock.
+                if #available(iOS 16.1, *),
+                   UIApplication.shared.supportsMultipleScenes,
+                   app.appInfo.defaultClassicMode == 0 {
+                    let previousMode = LCUtils.appGroupUserDefault.integer(
+                        forKey: "LCMultitaskMode")
+                    LCUtils.appGroupUserDefault.set(MultitaskMode.nativeWindow.rawValue,
+                                                    forKey: "LCMultitaskMode")
+                    do {
+                        try await app.runApp(multitask: true)
+                    } catch {
+                        LCUtils.appGroupUserDefault.set(previousMode,
+                                                        forKey: "LCMultitaskMode")
+                        throw error
+                    }
+                    ScarletDiagnosticRecorder.shared.record(
+                        "guest", "native_multiscene_launch_requested",
+                        fields: ["result": "native_window"])
+                } else {
+                    try await app.runApp()
+                    ScarletDiagnosticRecorder.shared.record(
+                        "guest", "legacy_fullscreen_launch_requested",
+                        fields: ["reason": "multi_scene_unavailable"])
+                }
+                // Only record actual runApp return, not uninstalled catalog apps.
+                if let folder = app.appInfo.relativeBundlePath {
+                    ScarletGuestSessionLedger.noteLaunch(folder: folder)
+                }
                 // runApp returning is NOT proof the guest scene is on-screen.
                 ScarletDiagnosticRecorder.shared.record("guest", "runapp_returned",
                     fields: ["guest_ref": guestRef])
@@ -482,7 +511,10 @@ struct ScarletIntegratedHostView: View {
         }
         do {
             try FileManager.default.removeItem(at: bundleURL)
-            sharedModel.apps.removeAll { $0 === app }
+            if let folder = app.appInfo.relativeBundlePath {
+            ScarletGuestSessionLedger.remove(folder: folder)
+        }
+        sharedModel.apps.removeAll { $0 === app }
             sharedModel.hiddenApps.removeAll { $0 === app }
             ScarletDiagnosticRecorder.shared.record(
                 "guest", "uninstall_bundle_completed", status: "success",

@@ -35,7 +35,8 @@ class GuestAirPodsGlassSwitcher(unittest.TestCase):
 
     def test_pr48_layout_and_guest_security_unchanged(self):
         self.assertIn('try await app.runApp()',HOST)
-        self.assertNotIn('try await app.runApp(multitask: true)',HOST)
+        self.assertIn('UIApplication.shared.supportsMultipleScenes',HOST)
+        self.assertIn('try await app.runApp(multitask: true)',HOST)
         self.assertIn('ScarletGuestTouchPassthroughWindow(windowScene: scene)',GUEST)
         self.assertIn('floatingWindow.frame = next',GUEST)
         self.assertIn('Stay non-key to protect guest keyboard',GUEST)
