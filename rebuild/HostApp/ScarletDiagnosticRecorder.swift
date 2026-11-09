@@ -25,7 +25,12 @@ final class ScarletDiagnosticRecorder: @unchecked Sendable {
         "safe_top_pt", "safe_bottom_pt", "orientation", "engine",
         "available", "stage", "guest_ref", "window_attached",
         "scene", "os_major", "os_minor", "physical_memory_mb",
-        "certificate_present", "password_present", "team_match", "build_sha"
+        "certificate_present", "password_present", "team_match", "build_sha",
+        // Boolean/categorical safety checks needed to distinguish entitlement,
+        // App Group and certificate failures on the installed iPhone.
+        "entitled_app_group", "group_accessible", "signed_host_identity",
+        "lc_cert_present", "installation_verified", "material_owner",
+        "optical_verified", "api"
     ]
 
     private init() {
