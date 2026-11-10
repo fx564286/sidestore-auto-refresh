@@ -378,8 +378,11 @@ def patch_sidestore(engine: Path) -> None:
     cert_agent = (ROOT / "rebuild/integration/ScarletGuestCertificateAgent.swift.txt").read_text()
     assert "ScarletGuestCertificateAgent" not in source
     refresh_agent = (ROOT / "rebuild/integration/ScarletGuestRefreshAgent.swift.txt").read_text()
+    team_repair = (ROOT / "rebuild/integration/ScarletGuestAuthTeamRepair.swift.txt").read_text()
     target.write_text(source.rstrip() + "\n\n" + extra + "\n\n" +
-                      installer + "\n\n" + cert_agent + "\n\n" + refresh_agent)
+                      installer + "\n\n" + cert_agent + "\n\n" +
+                      team_repair + "\n\n" + refresh_agent)
+    print("[PASS] SideStore original active Team CoreData repair included in guest AuthManager")
     print("[PASS] Native SideStore managed-app/host-identity refresh inspector staged")
     print("[PASS] SideStore authenticated certificate worker staged")
     print("[PASS] SideStore SideSign auth + headless installer workers staged")

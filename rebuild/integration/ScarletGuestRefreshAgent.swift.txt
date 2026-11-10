@@ -27,7 +27,14 @@ final class ScarletGuestRefreshAgent: NSObject {
                 } else if !signingReady {
                     reason = "sidestore_certificate_missing"
                 } else {
-                    reason = "ready"
+                    // V29 reported 'ready' using only app/certificate
+                    // checks while native refresh immediately threw
+                    // OperationError.notAuthenticated. The pinned original
+                    // SideStore preflight ALSO needs active Account/Team.
+                    let state = await ScarletGuestAuthTeamRepair.ensure()
+                    reason = state == "auth_team_ready" ? "ready"
+                        : state == "auth_team_restored"
+                        ? "ready_auth_team_restored" : state
                 }
                 reply(min(targets.count, 99), managesHost, signingReady, reason)
             } catch {
@@ -176,6 +183,12 @@ extension ScarletGuestRefreshAgent {
                 }
                 guard CertificateManager.shared.activeCertificate != nil else {
                     reply(false, "sidestore_certificate_missing")
+                    return
+                }
+                let authState = await ScarletGuestAuthTeamRepair.ensure()
+                guard authState == "auth_team_ready" ||
+                      authState == "auth_team_restored" else {
+                    reply(false, authState)
                     return
                 }
                 // SideStore's original AppBootManager starts Minimuxer using
