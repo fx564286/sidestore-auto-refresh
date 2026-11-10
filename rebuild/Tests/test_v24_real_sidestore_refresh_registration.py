@@ -53,6 +53,10 @@ class V24RegistrationGate(unittest.TestCase):
         self.assertIn('sidestore_managed_apps_inspected',PANEL)
         self.assertIn('SCARLET_MANAGED_REFRESH_APP_COUNT',PANEL)
         self.assertIn('SCARLET_MANAGED_HOST_REGISTRATION',PANEL)
+        self.assertIn('Button(action: requestManualRefresh)',PANEL)
+        self.assertIn('SCARLET_NATIVE_REFRESH_NOW',PANEL)
+        self.assertIn('Label("지금 갱신"',PANEL)
+        self.assertNotIn('Label("SideStore 수동 새로고침"',PANEL)
         self.assertLess(PANEL.index('guard nativeState.canRefreshHost else {'),
                         PANEL.index('RefreshAllAppsIntent().perform()'))
         self.assertIn('automatic_managed_apps_inspected',AUTO)
