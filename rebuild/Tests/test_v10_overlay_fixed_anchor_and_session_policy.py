@@ -48,7 +48,10 @@ class V10Contract(unittest.TestCase):
         self.assertIn('Label("SideStore 인증서 받기"',body)
         self.assertIn('Label("P12 파일 선택"',body)
         self.assertNotIn('DisclosureGroup(',body)
-        self.assertNotIn('Button(action: requestManualRefresh)',body)
+        # V24 restores a native refresh action, while preserving exactly
+        # the two certificate-management buttons and no guest screen jump.
+        self.assertIn('Button(action: requestManualRefresh)',body)
+        self.assertIn('SCARLET_NATIVE_REFRESH_NOW',body)
         self.assertNotIn('Label("JIT-Less 모드 진단"',body)
         self.assertIn('isConfirmingCertReplacement',CERT)
         self.assertIn('replacement_readback_failed',CERT)
