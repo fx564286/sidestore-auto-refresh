@@ -58,11 +58,80 @@ private actor ScarletGuestNativeRefreshGate {
 
 private enum ScarletGuestRefreshDispatchError: Error {
     case noOperation
+    case savedPairingUnavailable
+}
+
+// The stock SideStore UI performs AppBootManager.performBootSequence()
+// when launched. Scarlet runs SideStore as an embedded LiveProcess, where
+// that UI lifecycle must not be assumed to have completed. Before signing,
+// check the SAME original Minimuxer transport as PipelineRunner. If needed,
+// recover ONLY from the pairing file SideStore already saved; never create
+// or replace pairing credentials, prompt in a background extension, or
+// disable the normal VPN/endpoint verification.
+private enum ScarletGuestDeviceTransport {
+    static func ensureReady() async throws -> Bool {
+        do {
+            try await ensureMinimuxerReady()
+            return false
+        } catch {
+            guard let pairing = PairingFileManager.shared.fetchPairingFile() else {
+                throw ScarletGuestRefreshDispatchError.savedPairingUnavailable
+            }
+            // Original SideStore backend and boot path, not a parallel
+            // custom USB/provisioning implementation.
+            syncMinimuxerBackendFromUserDefaults()
+            try await AppBootManager.shared.startMinimuxer(pairingFile: pairing)
+            try await ensureMinimuxerReady()
+            return true
+        }
+    }
 }
 
 extension ScarletGuestRefreshAgent {
     private static func safeFailureReason(_ error: Error) -> String {
+        // Use pinned SideStore's *typed* upstream errors first. The earlier
+        // V27 matcher only inspected localizedDescription and collapsed
+        // noDevice, invalid pairing, minimuxer-not-started and missing auth
+        // into the same native_operation_failed string.
+        if let failure = error as? ScarletGuestRefreshDispatchError {
+            switch failure {
+            case .noOperation: return "native_worker_creation_failed"
+            case .savedPairingUnavailable: return "pairing_file_missing"
+            }
+        }
+        if let original = error as? OperationError {
+            switch original {
+            case .noInstalledApps: return "no_managed_apps"
+            case .notAuthenticated: return "sidestore_auth_missing"
+            case .noVPN, .invalidVPN: return "vpn_unavailable"
+            case .noConnection: return "device_network_unavailable"
+            case .noDevice, .notReachable: return "device_endpoint_unavailable"
+            case .invalidPairingFile, .pairingNotComplete:
+                return "pairing_invalid"
+            case .minimuxerNotStarted: return "minimuxer_not_started"
+            case .unknownUDID: return "device_identifier_unavailable"
+            case .certificateExpired, .customCertificateExpired:
+                return "certificate_expired"
+            case .certificateRevoked, .customCertificateRevoked:
+                return "certificate_revoked"
+            case .missingProvisioningProfile: return "profile_missing"
+            case .missingAppGroup: return "app_group_missing"
+            case .timedOut: return "device_operation_timed_out"
+            case .invalidParameters: return "sidestore_invalid_configuration"
+            default: break
+            }
+        }
         let description = (error as NSError).localizedDescription.lowercased()
+        if description.contains("minimuxer") { return "minimuxer_not_started" }
+        if description.contains("pairing") { return "pairing_invalid" }
+        if description.contains("device endpoint") ||
+           description.contains("unable to reach") {
+            return "device_endpoint_unavailable"
+        }
+        if description.contains("not signed in") ||
+           description.contains("authentication required") {
+            return "sidestore_auth_missing"
+        }
         if description.contains("another refresh") ||
            description.contains("in progress") {
             return "already_running"
@@ -109,6 +178,13 @@ extension ScarletGuestRefreshAgent {
                     reply(false, "sidestore_certificate_missing")
                     return
                 }
+                // SideStore's original AppBootManager starts Minimuxer using
+                // its already-imported pairing. Embedded LiveProcess may
+                // have skipped the SideStore UIApplication launch lifecycle.
+                // Restore only the original transport, then re-check its
+                // own preconditions. A failed check aborts before signing.
+                let recoveredTransport = try await
+                    ScarletGuestDeviceTransport.ensureReady()
                 // Original SideStore refresh operation, not an AppIntent
                 // proxy and not a fake successful "request accepted" flag.
                 let results: [String: Result<InstalledApp, Error>] =
@@ -139,7 +215,9 @@ extension ScarletGuestRefreshAgent {
                 }
                 // An operation returning successfully does not attest to
                 // an iOS SpringBoard replacement or a newer mobileprovision.
-                reply(true, "native_operation_returned_unverified")
+                reply(true, recoveredTransport
+                    ? "native_operation_returned_unverified_transport_recovered"
+                    : "native_operation_returned_unverified")
             } catch {
                 reply(false, safeFailureReason(error))
             }
