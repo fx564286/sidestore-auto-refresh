@@ -1,0 +1,130 @@
+// Scarlet V30 — restore the ORIGINAL SideStore active Account/Team record.
+//
+// The Scarlet-owned Apple ID + 2FA UI previously used AuthManager.signIn(
+// appleID:password:anisetteData:...) directly. That method returns a verified
+// ALTAccount/ALTAppleAPISession, but does NOT execute upstream
+// SignInOperation.saveTeamAndAccount(makeActive: true). The native refresh
+// pipeline's PreflightChecksOperation requires getAuthenticatedTeam()
+// and throws OperationError.notAuthenticated when the active Team is absent.
+//
+// This repair is fail-closed and on-device. It obtains teams from Apple's
+// original DeveloperPortalProxy using existing SideStore Keychain tokens;
+// matches the Apple-confirmed team to the *signed installed Scarlet host*
+// embedded.mobileprovision; and then uses the same CoreData Account/Team
+// models as upstream SignInOperation. No token, password, provisioning
+// profile, certificate, pairing, guest data, or other app record is replaced.
+// No team identifiers, email addresses or token values are logged or sent
+// to the LC host; only stable result classifications cross XPC.
+private enum ScarletNativeTeamRepairError: Error {
+    case conflictingAccount
+}
+
+enum ScarletGuestAuthTeamRepair {
+    static func ensure() async -> String {
+        let auth = AuthManager.shared
+        guard let email = auth.currentAppleID, !email.isEmpty,
+              let dsid = auth.adsid, !dsid.isEmpty,
+              let token = auth.xcodeToken, !token.isEmpty else {
+            return "sidestore_auth_token_missing"
+        }
+        do {
+            try await DatabaseManager.shared.start()
+            let db = DatabaseManager.shared
+            let existingTeam: String? = await db.persistentContainer
+                .performBackgroundTask { context in
+                    db.activeTeam(in: context)?.identifier
+                }
+            // Do not modify a previously valid original SideStore team.
+            if existingTeam != nil { return "auth_team_ready" }
+
+            // Signer identity must come from Apple's actual installed
+            // provisioning profile, not StoreApp.altstoreAppID or a
+            // guessed team suffix.
+            let installedProfile = Bundle.Info.activeBundleURL
+                .appendingPathComponent("embedded.mobileprovision")
+            guard let profile = try? ALTProvisioningProfile(
+                url: installedProfile) else {
+                return "sidestore_signed_profile_missing"
+            }
+            let expectedTeamID = profile.teamIdentifier
+            guard !expectedTeamID.isEmpty else {
+                return "sidestore_signed_profile_missing"
+            }
+            let verifiedAccount = ALTAccount(
+                appleID: email, identifier: dsid)
+            // The pinned original SideStore getAuthenticatedSession()
+            // reuses its saved Anisette profile; this Apple API call
+            // confirms credentials and available developer teams.
+            let portalTeams = try await DeveloperPortalProxy.shared.fetchTeams(
+                for: verifiedAccount)
+            let matches = portalTeams.filter {
+                $0.identifier == expectedTeamID
+            }
+            guard matches.count == 1, let verifiedTeam = matches.first else {
+                return "sidestore_auth_team_mismatch"
+            }
+
+            let context = db.persistentContainer.newBackgroundContext()
+            try await context.perform {
+                // Another refresh/login may have activated a team while the
+                // network call was running. Never overwrite it.
+                if db.activeTeam(in: context) != nil { return }
+                let accountID = verifiedTeam.account?.identifier
+                    ?? verifiedTeam.identifier
+                let account: Account
+                if let old = Account.first(satisfying:
+                    NSPredicate(format: "%K == %@",
+                                #keyPath(Account.identifier), accountID),
+                    in: context) {
+                    account = old
+                } else if let original = verifiedTeam.account {
+                    account = Account(original, context: context)
+                } else {
+                    account = Account(ALTAccount(
+                        appleID: email, identifier: accountID),
+                        context: context)
+                }
+                let team: Team
+                if let old = Team.first(satisfying:
+                    NSPredicate(format: "%K == %@",
+                                #keyPath(Team.identifier), verifiedTeam.identifier),
+                    in: context) {
+                    guard old.account.identifier == account.identifier else {
+                        throw ScarletNativeTeamRepairError.conflictingAccount
+                    }
+                    team = old
+                } else {
+                    team = Team(verifiedTeam,
+                        account: account, context: context)
+                }
+                team.update(team: verifiedTeam)
+                account.appleID = email
+                account.isActiveAccount = true
+                team.isActiveTeam = true
+                for other in try context.fetch(Account.fetchRequest()) {
+                    if other.objectID != account.objectID {
+                        other.isActiveAccount = false
+                    }
+                }
+                for other in try context.fetch(Team.fetchRequest()) {
+                    if other.objectID != team.objectID {
+                        other.isActiveTeam = false
+                    }
+                }
+                try context.save()
+            }
+            let active = try await auth.getAuthenticatedTeam()
+            return active.identifier == expectedTeamID
+                ? "auth_team_restored" : "sidestore_auth_team_mismatch"
+        } catch is ScarletNativeTeamRepairError {
+            return "sidestore_auth_team_mismatch"
+        } catch let original as OperationError {
+            switch original {
+            case .notAuthenticated: return "sidestore_auth_token_missing"
+            default: return "sidestore_auth_team_lookup_failed"
+            }
+        } catch {
+            return "sidestore_auth_team_lookup_failed"
+        }
+    }
+}
