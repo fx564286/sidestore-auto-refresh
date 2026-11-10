@@ -12,7 +12,7 @@ class GuestAirPodsGlassSwitcher(unittest.TestCase):
         for s in ('SCNativeLiquidGlassSurface(cornerRadius: radius, showsRim: false)',
                   'glassPlate(radius: isOpen ? 28 : 31)',
                   'switch_panel_content_rendered',
-                  'spring(response: 0.47, dampingFraction: 0.82)',
+                  'spring(response: 0.45, dampingFraction: 0.88)',
                   'UIView.performWithoutAnimation',
                   'UIImpactFeedbackGenerator(style: .soft)',
                   'SCARLET_PR48_AIRPODS_GLASS_PANEL'):
