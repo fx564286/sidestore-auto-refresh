@@ -783,9 +783,10 @@ final class ScarletFullscreenGuestTabInstaller: NSObject {
                 let matchesRuntime = folder == runtimeID || bundleID == runtimeID ||
                     ((meta["doUseLCBundleId"] as? Bool) == true &&
                      originalBundleID == runtimeID)
-                let isCurrent = hasRuntimeIdentity
-                    ? matchesRuntime
-                    : (folder == selected || bundleID == selected)
+                // The persisted "selected" key is only a launch *request*.
+                // It can still name KakaoTalk/Instagram after relaunch.
+                // Only TweakLoader's actual runtime identity proves current.
+                let isCurrent = hasRuntimeIdentity && matchesRuntime
                 let activeScene = UIDevice.current.userInterfaceIdiom == .pad &&
                     (containerExists.map {
                         activeSceneIDs.contains($0) &&
@@ -991,7 +992,14 @@ final class ScarletFullscreenGuestTabInstaller: NSObject {
                 ScarletDiagnosticRecorder.shared.record(
                     "guest", "fullscreen_tab_exit_requested")
                 guard let defaults = UserDefaults.lc() else { return }
-                ScarletGuestSessionLedger.beginReturnToHost()
+                guard let activeGuestFolder else {
+                    ScarletDiagnosticRecorder.shared.record(
+                        "guest", "return_to_host_unidentified_guest",
+                        status: "warning")
+                    return
+                }
+                ScarletGuestSessionLedger.beginReturnToHost(
+                    folder: activeGuestFolder)
                 defaults.set("ui", forKey: "selected")
                 defaults.removeObject(forKey: "selectedContainer")
                 if !LCSharedUtils.launchToGuestApp(withClassicMode: 0) {
