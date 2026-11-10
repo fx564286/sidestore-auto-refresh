@@ -7,10 +7,11 @@ import SwiftUI
 import BackgroundTasks
 import UserNotifications
 import Foundation
+import SideStoreSupport
 
 @available(iOS 27.0, *)
 @MainActor
-final class ScarletDevicePairingModel: NSObject, ObservableObject, NetServiceDelegate {
+final class ScarletDevicePairingModel: NSObject, ObservableObject, @preconcurrency NetServiceDelegate {
     static let shared = ScarletDevicePairingModel()
     static let taskIdentifier = "com.kdt.livecontainer.P8EZT3U5N4.pairing"
 
@@ -103,7 +104,7 @@ final class ScarletDevicePairingModel: NSObject, ObservableObject, NetServiceDel
         let name = "Scarlet Crystal"
         let context = UInt(bitPattern: Unmanaged.passRetained(self).toOpaque())
         // The open-source StikPair host must run off the UIKit main thread.
-        DispatchQueue.global(qos: .userInitiated).async {
+        DispatchQueue.global(qos: .userInitiated).async(execute: DispatchWorkItem {
             let pointer = UnsafeMutableRawPointer(bitPattern: context)
             var result = StikPairResult()
             let code = "0.0.0.0".withCString { bind in
@@ -160,7 +161,7 @@ final class ScarletDevicePairingModel: NSObject, ObservableObject, NetServiceDel
                     self.finishBackground(success: false)
                 }
             }
-        }
+        })
     }
 
     private func finishBackground(success: Bool) {
