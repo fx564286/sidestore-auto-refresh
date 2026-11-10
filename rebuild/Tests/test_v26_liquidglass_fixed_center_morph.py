@@ -78,7 +78,7 @@ class V26MatchedGlassGeometry(unittest.TestCase):
     def test_guest_switch_and_app_group_preserved(self):
         self.assertIn('switch_target_boot_ack',LEDGER)
         self.assertIn('switch_target_boot_mismatch',LEDGER)
-        self.assertIn('private static let key = "Scarlet.Guest.ActiveSwitcherSession.V40"',LEDGER)
+        self.assertIn('private static let key = "Scarlet.Guest.ActiveSwitcherSession.V43"',LEDGER)
         self.assertIn('ScarletGuestSessionLedger.confirmSwitchHandoff(runtimeGuestID:',UI)
         self.assertIn('SCARLET_PR48_AIRPODS_GLASS_PANEL',UI)
         self.assertIn('SCARLET_PR48_GUEST_ROUND_TAB',UI)

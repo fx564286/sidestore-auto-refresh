@@ -14,10 +14,10 @@ W=(R.parent/'.github/workflows/scarlet-paired-engines-build.yml').read_text()
 
 class V40TrueActiveWork(unittest.TestCase):
     def test_no_migration_from_old_v37_kakao_instagram(self):
-        self.assertIn('private static let key = "Scarlet.Guest.ActiveSwitcherSession.V40"',L)
-        self.assertIn('Scarlet.Guest.WorkSessionID.V40',L)
-        self.assertIn('Scarlet.Guest.HostReturnTicket.V40',L)
-        self.assertIn('Scarlet.Guest.DepartedTicket.V40',L)
+        self.assertIn('private static let key = "Scarlet.Guest.ActiveSwitcherSession.V43"',L)
+        self.assertIn('Scarlet.Guest.WorkSessionID.V43',L)
+        self.assertIn('Scarlet.Guest.HostReturnTicket.V43',L)
+        self.assertIn('Scarlet.Guest.DepartedTicket.V43',L)
         self.assertNotIn('store.data(forKey: "Scarlet.Guest.ActiveSwitcherSession.V37")',L)
         self.assertNotIn('store.data(forKey: "Scarlet.Guest.HostReturnTicket.V37")',L)
         self.assertIn('static func startFreshWorkSession()',L)

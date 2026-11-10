@@ -16,9 +16,9 @@ W=(R.parent/'.github/workflows/scarlet-paired-engines-build.yml').read_text()
 
 class V37SessionAndRefresh(unittest.TestCase):
     def test_never_migrate_old_kakao_insta_session_into_current_work(self):
-        self.assertIn('Scarlet.Guest.ActiveSwitcherSession.V40', L)
-        self.assertIn('Scarlet.Guest.DepartedTicket.V40', L)
-        self.assertIn('Scarlet.Guest.HostReturnTicket.V40',L)
+        self.assertIn('Scarlet.Guest.ActiveSwitcherSession.V43', L)
+        self.assertIn('Scarlet.Guest.DepartedTicket.V43', L)
+        self.assertIn('Scarlet.Guest.HostReturnTicket.V43',L)
         self.assertIn('Legacy key: Scarlet.Guest.RecentSessions.V14',L)
         self.assertIn('Legacy key: Scarlet.Guest.ActiveSwitcherSession.V19',L)
         self.assertNotIn('private static let key = "Scarlet.Guest.ActiveSwitcherSession.V23"',L)
