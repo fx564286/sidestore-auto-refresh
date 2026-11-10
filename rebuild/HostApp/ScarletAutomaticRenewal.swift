@@ -63,6 +63,8 @@ enum ScarletRefreshFailureDiagnosis {
             return "Apple 프로비저닝 프로파일 갱신 작업이 실패했습니다."
         case "installation_failed":
             return "서명 후 iPhone 앱 설치 단계가 실패했습니다."
+        case "host_not_in_refresh_results":
+            return "내장 SideStore 갱신이 종료됐지만 Scarlet 자체의 재서명 결과가 없습니다. 실행 중인 앱 제외 또는 갱신 대상 누락을 확인해야 합니다."
         case "sidestore_native_operation_failed":
             return "SideStore 원본 AppManager 갱신 작업이 실패했습니다. 갱신 결과 로그를 확인하세요."
         case "worker_unresponsive":
