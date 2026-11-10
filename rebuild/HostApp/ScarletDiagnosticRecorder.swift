@@ -19,6 +19,8 @@ final class ScarletDiagnosticRecorder: @unchecked Sendable {
     private var sequence: UInt64 = 0
     private let maxFileBytes = 1_500_000
     private let retainedFiles = 4
+    // Process-specific journal, independent of archived runs.
+    private let launchedAt = Date()
     private static let allowedFields: Set<String> = [
         "action", "tab", "result", "reason", "status", "state", "code",
         "domain", "count", "duration_ms", "width_pt", "height_pt",
@@ -41,6 +43,21 @@ final class ScarletDiagnosticRecorder: @unchecked Sendable {
         var values = URLResourceValues()
         values.isExcludedFromBackup = true
         try? excluded.setResourceValues(values)
+        // Rotate once when the recorder starts for this app process.
+        // Old V37 session.jsonl is archived, never appended by V38.
+        let current = directory.appendingPathComponent("session.jsonl")
+        if fm.fileExists(atPath: current.path) {
+            for index in stride(from: retainedFiles - 1, through: 1, by: -1) {
+                let previous = directory.appendingPathComponent(
+                    index == 1 ? "session.jsonl" : "session.\(index - 1).jsonl")
+                let next = directory.appendingPathComponent("session.\(index).jsonl")
+                if fm.fileExists(atPath: next.path) { try? fm.removeItem(at: next) }
+                if fm.fileExists(atPath: previous.path) {
+                    try? fm.moveItem(at: previous, to: next)
+                }
+            }
+        }
+        fm.createFile(atPath: current.path, contents: nil)
     }
 
     private func logURL(_ index: Int = 0) -> URL {
@@ -89,13 +106,16 @@ final class ScarletDiagnosticRecorder: @unchecked Sendable {
         guard let data = try? JSONSerialization.data(withJSONObject: payload, options: [.sortedKeys]),
               data.count < 8192 else { return }
         let dest = logURL()
-        if (try? fm.attributesOfItem(atPath: dest.path)[.size] as? NSNumber)?.intValue ?? 0 > maxFileBytes {
-            // Retain four bounded journals and never remove app/guest data.
-            for index in stride(from: retainedFiles - 1, through: 1, by: -1) {
-                let previous = logURL(index - 1)
-                let next = logURL(index)
-                if fm.fileExists(atPath: next.path) { try? fm.removeItem(at: next) }
-                if fm.fileExists(atPath: previous.path) { try? fm.moveItem(at: previous, to: next) }
+        let currentBytes = (try? fm.attributesOfItem(
+            atPath: dest.path)[.size] as? NSNumber)?.intValue ?? 0
+        if currentBytes + data.count + 1 > maxFileBytes,
+           let previous = try? Data(contentsOf: dest) {
+            // Trim only this launch's journal; never mix old process
+            // entries into a newly rotated "session" file.
+            let tail = Data(previous.suffix(maxFileBytes / 2))
+            if let firstNewline = tail.firstIndex(of: 10) {
+                try? Data(tail.suffix(from: firstNewline + 1))
+                    .write(to: dest, options: .atomic)
             }
         }
         if !fm.fileExists(atPath: dest.path) {
@@ -119,10 +139,16 @@ final class ScarletDiagnosticRecorder: @unchecked Sendable {
     }
 
     func readRecent(maxLines: Int = 350) -> String {
+        readRecent(maxLines: maxLines, includeHistory: false)
+    }
+
+    func readRecent(maxLines: Int, includeHistory: Bool) -> String {
         lock.lock()
         defer { lock.unlock() }
         var all: [String] = []
-        for index in (0..<retainedFiles).reversed() {
+        let indices = includeHistory
+            ? Array((0..<retainedFiles).reversed()) : [0]
+        for index in indices {
             if let body = try? String(contentsOf: logURL(index), encoding: .utf8) {
                 all.append(contentsOf: body.split(separator: "\n").map(String.init))
             }
@@ -130,13 +156,13 @@ final class ScarletDiagnosticRecorder: @unchecked Sendable {
         return all.suffix(maxLines).joined(separator: "\n")
     }
 
-    func makeShareFile() -> URL? {
+    func makeShareFile(includeHistory: Bool = false) -> URL? {
         lock.lock()
         defer { lock.unlock() }
         let formatter = DateFormatter()
         formatter.dateFormat = "yyyyMMdd-HHmmss"
         let file = fm.temporaryDirectory.appendingPathComponent(
-            "Scarlet-Crystal-Diagnostics-\(formatter.string(from: Date())).txt")
+            "Scarlet-Crystal-\(includeHistory ? "History" : "CurrentRun")-\(formatter.string(from: Date())).txt")
         var body = """
         Scarlet Crystal · 사용자 요청 진단 보고서
         Generated: \(Date())
@@ -145,12 +171,17 @@ final class ScarletDiagnosticRecorder: @unchecked Sendable {
         SourceCommit: \(Self.buildCommit)
         OS: \(ProcessInfo.processInfo.operatingSystemVersionString)
         Collection: local-only JSONL, no credentials/OTP/UDID/guest names
+        LogScope: \(includeHistory ? "current launch + archived launches" : "CURRENT LAUNCH ONLY")
+        CurrentSession: \(sessionID)
+        CurrentLaunchAt: \(launchedAt)
         Note: iOS fatal crash .ips is generated by iOS and may need separate collection.
 
         """
-        for index in (0..<retainedFiles).reversed() {
+        let indices = includeHistory
+            ? Array((0..<retainedFiles).reversed()) : [0]
+        for index in indices {
             if let chunk = try? String(contentsOf: logURL(index), encoding: .utf8), !chunk.isEmpty {
-                body += "\n===== session.\(index).jsonl =====\n"
+                body += "\n===== \(index == 0 ? "CURRENT RUN" : "ARCHIVED RUN \(index)") · session.\(index).jsonl =====\n"
                 body += chunk
             }
         }
@@ -167,6 +198,7 @@ final class ScarletDiagnosticRecorder: @unchecked Sendable {
 struct ScarletDiagnosticLogView: View {
     @State private var text = "기록된 이벤트가 없습니다."
     @State private var shareFile: URL?
+    @State private var includeHistory = false
 
     private func reload() {
         // A returned guest can hand off without a fresh host .onAppear.
@@ -175,16 +207,25 @@ struct ScarletDiagnosticLogView: View {
             ScarletGuestSessionLedger.replaySwitcherTraceToHostJournal()
         }
         ScarletDiagnosticRecorder.shared.record("diagnostics", "viewer_opened")
-        let content = ScarletDiagnosticRecorder.shared.readRecent()
+        let content = ScarletDiagnosticRecorder.shared.readRecent(
+            maxLines: 350, includeHistory: includeHistory)
         text = content.isEmpty ? "기록된 이벤트가 없습니다." : content
-        shareFile = ScarletDiagnosticRecorder.shared.makeShareFile()
+        shareFile = ScarletDiagnosticRecorder.shared.makeShareFile(
+            includeHistory: includeHistory)
     }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("앱 실행, 탭 전환, 게스트 실행, 설치 요청, 인증 연결 상태와 오류 코드를 기록합니다. 암호·인증번호·Apple ID는 기록하지 않습니다.")
+            Text("기본값은 이번 실행 로그만 표시·공유합니다. 이전 실행 기록은 직접 선택했을 때만 포함됩니다. 암호·인증번호·Apple ID는 기록하지 않습니다.")
                 .font(.footnote)
                 .foregroundStyle(.secondary)
+            Picker("로그 범위", selection: $includeHistory) {
+                Text("이번 실행").tag(false)
+                Text("이전 기록 포함").tag(true)
+            }
+            .pickerStyle(.segmented)
+            .onChange(of: includeHistory) { _, _ in reload() }
+            .accessibilityIdentifier("SCARLET_DIAGNOSTICS_LOG_SCOPE")
             HStack(spacing: 12) {
                 Button {
                     reload()
