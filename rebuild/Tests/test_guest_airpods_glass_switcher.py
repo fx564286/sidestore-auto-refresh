@@ -10,7 +10,7 @@ PATCH=(ROOT/'integration/apply_scarlet_host.py').read_text()
 class GuestAirPodsGlassSwitcher(unittest.TestCase):
     def test_native_ios26_material_and_airpods_style_spring(self):
         for s in ('SCNativeLiquidGlassSurface(cornerRadius: radius, showsRim: false)',
-                  'SCNativeLiquidGlassSurface(cornerRadius: 31, showsRim: false)',
+                  'glassPlate(radius: isOpen ? 28 : 31)',
                   'switch_panel_content_rendered',
                   'spring(response: 0.47, dampingFraction: 0.82)',
                   'UIView.performWithoutAnimation',
