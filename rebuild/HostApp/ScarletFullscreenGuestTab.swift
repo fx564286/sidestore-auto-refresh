@@ -785,7 +785,9 @@ final class ScarletFullscreenGuestTabInstaller: NSObject {
                     ? matchesRuntime
                     : (folder == selected || bundleID == selected)
                 let activeScene = containerExists.map {
-                    activeSceneIDs.contains($0) && MultitaskManager.isUsing(container: $0)
+                    (activeSceneIDs.contains($0) &&
+                     MultitaskManager.isUsing(container: $0)) ||
+                    ScarletGuestLiveBridge.isHostKnownLive($0)
                 } ?? false
                 guard isCurrent || activeScene || recentFolders.contains(folder) else {
                     continue
@@ -858,14 +860,19 @@ final class ScarletFullscreenGuestTabInstaller: NSObject {
               let latest = installedApps(guestIdentifier: runtimeGuestID).first(where: {
                   $0.id == target.id && !$0.isCurrent
               }) else { return false }
-        if latest.canSwitch, let container = latest.containerID,
-           MultitaskManager.isUsing(container: container),
-           (MultitaskWindowManager.openExistingAppWindow(dataUUID: container) ||
-            MultitaskDockManager.shared.bringMultitaskViewToFront(uuid: container)) {
-            ScarletDiagnosticRecorder.shared.record(
-                "guest", "switch_existing_multitask_session",
-                status: "success", fields: ["result": "memory_session_resumed"])
-            return true
+        if latest.canSwitch, let container = latest.containerID {
+            if MultitaskManager.isUsing(container: container) &&
+               (MultitaskWindowManager.openExistingAppWindow(dataUUID: container) ||
+                MultitaskDockManager.shared.bringMultitaskViewToFront(uuid: container)) {
+                ScarletDiagnosticRecorder.shared.record(
+                    "guest", "switch_existing_multitask_session",
+                    status: "success", fields: ["result": "memory_session_resumed"])
+                return true
+            }
+            if ScarletGuestLiveBridge.requestHostLiveSwitch(container) {
+                ScarletGuestSessionLedger.traceSwitcher("switch_host_live_requested")
+                return true  // host will confirm whether process is alive
+            }
         }
         // The iPhone diagnostic reports multi_scene_unavailable. This must
         // take a working cold path instead of rendering an inert A/B row.
