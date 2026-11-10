@@ -137,6 +137,7 @@ final class ScarletAutomaticRenewal {
     private var registered = false
     private var running = false
     private var lastCheckWasDeferred = false
+    private var lastDeferredReportAt: Date?
     private var lastScheduledFor: Date?
     private var lastScheduleSubmitAt: Date?
 
@@ -234,13 +235,25 @@ final class ScarletAutomaticRenewal {
         let now = Date()
         if let last = prefs.object(forKey: attemptKey) as? Date,
            now.timeIntervalSince(last) < interval {
-            ScarletDiagnosticRecorder.shared.record(
-                "refresh", "automatic_attempt_deferred",
-                fields: ["reason": "retry_interval_not_elapsed",
-                         "source": origin,
-                         "installation_verified": "false"])
-            // No work was due. iOS BG task can complete normally, but the
-            // receipt must say SKIPPED, not "refresh succeeded".
+            // The host's onAppear and scenePhase.active callbacks can both
+            // invoke foregroundCatchUp within 100 ms. This is ONE deferral,
+            // not two independent refresh attempts.
+            let elapsed = now.timeIntervalSince(last)
+            let remainingMinutes = Int(
+                ceil(max(0, interval - elapsed) / 60))
+            if lastDeferredReportAt.map({
+                now.timeIntervalSince($0) >= 30
+            }) ?? true {
+                lastDeferredReportAt = now
+                ScarletDiagnosticRecorder.shared.record(
+                    "refresh", "automatic_attempt_deferred",
+                    fields: ["reason": "retry_interval_not_elapsed",
+                             "source": origin,
+                             "retry_minutes": String(remainingMinutes),
+                             "installation_verified": "false"])
+            }
+            // BGTask still completes normally when no retry was due,
+            // but this cannot be reported as installation success.
             lastCheckWasDeferred = true
             return true
         }

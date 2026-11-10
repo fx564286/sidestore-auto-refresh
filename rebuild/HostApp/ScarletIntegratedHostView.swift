@@ -96,6 +96,7 @@ struct ScarletIntegratedHostView: View {
     @State private var appleAuthVerified = false
     // Ignore delayed auth readbacks after a newer foreground/login transition.
     @State private var authStateReadGeneration: UInt64 = 0
+    @State private var lastLayoutSignature: String?
     @State private var showOriginalError: String?
     @State private var signingRecoveryNeeded = false
     @State private var launchingGuestKeys: Set<String> = []
@@ -141,15 +142,33 @@ struct ScarletIntegratedHostView: View {
             .compactMap { $0 as? UIWindowScene }
             .flatMap { $0.windows }
             .first(where: { $0.isKeyWindow })
-        let orientation = String(describing: UIDevice.current.orientation)
+        // Use scene interface orientation (the actual guest presentation),
+        // not UIDeviceOrientation's unstable faceUp / unknown descriptions.
+        let orientation: String
+        switch window?.windowScene?.interfaceOrientation ?? .unknown {
+        case .portrait: orientation = "portrait"
+        case .portraitUpsideDown: orientation = "portrait_upside_down"
+        case .landscapeLeft: orientation = "landscape_left"
+        case .landscapeRight: orientation = "landscape_right"
+        default: orientation = "unknown"
+        }
+        let width = Int(window?.bounds.width ?? 0)
+        let height = Int(window?.bounds.height ?? 0)
+        let top = Int(window?.safeAreaInsets.top ?? 0)
+        let bottom = Int(window?.safeAreaInsets.bottom ?? 0)
+        let signature = "\(orientation):\(width):\(height):\(top):\(bottom)"
+        // Avoid repeated identical readings from SwiftUI lifecycle/rotation
+        // notifications. Keep ALL actual safe-area and geometry changes.
+        guard signature != lastLayoutSignature else { return }
+        lastLayoutSignature = signature
         ScarletDiagnosticRecorder.shared.record(
             "layout", "orientation_observed",
             fields: [
                 "orientation": orientation,
-                "width_pt": String(Int(window?.bounds.width ?? 0)),
-                "height_pt": String(Int(window?.bounds.height ?? 0)),
-                "safe_top_pt": String(Int(window?.safeAreaInsets.top ?? 0)),
-                "safe_bottom_pt": String(Int(window?.safeAreaInsets.bottom ?? 0))
+                "width_pt": String(width),
+                "height_pt": String(height),
+                "safe_top_pt": String(top),
+                "safe_bottom_pt": String(bottom)
             ])
     }
 
