@@ -931,6 +931,37 @@ import Combine
 }
 """
 
+def add_v45_fullscreen_scene_slot(engine: Path) -> dict:
+    """Create a single full-screen remote-scene viewport, never a fake LC window.
+
+    Only Scarlet-tagged AppSceneViewController instances use this non-scaling
+    geometry path; all pinned normal LC scene behavior remains unchanged.
+    """
+    header = engine/"MultitaskSupport/AppSceneViewController.h"
+    h = header.read_text()
+    old = "@property(nonatomic) CGFloat scaleRatio;\n"
+    assert h.count(old) == 1, "V45 upstream AppScene header changed"
+    h = h.replace(old, old +
+        "@property(nonatomic) BOOL scarletNativeFullscreenSlot;\n", 1)
+    header.write_text(h)
+    target = engine/"MultitaskSupport/AppSceneViewController.m"
+    a = target.read_text()
+    old = "        settings.statusBarDisabled = !self.isNativeWindow;"
+    assert a.count(old) == 1
+    a = a.replace(old,
+        "        settings.statusBarDisabled = !self.isNativeWindow && !self.scarletNativeFullscreenSlot;", 1)
+    old = "            if(UIInterfaceOrientationIsLandscape(settings.interfaceOrientation)) {"
+    assert a.count(old) == 1
+    a = a.replace(old, "            if(!self.scarletNativeFullscreenSlot && UIInterfaceOrientationIsLandscape(settings.interfaceOrientation)) {",1)
+    old = "    if(UIInterfaceOrientationIsLandscape(tempSettings.interfaceOrientation)) {"
+    assert a.count(old) == 1
+    a = a.replace(old,
+        "    if(!self.scarletNativeFullscreenSlot && UIInterfaceOrientationIsLandscape(tempSettings.interfaceOrientation)) {",1)
+    target.write_text(a)
+    return {"singleViewport": True, "legacyDecoratedWindow": False,
+            "guestFrameScale": 1, "optIn": True, "sceneTagOnly": True}
+
+
 def main():
     p=argparse.ArgumentParser()
     p.add_argument("--engine",type=Path,required=True)
@@ -965,6 +996,7 @@ def main():
         root/"rebuild/HostApp/ScarletSigningReadinessPanel.swift":"ScarletSigningReadinessPanel.swift",
         root/"rebuild/HostApp/ScarletGuestSwitcherOverlay.swift":"ScarletGuestSwitcherOverlay.swift",
         root/"rebuild/HostApp/ScarletFullscreenGuestTab.swift":"ScarletFullscreenGuestTab.swift",
+        root/"rebuild/HostApp/ScarletFullscreenSceneStack.swift":"ScarletFullscreenSceneStack.swift",
         root/"rebuild/HostApp/ScarletGuestSessionLedger.swift":"ScarletGuestSessionLedger.swift",
         root/"rebuild/HostApp/ScarletAppleIDLoginSheet.swift":"ScarletAppleIDLoginSheet.swift",
         root/"rebuild/HostApp/ScarletSideStoreAuthenticationBridge.swift":"ScarletSideStoreAuthenticationBridge.swift",
@@ -1185,6 +1217,7 @@ static void ScarletGuestHookTrace(NSString *event) {
     # V36 removes the root cause at source-level rather than attaching or
     # hiding the old LC dock from host UIKit.
     legacy_visuals = remove_upstream_legacy_window_ui(engine)
+    fullscreen_slot = add_v45_fullscreen_scene_slot(engine)
     guest_signing=instrument_original_guest_signing(engine)
     guest_manager=hide_embedded_sidestore_guest_navigation(engine)
     native_settings=attach_native_settings_diagnostics(engine)
@@ -1199,6 +1232,7 @@ static void ScarletGuestHookTrace(NSString *event) {
         "onDeviceSigtrapDockForceUnwrapGuarded":False,
         "legacyVisualSourceRemoved":True,
         "legacyVisualRemoval":legacy_visuals,
+        "experimentalResidentFullscreenViewport": fullscreen_slot,
         "dockAttachDeferredToWindowVisibility":False,
         "hostEntry":"ScarletIntegratedHostView",
         "realLCGuestModelsUsed":True,
