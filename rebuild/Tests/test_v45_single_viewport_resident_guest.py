@@ -39,8 +39,10 @@ class TestV45(unittest.TestCase):
         self.assertIn('"process_pid": String(slot.pid)',SCENE)
         self.assertIn('fullscreen_scene_process_exited', SCENE)
         self.assertNotIn('terminate()',SCENE)
-        self.assertNotIn('removeFromParent()',SCENE)
-        self.assertNotIn('removeFromSuperview()',SCENE)
+        self.assertIn('guard !old.isAppRunning else { return false }',SCENE)
+        self.assertIn('old.removeFromParent()',SCENE)
+        self.assertIn('guard !old.isAppRunning else { return false }',SCENE)
+        self.assertIn('old.view.removeFromSuperview()',SCENE)
         self.assertNotIn('fatalError("Child view',SCENE)
 
     def test_no_clip_by_actual_window_size_readback(self):
@@ -52,7 +54,8 @@ class TestV45(unittest.TestCase):
         self.assertIn('settings.safeAreaInsetsPortrait = safe',SCENE)
         self.assertIn('view.bounds',SCENE)
         self.assertIn('!self.scarletNativeFullscreenSlot && UIInterfaceOrientationIsLandscape',GLUE)
-        self.assertIn('!self.isNativeWindow && !self.scarletNativeFullscreenSlot',GLUE)
+        self.assertIn('settings.statusBarDisabled = !self.isNativeWindow;',GLUE)
+        self.assertNotIn('settings.statusBarDisabled = !self.isNativeWindow && !self.scarletNativeFullscreenSlot;',GLUE)
         self.assertNotIn('CGRectMake(0, 0, 320, 480)',SCENE)
         self.assertNotIn('self.view.frame = CGRect(',SCENE)
 
@@ -78,7 +81,7 @@ class TestV45(unittest.TestCase):
         self.assertIn('onSwitch: { [weak self] target in',SCENE)
         self.assertIn('onExit: { [weak self] in self?.goHome() }',SCENE)
         self.assertIn('overlayWindow?.isHidden = true',SCENE)
-        self.assertIn('canRelaunch: false',SCENE)
+        self.assertIn('canRelaunch: canRestart',SCENE)
 
     def test_native_integration_and_release(self):
         self.assertIn('add_v45_fullscreen_scene_slot(engine)',GLUE)
