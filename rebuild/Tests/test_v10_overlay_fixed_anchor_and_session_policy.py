@@ -23,7 +23,12 @@ class V10Contract(unittest.TestCase):
         self.assertIn('lastStableSceneSize',GUEST)
         self.assertNotIn('width = open ? min(430',GUEST)
     def test_full_screen_nonkey_overlay_passes_unrelated_touches(self):
-        self.assertIn('return isExpanded && panelRect.contains(point)',GUEST)
+        # V25 expanded modal catches empty-space taps; old panel-only
+        # hit testing passed those taps to the running guest and never closed.
+        self.assertIn('if isExpanded {',GUEST)
+        self.assertIn('return super.point(inside: point, with: event)',GUEST)
+        self.assertIn('return hypot(point.x - buttonCenter.x',GUEST)
+        self.assertNotIn('return isExpanded && panelRect.contains(point)',GUEST)
         self.assertIn('hypot(point.x - buttonCenter.x',GUEST)
         self.assertIn('return super.point(inside: point, with: event)',GUEST)
         self.assertIn('overlay.windowLevel = UIWindow.Level.alert + 1',GUEST)
