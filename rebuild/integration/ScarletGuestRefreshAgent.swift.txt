@@ -37,3 +37,112 @@ final class ScarletGuestRefreshAgent: NSObject {
         }
     }
 }
+
+// Refresh exactly the apps selected by the pinned SideStore's OWN installed-app
+// database, using its OWN AppManager/BackgroundRefreshAppsOperation inside
+// LiveProcess. This avoids wrapping the operation through PrivateIntentRunner,
+// which collapses its failures into SideStore domain/code 1 at the LC host.
+// No custom signing, provisioning, installation, server or bypass logic.
+private actor ScarletGuestNativeRefreshGate {
+    static let shared = ScarletGuestNativeRefreshGate()
+    private var active = false
+
+    func claim() -> Bool {
+        guard !active else { return false }
+        active = true
+        return true
+    }
+
+    func release() { active = false }
+}
+
+private enum ScarletGuestRefreshDispatchError: Error {
+    case noOperation
+}
+
+extension ScarletGuestRefreshAgent {
+    private static func safeFailureReason(_ error: Error) -> String {
+        let description = (error as NSError).localizedDescription.lowercased()
+        if description.contains("another refresh") ||
+           description.contains("in progress") {
+            return "already_running"
+        }
+        if description.contains("anisette") { return "anisette_unavailable" }
+        if description.contains("vpn") || description.contains("wireguard") {
+            return "vpn_unavailable"
+        }
+        if description.contains("certificate") || description.contains("signing") {
+            return "signing_failed"
+        }
+        if description.contains("provision") || description.contains("profile") {
+            return "profile_refresh_failed"
+        }
+        if description.contains("server") || description.contains("connection") {
+            return "server_unavailable"
+        }
+        if description.contains("install") { return "installation_failed" }
+        return "sidestore_native_operation_failed"
+    }
+
+    @objc static func perform(_ reply: @escaping (Bool, String) -> Void) {
+        Task {
+            let gate = ScarletGuestNativeRefreshGate.shared
+            guard await gate.claim() else {
+                reply(false, "already_running")
+                return
+            }
+            defer { Task { await gate.release() } }
+            do {
+                try await DatabaseManager.shared.start()
+                let context = DatabaseManager.shared.persistentContainer.newBackgroundContext()
+                let targets = await context.perform {
+                    InstalledApp.fetchAppsForRefreshingAll(in: context)
+                }
+                let signedHostID = Bundle.Info.activeBundleIdentifier
+                guard let managedHost = targets.first(where: {
+                    $0.resignedBundleIdentifier == signedHostID
+                }) else {
+                    reply(false, targets.isEmpty ? "no_managed_apps" : "host_not_managed")
+                    return
+                }
+                guard CertificateManager.shared.activeCertificate != nil else {
+                    reply(false, "sidestore_certificate_missing")
+                    return
+                }
+                // Original SideStore refresh operation, not an AppIntent
+                // proxy and not a fake successful "request accepted" flag.
+                let results: [String: Result<InstalledApp, Error>] =
+                    try await withCheckedThrowingContinuation { continuation in
+                    let operation = try? AppManager.shared.backgroundRefresh(
+                        targets, presentsNotifications: false
+                    ) { result in
+                        continuation.resume(with: result)
+                    }
+                    guard let operation else {
+                        continuation.resume(throwing: ScarletGuestRefreshDispatchError.noOperation)
+                        return
+                    }
+                    operation.ignoresServerNotFoundError = false
+                }
+                for (_, result) in results {
+                    if case let .failure(error) = result {
+                        reply(false, safeFailureReason(error))
+                        return
+                    }
+                }
+                // Original SideStore skips apps it sees as running. A
+                // completed operation may contain results for other apps,
+                // or no results at all. Never call that a Scarlet refresh.
+                guard results[managedHost.bundleIdentifier] != nil else {
+                    reply(false, "host_not_in_refresh_results")
+                    return
+                }
+                // An operation returning successfully does not attest to
+                // an iOS SpringBoard replacement or a newer mobileprovision.
+                reply(true, "native_operation_returned_unverified")
+            } catch {
+                reply(false, safeFailureReason(error))
+            }
+        }
+    }
+}

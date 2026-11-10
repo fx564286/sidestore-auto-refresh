@@ -13,7 +13,7 @@ POLICY = (R/"Sources/ScarletCleanCore/ScarletRefreshPolicy.swift").read_text()
 class SignedRuntimeCapabilityGate(unittest.TestCase):
     def test_1_manual_refresh_invokes_original_sidestore_engine(self):
         self.assertIn("import SideStoreSupport", CAP)
-        self.assertIn("RefreshAllAppsIntent().perform()", CAP)
+        self.assertIn("ScarletNativeRefreshExecutor.execute()", CAP)
         self.assertNotIn('Label("SideStore 수동 새로고침"', CAP)
         self.assertIn("storedAuthenticated()", CAP)
         self.assertNotIn("SCARLET_MANUAL_SIDESTORE_REFRESH", CAP)

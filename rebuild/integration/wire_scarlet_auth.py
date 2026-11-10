@@ -34,6 +34,7 @@ def patch_livecontainer(engine: Path) -> None:
 - (void)scarletAuthReady:(void (^)(BOOL isReady))reply;
 - (void)scarletAuthStored:(void (^)(BOOL hasStoredSession))reply;
 - (void)scarletRefreshReadiness:(void (^)(NSInteger managedCount, BOOL hostManaged, BOOL signingReady, NSString *status))reply;
+- (void)scarletPerformNativeRefresh:(void (^)(BOOL operationReturned, NSString *status))reply;
 - (void)scarletBeginAuth:(NSString*)requestID email:(NSString*)email password:(NSString*)password profile:(NSString*)profile;
 - (void)scarletProvideCode:(NSString*)requestID code:(NSString*)code;
 - (void)scarletCancelAuth:(NSString*)requestID;
@@ -101,6 +102,19 @@ def patch_livecontainer(engine: Path) -> None:
         return;
     }
     ((void (*)(id, SEL, id))objc_msgSend)(worker, @selector(inspect:), reply);
+}
+
+- (void)scarletPerformNativeRefresh:(void (^)(BOOL, NSString *))reply {
+    // This executes original SideStore AppManager directly in its guest
+    // worker (where the registered apps + signing Keychain actually live).
+    // RefreshAllAppsIntent in the LC host was proxying through an iOS
+    // PrivateIntentRunner and reducing failures to SideStore(1).
+    Class worker = NSClassFromString(@"ScarletGuestRefreshAgent");
+    if (!worker || ![worker respondsToSelector:@selector(perform:)]) {
+        reply(NO, @"refresh_worker_missing");
+        return;
+    }
+    ((void (*)(id, SEL, id))objc_msgSend)(worker, @selector(perform:), reply);
 }
 
 - (void)scarletAuthStored:(void (^)(BOOL))reply {

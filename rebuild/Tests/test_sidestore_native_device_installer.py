@@ -75,7 +75,7 @@ class NativeDeviceInstallerContract(unittest.TestCase):
         self.assertIn('onShowActiveInstall: openActiveInstallProgress',HOST)
 
     def test_refresh_and_original_settings_scroll_regression_preserved(self):
-        self.assertIn('RefreshAllAppsIntent().perform()', (
+        self.assertIn('ScarletNativeRefreshExecutor.execute()', (
             ROOT/"HostApp/ScarletSigningReadinessPanel.swift").read_text())
         self.assertIn('func scarletSettingsScrollLimit()',GLASS)
         self.assertIn('scarletSettingsScrollLimit()', (

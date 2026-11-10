@@ -246,6 +246,75 @@ public enum ScarletNativeRefreshInspector {
     }
 }
 
+// Original SideStore AppManager performs signing + installation inside the
+// embedded LiveProcess, not inside the LiveContainer host's AppIntent proxy.
+// Never turn a returning operation into an unverified installation success.
+@available(iOS 17.0, *)
+public struct ScarletNativeRefreshFailure: Error, Sendable {
+    public let reason: String
+    public init(reason: String) { self.reason = reason }
+}
+
+@available(iOS 17.0, *)
+private final class ScarletRefreshExecutionGate: @unchecked Sendable {
+    private let lock = NSLock()
+    private var continuation: CheckedContinuation<(Bool, String), Never>?
+    init(_ continuation: CheckedContinuation<(Bool, String), Never>) {
+        self.continuation = continuation
+    }
+    func finish(_ completed: Bool, _ reason: String) {
+        lock.lock()
+        let c = continuation
+        continuation = nil
+        lock.unlock()
+        c?.resume(returning: (completed, reason))
+    }
+}
+
+@available(iOS 17.0, *)
+@MainActor
+public enum ScarletNativeRefreshExecutor {
+    public static func execute() async throws -> String {
+        do {
+            try await ScarletNativeAuthTransport.shared.prepare()
+        } catch {
+            throw ScarletNativeRefreshFailure(reason: "transport_unavailable")
+        }
+        guard let client = RefreshHandler.shared.client else {
+            throw ScarletNativeRefreshFailure(reason: "transport_unavailable")
+        }
+        let (returned, rawReason) = await withCheckedContinuation {
+            (c: CheckedContinuation<(Bool, String), Never>) in
+            let gate = ScarletRefreshExecutionGate(c)
+            // A dead LiveProcess should be classified, not shown forever
+            // as a running renewal. This watchdog is not the refresh
+            // implementation; actual work runs in SideStore AppManager.
+            DispatchQueue.main.asyncAfter(deadline: .now() + 600) {
+                gate.finish(false, "worker_unresponsive")
+            }
+            client.scarletPerformNativeRefresh { completed, reason in
+                gate.finish(completed, reason ?? "sidestore_native_operation_failed")
+            }
+        }
+        let allowed: Set<String> = [
+            "native_operation_returned_unverified", "already_running",
+            "anisette_unavailable", "vpn_unavailable", "signing_failed",
+            "profile_refresh_failed", "server_unavailable",
+            "installation_failed", "sidestore_native_operation_failed",
+            "sidestore_database_unavailable", "no_managed_apps",
+            "host_not_managed", "host_not_in_refresh_results",
+            "sidestore_certificate_missing", "refresh_worker_missing", "transport_unavailable",
+            "worker_unresponsive"
+        ]
+        let status = allowed.contains(rawReason)
+            ? rawReason : "sidestore_native_operation_failed"
+        guard returned && status == "native_operation_returned_unverified" else {
+            throw ScarletNativeRefreshFailure(reason: status)
+        }
+        return status
+    }
+}
+
 @available(iOS 17.0, *)
 extension RefreshHandler {
     func scarletEnsureAuthGuest() async throws {
