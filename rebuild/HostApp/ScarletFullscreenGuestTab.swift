@@ -63,6 +63,7 @@ struct ScarletFullscreenGuestFloatingTab: View {
 
     @State private var isOpen = false
     @State private var apps: [ScarletGuestSwitchTarget] = []
+    @State private var showingInstallChoices = false
     @State private var feedback: String?
     @State private var transitionVersion = 0
     @State private var dockRight = false
@@ -84,13 +85,19 @@ struct ScarletFullscreenGuestFloatingTab: View {
     }
 
     private var otherApps: [ScarletGuestSwitchTarget] {
-        // A -> Home -> B keeps A visible even when iOS terminated A.
-        // Mark cold rows explicitly rather than claiming restored RAM state.
-        apps.filter { !$0.isCurrent }
+        // Running/recently launched guests only. Do not pollute the normal
+        // switcher with every app installed in LiveContainer.
+        let launched = apps.filter { !$0.isCurrent }
+        return launched.filter { $0.reason != "inplace_first_launch" }
+    }
+
+    private var installChoices: [ScarletGuestSwitchTarget] {
+        apps.filter { $0.reason == "inplace_first_launch" }
     }
 
     private func openPanel() {
         apps = reloadApps()
+        showingInstallChoices = false
         ScarletGuestSessionLedger.traceSwitcher("panel_opened", count: apps.count)
         feedback = nil
         transitionVersion += 1
@@ -110,6 +117,7 @@ struct ScarletFullscreenGuestFloatingTab: View {
     }
 
     private func closePanel() {
+        showingInstallChoices = false
         ScarletGuestSessionLedger.traceSwitcher("panel_closed")
         transitionVersion += 1
         // Restore round-button-only hit testing synchronously. Keeping
@@ -233,9 +241,11 @@ struct ScarletFullscreenGuestFloatingTab: View {
                 .clipShape(RoundedRectangle(cornerRadius: 11))
                 VStack(alignment: .leading, spacing: 3) {
                     Text(app.title).font(.subheadline.weight(.medium)).lineLimit(1)
-                    Text(app.canSwitch ? "실행 중 · 작업 유지"
-                         : (app.canRelaunch ? "최근 실행 · 누르면 다시 열기"
-                                            : "최근 실행 · 실행 준비 필요"))
+                    Text(app.reason == "inplace_first_launch"
+                         ? "설치됨 · 여기서 바로 실행"
+                         : (app.canSwitch ? "실행 중 · 작업 유지"
+                            : (app.canRelaunch ? "최근 실행 · 누르면 다시 열기"
+                                               : "최근 실행 · 실행 준비 필요")))
                         .font(.caption2).foregroundStyle(.secondary)
                 }
                 Spacer(minLength: 0)
@@ -264,13 +274,33 @@ struct ScarletFullscreenGuestFloatingTab: View {
                     Spacer(minLength: 0)
                 }
                 currentAppRow
-                if !otherApps.isEmpty {
+                if !otherApps.isEmpty || (showingInstallChoices && !installChoices.isEmpty) {
                     ScrollView {
                         LazyVStack(alignment: .leading, spacing: 12) {
                             ForEach(otherApps) { entry in otherAppRow(entry) }
+                            if showingInstallChoices {
+                                ForEach(installChoices) { entry in otherAppRow(entry) }
+                            }
                         }
                     }
-                    .frame(maxHeight: 300)
+                    .frame(maxHeight: 260)
+                }
+                // Keep the established A/B session list unchanged. Adding a
+                // new installed guest is an inline second state of the SAME
+                // glass card, not a trip through Scarlet Home or another window.
+                if !installChoices.isEmpty {
+                    Button {
+                        withAnimation(morphAnimation) {
+                            showingInstallChoices.toggle()
+                        }
+                    } label: {
+                        Label(showingInstallChoices ? "앱 선택 접기" : "앱 추가",
+                              systemImage: showingInstallChoices ? "chevron.up" : "plus")
+                            .font(.subheadline.weight(.medium))
+                            .frame(maxWidth: .infinity, minHeight: 32)
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityIdentifier("SCARLET_RESIDENT_GUEST_ADD_INLINE")
                 }
                 if let feedback {
                     Text(feedback).font(.caption).foregroundStyle(.orange)
