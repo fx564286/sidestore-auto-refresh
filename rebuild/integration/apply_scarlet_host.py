@@ -912,9 +912,12 @@ import Combine
 
     // Upstream guest manager calls this API to *find* an already owned
     // window. It never constructs a decorated/scaled window or side rail.
-    @objc public func bringMultitaskViewToFront(uuid: String,
-                                                from center: CGPoint? = nil) -> Bool {
-        return MultitaskWindowManager.openExistingAppWindow(dataUUID: uuid)
+    public func bringMultitaskViewToFront(uuid: String,
+                                          from center: CGPoint? = nil) -> Bool {
+        if #available(iOS 16.1, *) {
+            return MultitaskWindowManager.openExistingAppWindow(dataUUID: uuid)
+        }
+        return false
     }
 
     @objc public func minimizeAllWindows(except: DecoratedAppSceneViewController? = nil) {
