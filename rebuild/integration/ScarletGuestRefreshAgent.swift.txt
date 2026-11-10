@@ -178,6 +178,17 @@ extension ScarletGuestRefreshAgent {
                     reply(false, "sidestore_certificate_missing")
                     return
                 }
+                // V30: Authentic Apple token restoration is not equivalent
+                // to SideStore's active Team record. The stock login pipeline
+                // writes that record, but Scarlet's headless login previously
+                // did not. Recover only the exact Apple-verified existing
+                // signed team before running original PreflightChecksOperation.
+                let teamState = await ScarletGuestSignInAgent
+                    .ensureActiveTeamForRefresh()
+                guard teamState == "ready" || teamState == "team_restored" else {
+                    reply(false, teamState)
+                    return
+                }
                 // SideStore's original AppBootManager starts Minimuxer using
                 // its already-imported pairing. Embedded LiveProcess may
                 // have skipped the SideStore UIApplication launch lifecycle.
