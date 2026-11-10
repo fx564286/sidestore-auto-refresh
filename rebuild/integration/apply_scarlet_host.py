@@ -798,6 +798,43 @@ def attach_jitless_diagnostic_scroll_margins(engine: Path) -> dict:
             "source": str(path.relative_to(engine)), "sha256": file_sha(path)}
 
 
+def route_iphone_guest_launch_to_resident_scene(engine: Path) -> None:
+    """Bind upstream LiveProcess to one fullscreen window, no virtual chrome."""
+    util=engine/"LiveContainerSwiftUI/Utilities/LCUtils.m"
+    src=util.read_text()
+    anchor = '        UIViewController *rootVC = ((UIWindowScene *)UIApplication.sharedApplication.connectedScenes.anyObject).keyWindow.rootViewController;\n        DecoratedAppSceneViewController *launcherView = [[DecoratedAppSceneViewController alloc] initWindowName:displayName bundleId:bundleId dataUUID:dataUUID rootVC:rootVC];'
+    replacement = '        UIViewController *rootVC = ((UIWindowScene *)UIApplication.sharedApplication.connectedScenes.anyObject).keyWindow.rootViewController;\n        if (UIDevice.currentDevice.userInterfaceIdiom == UIUserInterfaceIdiomPhone) {\n            MultitaskDockManager *owner = [MultitaskDockManager shared];\n            if (![owner scarletPrepareResident]) {\n                NSError *error = [NSError errorWithDomain:@"ScarletResidentGuest"\n                              code:41 userInfo:@{NSLocalizedDescriptionKey:\n                                @"Fullscreen resident scene is not ready"}];\n                if (completionHandler) completionHandler(nil, error);\n                return;\n            }\n            rootVC = [owner scarletResidentParent] ?: rootVC;\n        }\n        DecoratedAppSceneViewController *launcherView = [[DecoratedAppSceneViewController alloc] initWindowName:displayName bundleId:bundleId dataUUID:dataUUID rootVC:rootVC];'
+    assert src.count(anchor)==1, "Pinned LCUtils guest-launch route changed"
+    util.write_text(src.replace(anchor,replacement,1))
+    windows=engine/"MultitaskSupport/MultitaskAppWindow.swift"
+    src=windows.read_text()
+    anchor = '    @objc class func openExistingAppWindow(dataUUID: String) -> Bool {\n        for a in appDict {'
+    replacement = '    @objc class func openExistingAppWindow(dataUUID: String) -> Bool {\n        if UIDevice.current.userInterfaceIdiom == .phone {\n            return MultitaskDockManager.shared.scarletActivateResident(uuid: dataUUID)\n        }\n        for a in appDict {'
+    assert src.count(anchor)==1, "Pinned native scene lookup changed"
+    windows.write_text(src.replace(anchor,replacement,1))
+
+
+def keep_resident_guest_geometry_unscaled(engine: Path) -> None:
+    """Use the one real iPhone UIWindowScene safe area, never old max/window rules."""
+    decorated=engine/"MultitaskSupport/DecoratedAppSceneViewController.m"
+    source=decorated.read_text()
+    original='            self.pid = vc.pid;\n            [self updateOriginalFrame];\n            if (self.pidAvailableHandler) {'
+    replacement='            self.pid = vc.pid;\n            if (![NSUserDefaults.lcSharedDefaults boolForKey:@"ScarletResidentGuestMode.V41"]) {\n                [self updateOriginalFrame];\n            }\n            if (self.pidAvailableHandler) {'
+    assert source.count(original)==1, "Pinned resident PID receipt changed"
+    source=source.replace(original,replacement,1)
+    original='- (void)appSceneVC:(AppSceneViewController*)vc didUpdateFromSettings:(UIMutableApplicationSceneSettings *)baseSettings transitionContext:(id)newContext lifecycleActionType:(uint32_t)actionType {\n    [self.appSceneVC updateSettingsWithBlock:^(UIMutableApplicationSceneSettings *settings) {'
+    replacement='- (void)appSceneVC:(AppSceneViewController*)vc didUpdateFromSettings:(UIMutableApplicationSceneSettings *)baseSettings transitionContext:(id)newContext lifecycleActionType:(uint32_t)actionType {\n    if ([NSUserDefaults.lcSharedDefaults boolForKey:@"ScarletResidentGuestMode.V41"]) {\n        // Do NOT call the historical virtual-window frame/inset logic.\n        // Identical UIWindowScene viewport, 1.0 scale, original Safe Area.\n        [self.appSceneVC updateSettingsWithBlock:^(UIMutableApplicationSceneSettings *settings) {\n            UIWindowScene *scene = self.view.window.windowScene;\n            UIInterfaceOrientation orientation = scene ? scene.interfaceOrientation\n                                                       : baseSettings.interfaceOrientation;\n            CGRect bounds = self.view.bounds;\n            settings.userInterfaceStyle = baseSettings.userInterfaceStyle;\n            settings.interfaceOrientation = orientation;\n            settings.deviceOrientation = UIDevice.currentDevice.orientation;\n            settings.foreground = YES;\n            settings.peripheryInsets = self.view.window.safeAreaInsets;\n            settings.safeAreaInsetsPortrait = self.view.window.safeAreaInsets;\n            // AppSceneViewController applies its own landscape transform to\n            // the remote presenter. Supply the inverse extent exactly once.\n            if (UIInterfaceOrientationIsLandscape(orientation)) {\n                settings.frame = CGRectMake(0, 0, bounds.size.height, bounds.size.width);\n            } else {\n                settings.frame = CGRectMake(0, 0, bounds.size.width, bounds.size.height);\n            }\n        }];\n        return;\n    }\n    [self.appSceneVC updateSettingsWithBlock:^(UIMutableApplicationSceneSettings *settings) {'
+    assert source.count(original)==1, "Pinned LC decorated scene delegate changed"
+    decorated.write_text(source.replace(original,replacement,1))
+
+    scene=engine/"MultitaskSupport/AppSceneViewController.m"
+    source=scene.read_text()
+    original='    self.isNativeWindow = [NSUserDefaults.lcSharedDefaults integerForKey:@"LCMultitaskMode" ] == 1;'
+    replacement='    self.isNativeWindow =\n        [NSUserDefaults.lcSharedDefaults integerForKey:@"LCMultitaskMode"] == 1 ||\n        (UIDevice.currentDevice.userInterfaceIdiom == UIUserInterfaceIdiomPhone &&\n         [NSUserDefaults.lcSharedDefaults boolForKey:@"ScarletResidentGuestMode.V41"]);'
+    assert source.count(original)==1, "Pinned AppScene host mode changed"
+    scene.write_text(source.replace(original,replacement,1))
+
+
 def remove_upstream_legacy_window_ui(engine: Path) -> dict:
     """Physically remove old LC side-dock SwiftUI + three-button chrome.
 
@@ -898,22 +935,155 @@ import Combine
     @Published var apps: [DockAppModel] = []
     @objc public var isCollapsed: Bool = false
     @objc public var windowHostingView = VirtualWindowsHostView()
+    // Exactly one non-resizable, full-screen UIKit window, backed by the
+    // same UIWindowScene as Scarlet. No virtual window bar or side dock.
+    private var residentWindow: UIWindow?
+    private var residentRoot: UIViewController?
+    private var originalKeyWindow: UIWindow?
+    private(set) var activeResidentUUID: String?
+    private(set) var generation: UInt = 0
+
+    @objc public func scarletPrepareResident() -> Bool {
+        guard UIDevice.current.userInterfaceIdiom == .phone,
+              let scene = UIApplication.shared.connectedScenes
+                .compactMap({ $0 as? UIWindowScene })
+                .first(where: { $0.activationState == .foregroundActive ||
+                    $0.activationState == .foregroundInactive })
+        else { return false }
+        let bounds = scene.coordinateSpace.bounds
+        guard bounds.width > 250, bounds.height > 250 else { return false }
+        if residentWindow == nil {
+            originalKeyWindow = scene.windows.first(where: { $0.isKeyWindow })
+            let window = UIWindow(windowScene: scene)
+            window.windowLevel = .normal + 1
+            window.backgroundColor = .black
+            let root = UIViewController()
+            root.view.backgroundColor = .black
+            root.view.frame = bounds
+            root.view.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+            window.rootViewController = root
+            window.frame = bounds
+            windowHostingView.frame = root.view.bounds
+            windowHostingView.autoresizingMask =
+                [.flexibleWidth, .flexibleHeight]
+            root.view.addSubview(windowHostingView)
+            residentRoot = root
+            residentWindow = window
+        }
+        scarletSyncResidentGeometry()
+        residentWindow?.makeKeyAndVisible()
+        LCUtils.appGroupUserDefault.set(true,
+                         forKey: "ScarletResidentGuestMode.V41")
+        return true
+    }
+
+    @objc public func scarletResidentParent() -> UIViewController? {
+        return residentRoot
+    }
+
+    @objc public func scarletSyncResidentGeometry() {
+        guard let window = residentWindow,
+              let scene = window.windowScene else { return }
+        let rect = scene.coordinateSpace.bounds
+        guard rect.width > 250, rect.height > 250 else { return }
+        // NO transform, scale or 320x480 virtual window geometry ever.
+        window.frame = rect
+        residentRoot?.view.frame = window.bounds
+        windowHostingView.frame = window.bounds
+        for app in apps {
+            app.view?.frame = windowHostingView.bounds
+            // Each LiveProcess retains its OWN remote scene and PID.
+            // iPhone uses exactly the same screen coordinate bounds.
+        }
+    }
+
+    @objc public func scarletActivateResident(uuid: String) -> Bool {
+        guard let item = apps.first(where: { $0.appUUID == uuid }),
+              let view = item.view,
+              let decorated = view._viewDelegate()
+                 as? DecoratedAppSceneViewController,
+              decorated.appSceneVC.isAppRunning else { return false }
+        guard scarletPrepareResident() else { return false }
+        for app in apps {
+            app.view?.isHidden = app.appUUID != uuid
+        }
+        view.transform = .identity
+        view.frame = windowHostingView.bounds
+        windowHostingView.bringSubviewToFront(view)
+        activeResidentUUID = uuid
+        generation &+= 1
+        Task { @MainActor in
+            ScarletResidentGuestSwitchController.shared.mountIfNecessary()
+            ScarletResidentGuestSwitchController.shared.refresh()
+        }
+        ScarletDiagnosticRecorder.shared.record(
+            "guest", "resident_process_reused", status: "success",
+            fields: ["count": String(apps.count),
+                     "result": "original_pid_alive_and_scene_reused",
+                     "memory": "preserved_while_process_alive"])
+        return true
+    }
+
+    @objc public func scarletReturnToHome() {
+        residentWindow?.isHidden = true
+        originalKeyWindow?.makeKey()
+        Task { @MainActor in
+            ScarletResidentGuestSwitchController.shared.hide()
+        }
+        ScarletDiagnosticRecorder.shared.record(
+            "guest", "resident_host_return",
+            fields: ["result": "guest_process_retained",
+                     "count": String(apps.count)])
+    }
+
+    func scarletAllResidentSessions() -> [DockAppModel] { apps }
+    func scarletCurrentResident() -> String? { activeResidentUUID }
 
     @objc public func addRunningApp(_ appName: String, appUUID: String,
                                     view: UIView?) {
         guard !apps.contains(where: { $0.appUUID == appUUID }) else { return }
         apps.append(DockAppModel(appName: appName, appUUID: appUUID,
                                  view: view))
+        // Initial scene creation is async. Make the view visible now;
+        // process readback remains pending until AppScene delegate callback.
+        guard residentWindow != nil else { return }
+        for app in apps { app.view?.isHidden = app.appUUID != appUUID }
+        view?.frame = windowHostingView.bounds
+        view?.transform = .identity
+        if let view { windowHostingView.bringSubviewToFront(view) }
+        activeResidentUUID = appUUID
+        generation &+= 1
+        Task { @MainActor in
+            ScarletResidentGuestSwitchController.shared.mountIfNecessary()
+            ScarletResidentGuestSwitchController.shared.refresh()
+        }
+        ScarletDiagnosticRecorder.shared.record(
+            "guest", "resident_process_launch_submitted",
+            fields: ["result": "extension_boot_pending",
+                     "count": String(apps.count)])
     }
 
     @objc public func removeRunningApp(_ appUUID: String) {
         apps.removeAll(where: { $0.appUUID == appUUID })
+        if activeResidentUUID == appUUID {
+            activeResidentUUID = apps.last?.appUUID
+            if let activeResidentUUID {
+                _ = scarletActivateResident(uuid: activeResidentUUID)
+            } else {
+                scarletReturnToHome()
+            }
+        }
+        Task { @MainActor in
+            ScarletResidentGuestSwitchController.shared.refresh()
+        }
     }
 
-    // Upstream guest manager calls this API to *find* an already owned
-    // window. It never constructs a decorated/scaled window or side rail.
+    // Upstream callers can return to a *resident* process directly.
     public func bringMultitaskViewToFront(uuid: String,
                                           from center: CGPoint? = nil) -> Bool {
+        if UIDevice.current.userInterfaceIdiom == .phone {
+            return scarletActivateResident(uuid: uuid)
+        }
         if #available(iOS 16.1, *) {
             return MultitaskWindowManager.openExistingAppWindow(dataUUID: uuid)
         }
@@ -966,6 +1136,7 @@ def main():
         root/"rebuild/HostApp/ScarletGuestSwitcherOverlay.swift":"ScarletGuestSwitcherOverlay.swift",
         root/"rebuild/HostApp/ScarletFullscreenGuestTab.swift":"ScarletFullscreenGuestTab.swift",
         root/"rebuild/HostApp/ScarletGuestSessionLedger.swift":"ScarletGuestSessionLedger.swift",
+        root/"rebuild/HostApp/ScarletResidentGuestSwitchController.swift":"ScarletResidentGuestSwitchController.swift",
         root/"rebuild/HostApp/ScarletAppleIDLoginSheet.swift":"ScarletAppleIDLoginSheet.swift",
         root/"rebuild/HostApp/ScarletSideStoreAuthenticationBridge.swift":"ScarletSideStoreAuthenticationBridge.swift",
         root/"rebuild/HostApp/ScarletDiagnosticRecorder.swift":"ScarletDiagnosticRecorder.swift",
@@ -1185,6 +1356,8 @@ static void ScarletGuestHookTrace(NSString *event) {
     # V36 removes the root cause at source-level rather than attaching or
     # hiding the old LC dock from host UIKit.
     legacy_visuals = remove_upstream_legacy_window_ui(engine)
+    route_iphone_guest_launch_to_resident_scene(engine)
+    keep_resident_guest_geometry_unscaled(engine)
     guest_signing=instrument_original_guest_signing(engine)
     guest_manager=hide_embedded_sidestore_guest_navigation(engine)
     native_settings=attach_native_settings_diagnostics(engine)

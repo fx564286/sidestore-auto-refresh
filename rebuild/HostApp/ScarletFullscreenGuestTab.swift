@@ -431,7 +431,7 @@ struct ScarletFullscreenGuestFloatingTab: View {
 // UIkit pan tracks finger in fixed screen space; no moving-window feedback.
 @available(iOS 17.0, *)
 @MainActor
-private final class ScarletGuestScreenPan: NSObject, UIGestureRecognizerDelegate {
+final class ScarletGuestScreenPan: NSObject, UIGestureRecognizerDelegate {
     let onChange: (CGPoint, UIGestureRecognizer.State) -> Void
     init(onChange: @escaping (CGPoint, UIGestureRecognizer.State) -> Void) {
         self.onChange = onChange
@@ -928,6 +928,13 @@ final class ScarletFullscreenGuestTabInstaller: NSObject {
 
     @objc(installForGuestName:)
     static func installForGuestName(_ rawName: NSString) {
+        // In the resident LiveProcess extension, the MAIN Scarlet process
+        // owns the one circular switcher above the full-screen guest scene.
+        // Mounting another overlay in the extension creates duplicates.
+        if Bundle.main.bundleURL.pathExtension == "appex" &&
+           LCUtils.appGroupUserDefault.bool(forKey: "ScarletResidentGuestMode.V41") {
+            return
+        }
         guard let scene = UIApplication.shared.connectedScenes
                 .compactMap({ $0 as? UIWindowScene })
                 .first(where: { $0.activationState == .foregroundActive ||

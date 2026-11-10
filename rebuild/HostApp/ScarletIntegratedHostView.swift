@@ -459,11 +459,35 @@ struct ScarletIntegratedHostView: View {
                     ScarletDiagnosticRecorder.shared.record(
                         "guest", "native_multiscene_launch_requested",
                         fields: ["result": "native_window"])
+                } else if UIDevice.current.userInterfaceIdiom == .phone,
+                          app.appInfo.defaultClassicMode == 0,
+                          !app.appInfo.isJITNeeded && !app.appInfo.is32bit,
+                          LCUtils.liveProcessBundleIdentifier() != nil {
+                    // V41: start a separate LiveProcess extension so A's
+                    // UIViewController and PID survive while B is shown.
+                    // The guest gets exactly ONE fixed, original-screen-sized
+                    // host scene; old decorated controls/dock are absent.
+                    do {
+                        try await app.runApp(multitask: true)
+                        ScarletDiagnosticRecorder.shared.record(
+                            "guest", "resident_fullscreen_launch_requested",
+                            fields: ["result": "liveprocess_extension_submitted",
+                                     "virtual_window": "disabled"])
+                    } catch {
+                        // Fail closed: do not send an unsuccessful launch
+                        // into the old scaled virtual window as a fallback.
+                        ScarletGuestSessionLedger.restore(historyBeforeLaunch)
+                        ScarletDiagnosticRecorder.shared.record(
+                            "guest", "resident_launch_failed",
+                            status: "warning",
+                            fields: ["reason": "liveprocess_scene_unavailable"])
+                        throw error
+                    }
                 } else {
                     do {
                         if UIDevice.current.userInterfaceIdiom == .phone {
-                            // Explicit false bypasses persisted LC multitask
-                            // preferences and preserves original guest geometry.
+                            // Incompatible JIT/classic cases retain exactly
+                            // their original, unscaled full-screen path.
                             try await app.runApp(multitask: false)
                         } else {
                             try await app.runApp()
