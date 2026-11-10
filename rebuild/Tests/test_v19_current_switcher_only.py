@@ -17,7 +17,7 @@ NATIVE = (ROOT / "HostApp/ScarletGuestSwitcherOverlay.swift").read_text()
 
 class V19SessionSwitcher(unittest.TestCase):
     def test_old_installed_and_lifetime_history_is_not_loaded(self):
-        self.assertIn('private static let key = "Scarlet.Guest.ActiveSwitcherSession.V37"', LEDGER)
+        self.assertIn('private static let key = "Scarlet.Guest.ActiveSwitcherSession.V40"', LEDGER)
         self.assertIn('Legacy key: Scarlet.Guest.ActiveSwitcherSession.V19', LEDGER)
         self.assertNotIn('store.data(forKey: "Scarlet.Guest.ActiveSwitcherSession.V19")', LEDGER)
         self.assertIn('Legacy key: Scarlet.Guest.RecentSessions.V14', LEDGER)
@@ -25,8 +25,8 @@ class V19SessionSwitcher(unittest.TestCase):
         self.assertIn('private static let maxItems = 8', LEDGER)
         self.assertNotIn('inactivityTimeout:', LEDGER)
         self.assertIn('static func prepareForHostAppearance()', LEDGER)
-        self.assertIn('Scarlet.Guest.HostReturnTicket.V37', LEDGER)
-        self.assertIn('isContinuation', LEDGER)
+        self.assertIn('Scarlet.Guest.HostReturnTicket.V40', LEDGER)
+        self.assertIn('legitimateGuest', LEDGER)
         self.assertIn('return Array(raw.filter {', LEDGER)
 
     def test_a_home_b_retained_without_ever_installed_fallback(self):
@@ -40,8 +40,8 @@ class V19SessionSwitcher(unittest.TestCase):
         self.assertNotIn('lastLaunched != nil && !isCurrent', PANEL)
 
     def test_shared_data_uuid_is_not_app_identity(self):
-        self.assertIn('let isCurrent = hasRuntimeIdentity', PANEL)
-        self.assertIn(': (folder == selected || bundleID == selected)', PANEL)
+        self.assertIn('let isCurrent = hasRuntimeIdentity && matchesRuntime', PANEL)
+        self.assertNotIn(': (folder == selected || bundleID == selected)', PANEL)
         self.assertIn('let matchesRuntime = folder == runtimeID || bundleID == runtimeID ||', PANEL)
         self.assertNotIn('containerExists == selectedContainer', PANEL)
         self.assertIn('guard !found.contains(folder)', PANEL)

@@ -16,131 +16,142 @@ enum ScarletGuestSessionLedger {
     // Preserve V14 and V19 keys for rollback; no migrating stale entries.
     // Legacy key: Scarlet.Guest.RecentSessions.V14
     // Legacy key: Scarlet.Guest.ActiveSwitcherSession.V19
-    // V37 namespace prevents stale V23 Kakao/Instagram launch history
-    // from being treated as current. Old data stays untouched for rollback.
-    private static let key = "Scarlet.Guest.ActiveSwitcherSession.V37"
-    private static let hostReturnKey = "Scarlet.Guest.HostReturnTicket.V37"
-    private static let guestBootMarkerKey = "Scarlet.Guest.LaunchBootEpoch.V37"
-    private static let guestDepartedKey = "Scarlet.Guest.DepartedTicket.V37"
+    // V40: a work session is identified by an opaque UUID. The legacy V37
+    // guest history and its bare Date host-return ticket are NOT migrated.
+    // A launch of Scarlet without a verified active guest handoff starts
+    // with ZERO tabs, even if the previous session was Kakao+Instagram.
+    private static let key = "Scarlet.Guest.ActiveSwitcherSession.V40"
+    private static let sessionIDKey = "Scarlet.Guest.WorkSessionID.V40"
+    private static let hostReturnKey = "Scarlet.Guest.HostReturnTicket.V40"
+    private static let guestBootMarkerKey = "Scarlet.Guest.LaunchBootEpoch.V40"
+    private static let guestDepartedKey = "Scarlet.Guest.DepartedTicket.V40"
     private static let guestDepartureValidity: TimeInterval = 120
+    private static let maxItems = 8
+    private static var hasEnteredHostWorkSession = false
+    private static var lastHostForegroundAt: Date?
 
     private struct GuestDeparture: Codable {
         let folder: String
+        let workID: String
         let time: Date
         let bootEpoch: Double
     }
 
-    // Only a verified foreground guest can prove a recent Home handoff.
+    private struct HostReturn: Codable {
+        let folder: String
+        let workID: String
+        let time: Date
+    }
+
+    private static var store: UserDefaults { LCUtils.appGroupUserDefault }
+
+    private static func bootEpoch() -> Double {
+        Date().timeIntervalSince1970 - ProcessInfo.processInfo.systemUptime
+    }
+
+    private static func departureIsValid(_ departure: GuestDeparture?,
+                                         workID: String?,
+                                         at now: Date) -> Bool {
+        guard let departure, let workID, !workID.isEmpty,
+              departure.workID == workID else { return false }
+        let age = now.timeIntervalSince(departure.time)
+        return age >= 0 && age <= guestDepartureValidity &&
+            abs(departure.bootEpoch - bootEpoch()) < 120 &&
+            recent().contains(where: { $0.folder == departure.folder })
+    }
+
+    private static func startFreshWorkSession() {
+        let id = UUID().uuidString
+        store.set(id, forKey: sessionIDKey)
+        if let empty = try? JSONEncoder().encode([Entry]()) {
+            store.set(empty, forKey: key)
+        }
+        store.removeObject(forKey: hostReturnKey)
+        store.removeObject(forKey: guestDepartedKey)
+        // Never change guest containers, LastLaunched or signing profiles.
+        ScarletDiagnosticRecorder.shared.record(
+            "guest", "switcher_new_work_session",
+            fields: ["count": "0", "result": "fresh_launch"])
+    }
+
+    // This ticket is minted in the ACTUAL foreground guest. Merely having
+    // an old "Return" Date, or still being on the same iPhone boot, cannot
+    // resurrect an unrelated app.
     static func noteGuestDeparted(folder: String) {
-        guard recent().contains(where: { $0.folder == folder }) else { return }
+        guard recent().contains(where: { $0.folder == folder }),
+              let workID = store.string(forKey: sessionIDKey),
+              !workID.isEmpty else { return }
         let departure = GuestDeparture(
-            folder: folder, time: Date(),
-            bootEpoch: Date().timeIntervalSince1970 -
-                ProcessInfo.processInfo.systemUptime)
+            folder: folder, workID: workID, time: Date(),
+            bootEpoch: bootEpoch())
         if let data = try? JSONEncoder().encode(departure) {
             store.set(data, forKey: guestDepartedKey)
         }
     }
-    private static let maxItems = 8
-    private static let returnTicketValidity: TimeInterval = 120
-    private static var hasEnteredHostWorkSession = false
-    private static var lastHostForegroundAt: Date?
-    private static let unrelatedHostReturnResetAfter: TimeInterval = 120
 
-    private static var store: UserDefaults { LCUtils.appGroupUserDefault }
-
-    // A->the Scarlet app list->B is a continuation of the same session.
-    // Mark the return only when the guest explicitly requests that route.
-    static func beginReturnToHost() {
-        store.set(Date(), forKey: hostReturnKey)
+    // Scarlet's own back button may use this explicit return. It is bound
+    // to the same guest and work session as the foreground departure.
+    static func beginReturnToHost(folder: String) {
+        noteGuestDeparted(folder: folder)
+        guard let departure = store.data(forKey: guestDepartedKey)
+                .flatMap({ try? JSONDecoder().decode(GuestDeparture.self, from: $0) }),
+              departure.folder == folder else { return }
+        let ticket = HostReturn(folder: folder, workID: departure.workID,
+                                time: Date())
+        if let data = try? JSONEncoder().encode(ticket) {
+            store.set(data, forKey: hostReturnKey)
+        }
     }
 
     static func cancelReturnToHost() {
         store.removeObject(forKey: hostReturnKey)
     }
 
-    // Called at the *first* appearance of the Scarlet host, not at every
-    // tab change or guest switch. A cold host entry starts with an empty
-    // switcher; a recent explicit guest->host return retains A so launching
-    // B shows A,B. Never touch actual guest app/container data.
+    // Called once when Scarlet first becomes visible in this host process.
+    // A legitimate A -> Home -> Scarlet -> B retains A only if A really
+    // departed within the same workID, boot and short handoff window.
     static func prepareForHostAppearance() {
-        let ticket = store.object(forKey: hostReturnKey) as? Date
-        store.removeObject(forKey: hostReturnKey)
         guard !hasEnteredHostWorkSession else { return }
         hasEnteredHostWorkSession = true
         lastHostForegroundAt = Date()
-        let age = ticket.map { Date().timeIntervalSince($0) }
-        let explicitReturn = age.map {
-            $0 >= 0 && $0 <= returnTicketValidity
-        } ?? false
-        // Same device boot alone was too weak: unrelated old apps
-        // reappeared. Require an actual recent guest -> Home transition.
+        let now = Date()
+        let workID = store.string(forKey: sessionIDKey)
         let departure = store.data(forKey: guestDepartedKey)
             .flatMap { try? JSONDecoder().decode(GuestDeparture.self, from: $0) }
+        let explicit = store.data(forKey: hostReturnKey)
+            .flatMap { try? JSONDecoder().decode(HostReturn.self, from: $0) }
+        // Consume BOTH handoff markers exactly once, even on invalid data.
+        store.removeObject(forKey: hostReturnKey)
         store.removeObject(forKey: guestDepartedKey)
-        let bootEpoch = Date().timeIntervalSince1970 -
-            ProcessInfo.processInfo.systemUptime
-        let savedEpoch = store.object(forKey: guestBootMarkerKey) as? Double
-        let sameBoot = savedEpoch.map { abs($0 - bootEpoch) < 120 } ?? false
-        let guestWasJustActive = departure.map { item in
-            let age = Date().timeIntervalSince(item.time)
+        let legitimateGuest = departureIsValid(departure, workID: workID, at: now)
+        let explicitlyReturned = legitimateGuest && explicit.map { ticket in
+            let age = now.timeIntervalSince(ticket.time)
             return age >= 0 && age <= guestDepartureValidity &&
-                abs(item.bootEpoch - bootEpoch) < 120 &&
-                recent().contains(where: { $0.folder == item.folder })
-        } ?? false
-        let isContinuation = explicitReturn ||
-            (sameBoot && guestWasJustActive)
-        if !isContinuation {
-            guard let empty = try? JSONEncoder().encode([Entry]()) else { return }
-            store.set(empty, forKey: key)
+                ticket.workID == workID && ticket.folder == departure?.folder
+        } == true
+        if !legitimateGuest {
+            startFreshWorkSession()
         }
         ScarletDiagnosticRecorder.shared.record(
             "guest", "switcher_work_session_started",
-            fields: ["result": explicitReturn ? "guest_return_continued"
-                       : isContinuation ? "verified_guest_departure_continued"
-                       : "cold_host_new_session"])
+            fields: ["result": explicitlyReturned ? "verified_guest_return_continued"
+                : legitimateGuest ? "verified_guest_departure_continued"
+                : "cold_host_new_session",
+                     "count": String(recent().count)])
     }
 
-    // A Scarlet host process can survive in the background for hours.
-    // The first-appearance guard must not keep Kakao/Instagram from a
-    // previous work session forever merely because this PID survived.
+    // A living Scarlet host is the SAME work session. Time passing alone
+    // never expires its A/B tabs; only a new unrelated host process or an
+    // explicit fresh-work action can reset the active work.
     static func reconcileHostForeground() {
         guard hasEnteredHostWorkSession else { return }
-        let now = Date()
-        defer { lastHostForegroundAt = now }
-        guard let previous = lastHostForegroundAt,
-              now.timeIntervalSince(previous) >= unrelatedHostReturnResetAfter
-        else { return }
+        lastHostForegroundAt = Date()
+    }
 
-        let ticket = store.object(forKey: hostReturnKey) as? Date
-        let explicit = ticket.map {
-            let age = now.timeIntervalSince($0)
-            return age >= 0 && age <= returnTicketValidity
-        } ?? false
-        let departure = store.data(forKey: guestDepartedKey)
-            .flatMap { try? JSONDecoder().decode(GuestDeparture.self, from: $0) }
-        let bootEpoch = now.timeIntervalSince1970 -
-            ProcessInfo.processInfo.systemUptime
-        let validDeparture = departure.map { item in
-            let age = now.timeIntervalSince(item.time)
-            return age >= 0 && age <= guestDepartureValidity &&
-                abs(item.bootEpoch - bootEpoch) < 120 &&
-                recent().contains(where: { $0.folder == item.folder })
-        } ?? false
-        store.removeObject(forKey: hostReturnKey)
-        store.removeObject(forKey: guestDepartedKey)
-        guard !explicit && !validDeparture else {
-            ScarletDiagnosticRecorder.shared.record(
-                "guest", "switcher_work_session_continued",
-                fields: ["reason": "recent_guest_handoff"])
-            return
-        }
-        guard let empty = try? JSONEncoder().encode([Entry]()) else { return }
-        store.set(empty, forKey: key)
-        ScarletDiagnosticRecorder.shared.record(
-            "guest", "switcher_work_session_reset",
-            fields: ["reason": "unrelated_foreground_entry",
-                     "count": "0"])
+    static func beginNewWork() {
+        hasEnteredHostWorkSession = true
+        lastHostForegroundAt = Date()
+        startFreshWorkSession()
     }
 
     // The actual full-screen guest has a virtualized app sandbox, so its
@@ -289,6 +300,14 @@ enum ScarletGuestSessionLedger {
     static func noteLaunch(folder: String, title: String, dataUUID: String?) {
         guard folder.hasSuffix(".app"), !folder.contains("/"),
               !folder.contains("\\"), folder != ".app" else { return }
+        // Never create a phantom tab without a host-established work ID.
+        guard let workID = store.string(forKey: sessionIDKey),
+              !workID.isEmpty else {
+            ScarletDiagnosticRecorder.shared.record(
+                "guest", "switcher_launch_rejected_without_work",
+                status: "warning", fields: ["reason": "no_active_work_session"])
+            return
+        }
         // Only truly launched guests are inserted. Importing or scanning an
         // installed .app must never create a switcher tab.
         let items = [Entry(folder: folder, lastOpened: Date(),

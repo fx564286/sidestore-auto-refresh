@@ -54,15 +54,15 @@ class V33LogRootCauses(unittest.TestCase):
         self.assertIn('ScarletSigningReadiness.inspect()',AUTO)
 
     def test_switcher_same_boot_history_without_fake_ram_scene(self):
-        self.assertIn('Scarlet.Guest.LaunchBootEpoch.V37',LEDGER)
-        self.assertIn('Scarlet.Guest.DepartedTicket.V37',LEDGER)
+        self.assertIn('Scarlet.Guest.LaunchBootEpoch.V40',LEDGER)
+        self.assertIn('Scarlet.Guest.DepartedTicket.V40',LEDGER)
         self.assertIn('ProcessInfo.processInfo.systemUptime',LEDGER)
         self.assertIn('verified_guest_departure_continued',LEDGER)
-        self.assertIn('guest_return_continued',LEDGER)
+        self.assertIn('verified_guest_return_continued',LEDGER)
         self.assertIn('cold_host_new_session',LEDGER)
         self.assertIn('store.set(empty, forKey: key)',LEDGER)
         self.assertNotIn('sameBoot && !recent().isEmpty',LEDGER)
-        self.assertIn('sameBoot && guestWasJustActive',LEDGER)
+        self.assertIn('departureIsValid(departure, workID: workID, at: now)',LEDGER)
         self.assertIn('memory": "not_preserved"',
                       (R/"HostApp/ScarletFullscreenGuestTab.swift").read_text())
         self.assertIn('try await app.runApp()',HOST)

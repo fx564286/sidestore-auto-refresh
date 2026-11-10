@@ -17,7 +17,7 @@ AUTO=(ROOT/"HostApp/ScarletAutomaticRenewal.swift").read_text()
 
 class V23SessionIsolation(unittest.TestCase):
     def test_does_not_read_v14_or_v19_previous_sessions(self):
-        self.assertIn('private static let key = "Scarlet.Guest.ActiveSwitcherSession.V37"', LEDGER)
+        self.assertIn('private static let key = "Scarlet.Guest.ActiveSwitcherSession.V40"', LEDGER)
         self.assertIn('Legacy key: Scarlet.Guest.RecentSessions.V14',LEDGER)
         self.assertIn('Legacy key: Scarlet.Guest.ActiveSwitcherSession.V19',LEDGER)
         self.assertNotIn('store.data(forKey: "Scarlet.Guest.ActiveSwitcherSession.V19")',LEDGER)
@@ -29,14 +29,14 @@ class V23SessionIsolation(unittest.TestCase):
         end=LEDGER.index("    // The actual full-screen guest",start)
         code=LEDGER[start:end]
         self.assertIn('guard !hasEnteredHostWorkSession else { return }',code)
-        self.assertIn('let ticket = store.object(forKey: hostReturnKey) as? Date',code)
+        self.assertIn('let explicit = store.data(forKey: hostReturnKey)',code)
         self.assertIn('store.removeObject(forKey: hostReturnKey)',code)
-        self.assertIn('if !isContinuation {',code)
-        self.assertIn('JSONEncoder().encode([Entry]())',code)
-        self.assertIn('store.set(empty, forKey: key)',code)
+        self.assertIn('if !legitimateGuest {',code)
+        self.assertIn('startFreshWorkSession()',code)
+        self.assertIn('startFreshWorkSession()',code)
         self.assertIn('cold_host_new_session',code)
-        self.assertIn('guest_return_continued',code)
-        self.assertIn('guestWasJustActive',code)
+        self.assertIn('verified_guest_return_continued',code)
+        self.assertIn('legitimateGuest',code)
         self.assertNotIn('sameBoot && !recent().isEmpty',code)
         self.assertIn('ScarletGuestSessionLedger.prepareForHostAppearance()',HOST)
         self.assertLess(HOST.index('ScarletGuestSessionLedger.prepareForHostAppearance()'),
@@ -44,10 +44,10 @@ class V23SessionIsolation(unittest.TestCase):
         self.assertEqual(HOST.count('ScarletGuestSessionLedger.prepareForHostAppearance()'),1)
 
     def test_explicit_host_return_preserves_a_then_b(self):
-        self.assertIn('static func beginReturnToHost()',LEDGER)
+        self.assertIn('static func beginReturnToHost(folder: String)',LEDGER)
         self.assertIn('static func cancelReturnToHost()',LEDGER)
-        self.assertIn('private static let returnTicketValidity: TimeInterval = 120',LEDGER)
-        self.assertIn('ScarletGuestSessionLedger.beginReturnToHost()',FULL)
+        self.assertIn('private static let guestDepartureValidity: TimeInterval = 120',LEDGER)
+        self.assertIn('ScarletGuestSessionLedger.beginReturnToHost(',FULL)
         self.assertIn('ScarletGuestSessionLedger.cancelReturnToHost()',FULL)
         self.assertIn('if !LCSharedUtils.launchToGuestApp(withClassicMode: 0)',FULL)
         self.assertIn('ScarletGuestSessionLedger.noteLaunch(',HOST)
