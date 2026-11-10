@@ -11,7 +11,7 @@ class GuestTabNoResize(unittest.TestCase):
     def test_original_pr48_fullscreen_launch_unchanged(self):
         self.assertIn('try await app.runApp()',HOST)
         self.assertIn('UIApplication.shared.supportsMultipleScenes',HOST)
-        self.assertIn('useVirtual ? .virtualWindow : .nativeWindow',HOST)
+        self.assertIn('MultitaskMode.nativeWindow.rawValue',HOST)
         self.assertIn('try await app.runApp(multitask: true)',HOST)
         self.assertIn('try await app.runApp()',HOST)
 
