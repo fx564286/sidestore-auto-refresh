@@ -23,7 +23,7 @@ LEDGER=(ROOT/"HostApp/ScarletGuestSessionLedger.swift").read_text()
 
 class NativeDeviceTransportRecovery(unittest.TestCase):
     def test_original_sidestore_bootstrap_reuses_existing_pairing_only(self):
-        self.assertIn('private enum ScarletGuestDeviceTransport',AGENT)
+        self.assertIn('enum ScarletGuestDeviceTransport',AGENT)
         self.assertIn('try await ensureMinimuxerReady()',AGENT)
         self.assertIn('PairingFileManager.shared.fetchPairingFile()',AGENT)
         self.assertIn('AppBootManager.shared.startMinimuxer(pairingFile: pairing)',AGENT)

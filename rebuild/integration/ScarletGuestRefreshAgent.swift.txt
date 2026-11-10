@@ -59,6 +59,8 @@ private actor ScarletGuestNativeRefreshGate {
 private enum ScarletGuestRefreshDispatchError: Error {
     case noOperation
     case savedPairingUnavailable
+    case remotePairingMissing
+    case remotePairingInvalid
 }
 
 // The stock SideStore UI performs AppBootManager.performBootSequence()
@@ -68,8 +70,16 @@ private enum ScarletGuestRefreshDispatchError: Error {
 // recover ONLY from the pairing file SideStore already saved; never create
 // or replace pairing credentials, prompt in a background extension, or
 // disable the normal VPN/endpoint verification.
-private enum ScarletGuestDeviceTransport {
+// V44: keep the proven upstream SideStore signing/installation engine,
+// but select the *same RPPairing + RSD* transport used in the successful
+// iOS 27.2 SideInstaller installation. A saved lockdown record is not a
+// working LocalDevVPN transport on iOS 26.4+.
+enum ScarletGuestDeviceTransport {
     static func ensureReady() async throws -> Bool {
+        if #available(iOS 26.4, *) {
+            let rp = try await ensureRPPairingReady()
+            return rp.reconnected
+        }
         do {
             try await ensureMinimuxerReady()
             return false
@@ -77,12 +87,70 @@ private enum ScarletGuestDeviceTransport {
             guard let pairing = PairingFileManager.shared.fetchPairingFile() else {
                 throw ScarletGuestRefreshDispatchError.savedPairingUnavailable
             }
-            // Original SideStore backend and boot path, not a parallel
-            // custom USB/provisioning implementation.
             syncMinimuxerBackendFromUserDefaults()
             try await AppBootManager.shared.startMinimuxer(pairingFile: pairing)
             try await ensureMinimuxerReady()
             return true
+        }
+    }
+
+    // Returns whether an RSD transport was actually reconnected.
+    // No key, identifier, pairing contents or device name leaves this worker.
+    static func ensureRPPairingReady() async throws
+        -> (reconnected: Bool, route: String) {
+        let manager = PairingFileManager.shared
+        // SideInstaller writes the actual RP record into this original
+        // SideStore path; fetchPairingFile() can silently select legacy
+        // lockdown if an older preferredProtocol is persisted.
+        guard let rp = manager.fetchPairingFile(for: .rppairing),
+              !rp.isEmpty else {
+            throw ScarletGuestRefreshDispatchError.remotePairingMissing
+        }
+        let parsed = try manager.parse(content: rp, preferred: .rppairing)
+        guard parsed.mode == .rppairing else {
+            throw ScarletGuestRefreshDispatchError.remotePairingInvalid
+        }
+
+        // A prior successful Minimuxer 'ready' state can be a stale session.
+        // Force the real remote device request (not cached Keychain UDID).
+        if minimuxerPairingProtocol() == .rppairing {
+            do {
+                try await ensureMinimuxerReady()
+                _ = try await fetchUDID(forceLive: true)
+                return (false, "rppairing_rsd_live")
+            } catch {
+                // Idle tunnels are expected after Apple developer signing.
+                // Recover with the EXISTING RP identity; do not re-pair.
+            }
+        }
+
+        // This is the upstream iDevice gateway, not a new protocol library.
+        // Override the active in-memory backend for this connection only;
+        // don't overwrite user signing data, pairing files or Apple account.
+        selectedGatewayBackendCache = .idevice
+        minimuxer.set(MinimuxerParams(
+            backend: .idevice,
+            remotePairingPort: remotePairingPortCache,
+            deviceProbeTimeout: deviceProbeTimeoutCache
+        ))
+        try await minimuxerStart(rp, preferred: .rppairing)
+        try await ensureMinimuxerReady()
+        _ = try await fetchUDID(forceLive: true)
+        guard minimuxerPairingProtocol() == .rppairing else {
+            throw ScarletGuestRefreshDispatchError.remotePairingInvalid
+        }
+        return (true, "rppairing_rsd_reconnected")
+    }
+
+    // Called immediately before AFC/installation_proxy, AFTER upstream
+    // signing and provisioning. Re-establish a stale RSD tunnel, as the
+    // successful SideInstaller run did after finishing signing.
+    static func ensurePostSignInstallTransport() async throws {
+        if #available(iOS 26.4, *) {
+            _ = try await ensureRPPairingReady()
+        } else {
+            _ = try await ensureReady()
+            _ = try await fetchUDID(forceLive: true)
         }
     }
 }
@@ -97,6 +165,8 @@ extension ScarletGuestRefreshAgent {
             switch failure {
             case .noOperation: return "native_worker_creation_failed"
             case .savedPairingUnavailable: return "pairing_file_missing"
+            case .remotePairingMissing: return "rppairing_file_missing"
+            case .remotePairingInvalid: return "rppairing_record_invalid"
             }
         }
         if let original = error as? OperationError {
@@ -265,7 +335,13 @@ extension ScarletGuestRefreshAgent {
     ) {
         Task {
             let pairing = PairingFileManager.shared
-            guard let saved = pairing.fetchPairingFile(), !saved.isEmpty else {
+            let saved: String?
+            if #available(iOS 26.4, *) {
+                saved = pairing.fetchPairingFile(for: .rppairing)
+            } else {
+                saved = pairing.fetchPairingFile()
+            }
+            guard let saved, !saved.isEmpty else {
                 reply(false, "pairing_file_missing")
                 return
             }

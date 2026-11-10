@@ -379,6 +379,11 @@ def patch_sidestore(engine: Path) -> None:
     # DEFAULT Anisette, even after successful Mac-server auth. That can
     # recreate Apple -80045 on the next launch or signing operation. Keep
     # the original token/team database and change only this Anisette source.
+    # Scarlet's injected RPPairing route calls the public Minimuxer types.
+    # The original AuthManager file imported only SideSign/CoreData.
+    source = replace_one(source, "import CoreData\n",
+                         "import CoreData\nimport Minimuxer\nimport MinimuxerCommon\n",
+                         "V44 native RPPairing import")
     original = "            let anisetteData = try await AnisetteProvider.fetch()"
     assert source.count(original) == 1, "Pinned SideStore token restoration changed"
     source = source.replace(original,
@@ -391,6 +396,33 @@ def patch_sidestore(engine: Path) -> None:
     refresh_agent = (ROOT / "rebuild/integration/ScarletGuestRefreshAgent.swift.txt").read_text()
     target.write_text(source.rstrip() + "\n\n" + extra + "\n\n" +
                       installer + "\n\n" + cert_agent + "\n\n" + refresh_agent)
+    # V44 surgical patch: SideInstaller proved RPPairing was REOPENED after
+    # signing, immediately before AFC/installation_proxy on iOS 27.2.
+    # The unmodified upstream SideStore install worker lacked that boundary.
+    # Keep the original AppManager, Apple signing, provisioning, AFC and
+    # installation_proxy implementation and its error propagation intact.
+    install_operation = (
+        engine / "SideStore/Core/Operations/PipelineOperations/InstallAppOperation.swift"
+    )
+    io = install_operation.read_text()
+    anchor = """        // Phase 2: App installation
+        if UserDefaults.standard.preferResignedIPA {"""
+    replacement = """        // Phase 2: App installation
+        // Scarlet V44: refresh the proven RP/RSD link AFTER signing and
+        // BEFORE AFC, even if Apple's developer call idled the old tunnel.
+        // The original SideStore pipeline performs the actual installation.
+        ScarletDeviceInstallAgent.mark("post_sign_transport_check")
+        if #available(iOS 26.4, *) {
+            try await ScarletGuestDeviceTransport.ensurePostSignInstallTransport()
+        }
+        ScarletDeviceInstallAgent.mark("afc_install_dispatched")
+        if UserDefaults.standard.preferResignedIPA {"""
+    io = replace_one(io, anchor, replacement, "V44 post-sign RPPairing recheck")
+    io = replace_one(io, "        self.setProgress(90)",
+        '        ScarletDeviceInstallAgent.mark("install_pipeline_returned")\n'
+        "        self.setProgress(90)", "V44 native install returned")
+    install_operation.write_text(io)
+    print("[PASS] SideStore original AFC/install proxy now rechecks live RSD after signing")
     print("[PASS] Native SideStore managed-app/host-identity refresh inspector staged")
     print("[PASS] SideStore authenticated certificate worker staged")
     print("[PASS] SideStore SideSign auth + headless installer workers staged")

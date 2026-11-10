@@ -20,7 +20,7 @@ class V43Installer(unittest.TestCase):
         self.assertIn('teamState == "ready" || teamState == "team_restored"',AGENT)
         self.assertIn('notify(teamState == "sidestore_team_mismatch"',AGENT)
         self.assertIn('ScarletGuestDeviceTransport.ensureReady()',AGENT)
-        self.assertIn('private enum ScarletGuestDeviceTransport',REFRESH)
+        self.assertIn('enum ScarletGuestDeviceTransport',REFRESH)
         self.assertIn('AppBootManager.shared.startMinimuxer(pairingFile: pairing)',REFRESH)
         self.assertNotIn('revokeCertificate(',AGENT)
         self.assertNotIn('requestCertificate(',AGENT)

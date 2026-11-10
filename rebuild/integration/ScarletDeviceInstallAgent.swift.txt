@@ -7,6 +7,19 @@
 final class ScarletDeviceInstallAgent: NSObject {
     private static let groupID = "group.com.SideStore.SideStore.P8EZT3U5N4"
     private static let directory = "ScarletDeviceInstall"
+    private static let stageKey = "Scarlet.Install.LastStage.V44"
+    // The host can read only these generic stages from its SAME signed group.
+    // Never include pairing bytes, credentials, filenames or device IDs.
+    @objc static func mark(_ stage: String) {
+        let allowed: Set<String> = [
+            "request_received", "ipa_staged", "certificate_loaded",
+            "team_verified", "rppairing_rsd_checked", "appmanager_processing",
+            "post_sign_transport_check", "afc_install_dispatched",
+            "install_pipeline_returned", "appmanager_callback_returned"
+        ]
+        guard allowed.contains(stage) else { return }
+        UserDefaults(suiteName: groupID)?.set(stage, forKey: stageKey)
+    }
 
     @objc(install:)
     static func install(_ payload: NSDictionary) {
@@ -20,6 +33,7 @@ final class ScarletDeviceInstallAgent: NSObject {
             return
         }
         Task {
+            mark("request_received")
             do {
                 // The host and SideStore LiveProcess must possess the same
                 // Apple-authorized group. The staged file stays in its own
@@ -43,6 +57,7 @@ final class ScarletDeviceInstallAgent: NSObject {
                     notify("staged_ipa_missing")
                     return
                 }
+                mark("ipa_staged")
                 // Free Personal Teams should reuse their EXISTING valid
                 // certificate. Never silently revoke/replace it just to
                 // satisfy an installation request from Scarlet.
@@ -50,6 +65,7 @@ final class ScarletDeviceInstallAgent: NSObject {
                     notify("certificate_missing")
                     return
                 }
+                mark("certificate_loaded")
                 // Refresh and install share the same original SideStore
                 // identity/Minimuxer prerequisites. The old installer skipped
                 // both of these and then collapsed the AppManager error to
@@ -61,12 +77,15 @@ final class ScarletDeviceInstallAgent: NSObject {
                            ? "team_mismatch" : "team_unavailable")
                     return
                 }
+                mark("team_verified")
                 do {
                     _ = try await ScarletGuestDeviceTransport.ensureReady()
                 } catch {
                     notify(safeFailureReason(error, phase: "transport"))
                     return
                 }
+                mark("rppairing_rsd_checked")
+                mark("appmanager_processing")
                 do {
                     _ = try await withCheckedThrowingContinuation {
                         (continuation: CheckedContinuation<InstalledApp, Error>) in
@@ -76,6 +95,7 @@ final class ScarletDeviceInstallAgent: NSObject {
                     }
                     // AppManager's callback is NOT an iOS SpringBoard
                     // installed-version readback. Record request return only.
+                    mark("appmanager_callback_returned")
                     notify("installed")
                 } catch {
                     notify(safeFailureReason(error, phase: "appmanager"))
@@ -90,6 +110,14 @@ final class ScarletDeviceInstallAgent: NSObject {
     // (which may contain an Apple ID, server text or IPA filename).
     // Upstream OperationError is already used by the native refresh worker.
     private static func safeFailureReason(_ error: Error, phase: String) -> String {
+        if let pairingFailure = error as? ScarletGuestRefreshDispatchError {
+            switch pairingFailure {
+            case .remotePairingMissing: return "rppairing_file_missing"
+            case .remotePairingInvalid: return "rppairing_record_invalid"
+            case .savedPairingUnavailable: return "pairing_file_missing"
+            case .noOperation: return "native_worker_creation_failed"
+            }
+        }
         if let typed = error as? OperationError {
             switch typed {
             case .notAuthenticated: return "auth_unavailable"
