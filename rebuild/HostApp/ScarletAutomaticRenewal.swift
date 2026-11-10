@@ -49,6 +49,24 @@ enum ScarletRefreshFailureDiagnosis {
             return "내장 SideStore LiveProcess에 갱신 확인 작업자가 연결되지 않았습니다."
         case "transport_unavailable", "transport_unresponsive":
             return "내장 SideStore LiveProcess의 XPC 연결을 확인하지 못했습니다."
+        case "already_running":
+            return "다른 SideStore 갱신 작업이 실행 중입니다."
+        case "vpn_unavailable":
+            return "갱신 중 SideStore가 필요한 VPN 또는 WireGuard 연결을 사용할 수 없습니다."
+        case "anisette_unavailable":
+            return "SideStore 갱신 중 Anisette 인증 정보 수신이 실패했습니다."
+        case "server_unavailable":
+            return "SideStore 설치 서버에 연결하지 못했습니다."
+        case "signing_failed":
+            return "SideStore의 서명 작업이 실패했습니다. 인증서 및 권한 상태를 확인해야 합니다."
+        case "profile_refresh_failed":
+            return "Apple 프로비저닝 프로파일 갱신 작업이 실패했습니다."
+        case "installation_failed":
+            return "서명 후 iPhone 앱 설치 단계가 실패했습니다."
+        case "sidestore_native_operation_failed":
+            return "SideStore 원본 AppManager 갱신 작업이 실패했습니다. 갱신 결과 로그를 확인하세요."
+        case "worker_unresponsive":
+            return "SideStore의 갱신 작업자에서 종료 응답을 받지 못했습니다."
         default:
             return "내장 SideStore의 관리 앱·인증서 상태를 확인하지 못했습니다."
         }
@@ -232,14 +250,19 @@ final class ScarletAutomaticRenewal {
         do {
             // Calls the pinned SideStore native signing+installation workflow.
             // This may return with no registered apps. Do not claim success.
-            _ = try await RefreshAllAppsIntent().perform()
+            let receipt = try await ScarletNativeRefreshExecutor.execute()
             prefs.set("요청 반환 · 설치 상태 미검증", forKey: outcomeKey)
+            ScarletDiagnosticRecorder.shared.record(
+                "refresh", "automatic_native_worker_returned",
+                fields: ["reason": receipt,
+                         "installation_verified": "false"])
             ScarletDiagnosticRecorder.shared.record(
                 "refresh", "automatic_intent_returned",
                 fields: ["installation_verified": "false"])
             return true
         } catch {
-            let reason = ScarletRefreshFailureDiagnosis.category(error)
+            let reason = (error as? ScarletNativeRefreshFailure)?.reason ??
+                ScarletRefreshFailureDiagnosis.category(error)
             prefs.set("실패 · SideStore 갱신 오류", forKey: outcomeKey)
             prefs.set(reason, forKey: failureReasonKey)
             ScarletDiagnosticRecorder.shared.recordError(
