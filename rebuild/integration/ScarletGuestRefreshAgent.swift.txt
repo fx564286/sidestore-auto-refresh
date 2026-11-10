@@ -99,7 +99,9 @@ extension ScarletGuestRefreshAgent {
                     InstalledApp.fetchAppsForRefreshingAll(in: context)
                 }
                 let signedHostID = Bundle.Info.activeBundleIdentifier
-                guard targets.contains(where: { $0.resignedBundleIdentifier == signedHostID }) else {
+                guard let managedHost = targets.first(where: {
+                    $0.resignedBundleIdentifier == signedHostID
+                }) else {
                     reply(false, targets.isEmpty ? "no_managed_apps" : "host_not_managed")
                     return
                 }
@@ -127,6 +129,13 @@ extension ScarletGuestRefreshAgent {
                         reply(false, safeFailureReason(error))
                         return
                     }
+                }
+                // Original SideStore skips apps it sees as running. A
+                // completed operation may contain results for other apps,
+                // or no results at all. Never call that a Scarlet refresh.
+                guard case .success = results[managedHost.bundleIdentifier] else {
+                    reply(false, "host_not_in_refresh_results")
+                    return
                 }
                 // An operation returning successfully does not attest to
                 // an iOS SpringBoard replacement or a newer mobileprovision.
