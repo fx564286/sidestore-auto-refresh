@@ -133,7 +133,7 @@ extension ScarletGuestRefreshAgent {
                 // Original SideStore skips apps it sees as running. A
                 // completed operation may contain results for other apps,
                 // or no results at all. Never call that a Scarlet refresh.
-                guard case .success = results[managedHost.bundleIdentifier] else {
+                guard results[managedHost.bundleIdentifier] != nil else {
                     reply(false, "host_not_in_refresh_results")
                     return
                 }
