@@ -475,7 +475,10 @@ struct ScarletIntegratedHostView: View {
                     ScarletDiagnosticRecorder.shared.record(
                         "guest", "legacy_fullscreen_launch_requested",
                         fields: ["reason": "original_fullscreen_only",
-                                 "virtual_window": "disabled"])
+                                 "virtual_window": "disabled",
+                                 "process_pid": String(
+                                     ProcessInfo.processInfo.processIdentifier),
+                                 "memory": "not_preserved"])
                 }
                 // runApp returning is NOT proof the guest scene is on-screen.
                 ScarletDiagnosticRecorder.shared.record("guest", "runapp_returned",

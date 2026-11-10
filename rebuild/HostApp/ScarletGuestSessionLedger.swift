@@ -137,7 +137,8 @@ enum ScarletGuestSessionLedger {
             fields: ["result": explicitlyReturned ? "verified_guest_return_continued"
                 : legitimateGuest ? "verified_guest_departure_continued"
                 : "cold_host_new_session",
-                     "count": String(recent().count)])
+                     "count": String(recent().count),
+                     "memory": "not_verified"])
     }
 
     // A living Scarlet host is the SAME work session. Time passing alone
@@ -171,7 +172,8 @@ enum ScarletGuestSessionLedger {
         "mount_window_not_ready", "mount_window_recovered",
         "runtime_current_resolved", "runtime_current_unresolved",
         "switch_target_boot_ack", "switch_target_boot_mismatch",
-        "glass_morph_opened", "glass_morph_closed"
+        "glass_morph_opened", "glass_morph_closed",
+        "runtime_guest_process_observed"
     ]
 
     struct SwitchTrace: Codable {
@@ -181,15 +183,19 @@ enum ScarletGuestSessionLedger {
         // Older V20 records have no timestamp. They must not be replayed
         // into a V38 "this launch only" diagnostic report.
         let createdAt: Date?
+        // Ephemeral PID only; never record app names, bundle IDs or device IDs.
+        let processPID: Int32?
     }
 
-    static func traceSwitcher(_ event: String, count: Int = 0) {
+    static func traceSwitcher(_ event: String, count: Int = 0,
+                              processPID: Int32? = nil) {
         guard switchTraceEvents.contains(event) else { return }
         let previous = (store.data(forKey: switchTraceKey))
             .flatMap { try? JSONDecoder().decode([SwitchTrace].self, from: $0) } ?? []
         let entry = SwitchTrace(id: UUID().uuidString, event: event,
                                 count: max(0, min(count, 8)),
-                                createdAt: Date())
+                                createdAt: Date(),
+                                processPID: processPID.flatMap { $0 > 0 ? $0 : nil })
         if let encoded = try? JSONEncoder().encode(
             Array((previous + [entry]).suffix(48))) {
             store.set(encoded, forKey: switchTraceKey)
@@ -237,9 +243,13 @@ enum ScarletGuestSessionLedger {
             for entry in entries[start...]
                 where switchTraceEvents.contains(entry.event) &&
                     (entry.createdAt.map { $0 >= currentProcessStart } ?? false) {
+                var fields = ["count": String(entry.count),
+                              "source": "guest_app_group"]
+                if let pid = entry.processPID, pid > 0 {
+                    fields["process_pid"] = String(pid)
+                }
                 ScarletDiagnosticRecorder.shared.record(
-                    "guest_switcher", entry.event,
-                    fields: ["count": String(entry.count), "source": "guest_app_group"])
+                    "guest_switcher", entry.event, fields: fields)
             }
         }
         if let newest = entries.last?.id {
@@ -278,7 +288,8 @@ enum ScarletGuestSessionLedger {
             return
         }
         let matched = pending.possibleBundleIDs.contains(runtimeGuestID)
-        traceSwitcher(matched ? "switch_target_boot_ack" : "switch_target_boot_mismatch")
+        traceSwitcher(matched ? "switch_target_boot_ack" : "switch_target_boot_mismatch",
+                      processPID: ProcessInfo.processInfo.processIdentifier)
         cancelSwitchHandoff()
     }
 
