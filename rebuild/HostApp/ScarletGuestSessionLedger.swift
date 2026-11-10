@@ -71,7 +71,8 @@ enum ScarletGuestSessionLedger {
         "provider_ready", "provider_missing",
         "mount_window_not_ready", "mount_window_recovered",
         "runtime_current_resolved", "runtime_current_unresolved",
-        "switch_target_boot_ack", "switch_target_boot_mismatch"
+        "switch_target_boot_ack", "switch_target_boot_mismatch",
+        "glass_morph_opened", "glass_morph_closed"
     ]
 
     struct SwitchTrace: Codable {
