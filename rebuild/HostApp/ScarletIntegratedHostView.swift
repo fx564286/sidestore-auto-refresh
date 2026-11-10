@@ -417,28 +417,77 @@ struct ScarletIntegratedHostView: View {
                         "guest", "session_history_pre_handoff",
                         fields: ["result": "persisted_before_bootstrap"])
                 }
-                // Native scene path, where genuinely supported, retains each
-                // guest's RAM without changing the guest UIWindow geometry.
-                // On devices lacking multi-scene support retain the original
-                // full-screen LC bootstrap; never force a resized virtual dock.
+                // iPhone supports LC's *virtual* LiveProcess windows even
+                // though UIKit's native supportsMultipleScenes is false.
+                // V33 checked only native scenes and always replaced the
+                // current guest process, destroying RAM continuity.
+                let virtualOnPhone = UIDevice.current.userInterfaceIdiom == .phone
+                let nativeScenesAvailable =
+                    UIApplication.shared.supportsMultipleScenes
+                let canUseLiveProcess = LCUtils.liveProcessBundleIdentifier() != nil
                 if #available(iOS 16.1, *),
-                   UIApplication.shared.supportsMultipleScenes,
-                   app.appInfo.defaultClassicMode == 0 {
-                    let previousMode = LCUtils.appGroupUserDefault.integer(
-                        forKey: "LCMultitaskMode")
-                    LCUtils.appGroupUserDefault.set(MultitaskMode.nativeWindow.rawValue,
-                                                    forKey: "LCMultitaskMode")
+                   app.appInfo.defaultClassicMode == 0,
+                   canUseLiveProcess,
+                   (virtualOnPhone || nativeScenesAvailable) {
+                    let prefs = LCUtils.appGroupUserDefault
+                    let previousMode = prefs.object(forKey: "LCMultitaskMode")
+                    let useVirtual = virtualOnPhone || !nativeScenesAvailable
+                    let mode: MultitaskMode =
+                        useVirtual ? .virtualWindow : .nativeWindow
+                    prefs.set(mode.rawValue, forKey: "LCMultitaskMode")
+                    // Keep the actual guest scene maximized, not a scaled
+                    // thumbnail. Minimizing another view does not terminate
+                    // its LiveProcess or wipe its app/container memory.
+                    let previousMaximize = UserDefaults.standard.object(
+                        forKey: "LCLaunchMultitaskMaximized")
+                    let previousOnlyOne = prefs.object(forKey: "LCMaxOneAppOnStage")
+                    if useVirtual {
+                        UserDefaults.standard.set(true,
+                            forKey: "LCLaunchMultitaskMaximized")
+                        prefs.set(true, forKey: "LCMaxOneAppOnStage")
+                    }
                     do {
                         try await app.runApp(multitask: true)
                     } catch {
-                        LCUtils.appGroupUserDefault.set(previousMode,
-                                                        forKey: "LCMultitaskMode")
+                        if let previousMode {
+                            prefs.set(previousMode, forKey: "LCMultitaskMode")
+                        } else {
+                            prefs.removeObject(forKey: "LCMultitaskMode")
+                        }
+                        if let previousMaximize {
+                            UserDefaults.standard.set(previousMaximize,
+                                forKey: "LCLaunchMultitaskMaximized")
+                        } else {
+                            UserDefaults.standard.removeObject(
+                                forKey: "LCLaunchMultitaskMaximized")
+                        }
+                        if let previousOnlyOne {
+                            prefs.set(previousOnlyOne, forKey: "LCMaxOneAppOnStage")
+                        } else {
+                            prefs.removeObject(forKey: "LCMaxOneAppOnStage")
+                        }
                         ScarletGuestSessionLedger.restore(historyBeforeLaunch)
                         throw error
                     }
-                    ScarletDiagnosticRecorder.shared.record(
-                        "guest", "native_multiscene_launch_requested",
-                        fields: ["result": "native_window"])
+                    if useVirtual {
+                        let container = app.uiSelectedContainer?.folderName
+                        let resident = container.map {
+                            MultitaskManager.isUsing(container: $0)
+                        } ?? false
+                        if resident, let container {
+                            ScarletGuestLiveBridge.noteLiveContainer(container)
+                        }
+                        ScarletDiagnosticRecorder.shared.record(
+                            "guest", resident ? "virtual_guest_resident" :
+                                             "virtual_guest_unverified",
+                            status: resident ? "success" : "warning",
+                            fields: ["result": resident ? "liveprocess_registered" :
+                                                       "liveprocess_not_confirmed"])
+                    } else {
+                        ScarletDiagnosticRecorder.shared.record(
+                            "guest", "native_multiscene_launch_requested",
+                            fields: ["result": "native_window"])
+                    }
                 } else {
                     do {
                         try await app.runApp()
@@ -957,6 +1006,7 @@ struct ScarletIntegratedHostView: View {
             // session. A guest->Scarlet app-list return carries a short
             // one-use continuation ticket, so A->host->B still shows A,B.
             ScarletGuestSessionLedger.prepareForHostAppearance()
+            ScarletGuestLiveBridge.installHostReceiver()
             // Guest apps virtualize Application Support. Collect the previous
             // guest's anonymous switcher trace before showing host diagnostics.
             ScarletGuestSessionLedger.replaySwitcherTraceToHostJournal()
