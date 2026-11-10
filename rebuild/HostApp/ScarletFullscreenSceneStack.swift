@@ -32,6 +32,28 @@ final class ScarletFullscreenSceneStack: NSObject, ObservableObject,
     private var installedModels: [String: LCAppModel] = [:]
     private var pendingInPlaceLaunch = false
 
+    // An embedded LiveProcess and the original LC full-screen bootstrap
+    // must not both own this host process at the same time. Disallow toggles
+    // until all resident guest processes have exited and been released.
+    var hasResidentSession: Bool {
+        !slots.isEmpty || pendingInPlaceLaunch
+    }
+
+    var hasLiveResidentProcess: Bool {
+        slots.contains { slot in
+            slot.pid > 0 && viewport?.isAlive(folder: slot.id) == true
+        }
+    }
+
+    func livePID(folder: String) -> Int32? {
+        guard slots.contains(where: { $0.id == folder }) else { return nil }
+        return viewport?.activePID(folder: folder)
+    }
+
+    func containsResidentGuest(folder: String) -> Bool {
+        slots.contains { $0.id == folder }
+    }
+
     func updateInstalledModels(_ apps: [LCAppModel]) {
         var indexed: [String: LCAppModel] = [:]
         for app in apps {
@@ -58,10 +80,27 @@ final class ScarletFullscreenSceneStack: NSObject, ObservableObject,
                           userInfo: [NSLocalizedDescriptionKey: "게스트 데이터 컨테이너가 준비되지 않았습니다."])
         }
         if let previous = slots.first(where: { $0.id == folder && $0.dataUUID == uuid }),
-           previous.pid > 0,
-           viewport?.isAlive(folder: folder) == true {
+           let confirmedPID = viewport?.activePID(folder: folder),
+           confirmedPID > 0 {
+            if let index = slots.firstIndex(where: { $0.id == folder }) {
+                slots[index].pid = confirmedPID
+                slots[index].failed = false
+            }
             _ = activate(folder: folder)
             return
+        }
+        // This is the same installed guest, but its remote LiveProcess is
+        // already dead. The previous controller's key must be released or
+        // reconcile() will silently skip the user's next launch request.
+        if slots.contains(where: { $0.id == folder }) {
+            guard viewport?.releaseExitedController(folder: folder) != false else {
+                throw NSError(domain: "scarlet.fullscreen", code: 3,
+                              userInfo: [NSLocalizedDescriptionKey:
+                                  "기존 게스트가 실행 중입니다. 기존 장면 전환을 확인하세요."])
+            }
+            ScarletDiagnosticRecorder.shared.record(
+                "guest", "fullscreen_scene_dead_controller_cleared",
+                fields: ["result": "stale_dead_scene_only"])
         }
         let icon = UIImage(contentsOfFile:
             (app.appInfo.bundlePath() ?? "") + "/LCAppIconLight.png")
@@ -134,12 +173,15 @@ final class ScarletFullscreenSceneStack: NSObject, ObservableObject,
         var targets = slots.map { slot in
             let live = slot.pid > 0 &&
                        (viewport?.isAlive(folder: slot.id) ?? false)
+            let canRestart = !live && installedModels[slot.id].map {
+                eligibleForInPlaceLaunch($0)
+            } == true
             return ScarletGuestSwitchTarget(
                 id: slot.id, title: slot.title,
                 bundleID: slot.bundleID, containerID: slot.dataUUID,
                 classicMode: 0, isCurrent: activeID == slot.id,
                 canSwitch: live && activeID != slot.id,
-                canRelaunch: false, isShared: false,
+                canRelaunch: canRestart, isShared: false,
                 icon: slot.icon,
                 reason: live ? nil : "process_not_live")
         }
@@ -178,7 +220,8 @@ final class ScarletFullscreenSceneStack: NSObject, ObservableObject,
             return reused
         }
         guard target.canRelaunch, !pendingInPlaceLaunch,
-              !slots.contains(where: { $0.id == target.id }),
+              !slots.contains(where: { $0.id == target.id && $0.pid > 0 &&
+                viewport?.isAlive(folder: $0.id) == true }),
               let model = installedModels[target.id],
               eligibleForInPlaceLaunch(model) else { return false }
         pendingInPlaceLaunch = true
@@ -305,16 +348,25 @@ final class ScarletFullscreenSceneStack: NSObject, ObservableObject,
 
     // Objective-C delegate callbacks from the ORIGINAL AppSceneViewController.
     func appSceneVCAppDidExit(_ vc: AppSceneViewController!) {
-        guard let vc else { return }
+        guard let vc, viewport?.ownsController(vc, folder: vc.bundleId) == true
+        else { return }
+        let wasActive = activeID == vc.bundleId
         if let index = slots.firstIndex(where: {
             $0.id == vc.bundleId && $0.dataUUID == vc.dataUUID
         }) {
-            slots[index].pid = 0
+            slots.remove(at: index)
         }
+        // Removing a dead remote controller is NOT killing a live guest.
+        // Drop only the exact exited instance, never a sibling or replacement.
+        let released = viewport?.releaseExitedController(folder: vc.bundleId) == true
         ScarletDiagnosticRecorder.shared.record(
             "guest", "fullscreen_scene_process_exited",
-            fields: ["memory": "not_preserved"])
-        if activeID == vc.bundleId { goHome() }
+            fields: ["memory": "not_preserved",
+                     "dead_controller_released": released ? "true" : "false"])
+        if wasActive {
+            activeID = nil
+            goHome()
+        }
     }
 
     func appSceneVC(_ vc: AppSceneViewController!,
@@ -443,9 +495,31 @@ final class ScarletFullscreenSceneViewport: UIViewController {
         controllers[folder]?.isAppRunning == true
     }
 
+    func activePID(folder: String) -> Int32? {
+        guard let owned = controllers[folder], owned.isAppRunning,
+              owned.pid > 0 else { return nil }
+        return owned.pid
+    }
+
+    func ownsController(_ controller: AppSceneViewController, folder: String) -> Bool {
+        controllers[folder] === controller
+    }
+
+    @discardableResult
+    func releaseExitedController(folder: String) -> Bool {
+        guard let old = controllers[folder] else { return true }
+        guard !old.isAppRunning else { return false }
+        old.willMove(toParent: nil)
+        old.view.removeFromSuperview()
+        old.removeFromParent()
+        controllers.removeValue(forKey: folder)
+        return true
+    }
+
     func select(folder: String) -> Bool {
         guard let target = controllers[folder],
-              target.isAppRunning else { return false }
+              target.isAppRunning,
+              target.contentView?.superview != nil else { return false }
         for (key, vc) in controllers {
             // A hidden scene stays ATTACHED and its NSExtension request
             // continues. No app process kills or UIKit view detachment.
@@ -492,7 +566,8 @@ final class ScarletFullscreenSceneViewport: UIViewController {
             vc.didMove(toParent: self)
             controllers[slot.id] = vc
         }
-        if let active = stack.activeID {
+        if let active = stack.activeID,
+           stack.slots.contains(where: { $0.id == active && $0.pid > 0 }) {
             _ = select(folder: active)
         }
     }
