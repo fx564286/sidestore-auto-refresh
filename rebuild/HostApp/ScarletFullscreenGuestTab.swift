@@ -467,6 +467,8 @@ final class ScarletFullscreenGuestTabInstaller: NSObject {
     private static var dragHandler: ScarletGuestScreenPan?
     private static var rotationObserver: NSObjectProtocol?
     private static var foregroundObserver: NSObjectProtocol?
+    private static var guestDepartureObserver: NSObjectProtocol?
+    private static var activeGuestFolder: String?
     private static var rotationGeneration = 0
     private static var lastStableSceneSize: CGSize?
     private static var rotationWatchTask: Task<Void, Never>?
@@ -784,9 +786,11 @@ final class ScarletFullscreenGuestTabInstaller: NSObject {
                 let isCurrent = hasRuntimeIdentity
                     ? matchesRuntime
                     : (folder == selected || bundleID == selected)
-                let activeScene = containerExists.map {
-                    activeSceneIDs.contains($0) && MultitaskManager.isUsing(container: $0)
-                } ?? false
+                let activeScene = UIDevice.current.userInterfaceIdiom == .pad &&
+                    (containerExists.map {
+                        activeSceneIDs.contains($0) &&
+                            MultitaskManager.isUsing(container: $0)
+                    } ?? false)
                 guard isCurrent || activeScene || recentFolders.contains(folder) else {
                     continue
                 }
@@ -945,6 +949,15 @@ final class ScarletFullscreenGuestTabInstaller: NSObject {
             }
             return
         }
+        let runtimeGuestID = rawName as String
+        let currentGuest = installedApps(guestIdentifier: runtimeGuestID)
+            .first(where: { $0.isCurrent })
+        if let currentGuest, activeGuestFolder != currentGuest.id {
+            activeGuestFolder = currentGuest.id
+            ScarletGuestSessionLedger.noteLaunch(
+                folder: currentGuest.id, title: currentGuest.title,
+                dataUUID: currentGuest.containerID)
+        }
         if let floatingWindow, floatingWindow.windowScene === scene,
            !floatingWindow.isHidden {
             guestWindow = original
@@ -965,7 +978,6 @@ final class ScarletFullscreenGuestTabInstaller: NSObject {
         dragStartScreen = nil
         dragHandler = nil
 
-        let runtimeGuestID = rawName as String
         ScarletGuestSessionLedger.confirmSwitchHandoff(runtimeGuestID: runtimeGuestID)
         let content = ScarletFullscreenGuestFloatingTab(
             guestTitle: "현재 실행 중인 앱",
@@ -1019,6 +1031,16 @@ final class ScarletFullscreenGuestTabInstaller: NSObject {
                 object: nil, queue: .main) { _ in
                 Task { @MainActor in
                     settleOverlayAfterRotation()
+                }
+            }
+        }
+        if guestDepartureObserver == nil {
+            guestDepartureObserver = NotificationCenter.default.addObserver(
+                forName: UIApplication.willResignActiveNotification,
+                object: nil, queue: .main) { _ in
+                Task { @MainActor in
+                    guard let id = activeGuestFolder else { return }
+                    ScarletGuestSessionLedger.noteGuestDeparted(folder: id)
                 }
             }
         }

@@ -17,7 +17,7 @@ NATIVE = (ROOT / "HostApp/ScarletGuestSwitcherOverlay.swift").read_text()
 
 class V19SessionSwitcher(unittest.TestCase):
     def test_old_installed_and_lifetime_history_is_not_loaded(self):
-        self.assertIn('private static let key = "Scarlet.Guest.ActiveSwitcherSession.V23"', LEDGER)
+        self.assertIn('private static let key = "Scarlet.Guest.ActiveSwitcherSession.V37"', LEDGER)
         self.assertIn('Legacy key: Scarlet.Guest.ActiveSwitcherSession.V19', LEDGER)
         self.assertNotIn('store.data(forKey: "Scarlet.Guest.ActiveSwitcherSession.V19")', LEDGER)
         self.assertIn('Legacy key: Scarlet.Guest.RecentSessions.V14', LEDGER)
@@ -25,7 +25,7 @@ class V19SessionSwitcher(unittest.TestCase):
         self.assertIn('private static let maxItems = 8', LEDGER)
         self.assertNotIn('inactivityTimeout:', LEDGER)
         self.assertIn('static func prepareForHostAppearance()', LEDGER)
-        self.assertIn('Scarlet.Guest.HostReturnTicket.V23', LEDGER)
+        self.assertIn('Scarlet.Guest.HostReturnTicket.V37', LEDGER)
         self.assertIn('isContinuation', LEDGER)
         self.assertIn('return Array(raw.filter {', LEDGER)
 

@@ -73,7 +73,7 @@ class NativeDeviceTransportRecovery(unittest.TestCase):
         self.assertIn('glass_morph_opened',GLASS)
         self.assertIn('glass_morph_closed',GLASS)
         self.assertIn('switch_target_boot_ack',LEDGER)
-        self.assertIn('private static let key = "Scarlet.Guest.ActiveSwitcherSession.V23"',LEDGER)
+        self.assertIn('private static let key = "Scarlet.Guest.ActiveSwitcherSession.V37"',LEDGER)
 
 if __name__=="__main__":
     unittest.main()

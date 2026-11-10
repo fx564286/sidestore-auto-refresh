@@ -89,7 +89,7 @@ class V24RegistrationGate(unittest.TestCase):
         self.assertIn('let bundleID: String?',GUEST)
         self.assertIn('SCNativeLiquidGlassSurface(cornerRadius: radius, showsRim: false)',GUEST)
         self.assertNotIn('Color(uiColor: .systemBackground).opacity(0.88)',GUEST)
-        self.assertIn('Scarlet.Guest.ActiveSwitcherSession.V23',LEDGER)
+        self.assertIn('Scarlet.Guest.ActiveSwitcherSession.V37',LEDGER)
 
 if __name__=="__main__":
     unittest.main()

@@ -2,6 +2,7 @@
 // iOS BGAppRefreshTask. Scheduling is best effort under Apple's execution
 // policy; the result is NOT proof of a newly installed provisioning profile.
 import Foundation
+import CryptoKit
 import BackgroundTasks
 import SideStoreSupport
 
@@ -293,6 +294,7 @@ final class ScarletAutomaticRenewal {
             return false
         }
         prefs.set(Date(), forKey: attemptKey)
+        ScarletInstalledProfileReadback.beginRequest(source: "automatic")
         do {
             // Calls the pinned SideStore native signing+installation workflow.
             // This may return with no registered apps. Do not claim success.
@@ -312,6 +314,7 @@ final class ScarletAutomaticRenewal {
                 fields: ["installation_verified": "false"])
             return true
         } catch {
+            ScarletInstalledProfileReadback.discardFailedRequest()
             let reason = (error as? ScarletNativeRefreshFailure)?.reason ??
                 ScarletRefreshFailureDiagnosis.category(error)
             prefs.set("실패 · SideStore 갱신 오류", forKey: outcomeKey)
@@ -322,6 +325,87 @@ final class ScarletAutomaticRenewal {
                 "refresh", "automatic_failure_categorized",
                 status: "error", fields: ["reason": reason])
             return false
+        }
+    }
+}
+
+// V37: installed iOS bundle readback, not SideStore DB metadata.
+// A changed embedded.mobileprovision SHA proves the installed *host bundle*
+// contains a different profile after a new process launch. It does NOT
+// prove refresh of every managed app, or a change of certificate/team.
+@available(iOS 17.0, *)
+@MainActor
+enum ScarletInstalledProfileReadback {
+    private static let beforeKey = "Scarlet.Refresh.PreviousInstalledProfileSHA.V37"
+    private static let ownerKey = "Scarlet.Refresh.ProfileRequestProcess.V37"
+    private static let sourceKey = "Scarlet.Refresh.ProfileRequestSource.V37"
+    private static let requestTimeKey = "Scarlet.Refresh.ProfileRequestDate.V37"
+    private static let processMarker = UUID().uuidString
+
+    private static func installedDigest() -> String? {
+        let profile = Bundle.main.bundleURL.appendingPathComponent(
+            "embedded.mobileprovision", isDirectory: false)
+        guard let data = try? Data(contentsOf: profile),
+              !data.isEmpty else { return nil }
+        return SHA256.hash(data: data)
+            .map { String(format: "%02x", $0) }.joined()
+    }
+
+    static func beginRequest(source: String) {
+        guard let digest = installedDigest() else {
+            ScarletDiagnosticRecorder.shared.record(
+                "refresh", "installed_profile_readback_unavailable",
+                status: "warning", fields: ["reason": "profile_not_readable"])
+            return
+        }
+        let prefs = UserDefaults.standard
+        prefs.set(digest, forKey: beforeKey)
+        prefs.set(processMarker, forKey: ownerKey)
+        prefs.set(source, forKey: sourceKey)
+        prefs.set(Date(), forKey: requestTimeKey)
+        ScarletDiagnosticRecorder.shared.record(
+            "refresh", "installed_profile_before_request",
+            fields: ["reason": "baseline_captured", "source": source])
+    }
+
+    static func discardFailedRequest() {
+        let prefs = UserDefaults.standard
+        guard prefs.string(forKey: ownerKey) == processMarker else { return }
+        for key in [beforeKey, ownerKey, sourceKey, requestTimeKey] {
+            prefs.removeObject(forKey: key)
+        }
+    }
+
+    static func verifyNewProcess() {
+        let prefs = UserDefaults.standard
+        guard let before = prefs.string(forKey: beforeKey),
+              let owner = prefs.string(forKey: ownerKey),
+              owner != processMarker else { return }
+        guard let after = installedDigest() else {
+            ScarletDiagnosticRecorder.shared.record(
+                "refresh", "installed_profile_readback_unavailable",
+                status: "warning", fields: ["reason": "profile_not_readable"])
+            return
+        }
+        if after != before {
+            prefs.set("앱 프로파일 변경 확인",
+                      forKey: "Scarlet.Refresh.LastAttemptOutcome")
+            ScarletDiagnosticRecorder.shared.record(
+                "refresh", "installed_profile_changed_after_request",
+                status: "success",
+                fields: ["result": "installed_host_profile_changed",
+                         "installation_verified": "false"])
+            for key in [beforeKey, ownerKey, sourceKey, requestTimeKey] {
+                prefs.removeObject(forKey: key)
+            }
+        } else {
+            // Same profile bytes do not prove an installation failure:
+            // the native worker may have reused the original profile.
+            ScarletDiagnosticRecorder.shared.record(
+                "refresh", "installed_profile_unchanged_after_request",
+                status: "warning",
+                fields: ["reason": "still_unverified",
+                         "installation_verified": "false"])
         }
     }
 }

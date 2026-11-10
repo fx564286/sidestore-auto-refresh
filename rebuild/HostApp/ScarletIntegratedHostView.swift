@@ -965,6 +965,7 @@ struct ScarletIntegratedHostView: View {
             // session. A guest->Scarlet app-list return carries a short
             // one-use continuation ticket, so A->host->B still shows A,B.
             ScarletGuestSessionLedger.prepareForHostAppearance()
+            ScarletInstalledProfileReadback.verifyNewProcess()
             // Disable the V34 maximized virtual-window experiment on iPhone.
             // Only presentation preferences are touched; never guest data,
             // certificates, pairing or installed application bundles.

@@ -212,6 +212,7 @@ struct ScarletSigningReadinessPanel: View {
                     forKey: "Scarlet.Refresh.LastFailureReason")
                 return
             }
+            ScarletInstalledProfileReadback.beginRequest(source: "manual")
             do {
                 // Native upstream action; do not navigate to the guest SideStore.
                 // It can refresh registered apps, but must not be taken as proof
@@ -240,6 +241,7 @@ struct ScarletSigningReadinessPanel: View {
                     status: "info", fields: ["installation_verified": "false"])
                 inspect()
             } catch {
+                ScarletInstalledProfileReadback.discardFailedRequest()
                 let failure = (error as? ScarletNativeRefreshFailure)?.reason ??
                     ScarletRefreshFailureDiagnosis.category(error)
                 statusMessage = error is ScarletNativeRefreshFailure
