@@ -793,6 +793,7 @@ def main():
         root/"rebuild/HostApp/ScarletNativeGlass.swift":"ScarletNativeGlass.swift",
         root/"rebuild/HostApp/ScarletFeatureModulesSection.swift":"ScarletFeatureModulesSection.swift",
         root/"rebuild/HostApp/ScarletAutomaticRenewal.swift":"ScarletAutomaticRenewal.swift",
+        root/"rebuild/HostApp/ScarletNativeDevicePairing.swift":"ScarletNativeDevicePairing.swift",
         root/"rebuild/HostApp/ScarletSigningReadinessPanel.swift":"ScarletSigningReadinessPanel.swift",
         root/"rebuild/HostApp/ScarletGuestSwitcherOverlay.swift":"ScarletGuestSwitcherOverlay.swift",
         root/"rebuild/HostApp/ScarletFullscreenGuestTab.swift":"ScarletFullscreenGuestTab.swift",
@@ -816,6 +817,9 @@ def main():
     delegate=delegate.replace(launch,launch+
         "        if #available(iOS 17.0, *) {\n"+
         "            ScarletAutomaticRenewal.shared.registerAtLaunch()\n"+
+        "        }\n"+
+        "        if #available(iOS 27.0, *) {\n"+
+        "            ScarletDevicePairingModel.shared.registerAtLaunch()\n"+
         "        }\n",1)
     delegate_file.write_text(delegate)
     # Keep every original Info.plist entry; grant only our BG task identifier.
@@ -825,7 +829,16 @@ def main():
     identifiers=list(info.get("BGTaskSchedulerPermittedIdentifiers",[]))
     identifier="com.kdt.livecontainer.P8EZT3U5N4.refresh"
     if identifier not in identifiers: identifiers.append(identifier)
+    pairingTaskID="com.kdt.livecontainer.P8EZT3U5N4.pairing"
+    if pairingTaskID not in identifiers: identifiers.append(pairingTaskID)
     info["BGTaskSchedulerPermittedIdentifiers"]=identifiers
+    info["NSLocalNetworkUsageDescription"]=(
+        "Scarlet Crystal은 iOS 27에서 기기 페어링을 생성하고 "
+        "내장 SideStore의 갱신 연결을 검증하기 위해 로컬 네트워크를 사용합니다.")
+    bonjour=list(info.get("NSBonjourServices",[]))
+    service="_remotepairing-pairable-host._tcp"
+    if service not in bonjour: bonjour.append(service)
+    info["NSBonjourServices"]=bonjour
     assert "fetch" in info.get("UIBackgroundModes",[])
     with info_file.open("wb") as handle: plistlib.dump(info,handle)
     recorder = out / "ScarletDiagnosticRecorder.swift"
