@@ -19,7 +19,7 @@ class V14(unittest.TestCase):
         self.assertIn('ScarletGuestSessionLedger.noteLaunch(',H)
         self.assertIn('try await app.runApp(multitask: true)',H)
         self.assertIn('UIApplication.shared.supportsMultipleScenes',H)
-        self.assertIn('useVirtual ? .virtualWindow : .nativeWindow',H)
+        self.assertIn('MultitaskMode.nativeWindow.rawValue',H)
         self.assertIn('legacy_fullscreen_launch_requested',H)
         self.assertIn('ScarletGuestSessionLedger.remove(folder: folder)',H)
         self.assertIn('Scarlet.Guest.RecentSessions.V14',L)
