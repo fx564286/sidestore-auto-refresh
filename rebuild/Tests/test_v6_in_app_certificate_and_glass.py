@@ -61,7 +61,11 @@ class InAppCertAndGlassContracts(unittest.TestCase):
         self.assertNotIn("ScarletUIKitGlassBackdrop",UI)
         self.assertIn("x: (b.width - panelWidth) / 2",UI)
         self.assertIn("let panelWidth = min(CGFloat(430)",UI)
-        self.assertIn("return isExpanded && panelRect.contains(point)",UI)
+        # V25: expanded window intercepts outside taps for modal dismiss;
+        # collapsed 62pt button still passes all other guest touches through.
+        self.assertIn("if isExpanded {", UI)
+        self.assertIn("return hypot(point.x - buttonCenter.x,", UI)
+        self.assertNotIn("return isExpanded && panelRect.contains(point)", UI)
 
     def test_remove_requested_visible_brand_label(self):
         self.assertNotIn("홍수정",UI)
