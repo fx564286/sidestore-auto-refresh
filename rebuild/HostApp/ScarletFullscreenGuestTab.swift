@@ -67,10 +67,9 @@ struct ScarletFullscreenGuestFloatingTab: View {
     @State private var transitionVersion = 0
     @State private var dockRight = false
     @State private var screenButtonCenter = CGPoint.zero
-    // Both visual endpoints live in the SAME full-scene non-key UIWindow.
-    // Morph only the native glass surface, never resize the UIWindow or
-    // relocate the destination card in response to a dragged button.
-    @Namespace private var glassMorphNamespace
+    // One continuously mounted glass surface is animated in the original
+    // full-screen scene. Only its frame/position/radius change, never the
+    // fixed destination card or UIWindow itself.
     @AppStorage("Scarlet.Feature.SwitcherMotion.V1",
                 store: LCUtils.appGroupUserDefault) private var switcherMotion = true
     @AppStorage("Scarlet.Feature.SwitcherHaptics.V1",
@@ -163,8 +162,10 @@ struct ScarletFullscreenGuestFloatingTab: View {
         }
     }
 
-    // Draw the optical surface behind independent readable foreground content.
-    // SwiftUI glass matched-IDs across a resizing UIWindow blanked the card.
+    // Native optical surface lives at the full-screen root, independent
+    // of the fixed panel's clip and the movable button's hit target.
+    // Prior versions resized the UIWindow; this version changes only a
+    // single embedded glass surface's frame/position.
     @ViewBuilder
     private func glassPlate(radius: CGFloat) -> some View {
         // Exact native material owner used by the main container tab.
@@ -252,14 +253,10 @@ struct ScarletFullscreenGuestFloatingTab: View {
 
     private var appPanelContent: some View {
         ZStack(alignment: .topLeading) {
-            glassPlate(radius: 28)
-                // Exactly one native material surface travels from the
-                // persisted round-tab position to the fixed center card.
-                // Previous matched IDs failed only when the UIWindow itself
-                // resized; V10+ keeps the scene UIWindow full-screen.
-                .matchedGeometryEffect(id: "scarlet_guest_glass_surface",
-                                       in: glassMorphNamespace)
-                .allowsHitTesting(false)
+            // The only native Liquid Glass material is mounted at the
+            // full-screen ZStack level, so its journey is NEVER clipped by
+            // this fixed-center card's rounded outline.
+            Color.clear.allowsHitTesting(false)
             VStack(alignment: .leading, spacing: 16) {
                 HStack(spacing: 9) {
                     Image(systemName: "square.stack.3d.up.fill").font(.headline)
@@ -333,21 +330,12 @@ struct ScarletFullscreenGuestFloatingTab: View {
             ZStack {
                 Circle()
                     .fill(.clear)
-                    .background {
-                        if #available(iOS 26.0, *),
-                           !UIAccessibility.isReduceTransparencyEnabled {
-                            SCNativeLiquidGlassSurface(cornerRadius: 31, showsRim: false)
-                                .clipShape(Circle())
-                        } else {
-                            Circle().fill(.regularMaterial)
-                        }
-                    }
+                    // The animated glass material is behind this icon in
+                    // the FULL-SCENE ZStack, not duplicated in the button.
                     .overlay {
                         Circle()
                             .strokeBorder(Color.primary.opacity(0.28), lineWidth: 0.8)
                     }
-                    .matchedGeometryEffect(id: "scarlet_guest_glass_surface",
-                                           in: glassMorphNamespace)
                 Image(systemName: "square.stack.3d.up.fill")
                     .accessibilityHidden(true)
                 .font(.system(size: 23, weight: .semibold))
@@ -373,6 +361,18 @@ struct ScarletFullscreenGuestFloatingTab: View {
             let panelHeight = min(panelWidth * 1.02, CGFloat(435),
                                   max(CGFloat(210), geometry.size.height - 156))
             ZStack(alignment: .topLeading) {
+                // Keep exactly ONE material instance alive across both
+                // endpoints. Frame + position interpolate in scene space:
+                // (dragged 62pt circle) -> (fixed centered app panel).
+                // Neither the guest UIWindow nor the card endpoint moves.
+                glassPlate(radius: isOpen ? 28 : 31)
+                    .frame(width: isOpen ? panelWidth - 24 : 62,
+                           height: isOpen ? panelHeight : 62)
+                    .position(x: isOpen ? geometry.size.width / 2
+                                        : screenButtonCenter.x,
+                              y: isOpen ? geometry.size.height / 2
+                                        : screenButtonCenter.y)
+                    .allowsHitTesting(false)
                 // The overlay is modal only while expanded. A clear full-
                 // scene backdrop receives outside taps without drawing a
                 // dimming mask over the running guest or weakening Liquid
