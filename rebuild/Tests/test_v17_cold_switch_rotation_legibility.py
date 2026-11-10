@@ -14,7 +14,7 @@ HISTORY = (ROOT / "HostApp/ScarletGuestSessionLedger.swift").read_text()
 class V17ColdSwitchRotation(unittest.TestCase):
     def test_cold_row_tap_is_actionable(self):
         start = GUEST.index("    private func switchTo(")
-        end = GUEST.index("    // Draw the optical surface", start)
+        end = GUEST.index("    // Native optical surface lives", start)
         code = GUEST[start:end]
         self.assertIn("guard target.canSwitch || target.canRelaunch else", code)
         self.assertIn("if onSwitch(target) {", code)

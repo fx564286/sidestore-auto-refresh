@@ -48,8 +48,8 @@ class ScarletModularArchitecture(unittest.TestCase):
                          'Toggle("멀티탭 진동 피드백"',
                          'containerURL(',):
             self.assertIn(fragment,MODULE)
-        for fragment in ('withAnimation(switcherMotion ? spring : nil)',
-                         '.animation(switcherMotion ? spring : nil, value: isOpen)',
+        for fragment in ('withAnimation(morphAnimation)',
+                         '.animation(morphAnimation, value: isOpen)',
                          'if switcherHaptics {',
                          'overlay.buttonCenter.x',
                          'overlay.buttonCenter.y'):

@@ -10,7 +10,7 @@ HOST = (ROOT/"HostApp/ScarletIntegratedHostView.swift").read_text()
 class V5Contracts(unittest.TestCase):
     def test_panel_content_above_native_glass(self):
         for fragment in ("ZStack(alignment: .topLeading)",
-                         "glassPlate(radius: 28)", ".zIndex(2)",
+                         "glassPlate(radius: isOpen ? 28 : 31)", ".zIndex(2)",
                          "switch_panel_content_rendered",
                          "UIView.performWithoutAnimation",
                          "switch_panel_geometry_applied",

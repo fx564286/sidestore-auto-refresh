@@ -1,0 +1,174 @@
+name: Scarlet V26 floating button to fixed-center Liquid Glass morph IPA
+
+on:
+  push:
+    branches:
+      - fix/scarlet-v26-liquidglass-button-to-fixed-panel-morph-20261110
+    paths:
+      - .github/workflows/scarlet-v26-glass-morph-release.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  actions: read
+
+jobs:
+  package-verified-v26:
+    runs-on: xcode-27
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - name: Wait for both V26 native build artifacts (fail closed)
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -Eeuo pipefail
+          for attempt in $(seq 1 60); do
+            names="$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/42731706816/artifacts" --jq '.artifacts[] | select(.expired == false) | .name' 2>/dev/null || true)"
+            if grep -Fxq 'Scarlet-LiveContainer-Native-Engine' <<< "$names" &&
+               grep -Fxq 'Scarlet-SideStore-Native-Engine' <<< "$names"; then
+              echo "[PASS] both new V26 native engines compiled"
+              exit 0
+            fi
+            echo "[WAIT] V26 LC/SideStore native artifacts $attempt/60"
+            sleep 15
+          done
+          echo "[STOP] missing V26 compiled engine; no IPA release"
+          exit 1
+      - name: Download actual V26 compiled LiveContainer native engine
+        uses: actions/download-artifact@v4
+        with:
+          name: Scarlet-LiveContainer-Native-Engine
+          path: artifacts/lc
+          run-id: 42731706816
+          github-token: ${{ github.token }}
+      - name: Use V26 newly compiled SideStore with embedded managed-app repair
+        uses: actions/download-artifact@v4
+        with:
+          name: Scarlet-SideStore-Native-Engine
+          path: artifacts/side
+          run-id: 42731706816
+          github-token: ${{ github.token }}
+      - name: Fail closed on source/pin mismatches
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          python3 - <<'PY'
+          import hashlib, json
+          from pathlib import Path
+          pins=json.loads(Path("config/scarlet-upstream-pins.json").read_text())
+          side=json.loads(Path("artifacts/side/source-gitlink-audit.json").read_text())
+          assert side["sourcePins"]==pins, "SideStore source pins changed"
+          host=json.loads(Path("artifacts/lc/scarlet-host-integration.json").read_text())
+          files={Path(x["path"]).name:x["sha256"] for x in host["sources"]}
+          expected=("ScarletIndependentShell.swift","ScarletIntegratedHostView.swift",
+                    "ScarletFullscreenGuestTab.swift","ScarletGuestSwitcherOverlay.swift",
+                    "ScarletGuestSessionLedger.swift","ScarletNativeGlass.swift",
+                    "ScarletSigningReadinessPanel.swift","ScarletAutomaticRenewal.swift",
+                    "ScarletFeatureModulesSection.swift")
+          for filename in expected:
+              path=Path("rebuild/Sources/ScarletIndependentUI" if
+                        filename=="ScarletIndependentShell.swift" else "rebuild/HostApp")/filename
+              digest=hashlib.sha256(path.read_bytes()).hexdigest()
+              assert files.get(filename)==digest, f"Not the V26 compiled code: {filename}"
+          assert Path("artifacts/side/SideStore.ipa").stat().st_size>1_000_000
+          assert Path("artifacts/lc/LiveContainer-app.tar").stat().st_size>1_000_000
+          print("[PASS] V26 exact compiled source hashes and pinned SideStore engine")
+          PY
+      - name: Prepare official LiveContainer integrated packager
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          brew install ldid
+          mkdir -p report build-tools
+          curl -fLSs --retry 5 --retry-all-errors --retry-delay 3 \
+            https://github.com/LiveContainer/dylibify/releases/download/1.0/dylibify \
+            -o build-tools/dylibify
+          printf '6d23f6a2fc4d8442f87caa1161aebe6ecaafd0e8c41ce205da007efb04fc82c7  build-tools/dylibify\n' | shasum -a 256 -c -
+          chmod +x build-tools/dylibify
+          pin="$(python3 -c 'import json;print(json.load(open("config/scarlet-upstream-pins.json"))["LIVE_CONTAINER_REF"])')"
+          curl -fLSs --retry 3 \
+            "https://raw.githubusercontent.com/LiveContainer/LiveContainer/$pin/.github/sidelc/LCAppInfo.plist" \
+            -o build-tools/LCAppInfo.plist
+          plutil -lint build-tools/LCAppInfo.plist
+      - name: Package and strictly verify V26 unified unsigned IPA
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          python3 rebuild/integration/package_paired.py \
+            --lc-tar artifacts/lc/LiveContainer-app.tar \
+            --sidestore-ipa artifacts/side/SideStore.ipa \
+            --lc-appinfo build-tools/LCAppInfo.plist \
+            --dylibify build-tools/dylibify \
+            --host-report artifacts/lc/scarlet-host-integration.json \
+            --out report
+          python3 rebuild/integration/verify_engines.py \
+            --phase combined \
+            --combined-ipa report/Scarlet-LiveContainer+SideStore-ENGINES-UNSIGNED.ipa \
+            --report report/combined-ipa-verification.json
+          python3 rebuild/scripts/audit_appid_footprint.py \
+            --ipa report/Scarlet-LiveContainer+SideStore-ENGINES-UNSIGNED.ipa \
+            --out report/scarlet-app-id-footprint.json
+          cp report/Scarlet-LiveContainer+SideStore-ENGINES-UNSIGNED.ipa Scarlet-Crystal-V26-UNSIGNED.ipa
+          shasum -a 256 Scarlet-Crystal-V26-UNSIGNED.ipa > Scarlet-Crystal-V26-UNSIGNED.ipa.sha256
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          report=json.loads(Path("report/scarlet-app-id-footprint.json").read_text())
+          print("[APP ID AUDIT]", report)
+          assert report["total_bundle_ids"]==4,"Unexpected Apple App ID footprint"
+          assert Path("Scarlet-Crystal-V26-UNSIGNED.ipa").stat().st_size>20_000_000
+          PY
+      - name: Publish permanent direct Safari IPA link
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -Eeuo pipefail
+          tag=scarlet-v26-glass-morph-fixed-panel-20261110
+          cat > release-notes.md <<'EOF'
+          Scarlet Crystal V26 — native Liquid Glass circle grows into fixed-center app switcher.
+
+          UX: The user may drag the round switcher button to ANY saved
+          screen position. When tapped, its ONE continuously mounted native
+          SCNativeLiquidGlassSurface grows and moves within the original
+          full-screen, NON-KEY overlay UIWindow. It expands from the exact
+          62pt button position to the existing fixed-center panel geometry
+          regardless of the origin point; closing by tapping the unmasked
+          empty area reverses to the original dragged position.
+          There is no extra X bubble and the panel never follows the button.
+          0.45s spring damping 0.88, Reduce Motion and original motion
+          setting respected. Panel contents fade independently.
+          Critically the material is hosted at the full-screen scene ROOT
+          rather than clipped inside the centered panel, preserving the
+          visible motion from far left/right/bottom button origins.
+
+          iPhone V25 diagnostic SourceCommit 6366f8829ad2 had 4371 JSON
+          events, 38 panel opens, 27 panel closes and 4 switch boot ACKs;
+          automatic/manual SideStore refresh still fails domain SideStore
+          error 1 despite 1 managed app ready. The V26 UI change does not
+          claim to resolve Apple signing renewal or preserve multiple
+          simultaneous guest processes.
+
+          Native Xcode 27.2 paired build 42731706816, source commit
+          12a916b228a4aa78c933c790f50f5a3abff52088.
+          Both V26 LiveContainer and SideStore engines must compile and
+          match pinned source SHA before packaging. 4 Apple App IDs, V23
+          session isolation, V24 native renewal inspector, guest app data,
+          Apple profiles, P12 and Liquid Glass clear style are preserved.
+          UNSIGNED IPA. Sign with valid Apple profile before installing.
+          Actual iPhone animation acceptance remains a device test.
+          EOF
+          if ! gh release view "$tag" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release create "$tag" --repo "$GITHUB_REPOSITORY" \
+              --target 12a916b228a4aa78c933c790f50f5a3abff52088 \
+              --title "Scarlet Crystal V26 — fixed-center Liquid Glass button morph — UNSIGNED" \
+              --prerelease --latest=false --notes-file release-notes.md
+          fi
+          gh release upload "$tag" --repo "$GITHUB_REPOSITORY" \
+            Scarlet-Crystal-V26-UNSIGNED.ipa Scarlet-Crystal-V26-UNSIGNED.ipa.sha256 \
+            report/scarlet-app-id-footprint.json --clobber
+          gh release view "$tag" --repo "$GITHUB_REPOSITORY" --json assets \
+            --jq '.assets[].name' | grep -Fx 'Scarlet-Crystal-V26-UNSIGNED.ipa'
+          echo "https://github.com/$GITHUB_REPOSITORY/releases/download/$tag/Scarlet-Crystal-V26-UNSIGNED.ipa" >> "$GITHUB_STEP_SUMMARY"

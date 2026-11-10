@@ -57,7 +57,9 @@ class InAppCertAndGlassContracts(unittest.TestCase):
     def test_guest_reuses_main_tab_clear_glass_not_regular(self):
         self.assertIn("let glass = UIGlassEffect(style: .clear)",MAIN_GLASS)
         self.assertIn("SCNativeLiquidGlassSurface(cornerRadius: radius, showsRim: false)",UI)
-        self.assertIn("SCNativeLiquidGlassSurface(cornerRadius: 31, showsRim: false)",UI)
+        # V26: one native surface is geometrically animated between the
+        # 62pt button and fixed 28pt-radius glass card. No duplicate glass.
+        self.assertIn("glassPlate(radius: isOpen ? 28 : 31)",UI)
         self.assertNotIn("ScarletUIKitGlassBackdrop",UI)
         self.assertIn("x: (b.width - panelWidth) / 2",UI)
         self.assertIn("let panelWidth = min(CGFloat(430)",UI)
