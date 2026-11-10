@@ -77,9 +77,8 @@ final class ScarletResidentGuestSwitchController {
                   let model = allModels.first(where: {
                       $0.appInfo.relativeBundlePath == entry.folder
                   }) else { return nil }
-            let decorated = session.view?._viewDelegate()
-                as? DecoratedAppSceneViewController
-            let processAlive = decorated?.appSceneVC.isAppRunning ?? false
+            let processAlive =
+                owner.scarletIsResidentProcessAlive(uuid: uuid)
             let icon: UIImage?
             if let path = model.appInfo.bundlePath() {
                 icon = UIImage(contentsOfFile: path + "/LCAppIconLight.png")

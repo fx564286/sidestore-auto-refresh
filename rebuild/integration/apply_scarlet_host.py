@@ -805,7 +805,22 @@ def route_iphone_guest_launch_to_resident_scene(engine: Path) -> None:
     anchor = '        UIViewController *rootVC = ((UIWindowScene *)UIApplication.sharedApplication.connectedScenes.anyObject).keyWindow.rootViewController;\n        DecoratedAppSceneViewController *launcherView = [[DecoratedAppSceneViewController alloc] initWindowName:displayName bundleId:bundleId dataUUID:dataUUID rootVC:rootVC];'
     replacement = '        UIViewController *rootVC = ((UIWindowScene *)UIApplication.sharedApplication.connectedScenes.anyObject).keyWindow.rootViewController;\n        if (UIDevice.currentDevice.userInterfaceIdiom == UIUserInterfaceIdiomPhone) {\n            MultitaskDockManager *owner = [MultitaskDockManager shared];\n            if (![owner scarletPrepareResident]) {\n                NSError *error = [NSError errorWithDomain:@"ScarletResidentGuest"\n                              code:41 userInfo:@{NSLocalizedDescriptionKey:\n                                @"Fullscreen resident scene is not ready"}];\n                if (completionHandler) completionHandler(nil, error);\n                return;\n            }\n            rootVC = [owner scarletResidentParent] ?: rootVC;\n        }\n        DecoratedAppSceneViewController *launcherView = [[DecoratedAppSceneViewController alloc] initWindowName:displayName bundleId:bundleId dataUUID:dataUUID rootVC:rootVC];'
     assert src.count(anchor)==1, "Pinned LCUtils guest-launch route changed"
-    util.write_text(src.replace(anchor,replacement,1))
+    src=src.replace(anchor,replacement,1)
+    anchor2 = (
+        '        DecoratedAppSceneViewController *launcherView = [[DecoratedAppSceneViewController alloc] '
+        'initWindowName:displayName bundleId:bundleId dataUUID:dataUUID rootVC:rootVC];\n'
+        '        // Wire PID callback'
+    )
+    replacement2 = (
+        '        DecoratedAppSceneViewController *launcherView = [[DecoratedAppSceneViewController alloc] '
+        'initWindowName:displayName bundleId:bundleId dataUUID:dataUUID rootVC:rootVC];\n'
+        '        if (UIDevice.currentDevice.userInterfaceIdiom == UIUserInterfaceIdiomPhone && launcherView) {\n'
+        '            [[MultitaskDockManager shared] scarletRegisterResidentController:launcherView uuid:dataUUID];\n'
+        '        }\n'
+        '        // Wire PID callback'
+    )
+    assert src.count(anchor2)==1, "Pinned resident VC ownership changed"
+    util.write_text(src.replace(anchor2,replacement2,1))
     windows=engine/"MultitaskSupport/MultitaskAppWindow.swift"
     src=windows.read_text()
     anchor = '    @objc class func openExistingAppWindow(dataUUID: String) -> Bool {\n        for a in appDict {'
@@ -940,6 +955,9 @@ import Combine
     private var residentWindow: UIWindow?
     private var residentRoot: UIViewController?
     private var originalKeyWindow: UIWindow?
+    // The exact LiveProcess controller is registered by LCUtils.m. UIKit's
+    // private _viewDelegate() is NOT a reliable public owner lookup.
+    private var residentControllers: [String: DecoratedAppSceneViewController] = [:]
     private(set) var activeResidentUUID: String?
     private(set) var generation: UInt = 0
 
@@ -981,6 +999,23 @@ import Combine
         return residentRoot
     }
 
+    @objc public func scarletRegisterResidentController(
+        _ controller: DecoratedAppSceneViewController, uuid: String
+    ) {
+        guard !uuid.isEmpty else { return }
+        residentControllers[uuid] = controller
+    }
+
+    @objc public func scarletIsResidentProcessAlive(uuid: String) -> Bool {
+        residentControllers[uuid]?.appSceneVC.isAppRunning ?? false
+    }
+
+    @objc public func scarletResidentPID(uuid: String) -> Int {
+        guard scarletIsResidentProcessAlive(uuid: uuid),
+              let controller = residentControllers[uuid] else { return 0 }
+        return Int(controller.appSceneVC.pid)
+    }
+
     @objc public func scarletSyncResidentGeometry() {
         guard let window = residentWindow,
               let scene = window.windowScene else { return }
@@ -1000,10 +1035,9 @@ import Combine
     @objc public func scarletActivateResident(uuid: String) -> Bool {
         guard let item = apps.first(where: { $0.appUUID == uuid }),
               let view = item.view,
-              let decorated = view._viewDelegate()
-                 as? DecoratedAppSceneViewController,
-              decorated.appSceneVC.isAppRunning else { return false }
-        guard scarletPrepareResident() else { return false }
+              scarletIsResidentProcessAlive(uuid: uuid) else { return false }
+        let oldPID = scarletResidentPID(uuid: uuid)
+        guard oldPID > 0, scarletPrepareResident() else { return false }
         for app in apps {
             app.view?.isHidden = app.appUUID != uuid
         }
@@ -1012,6 +1046,11 @@ import Combine
         windowHostingView.bringSubviewToFront(view)
         activeResidentUUID = uuid
         generation &+= 1
+        // The process receipt must be from the SAME live extension PID.
+        // A launch request or a retained .app row is never sufficient.
+        let currentPID = scarletResidentPID(uuid: uuid)
+        let samePID = oldPID == currentPID && currentPID > 0
+        if !samePID { return false }
         Task { @MainActor in
             if #available(iOS 17.0, *) {
                 ScarletResidentGuestSwitchController.shared.mountIfNecessary()
@@ -1022,6 +1061,8 @@ import Combine
             "guest", "resident_process_reused", status: "success",
             fields: ["count": String(apps.count),
                      "result": "original_pid_alive_and_scene_reused",
+                     "same_pid": String(samePID),
+                     "process_alive": "true",
                      "memory": "preserved_while_process_alive"])
         return true
     }
@@ -1071,6 +1112,7 @@ import Combine
 
     @objc public func removeRunningApp(_ appUUID: String) {
         apps.removeAll(where: { $0.appUUID == appUUID })
+        residentControllers.removeValue(forKey: appUUID)
         if activeResidentUUID == appUUID {
             activeResidentUUID = apps.last?.appUUID
             if let activeResidentUUID {
