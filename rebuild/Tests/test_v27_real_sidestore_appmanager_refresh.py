@@ -30,6 +30,10 @@ class V27InProcessRefresh(unittest.TestCase):
         self.assertIn('$0.resignedBundleIdentifier == signedHostID',AGENT)
         self.assertIn('CertificateManager.shared.activeCertificate != nil',AGENT)
         self.assertIn('native_operation_returned_unverified',AGENT)
+        self.assertIn('host_not_in_refresh_results',AGENT)
+        self.assertIn('results[managedHost.bundleIdentifier] != nil',AGENT)
+        self.assertIn('host_not_in_refresh_results',XPC)
+        self.assertIn('host_not_in_refresh_results',AUTO)
         self.assertNotIn('PrivateIntentRunner.run(',AGENT)
 
     def test_request_has_deduplicating_gate_and_categorized_failure(self):
