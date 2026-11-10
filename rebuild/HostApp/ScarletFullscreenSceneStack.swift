@@ -239,6 +239,7 @@ final class ScarletFullscreenSceneViewport: UIViewController {
     private weak var stack: ScarletFullscreenSceneStack?
     private var controllers: [String: AppSceneViewController] = [:]
     private var lastBounds: CGSize = .zero
+    private var lastRejectedBounds: CGSize?
 
     init(stack: ScarletFullscreenSceneStack) {
         self.stack = stack
@@ -259,30 +260,49 @@ final class ScarletFullscreenSceneViewport: UIViewController {
 
     override func viewDidLayoutSubviews() {
         super.viewDidLayoutSubviews()
-        if view.bounds.size != lastBounds {
-            lastBounds = view.bounds.size
-            for vc in controllers.values {
-                vc.view.frame = view.bounds
-            }
-        }
-        if let scene = view.window?.windowScene {
-            // Fail closed if the SwiftUI presenter provides a safe-area
-            // rectangle smaller than the real phone screen. Do NOT
-            // enlarge/scale the guest window to "fix" a clipped preview.
-            let expected = scene.coordinateSpace.bounds.size
-            let actual = view.bounds.size
-            guard abs(expected.width - actual.width) < 2,
-                  abs(expected.height - actual.height) < 2 else {
+        guard let scene = view.window?.windowScene else { return }
+        // Check real UIWindowScene size *before* touching any child scene.
+        // During rotation, SwiftUI may first deliver a cropped safe-area frame.
+        // V45 accidentally applied this provisional frame to every guest,
+        // then rejected it: the rejection happened after the damage.
+        let expected = scene.coordinateSpace.bounds.size
+        let actual = view.bounds.size
+        guard actual.width > 0, actual.height > 0,
+              abs(expected.width - actual.width) < 2,
+              abs(expected.height - actual.height) < 2 else {
+            if lastRejectedBounds != actual {
+                lastRejectedBounds = actual
                 ScarletDiagnosticRecorder.shared.record(
                     "layout", "fullscreen_scene_geometry_rejected",
                     status: "blocked", fields: [
                         "width_pt": String(Int(actual.width)),
                         "height_pt": String(Int(actual.height)),
                         "reason": "viewport_not_screen_bounds"])
-                return
             }
-            reconcile()
+            return
         }
+        lastRejectedBounds = nil
+        if actual != lastBounds {
+            lastBounds = actual
+            // The same unscaled viewport is applied to all resident scenes.
+            // No virtual-window geometry, letterboxing or transform is used.
+            let full = view.bounds
+            let orientation = scene.interfaceOrientation
+            for vc in controllers.values {
+                vc.view.frame = full
+                vc.updateSettings { settings in
+                    guard let settings else { return }
+                    settings.setFrame(full)
+                    settings.setInterfaceOrientation(orientation)
+                }
+            }
+            ScarletDiagnosticRecorder.shared.record(
+                "layout", "fullscreen_scene_geometry_applied",
+                fields: ["width_pt": String(Int(actual.width)),
+                         "height_pt": String(Int(actual.height)),
+                         "reason": "verified_fullscreen_viewport"])
+        }
+        reconcile()
     }
 
     func isAlive(folder: String) -> Bool {
