@@ -74,7 +74,11 @@ enum ScarletRefreshFailureDiagnosis {
         case "device_endpoint_unavailable", "device_identifier_unavailable":
             return "내장 SideStore에서 페어링된 iPhone 엔드포인트를 찾지 못했습니다."
         case "sidestore_auth_missing":
-            return "내장 SideStore 원본 계정 세션이 없거나 만료됐습니다. Apple 로그인 상태를 확인해야 합니다."
+            return "내장 SideStore의 인증 토큰이 없거나 복원되지 않았습니다. Apple 로그인 상태를 확인해야 합니다."
+        case "sidestore_team_mismatch":
+            return "Apple 개발자 포털에서 현재 Scarlet 서명 팀 P8EZT3U5N4를 확인하지 못했습니다. 다른 팀으로 자동 전환하지 않았습니다."
+        case "sidestore_team_recovery_failed":
+            return "Apple 로그인 토큰은 존재하지만 내장 SideStore의 활성 개발팀 복구가 실패했습니다. 계정·인증서 정보는 유지됩니다."
         case "certificate_expired":
             return "SideStore의 서명 인증서 유효기간이 만료된 것으로 보고됐습니다."
         case "certificate_revoked":

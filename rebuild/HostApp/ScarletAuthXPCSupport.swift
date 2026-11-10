@@ -312,6 +312,7 @@ public enum ScarletNativeRefreshExecutor {
             "device_identifier_unavailable", "certificate_expired",
             "certificate_revoked", "profile_missing", "app_group_missing",
             "device_operation_timed_out", "sidestore_invalid_configuration",
+            "sidestore_team_mismatch", "sidestore_team_recovery_failed",
             "native_worker_creation_failed"
         ]
         let status = allowed.contains(rawReason)

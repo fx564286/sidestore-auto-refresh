@@ -20,6 +20,86 @@ final class ScarletGuestSignInAgent: NSObject {
             auth.xcodeToken != nil
     }
 
+    // V30: The headless Scarlet login previously saved SideSign tokens but
+    // skipped SideStore SignInOperation.saveTeamAndAccount(makeActive: true).
+    // Original PreflightChecksOperation subsequently called
+    // AuthManager.getAuthenticatedTeam(), which threw .notAuthenticated.
+    // Reconcile only the host's EXISTING Apple team, never infer or create
+    // a different account, team, signing certificate, or provisioning profile.
+    @MainActor
+    static func ensureActiveTeamForRefresh() async -> String {
+        guard persistedState(),
+              let email = AuthManager.shared.currentAppleID,
+              let dsid = AuthManager.shared.adsid else {
+            return "sidestore_auth_missing"
+        }
+        let expectedTeamID = "P8EZT3U5N4"
+        do {
+            try await DatabaseManager.shared.start()
+            if let stored = try? await AuthManager.shared.getAuthenticatedTeam() {
+                return stored.identifier == expectedTeamID
+                    ? "ready" : "sidestore_team_mismatch"
+            }
+            // Match by the actual authenticated Apple portal result, not a
+            // fabricated Team row or a copied host-side login badge.
+            let portalAccount = ALTAccount(appleID: email, identifier: dsid)
+            let portalTeams = try await DeveloperPortalProxy.shared.fetchTeams(
+                for: portalAccount)
+            guard let team = portalTeams.first(where: {
+                $0.identifier == expectedTeamID
+            }) else {
+                return "sidestore_team_mismatch"
+            }
+            let context = DatabaseManager.shared.persistentContainer
+                .newBackgroundContext()
+            try await context.perform {
+                let accountIdentifier = team.account?.identifier ?? team.identifier
+                let account: Account
+                if let existing = Account.first(satisfying: NSPredicate(
+                    format: "%K == %@", #keyPath(Account.identifier),
+                    accountIdentifier), in: context) {
+                    account = existing
+                    if let realAccount = team.account {
+                        account.update(account: realAccount)
+                    }
+                } else {
+                    let realAccount = team.account ?? ALTAccount(
+                        appleID: email, identifier: accountIdentifier)
+                    account = Account(realAccount, context: context)
+                }
+                account.appleID = email
+                let storedTeam: Team
+                if let existing = Team.first(satisfying: NSPredicate(
+                    format: "%K == %@", #keyPath(Team.identifier),
+                    team.identifier), in: context) {
+                    storedTeam = existing
+                } else {
+                    storedTeam = Team(team, account: account, context: context)
+                }
+                storedTeam.update(team: team)
+                // Preserve all other rows, certificates, apps and keychain.
+                // Only switch active flags as original SignInOperation does.
+                let accounts = try context.fetch(
+                    Account.fetchRequest() as NSFetchRequest<Account>)
+                for item in accounts {
+                    item.isActiveAccount = item.objectID == account.objectID
+                }
+                let teams = try context.fetch(
+                    Team.fetchRequest() as NSFetchRequest<Team>)
+                for item in teams {
+                    item.isActiveTeam = item.objectID == storedTeam.objectID
+                }
+                try context.save()
+            }
+            let verified = try await AuthManager.shared.getAuthenticatedTeam()
+            return verified.identifier == expectedTeamID
+                ? "team_restored" : "sidestore_team_mismatch"
+        } catch {
+            // No Apple payload, identifiers or Keychain data in XPC/logs.
+            return "sidestore_team_recovery_failed"
+        }
+    }
+
     @objc(begin:)
     static func begin(_ payload: NSDictionary) {
         guard let id = payload["requestID"] as? String,
@@ -82,6 +162,14 @@ final class ScarletGuestSignInAgent: NSObject {
                 // Only commit the chosen route after a verified Keychain save.
                 UserDefaults.standard.set(profile,
                     forKey: "scarlet.auth.lastSuccessfulAnisetteProfile")
+                // Apple 2FA/token success is not yet SideStore refresh-ready:
+                // its original native pipeline also needs an active Team row.
+                let teamState = await ensureActiveTeamForRefresh()
+                guard teamState == "ready" || teamState == "team_restored" else {
+                    finish(id, code: -3402,
+                           domain: "scarlet.auth." + teamState)
+                    return
+                }
                 finish(id, code: 0, domain: "success")
             } catch let error as ServerError {
                 // A Swift enum NSError code (3 here) is the enum case index,
