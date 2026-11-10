@@ -40,6 +40,8 @@ class V31RealState(unittest.TestCase):
     def test_post_restart_state_is_real_readback_and_generation_guarded(self):
         self.assertIn('func refreshStoredState()', PAIR)
         self.assertIn('generation == stateReadGeneration', PAIR)
+        self.assertIn('guard !active && !stateReadInFlight', PAIR)
+        self.assertIn('defer { stateReadInFlight = false }', PAIR)
         self.assertIn('stateReadGeneration &+= 1 // stale readbacks', PAIR)
         self.assertIn('verified = ready',PAIR)
         self.assertIn('savedRecordState = ready ? "연결 검증됨"',PAIR)

@@ -28,12 +28,15 @@ final class ScarletDevicePairingModel: NSObject, ObservableObject, @preconcurren
     @Published private(set) var savedRecordState = "확인 중"
     private var stateReadGeneration: UInt64 = 0
     private var lastReportedPairingState: String?
+    private var stateReadInFlight = false
 
     func refreshStoredState() {
-        guard !active else { return }
+        guard !active && !stateReadInFlight else { return }
+        stateReadInFlight = true
         stateReadGeneration &+= 1
         let generation = stateReadGeneration
         Task { @MainActor in
+            defer { stateReadInFlight = false }
             let (ready, reason) = await ScarletNativePairingInstaller.inspectPersistedState()
             guard !active && generation == stateReadGeneration else { return }
             savedRecordState = ready ? "연결 검증됨" :
