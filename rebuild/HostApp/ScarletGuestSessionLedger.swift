@@ -203,9 +203,18 @@ enum ScarletGuestSessionLedger {
         }
         if !traceReaderReported {
             traceReaderReported = true
+            let processStart =
+                ScarletDiagnosticRecorder.shared.currentProcessStartDate
+            // A 48-entry store says nothing about THIS app launch.
+            // Count only fresh entries to prevent an old backlog being
+            // mistaken for active/visible guest app evidence.
+            let fresh = entries.filter { entry in
+                entry.createdAt.map { $0 >= processStart } ?? false
+            }
             ScarletDiagnosticRecorder.shared.record(
                 "guest_switcher", "trace_bridge_readable",
-                fields: ["count": String(entries.count)])
+                fields: ["count": String(fresh.count),
+                         "source": "current_process_only"])
         }
         let cursor = UserDefaults.standard.string(forKey: switchTraceCursor)
         let start = cursor.flatMap { previous in
