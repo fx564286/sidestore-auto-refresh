@@ -798,6 +798,136 @@ def attach_jitless_diagnostic_scroll_margins(engine: Path) -> dict:
             "source": str(path.relative_to(engine)), "sha256": file_sha(path)}
 
 
+def remove_upstream_legacy_window_ui(engine: Path) -> dict:
+    """Physically remove old LC side-dock SwiftUI + three-button chrome.
+
+    The original LiveContainer signing/import/guest storage engines stay
+    pinned. A tiny nonvisual API registry replaces the 1200-line dock source
+    so upstream callers still compile without UI rendering side effects.
+    """
+    dock = engine/"MultitaskSupport/MultitaskDockView.swift"
+    decorated = engine/"MultitaskSupport/DecoratedAppSceneViewController.m"
+    assert dock.is_file() and decorated.is_file(), "Pinned LC visual sources missing"
+    original_dock=dock.read_text()
+    assert "public struct MultitaskDockSwiftView: View" in original_dock
+    assert "struct CollapsedDockView: View" in original_dock
+    assert "class MultitaskDockManager" in original_dock
+    dock.write_text(LEGACY_DOCK_RENDERER_REMOVED_SOURCE)
+    assert "MultitaskDockSwiftView" not in dock.read_text()
+    assert "CollapsedDockView" not in dock.read_text()
+
+    source=decorated.read_text()
+    start=source.index("    NSArray *menuItems = @[",source.index("- (instancetype)initWindowName:"))
+    end=source.index("    return self;\n}", start)
+    # Delete all original colored close/maximize/minimize controls, window
+    # title menu and slider menu; not just hidden at runtime.
+    source=source[:start]+source[end:]
+    start=source.index("- (void)setupDecoratedView {")
+    end=source.index("// Stolen from UIKitester", start)
+    # The legacy 320x480 scaled scene and its 44pt fake title strip are gone.
+    # The compatibility scene occupies its original unscaled superview; this
+    # is not a V34 virtual/maximized content rectangle.
+    replacement="""- (void)setupDecoratedView {
+    self.view.frame = self.view.superview.bounds;
+    self.view.autoresizingMask =
+        UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
+    self.view.backgroundColor = UIColor.clearColor;
+    self.view.layer.cornerRadius = 0;
+    self.view.layer.masksToBounds = NO;
+    self.contentView = self.view;
+    [self addChildViewController:_appSceneVC];
+    [self.view addSubview:_appSceneVC.view];
+    _appSceneVC.view.frame = self.view.bounds;
+    _appSceneVC.view.autoresizingMask =
+        UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
+    [_appSceneVC didMoveToParentViewController:self];
+}
+
+"""
+    source=source[:start]+replacement+source[end:]
+    # Strip the virtual-window layout manipulations too, so even an
+    # unexpected native caller cannot create the old 44pt content offset.
+    start=source.index("- (void)updateVerticalConstraints {")
+    end=source.index("- (UIEdgeInsets)updateMaximizedSafeAreaWithSettings:",start)
+    source=source[:start]+"""- (void)updateVerticalConstraints {
+    self.appSceneVC.view.frame = self.view.bounds;
+}
+
+"""+source[end:]
+    # Remove the old custom frame/view-scale resizing methods while preserving
+    # selectors required by the original Objective-C runtime.
+    assert 'UIBarButtonItem *minimizeButton' not in source
+    assert 'UINavigationBar *navigationBar = ' not in source
+    assert 'CGRectMake(0, 0, isLandscape ? 480 : 320' not in source
+    decorated.write_text(source)
+    return {
+        "originalDockSourceLines": len(original_dock.splitlines()),
+        "replacementNonvisualLines": len(LEGACY_DOCK_RENDERER_REMOVED_SOURCE.splitlines()),
+        "chromeMinMaxCloseRemoved": True,
+        "legacyScene320x480GeometryRemoved": True,
+    }
+
+LEGACY_DOCK_RENDERER_REMOVED_SOURCE = r"""// Scarlet V36: source-level removal of the legacy LiveContainer side dock.
+// No SwiftUI dock views, no window UI, no UIApplication window attachment.
+// The object is a nonvisual compatibility registry for pinned LC call sites.
+import Foundation
+import UIKit
+import SwiftUI
+import Combine
+
+@objc class DockAppModel: NSObject, ObservableObject, Identifiable {
+    let id = UUID()
+    @objc let appName: String
+    @objc let appUUID: String
+    let appInfo: LCAppInfo?
+    let view: UIView?
+
+    @objc init(appName: String, appUUID: String, appInfo: LCAppInfo? = nil,
+               view: UIView?) {
+        self.appName = appName
+        self.appUUID = appUUID
+        self.appInfo = appInfo
+        self.view = view
+        super.init()
+    }
+}
+
+@available(iOS 16.0, *)
+@objc public class MultitaskDockManager: NSObject, ObservableObject {
+    @objc public static let shared = MultitaskDockManager()
+    @Published var apps: [DockAppModel] = []
+    @objc public var isCollapsed: Bool = false
+    @objc public var windowHostingView = VirtualWindowsHostView()
+
+    @objc public func addRunningApp(_ appName: String, appUUID: String,
+                                    view: UIView?) {
+        guard !apps.contains(where: { $0.appUUID == appUUID }) else { return }
+        apps.append(DockAppModel(appName: appName, appUUID: appUUID,
+                                 view: view))
+    }
+
+    @objc public func removeRunningApp(_ appUUID: String) {
+        apps.removeAll(where: { $0.appUUID == appUUID })
+    }
+
+    // Upstream guest manager calls this API to *find* an already owned
+    // window. It never constructs a decorated/scaled window or side rail.
+    @objc public func bringMultitaskViewToFront(uuid: String,
+                                                from center: CGPoint? = nil) -> Bool {
+        return MultitaskWindowManager.openExistingAppWindow(dataUUID: uuid)
+    }
+
+    @objc public func minimizeAllWindows(except: DecoratedAppSceneViewController? = nil) {
+        for app in apps {
+            if let decorated = app.view?._viewDelegate()
+                as? DecoratedAppSceneViewController, decorated !== except {
+                decorated.minimizeWindow()
+            }
+        }
+    }
+}
+"""
+
 def main():
     p=argparse.ArgumentParser()
     p.add_argument("--engine",type=Path,required=True)
@@ -1048,51 +1178,9 @@ static void ScarletGuestHookTrace(NSString *event) {
         "    }\n")
     guest_hook_file.write_text(guest_hook_source)
 
-    # The 2026-11-06 on-device crashes (four identical SIGTRAP/BRK #1 in
-    # LiveContainerSwiftUI UUID A87CD742-820E-3F50-A48B-481388DCF3B1,
-    # PC imageOffset 0x22ACC) identify the pinned dock's force unwrap:
-    # keyWindow!.rootViewController!.view.subviews.first!
-    # The fresh SwiftUI shell requests MultitaskDockManager.shared before
-    # UIWindow has attached its root hierarchy. Preserve the actual dock
-    # engine and user windows; defer its attachment until a view exists.
-    dock_src_file=engine/"MultitaskSupport/MultitaskDockView.swift"
-    assert dock_src_file.is_file(), "Pinned LiveContainer dock source missing"
-    dock_source=dock_src_file.read_text()
-    unsafe_init="""    override init() {
-        super.init()
-        keyWindow!.rootViewController!.view.subviews.first!.addSubview(self.windowHostingView)
-        setupDockView()
-"""
-    safe_init="""    // Scarlet: app startup may evaluate the dock before UIKit creates its
-    // first key window. Mount the same native host after the scene is ready.
-    public func scarletEnsureWindowHost() {
-        guard let rootView = keyWindow?.rootViewController?.view else { return }
-        let target = rootView.subviews.first(where: { $0 !== windowHostingView }) ?? rootView
-        if windowHostingView.superview !== target {
-            windowHostingView.removeFromSuperview()
-            target.addSubview(windowHostingView)
-        }
-    }
-
-    @objc private func scarletWindowBecameVisible(_ notification: Notification) {
-        DispatchQueue.main.async { [weak self] in
-            self?.scarletEnsureWindowHost()
-        }
-    }
-
-    override init() {
-        super.init()
-        scarletEnsureWindowHost()
-        NotificationCenter.default.addObserver(self,
-            selector: #selector(scarletWindowBecameVisible(_:)),
-            name: UIWindow.didBecomeVisibleNotification,
-            object: nil)
-        setupDockView()
-"""
-    assert dock_source.count(unsafe_init)==1, "Pinned dock startup layout changed"
-    dock_source=dock_source.replace(unsafe_init,safe_init)
-    assert "keyWindow!.rootViewController!.view.subviews.first!" not in dock_source, "Unsafe force unwrap retained"
-    dock_src_file.write_text(dock_source)
+    # V36 removes the root cause at source-level rather than attaching or
+    # hiding the old LC dock from host UIKit.
+    legacy_visuals = remove_upstream_legacy_window_ui(engine)
     guest_signing=instrument_original_guest_signing(engine)
     guest_manager=hide_embedded_sidestore_guest_navigation(engine)
     native_settings=attach_native_settings_diagnostics(engine)
@@ -1104,8 +1192,10 @@ static void ScarletGuestHookTrace(NSString *event) {
         "upstreamAppEntryPatched":True,
         "invalidPersistedGuestSkippedWithoutMutation":True,
         "hostBootPhaseLoggingInjected":True,
-        "onDeviceSigtrapDockForceUnwrapGuarded":True,
-        "dockAttachDeferredToWindowVisibility":True,
+        "onDeviceSigtrapDockForceUnwrapGuarded":False,
+        "legacyVisualSourceRemoved":True,
+        "legacyVisualRemoval":legacy_visuals,
+        "dockAttachDeferredToWindowVisibility":False,
         "hostEntry":"ScarletIntegratedHostView",
         "realLCGuestModelsUsed":True,
         "originalGuestImporterPreserved":True,

@@ -38,10 +38,6 @@ enum ScarletGuestSceneRegistry {
 
     static func availableGuests() -> [ScarletGuestTarget] {
         var found: [String: ScarletGuestTarget] = [:]
-        for app in MultitaskDockManager.shared.apps {
-            guard let view = app.view, view.window != nil, !view.isHidden else { continue }
-            found[app.appUUID] = ScarletGuestTarget(id: app.appUUID, title: app.appName)
-        }
         for (uuid, info) in MultitaskWindowManager.appDict {
             guard let controller = scenes[uuid]?.controller,
                   controller.viewIfLoaded?.window != nil else { continue }
@@ -55,10 +51,6 @@ enum ScarletGuestSceneRegistry {
         if let controller = scenes[dataUUID]?.controller,
            let view = controller.viewIfLoaded,
            view.window != nil && !view.isHidden {
-            eligible = view
-        } else if let dock = MultitaskDockManager.shared.apps.first(where: {
-            $0.appUUID == dataUUID
-        }), let view = dock.view, view.window != nil && !view.isHidden {
             eligible = view
         }
         guard let view = eligible, view.bounds.width >= 20, view.bounds.height >= 20 else {
@@ -85,10 +77,8 @@ enum ScarletGuestSceneRegistry {
     }
 
     static func activate(_ dataUUID: String) -> Bool {
-        if MultitaskDockManager.shared.bringMultitaskViewToFront(uuid: dataUUID) {
-            return true
-        }
-        return MultitaskWindowManager.openExistingAppWindow(dataUUID: dataUUID)
+        return UIDevice.current.userInterfaceIdiom == .pad &&
+            MultitaskWindowManager.openExistingAppWindow(dataUUID: dataUUID)
     }
 }
 
@@ -159,8 +149,6 @@ struct ScarletGuestSwitcherOverlay: View {
     let displayName: String
 
     @State private var isOpen = false
-    @State private var selectedSegment = 0
-    @Namespace private var guestGlassSelection
     @State private var targets: [ScarletGuestTarget] = []
     @State private var previews: [String: UIImage] = [:]
     @State private var guestIcons: [String: UIImage] = [:]
@@ -200,12 +188,15 @@ struct ScarletGuestSwitcherOverlay: View {
                 previews[item.id] = image
             }
         }
-        selectedSegment = 0
-        isOpen = true
+        withAnimation(.spring(response: 0.34, dampingFraction: 0.87)) {
+            isOpen = true
+        }
     }
 
     private func closeSwitcher() {
-        isOpen = false
+        withAnimation(.spring(response: 0.34, dampingFraction: 0.87)) {
+            isOpen = false
+        }
         previews.removeAll(keepingCapacity: false)
         guestIcons.removeAll(keepingCapacity: false)
     }
@@ -237,49 +228,6 @@ struct ScarletGuestSwitcherOverlay: View {
 
     private var windowPanel: some View {
         VStack(alignment: .leading, spacing: 12) {
-            HStack(spacing: 6) {
-                ForEach(0..<2, id: \.self) { index in
-                    Button {
-                        withAnimation(.spring(response: 0.34, dampingFraction: 0.78)) {
-                            selectedSegment = index
-                        }
-                    } label: {
-                        Text(index == 0 ? "최근 앱" : "창 관리")
-                            .font(.subheadline.weight(.semibold))
-                            .frame(maxWidth: .infinity, minHeight: 36)
-                            .background {
-                                if selectedSegment == index {
-                                    if #available(iOS 26.0, *),
-                                       !UIAccessibility.isReduceTransparencyEnabled {
-                                        Capsule()
-                                            .glassEffect(
-                                                .regular.tint(Color.purple.opacity(0.24)).interactive(),
-                                                in: .capsule
-                                            )
-                                            .glassEffectID("guest-segment", in: guestGlassSelection)
-                                            .matchedGeometryEffect(id: "guest-selection",
-                                                                   in: guestGlassSelection)
-                                    } else {
-                                        Capsule()
-                                            .fill(Color(red: 0.39, green: 0.30, blue: 0.89))
-                                    }
-                                }
-                            }
-                    }
-                    .buttonStyle(.plain)
-                }
-            }
-            .padding(7)
-            .frame(maxWidth: .infinity)
-            .background {
-                if #available(iOS 26.0, *),
-                   !UIAccessibility.isReduceTransparencyEnabled {
-                    Capsule()
-                        .glassEffect(.regular.interactive(), in: .capsule)
-                } else {
-                    Capsule().fill(Color.black.opacity(0.25))
-                }
-            }
             ScrollView {
                 LazyVStack(spacing: 8) {
                     ForEach(targets) { item in
@@ -373,20 +321,6 @@ struct ScarletGuestSwitcherOverlay: View {
                     .frame(maxWidth: .infinity, minHeight: 36)
             }
             .accessibilityIdentifier("SCARLET_NATIVE_GUEST_RETURN_TO_HOST")
-            if selectedSegment == 1 {
-                HStack(spacing: 7) {
-                    guestWindowCommand("최소화", symbol: "minus") {
-                        MultitaskDockManager.shared.minimizeAllWindows()
-                        closeSwitcher()
-                    }
-                    guestWindowCommand("최대화",
-                                       symbol: "arrow.up.left.and.arrow.down.right",
-                                       isEnabled: false) {}
-                    guestWindowCommand("닫기", symbol: "xmark", isEnabled: false) {}
-                }
-                .frame(maxWidth: .infinity)
-                .accessibilityHint("창별 소유권 연결 전에는 최대화와 닫기를 실행할 수 없습니다.")
-            }
         }
         .padding(16)
         .foregroundStyle(.white)
@@ -399,7 +333,7 @@ struct ScarletGuestSwitcherOverlay: View {
                     .accessibilityIdentifier("SCARLET_GUEST_PANEL_NATIVE_GLASS_MATERIAL")
             } else {
                 SCNativeLiquidGlassSurface(cornerRadius: 24,
-                                            selectedIndex: selectedSegment)
+                                            selectedIndex: 0)
                     .clipShape(RoundedRectangle(cornerRadius: 24))
             }
         }
@@ -410,28 +344,4 @@ struct ScarletGuestSwitcherOverlay: View {
         .accessibilityIdentifier("SCARLET_GUEST_LIVE_PREVIEW_PANEL")
     }
 
-    // Centered 320pt three-column window actions; unavailable actions
-    // remain disabled until the original window owner can be verified.
-    private func guestWindowCommand(_ title: String, symbol: String,
-                                    isEnabled: Bool = true,
-                                    action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            VStack(spacing: 2) {
-                Image(systemName: symbol)
-                    .font(.system(size: 16, weight: .semibold))
-                    .frame(height: 23, alignment: .center)
-                Text(title)
-                    .font(.system(size: 12, weight: .semibold))
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.85)
-            }
-            .frame(maxWidth: .infinity, minHeight: 55, alignment: .center)
-            .background(Color.black.opacity(0.26),
-                        in: RoundedRectangle(cornerRadius: 12))
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .frame(maxWidth: .infinity)
-        .disabled(!isEnabled)
-    }
 }

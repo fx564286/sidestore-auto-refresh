@@ -52,9 +52,10 @@ class GuestOnlySwitcherContract(unittest.TestCase):
         self.assertIn('.frame(maxWidth: 354)',GUEST)
         self.assertIn('.padding(.leading, 18)',GUEST)
         self.assertIn('.padding(.leading, 4)',GUEST)
-        self.assertIn('HStack(spacing: 7)',GUEST)
-        self.assertIn('guestWindowCommand("최대화"',GUEST)
-        self.assertIn('guestWindowCommand("닫기"',GUEST)
+        # A round Scarlet switcher, never the previous LC floating window.
+        self.assertNotIn('guestWindowCommand(',GUEST)
+        self.assertNotIn('Text(index == 0 ? "최근 앱" : "창 관리")',GUEST)
+        self.assertNotIn('MultitaskDockManager.shared',GUEST)
 
         self.assertIn("ScarletNativeGlassSwitcher(openManager:",GUEST)
 
