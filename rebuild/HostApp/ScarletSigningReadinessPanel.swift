@@ -507,6 +507,23 @@ struct ScarletSigningReadinessPanel: View {
                 LabeledContent("갱신 오류 분류", value: lastRefreshFailureReason)
                     .accessibilityIdentifier("SCARLET_REFRESH_FAILURE_CATEGORY")
             }
+            // The native refresh action existed since V12 but had NO
+            // rendered button in Scarlet's own settings. SideStore could
+            // refresh interactively; Scarlet's users could only watch a
+            // potentially stale background status. Restore actual control
+            // without navigating to the embedded SideStore guest screen.
+            Button(action: requestManualRefresh) {
+                if refreshing {
+                    HStack(spacing: 9) {
+                        ProgressView()
+                        Text("내장 SideStore 갱신 처리 중")
+                    }
+                } else {
+                    Label("지금 갱신", systemImage: "arrow.triangle.2.circlepath")
+                }
+            }
+            .disabled(refreshing || !readiness.canRequestNativeRefresh)
+            .accessibilityIdentifier("SCARLET_NATIVE_REFRESH_NOW")
             LabeledContent("서명 상태",
                 value: readiness.canRequestNativeRefresh &&
                        readiness.liveContainerCertificatePresent &&
