@@ -31,6 +31,12 @@ class V24RegistrationGate(unittest.TestCase):
         self.assertNotIn('password',AGENT.lower())
         self.assertNotIn('revoke',AGENT.lower())
         self.assertIn('ScarletGuestRefreshAgent.swift.txt',WIRE)
+        self.assertIn('isEmbeddedLCRefreshWorker',WIRE)
+        self.assertIn('LiveProcess.appex/',WIRE)
+        self.assertIn('Bundle.Info.activeBundleURL.pathExtension.lowercased()',WIRE)
+        self.assertIn('Bundle.Info.activeBundle.builtInPlugInsURL',WIRE)
+        self.assertIn('AltStore/Core/Model/DatabaseManager/DatabaseManager.swift',WIRE)
+        self.assertIn('SideStore headless LiveProcess self registration',WIRE)
 
     def test_native_xpc_protocol_and_callback_not_ui_fake(self):
         self.assertIn('scarletRefreshReadiness:',WIRE)
