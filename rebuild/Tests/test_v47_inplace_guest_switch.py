@@ -48,7 +48,8 @@ class TestV47InPlaceGuestSwitch(unittest.TestCase):
         self.assertIn('revealStartedScene(slots[index].id)',SCENE)
         self.assertIn('if viewport?.select(folder: folder) == true',SCENE)
         self.assertIn('attemptsRemaining > 0',SCENE)
-        self.assertNotIn('removeFromSuperview()',SCENE)
+        self.assertIn('guard !old.isAppRunning else { return false }',SCENE)
+        self.assertIn('old.view.removeFromSuperview()',SCENE)
         self.assertNotIn('terminate()',SCENE)
 
     def test_safe_area_and_signed_release_contract(self):
