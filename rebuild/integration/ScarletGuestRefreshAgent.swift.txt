@@ -236,6 +236,42 @@ extension ScarletGuestRefreshAgent {
     }
 }
 
+// V31: read back the saved *original SideStore* pairing record on every
+// fresh Scarlet session. Do not treat a previously displayed checkmark or
+// successful import receipt as proof that Minimuxer is still connected.
+// The record and the underlying error never leave the SideStore process.
+extension ScarletGuestRefreshAgent {
+    @objc static func inspectDevicePairing(
+        _ reply: @escaping (Bool, String) -> Void
+    ) {
+        Task {
+            let pairing = PairingFileManager.shared
+            guard let saved = pairing.fetchPairingFile(), !saved.isEmpty else {
+                reply(false, "pairing_file_missing")
+                return
+            }
+            do {
+                let parsed = try pairing.parse(content: saved, preferred: .rppairing)
+                guard parsed.mode == .rppairing else {
+                    reply(false, "pairing_protocol_mismatch")
+                    return
+                }
+            } catch {
+                reply(false, "pairing_invalid")
+                return
+            }
+            do {
+                _ = try await ScarletGuestDeviceTransport.ensureReady()
+                reply(true, "pairing_saved_and_transport_ready")
+            } catch {
+                // A saved pairing file is not the same as current connectivity.
+                // Preserve it; explicit retry/refresh can recover later.
+                reply(false, "pairing_saved_transport_unavailable")
+            }
+        }
+    }
+}
+
 // V29: in-app iOS 27 RPPairing passes only an in-memory on-device record.
 // The record is sensitive: never copy it into the JSON diagnostic journal,
 // source control, pasteboard or remote server. Check the *original* pinned

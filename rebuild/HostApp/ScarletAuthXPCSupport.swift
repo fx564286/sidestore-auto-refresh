@@ -349,6 +349,34 @@ private final class ScarletPairingCommitGate: @unchecked Sendable {
 @available(iOS 17.0, *)
 @MainActor
 public enum ScarletNativePairingInstaller {
+    public static func inspectPersistedState() async -> (Bool, String) {
+        do { try await ScarletNativeAuthTransport.shared.prepare() }
+        catch { return (false, "transport_unavailable") }
+        guard let client = RefreshHandler.shared.client else {
+            return (false, "transport_unavailable")
+        }
+        let (verified, rawStatus) = await withCheckedContinuation {
+            (c: CheckedContinuation<(Bool, String), Never>) in
+            let gate = ScarletPairingCommitGate(c)
+            DispatchQueue.main.asyncAfter(deadline: .now() + 20) {
+                gate.finish(false, reason: "pairing_state_read_timeout")
+            }
+            client.scarletInspectDevicePairing { ready, status in
+                gate.finish(ready, reason: status ?? "pairing_state_read_failed")
+            }
+        }
+        let allowed: Set<String> = [
+            "pairing_saved_and_transport_ready", "pairing_file_missing",
+            "pairing_invalid", "pairing_protocol_mismatch",
+            "pairing_saved_transport_unavailable", "transport_unavailable",
+            "refresh_worker_missing", "pairing_state_read_timeout",
+            "pairing_state_read_failed"
+        ]
+        let reason = allowed.contains(rawStatus)
+            ? rawStatus : "pairing_state_read_failed"
+        return (verified && reason == "pairing_saved_and_transport_ready", reason)
+    }
+
     public static func install(candidate: Data) async -> (Bool, String) {
         guard candidate.count > 128 && candidate.count <= 1024 * 1024 else {
             return (false, "pairing_file_invalid")

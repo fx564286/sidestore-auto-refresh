@@ -92,6 +92,7 @@ struct ScarletIntegratedHostView: View {
     @State private var showDeviceInstallSheet = false
     @State private var sourceInputError: String?
     @State private var showScarletAppleIDLogin = false
+    @State private var showInAppDevicePairing = false
     @State private var appleAuthVerified = false
     // Ignore delayed auth readbacks after a newer foreground/login transition.
     @State private var authStateReadGeneration: UInt64 = 0
@@ -968,6 +969,9 @@ struct ScarletIntegratedHostView: View {
             bridgeExistingSideStoreCertificateIfSafe()
             reportPreviousGuestLaunchFailure()
             refreshStoredLoginState()
+            if #available(iOS 27.0, *) {
+                ScarletDevicePairingModel.shared.refreshStoredState()
+            }
             // UIKit window creation can lag behind SwiftUI view construction.
             // The actual dock is initialized lazily and attached when ready.
             Task { @MainActor in
@@ -987,6 +991,9 @@ struct ScarletIntegratedHostView: View {
             if phase == .active && !showScarletAppleIDLogin {
                 ScarletGuestSessionLedger.replaySwitcherTraceToHostJournal()
                 refreshStoredLoginState()
+                if #available(iOS 27.0, *) {
+                    ScarletDevicePairingModel.shared.refreshStoredState()
+                }
                 Task { @MainActor in
                     await ScarletAutomaticRenewal.shared.foregroundCatchUp()
                 }
@@ -1038,6 +1045,22 @@ struct ScarletIntegratedHostView: View {
         .onChange(of: showOriginalError) { error in
             if error != nil {
                 ScarletDiagnosticRecorder.shared.record("alert", "shown", status: "warning")
+            }
+        }
+        .onReceive(NotificationCenter.default.publisher(
+            for: Notification.Name("ScarletPresentDevicePairing"))) { _ in
+            guard !showInAppDevicePairing else { return }
+            showInAppDevicePairing = true
+            ScarletDiagnosticRecorder.shared.record("pairing", "sheet_presented")
+        }
+        .sheet(isPresented: $showInAppDevicePairing) {
+            if #available(iOS 27.0, *) {
+                ScarletDevicePairingSheet()
+                    .presentationDetents([.large])
+                    .presentationBackground(
+                        Color(red: 0.104, green: 0.079, blue: 0.147))
+                    .presentationDragIndicator(.visible)
+                    .accessibilityIdentifier("SCARLET_STABLE_DEVICE_PAIRING_SHEET")
             }
         }
         .sheet(isPresented: $showScarletAppleIDLogin) {

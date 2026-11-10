@@ -25,6 +25,45 @@ final class ScarletDevicePairingModel: NSObject, ObservableObject, @preconcurren
     private var waitingForHost = false
     private var taskFinished = false
     private var currentServicePort: UInt16 = 0
+    @Published private(set) var savedRecordState = "확인 중"
+    private var stateReadGeneration: UInt64 = 0
+    private var lastReportedPairingState: String?
+    private var stateReadInFlight = false
+
+    func refreshStoredState() {
+        guard !active && !stateReadInFlight else { return }
+        stateReadInFlight = true
+        stateReadGeneration &+= 1
+        let generation = stateReadGeneration
+        Task { @MainActor in
+            defer { stateReadInFlight = false }
+            let (ready, reason) = await ScarletNativePairingInstaller.inspectPersistedState()
+            guard !active && generation == stateReadGeneration else { return }
+            savedRecordState = ready ? "연결 검증됨" :
+                reason == "pairing_saved_transport_unavailable" ? "저장됨 · 연결 재확인 필요" :
+                reason == "pairing_file_missing" ? "페어링 필요" : "연결 상태 확인 필요"
+            verified = ready
+            if ready {
+                failureReason = nil
+                phase = "페어링 유지됨 · SideStore 연결 검증됨"
+            } else if reason == "pairing_file_missing" {
+                phase = "기기 페어링 필요"
+            } else if reason == "pairing_saved_transport_unavailable" {
+                phase = "페어링 저장됨 · 연결 재확인 필요"
+            } else {
+                phase = "페어링 상태 확인 필요"
+            }
+            // One categorical event per transition; never serialize UDID,
+            // record, PIN, filesystem location or account identity.
+            if lastReportedPairingState != reason {
+                ScarletDiagnosticRecorder.shared.record(
+                    "pairing", ready ? "pairing_restored" : "pairing_state_unverified",
+                    status: ready ? "success" : "warning",
+                    fields: ["reason": reason])
+                lastReportedPairingState = reason
+            }
+        }
+    }
 
     func registerAtLaunch() {
         BGTaskScheduler.shared.register(
@@ -47,6 +86,7 @@ final class ScarletDevicePairingModel: NSObject, ObservableObject, @preconcurren
 
     func begin() {
         guard !active else { return }
+        stateReadGeneration &+= 1 // stale readbacks cannot undo a new pairing
         active = true
         verified = false
         failureReason = nil
@@ -157,6 +197,7 @@ final class ScarletDevicePairingModel: NSObject, ObservableObject, @preconcurren
                     let (ok, reason) = await ScarletNativePairingInstaller.install(
                         candidate: bytes)
                     self.verified = ok
+                    self.savedRecordState = ok ? "연결 검증됨" : "연결 상태 확인 필요"
                     self.failureReason = ok ? nil : reason
                     self.phase = ok ? "페어링 완료 · SideStore 연결 검증됨"
                                     : "페어링 생성됨 · SideStore 연결 검증 실패"
@@ -171,6 +212,7 @@ final class ScarletDevicePairingModel: NSObject, ObservableObject, @preconcurren
                 } else {
                     self.active = false
                     self.verified = false
+                    self.savedRecordState = "연결 상태 확인 필요"
                     self.failureReason = nonSensitiveFailure ?? "empty_pairing_file"
                     self.phase = "기기 페어링 실패"
                     ScarletDiagnosticRecorder.shared.record(
@@ -272,6 +314,16 @@ private let scarletPairingPIN: StikPairPinCb = { code, context in
 }
 
 @available(iOS 27.0, *)
+struct ScarletPairingStatusRow: View {
+    @ObservedObject private var pairing = ScarletDevicePairingModel.shared
+    var body: some View {
+        LabeledContent("페어링 상태", value: pairing.savedRecordState)
+            .accessibilityIdentifier("SCARLET_PERSISTED_PAIRING_STATUS")
+            .onAppear { pairing.refreshStoredState() }
+    }
+}
+
+@available(iOS 27.0, *)
 struct ScarletDevicePairingSheet: View {
     @ObservedObject private var pairing = ScarletDevicePairingModel.shared
     @Environment(\.dismiss) private var dismiss
@@ -280,6 +332,8 @@ struct ScarletDevicePairingSheet: View {
         NavigationStack {
             Form {
                 Section("연결") {
+                    LabeledContent("저장된 상태", value: pairing.savedRecordState)
+                        .accessibilityIdentifier("SCARLET_PAIRING_SHEET_SAVED_STATE")
                     Label(pairing.phase, systemImage:
                         pairing.verified ? "checkmark.seal.fill"
                         : pairing.active ? "waveform.path"
@@ -315,6 +369,18 @@ struct ScarletDevicePairingSheet: View {
                 }
             }
             .navigationTitle("기기 페어링")
+            .scrollContentBackground(.hidden)
+            .background(
+                LinearGradient(
+                    colors: [
+                        Color(red: 0.104, green: 0.079, blue: 0.147),
+                        Color(red: 0.063, green: 0.055, blue: 0.105),
+                        Color(red: 0.051, green: 0.051, blue: 0.094)
+                    ], startPoint: .topLeading, endPoint: .bottomTrailing
+                ).ignoresSafeArea()
+            )
+            .tint(Color(red: 170.0/255, green: 150.0/255, blue: 1.0))
+            .onAppear { pairing.refreshStoredState() }
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button("닫기") { dismiss() }

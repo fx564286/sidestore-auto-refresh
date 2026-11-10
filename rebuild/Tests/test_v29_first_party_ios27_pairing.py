@@ -18,6 +18,7 @@ BUILD=(ROOT/"integration/apply_scarlet_host.py").read_text()
 LINK=(ROOT/"integration/link_scarlet_pairing.py").read_text()
 CI=(ROOT.parent/".github/workflows/scarlet-paired-engines-build.yml").read_text()
 GLASS=(ROOT/"HostApp/ScarletFullscreenGuestTab.swift").read_text()
+HOST=(ROOT/"HostApp/ScarletIntegratedHostView.swift").read_text()
 
 class V29NativePairing(unittest.TestCase):
     def test_real_rust_rppairing_engine_linked_not_stubbed(self):
@@ -44,7 +45,9 @@ class V29NativePairing(unittest.TestCase):
         self.assertIn('UNUserNotificationCenter.current().add(',UI)
         self.assertIn('Task { @MainActor in model.showPIN(pin) }',UI)
         self.assertIn('ScarletNativePairingInstaller.install(',UI)
-        self.assertIn('ScarletDevicePairingSheet()',PANEL)
+        # V31 moved the sheet from the recycled Form Section to the stable host
+        # to eliminate the present-dismiss-present visual jump.
+        self.assertIn('ScarletDevicePairingSheet()',HOST)
         self.assertIn('SCARLET_NATIVE_DEVICE_PAIRING',PANEL)
         self.assertIn('SCARLET_NATIVE_RPPAIR_START',UI)
         self.assertNotIn('PairingLiveActivity',UI)
