@@ -225,7 +225,7 @@ struct ScarletDiagnosticLogView: View {
                 Text("이전 기록 포함").tag(true)
             }
             .pickerStyle(.segmented)
-            .onChange(of: includeHistory) { _, _ in reload() }
+            .onChange(of: includeHistory) { _ in reload() }
             .accessibilityIdentifier("SCARLET_DIAGNOSTICS_LOG_SCOPE")
             HStack(spacing: 12) {
                 Button {
