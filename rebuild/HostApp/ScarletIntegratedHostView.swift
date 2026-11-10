@@ -1071,12 +1071,14 @@ struct ScarletIntegratedHostView: View {
         // Persistent single-screen compositor: opacity/hit testing change
         // only; do not dismiss the UIViewController and kill its guest PIDs.
         .overlay {
-            ScarletFullscreenSceneViewportRepresentable(stack: fullscreenStack)
+            ScarletFullscreenSceneViewportRepresentable(
+                stack: fullscreenStack, installedApps: sharedModel.apps)
                 .ignoresSafeArea(.all, edges: .all)
                 .opacity(fullscreenStack.isVisible ? 1 : 0)
                 .allowsHitTesting(fullscreenStack.isVisible)
                 .accessibilityIdentifier("SCARLET_V45_NATIVE_FULLSCREEN_VIEWPORT")
         }
+        .statusBarHidden(false)
         // Keep the real LiveContainer importer mounted OUTSIDE the sheet.
         // The sheet is a read-only view of host-owned progress, so swiping
         // it down cannot cancel work or delete its staged input IPA.
