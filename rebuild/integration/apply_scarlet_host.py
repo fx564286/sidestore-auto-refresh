@@ -946,10 +946,10 @@ def add_v45_fullscreen_scene_slot(engine: Path) -> dict:
     header.write_text(h)
     target = engine/"MultitaskSupport/AppSceneViewController.m"
     a = target.read_text()
-    old = "        settings.statusBarDisabled = !self.isNativeWindow;"
-    assert a.count(old) == 1
-    a = a.replace(old,
-        "        settings.statusBarDisabled = !self.isNativeWindow && !self.scarletNativeFullscreenSlot;", 1)
+    # Preserve the EXACT upstream full-screen status bar contract. V45's
+    # pilot override could make the guest's remote scene draw a second
+    # status-bar/safe-area policy over Scarlet's real host status bar.
+    assert a.count("        settings.statusBarDisabled = !self.isNativeWindow;") == 1
     old = "            if(UIInterfaceOrientationIsLandscape(settings.interfaceOrientation)) {"
     assert a.count(old) == 1
     a = a.replace(old, "            if(!self.scarletNativeFullscreenSlot && UIInterfaceOrientationIsLandscape(settings.interfaceOrientation)) {",1)
