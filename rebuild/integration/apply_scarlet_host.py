@@ -1116,7 +1116,8 @@ static void ScarletGuestHookTrace(NSString *event) {
         if([previous isKindOfClass:NSArray.class]) [entries addObjectsFromArray:previous];
     }
     [entries addObject:@{@"id":NSUUID.UUID.UUIDString,
-                         @"event":event, @"count":@0}];
+                         @"event":event, @"count":@0,
+                         @"createdAt":@([[NSDate date] timeIntervalSinceReferenceDate])}];
     if(entries.count > 48) {
         [entries removeObjectsInRange:NSMakeRange(0, entries.count - 48)];
     }

@@ -50,6 +50,16 @@ class CurrentLaunchOnly(unittest.TestCase):
         self.assertIn('allowedFields.contains(key)',S)
         self.assertIn('return "[REDACTED]"',S)
 
+    def test_cross_process_guest_trace_never_replays_old_events(self):
+        trace=(ROOT/'HostApp/ScarletGuestSessionLedger.swift').read_text()
+        injector=(ROOT/'integration/apply_scarlet_host.py').read_text()
+        self.assertIn('let createdAt: Date?',trace)
+        self.assertIn('createdAt: Date()',trace)
+        self.assertIn('ScarletDiagnosticRecorder.shared.currentProcessStartDate',trace)
+        self.assertIn('entry.createdAt.map { $0 >= currentProcessStart } ?? false',trace)
+        self.assertIn('timeIntervalSinceReferenceDate',injector)
+        self.assertIn('@"createdAt"',injector)
+
     def test_auto_background_receipt_does_not_claim_installation(self):
         self.assertIn('automatic_background_task_completed',AUTOMATIC)
         self.assertIn('automatic_attempt_deferred',AUTOMATIC)

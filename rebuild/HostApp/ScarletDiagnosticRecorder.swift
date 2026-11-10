@@ -21,6 +21,7 @@ final class ScarletDiagnosticRecorder: @unchecked Sendable {
     private let retainedFiles = 4
     // Process-specific journal, independent of archived runs.
     private let launchedAt = Date()
+    var currentProcessStartDate: Date { launchedAt }
     private static let allowedFields: Set<String> = [
         "action", "tab", "result", "reason", "status", "state", "code",
         "domain", "count", "duration_ms", "width_pt", "height_pt",
