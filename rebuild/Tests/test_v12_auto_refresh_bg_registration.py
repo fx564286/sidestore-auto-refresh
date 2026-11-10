@@ -19,7 +19,7 @@ class AutoRenewalContract(unittest.TestCase):
         self.assertIn('ScarletAutomaticRenewal.swift',INTEGRATION)
 
     def test_invoke_pinned_sidestore_on_due_and_retry(self):
-        self.assertIn('RefreshAllAppsIntent().perform()',ENGINE)
+        self.assertIn('ScarletNativeRefreshExecutor.execute()',ENGINE)
         self.assertIn('ScarletSigningReadiness.inspect()',ENGINE)
         self.assertIn('storedAuthenticated()',ENGINE)
         self.assertIn('2 * 3600 : 6 * 3600',ENGINE)
