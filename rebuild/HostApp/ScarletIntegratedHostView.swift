@@ -68,6 +68,11 @@ struct ScarletIntegratedHostView: View {
     @StateObject private var downloadHelper = DownloadHelper()
     @StateObject private var originalSources = AltStoreSourcesViewModel()
     @StateObject private var guestImportActivity = ScarletGuestImportActivity()
+    // V45 new architecture: one stable original-size viewport for multiple
+    // resident LiveProcess scenes; disabled unless enabled in Settings.
+    @StateObject private var fullscreenStack = ScarletFullscreenSceneStack()
+    @AppStorage("Scarlet.Feature.FullscreenResidentPilot.V45")
+    private var experimentalFullscreenResident = false
     // A single Files picker serves both explicitly selected installation routes.
     private enum IPAInstallRoute { case guest, device }
     @State private var pendingIPAInstallRoute: IPAInstallRoute = .guest
@@ -435,6 +440,28 @@ struct ScarletIntegratedHostView: View {
                     ScarletDiagnosticRecorder.shared.record(
                         "guest", "session_history_pre_handoff",
                         fields: ["result": "persisted_before_bootstrap"])
+                }
+                // Third path (V45 opt-in): each guest is one original LC
+                // LiveProcess hosted inside ONE real full-screen viewport.
+                // No UIWindow.resize, native window decorations, virtual
+                // multitask app windows, zoom or process-killing cold swap.
+                if experimentalFullscreenResident,
+                   UIDevice.current.userInterfaceIdiom == .phone,
+                   #available(iOS 27.0, *),
+                   app.appInfo.defaultClassicMode == 0,
+                   !app.appInfo.isJITNeeded, !app.appInfo.is32bit,
+                   app.uiSelectedContainer != nil {
+                    do {
+                        try await app.signApp(force: false)
+                        try fullscreenStack.enqueueSignedGuest(app)
+                        ScarletDiagnosticRecorder.shared.record(
+                            "guest", "fullscreen_scene_pilot_launched",
+                            fields: ["memory": "not_verified"])
+                    } catch {
+                        ScarletGuestSessionLedger.restore(historyBeforeLaunch)
+                        throw error
+                    }
+                    return
                 }
                 // Native scene path, where genuinely supported, retains each
                 // guest's RAM without changing the guest UIWindow geometry.
@@ -1010,6 +1037,19 @@ struct ScarletIntegratedHostView: View {
                 // The bottom tab is NOT inside a second presentation.
                 AnyView(
                     LCSettingsView()
+                        .safeAreaInset(edge: .top) {
+                            Toggle(isOn: $experimentalFullscreenResident) {
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text("실험적 전체화면 RAM 유지")
+                                        .font(.subheadline.weight(.medium))
+                                    Text("창 크기를 바꾸지 않는 LiveProcess 장면 전환 · 기기 검증 전")
+                                        .font(.caption2).foregroundStyle(.secondary)
+                                }
+                            }
+                            .padding(.horizontal, 14)
+                            .padding(.vertical, 8)
+                            .background(.regularMaterial)
+                        }
                         .environmentObject(sharedModel)
                         .environmentObject(LCAppSortManager.shared)
                         .environmentObject(downloadHelper)
@@ -1028,6 +1068,15 @@ struct ScarletIntegratedHostView: View {
             }
         )
         .environmentObject(downloadHelper)
+        // Persistent single-screen compositor: opacity/hit testing change
+        // only; do not dismiss the UIViewController and kill its guest PIDs.
+        .overlay {
+            ScarletFullscreenSceneViewportRepresentable(stack: fullscreenStack)
+                .ignoresSafeArea(.all, edges: .all)
+                .opacity(fullscreenStack.isVisible ? 1 : 0)
+                .allowsHitTesting(fullscreenStack.isVisible)
+                .accessibilityIdentifier("SCARLET_V45_NATIVE_FULLSCREEN_VIEWPORT")
+        }
         // Keep the real LiveContainer importer mounted OUTSIDE the sheet.
         // The sheet is a read-only view of host-owned progress, so swiping
         // it down cannot cancel work or delete its staged input IPA.
