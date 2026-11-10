@@ -107,6 +107,23 @@ struct ScarletSigningReadinessPanel: View {
     @State private var isIssuingNativeCertificate = false
     @State private var isRetrievingSideStoreCertificate = false
 
+    private var displayRefreshState: String {
+        switch lastRefreshAttemptState {
+        case "기록 없음": return "대기 중"
+        case "요청 중 · 검증 전": return "갱신 확인 중"
+        case "요청 반환 · 재설치 확인 안 됨",
+             "상태 불명 · 이전 요청의 설치 완료 기록 없음":
+            return "설치 확인 필요"
+        case "차단 · SideStore 로그인 상태 확인 필요":
+            return "로그인 필요"
+        case "차단 · SideStore 갱신 사전검사 실패":
+            return "갱신 준비 필요"
+        case "실패 · SideStore 갱신 오류":
+            return "갱신 실패"
+        default: return lastRefreshAttemptState
+        }
+    }
+
     private func inspect() {
         readiness = ScarletSigningReadiness.inspect()
         let defaults = UserDefaults.standard
@@ -203,7 +220,7 @@ struct ScarletSigningReadinessPanel: View {
                     "refresh", "native_worker_operation_returned",
                     status: "info",
                     fields: ["reason": receipt, "installation_verified": "false"])
-                statusMessage = "내장 SideStore가 앱 새로고침 작업을 반환했습니다. iPhone 설치 및 프로파일 만료일 갱신은 아직 별도 확인이 필요합니다."
+                statusMessage = "갱신 작업은 끝났지만, 실제 설치 완료는 확인되지 않았습니다."
                 UserDefaults.standard.set("요청 반환 · 재설치 확인 안 됨",
                     forKey: "Scarlet.Refresh.LastAttemptOutcome")
                 UserDefaults.standard.removeObject(forKey: "Scarlet.Refresh.LastFailureReason")
@@ -500,18 +517,21 @@ struct ScarletSigningReadinessPanel: View {
         Section {
             LabeledContent("자동 갱신",
                 value: lastRefreshAttemptState == "기록 없음" ?
-                       "iOS 예약 · 대기 중" : lastRefreshAttemptState)
+                       "대기 중" : displayRefreshState)
             if let refreshManagedAppCount {
-                LabeledContent("SideStore 관리 앱", value: String(refreshManagedAppCount))
+                LabeledContent("자동 갱신 대상", value: String(refreshManagedAppCount))
                     .accessibilityIdentifier("SCARLET_MANAGED_REFRESH_APP_COUNT")
             }
             if let refreshHostManaged {
-                LabeledContent("Scarlet 갱신 등록",
+                LabeledContent("이 앱 자동 갱신",
                                value: refreshHostManaged ? "등록됨" : "등록 안 됨")
                     .accessibilityIdentifier("SCARLET_MANAGED_HOST_REGISTRATION")
             }
             if let lastRefreshFailureReason {
-                LabeledContent("갱신 오류 분류", value: lastRefreshFailureReason)
+                LabeledContent("갱신 문제", value: "확인 필요")
+                Text(ScarletRefreshFailureDiagnosis.nativeGuidance(lastRefreshFailureReason))
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
                     .accessibilityIdentifier("SCARLET_REFRESH_FAILURE_CATEGORY")
             }
             // V29: SideInstaller-style pairing is owned by Scarlet's
@@ -526,7 +546,7 @@ struct ScarletSigningReadinessPanel: View {
                         name: Notification.Name("ScarletPresentDevicePairing"),
                         object: nil)
                 } label: {
-                    Label("기기 페어링", systemImage: "iphone.radiowaves.left.and.right")
+                    Label("페어링 설정", systemImage: "iphone.radiowaves.left.and.right")
                 }
                 .accessibilityIdentifier("SCARLET_NATIVE_DEVICE_PAIRING")
             }
@@ -539,7 +559,7 @@ struct ScarletSigningReadinessPanel: View {
                 if refreshing {
                     HStack(spacing: 9) {
                         ProgressView()
-                        Text("내장 SideStore 갱신 처리 중")
+                        Text("앱 갱신 중")
                     }
                 } else {
                     Label("지금 갱신", systemImage: "arrow.triangle.2.circlepath")
@@ -555,7 +575,7 @@ struct ScarletSigningReadinessPanel: View {
                 if isIssuingNativeCertificate || isRetrievingSideStoreCertificate {
                     HStack(spacing: 9) {
                         ProgressView()
-                        Text("SideStore 인증서 확인 중")
+                        Text("인증서 확인 중")
                     }
                 } else {
                     Label("SideStore 인증서 받기", systemImage: "checkmark.shield")
@@ -582,7 +602,7 @@ struct ScarletSigningReadinessPanel: View {
                     .accessibilityIdentifier("SCARLET_REFRESH_STATUS")
             }
         } header: {
-            Text("JIT-Less · 인증서")
+            Text("서명 및 페어링")
         }
         .onAppear(perform: inspect)
         .onReceive(NotificationCenter.default.publisher(

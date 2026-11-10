@@ -32,7 +32,7 @@ class AutoRenewalContract(unittest.TestCase):
     def test_foreground_catchup_and_honest_display(self):
         self.assertEqual(HOST.count('ScarletAutomaticRenewal.shared.foregroundCatchUp()'),2)
         self.assertIn('LabeledContent("자동 갱신",',PANEL)
-        self.assertIn('iOS 예약 · 대기 중',PANEL)
+        self.assertIn('case "기록 없음": return "대기 중"',PANEL)
         self.assertIn('lastRefreshAttemptState',PANEL)
         self.assertIn('Scarlet.Refresh.LastAttemptOutcome',PANEL)
 

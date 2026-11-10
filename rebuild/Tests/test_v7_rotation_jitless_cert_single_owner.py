@@ -44,7 +44,7 @@ class V7SafetyContracts(unittest.TestCase):
                   "if #available(iOS 17.0, *)", "ScarletSigningReadinessPanel()",
                   "LCJITLessDiagnoseView()", "if jitless_begin not in source"):
             self.assertIn(x,PATCH)
-        self.assertIn('Text("JIT-Less · 인증서")',PANEL)
+        self.assertIn('Text("서명 및 페어링")',PANEL)
         self.assertNotIn('Label("JIT-Less 모드 진단"',PANEL)
         self.assertNotIn("SCARLET_JITLESS_SINGLE_DIAGNOSTIC",PANEL)
         self.assertIn('Label("SideStore 인증서 받기"',PANEL)
