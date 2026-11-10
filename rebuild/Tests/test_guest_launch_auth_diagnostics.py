@@ -90,6 +90,8 @@ class LCAppModel {
             file = engine/"LiveContainerSwiftUI/Models/LCAppModel.swift"
             file.parent.mkdir(parents=True)
             file.write_text(source)
+            bridge = engine/"LiveContainerSwiftUI/LiveContainerSwiftUI-Bridging-Header.h"
+            bridge.write_text('#include "LCAppInfo.h"\n')
             report = integrator().instrument_original_guest_signing(engine)
             result = file.read_text()
             self.assertTrue(report["originalLCSigningUnchanged"])

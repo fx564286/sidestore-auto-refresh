@@ -18,6 +18,7 @@ enum ScarletGuestSessionLedger {
     // Legacy key: Scarlet.Guest.ActiveSwitcherSession.V19
     private static let key = "Scarlet.Guest.ActiveSwitcherSession.V23"
     private static let hostReturnKey = "Scarlet.Guest.HostReturnTicket.V23"
+    private static let guestBootMarkerKey = "Scarlet.Guest.LaunchBootEpoch.V33"
     private static let maxItems = 8
     private static let returnTicketValidity: TimeInterval = 120
     private static var hasEnteredHostWorkSession = false
@@ -44,15 +45,28 @@ enum ScarletGuestSessionLedger {
         guard !hasEnteredHostWorkSession else { return }
         hasEnteredHostWorkSession = true
         let age = ticket.map { Date().timeIntervalSince($0) }
-        let isContinuation = age.map { $0 >= 0 && $0 <= returnTicketValidity } ?? false
+        let explicitReturn = age.map {
+            $0 >= 0 && $0 <= returnTicketValidity
+        } ?? false
+        // iOS may restore Scarlet from Home without using the LC guest's
+        // "Return" button. Previously every such fresh host process erased
+        // A before B was launched. Preserve *launched-only* session history
+        // on the same physical iOS boot; never claim cold apps retain RAM.
+        let bootEpoch = Date().timeIntervalSince1970 -
+            ProcessInfo.processInfo.systemUptime
+        let savedEpoch = store.object(forKey: guestBootMarkerKey) as? Double
+        let sameBoot = savedEpoch.map { abs($0 - bootEpoch) < 120 } ?? false
+        let isContinuation = explicitReturn ||
+            (sameBoot && !recent().isEmpty)
         if !isContinuation {
             guard let empty = try? JSONEncoder().encode([Entry]()) else { return }
             store.set(empty, forKey: key)
         }
         ScarletDiagnosticRecorder.shared.record(
             "guest", "switcher_work_session_started",
-            fields: ["result": isContinuation ? "guest_return_continued"
-                                               : "cold_host_new_session"])
+            fields: ["result": explicitReturn ? "guest_return_continued"
+                       : isContinuation ? "same_boot_guest_history_continued"
+                       : "cold_host_new_session"])
     }
 
     // The actual full-screen guest has a virtualized app sandbox, so its
@@ -193,6 +207,8 @@ enum ScarletGuestSessionLedger {
         guard let encoded = try? JSONEncoder().encode(Array(items.prefix(maxItems)))
         else { return }
         store.set(encoded, forKey: key)
+        store.set(Date().timeIntervalSince1970 -
+                  ProcessInfo.processInfo.systemUptime, forKey: guestBootMarkerKey)
         // Detect App Group/entitlement storage failures at the exact
         // pre-handoff write point, rather than reporting a saved A/B list
         // that the next guest cannot read. No credentials are recorded.

@@ -40,7 +40,7 @@ class NativeDeviceTransportRecovery(unittest.TestCase):
         self.assertIn('let managedHost = targets.first(where:',AGENT)
         self.assertIn('CertificateManager.shared.activeCertificate != nil',AGENT)
         self.assertIn('operation.ignoresServerNotFoundError = false',AGENT)
-        self.assertIn('results[managedHost.bundleIdentifier] != nil',AGENT)
+        self.assertIn('let hostResult = results[managedHost.bundleIdentifier]',AGENT)
         self.assertIn('native_operation_returned_unverified_transport_recovered',AGENT)
 
     def test_original_upstream_typed_errors_not_hidden_by_string_classifier(self):

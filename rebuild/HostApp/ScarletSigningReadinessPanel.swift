@@ -112,6 +112,7 @@ struct ScarletSigningReadinessPanel: View {
         case "기록 없음": return "대기 중"
         case "요청 중 · 검증 전": return "갱신 확인 중"
         case "요청 반환 · 재설치 확인 안 됨",
+             "갱신 기록 확인 · 설치 미확인",
              "상태 불명 · 이전 요청의 설치 완료 기록 없음":
             return "설치 확인 필요"
         case "차단 · SideStore 로그인 상태 확인 필요":
@@ -220,11 +221,20 @@ struct ScarletSigningReadinessPanel: View {
                     "refresh", "native_worker_operation_returned",
                     status: "info",
                     fields: ["reason": receipt, "installation_verified": "false"])
-                statusMessage = "갱신 작업은 끝났지만, 실제 설치 완료는 확인되지 않았습니다."
-                UserDefaults.standard.set("요청 반환 · 재설치 확인 안 됨",
+                let nativeRecordChanged = receipt ==
+                    "native_profile_date_advanced_install_unverified" ||
+                    receipt == "native_refresh_record_updated_install_unverified"
+                statusMessage = nativeRecordChanged
+                    ? "갱신 기록이 업데이트됐습니다. 실제 설치 반영은 확인 중입니다."
+                    : "갱신 작업은 끝났지만, 실제 설치 완료는 확인되지 않았습니다."
+                UserDefaults.standard.set(nativeRecordChanged
+                    ? "갱신 기록 확인 · 설치 미확인"
+                    : "요청 반환 · 재설치 확인 안 됨",
                     forKey: "Scarlet.Refresh.LastAttemptOutcome")
                 UserDefaults.standard.removeObject(forKey: "Scarlet.Refresh.LastFailureReason")
-                lastRefreshAttemptState = "요청 반환 · 재설치 확인 안 됨"
+                lastRefreshAttemptState = nativeRecordChanged
+                    ? "갱신 기록 확인 · 설치 미확인"
+                    : "요청 반환 · 재설치 확인 안 됨"
                 lastRefreshFailureReason = nil
                 ScarletDiagnosticRecorder.shared.record("refresh", "manual_request_returned",
                     status: "info", fields: ["installation_verified": "false"])
