@@ -107,6 +107,15 @@ jobs:
           fi
           app="$RUNNER_TEMP/ScarletLiveContainer.xcarchive/Products/Applications/LiveContainer.app"
           test -d "$app" || exit 1
+          # File-synchronized Xcode Resources are not guaranteed to copy
+          # stand-alone .txt notices into the archived .app. Make the pinned
+          # StikPair license an actual IPA resource before tar/packaging.
+          notice="$GITHUB_WORKSPACE/engine/LiveContainer/Resources/ScarletPairingThirdParty-LICENSE.txt"
+          test -s "$notice" || { echo "[STOP] StikPair attribution missing"; exit 1; }
+          cp "$notice" "$app/ScarletPairingThirdParty-LICENSE.txt"
+          cmp "$notice" "$app/ScarletPairingThirdParty-LICENSE.txt"
+          grep -Fq 'StephenDev0' "$app/ScarletPairingThirdParty-LICENSE.txt"
+          echo "[PASS] V29 original StikPair license embedded in app archive"
           python3 "$GITHUB_WORKSPACE/rebuild/integration/verify_engines.py" \
             --livecontainer "$app" --phase livecontainer \
             --report "$GITHUB_WORKSPACE/report/livecontainer-audit.json"
