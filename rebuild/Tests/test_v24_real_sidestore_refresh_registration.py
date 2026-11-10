@@ -58,11 +58,11 @@ class V24RegistrationGate(unittest.TestCase):
         self.assertIn('Label("지금 갱신"',PANEL)
         self.assertNotIn('Label("SideStore 수동 새로고침"',PANEL)
         self.assertLess(PANEL.index('guard nativeState.canRefreshHost else {'),
-                        PANEL.index('RefreshAllAppsIntent().perform()'))
+                        PANEL.index('ScarletNativeRefreshExecutor.execute()'))
         self.assertIn('automatic_managed_apps_inspected',AUTO)
         self.assertIn('guard nativeState.canRefreshHost else {',AUTO)
         self.assertLess(AUTO.index('guard nativeState.canRefreshHost else {'),
-                        AUTO.index('RefreshAllAppsIntent().perform()'))
+                        AUTO.index('ScarletNativeRefreshExecutor.execute()'))
         self.assertIn('nativeGuidance',AUTO)
 
     def test_pending_status_and_auth_failure_are_terminally_reconciled(self):
