@@ -44,7 +44,7 @@ class V31RealState(unittest.TestCase):
         self.assertIn('defer { stateReadInFlight = false }', PAIR)
         self.assertIn('stateReadGeneration &+= 1 // stale readbacks', PAIR)
         self.assertIn('verified = ready',PAIR)
-        self.assertIn('savedRecordState = ready ? "연결 검증됨"',PAIR)
+        self.assertIn('savedRecordState = ready ? "페어링 됨"',PAIR)
         self.assertIn('pairing_restored',PAIR)
         self.assertIn('ScarletDevicePairingModel.shared.refreshStoredState()',HOST)
         self.assertIn('SCARLET_PERSISTED_PAIRING_STATUS', PAIR)

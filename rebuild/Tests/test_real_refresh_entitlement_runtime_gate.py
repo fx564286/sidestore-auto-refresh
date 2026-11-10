@@ -22,7 +22,7 @@ class SignedRuntimeCapabilityGate(unittest.TestCase):
 
     def test_2_automatic_refresh_not_falsely_reported(self):
         self.assertIn('LabeledContent("자동 갱신",', CAP)
-        self.assertIn('iOS 예약 · 대기 중', CAP)
+        self.assertIn('case "기록 없음": return "대기 중"', CAP)
         self.assertIn("recommendedLeadTime: TimeInterval = 72 * 3600", POLICY)
 
     def test_3_actual_entitlement_and_container_both_required(self):

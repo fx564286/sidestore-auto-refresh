@@ -15,7 +15,7 @@ final class ScarletDevicePairingModel: NSObject, ObservableObject, @preconcurren
     static let shared = ScarletDevicePairingModel()
     static let taskIdentifier = "com.kdt.livecontainer.P8EZT3U5N4.pairing"
 
-    @Published private(set) var phase = "준비됨"
+    @Published private(set) var phase = "확인 중"
     @Published private(set) var pin: String?
     @Published private(set) var active = false
     @Published private(set) var verified = false
@@ -30,6 +30,26 @@ final class ScarletDevicePairingModel: NSObject, ObservableObject, @preconcurren
     private var lastReportedPairingState: String?
     private var stateReadInFlight = false
 
+    // Display only actionable Korean in the UI. Raw diagnostics retain
+    // the safe error category without exposing internal engine identifiers.
+    func errorDescription(for reason: String) -> String {
+        switch reason {
+        case "background_expired", "pairing_validation_unresponsive",
+             "pairing_state_read_timeout":
+            return "연결 시간이 초과됐습니다. 다시 시도해 주세요."
+        case "bonjour_publish_failed":
+            return "로컬 네트워크 권한을 확인해 주세요."
+        case "vpn_unavailable", "device_endpoint_unavailable",
+             "device_network_unavailable", "transport_unavailable":
+            return "기기 연결을 확인할 수 없습니다."
+        case "pairing_invalid", "pairing_protocol_mismatch",
+             "pairing_file_invalid", "empty_pairing_file":
+            return "페어링 정보가 올바르지 않습니다. 다시 시도해 주세요."
+        default:
+            return "페어링을 완료하지 못했습니다. 다시 시도해 주세요."
+        }
+    }
+
     func refreshStoredState() {
         guard !active && !stateReadInFlight else { return }
         stateReadInFlight = true
@@ -39,19 +59,16 @@ final class ScarletDevicePairingModel: NSObject, ObservableObject, @preconcurren
             defer { stateReadInFlight = false }
             let (ready, reason) = await ScarletNativePairingInstaller.inspectPersistedState()
             guard !active && generation == stateReadGeneration else { return }
-            savedRecordState = ready ? "연결 검증됨" :
-                reason == "pairing_saved_transport_unavailable" ? "저장됨 · 연결 재확인 필요" :
-                reason == "pairing_file_missing" ? "페어링 필요" : "연결 상태 확인 필요"
+            savedRecordState = ready ? "페어링 됨" :
+                reason == "pairing_file_missing" ? "페어링 필요" : "연결 확인 필요"
             verified = ready
             if ready {
                 failureReason = nil
-                phase = "페어링 유지됨 · SideStore 연결 검증됨"
+                phase = "페어링 됨"
             } else if reason == "pairing_file_missing" {
-                phase = "기기 페어링 필요"
-            } else if reason == "pairing_saved_transport_unavailable" {
-                phase = "페어링 저장됨 · 연결 재확인 필요"
+                phase = "페어링 필요"
             } else {
-                phase = "페어링 상태 확인 필요"
+                phase = "연결 확인 필요"
             }
             // One categorical event per transition; never serialize UDID,
             // record, PIN, filesystem location or account identity.
@@ -91,14 +108,15 @@ final class ScarletDevicePairingModel: NSObject, ObservableObject, @preconcurren
         verified = false
         failureReason = nil
         pin = nil
-        phase = "로컬 네트워크 권한 및 무선 페어링 준비"
+        savedRecordState = "페어링 중"
+        phase = "페어링 준비 중"
         ScarletDiagnosticRecorder.shared.record(
             "pairing", "pairing_started", fields: ["method": "on_device_rppairing"])
         Task {
             _ = try? await UNUserNotificationCenter.current()
                 .requestAuthorization(options: [.alert, .sound])
             guard active else { return }
-            phase = "연결 대기 중 · 설정 → 개인정보 보호 및 보안 → 개발자 모드"
+            phase = "iPhone 설정에서 페어링을 완료해 주세요"
             let req = BGContinuedProcessingTaskRequest(
                 identifier: Self.taskIdentifier,
                 title: "Scarlet Crystal 기기 페어링",
@@ -137,7 +155,7 @@ final class ScarletDevicePairingModel: NSObject, ObservableObject, @preconcurren
                 task.progress.completedUnitCount = pin == nil ? 5 : 50
                 task.expirationHandler = {
                     Task { @MainActor in
-                        self.phase = "백그라운드 연결 유지가 종료됨"
+                        self.phase = "연결이 끊겼습니다. 다시 시도해 주세요"
                         self.failureReason = "background_expired"
                         self.finishBackground(success: false)
                     }
@@ -152,7 +170,7 @@ final class ScarletDevicePairingModel: NSObject, ObservableObject, @preconcurren
         task?.progress.completedUnitCount = 5
         task?.expirationHandler = {
             Task { @MainActor in
-                self.phase = "백그라운드 연결 유지가 종료됨"
+                self.phase = "연결이 끊겼습니다. 다시 시도해 주세요"
                 self.failureReason = "background_expired"
                 self.finishBackground(success: false)
             }
@@ -192,15 +210,14 @@ final class ScarletDevicePairingModel: NSObject, ObservableObject, @preconcurren
                 if let resultPath, code == 0,
                    let bytes = try? Data(contentsOf: URL(fileURLWithPath: resultPath)),
                    bytes.count > 128, bytes.count <= 1024 * 1024 {
-                    self.phase = "내장 SideStore에 페어링 등록 및 연결 검증"
+                    self.phase = "연결 확인 중"
                     self.backgroundTask?.progress.completedUnitCount = 70
                     let (ok, reason) = await ScarletNativePairingInstaller.install(
                         candidate: bytes)
                     self.verified = ok
-                    self.savedRecordState = ok ? "연결 검증됨" : "연결 상태 확인 필요"
+                    self.savedRecordState = ok ? "페어링 됨" : "연결 확인 필요"
                     self.failureReason = ok ? nil : reason
-                    self.phase = ok ? "페어링 완료 · SideStore 연결 검증됨"
-                                    : "페어링 생성됨 · SideStore 연결 검증 실패"
+                    self.phase = ok ? "페어링 됨" : "연결 확인 필요"
                     ScarletDiagnosticRecorder.shared.record(
                         "pairing", ok ? "pairing_verified" : "pairing_commit_failed",
                         status: ok ? "success" : "error",
@@ -212,9 +229,9 @@ final class ScarletDevicePairingModel: NSObject, ObservableObject, @preconcurren
                 } else {
                     self.active = false
                     self.verified = false
-                    self.savedRecordState = "연결 상태 확인 필요"
+                    self.savedRecordState = "연결 확인 필요"
                     self.failureReason = nonSensitiveFailure ?? "empty_pairing_file"
-                    self.phase = "기기 페어링 실패"
+                    self.phase = "페어링 실패"
                     ScarletDiagnosticRecorder.shared.record(
                         "pairing", "native_pairing_failed", status: "error",
                         fields: ["reason": self.failureReason ?? "unknown"])
@@ -250,7 +267,7 @@ final class ScarletDevicePairingModel: NSObject, ObservableObject, @preconcurren
         publisher.delegate = self
         service = publisher
         publisher.publish()
-        phase = "iPhone 설정에서 ‘Scarlet Crystal’ 선택"
+        phase = "iPhone 설정에서 Scarlet Crystal을 선택해 주세요"
         ScarletDiagnosticRecorder.shared.record(
             "pairing", "bonjour_host_advertising")
     }
@@ -258,7 +275,7 @@ final class ScarletDevicePairingModel: NSObject, ObservableObject, @preconcurren
     fileprivate func showPIN(_ value: String) {
         guard active else { return }
         pin = value
-        phase = "설정에서 PIN 입력"
+        phase = "PIN을 입력해 주세요"
         backgroundTask?.progress.completedUnitCount = 50
         backgroundTask?.updateTitle(
             "Scarlet Crystal 기기 페어링", subtitle: "설정의 PIN 요청을 확인하세요")
@@ -276,7 +293,7 @@ final class ScarletDevicePairingModel: NSObject, ObservableObject, @preconcurren
 
     func netService(_ sender: NetService,
         didNotPublish errorDict: [String : NSNumber]) {
-        phase = "로컬 네트워크 광고 실패 · 앱 네트워크 권한 확인"
+        phase = "로컬 네트워크 권한을 확인해 주세요"
         failureReason = "bonjour_publish_failed"
         ScarletDiagnosticRecorder.shared.record(
             "pairing", "bonjour_publish_failed", status: "error")
@@ -332,43 +349,43 @@ struct ScarletDevicePairingSheet: View {
         NavigationStack {
             Form {
                 Section("연결") {
-                    LabeledContent("저장된 상태", value: pairing.savedRecordState)
+                    LabeledContent("상태", value: pairing.savedRecordState)
                         .accessibilityIdentifier("SCARLET_PAIRING_SHEET_SAVED_STATE")
-                    Label(pairing.phase, systemImage:
-                        pairing.verified ? "checkmark.seal.fill"
-                        : pairing.active ? "waveform.path"
-                        : "antenna.radiowaves.left.and.right")
+                    if pairing.active || pairing.phase != pairing.savedRecordState {
+                        Label(pairing.phase, systemImage:
+                            pairing.verified ? "checkmark.seal.fill"
+                            : pairing.active ? "waveform.path"
+                            : "antenna.radiowaves.left.and.right")
+                    }
                     if pairing.active {
                         ProgressView()
-                        Text("설정 → 개인정보 보호 및 보안 → 개발자 모드 → Scarlet Crystal과 페어링")
+                        Text("설정 → 개인정보 보호 및 보안 → 개발자 모드에서 Scarlet Crystal을 선택하세요.")
                             .font(.footnote)
-                        Text("PIN은 Scarlet 알림으로 표시됩니다. 알림을 허용하세요.")
+                        Text("페어링 PIN은 알림으로 보내드립니다.")
                             .font(.footnote)
                     }
                     if let pin = pairing.pin {
-                        LabeledContent("페어링 PIN", value: pin)
+                        LabeledContent("PIN 번호", value: pin)
                     }
                     if let reason = pairing.failureReason {
-                        LabeledContent("연결 오류", value: reason)
-                    }
-                    if pairing.verified {
-                        Text("기존 SideStore 갱신 엔진과 연결이 확인됐습니다.")
+                        LabeledContent("문제", value: pairing.errorDescription(for: reason))
                     }
                     Button {
                         pairing.begin()
                     } label: {
-                        Label(pairing.active ? "페어링 진행 중" : "기기 페어링 시작",
+                        Label(pairing.active ? "페어링 중" :
+                              pairing.verified ? "다시 페어링" : "페어링 시작",
                               systemImage: "iphone.gen3.radiowaves.left.and.right")
                     }
                     .disabled(pairing.active)
                     .accessibilityIdentifier("SCARLET_NATIVE_RPPAIR_START")
                 }
                 Section {
-                    Text("새 페어링이 연결 검증에 실패하면 기존 SideStore 페어링 파일은 유지됩니다. 인증서와 게스트 앱도 변경하지 않습니다.")
+                    Text("연결에 실패해도 기존 페어링 정보, 인증서와 설치된 앱은 그대로 유지됩니다.")
                         .font(.footnote)
                 }
             }
-            .navigationTitle("기기 페어링")
+            .navigationTitle("페어링")
             .scrollContentBackground(.hidden)
             .background(
                 LinearGradient(
