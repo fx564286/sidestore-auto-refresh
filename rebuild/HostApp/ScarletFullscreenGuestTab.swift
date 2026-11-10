@@ -37,10 +37,16 @@ final class ScarletGuestTouchPassthroughWindow: UIWindow {
 
     override func point(inside point: CGPoint, with event: UIEvent?) -> Bool {
         guard bounds.contains(point) else { return false }
-        if hypot(point.x - buttonCenter.x, point.y - buttonCenter.y) <= 35 {
+        if isExpanded {
+            // The panel is modal in its own non-key UIWindow. Swallow an
+            // outside tap HERE so the SwiftUI clear backdrop can dismiss
+            // the panel; do not forward it to the running guest below.
             return super.point(inside: point, with: event)
         }
-        return isExpanded && panelRect.contains(point) &&
+        // Collapsed: native guest remains interactive everywhere except
+        // the round floating button at its persisted absolute position.
+        return hypot(point.x - buttonCenter.x,
+                     point.y - buttonCenter.y) <= 35 &&
             super.point(inside: point, with: event)
     }
 }
@@ -92,14 +98,14 @@ struct ScarletFullscreenGuestFloatingTab: View {
     private func closePanel() {
         ScarletGuestSessionLedger.traceSwitcher("panel_closed")
         transitionVersion += 1
-        let version = transitionVersion
+        // Restore round-button-only hit testing synchronously. Keeping
+        // UIWindow.isExpanded true during the 390ms dismiss animation
+        // previously swallowed guest input and caused overlay ghost taps.
+        onPanel(false, apps.count)
         withAnimation(switcherMotion ? spring : nil) { isOpen = false }
-        Task { @MainActor in
-            if switcherMotion {
-                try? await Task.sleep(for: .milliseconds(390))
-            }
-            if version == transitionVersion && !isOpen { onPanel(false, apps.count) }
-        }
+        ScarletDiagnosticRecorder.shared.record(
+            "guest", "switch_panel_dismissed",
+            fields: ["result": "round_button_restored_at_saved_center"])
     }
 
     private func switchTo(_ target: ScarletGuestSwitchTarget) {
@@ -341,18 +347,36 @@ struct ScarletFullscreenGuestFloatingTab: View {
             let panelHeight = min(panelWidth * 1.02, CGFloat(435),
                                   max(CGFloat(210), geometry.size.height - 156))
             ZStack(alignment: .topLeading) {
-                // The panel may be centered independently of the button.
-                // Neither opening nor closing moves its screen-space center.
+                // The overlay is modal only while expanded. A clear full-
+                // scene backdrop receives outside taps without drawing a
+                // dimming mask over the running guest or weakening Liquid
+                // Glass. The native window routes these taps here.
                 if isOpen {
+                    Color.clear
+                        .contentShape(Rectangle())
+                        .onTapGesture {
+                            ScarletGuestSessionLedger.traceSwitcher(
+                                "panel_dismissed_outside")
+                            closePanel()
+                        }
+                        .frame(width: geometry.size.width,
+                               height: geometry.size.height)
+                    // Exactly ONE visible switcher surface. Do not leave
+                    // the separate 62pt X bubble overlapping its glass card.
                     appPanel
                         .frame(width: panelWidth, height: panelHeight)
                         .position(x: geometry.size.width / 2,
                                   y: geometry.size.height / 2)
                         .transition(.opacity.combined(with: .scale(scale: 0.96)))
+                } else {
+                    // Persisted normalized coordinates are never overwritten
+                    // by open/dismiss. The same 62pt round button returns
+                    // to its pre-open screen location, including after drag.
+                    roundTab
+                        .frame(width: 72, height: 72)
+                        .position(x: screenButtonCenter.x, y: screenButtonCenter.y)
+                        .transition(.identity)
                 }
-                roundTab
-                    .frame(width: 72, height: 72)
-                    .position(x: screenButtonCenter.x, y: screenButtonCenter.y)
             }
             .frame(width: geometry.size.width, height: geometry.size.height)
         }
