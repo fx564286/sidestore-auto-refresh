@@ -35,6 +35,25 @@ enum ScarletRefreshFailureDiagnosis {
         return "sidestore_internal_failure"
     }
 
+    static func nativeGuidance(_ reason: String) -> String {
+        switch reason {
+        case "no_managed_apps":
+            return "내장 SideStore에 관리 앱이 없습니다. 현재 Scarlet은 갱신 대상으로 등록되지 않았습니다."
+        case "host_not_managed":
+            return "내장 SideStore 데이터베이스에 현재 설치된 Scarlet 번들 ID가 등록되지 않았습니다. 다른 설치 프로그램의 앱은 자동으로 갱신 대상에 포함되지 않습니다."
+        case "sidestore_certificate_missing":
+            return "LiveContainer 인증서와 별개로 내장 SideStore 서명 인증서가 없습니다. SideStore 인증서 복구·가져오기 상태를 확인해야 합니다."
+        case "sidestore_database_unavailable":
+            return "내장 SideStore 설치 앱 데이터베이스 초기화가 실패했습니다."
+        case "refresh_worker_missing":
+            return "내장 SideStore LiveProcess에 갱신 확인 작업자가 연결되지 않았습니다."
+        case "transport_unavailable", "transport_unresponsive":
+            return "내장 SideStore LiveProcess의 XPC 연결을 확인하지 못했습니다."
+        default:
+            return "내장 SideStore의 관리 앱·인증서 상태를 확인하지 못했습니다."
+        }
+    }
+
     static func guidance(_ category: String) -> String {
         switch category {
         case "refresh_already_running":
@@ -62,6 +81,10 @@ final class ScarletAutomaticRenewal {
     private let outcomeKey = "Scarlet.Refresh.LastAttemptOutcome"
     private let sourceKey = "Scarlet.Refresh.LastAttemptSource"
     private let failureReasonKey = "Scarlet.Refresh.LastFailureReason"
+    private func notifyStateChanged() {
+        NotificationCenter.default.post(
+            name: Notification.Name("ScarletRefreshOutcomeChanged"), object: nil)
+    }
     private var registered = false
     private var running = false
     private var lastScheduledFor: Date?
@@ -157,12 +180,14 @@ final class ScarletAutomaticRenewal {
         if let last = prefs.object(forKey: attemptKey) as? Date,
            now.timeIntervalSince(last) < interval { return true }
         running = true
-        defer { running = false; scheduleNext() }
+        defer { running = false; scheduleNext(); notifyStateChanged() }
 
         prefs.set(now, forKey: attemptKey)
+        prefs.set(now, forKey: "Scarlet.Refresh.LastAttemptStartedAt")
         prefs.set(origin, forKey: sourceKey)
         prefs.set("요청 중 · 검증 전", forKey: outcomeKey)
         prefs.removeObject(forKey: failureReasonKey)
+        notifyStateChanged()
         ScarletDiagnosticRecorder.shared.record(
             "refresh", "automatic_attempt_started",
             fields: ["result": origin])
@@ -184,7 +209,26 @@ final class ScarletAutomaticRenewal {
             prefs.set("auth_unavailable", forKey: failureReasonKey)
             return false
         }
-        guard !Task.isCancelled else { return false }
+        guard !Task.isCancelled else {
+            prefs.set("중단 · 갱신 요청 취소됨", forKey: outcomeKey)
+            return false
+        }
+        // Login and LC P12 were insufficient preflights: the embedded
+        // SideStore has its own installed-app DB and signing Keychain.
+        let nativeState = await ScarletNativeRefreshInspector.inspect()
+        ScarletDiagnosticRecorder.shared.record(
+            "refresh", "automatic_managed_apps_inspected",
+            status: nativeState.canRefreshHost ? "success" : "blocked",
+            fields: ["count": String(nativeState.count),
+                     "host_managed": nativeState.hostManaged ? "true" : "false",
+                     "signing_ready": nativeState.signingReady ? "true" : "false",
+                     "reason": nativeState.reason])
+        guard nativeState.canRefreshHost else {
+            prefs.set("차단 · 내장 SideStore 관리 앱·인증서 확인 필요",
+                      forKey: outcomeKey)
+            prefs.set(nativeState.reason, forKey: failureReasonKey)
+            return false
+        }
         do {
             // Calls the pinned SideStore native signing+installation workflow.
             // This may return with no registered apps. Do not claim success.

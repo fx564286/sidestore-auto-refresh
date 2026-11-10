@@ -167,6 +167,85 @@ extension RefreshHandler {
     }
 }
 
+// Real worker inspection, not an assumption based on Apple login or host
+// provisioning. SideStore refreshes its OWN database of managed InstalledApp.
+@available(iOS 17.0, *)
+public struct ScarletNativeRefreshInspection: Sendable {
+    public let count: Int
+    public let hostManaged: Bool
+    public let signingReady: Bool
+    public let reason: String
+
+    public init(count: Int, hostManaged: Bool, signingReady: Bool, reason: String) {
+        self.count = count
+        self.hostManaged = hostManaged
+        self.signingReady = signingReady
+        self.reason = reason
+    }
+    public var canRefreshHost: Bool {
+        hostManaged && signingReady && reason == "ready"
+    }
+}
+
+@available(iOS 17.0, *)
+private final class ScarletRefreshInspectionGate: @unchecked Sendable {
+    private let lock = NSLock()
+    private var continuation: CheckedContinuation<ScarletNativeRefreshInspection, Never>?
+    init(_ c: CheckedContinuation<ScarletNativeRefreshInspection, Never>) {
+        continuation = c
+    }
+    func finish(_ result: ScarletNativeRefreshInspection) {
+        lock.lock()
+        let c = continuation
+        continuation = nil
+        lock.unlock()
+        c?.resume(returning: result)
+    }
+}
+
+@available(iOS 17.0, *)
+@MainActor
+public enum ScarletNativeRefreshInspector {
+    public static func inspect() async -> ScarletNativeRefreshInspection {
+        // Reuse the SAME embedded LiveProcess guest and XPC used by SignIn,
+        // but query the SideStore DB instead of treating login as readiness.
+        do {
+            try await ScarletNativeAuthTransport.shared.prepare()
+        } catch {
+            return ScarletNativeRefreshInspection(count: 0, hostManaged: false,
+                signingReady: false, reason: "transport_unavailable")
+        }
+        guard let client = RefreshHandler.shared.client else {
+            return ScarletNativeRefreshInspection(count: 0, hostManaged: false,
+                signingReady: false, reason: "transport_unavailable")
+        }
+        return await withCheckedContinuation { c in
+            let gate = ScarletRefreshInspectionGate(c)
+            // A dead XPC connection must return a diagnostic status instead
+            // of leaving the user's UI permanently at '요청 중'.
+            DispatchQueue.main.asyncAfter(deadline: .now() + 20) {
+                gate.finish(ScarletNativeRefreshInspection(count: 0,
+                    hostManaged: false, signingReady: false,
+                    reason: "transport_unresponsive"))
+            }
+            client.scarletRefreshReadiness { count, managed, cert, rawStatus in
+                // Allowlist classifications; never transfer DB, Apple ID,
+                // P12 or user-supplied error strings.
+                let allowed = [
+                    "ready", "no_managed_apps", "host_not_managed",
+                    "sidestore_certificate_missing", "sidestore_database_unavailable",
+                    "refresh_worker_missing"
+                ]
+                let status = rawStatus ?? "worker_unknown"
+                gate.finish(ScarletNativeRefreshInspection(
+                    count: max(0, min(Int(count), 99)),
+                    hostManaged: managed, signingReady: cert,
+                    reason: allowed.contains(status) ? status : "worker_unknown"))
+            }
+        }
+    }
+}
+
 @available(iOS 17.0, *)
 extension RefreshHandler {
     func scarletEnsureAuthGuest() async throws {

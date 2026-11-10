@@ -1,0 +1,39 @@
+// Runs inside the REAL embedded SideStore LiveProcess, where SideStore's
+// CoreData database and CertificateManager live. Scarlet's host cannot infer
+// whether its SideInstaller-installed signed bundle is managed by this DB.
+@objc(ScarletGuestRefreshAgent)
+final class ScarletGuestRefreshAgent: NSObject {
+    @objc static func inspect(_ reply: @escaping (Int, Bool, Bool, String) -> Void) {
+        Task {
+            do {
+                // SideStore's original start() prepares/reconciles its own
+                // installed host record; this is not a fake copy of a DB.
+                try await DatabaseManager.shared.start()
+                let context = DatabaseManager.shared.persistentContainer.newBackgroundContext()
+                let targets = await context.perform {
+                    InstalledApp.fetchAppsForRefreshingAll(in: context)
+                }
+                // A Personal Team signer may suffix the original bundle ID.
+                // Compare the actual signed bundle, NOT the hard-coded
+                // com.kdt.livecontainer StoreApp.altstoreAppID.
+                let realHostID = Bundle.Info.activeBundleIdentifier
+                let managesHost = targets.contains {
+                    $0.resignedBundleIdentifier == realHostID
+                }
+                let signingReady = CertificateManager.shared.activeCertificate != nil
+                let reason: String
+                if !managesHost {
+                    reason = targets.isEmpty ? "no_managed_apps" : "host_not_managed"
+                } else if !signingReady {
+                    reason = "sidestore_certificate_missing"
+                } else {
+                    reason = "ready"
+                }
+                reply(min(targets.count, 99), managesHost, signingReady, reason)
+            } catch {
+                // Never send account info, DB URLs or arbitrary error strings.
+                reply(0, false, false, "sidestore_database_unavailable")
+            }
+        }
+    }
+}

@@ -70,7 +70,8 @@ enum ScarletGuestSessionLedger {
         "hook_entered", "framework_loaded", "framework_missing",
         "provider_ready", "provider_missing",
         "mount_window_not_ready", "mount_window_recovered",
-        "runtime_current_resolved", "runtime_current_unresolved"
+        "runtime_current_resolved", "runtime_current_unresolved",
+        "switch_target_boot_ack", "switch_target_boot_mismatch"
     ]
 
     struct SwitchTrace: Codable {
@@ -127,6 +128,41 @@ enum ScarletGuestSessionLedger {
         if let newest = entries.last?.id {
             UserDefaults.standard.set(newest, forKey: switchTraceCursor)
         }
+    }
+
+    // Keep an exact, short-lived pending target only in the existing secure
+    // App Group; export an ANONYMOUS acknowledgement to the host diagnostic
+    // journal after the next TweakLoader guest bootstrap.
+    private static let switchPendingKey = "Scarlet.Guest.PendingSwitch.V24"
+    private struct PendingSwitch: Codable {
+        let possibleBundleIDs: [String]
+        let createdAt: Date
+    }
+
+    static func noteSwitchHandoff(to expectedBundleIDs: [String]) {
+        let safe = Array(Set(expectedBundleIDs.filter { !$0.isEmpty })).prefix(3)
+        guard !safe.isEmpty,
+              let encoded = try? JSONEncoder().encode(PendingSwitch(
+                  possibleBundleIDs: Array(safe), createdAt: Date())) else { return }
+        store.set(encoded, forKey: switchPendingKey)
+    }
+
+    static func cancelSwitchHandoff() {
+        store.removeObject(forKey: switchPendingKey)
+    }
+
+    static func confirmSwitchHandoff(runtimeGuestID: String) {
+        guard let raw = store.data(forKey: switchPendingKey),
+              let pending = try? JSONDecoder().decode(PendingSwitch.self, from: raw)
+        else { return }
+        let age = Date().timeIntervalSince(pending.createdAt)
+        guard age >= 0 && age <= 90 else {
+            cancelSwitchHandoff()
+            return
+        }
+        let matched = pending.possibleBundleIDs.contains(runtimeGuestID)
+        traceSwitcher(matched ? "switch_target_boot_ack" : "switch_target_boot_mismatch")
+        cancelSwitchHandoff()
     }
 
     static func recent() -> [Entry] {

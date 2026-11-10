@@ -91,6 +91,8 @@ struct ScarletSigningReadinessPanel: View {
     @State private var refreshing = false
     @State private var lastRefreshAttemptState: String = "없음"
     @State private var lastRefreshFailureReason: String?
+    @State private var refreshManagedAppCount: Int?
+    @State private var refreshHostManaged: Bool?
     @State private var statusMessage: String?
     @State private var certificateRecoveryStatus: String?
     @State private var isSelectingP12 = false
@@ -107,8 +109,23 @@ struct ScarletSigningReadinessPanel: View {
 
     private func inspect() {
         readiness = ScarletSigningReadiness.inspect()
-        lastRefreshAttemptState = UserDefaults.standard.string(
-            forKey: "Scarlet.Refresh.LastAttemptOutcome") ?? "기록 없음"
+        let defaults = UserDefaults.standard
+        let outcomeKey = "Scarlet.Refresh.LastAttemptOutcome"
+        let prior = defaults.string(forKey: outcomeKey) ?? "기록 없음"
+        if prior.hasPrefix("요청 중") {
+            // V23 could leave a forever-pending state after returning early
+            // without a completion write. Do not pretend a renewal succeeded.
+            let start = defaults.object(forKey:
+                "Scarlet.Refresh.LastAttemptStartedAt") as? Date
+            if start == nil || Date().timeIntervalSince(start!) > 7 * 60 {
+                defaults.set("상태 불명 · 이전 요청의 설치 완료 기록 없음",
+                             forKey: outcomeKey)
+                ScarletDiagnosticRecorder.shared.record(
+                    "refresh", "orphaned_request_state_reconciled",
+                    status: "warning", fields: ["reason": "no_terminal_receipt"])
+            }
+        }
+        lastRefreshAttemptState = defaults.string(forKey: outcomeKey) ?? "기록 없음"
         lastRefreshFailureReason = UserDefaults.standard.string(
             forKey: "Scarlet.Refresh.LastFailureReason")
         ScarletDiagnosticRecorder.shared.record("refresh", "preflight_checked",
@@ -130,6 +147,8 @@ struct ScarletSigningReadinessPanel: View {
             return
         }
         refreshing = true
+        UserDefaults.standard.set(Date(), forKey:
+            "Scarlet.Refresh.LastAttemptStartedAt")
         UserDefaults.standard.set("요청 중 · 검증 전",
             forKey: "Scarlet.Refresh.LastAttemptOutcome")
         UserDefaults.standard.removeObject(forKey: "Scarlet.Refresh.LastFailureReason")
@@ -141,8 +160,38 @@ struct ScarletSigningReadinessPanel: View {
             authenticated = verified
             guard verified else {
                 statusMessage = "내장 SideStore 로그인 세션이 없습니다. 먼저 Apple ID 인증을 완료하세요."
+                UserDefaults.standard.set("차단 · SideStore 로그인 상태 확인 필요",
+                    forKey: "Scarlet.Refresh.LastAttemptOutcome")
+                UserDefaults.standard.set("auth_unavailable",
+                    forKey: "Scarlet.Refresh.LastFailureReason")
+                lastRefreshAttemptState = "차단 · SideStore 로그인 상태 확인 필요"
+                lastRefreshFailureReason = "auth_unavailable"
                 ScarletDiagnosticRecorder.shared.record("refresh", "manual_blocked",
                     status: "blocked", fields: ["reason": "auth_unavailable"])
+                return
+            }
+            // Critical native difference from SideInstaller: the embedded
+            // SideStore refreshes only its CoreData-managed InstalledApps,
+            // not every app installed on iOS via an external signer.
+            let nativeState = await ScarletNativeRefreshInspector.inspect()
+            refreshManagedAppCount = nativeState.count
+            refreshHostManaged = nativeState.hostManaged
+            ScarletDiagnosticRecorder.shared.record(
+                "refresh", "sidestore_managed_apps_inspected",
+                status: nativeState.canRefreshHost ? "success" : "blocked",
+                fields: ["count": String(nativeState.count),
+                         "host_managed": nativeState.hostManaged ? "true" : "false",
+                         "signing_ready": nativeState.signingReady ? "true" : "false",
+                         "reason": nativeState.reason])
+            guard nativeState.canRefreshHost else {
+                let message = ScarletRefreshFailureDiagnosis.nativeGuidance(nativeState.reason)
+                statusMessage = message
+                lastRefreshAttemptState = "차단 · SideStore 갱신 사전검사 실패"
+                lastRefreshFailureReason = nativeState.reason
+                UserDefaults.standard.set(lastRefreshAttemptState,
+                    forKey: "Scarlet.Refresh.LastAttemptOutcome")
+                UserDefaults.standard.set(nativeState.reason,
+                    forKey: "Scarlet.Refresh.LastFailureReason")
                 return
             }
             do {
@@ -154,6 +203,8 @@ struct ScarletSigningReadinessPanel: View {
                 UserDefaults.standard.set("요청 반환 · 재설치 확인 안 됨",
                     forKey: "Scarlet.Refresh.LastAttemptOutcome")
                 UserDefaults.standard.removeObject(forKey: "Scarlet.Refresh.LastFailureReason")
+                lastRefreshAttemptState = "요청 반환 · 재설치 확인 안 됨"
+                lastRefreshFailureReason = nil
                 ScarletDiagnosticRecorder.shared.record("refresh", "manual_request_returned",
                     status: "info", fields: ["installation_verified": "false"])
                 inspect()
@@ -165,6 +216,7 @@ struct ScarletSigningReadinessPanel: View {
                 UserDefaults.standard.set(failure,
                     forKey: "Scarlet.Refresh.LastFailureReason")
                 lastRefreshFailureReason = failure
+                lastRefreshAttemptState = "실패 · SideStore 갱신 오류"
                 // The P12 may be healthy. A SideStore runtime crash or
                 // extension launch failure is NOT a certificate-expiry
                 // diagnosis and must not trigger certificate replacement.
@@ -442,10 +494,36 @@ struct ScarletSigningReadinessPanel: View {
             LabeledContent("자동 갱신",
                 value: lastRefreshAttemptState == "기록 없음" ?
                        "iOS 예약 · 대기 중" : lastRefreshAttemptState)
+            if let refreshManagedAppCount {
+                LabeledContent("SideStore 관리 앱", value: String(refreshManagedAppCount))
+                    .accessibilityIdentifier("SCARLET_MANAGED_REFRESH_APP_COUNT")
+            }
+            if let refreshHostManaged {
+                LabeledContent("Scarlet 갱신 등록",
+                               value: refreshHostManaged ? "등록됨" : "등록 안 됨")
+                    .accessibilityIdentifier("SCARLET_MANAGED_HOST_REGISTRATION")
+            }
             if let lastRefreshFailureReason {
                 LabeledContent("갱신 오류 분류", value: lastRefreshFailureReason)
                     .accessibilityIdentifier("SCARLET_REFRESH_FAILURE_CATEGORY")
             }
+            // The native refresh action existed since V12 but had NO
+            // rendered button in Scarlet's own settings. SideStore could
+            // refresh interactively; Scarlet's users could only watch a
+            // potentially stale background status. Restore actual control
+            // without navigating to the embedded SideStore guest screen.
+            Button(action: requestManualRefresh) {
+                if refreshing {
+                    HStack(spacing: 9) {
+                        ProgressView()
+                        Text("내장 SideStore 갱신 처리 중")
+                    }
+                } else {
+                    Label("지금 갱신", systemImage: "arrow.triangle.2.circlepath")
+                }
+            }
+            .disabled(refreshing || !readiness.canRequestNativeRefresh)
+            .accessibilityIdentifier("SCARLET_NATIVE_REFRESH_NOW")
             LabeledContent("서명 상태",
                 value: readiness.canRequestNativeRefresh &&
                        readiness.liveContainerCertificatePresent &&
@@ -484,6 +562,10 @@ struct ScarletSigningReadinessPanel: View {
             Text("JIT-Less · 인증서")
         }
         .onAppear(perform: inspect)
+        .onReceive(NotificationCenter.default.publisher(
+            for: Notification.Name("ScarletRefreshOutcomeChanged"))) { _ in
+            inspect()
+        }
         .onReceive(NotificationCenter.default.publisher(
             for: Notification.Name("ScarletCertificateAutoBridgeFinished"))) { _ in
             inspect()

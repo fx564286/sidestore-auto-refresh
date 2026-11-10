@@ -33,6 +33,7 @@ def patch_livecontainer(engine: Path) -> None:
         """- (void)refreshAllAppsWithIdentifier:(NSString*)identifier mangledTypeName:(NSString *)mangledTypeName;
 - (void)scarletAuthReady:(void (^)(BOOL isReady))reply;
 - (void)scarletAuthStored:(void (^)(BOOL hasStoredSession))reply;
+- (void)scarletRefreshReadiness:(void (^)(NSInteger managedCount, BOOL hostManaged, BOOL signingReady, NSString *status))reply;
 - (void)scarletBeginAuth:(NSString*)requestID email:(NSString*)email password:(NSString*)password profile:(NSString*)profile;
 - (void)scarletProvideCode:(NSString*)requestID code:(NSString*)code;
 - (void)scarletCancelAuth:(NSString*)requestID;
@@ -89,6 +90,17 @@ def patch_livecontainer(engine: Path) -> None:
 - (void)scarletAuthReady:(void (^)(BOOL))reply {
     Class worker = NSClassFromString(@"ScarletGuestSignInAgent");
     reply(worker && [worker respondsToSelector:@selector(begin:)]);
+}
+
+- (void)scarletRefreshReadiness:(void (^)(NSInteger, BOOL, BOOL, NSString *))reply {
+    // The real SideStore worker owns its install DB and signing Keychain.
+    // Missing worker must never look like a successful refresh.
+    Class worker = NSClassFromString(@"ScarletGuestRefreshAgent");
+    if (!worker || ![worker respondsToSelector:@selector(inspect:)]) {
+        reply(0, NO, NO, @"refresh_worker_missing");
+        return;
+    }
+    ((void (*)(id, SEL, id))objc_msgSend)(worker, @selector(inspect:), reply);
 }
 
 - (void)scarletAuthStored:(void (^)(BOOL))reply {
@@ -289,6 +301,30 @@ public enum ScarletDeviceInstaller {
 
 
 def patch_sidestore(engine: Path) -> None:
+    # SideStore's original self-registration returns immediately inside ALL
+    # .appex processes. Scarlet intentionally runs SideStore headlessly in
+    # LiveProcess.appex, unlike the upstream UI setup that first opens the
+    # embedded SideStore as an app. Allow only this signed LC host + exact
+    # LiveProcess extension to run the ORIGINAL prepareDatabase() pipeline.
+    # The original pipeline verifies embedded.mobileprovision, creates the
+    # correct InstalledApp + StoreApp records, and caches its signed IPA.
+    # No synthetic database rows or certificate replacement.
+    database = engine / "AltStore/Core/Model/DatabaseManager/DatabaseManager.swift"
+    db = database.read_text()
+    db = replace_one(db,
+        "        guard !Bundle.isAppExtension() else { return }",
+        """        let isEmbeddedLCRefreshWorker =
+            (Bundle.main.executablePath?.contains("LiveProcess.appex/") == true) &&
+            getenv("LC_HOME_PATH") != nil &&
+            Bundle.Info.activeBundleURL.pathExtension.lowercased() == "app"
+        guard !Bundle.isAppExtension() || isEmbeddedLCRefreshWorker else { return }""",
+        "SideStore headless LiveProcess self registration")
+    db = replace_one(db,
+        "                    guard let pluginURL = Bundle.main.builtInPlugInsURL else {",
+        "                    guard let pluginURL = Bundle.Info.activeBundle.builtInPlugInsURL else {",
+        "signed LC host extension receipt for self registration")
+    database.write_text(db)
+    print("[PASS] Embedded SideStore LiveProcess may run original signed-host DB self registration")
     target = engine / "SideStore/Core/Auth/AuthManager.swift"
     assert target.is_file(), target
     source = target.read_text()
@@ -308,8 +344,10 @@ def patch_sidestore(engine: Path) -> None:
     target.write_text(source.rstrip() + "\n\n" + extra + "\n\n" + installer)
     cert_agent = (ROOT / "rebuild/integration/ScarletGuestCertificateAgent.swift.txt").read_text()
     assert "ScarletGuestCertificateAgent" not in source
+    refresh_agent = (ROOT / "rebuild/integration/ScarletGuestRefreshAgent.swift.txt").read_text()
     target.write_text(source.rstrip() + "\n\n" + extra + "\n\n" +
-                      installer + "\n\n" + cert_agent)
+                      installer + "\n\n" + cert_agent + "\n\n" + refresh_agent)
+    print("[PASS] Native SideStore managed-app/host-identity refresh inspector staged")
     print("[PASS] SideStore authenticated certificate worker staged")
     print("[PASS] SideStore SideSign auth + headless installer workers staged")
 
