@@ -469,6 +469,7 @@ final class ScarletFullscreenGuestTabInstaller: NSObject {
     private static var foregroundObserver: NSObjectProtocol?
     private static var guestDepartureObserver: NSObjectProtocol?
     private static var activeGuestFolder: String?
+    private static var lastObservedGuestRuntimeID: String?
     private static var rotationGeneration = 0
     private static var lastStableSceneSize: CGSize?
     private static var rotationWatchTask: Task<Void, Never>?
@@ -928,6 +929,17 @@ final class ScarletFullscreenGuestTabInstaller: NSObject {
 
     @objc(installForGuestName:)
     static func installForGuestName(_ rawName: NSString) {
+        // TweakLoader's real guest bootstrap is the authority for whether
+        // an A->B switch relaunched a process. A retained switcher row is
+        // NOT proof that the app's last in-memory view still exists.
+        let runtimeGuestID = rawName as String
+        if !runtimeGuestID.isEmpty,
+           runtimeGuestID != lastObservedGuestRuntimeID {
+            lastObservedGuestRuntimeID = runtimeGuestID
+            ScarletGuestSessionLedger.traceSwitcher(
+                "runtime_guest_process_observed",
+                processPID: ProcessInfo.processInfo.processIdentifier)
+        }
         guard let scene = UIApplication.shared.connectedScenes
                 .compactMap({ $0 as? UIWindowScene })
                 .first(where: { $0.activationState == .foregroundActive ||
@@ -950,7 +962,6 @@ final class ScarletFullscreenGuestTabInstaller: NSObject {
             }
             return
         }
-        let runtimeGuestID = rawName as String
         let currentGuest = installedApps(guestIdentifier: runtimeGuestID)
             .first(where: { $0.isCurrent })
         if let currentGuest, activeGuestFolder != currentGuest.id {
