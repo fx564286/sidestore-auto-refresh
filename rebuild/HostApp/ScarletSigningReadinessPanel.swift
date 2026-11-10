@@ -198,8 +198,12 @@ struct ScarletSigningReadinessPanel: View {
                 // Native upstream action; do not navigate to the guest SideStore.
                 // It can refresh registered apps, but must not be taken as proof
                 // this Scarlet host was re-signed and reinstalled.
-                _ = try await RefreshAllAppsIntent().perform()
-                statusMessage = "SideStore 새로고침 요청이 종료됐습니다. 실제 프로파일 만료일과 iPhone 설치 상태는 아직 별도 확인이 필요합니다."
+                let receipt = try await ScarletNativeRefreshExecutor.execute()
+                ScarletDiagnosticRecorder.shared.record(
+                    "refresh", "native_worker_operation_returned",
+                    status: "info",
+                    fields: ["reason": receipt, "installation_verified": "false"])
+                statusMessage = "내장 SideStore가 앱 새로고침 작업을 반환했습니다. iPhone 설치 및 프로파일 만료일 갱신은 아직 별도 확인이 필요합니다."
                 UserDefaults.standard.set("요청 반환 · 재설치 확인 안 됨",
                     forKey: "Scarlet.Refresh.LastAttemptOutcome")
                 UserDefaults.standard.removeObject(forKey: "Scarlet.Refresh.LastFailureReason")
@@ -209,8 +213,11 @@ struct ScarletSigningReadinessPanel: View {
                     status: "info", fields: ["installation_verified": "false"])
                 inspect()
             } catch {
-                let failure = ScarletRefreshFailureDiagnosis.category(error)
-                statusMessage = ScarletRefreshFailureDiagnosis.guidance(failure)
+                let failure = (error as? ScarletNativeRefreshFailure)?.reason ??
+                    ScarletRefreshFailureDiagnosis.category(error)
+                statusMessage = error is ScarletNativeRefreshFailure
+                    ? ScarletRefreshFailureDiagnosis.nativeGuidance(failure)
+                    : ScarletRefreshFailureDiagnosis.guidance(failure)
                 UserDefaults.standard.set("실패 · SideStore 갱신 오류",
                     forKey: "Scarlet.Refresh.LastAttemptOutcome")
                 UserDefaults.standard.set(failure,
