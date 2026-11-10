@@ -187,6 +187,7 @@ public struct ScarletNativeRefreshInspection: Sendable {
     }
 }
 
+@available(iOS 17.0, *)
 private final class ScarletRefreshInspectionGate: @unchecked Sendable {
     private let lock = NSLock()
     private var continuation: CheckedContinuation<ScarletNativeRefreshInspection, Never>?
@@ -235,7 +236,7 @@ public enum ScarletNativeRefreshInspector {
                     "sidestore_certificate_missing", "sidestore_database_unavailable",
                     "refresh_worker_missing"
                 ]
-                let status = String(rawStatus)
+                let status = rawStatus ?? "worker_unknown"
                 gate.finish(ScarletNativeRefreshInspection(
                     count: max(0, min(Int(count), 99)),
                     hostManaged: managed, signingReady: cert,
