@@ -55,7 +55,7 @@ class V18RefreshAndGlass(unittest.TestCase):
         self.assertIn('SCARLET_REFRESH_FAILURE_CATEGORY', PANEL)
         self.assertIn('Scarlet.Refresh.LastFailureReason', PANEL)
         self.assertIn('manual_request_underlying_error', PANEL)
-        self.assertIn('RefreshAllAppsIntent().perform()', PANEL)
+        self.assertIn('ScarletNativeRefreshExecutor.execute()', PANEL)
         self.assertIn('요청 반환 · 재설치 확인 안 됨', PANEL)
 
 if __name__ == "__main__":
