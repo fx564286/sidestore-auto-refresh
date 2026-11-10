@@ -1008,6 +1008,7 @@ struct ScarletIntegratedHostView: View {
             ScarletDiagnosticRecorder.shared.record("lifecycle", "scene_phase",
                 fields: ["state": String(describing: phase)])
             if phase == .active && !showScarletAppleIDLogin {
+                ScarletGuestSessionLedger.reconcileHostForeground()
                 ScarletGuestSessionLedger.replaySwitcherTraceToHostJournal()
                 refreshStoredLoginState()
                 if #available(iOS 27.0, *) {

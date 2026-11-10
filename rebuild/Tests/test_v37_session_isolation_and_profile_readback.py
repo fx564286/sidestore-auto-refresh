@@ -26,6 +26,10 @@ class V37SessionAndRefresh(unittest.TestCase):
         self.assertIn('sameBoot && guestWasJustActive',L)
         self.assertIn('store.set(empty, forKey: key)',L)
         self.assertIn('cold_host_new_session',L)
+        self.assertIn('static func reconcileHostForeground()',L)
+        self.assertIn('now.timeIntervalSince(previous) >= unrelatedHostReturnResetAfter',L)
+        self.assertIn('switcher_work_session_reset',L)
+        self.assertIn('ScarletGuestSessionLedger.reconcileHostForeground()',H)
 
     def test_a_home_b_continuation_requires_observed_guest_recent_handoff(self):
         self.assertIn('private static let guestDepartureValidity: TimeInterval = 120',L)
