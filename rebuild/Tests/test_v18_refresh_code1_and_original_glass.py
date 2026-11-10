@@ -49,8 +49,8 @@ class V18RefreshAndGlass(unittest.TestCase):
         self.assertIn('installation_verified": "false"', AUTO)
 
     def test_manual_refresh_does_not_recommend_new_p12_for_xpc_crash(self):
-        self.assertIn('let failure = ScarletRefreshFailureDiagnosis.category(error)', PANEL)
-        self.assertIn('ScarletRefreshFailureDiagnosis.guidance(failure)', PANEL)
+        self.assertIn('ScarletRefreshFailureDiagnosis.category(error)', PANEL)
+        self.assertIn('ScarletRefreshFailureDiagnosis.nativeGuidance(failure)', PANEL)
         self.assertIn('certificateRecoveryStatus = nil', PANEL)
         self.assertIn('SCARLET_REFRESH_FAILURE_CATEGORY', PANEL)
         self.assertIn('Scarlet.Refresh.LastFailureReason', PANEL)
