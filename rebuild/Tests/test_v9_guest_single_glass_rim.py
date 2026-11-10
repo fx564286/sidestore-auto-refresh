@@ -15,7 +15,8 @@ class V9SingleSurface(unittest.TestCase):
         self.assertIn('let glass = UIGlassEffect(style: .clear)',GLASS)
     def test_guest_has_one_contrast_border_only(self):
         self.assertIn('SCNativeLiquidGlassSurface(cornerRadius: radius, showsRim: false)',GUEST)
-        self.assertIn('SCNativeLiquidGlassSurface(cornerRadius: 31, showsRim: false)',GUEST)
+        self.assertIn('glassPlate(radius: isOpen ? 28 : 31)',GUEST)
+        self.assertEqual(GUEST.count('glassPlate(radius: isOpen ? 28 : 31)'), 1)
         self.assertIn('.strokeBorder(Color.primary.opacity(0.24), lineWidth: 0.75)',GUEST)
         self.assertIn('.strokeBorder(Color.primary.opacity(0.28), lineWidth: 0.8)',GUEST)
         self.assertNotIn('GlassEffectContainer(spacing: 14)',GUEST)
