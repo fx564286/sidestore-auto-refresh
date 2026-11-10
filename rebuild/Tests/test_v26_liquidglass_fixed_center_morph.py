@@ -13,12 +13,15 @@ UI=(ROOT/"HostApp/ScarletFullscreenGuestTab.swift").read_text()
 LEDGER=(ROOT/"HostApp/ScarletGuestSessionLedger.swift").read_text()
 
 class V26MatchedGlassGeometry(unittest.TestCase):
-    def test_one_moving_glass_not_two_stacked_panels(self):
-        self.assertIn("@Namespace private var glassMorphNamespace", UI)
-        self.assertEqual(UI.count('matchedGeometryEffect(id: "scarlet_guest_glass_surface"'), 2)
-        self.assertEqual(UI.count("in: glassMorphNamespace)"), 2)
-        self.assertIn('glassPlate(radius: 28)', UI)
-        self.assertIn('SCNativeLiquidGlassSurface(cornerRadius: 31, showsRim: false)', UI)
+    def test_one_continuous_root_level_glass_not_two_stacked_panels(self):
+        # One mounted root surface can travel outside the fixed panel's clip.
+        # Matching a material *inside* the clipped card would hide its
+        # movement from the button at the edge of the screen.
+        self.assertIn('glassPlate(radius: isOpen ? 28 : 31)', UI)
+        self.assertEqual(UI.count('glassPlate(radius: isOpen ? 28 : 31)'), 1)
+        self.assertIn('SCNativeLiquidGlassSurface(cornerRadius: radius, showsRim: false)', UI)
+        self.assertNotIn('matchedGeometryEffect(', UI)
+        self.assertIn('Color.clear.allowsHitTesting(false)', UI)
         root=UI.split('    var body: some View {',1)[1].split('// UIkit pan tracks finger',1)[0]
         self.assertIn('if isOpen {',root)
         self.assertIn('} else {',root)
@@ -31,6 +34,10 @@ class V26MatchedGlassGeometry(unittest.TestCase):
         self.assertIn('.position(x: geometry.size.width / 2,',UI)
         self.assertIn('y: geometry.size.height / 2)',UI)
         self.assertIn('.position(x: screenButtonCenter.x, y: screenButtonCenter.y)',UI)
+        self.assertIn('.frame(width: isOpen ? panelWidth - 24 : 62,',UI)
+        self.assertIn('height: isOpen ? panelHeight : 62)',UI)
+        self.assertIn('.position(x: isOpen ? geometry.size.width / 2',UI)
+        self.assertIn('y: isOpen ? geometry.size.height / 2',UI)
         self.assertIn('screenButtonCenter = initialButtonCenter',UI)
         self.assertIn('screenButtonCenter = CGPoint(x: x, y: y)',UI)
         self.assertIn('ScarletGuestRoundTabCenterXFractionV1', UI)
