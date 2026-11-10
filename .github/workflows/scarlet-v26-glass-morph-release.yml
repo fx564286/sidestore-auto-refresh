@@ -25,7 +25,7 @@ jobs:
         run: |
           set -Eeuo pipefail
           for attempt in $(seq 1 60); do
-            names="$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/42731418475/artifacts" --jq '.artifacts[] | select(.expired == false) | .name' 2>/dev/null || true)"
+            names="$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/42731706816/artifacts" --jq '.artifacts[] | select(.expired == false) | .name' 2>/dev/null || true)"
             if grep -Fxq 'Scarlet-LiveContainer-Native-Engine' <<< "$names" &&
                grep -Fxq 'Scarlet-SideStore-Native-Engine' <<< "$names"; then
               echo "[PASS] both new V26 native engines compiled"
@@ -41,14 +41,14 @@ jobs:
         with:
           name: Scarlet-LiveContainer-Native-Engine
           path: artifacts/lc
-          run-id: 42731418475
+          run-id: 42731706816
           github-token: ${{ github.token }}
       - name: Use V26 newly compiled SideStore with embedded managed-app repair
         uses: actions/download-artifact@v4
         with:
           name: Scarlet-SideStore-Native-Engine
           path: artifacts/side
-          run-id: 42731418475
+          run-id: 42731706816
           github-token: ${{ github.token }}
       - name: Fail closed on source/pin mismatches
         shell: bash
@@ -151,8 +151,8 @@ jobs:
           claim to resolve Apple signing renewal or preserve multiple
           simultaneous guest processes.
 
-          Native Xcode 27.2 paired build 42731418475, source commit
-          f69b596d395f6bc4e3851ea6109202e3fee7874e.
+          Native Xcode 27.2 paired build 42731706816, source commit
+          12a916b228a4aa78c933c790f50f5a3abff52088.
           Both V26 LiveContainer and SideStore engines must compile and
           match pinned source SHA before packaging. 4 Apple App IDs, V23
           session isolation, V24 native renewal inspector, guest app data,
@@ -162,7 +162,7 @@ jobs:
           EOF
           if ! gh release view "$tag" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
             gh release create "$tag" --repo "$GITHUB_REPOSITORY" \
-              --target f69b596d395f6bc4e3851ea6109202e3fee7874e \
+              --target 12a916b228a4aa78c933c790f50f5a3abff52088 \
               --title "Scarlet Crystal V26 — fixed-center Liquid Glass button morph — UNSIGNED" \
               --prerelease --latest=false --notes-file release-notes.md
           fi
