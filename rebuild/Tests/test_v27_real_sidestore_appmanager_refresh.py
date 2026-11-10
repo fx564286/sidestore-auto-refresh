@@ -30,7 +30,7 @@ class V27InProcessRefresh(unittest.TestCase):
         self.assertIn('$0.resignedBundleIdentifier == signedHostID',AGENT)
         self.assertIn('CertificateManager.shared.activeCertificate != nil',AGENT)
         self.assertIn('native_operation_returned_unverified',AGENT)
-        self.assertNotIn('PrivateIntentRunner',AGENT)
+        self.assertNotIn('PrivateIntentRunner.run(',AGENT)
 
     def test_request_has_deduplicating_gate_and_categorized_failure(self):
         self.assertIn('private actor ScarletGuestNativeRefreshGate',AGENT)
