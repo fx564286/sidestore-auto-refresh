@@ -83,8 +83,26 @@ final class ScarletDevicePairingModel: NSObject, ObservableObject, @preconcurren
     }
 
     private func runPairing(task: BGContinuedProcessingTask?) {
-        guard active && !waitingForHost else {
+        guard active else {
             task?.setTaskCompleted(success: false)
+            return
+        }
+        // The 3s foreground fallback can start the Rust host before iOS
+        // delivers its BGContinuedProcessingTask. Adopt that later task
+        // instead of rejecting it, so pairing survives visiting Settings.
+        if waitingForHost {
+            if let task {
+                backgroundTask = task
+                task.progress.totalUnitCount = 100
+                task.progress.completedUnitCount = pin == nil ? 5 : 50
+                task.expirationHandler = {
+                    Task { @MainActor in
+                        self.phase = "백그라운드 연결 유지가 종료됨"
+                        self.failureReason = "background_expired"
+                        self.finishBackground(success: false)
+                    }
+                }
+            }
             return
         }
         waitingForHost = true
