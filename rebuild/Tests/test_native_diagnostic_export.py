@@ -82,7 +82,7 @@ struct LCSettingsView: View {
         for required in ("session.jsonl","maxFileBytes = 1_500_000",
                          "retainedFiles = 4", "JSONSerialization.data",
                          "ISO8601DateFormatter", "FileHandle(forWritingTo:",
-                         "readRecent(maxLines:", "makeShareFile()",
+                         "readRecent(maxLines:", "makeShareFile(includeHistory: Bool = false)",
                          "SCARLET_DIAGNOSTICS_VIEW", "ShareLink(item:",
                          "SCARLET_DIAGNOSTICS_SHARE"):
             self.assertIn(required,LOG)

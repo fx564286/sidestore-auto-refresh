@@ -136,6 +136,7 @@ final class ScarletAutomaticRenewal {
     }
     private var registered = false
     private var running = false
+    private var lastCheckWasDeferred = false
     private var lastScheduledFor: Date?
     private var lastScheduleSubmitAt: Date?
 
@@ -206,10 +207,14 @@ final class ScarletAutomaticRenewal {
             // as a completed-successful background refresh.
             let taskSucceeded = requestReturned && !Task.isCancelled
             bg.setTaskCompleted(success: taskSucceeded)
+            let outcome = !taskSucceeded ? "request_failed"
+                : self.lastCheckWasDeferred ? "skipped_not_due"
+                : "request_returned"
             ScarletDiagnosticRecorder.shared.record(
                 "refresh", "automatic_background_task_completed",
                 status: taskSucceeded ? "info" : "warning",
-                fields: ["result": taskSucceeded ? "request_returned" : "request_failed"])
+                fields: ["result": outcome,
+                         "installation_verified": "false"])
         }
         bg.expirationHandler = {
             operation.cancel()
@@ -223,11 +228,22 @@ final class ScarletAutomaticRenewal {
 
     @discardableResult
     private func refreshIfDue(origin: String) async -> Bool {
+        lastCheckWasDeferred = false
         guard !running else { return false }
         let prefs = UserDefaults.standard
         let now = Date()
         if let last = prefs.object(forKey: attemptKey) as? Date,
-           now.timeIntervalSince(last) < interval { return true }
+           now.timeIntervalSince(last) < interval {
+            ScarletDiagnosticRecorder.shared.record(
+                "refresh", "automatic_attempt_deferred",
+                fields: ["reason": "retry_interval_not_elapsed",
+                         "source": origin,
+                         "installation_verified": "false"])
+            // No work was due. iOS BG task can complete normally, but the
+            // receipt must say SKIPPED, not "refresh succeeded".
+            lastCheckWasDeferred = true
+            return true
+        }
         running = true
         defer { running = false; scheduleNext(); notifyStateChanged() }
 

@@ -167,6 +167,9 @@ enum ScarletGuestSessionLedger {
         let id: String
         let event: String
         let count: Int
+        // Older V20 records have no timestamp. They must not be replayed
+        // into a V38 "this launch only" diagnostic report.
+        let createdAt: Date?
     }
 
     static func traceSwitcher(_ event: String, count: Int = 0) {
@@ -174,7 +177,8 @@ enum ScarletGuestSessionLedger {
         let previous = (store.data(forKey: switchTraceKey))
             .flatMap { try? JSONDecoder().decode([SwitchTrace].self, from: $0) } ?? []
         let entry = SwitchTrace(id: UUID().uuidString, event: event,
-                                count: max(0, min(count, 8)))
+                                count: max(0, min(count, 8)),
+                                createdAt: Date())
         if let encoded = try? JSONEncoder().encode(
             Array((previous + [entry]).suffix(48))) {
             store.set(encoded, forKey: switchTraceKey)
@@ -208,7 +212,11 @@ enum ScarletGuestSessionLedger {
             entries.lastIndex(where: { $0.id == previous }).map { $0 + 1 }
         } ?? 0
         if start < entries.count {
-            for entry in entries[start...] where switchTraceEvents.contains(entry.event) {
+            let currentProcessStart =
+                ScarletDiagnosticRecorder.shared.currentProcessStartDate
+            for entry in entries[start...]
+                where switchTraceEvents.contains(entry.event) &&
+                    (entry.createdAt.map { $0 >= currentProcessStart } ?? false) {
                 ScarletDiagnosticRecorder.shared.record(
                     "guest_switcher", entry.event,
                     fields: ["count": String(entry.count), "source": "guest_app_group"])
