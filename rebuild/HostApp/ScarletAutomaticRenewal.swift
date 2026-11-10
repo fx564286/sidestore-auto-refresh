@@ -63,6 +63,30 @@ enum ScarletRefreshFailureDiagnosis {
             return "Apple 프로비저닝 프로파일 갱신 작업이 실패했습니다."
         case "installation_failed":
             return "서명 후 iPhone 앱 설치 단계가 실패했습니다."
+        case "pairing_file_missing":
+            return "내장 SideStore에 저장된 기기 페어링 파일이 없습니다. 기존 설치 프로그램의 페어링과 별도로 SideStore 연결 설정이 필요합니다."
+        case "pairing_invalid":
+            return "내장 SideStore에 저장된 페어링 정보가 현재 기기와 일치하지 않습니다."
+        case "minimuxer_not_started":
+            return "내장 SideStore Minimuxer 기기 연결 엔진이 시작되지 않았습니다."
+        case "device_network_unavailable":
+            return "내장 SideStore가 기기 연결망을 사용할 수 없습니다. VPN 또는 원격 연결 설정을 확인해야 합니다."
+        case "device_endpoint_unavailable", "device_identifier_unavailable":
+            return "내장 SideStore에서 페어링된 iPhone 엔드포인트를 찾지 못했습니다."
+        case "sidestore_auth_missing":
+            return "내장 SideStore 원본 계정 세션이 없거나 만료됐습니다. Apple 로그인 상태를 확인해야 합니다."
+        case "certificate_expired":
+            return "SideStore의 서명 인증서 유효기간이 만료된 것으로 보고됐습니다."
+        case "certificate_revoked":
+            return "SideStore의 서명 인증서가 취소된 것으로 보고됐습니다."
+        case "profile_missing":
+            return "갱신에 필요한 Apple 프로비저닝 프로파일을 찾지 못했습니다."
+        case "app_group_missing":
+            return "SideStore가 필요한 App Group 저장소에 접근하지 못했습니다."
+        case "sidestore_invalid_configuration", "native_worker_creation_failed":
+            return "SideStore 갱신 엔진의 실행 구성 또는 작업 생성이 실패했습니다."
+        case "device_operation_timed_out":
+            return "기기 연결 작업이 응답을 완료하지 못했습니다."
         case "host_not_in_refresh_results":
             return "내장 SideStore 갱신이 종료됐지만 Scarlet 자체의 재서명 결과가 없습니다. 실행 중인 앱 제외 또는 갱신 대상 누락을 확인해야 합니다."
         case "sidestore_native_operation_failed":

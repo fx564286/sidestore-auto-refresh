@@ -297,18 +297,29 @@ public enum ScarletNativeRefreshExecutor {
             }
         }
         let allowed: Set<String> = [
-            "native_operation_returned_unverified", "already_running",
+            "native_operation_returned_unverified",
+            "native_operation_returned_unverified_transport_recovered",
+            "already_running",
             "anisette_unavailable", "vpn_unavailable", "signing_failed",
             "profile_refresh_failed", "server_unavailable",
             "installation_failed", "sidestore_native_operation_failed",
             "sidestore_database_unavailable", "no_managed_apps",
             "host_not_managed", "host_not_in_refresh_results",
             "sidestore_certificate_missing", "refresh_worker_missing", "transport_unavailable",
-            "worker_unresponsive"
+            "worker_unresponsive", "pairing_file_missing", "pairing_invalid",
+            "minimuxer_not_started", "device_network_unavailable",
+            "device_endpoint_unavailable", "sidestore_auth_missing",
+            "device_identifier_unavailable", "certificate_expired",
+            "certificate_revoked", "profile_missing", "app_group_missing",
+            "device_operation_timed_out", "sidestore_invalid_configuration",
+            "native_worker_creation_failed"
         ]
         let status = allowed.contains(rawReason)
             ? rawReason : "sidestore_native_operation_failed"
-        guard returned && status == "native_operation_returned_unverified" else {
+        guard returned && (
+            status == "native_operation_returned_unverified" ||
+            status == "native_operation_returned_unverified_transport_recovered"
+        ) else {
             throw ScarletNativeRefreshFailure(reason: status)
         }
         return status

@@ -29,7 +29,11 @@ class V24RegistrationGate(unittest.TestCase):
         self.assertIn('no_managed_apps',AGENT)
         self.assertIn('sidestore_certificate_missing',AGENT)
         self.assertNotIn('password',AGENT.lower())
-        self.assertNotIn('revoke',AGENT.lower())
+        self.assertNotIn('revokeCertificate(',AGENT)
+        self.assertNotIn('revokeCertificates(',AGENT)
+        # V28 recognises the original SideStore certificateRevoked
+        # ERROR but never invokes any Apple certificate revocation API.
+        self.assertIn('.certificateRevoked',AGENT)
         self.assertIn('ScarletGuestRefreshAgent.swift.txt',WIRE)
         self.assertIn('isEmbeddedLCRefreshWorker',WIRE)
         self.assertIn('LiveProcess.appex/',WIRE)
