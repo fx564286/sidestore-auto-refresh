@@ -302,8 +302,8 @@ public enum ScarletNativeRefreshExecutor {
             "profile_refresh_failed", "server_unavailable",
             "installation_failed", "sidestore_native_operation_failed",
             "sidestore_database_unavailable", "no_managed_apps",
-            "host_not_managed", "sidestore_certificate_missing",
-            "refresh_worker_missing", "transport_unavailable",
+            "host_not_managed", "host_not_in_refresh_results",
+            "sidestore_certificate_missing", "refresh_worker_missing", "transport_unavailable",
             "worker_unresponsive"
         ]
         let status = allowed.contains(rawReason)
