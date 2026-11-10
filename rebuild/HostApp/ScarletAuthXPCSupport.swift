@@ -183,7 +183,8 @@ public struct ScarletNativeRefreshInspection: Sendable {
         self.reason = reason
     }
     public var canRefreshHost: Bool {
-        hostManaged && signingReady && reason == "ready"
+        hostManaged && signingReady &&
+            (reason == "ready" || reason == "ready_auth_team_restored")
     }
 }
 
@@ -232,7 +233,11 @@ public enum ScarletNativeRefreshInspector {
                 // Allowlist classifications; never transfer DB, Apple ID,
                 // P12 or user-supplied error strings.
                 let allowed = [
-                    "ready", "no_managed_apps", "host_not_managed",
+                    "ready", "ready_auth_team_restored", "no_managed_apps",
+                    "host_not_managed", "sidestore_auth_token_missing",
+                    "sidestore_auth_team_mismatch",
+                    "sidestore_auth_team_lookup_failed",
+                    "sidestore_signed_profile_missing",
                     "sidestore_certificate_missing", "sidestore_database_unavailable",
                     "refresh_worker_missing"
                 ]
@@ -309,6 +314,9 @@ public enum ScarletNativeRefreshExecutor {
             "worker_unresponsive", "pairing_file_missing", "pairing_invalid",
             "minimuxer_not_started", "device_network_unavailable",
             "device_endpoint_unavailable", "sidestore_auth_missing",
+            "sidestore_auth_token_missing",
+            "sidestore_auth_team_mismatch", "sidestore_auth_team_lookup_failed",
+            "sidestore_signed_profile_missing",
             "device_identifier_unavailable", "certificate_expired",
             "certificate_revoked", "profile_missing", "app_group_missing",
             "device_operation_timed_out", "sidestore_invalid_configuration",
