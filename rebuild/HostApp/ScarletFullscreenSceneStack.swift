@@ -26,6 +26,28 @@ final class ScarletFullscreenSceneStack: NSObject, ObservableObject,
     @Published private(set) var lastError: String?
     weak var viewport: ScarletFullscreenSceneViewport?
     private var overlayWindow: ScarletGuestTouchPassthroughWindow?
+    // Catalog is host-owned LCAppModel data, not a second install database.
+    // The switcher can now start an eligible installed guest without going
+    // through Scarlet Home. Existing live scenes are always preferred.
+    private var installedModels: [String: LCAppModel] = [:]
+    private var pendingInPlaceLaunch = false
+
+    func updateInstalledModels(_ apps: [LCAppModel]) {
+        var indexed: [String: LCAppModel] = [:]
+        for app in apps {
+            guard let folder = app.appInfo.relativeBundlePath,
+                  folder.hasSuffix(".app"), folder != ".app",
+                  !folder.contains("/"), !folder.contains("\\") else { continue }
+            indexed[folder] = app
+        }
+        installedModels = indexed
+    }
+
+    private func eligibleForInPlaceLaunch(_ app: LCAppModel) -> Bool {
+        app.appInfo.defaultClassicMode == 0 &&
+        !app.appInfo.isJITNeeded && !app.appInfo.is32bit &&
+        app.uiSelectedContainer != nil
+    }
 
     func enqueueSignedGuest(_ app: LCAppModel) throws {
         guard let folder = app.appInfo.relativeBundlePath,
@@ -96,7 +118,7 @@ final class ScarletFullscreenSceneStack: NSObject, ObservableObject,
                     initialDockRight: true,
                     initialButtonCenter: circle,
                     onSwitch: { [weak self] target in
-                        self?.activate(folder: target.id) ?? false
+                        self?.switchOrLaunch(target) ?? false
                     },
                     onExit: { [weak self] in self?.goHome() }
                 )
@@ -109,7 +131,7 @@ final class ScarletFullscreenSceneStack: NSObject, ObservableObject,
     }
 
     private func availableTargets() -> [ScarletGuestSwitchTarget] {
-        slots.map { slot in
+        var targets = slots.map { slot in
             let live = slot.pid > 0 &&
                        (viewport?.isAlive(folder: slot.id) ?? false)
             return ScarletGuestSwitchTarget(
@@ -121,6 +143,79 @@ final class ScarletFullscreenSceneStack: NSObject, ObservableObject,
                 icon: slot.icon,
                 reason: live ? nil : "process_not_live")
         }
+        let activeFolders = Set(slots.map(\.id))
+        // An in-place first launch is possible only when the original LC
+        // guest is JIT-less, has an owned data container and can be signed.
+        for (folder, model) in installedModels.sorted(by: {
+            $0.value.displayName.localizedStandardCompare($1.value.displayName)
+                == .orderedAscending
+        }) where !activeFolders.contains(folder) && eligibleForInPlaceLaunch(model) {
+            let icon = UIImage(contentsOfFile:
+                (model.appInfo.bundlePath() ?? "") + "/LCAppIconLight.png")
+            targets.append(ScarletGuestSwitchTarget(
+                id: folder, title: model.displayName,
+                bundleID: model.bundleIdentifier,
+                containerID: model.uiSelectedContainer?.folderName,
+                classicMode: 0, isCurrent: false,
+                canSwitch: false, canRelaunch: true,
+                isShared: false, icon: icon,
+                reason: "inplace_first_launch"))
+        }
+        return targets
+    }
+
+    @discardableResult
+    private func switchOrLaunch(_ target: ScarletGuestSwitchTarget) -> Bool {
+        guard target.id.hasSuffix(".app"), !target.id.contains("/"),
+              !target.id.contains("\\") else { return false }
+        if target.canSwitch {
+            let reused = activate(folder: target.id)
+            ScarletDiagnosticRecorder.shared.record(
+                "guest", "fullscreen_scene_direct_switch",
+                status: reused ? "success" : "warning",
+                fields: ["result": reused ? "same_pid_scene_selected"
+                                            : "live_scene_unavailable"])
+            return reused
+        }
+        guard target.canRelaunch, !pendingInPlaceLaunch,
+              !slots.contains(where: { $0.id == target.id }),
+              let model = installedModels[target.id],
+              eligibleForInPlaceLaunch(model) else { return false }
+        pendingInPlaceLaunch = true
+        ScarletDiagnosticRecorder.shared.record(
+            "guest", "fullscreen_scene_inplace_launch_requested",
+            fields: ["result": "accepted_no_host_handoff",
+                     "memory": "new_process_expected"])
+        Task { @MainActor [weak self] in
+            guard let self else { return }
+            defer { self.pendingInPlaceLaunch = false }
+            do {
+                // Native LiveContainer signApp retains original keychain,
+                // certificate, team, extensions and guest data containers.
+                try await model.signApp(force: false)
+                // Match the original LC host: record a launched work-session
+                // entry before remote bootstrap, and roll it back on failure.
+                let earlier = ScarletGuestSessionLedger.recent()
+                ScarletGuestSessionLedger.noteLaunch(
+                    folder: target.id, title: model.displayName,
+                    dataUUID: model.uiSelectedContainer?.folderName)
+                do {
+                    try self.enqueueSignedGuest(model)
+                } catch {
+                    ScarletGuestSessionLedger.restore(earlier)
+                    throw error
+                }
+                ScarletDiagnosticRecorder.shared.record(
+                    "guest", "fullscreen_scene_inplace_launch_queued",
+                    fields: ["result": "same_host_viewport_no_home",
+                             "memory": "not_verified"])
+            } catch {
+                self.lastError = error.localizedDescription
+                ScarletDiagnosticRecorder.shared.recordError(
+                    "guest", "fullscreen_scene_inplace_launch_failed", error: error)
+            }
+        }
+        return true
     }
 
     @discardableResult
@@ -158,6 +253,30 @@ final class ScarletFullscreenSceneStack: NSObject, ObservableObject,
                      "memory": "retained_until_pid_exits"])
     }
 
+    // A PID can be reported before the remote UIKit surface is interactive.
+    // Retry only a bounded number of times while leaving the old scene visible.
+    private func revealStartedScene(_ folder: String, attemptsRemaining: Int = 8) {
+        guard activeID == folder else { return }
+        if viewport?.select(folder: folder) == true {
+            ScarletDiagnosticRecorder.shared.record(
+                "guest", "fullscreen_scene_inplace_display_handoff",
+                status: "success",
+                fields: ["result": "live_scene_selected",
+                         "memory": "same_host_scene_stack"])
+            return
+        }
+        guard attemptsRemaining > 0 else {
+            ScarletDiagnosticRecorder.shared.record(
+                "guest", "fullscreen_scene_inplace_display_handoff",
+                status: "warning", fields: ["result": "scene_not_ready"])
+            return
+        }
+        Task { @MainActor [weak self] in
+            try? await Task.sleep(nanoseconds: 180_000_000)
+            self?.revealStartedScene(folder, attemptsRemaining: attemptsRemaining - 1)
+        }
+    }
+
     func sceneStarted(_ vc: AppSceneViewController, error: Error?) {
         guard let index = slots.firstIndex(where: {
             $0.id == vc.bundleId && $0.dataUUID == vc.dataUUID
@@ -172,6 +291,11 @@ final class ScarletFullscreenSceneStack: NSObject, ObservableObject,
             return
         }
         slots[index].pid = vc.pid
+        // Keep prior scene visible until this exact remote process reports
+        // readiness; never flash an uninitialized black child scene.
+        if slots[index].id == activeID {
+            revealStartedScene(slots[index].id)
+        }
         ScarletDiagnosticRecorder.shared.record(
             "guest", "fullscreen_scene_process_started",
             status: "success",
@@ -206,7 +330,17 @@ final class ScarletFullscreenSceneStack: NSObject, ObservableObject,
             // SINGLE fullscreen viewport. Never use 320x480, UIScreen
             // display scaling, swapped landscape frames or V41 sizing.
             let full = vc.view.bounds
-            let safe = vc.view.window?.safeAreaInsets ?? .zero
+            let windowScene = vc.view.window?.windowScene
+            // A full-bleed SwiftUI overlay can report zero guest-safe insets.
+            // Read the actual key UIWindow rather than inferring status bar
+            // and home indicator geometry from the guest's ignored-safe view.
+            let safe = windowScene?.windows.first(where: { $0.isKeyWindow })?.safeAreaInsets
+                ?? vc.view.window?.safeAreaInsets ?? .zero
+            ScarletDiagnosticRecorder.shared.record(
+                "layout", "fullscreen_scene_host_safe_area",
+                fields: ["safe_top_pt": String(Int(safe.top)),
+                         "safe_bottom_pt": String(Int(safe.bottom)),
+                         "source": "key_window"])
             settings.peripheryInsets = safe
             settings.safeAreaInsetsPortrait = safe
             settings.setFrame(full)
@@ -349,6 +483,10 @@ final class ScarletFullscreenSceneViewport: UIViewController {
             vc.view.frame = view.bounds
             vc.view.autoresizingMask =
                 [.flexibleWidth, .flexibleHeight]
+            // Do not show an uninitialized LiveProcess surface (black flash).
+            // The prior guest remains fully attached, visible and touchable.
+            vc.view.layer.opacity = 0
+            vc.view.isUserInteractionEnabled = false
             addChild(vc)
             view.addSubview(vc.view)
             vc.didMove(toParent: self)
@@ -363,12 +501,14 @@ final class ScarletFullscreenSceneViewport: UIViewController {
 @available(iOS 17.0, *)
 struct ScarletFullscreenSceneViewportRepresentable: UIViewControllerRepresentable {
     @ObservedObject var stack: ScarletFullscreenSceneStack
+    let installedApps: [LCAppModel]
     func makeUIViewController(context: Context)
         -> ScarletFullscreenSceneViewport {
         ScarletFullscreenSceneViewport(stack: stack)
     }
     func updateUIViewController(_ vc: ScarletFullscreenSceneViewport,
                                 context: Context) {
+        stack.updateInstalledModels(installedApps)
         vc.reconcile()
         stack.updateOverlay()
     }
