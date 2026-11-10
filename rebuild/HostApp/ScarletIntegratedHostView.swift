@@ -445,13 +445,39 @@ struct ScarletIntegratedHostView: View {
                 // LiveProcess hosted inside ONE real full-screen viewport.
                 // No UIWindow.resize, native window decorations, virtual
                 // multitask app windows, zoom or process-killing cold swap.
-                if experimentalFullscreenResident,
+                // Once a resident LiveProcess session exists, its engine is
+                // latched until every guest exits. A setting change must not
+                // dispatch a competing classic LC bootstrap in this process.
+                let residentSessionActive = fullscreenStack.hasResidentSession
+                if residentSessionActive && !experimentalFullscreenResident {
+                    ScarletDiagnosticRecorder.shared.record(
+                        "guest", "resident_mode_change_deferred",
+                        fields: ["result": "preserve_live_session"])
+                }
+                if (experimentalFullscreenResident || residentSessionActive),
                    UIDevice.current.userInterfaceIdiom == .phone,
                    #available(iOS 27.0, *),
                    app.appInfo.defaultClassicMode == 0,
                    !app.appInfo.isJITNeeded, !app.appInfo.is32bit,
                    app.uiSelectedContainer != nil {
                     do {
+                        if let folder = app.appInfo.relativeBundlePath,
+                           let livingPID = fullscreenStack.livePID(folder: folder) {
+                            // Re-signing an already live guest can reactivate
+                            // or disturb it. A->B->A must reuse the owned PID
+                            // before performing ANY signing or LC bootstrap.
+                            guard fullscreenStack.activate(folder: folder) else {
+                                throw NSError(domain: "scarlet.guest", code: 4,
+                                    userInfo: [NSLocalizedDescriptionKey:
+                                        "기존 게스트로 전환하지 못했습니다."])
+                            }
+                            ScarletDiagnosticRecorder.shared.record(
+                                "guest", "fullscreen_scene_reopened_without_resign",
+                                status: "success",
+                                fields: ["process_pid": String(livingPID),
+                                         "result": "same_live_scene"])
+                            return
+                        }
                         try await app.signApp(force: false)
                         try fullscreenStack.enqueueSignedGuest(app)
                         ScarletDiagnosticRecorder.shared.record(
@@ -461,6 +487,18 @@ struct ScarletIntegratedHostView: View {
                         ScarletGuestSessionLedger.restore(historyBeforeLaunch)
                         throw error
                     }
+                    return
+                }
+                // Never fall through to the original cold bootstrap while
+                // the resident engine still owns LiveProcess requests. The
+                // fallback previously returned without displaying a guest and
+                // users could tap the same entry dozens of times.
+                if residentSessionActive {
+                    ScarletDiagnosticRecorder.shared.record(
+                        "guest", "resident_incompatible_launch_blocked",
+                        status: "blocked",
+                        fields: ["reason": "requires_original_lc_runtime"])
+                    showOriginalError = "현재 실행 중인 RAM 유지 게스트와 실행 방식이 다른 앱입니다. 현재 세션을 종료한 뒤 기존 실행 방식으로 실행할 수 있습니다."
                     return
                 }
                 // Native scene path, where genuinely supported, retains each
@@ -1049,6 +1087,10 @@ struct ScarletIntegratedHostView: View {
                             .padding(.horizontal, 14)
                             .padding(.vertical, 8)
                             .background(.regularMaterial)
+                            .disabled(fullscreenStack.hasResidentSession)
+                            .accessibilityHint(fullscreenStack.hasResidentSession
+                                ? "실행 중인 게스트 RAM 상태를 보호하기 위해 변경할 수 없습니다."
+                                : "전체화면 게스트 RAM 유지 모드를 설정합니다.")
                         }
                         .environmentObject(sharedModel)
                         .environmentObject(LCAppSortManager.shared)
