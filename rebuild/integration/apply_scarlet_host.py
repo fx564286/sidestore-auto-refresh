@@ -31,6 +31,13 @@ def instrument_original_guest_signing(engine: Path) -> dict:
     target = engine / "LiveContainerSwiftUI/Models/LCAppModel.swift"
     assert target.is_file(), "Pinned LC guest model missing"
     source = target.read_text()
+    bridge = engine / "LiveContainerSwiftUI/LiveContainerSwiftUI-Bridging-Header.h"
+    assert bridge.is_file(), "Pinned LC Swift bridging header missing"
+    bridging = bridge.read_text()
+    signature_include = '#include "../LiveContainer/LCMachOUtils.h"'
+    assert 'LCMachOUtils.h' not in bridging, "Pinned LC bridge changed"
+    bridge.write_text(bridging.replace('#include "LCAppInfo.h"',
+        '#include "LCAppInfo.h"\n' + signature_include, 1))
     assert '"signing_started"' not in source and '"signing_reason"' not in source, (
         "LC guest signing diagnostics already injected")
     original = "        try await signApp(force: false)\n"
@@ -38,9 +45,36 @@ def instrument_original_guest_signing(engine: Path) -> dict:
     source = source.replace(original, """        ScarletDiagnosticRecorder.shared.record("guest", "signing_started")
         do {
             try await signApp(force: false)
-            // The async return does not prove a usable signature.
-            ScarletDiagnosticRecorder.shared.record("guest", "signing_call_returned",
-                fields: ["result": "signature_not_read_back"])
+            // The pinned LC ObjC signer uses this SAME kernel-level code
+            // signature check internally. Read back the executable again
+            // after the async completion, not merely the callback status.
+            if #available(iOS 26.0, *), !appInfo.dontSign, !appInfo.is32bit {
+                guard let bundlePath = appInfo.bundlePath(),
+                      let executable = Bundle(path: bundlePath)?.executableURL else {
+                    ScarletDiagnosticRecorder.shared.record(
+                        "guest", "signature_readback_failed",
+                        status: "error", fields: ["reason": "executable_missing"])
+                    throw "lc.signer.latestCertificateInvalidErr".loc
+                }
+                let valid = executable.path.withCString { checkCodeSignature($0) }
+                guard valid else {
+                    ScarletDiagnosticRecorder.shared.record(
+                        "guest", "signature_readback_failed",
+                        status: "error", fields: ["reason": "code_signature_invalid"])
+                    throw "lc.signer.latestCertificateInvalidErr".loc
+                }
+                ScarletDiagnosticRecorder.shared.record(
+                    "guest", "signature_readback_verified",
+                    status: "success",
+                    fields: ["result": "kernel_code_signature_check_passed"])
+            } else {
+                ScarletDiagnosticRecorder.shared.record(
+                    "guest", "signature_readback_skipped",
+                    fields: ["reason": appInfo.dontSign ? "signing_disabled" : "jit_required"])
+            }
+            ScarletDiagnosticRecorder.shared.record(
+                "guest", "signing_call_returned",
+                fields: ["result": "original_signing_call_completed"])
         } catch {
             ScarletDiagnosticRecorder.shared.recordError("guest", "signing_failed", error: error)
             throw error

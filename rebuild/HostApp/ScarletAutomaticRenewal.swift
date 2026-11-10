@@ -230,7 +230,9 @@ final class ScarletAutomaticRenewal {
         running = true
         defer { running = false; scheduleNext(); notifyStateChanged() }
 
-        prefs.set(now, forKey: attemptKey)
+        // Do not start the 2h retry cooldown until the real SideStore
+        // operation is about to run. Missing pairing/login is a deferral,
+        // not a completed app refresh attempt.
         prefs.set(now, forKey: "Scarlet.Refresh.LastAttemptStartedAt")
         prefs.set(origin, forKey: sourceKey)
         prefs.set("요청 중 · 검증 전", forKey: outcomeKey)
@@ -261,6 +263,19 @@ final class ScarletAutomaticRenewal {
             prefs.set("중단 · 갱신 요청 취소됨", forKey: outcomeKey)
             return false
         }
+        // Avoid launching the original SideStore refresh while its real
+        // pairing record/Minimuxer transport is unavailable. A remembered
+        // checkmark or Apple login alone cannot satisfy this prerequisite.
+        let (paired, pairingReason) =
+            await ScarletNativePairingInstaller.inspectPersistedState()
+        guard paired else {
+            prefs.set("차단 · 페어링 연결 확인 필요", forKey: outcomeKey)
+            prefs.set(pairingReason, forKey: failureReasonKey)
+            ScarletDiagnosticRecorder.shared.record(
+                "refresh", "automatic_deferred_pairing",
+                status: "blocked", fields: ["reason": pairingReason])
+            return false
+        }
         // Login and LC P12 were insufficient preflights: the embedded
         // SideStore has its own installed-app DB and signing Keychain.
         let nativeState = await ScarletNativeRefreshInspector.inspect()
@@ -277,11 +292,17 @@ final class ScarletAutomaticRenewal {
             prefs.set(nativeState.reason, forKey: failureReasonKey)
             return false
         }
+        prefs.set(Date(), forKey: attemptKey)
         do {
             // Calls the pinned SideStore native signing+installation workflow.
             // This may return with no registered apps. Do not claim success.
             let receipt = try await ScarletNativeRefreshExecutor.execute()
-            prefs.set("요청 반환 · 설치 상태 미검증", forKey: outcomeKey)
+            let recordChecked = receipt ==
+                "native_profile_date_advanced_install_unverified" ||
+                receipt == "native_refresh_record_updated_install_unverified"
+            prefs.set(recordChecked ? "갱신 기록 확인 · 설치 미확인"
+                                   : "요청 반환 · 설치 상태 미검증",
+                      forKey: outcomeKey)
             ScarletDiagnosticRecorder.shared.record(
                 "refresh", "automatic_native_worker_returned",
                 fields: ["reason": receipt,

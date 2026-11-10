@@ -299,6 +299,8 @@ public enum ScarletNativeRefreshExecutor {
         let allowed: Set<String> = [
             "native_operation_returned_unverified",
             "native_operation_returned_unverified_transport_recovered",
+            "native_profile_date_advanced_install_unverified",
+            "native_refresh_record_updated_install_unverified",
             "already_running",
             "anisette_unavailable", "vpn_unavailable", "signing_failed",
             "profile_refresh_failed", "server_unavailable",
@@ -319,7 +321,9 @@ public enum ScarletNativeRefreshExecutor {
             ? rawReason : "sidestore_native_operation_failed"
         guard returned && (
             status == "native_operation_returned_unverified" ||
-            status == "native_operation_returned_unverified_transport_recovered"
+            status == "native_operation_returned_unverified_transport_recovered" ||
+            status == "native_profile_date_advanced_install_unverified" ||
+            status == "native_refresh_record_updated_install_unverified"
         ) else {
             throw ScarletNativeRefreshFailure(reason: status)
         }

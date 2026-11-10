@@ -178,6 +178,11 @@ extension ScarletGuestRefreshAgent {
                     reply(false, "sidestore_certificate_missing")
                     return
                 }
+                // Save pre-refresh metadata before the original background
+                // operation mutates its own CoreData record.
+                let before = await context.perform {
+                    (managedHost.refreshedDate, managedHost.expirationDate)
+                }
                 // V30: Authentic Apple token restoration is not equivalent
                 // to SideStore's active Team record. The stock login pipeline
                 // writes that record, but Scarlet's headless login previously
@@ -220,12 +225,26 @@ extension ScarletGuestRefreshAgent {
                 // Original SideStore skips apps it sees as running. A
                 // completed operation may contain results for other apps,
                 // or no results at all. Never call that a Scarlet refresh.
-                guard results[managedHost.bundleIdentifier] != nil else {
+                guard let hostResult = results[managedHost.bundleIdentifier] else {
                     reply(false, "host_not_in_refresh_results")
                     return
                 }
-                // An operation returning successfully does not attest to
-                // an iOS SpringBoard replacement or a newer mobileprovision.
+                // SideStore returns success for the host, but that does not
+                // prove iOS SpringBoard switched to a renewed installation.
+                // Read its own post-operation CoreData record in the owning
+                // context. Never return a false "installed" receipt.
+                if case let .success(refreshedHost) = hostResult,
+                   let resultContext = refreshedHost.managedObjectContext {
+                    let after = await resultContext.perform {
+                        (refreshedHost.refreshedDate, refreshedHost.expirationDate)
+                    }
+                    if after.0 > before.0 {
+                        reply(true, after.1 > before.1
+                            ? "native_profile_date_advanced_install_unverified"
+                            : "native_refresh_record_updated_install_unverified")
+                        return
+                    }
+                }
                 reply(true, recoveredTransport
                     ? "native_operation_returned_unverified_transport_recovered"
                     : "native_operation_returned_unverified")

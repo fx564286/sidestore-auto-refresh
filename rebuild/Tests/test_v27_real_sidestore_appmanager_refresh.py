@@ -31,7 +31,7 @@ class V27InProcessRefresh(unittest.TestCase):
         self.assertIn('CertificateManager.shared.activeCertificate != nil',AGENT)
         self.assertIn('native_operation_returned_unverified',AGENT)
         self.assertIn('host_not_in_refresh_results',AGENT)
-        self.assertIn('results[managedHost.bundleIdentifier] != nil',AGENT)
+        self.assertIn('let hostResult = results[managedHost.bundleIdentifier]',AGENT)
         self.assertIn('host_not_in_refresh_results',XPC)
         self.assertIn('host_not_in_refresh_results',AUTO)
         self.assertNotIn('PrivateIntentRunner.run(',AGENT)
