@@ -25,7 +25,7 @@ class V46FullscreenGuard(unittest.TestCase):
         self.assertIn('view.addSubview(vc.view)', S)
         self.assertIn('vc.scaleRatio = 1', S)
         self.assertNotIn('CGAffineTransform', S)
-        self.assertNotIn('removeFromParent()', S)
+        self.assertIn('guard !old.isAppRunning else { return false }', S)
         self.assertIn('experimentalFullscreenResident = false', HOST)
         self.assertIn('try await app.runApp(multitask: false)', HOST)
 
