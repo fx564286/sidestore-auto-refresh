@@ -95,7 +95,6 @@ struct ScarletSigningReadinessPanel: View {
     @State private var refreshHostManaged: Bool?
     @State private var statusMessage: String?
     @State private var certificateRecoveryStatus: String?
-    @State private var isShowingInAppPairing = false
     @State private var isSelectingP12 = false
     @State private var pendingP12: Data?
     // Safe enum only, never serial/key/password. Preserve through explicit
@@ -519,8 +518,13 @@ struct ScarletSigningReadinessPanel: View {
             // native UI; the embedded SideStore keeps only its engine
             // and its existing Keychain, database and pairing storage.
             if #available(iOS 27.0, *) {
+                ScarletPairingStatusRow()
                 Button {
-                    isShowingInAppPairing = true
+                    ScarletDiagnosticRecorder.shared.record(
+                        "pairing", "sheet_requested")
+                    NotificationCenter.default.post(
+                        name: Notification.Name("ScarletPresentDevicePairing"),
+                        object: nil)
                 } label: {
                     Label("기기 페어링", systemImage: "iphone.radiowaves.left.and.right")
                 }
@@ -579,13 +583,6 @@ struct ScarletSigningReadinessPanel: View {
             }
         } header: {
             Text("JIT-Less · 인증서")
-        }
-        .sheet(isPresented: $isShowingInAppPairing) {
-            if #available(iOS 27.0, *) {
-                ScarletDevicePairingSheet()
-            } else {
-                Text("기기 내 무선 페어링은 iOS 27 이상에서 지원합니다.")
-            }
         }
         .onAppear(perform: inspect)
         .onReceive(NotificationCenter.default.publisher(

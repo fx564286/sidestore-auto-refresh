@@ -36,6 +36,7 @@ def patch_livecontainer(engine: Path) -> None:
 - (void)scarletRefreshReadiness:(void (^)(NSInteger managedCount, BOOL hostManaged, BOOL signingReady, NSString *status))reply;
 - (void)scarletPerformNativeRefresh:(void (^)(BOOL operationReturned, NSString *status))reply;
 - (void)scarletInstallPairingRecord:(NSData*)record reply:(void (^)(BOOL verified, NSString *status))reply;
+- (void)scarletInspectDevicePairing:(void (^)(BOOL ready, NSString *status))reply;
 - (void)scarletBeginAuth:(NSString*)requestID email:(NSString*)email password:(NSString*)password profile:(NSString*)profile;
 - (void)scarletProvideCode:(NSString*)requestID code:(NSString*)code;
 - (void)scarletCancelAuth:(NSString*)requestID;
@@ -134,6 +135,16 @@ def patch_livecontainer(engine: Path) -> None:
         return;
     }
     ((void (*)(id, SEL, id, id))objc_msgSend)(worker, selector, record, reply);
+}
+
+- (void)scarletInspectDevicePairing:(void (^)(BOOL, NSString *))reply {
+    Class worker = NSClassFromString(@"ScarletGuestRefreshAgent");
+    SEL selector = @selector(inspectDevicePairing:);
+    if (!worker || ![worker respondsToSelector:selector]) {
+        reply(NO, @"refresh_worker_missing");
+        return;
+    }
+    ((void (*)(id, SEL, id))objc_msgSend)(worker, selector, reply);
 }
 
 - (void)scarletAuthStored:(void (^)(BOOL))reply {

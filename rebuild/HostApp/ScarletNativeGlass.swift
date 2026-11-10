@@ -139,6 +139,32 @@ extension View {
     }
 }
 
+// V31: Native LC settings must share Scarlet's actual plum/violet
+// background. The previous almost-black Form background caused Settings
+// to appear as a separate app despite the purple source/apps/tweaks UI.
+extension View {
+    @ViewBuilder
+    func scarletSettingsPurplePalette() -> some View {
+        if #available(iOS 16.0, *) {
+            self.scrollContentBackground(.hidden)
+                .background(
+                    LinearGradient(
+                        colors: [
+                            Color(red: 0.104, green: 0.079, blue: 0.147),
+                            Color(red: 0.063, green: 0.055, blue: 0.105),
+                            Color(red: 0.051, green: 0.051, blue: 0.094)
+                        ],
+                        startPoint: .topLeading, endPoint: .bottomTrailing
+                    ).ignoresSafeArea()
+                )
+                .tint(Color(red: 170.0/255, green: 150.0/255, blue: 1.0))
+        } else {
+            self.background(Color(red: 0.104, green: 0.079, blue: 0.147)
+                            .ignoresSafeArea())
+        }
+    }
+}
+
 // The native Form/List scroll view, not its enclosing NavigationView,
 // must own enough bottom clearance for the 62pt floating dock plus home area.
 extension View {

@@ -70,7 +70,7 @@ struct LCSettingsView: View {
             self.assertIn("SCARLET_NATIVE_DIAGNOSTICS_ENTRY",source)
             self.assertIn(".scarletNativeListTheme()",source)
             self.assertIn(".scarletSettingsScrollLimit()",source)
-            self.assertIn(".scarletNativeListTheme()\\n            .scarletSettingsScrollLimit()",source.replace("\n", "\\n"))
+            self.assertIn(".scarletNativeListTheme()\\n            .scarletSettingsPurplePalette()\\n            .scarletSettingsScrollLimit()",source.replace("\n", "\\n"))
             self.assertNotIn(".scarletDockScrollClearance()",source)
             self.assertEqual(source.count(".listRowBackground("),16)
             self.assertIn("ScarletDiagnosticLogView()",source)
