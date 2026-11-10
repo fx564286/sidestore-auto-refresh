@@ -16,15 +16,15 @@ enum ScarletGuestSessionLedger {
     // Preserve V14 and V19 keys for rollback; no migrating stale entries.
     // Legacy key: Scarlet.Guest.RecentSessions.V14
     // Legacy key: Scarlet.Guest.ActiveSwitcherSession.V19
-    // V40: a work session is identified by an opaque UUID. The legacy V37
-    // guest history and its bare Date host-return ticket are NOT migrated.
-    // A launch of Scarlet without a verified active guest handoff starts
-    // with ZERO tabs, even if the previous session was Kakao+Instagram.
-    private static let key = "Scarlet.Guest.ActiveSwitcherSession.V40"
-    private static let sessionIDKey = "Scarlet.Guest.WorkSessionID.V40"
-    private static let hostReturnKey = "Scarlet.Guest.HostReturnTicket.V40"
-    private static let guestBootMarkerKey = "Scarlet.Guest.LaunchBootEpoch.V40"
-    private static let guestDepartedKey = "Scarlet.Guest.DepartedTicket.V40"
+    // V43: start with ZERO tabs on the first V43 launch. V40/V42 guest history
+    // and their previous-return tickets stay intact for exact V40 rollback.
+    // ONLY a guest launched in this V43 work can create a V43 return ticket;
+    // after A->Home->B in this work, A remains without importing old apps.
+    private static let key = "Scarlet.Guest.ActiveSwitcherSession.V43"
+    private static let sessionIDKey = "Scarlet.Guest.WorkSessionID.V43"
+    private static let hostReturnKey = "Scarlet.Guest.HostReturnTicket.V43"
+    private static let guestBootMarkerKey = "Scarlet.Guest.LaunchBootEpoch.V43"
+    private static let guestDepartedKey = "Scarlet.Guest.DepartedTicket.V43"
     private static let guestDepartureValidity: TimeInterval = 120
     private static let maxItems = 8
     private static var hasEnteredHostWorkSession = false

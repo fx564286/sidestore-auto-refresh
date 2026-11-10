@@ -50,26 +50,91 @@ final class ScarletDeviceInstallAgent: NSObject {
                     notify("certificate_missing")
                     return
                 }
-                try await DatabaseManager.shared.start()
-                _ = try await withCheckedThrowingContinuation {
-                    (continuation: CheckedContinuation<InstalledApp, Error>) in
-                    _ = AppManager.shared.install(.url(fileURL)) { result in
-                        continuation.resume(with: result)
-                    }
+                // Refresh and install share the same original SideStore
+                // identity/Minimuxer prerequisites. The old installer skipped
+                // both of these and then collapsed the AppManager error to
+                // native_install_failed. Fail at the precise missing stage.
+                let teamState = await ScarletGuestSignInAgent
+                    .ensureActiveTeamForRefresh()
+                guard teamState == "ready" || teamState == "team_restored" else {
+                    notify(teamState == "sidestore_team_mismatch"
+                           ? "team_mismatch" : "team_unavailable")
+                    return
                 }
-                notify("installed")
+                do {
+                    _ = try await ScarletGuestDeviceTransport.ensureReady()
+                } catch {
+                    notify(safeFailureReason(error, phase: "transport"))
+                    return
+                }
+                do {
+                    _ = try await withCheckedThrowingContinuation {
+                        (continuation: CheckedContinuation<InstalledApp, Error>) in
+                        _ = AppManager.shared.install(.url(fileURL)) { result in
+                            continuation.resume(with: result)
+                        }
+                    }
+                    // AppManager's callback is NOT an iOS SpringBoard
+                    // installed-version readback. Record request return only.
+                    notify("installed")
+                } catch {
+                    notify(safeFailureReason(error, phase: "appmanager"))
+                }
             } catch {
-                // XPC only reports a categorical result, never Apple IDs,
-                // arbitrary exception strings, IPA filenames or P12 data.
-                let message = error.localizedDescription.lowercased()
-                let reason: String
-                if message.contains("pair") { reason = "pairing_unavailable" }
-                else if message.contains("certificate") { reason = "certificate_unavailable" }
-                else if message.contains("provision") { reason = "profile_unavailable" }
-                else { reason = "native_install_failed" }
-                notify(reason)
+                notify(safeFailureReason(error, phase: "preflight"))
             }
         }
+    }
+
+    // Disclose only a fixed diagnostic vocabulary, not NSError.localizedDescription
+    // (which may contain an Apple ID, server text or IPA filename).
+    // Upstream OperationError is already used by the native refresh worker.
+    private static func safeFailureReason(_ error: Error, phase: String) -> String {
+        if let typed = error as? OperationError {
+            switch typed {
+            case .notAuthenticated: return "auth_unavailable"
+            case .noVPN, .invalidVPN: return "vpn_unavailable"
+            case .noConnection: return "device_network_unavailable"
+            case .noDevice, .notReachable: return "device_endpoint_unavailable"
+            case .invalidPairingFile, .pairingNotComplete:
+                return "pairing_invalid"
+            case .minimuxerNotStarted: return "minimuxer_not_started"
+            case .unknownUDID: return "device_identifier_unavailable"
+            case .certificateExpired, .customCertificateExpired:
+                return "certificate_expired"
+            case .certificateRevoked, .customCertificateRevoked:
+                return "certificate_revoked"
+            case .missingProvisioningProfile: return "profile_unavailable"
+            case .missingAppGroup: return "app_group_unavailable"
+            case .timedOut: return "device_operation_timed_out"
+            case .invalidParameters: return "invalid_parameters"
+            default: break
+            }
+        }
+        let ns = error as NSError
+        // Numeric codes are neither sensitive nor account identifiers.
+        // Map only well-known Foundation domains; SideStore's generic code 1
+        // remains a typed *unknown*, not a guessed pairing/signing failure.
+        if ns.domain == NSURLErrorDomain { return "network_unavailable" }
+        if ns.domain == NSCocoaErrorDomain { return "file_io_failure" }
+        let message = ns.localizedDescription.lowercased()
+        if message.contains("minimuxer") { return "minimuxer_not_started" }
+        if message.contains("pairing") { return "pairing_invalid" }
+        if message.contains("provision") { return "profile_unavailable" }
+        if message.contains("certificate") { return "certificate_unavailable" }
+        if message.contains("anisette") { return "anisette_unavailable" }
+        if message.contains("signing") { return "signing_failed" }
+        if message.contains("device") || message.contains("connection") {
+            return "device_network_unavailable"
+        }
+        if phase == "appmanager", abs(Int64(ns.code)) <= 99999 {
+            // SideStore's code 1 is opaque, but preserve the code rather than
+            // pretending it proved a certificate/pairing failure.
+            return "appmanager_error_code_\(ns.code)"
+        }
+        return phase == "transport" ? "transport_unclassified"
+             : phase == "preflight" ? "preflight_unclassified"
+             : "appmanager_unclassified"
     }
 
     private static func notify(_ result: String) {

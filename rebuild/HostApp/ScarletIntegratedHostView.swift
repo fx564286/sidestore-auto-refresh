@@ -649,10 +649,11 @@ struct ScarletIntegratedHostView: View {
                 // Original SideStore AppManager installs through its own
                 // signing/provisioning/pairing engine. No SideInstaller UI.
                 try await ScarletDeviceInstaller.install(stagedIPA: staged)
-                deviceInstallStatus = "기기 설치 작업 완료 · iPhone에서 앱 확인"
+                deviceInstallStatus = "설치 엔진 반환 · 실제 iPhone 설치 결과 확인 필요"
                 ScarletDiagnosticRecorder.shared.record("sidestore",
-                    "install_operation_returned", status: "success",
-                    fields: ["result": "native_operation_completed"])
+                    "install_operation_returned",
+                    fields: ["result": "appmanager_callback_completed",
+                             "installation_verified": "false"])
             } catch {
                 let nsError = error as NSError
                 // SideStoreSupport wraps its worker error into the
@@ -660,19 +661,67 @@ struct ScarletIntegratedHostView: View {
                 // categorical codes rather than exposing Apple responses.
                 let categoryText = nsError.domain + " " + nsError.localizedDescription
                 let knownReasons = ["certificate_missing", "certificate_unavailable",
-                    "pairing_unavailable", "profile_unavailable",
-                    "app_group_unavailable", "staged_ipa_missing",
-                    "worker_missing", "native_install_failed"]
-                let reason = knownReasons.first { categoryText.contains(
-                    "scarlet.install." + $0) } ?? "native_install_failed"
+                    "pairing_unavailable", "pairing_invalid", "profile_unavailable",
+                    "app_group_unavailable", "staged_ipa_missing", "staged_ipa_invalid",
+                    "worker_missing", "team_unavailable", "team_mismatch",
+                    "auth_unavailable", "vpn_unavailable", "network_unavailable",
+                    "device_network_unavailable", "device_endpoint_unavailable",
+                    "device_identifier_unavailable", "minimuxer_not_started",
+                    "certificate_expired", "certificate_revoked",
+                    "device_operation_timed_out", "invalid_parameters",
+                    "file_io_failure", "preflight_unclassified",
+                    "transport_unclassified", "appmanager_unclassified",
+                    "anisette_unavailable", "signing_failed",
+                    "native_install_failed"]
+                // SideStoreSupport may wrap the original XPC failure in
+                // NSError(domain: "SideStore", code: 1). Search a FIXED
+                // marker, never serialize the potentially private message.
+                let marker = "scarlet.install."
+                let normalized = categoryText.lowercased()
+                let exactReason: String
+                if let range = normalized.range(of: marker) {
+                    exactReason = String(normalized[range.upperBound...]
+                        .prefix(while: { $0.isLetter || $0.isNumber ||
+                                         $0 == "_" || $0 == "-" }))
+                } else {
+                    exactReason = ""
+                }
+                let typedAppManagerCode = exactReason.hasPrefix("appmanager_error_code_") &&
+                    exactReason.count <= 34 &&
+                    exactReason.dropFirst("appmanager_error_code_".count)
+                        .allSatisfy({ $0.isNumber || $0 == "-" })
+                let reason = knownReasons.contains(exactReason) || typedAppManagerCode
+                    ? exactReason : "install_transport_or_worker_unclassified"
+                let stage: String
+                if reason.hasPrefix("appmanager_") || reason == "signing_failed" ||
+                   reason == "profile_unavailable" {
+                    stage = "appmanager"
+                } else if reason == "team_unavailable" ||
+                          reason == "team_mismatch" || reason == "auth_unavailable" {
+                    stage = "team"
+                } else if reason == "certificate_missing" ||
+                          reason == "certificate_unavailable" {
+                    stage = "certificate"
+                } else {
+                    stage = "transport_or_preflight"
+                }
                 ScarletDiagnosticRecorder.shared.record("sidestore",
                     "install_failed", status: "error",
-                    fields: ["reason": reason])
+                    fields: ["reason": reason, "stage": stage,
+                             "installation_verified": "false"])
                 switch reason {
+                case "team_unavailable", "team_mismatch", "auth_unavailable":
+                    deviceInstallStatus = "SideStore 활성 개발팀 또는 로그인 복원이 필요합니다."
+                case "minimuxer_not_started", "transport_unclassified",
+                     "device_network_unavailable", "device_endpoint_unavailable",
+                     "device_operation_timed_out", "vpn_unavailable":
+                    deviceInstallStatus = "기기 연결 엔진을 준비하지 못했습니다. 페어링·전송 상태를 확인해야 합니다."
+                case "network_unavailable":
+                    deviceInstallStatus = "SideStore 네트워크 요청에 실패했습니다."
                 case "certificate_missing", "certificate_unavailable":
                     deviceInstallStatus = "기존 서명 인증서를 찾을 수 없습니다. 인증서 발급·동기화가 필요합니다."
-                case "pairing_unavailable":
-                    deviceInstallStatus = "페어링 연결을 확인해야 합니다."
+                case "pairing_unavailable", "pairing_invalid":
+                    deviceInstallStatus = "SideStore 페어링 데이터를 확인해야 합니다."
                 case "profile_unavailable":
                     deviceInstallStatus = "Apple 프로비저닝 프로파일을 확인해야 합니다."
                 default:

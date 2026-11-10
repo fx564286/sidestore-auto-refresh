@@ -41,8 +41,8 @@ class TestV40RollbackAndRuntimeEvidence(unittest.TestCase):
         self.assertIn('legacyScene320x480GeometryRemoved',I)
 
     def test_only_this_work_session_not_installed_app_list(self):
-        self.assertIn('Scarlet.Guest.ActiveSwitcherSession.V40',L)
-        self.assertIn('Scarlet.Guest.WorkSessionID.V40',L)
+        self.assertIn('Scarlet.Guest.ActiveSwitcherSession.V43',L)
+        self.assertIn('Scarlet.Guest.WorkSessionID.V43',L)
         self.assertIn('cold_host_new_session',L)
         self.assertIn('verified_guest_return_continued',L)
         self.assertIn('memory": "not_verified"',L)
