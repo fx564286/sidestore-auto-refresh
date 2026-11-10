@@ -34,7 +34,7 @@ final class ScarletDiagnosticRecorder: @unchecked Sendable {
         "entitled_app_group", "group_accessible", "signed_host_identity",
         "lc_cert_present", "installation_verified", "material_owner",
         "optical_verified", "api", "source", "retry_minutes",
-        "process_pid", "memory"
+        "process_pid", "memory", "stage", "worker_stage"
     ]
 
     private init() {

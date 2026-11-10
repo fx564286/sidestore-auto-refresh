@@ -620,6 +620,10 @@ struct ScarletIntegratedHostView: View {
                     status: "blocked", fields: ["reason": "app_group_unavailable"])
                 return
             }
+            // Do not let a previous request's stage contaminate this attempt.
+            let stageDefaults = UserDefaults(suiteName: groupID)
+            let stageKey = "Scarlet.Install.LastStage.V44"
+            stageDefaults?.removeObject(forKey: stageKey)
             let directory = containerURL.appendingPathComponent(
                 "ScarletDeviceInstall", isDirectory: true)
             let staged = directory.appendingPathComponent(
@@ -650,9 +654,12 @@ struct ScarletIntegratedHostView: View {
                 // signing/provisioning/pairing engine. No SideInstaller UI.
                 try await ScarletDeviceInstaller.install(stagedIPA: staged)
                 deviceInstallStatus = "설치 엔진 반환 · 실제 iPhone 설치 결과 확인 필요"
+                let finalStage = stageDefaults?.string(forKey: stageKey) ??
+                    "stage_not_reported"
                 ScarletDiagnosticRecorder.shared.record("sidestore",
                     "install_operation_returned",
                     fields: ["result": "appmanager_callback_completed",
+                             "stage": finalStage,
                              "installation_verified": "false"])
             } catch {
                 let nsError = error as NSError
@@ -661,7 +668,9 @@ struct ScarletIntegratedHostView: View {
                 // categorical codes rather than exposing Apple responses.
                 let categoryText = nsError.domain + " " + nsError.localizedDescription
                 let knownReasons = ["certificate_missing", "certificate_unavailable",
-                    "pairing_unavailable", "pairing_invalid", "profile_unavailable",
+                    "pairing_unavailable", "pairing_invalid",
+                    "pairing_file_missing", "rppairing_file_missing",
+                    "rppairing_record_invalid", "profile_unavailable",
                     "app_group_unavailable", "staged_ipa_missing", "staged_ipa_invalid",
                     "worker_missing", "team_unavailable", "team_mismatch",
                     "auth_unavailable", "vpn_unavailable", "network_unavailable",
@@ -705,9 +714,12 @@ struct ScarletIntegratedHostView: View {
                 } else {
                     stage = "transport_or_preflight"
                 }
+                let lastWorkerStage = stageDefaults?.string(forKey: stageKey) ??
+                    "stage_not_reported"
                 ScarletDiagnosticRecorder.shared.record("sidestore",
                     "install_failed", status: "error",
                     fields: ["reason": reason, "stage": stage,
+                             "worker_stage": lastWorkerStage,
                              "installation_verified": "false"])
                 switch reason {
                 case "team_unavailable", "team_mismatch", "auth_unavailable":
@@ -720,6 +732,10 @@ struct ScarletIntegratedHostView: View {
                     deviceInstallStatus = "SideStore 네트워크 요청에 실패했습니다."
                 case "certificate_missing", "certificate_unavailable":
                     deviceInstallStatus = "기존 서명 인증서를 찾을 수 없습니다. 인증서 발급·동기화가 필요합니다."
+                case "rppairing_file_missing", "pairing_file_missing":
+                    deviceInstallStatus = "기기의 RemoteRP 페어링 파일을 SideStore에서 찾지 못했습니다."
+                case "rppairing_record_invalid":
+                    deviceInstallStatus = "RemoteRP 페어링 파일 형식이 올바르지 않습니다."
                 case "pairing_unavailable", "pairing_invalid":
                     deviceInstallStatus = "SideStore 페어링 데이터를 확인해야 합니다."
                 case "profile_unavailable":
