@@ -116,6 +116,18 @@ struct SCNativeLiquidGlassSurface: UIViewRepresentable {
     }
 }
 
+// Shared native violet backdrop: every LC Form and tweak list must not
+// paint an opaque near-black layer over Scarlet's purple Settings palette.
+private enum ScarletNativePalette {
+    static let backdrop = LinearGradient(
+        colors: [
+            Color(red: 0.104, green: 0.079, blue: 0.147),
+            Color(red: 0.063, green: 0.055, blue: 0.105),
+            Color(red: 0.051, green: 0.051, blue: 0.094)
+        ], startPoint: .topLeading, endPoint: .bottomTrailing
+    )
+}
+
 // The upstream LiveContainer target also compiles for iOS 15.0.
 // Guard iOS 16-only list background APIs without changing native controls.
 extension View {
@@ -124,16 +136,16 @@ extension View {
         if #available(iOS 16.0, *) {
             if #available(iOS 26.0, *) {
                 self.scrollContentBackground(.hidden)
-                    .background(Color(red: 13.0/255, green: 13.0/255, blue: 24.0/255).ignoresSafeArea())
+                    .background(ScarletNativePalette.backdrop.ignoresSafeArea())
                     .scrollEdgeEffectHidden(true, for: .all)
                     .tint(Color(red: 170.0/255, green: 150.0/255, blue: 1.0))
             } else {
                 self.scrollContentBackground(.hidden)
-                    .background(Color(red: 13.0/255, green: 13.0/255, blue: 24.0/255).ignoresSafeArea())
+                    .background(ScarletNativePalette.backdrop.ignoresSafeArea())
                     .tint(Color(red: 170.0/255, green: 150.0/255, blue: 1.0))
             }
         } else {
-            self.background(Color(red: 13.0/255, green: 13.0/255, blue: 24.0/255).ignoresSafeArea())
+            self.background(ScarletNativePalette.backdrop.ignoresSafeArea())
                 .tint(Color(red: 170.0/255, green: 150.0/255, blue: 1.0))
         }
     }
@@ -147,16 +159,7 @@ extension View {
     func scarletSettingsPurplePalette() -> some View {
         if #available(iOS 16.0, *) {
             self.scrollContentBackground(.hidden)
-                .background(
-                    LinearGradient(
-                        colors: [
-                            Color(red: 0.104, green: 0.079, blue: 0.147),
-                            Color(red: 0.063, green: 0.055, blue: 0.105),
-                            Color(red: 0.051, green: 0.051, blue: 0.094)
-                        ],
-                        startPoint: .topLeading, endPoint: .bottomTrailing
-                    ).ignoresSafeArea()
-                )
+                .background(ScarletNativePalette.backdrop.ignoresSafeArea())
                 .tint(Color(red: 170.0/255, green: 150.0/255, blue: 1.0))
         } else {
             self.background(Color(red: 0.104, green: 0.079, blue: 0.147)
