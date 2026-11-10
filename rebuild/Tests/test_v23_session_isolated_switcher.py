@@ -17,7 +17,7 @@ AUTO=(ROOT/"HostApp/ScarletAutomaticRenewal.swift").read_text()
 
 class V23SessionIsolation(unittest.TestCase):
     def test_does_not_read_v14_or_v19_previous_sessions(self):
-        self.assertIn('private static let key = "Scarlet.Guest.ActiveSwitcherSession.V23"', LEDGER)
+        self.assertIn('private static let key = "Scarlet.Guest.ActiveSwitcherSession.V37"', LEDGER)
         self.assertIn('Legacy key: Scarlet.Guest.RecentSessions.V14',LEDGER)
         self.assertIn('Legacy key: Scarlet.Guest.ActiveSwitcherSession.V19',LEDGER)
         self.assertNotIn('store.data(forKey: "Scarlet.Guest.ActiveSwitcherSession.V19")',LEDGER)
@@ -36,6 +36,8 @@ class V23SessionIsolation(unittest.TestCase):
         self.assertIn('store.set(empty, forKey: key)',code)
         self.assertIn('cold_host_new_session',code)
         self.assertIn('guest_return_continued',code)
+        self.assertIn('guestWasJustActive',code)
+        self.assertNotIn('sameBoot && !recent().isEmpty',code)
         self.assertIn('ScarletGuestSessionLedger.prepareForHostAppearance()',HOST)
         self.assertLess(HOST.index('ScarletGuestSessionLedger.prepareForHostAppearance()'),
                         HOST.index('ScarletGuestSessionLedger.replaySwitcherTraceToHostJournal()'))

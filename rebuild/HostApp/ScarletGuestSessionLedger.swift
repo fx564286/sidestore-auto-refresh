@@ -16,12 +16,36 @@ enum ScarletGuestSessionLedger {
     // Preserve V14 and V19 keys for rollback; no migrating stale entries.
     // Legacy key: Scarlet.Guest.RecentSessions.V14
     // Legacy key: Scarlet.Guest.ActiveSwitcherSession.V19
-    private static let key = "Scarlet.Guest.ActiveSwitcherSession.V23"
-    private static let hostReturnKey = "Scarlet.Guest.HostReturnTicket.V23"
-    private static let guestBootMarkerKey = "Scarlet.Guest.LaunchBootEpoch.V33"
+    // V37 namespace prevents stale V23 Kakao/Instagram launch history
+    // from being treated as current. Old data stays untouched for rollback.
+    private static let key = "Scarlet.Guest.ActiveSwitcherSession.V37"
+    private static let hostReturnKey = "Scarlet.Guest.HostReturnTicket.V37"
+    private static let guestBootMarkerKey = "Scarlet.Guest.LaunchBootEpoch.V37"
+    private static let guestDepartedKey = "Scarlet.Guest.DepartedTicket.V37"
+    private static let guestDepartureValidity: TimeInterval = 120
+
+    private struct GuestDeparture: Codable {
+        let folder: String
+        let time: Date
+        let bootEpoch: Double
+    }
+
+    // Only a verified foreground guest can prove a recent Home handoff.
+    static func noteGuestDeparted(folder: String) {
+        guard recent().contains(where: { $0.folder == folder }) else { return }
+        let departure = GuestDeparture(
+            folder: folder, time: Date(),
+            bootEpoch: Date().timeIntervalSince1970 -
+                ProcessInfo.processInfo.systemUptime)
+        if let data = try? JSONEncoder().encode(departure) {
+            store.set(data, forKey: guestDepartedKey)
+        }
+    }
     private static let maxItems = 8
     private static let returnTicketValidity: TimeInterval = 120
     private static var hasEnteredHostWorkSession = false
+    private static var lastHostForegroundAt: Date?
+    private static let unrelatedHostReturnResetAfter: TimeInterval = 120
 
     private static var store: UserDefaults { LCUtils.appGroupUserDefault }
 
@@ -44,20 +68,28 @@ enum ScarletGuestSessionLedger {
         store.removeObject(forKey: hostReturnKey)
         guard !hasEnteredHostWorkSession else { return }
         hasEnteredHostWorkSession = true
+        lastHostForegroundAt = Date()
         let age = ticket.map { Date().timeIntervalSince($0) }
         let explicitReturn = age.map {
             $0 >= 0 && $0 <= returnTicketValidity
         } ?? false
-        // iOS may restore Scarlet from Home without using the LC guest's
-        // "Return" button. Previously every such fresh host process erased
-        // A before B was launched. Preserve *launched-only* session history
-        // on the same physical iOS boot; never claim cold apps retain RAM.
+        // Same device boot alone was too weak: unrelated old apps
+        // reappeared. Require an actual recent guest -> Home transition.
+        let departure = store.data(forKey: guestDepartedKey)
+            .flatMap { try? JSONDecoder().decode(GuestDeparture.self, from: $0) }
+        store.removeObject(forKey: guestDepartedKey)
         let bootEpoch = Date().timeIntervalSince1970 -
             ProcessInfo.processInfo.systemUptime
         let savedEpoch = store.object(forKey: guestBootMarkerKey) as? Double
         let sameBoot = savedEpoch.map { abs($0 - bootEpoch) < 120 } ?? false
+        let guestWasJustActive = departure.map { item in
+            let age = Date().timeIntervalSince(item.time)
+            return age >= 0 && age <= guestDepartureValidity &&
+                abs(item.bootEpoch - bootEpoch) < 120 &&
+                recent().contains(where: { $0.folder == item.folder })
+        } ?? false
         let isContinuation = explicitReturn ||
-            (sameBoot && !recent().isEmpty)
+            (sameBoot && guestWasJustActive)
         if !isContinuation {
             guard let empty = try? JSONEncoder().encode([Entry]()) else { return }
             store.set(empty, forKey: key)
@@ -65,8 +97,50 @@ enum ScarletGuestSessionLedger {
         ScarletDiagnosticRecorder.shared.record(
             "guest", "switcher_work_session_started",
             fields: ["result": explicitReturn ? "guest_return_continued"
-                       : isContinuation ? "same_boot_guest_history_continued"
+                       : isContinuation ? "verified_guest_departure_continued"
                        : "cold_host_new_session"])
+    }
+
+    // A Scarlet host process can survive in the background for hours.
+    // The first-appearance guard must not keep Kakao/Instagram from a
+    // previous work session forever merely because this PID survived.
+    static func reconcileHostForeground() {
+        guard hasEnteredHostWorkSession else { return }
+        let now = Date()
+        defer { lastHostForegroundAt = now }
+        guard let previous = lastHostForegroundAt,
+              now.timeIntervalSince(previous) >= unrelatedHostReturnResetAfter
+        else { return }
+
+        let ticket = store.object(forKey: hostReturnKey) as? Date
+        let explicit = ticket.map {
+            let age = now.timeIntervalSince($0)
+            return age >= 0 && age <= returnTicketValidity
+        } ?? false
+        let departure = store.data(forKey: guestDepartedKey)
+            .flatMap { try? JSONDecoder().decode(GuestDeparture.self, from: $0) }
+        let bootEpoch = now.timeIntervalSince1970 -
+            ProcessInfo.processInfo.systemUptime
+        let validDeparture = departure.map { item in
+            let age = now.timeIntervalSince(item.time)
+            return age >= 0 && age <= guestDepartureValidity &&
+                abs(item.bootEpoch - bootEpoch) < 120 &&
+                recent().contains(where: { $0.folder == item.folder })
+        } ?? false
+        store.removeObject(forKey: hostReturnKey)
+        store.removeObject(forKey: guestDepartedKey)
+        guard !explicit && !validDeparture else {
+            ScarletDiagnosticRecorder.shared.record(
+                "guest", "switcher_work_session_continued",
+                fields: ["reason": "recent_guest_handoff"])
+            return
+        }
+        guard let empty = try? JSONEncoder().encode([Entry]()) else { return }
+        store.set(empty, forKey: key)
+        ScarletDiagnosticRecorder.shared.record(
+            "guest", "switcher_work_session_reset",
+            fields: ["reason": "unrelated_foreground_entry",
+                     "count": "0"])
     }
 
     // The actual full-screen guest has a virtualized app sandbox, so its
