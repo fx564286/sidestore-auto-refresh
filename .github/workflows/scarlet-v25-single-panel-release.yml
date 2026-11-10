@@ -1,0 +1,173 @@
+name: Scarlet V25 single glass panel and outside-tap direct IPA
+
+on:
+  push:
+    branches:
+      - fix/scarlet-v25-single-panel-outside-dismiss-20261110
+    paths:
+      - .github/workflows/scarlet-v25-single-panel-release.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  actions: read
+
+jobs:
+  package-verified-v25:
+    runs-on: xcode-27
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - name: Wait for both V25 native build artifacts (fail closed)
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -Eeuo pipefail
+          for attempt in $(seq 1 60); do
+            names="$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/42728156512/artifacts" --jq '.artifacts[] | select(.expired == false) | .name' 2>/dev/null || true)"
+            if grep -Fxq 'Scarlet-LiveContainer-Native-Engine' <<< "$names" &&
+               grep -Fxq 'Scarlet-SideStore-Native-Engine' <<< "$names"; then
+              echo "[PASS] both new V25 native engines compiled"
+              exit 0
+            fi
+            echo "[WAIT] V25 LC/SideStore native artifacts $attempt/60"
+            sleep 15
+          done
+          echo "[STOP] missing V25 compiled engine; no IPA release"
+          exit 1
+      - name: Download actual V25 compiled LiveContainer native engine
+        uses: actions/download-artifact@v4
+        with:
+          name: Scarlet-LiveContainer-Native-Engine
+          path: artifacts/lc
+          run-id: 42728156512
+          github-token: ${{ github.token }}
+      - name: Use V25 newly compiled SideStore with embedded managed-app repair
+        uses: actions/download-artifact@v4
+        with:
+          name: Scarlet-SideStore-Native-Engine
+          path: artifacts/side
+          run-id: 42728156512
+          github-token: ${{ github.token }}
+      - name: Fail closed on source/pin mismatches
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          python3 - <<'PY'
+          import hashlib, json
+          from pathlib import Path
+          pins=json.loads(Path("config/scarlet-upstream-pins.json").read_text())
+          side=json.loads(Path("artifacts/side/source-gitlink-audit.json").read_text())
+          assert side["sourcePins"]==pins, "SideStore source pins changed"
+          host=json.loads(Path("artifacts/lc/scarlet-host-integration.json").read_text())
+          files={Path(x["path"]).name:x["sha256"] for x in host["sources"]}
+          expected=("ScarletIndependentShell.swift","ScarletIntegratedHostView.swift",
+                    "ScarletFullscreenGuestTab.swift","ScarletGuestSwitcherOverlay.swift",
+                    "ScarletGuestSessionLedger.swift","ScarletNativeGlass.swift",
+                    "ScarletSigningReadinessPanel.swift","ScarletAutomaticRenewal.swift",
+                    "ScarletFeatureModulesSection.swift")
+          for filename in expected:
+              path=Path("rebuild/Sources/ScarletIndependentUI" if
+                        filename=="ScarletIndependentShell.swift" else "rebuild/HostApp")/filename
+              digest=hashlib.sha256(path.read_bytes()).hexdigest()
+              assert files.get(filename)==digest, f"Not the V25 compiled code: {filename}"
+          assert Path("artifacts/side/SideStore.ipa").stat().st_size>1_000_000
+          assert Path("artifacts/lc/LiveContainer-app.tar").stat().st_size>1_000_000
+          print("[PASS] V25 exact compiled source hashes and pinned SideStore engine")
+          PY
+      - name: Prepare official LiveContainer integrated packager
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          brew install ldid
+          mkdir -p report build-tools
+          curl -fLSs --retry 5 --retry-all-errors --retry-delay 3 \
+            https://github.com/LiveContainer/dylibify/releases/download/1.0/dylibify \
+            -o build-tools/dylibify
+          printf '6d23f6a2fc4d8442f87caa1161aebe6ecaafd0e8c41ce205da007efb04fc82c7  build-tools/dylibify\n' | shasum -a 256 -c -
+          chmod +x build-tools/dylibify
+          pin="$(python3 -c 'import json;print(json.load(open("config/scarlet-upstream-pins.json"))["LIVE_CONTAINER_REF"])')"
+          curl -fLSs --retry 3 \
+            "https://raw.githubusercontent.com/LiveContainer/LiveContainer/$pin/.github/sidelc/LCAppInfo.plist" \
+            -o build-tools/LCAppInfo.plist
+          plutil -lint build-tools/LCAppInfo.plist
+      - name: Package and strictly verify V25 unified unsigned IPA
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          python3 rebuild/integration/package_paired.py \
+            --lc-tar artifacts/lc/LiveContainer-app.tar \
+            --sidestore-ipa artifacts/side/SideStore.ipa \
+            --lc-appinfo build-tools/LCAppInfo.plist \
+            --dylibify build-tools/dylibify \
+            --host-report artifacts/lc/scarlet-host-integration.json \
+            --out report
+          python3 rebuild/integration/verify_engines.py \
+            --phase combined \
+            --combined-ipa report/Scarlet-LiveContainer+SideStore-ENGINES-UNSIGNED.ipa \
+            --report report/combined-ipa-verification.json
+          python3 rebuild/scripts/audit_appid_footprint.py \
+            --ipa report/Scarlet-LiveContainer+SideStore-ENGINES-UNSIGNED.ipa \
+            --out report/scarlet-app-id-footprint.json
+          cp report/Scarlet-LiveContainer+SideStore-ENGINES-UNSIGNED.ipa Scarlet-Crystal-V25-UNSIGNED.ipa
+          shasum -a 256 Scarlet-Crystal-V25-UNSIGNED.ipa > Scarlet-Crystal-V25-UNSIGNED.ipa.sha256
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          report=json.loads(Path("report/scarlet-app-id-footprint.json").read_text())
+          print("[APP ID AUDIT]", report)
+          assert report["total_bundle_ids"]==4,"Unexpected Apple App ID footprint"
+          assert Path("Scarlet-Crystal-V25-UNSIGNED.ipa").stat().st_size>20_000_000
+          PY
+      - name: Publish permanent direct Safari IPA link
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -Eeuo pipefail
+          tag=scarlet-v25-single-panel-dismiss-20261110
+          cat > release-notes.md <<'EOF'
+          Scarlet Crystal V25 — exclusive native glass guest switcher surface.
+
+          V24 device screenshot showed the expanded Liquid Glass app switcher
+          CARD and the separate floating X bubble visible simultaneously.
+          In source the card was rendered conditional on isOpen but the
+          roundTab was always rendered. UIkit hit testing excluded taps
+          outside panelRect, forwarding them to KakaoTalk; the panel did
+          not dismiss when the guest's empty area was tapped.
+
+          V25 renders only the Liquid Glass app switcher card while open.
+          Its non-key UIWindow accepts expanded full-scene outside taps
+          through an invisible Color.clear backdrop and closes the panel,
+          returning the single 62pt round floating tab to the exact saved
+          screen location (including drag and rotation). When collapsed,
+          every non-button touch passes through to the real guest app.
+          No glass material opacity, content masking, guest window geometry,
+          original app state, or certificate data were changed.
+
+          Native Xcode 27.2 paired build run 42728156512 at commit
+          6366f8829ad22410eecae470c47d9a8794d1254e.
+          Both pinned V25 LiveContainer and SideStore compiled binaries
+          are taken from this run; source SHA256 verified before packaging.
+          Retains exact 4 Apple App IDs, original SideStore refresh inspector,
+          V23 work-session history and V24 guest switch boot receipts.
+          User V24 diagnostic: self-managed app count 1 and ready; both
+          manual and automatic SideStore refresh attempts still return
+          SideStore domain code 1, so device renewal is NOT claimed fixed.
+
+          UNSIGNED IPA. Valid Apple signing/profile required for iPhone.
+          On-device modal outside-tap and actual renewal require device tests.
+          EOF
+          if ! gh release view "$tag" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release create "$tag" --repo "$GITHUB_REPOSITORY" \
+              --target 6366f8829ad22410eecae470c47d9a8794d1254e \
+              --title "Scarlet Crystal V25 — SideStore embedded refresh registration — UNSIGNED" \
+              --prerelease --latest=false --notes-file release-notes.md
+          fi
+          gh release upload "$tag" --repo "$GITHUB_REPOSITORY" \
+            Scarlet-Crystal-V25-UNSIGNED.ipa Scarlet-Crystal-V25-UNSIGNED.ipa.sha256 \
+            report/scarlet-app-id-footprint.json --clobber
+          gh release view "$tag" --repo "$GITHUB_REPOSITORY" --json assets \
+            --jq '.assets[].name' | grep -Fx 'Scarlet-Crystal-V25-UNSIGNED.ipa'
+          echo "https://github.com/$GITHUB_REPOSITORY/releases/download/$tag/Scarlet-Crystal-V25-UNSIGNED.ipa" >> "$GITHUB_STEP_SUMMARY"
