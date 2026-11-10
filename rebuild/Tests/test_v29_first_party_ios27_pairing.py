@@ -54,7 +54,7 @@ class V29NativePairing(unittest.TestCase):
         self.assertIn('ScarletDevicePairingModel.shared.registerAtLaunch()',BUILD)
 
     def test_private_pairing_record_validated_and_committed_only_after_probe(self):
-        self.assertIn('PairingFileManager.shared.parse(',WORKER)
+        self.assertIn('pairingManager.parse(',WORKER)
         self.assertIn('try await AppBootManager.shared.startMinimuxer(',WORKER)
         self.assertIn('try await ensureMinimuxerReady()',WORKER)
         self.assertIn('pairingManager.savePairingFile(',WORKER)
