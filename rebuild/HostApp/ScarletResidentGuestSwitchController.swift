@@ -51,7 +51,8 @@ final class ScarletResidentGuestSwitchController {
                       width: width, height: height)
     }
 
-    private func notifyCenter(_ point: CGPoint, window: UIWindow) {
+    private func notifyCenter(_ point: CGPoint,
+                              window: ScarletGuestTouchPassthroughWindow) {
         window.buttonCenter = point
         window.dockRight = point.x >= window.bounds.midX
         NotificationCenter.default.post(

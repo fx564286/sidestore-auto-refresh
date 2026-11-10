@@ -1013,8 +1013,10 @@ import Combine
         activeResidentUUID = uuid
         generation &+= 1
         Task { @MainActor in
-            ScarletResidentGuestSwitchController.shared.mountIfNecessary()
-            ScarletResidentGuestSwitchController.shared.refresh()
+            if #available(iOS 17.0, *) {
+                ScarletResidentGuestSwitchController.shared.mountIfNecessary()
+                ScarletResidentGuestSwitchController.shared.refresh()
+            }
         }
         ScarletDiagnosticRecorder.shared.record(
             "guest", "resident_process_reused", status: "success",
@@ -1028,7 +1030,9 @@ import Combine
         residentWindow?.isHidden = true
         originalKeyWindow?.makeKey()
         Task { @MainActor in
-            ScarletResidentGuestSwitchController.shared.hide()
+            if #available(iOS 17.0, *) {
+                ScarletResidentGuestSwitchController.shared.hide()
+            }
         }
         ScarletDiagnosticRecorder.shared.record(
             "guest", "resident_host_return",
@@ -1054,8 +1058,10 @@ import Combine
         activeResidentUUID = appUUID
         generation &+= 1
         Task { @MainActor in
-            ScarletResidentGuestSwitchController.shared.mountIfNecessary()
-            ScarletResidentGuestSwitchController.shared.refresh()
+            if #available(iOS 17.0, *) {
+                ScarletResidentGuestSwitchController.shared.mountIfNecessary()
+                ScarletResidentGuestSwitchController.shared.refresh()
+            }
         }
         ScarletDiagnosticRecorder.shared.record(
             "guest", "resident_process_launch_submitted",
@@ -1074,7 +1080,9 @@ import Combine
             }
         }
         Task { @MainActor in
-            ScarletResidentGuestSwitchController.shared.refresh()
+            if #available(iOS 17.0, *) {
+                ScarletResidentGuestSwitchController.shared.refresh()
+            }
         }
     }
 

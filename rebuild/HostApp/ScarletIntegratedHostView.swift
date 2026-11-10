@@ -486,8 +486,11 @@ struct ScarletIntegratedHostView: View {
                 } else {
                     do {
                         if UIDevice.current.userInterfaceIdiom == .phone {
-                            // Incompatible JIT/classic cases retain exactly
-                            // their original, unscaled full-screen path.
+                            // Classic/JIT guest bootstraps need their own
+                            // original circular overlay, not the LiveProcess
+                            // host-owned resident overlay.
+                            LCUtils.appGroupUserDefault.set(false,
+                                forKey: "ScarletResidentGuestMode.V41")
                             try await app.runApp(multitask: false)
                         } else {
                             try await app.runApp()

@@ -931,8 +931,10 @@ final class ScarletFullscreenGuestTabInstaller: NSObject {
         // In the resident LiveProcess extension, the MAIN Scarlet process
         // owns the one circular switcher above the full-screen guest scene.
         // Mounting another overlay in the extension creates duplicates.
-        if Bundle.main.bundleURL.pathExtension == "appex" &&
-           LCUtils.appGroupUserDefault.bool(forKey: "ScarletResidentGuestMode.V41") {
+        // LiveProcess can virtualize Bundle.main into the guest .app,
+        // so bundlePath is not a reliable way to identify the extension.
+        // The host-owned native fullscreen resident switcher owns UI here.
+        if LCUtils.appGroupUserDefault.bool(forKey: "ScarletResidentGuestMode.V41") {
             return
         }
         guard let scene = UIApplication.shared.connectedScenes
