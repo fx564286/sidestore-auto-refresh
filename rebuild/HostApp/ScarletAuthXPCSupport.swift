@@ -326,6 +326,62 @@ public enum ScarletNativeRefreshExecutor {
     }
 }
 
+// V29: safely install a newly generated iOS-27 RPPairing record into the
+// original embedded SideStore only AFTER it passed live Minimuxer validation.
+// This path handles pairing data entirely on this iPhone, never uploads it.
+@available(iOS 17.0, *)
+private final class ScarletPairingCommitGate: @unchecked Sendable {
+    private let lock = NSLock()
+    private var pending: CheckedContinuation<(Bool, String), Never>?
+    init(_ continuation: CheckedContinuation<(Bool, String), Never>) {
+        pending = continuation
+    }
+    func finish(_ accepted: Bool, reason: String) {
+        lock.lock()
+        let c = pending
+        pending = nil
+        lock.unlock()
+        c?.resume(returning: (accepted, reason))
+    }
+}
+
+@available(iOS 17.0, *)
+@MainActor
+public enum ScarletNativePairingInstaller {
+    public static func install(candidate: Data) async -> (Bool, String) {
+        guard candidate.count > 128 && candidate.count <= 1024 * 1024 else {
+            return (false, "pairing_file_invalid")
+        }
+        do { try await ScarletNativeAuthTransport.shared.prepare() }
+        catch { return (false, "transport_unavailable") }
+        guard let client = RefreshHandler.shared.client else {
+            return (false, "transport_unavailable")
+        }
+        let (accepted, originalReason) = await withCheckedContinuation {
+            (c: CheckedContinuation<(Bool, String), Never>) in
+            let gate = ScarletPairingCommitGate(c)
+            DispatchQueue.main.asyncAfter(deadline: .now() + 90) {
+                gate.finish(false, reason: "pairing_validation_unresponsive")
+            }
+            client.scarletInstallPairingRecord(candidate) { ok, reason in
+                gate.finish(ok, reason: reason ?? "pairing_validation_failed")
+            }
+        }
+        let allowed: Set<String> = [
+            "pairing_saved_and_transport_ready", "pairing_file_invalid",
+            "pairing_protocol_mismatch", "pairing_file_missing",
+            "pairing_invalid", "minimuxer_not_started",
+            "vpn_unavailable", "device_endpoint_unavailable",
+            "device_network_unavailable", "transport_unavailable",
+            "pairing_validation_unresponsive", "pairing_validation_failed",
+            "refresh_worker_missing", "sidestore_native_operation_failed"
+        ]
+        let reason = allowed.contains(originalReason) ? originalReason
+            : "pairing_validation_failed"
+        return (accepted && reason == "pairing_saved_and_transport_ready", reason)
+    }
+}
+
 @available(iOS 17.0, *)
 extension RefreshHandler {
     func scarletEnsureAuthGuest() async throws {

@@ -35,6 +35,7 @@ def patch_livecontainer(engine: Path) -> None:
 - (void)scarletAuthStored:(void (^)(BOOL hasStoredSession))reply;
 - (void)scarletRefreshReadiness:(void (^)(NSInteger managedCount, BOOL hostManaged, BOOL signingReady, NSString *status))reply;
 - (void)scarletPerformNativeRefresh:(void (^)(BOOL operationReturned, NSString *status))reply;
+- (void)scarletInstallPairingRecord:(NSData*)record reply:(void (^)(BOOL verified, NSString *status))reply;
 - (void)scarletBeginAuth:(NSString*)requestID email:(NSString*)email password:(NSString*)password profile:(NSString*)profile;
 - (void)scarletProvideCode:(NSString*)requestID code:(NSString*)code;
 - (void)scarletCancelAuth:(NSString*)requestID;
@@ -115,6 +116,24 @@ def patch_livecontainer(engine: Path) -> None:
         return;
     }
     ((void (*)(id, SEL, id))objc_msgSend)(worker, @selector(perform:), reply);
+}
+
+- (void)scarletInstallPairingRecord:(NSData*)record
+                              reply:(void (^)(BOOL, NSString *))reply {
+    // All bytes remain within the on-device LC -> embedded SideStore XPC.
+    // The Swift worker parses and tests the pairing BEFORE disk commit;
+    // neither this Objective-C bridge nor the diagnostic journal logs it.
+    if (!record || record.length > 1048576) {
+        reply(NO, @"pairing_file_invalid");
+        return;
+    }
+    Class worker = NSClassFromString(@"ScarletGuestRefreshAgent");
+    SEL selector = NSSelectorFromString(@"importDevicePairing:reply:");
+    if (!worker || ![worker respondsToSelector:selector]) {
+        reply(NO, @"refresh_worker_missing");
+        return;
+    }
+    ((void (*)(id, SEL, id, id))objc_msgSend)(worker, selector, record, reply);
 }
 
 - (void)scarletAuthStored:(void (^)(BOOL))reply {

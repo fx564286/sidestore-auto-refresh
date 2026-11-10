@@ -224,3 +224,48 @@ extension ScarletGuestRefreshAgent {
         }
     }
 }
+
+// V29: in-app iOS 27 RPPairing passes only an in-memory on-device record.
+// The record is sensitive: never copy it into the JSON diagnostic journal,
+// source control, pasteboard or remote server. Check the *original* pinned
+// SideStore parser and live Minimuxer before atomically changing saved state.
+extension ScarletGuestRefreshAgent {
+    @objc static func importDevicePairing(_ payload: Data,
+        reply: @escaping (Bool, String) -> Void) {
+        Task {
+            guard payload.count > 128 && payload.count <= 1024 * 1024,
+                  let candidate = String(data: payload, encoding: .utf8) else {
+                reply(false, "pairing_file_invalid")
+                return
+            }
+            let pairingManager = PairingFileManager.shared
+            do {
+                let parsed = try pairingManager.parse(
+                    content: candidate, preferred: .rppairing)
+                guard parsed.mode == .rppairing else {
+                    reply(false, "pairing_protocol_mismatch")
+                    return
+                }
+                // Test the new identity while it is IN MEMORY. The saved
+                // pairing file, settings, user auth and old cert are intact.
+                try await AppBootManager.shared.startMinimuxer(
+                    pairingFile: candidate)
+                try await ensureMinimuxerReady()
+                // Only a confirmed usable identity is committed.
+                try pairingManager.savePairingFile(
+                    contents: candidate, preferred: .rppairing)
+                pairingManager.persistedActiveProtocol = .rppairing
+                reply(true, "pairing_saved_and_transport_ready")
+            } catch {
+                // A failed candidate MUST NOT overwrite a working old file.
+                // Recover previous transport when an old record exists.
+                if let previous = pairingManager.fetchPairingFile(),
+                   previous != candidate {
+                    try? await AppBootManager.shared.startMinimuxer(
+                        pairingFile: previous)
+                }
+                reply(false, safeFailureReason(error))
+            }
+        }
+    }
+}

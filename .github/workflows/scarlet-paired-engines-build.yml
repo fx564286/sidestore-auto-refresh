@@ -3,7 +3,7 @@ name: Scarlet paired LiveContainer and SideStore iOS build
 on:
   workflow_dispatch:
   push:
-    branches: [rebuild/scarlet-from-zero-20261106, fix/scarlet-auth-status-rootcause-20261109, fix/scarlet-pr48-guest-overlay-no-resize-20261109, fix/scarlet-pr48-airpods-glass-guest-switch-v3-20261109, fix/scarlet-pr48-draggable-guest-tab-v4-20261109, fix/scarlet-pr48-v5-glass-drag-cert-recovery-20261109, fix/scarlet-pr48-v6-unified-cert-glass-20261109, fix/scarlet-pr48-v7-cert-jitless-unify-panel-rim-20261109, fix/scarlet-pr48-v8-flicker-certificate-menu-20261109, fix/scarlet-pr48-v9-single-glass-rim-20261109, fix/scarlet-pr48-v10-fixed-tab-cert-and-session-20261109, fix/scarlet-pr48-v11-module-settings-appid-20261109, fix/scarlet-pr48-v12-live-sessions-source-auto-refresh-20261109, fix/scarlet-pr48-v13-compact-settings-current-app-20261109, fix/scarlet-pr48-v14-guest-history-native-scenes-three-ids-20261109, fix/scarlet-pr48-v15-source-disclosure-icons-guest-handoff-20261109, fix/scarlet-pr48-v16-guest-switcher-icons-readback-20261110, fix/scarlet-v17-cold-switch-rotation-20261110, fix/scarlet-v18-refresh-diagnostics-native-glass-20261110, fix/scarlet-v19-active-session-switcher-20261110, fix/scarlet-v20-guest-switcher-trace-20261110, fix/scarlet-v21-hook-telemetry-persistence-20261110, fix/scarlet-v22-runtime-guest-identity-20261110, fix/scarlet-v23-session-only-switcher-20261110, fix/scarlet-v24-refresh-lifecycle-switch-receipt-20261110, fix/scarlet-v25-single-panel-outside-dismiss-20261110, fix/scarlet-v26-liquidglass-button-to-fixed-panel-morph-20261110, fix/scarlet-v27-sidestore-direct-native-refresh-20261110, fix/scarlet-v28-minimuxer-readiness-recovery-20261110]
+    branches: [rebuild/scarlet-from-zero-20261106, fix/scarlet-auth-status-rootcause-20261109, fix/scarlet-pr48-guest-overlay-no-resize-20261109, fix/scarlet-pr48-airpods-glass-guest-switch-v3-20261109, fix/scarlet-pr48-draggable-guest-tab-v4-20261109, fix/scarlet-pr48-v5-glass-drag-cert-recovery-20261109, fix/scarlet-pr48-v6-unified-cert-glass-20261109, fix/scarlet-pr48-v7-cert-jitless-unify-panel-rim-20261109, fix/scarlet-pr48-v8-flicker-certificate-menu-20261109, fix/scarlet-pr48-v9-single-glass-rim-20261109, fix/scarlet-pr48-v10-fixed-tab-cert-and-session-20261109, fix/scarlet-pr48-v11-module-settings-appid-20261109, fix/scarlet-pr48-v12-live-sessions-source-auto-refresh-20261109, fix/scarlet-pr48-v13-compact-settings-current-app-20261109, fix/scarlet-pr48-v14-guest-history-native-scenes-three-ids-20261109, fix/scarlet-pr48-v15-source-disclosure-icons-guest-handoff-20261109, fix/scarlet-pr48-v16-guest-switcher-icons-readback-20261110, fix/scarlet-v17-cold-switch-rotation-20261110, fix/scarlet-v18-refresh-diagnostics-native-glass-20261110, fix/scarlet-v19-active-session-switcher-20261110, fix/scarlet-v20-guest-switcher-trace-20261110, fix/scarlet-v21-hook-telemetry-persistence-20261110, fix/scarlet-v22-runtime-guest-identity-20261110, fix/scarlet-v23-session-only-switcher-20261110, fix/scarlet-v24-refresh-lifecycle-switch-receipt-20261110, fix/scarlet-v25-single-panel-outside-dismiss-20261110, fix/scarlet-v26-liquidglass-button-to-fixed-panel-morph-20261110, fix/scarlet-v27-sidestore-direct-native-refresh-20261110, fix/scarlet-v28-minimuxer-readiness-recovery-20261110, fix/scarlet-v29-inapp-rppairing-20261110]
     paths:
       - ".github/workflows/scarlet-paired-engines-build.yml"
       - "rebuild/integration/**"
@@ -65,6 +65,28 @@ jobs:
           python3 rebuild/integration/apply_scarlet_host.py \
             --engine engine/LiveContainer \
             --report report/scarlet-host-integration.json
+      - name: Compile pinned StikPair remote-pairing Rust library (no extra App IDs)
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          pin="7c911d8319dc5bcc411bf299d963689e26009b0b"
+          git clone --filter=blob:none https://github.com/StikDebug/StikPair.git engine/StikPair
+          git -C engine/StikPair checkout --detach "$pin"
+          test "$(git -C engine/StikPair rev-parse HEAD)" = "$pin"
+          cargo --version
+          rustup target add aarch64-apple-ios
+          cd engine/StikPair/rust
+          IPHONEOS_DEPLOYMENT_TARGET=17.4 cargo build --release --locked --target aarch64-apple-ios \
+            > "$GITHUB_WORKSPACE/report/scarlet-rppairing-rust-build.log" 2>&1 || {
+              tail -95 "$GITHUB_WORKSPACE/report/scarlet-rppairing-rust-build.log"
+              exit 1
+            }
+          echo "[PASS] genuine iOS27 native RPPairing host FFI compiled"
+          cd "$GITHUB_WORKSPACE"
+          python3 rebuild/integration/link_scarlet_pairing.py \
+            --engine engine/LiveContainer \
+            --stikpair engine/StikPair \
+            --report report/scarlet-pairing-integration.json
       - name: Build LiveContainer with integrated SideStoreSupport for real iOS
         shell: bash
         run: |
@@ -85,6 +107,15 @@ jobs:
           fi
           app="$RUNNER_TEMP/ScarletLiveContainer.xcarchive/Products/Applications/LiveContainer.app"
           test -d "$app" || exit 1
+          # File-synchronized Xcode Resources are not guaranteed to copy
+          # stand-alone .txt notices into the archived .app. Make the pinned
+          # StikPair license an actual IPA resource before tar/packaging.
+          notice="$GITHUB_WORKSPACE/engine/LiveContainer/Resources/ScarletPairingThirdParty-LICENSE.txt"
+          test -s "$notice" || { echo "[STOP] StikPair attribution missing"; exit 1; }
+          cp "$notice" "$app/ScarletPairingThirdParty-LICENSE.txt"
+          cmp "$notice" "$app/ScarletPairingThirdParty-LICENSE.txt"
+          grep -Fq 'StephenDev0' "$app/ScarletPairingThirdParty-LICENSE.txt"
+          echo "[PASS] V29 original StikPair license embedded in app archive"
           python3 "$GITHUB_WORKSPACE/rebuild/integration/verify_engines.py" \
             --livecontainer "$app" --phase livecontainer \
             --report "$GITHUB_WORKSPACE/report/livecontainer-audit.json"
