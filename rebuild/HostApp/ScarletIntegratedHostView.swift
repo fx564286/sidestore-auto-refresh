@@ -997,13 +997,11 @@ struct ScarletIntegratedHostView: View {
             Task { @MainActor in
                 await ScarletAutomaticRenewal.shared.foregroundCatchUp()
             }
-            DispatchQueue.main.async {
-                MultitaskDockManager.shared.scarletEnsureWindowHost()
-                let mounted = MultitaskDockManager.shared.windowHostingView.superview != nil
-                NSLog("[SCARLET_BOOT] phase=home-visible dock-root-attached=%d", mounted ? 1 : 0)
-                ScarletDiagnosticRecorder.shared.record("boot", "dock_attachment",
-                    fields: ["window_attached": mounted ? "true" : "false"])
-            }
+            // V36: legacy LC dock renderer is absent from the binary.
+            NSLog("[SCARLET_BOOT] phase=home-visible legacy-dock-source-removed=1")
+            ScarletDiagnosticRecorder.shared.record(
+                "boot", "legacy_dock_source_removed",
+                status: "success", fields: ["owner": "scarlet_guest_switcher"])
         }
         .onChange(of: scenePhase) { phase in
             ScarletDiagnosticRecorder.shared.record("lifecycle", "scene_phase",

@@ -859,9 +859,9 @@ final class ScarletFullscreenGuestTabInstaller: NSObject {
                   $0.id == target.id && !$0.isCurrent
               }) else { return false }
         if latest.canSwitch, let container = latest.containerID,
+           UIDevice.current.userInterfaceIdiom == .pad,
            MultitaskManager.isUsing(container: container),
-           (MultitaskWindowManager.openExistingAppWindow(dataUUID: container) ||
-            MultitaskDockManager.shared.bringMultitaskViewToFront(uuid: container)) {
+           MultitaskWindowManager.openExistingAppWindow(dataUUID: container) {
             ScarletDiagnosticRecorder.shared.record(
                 "guest", "switch_existing_multitask_session",
                 status: "success", fields: ["result": "memory_session_resumed"])

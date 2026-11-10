@@ -37,7 +37,8 @@ class V10Contract(unittest.TestCase):
     def test_native_session_resume_without_silent_relaunch(self):
         self.assertIn('MultitaskManager.isUsing(container: container)',GUEST)
         self.assertIn('MultitaskWindowManager.openExistingAppWindow(dataUUID: container)',GUEST)
-        self.assertIn('MultitaskDockManager.shared.bringMultitaskViewToFront(uuid: container)',GUEST)
+        self.assertNotIn('MultitaskDockManager.shared.bringMultitaskViewToFront(uuid: container)',GUEST)
+        self.assertIn('UIDevice.current.userInterfaceIdiom == .pad',GUEST)
         self.assertIn('switch_existing_multitask_session',GUEST)
         self.assertIn('switch_requires_relaunch',GUEST)
         segment=GUEST.split('private static func switchGuest(',1)[1].split(
