@@ -417,9 +417,9 @@ final class ScarletFullscreenSceneStack: NSObject, ObservableObject,
             pendingReveal.remove(folder)
             if firstRevealCompleted.insert(folder).inserted {
                 ScarletDiagnosticRecorder.shared.record(
-                    "guest", "fullscreen_scene_first_surface_revealed",
-                    status: "success",
-                    fields: ["result": "content_attached_foreground_requested",
+                    "guest", "fullscreen_scene_presenter_attached",
+                    status: "info",
+                    fields: ["result": "content_ready_visibility_not_verified",
                              "memory": "same_host_scene_stack"])
             }
             return
@@ -925,9 +925,11 @@ final class ScarletFullscreenSceneViewport: UIViewController {
               target.isAppRunning,
               target.scarletRemoteContentReady() else { return false }
         for (key, vc) in controllers {
-            // A hidden scene stays ATTACHED and its NSExtension request
-            // continues. No app process kills or UIKit view detachment.
-            vc.view.layer.opacity = key == folder ? 1 : 0
+            // R6: Remote scene rendering must not be suppressed by opacity=0.
+            // Every resident content view remains drawable BEHIND the selected
+            // full-size view; ONLY the selected guest gets touch and audio focus.
+            // No transform, scaled window, or process termination.
+            vc.view.layer.opacity = 1
             vc.view.isUserInteractionEnabled = key == folder
         }
         view.bringSubviewToFront(target.view)
@@ -973,12 +975,20 @@ final class ScarletFullscreenSceneViewport: UIViewController {
             vc.view.frame = view.bounds
             vc.view.autoresizingMask =
                 [.flexibleWidth, .flexibleHeight]
-            // Do not show an uninitialized LiveProcess surface (black flash).
-            // The prior guest remains fully attached, visible and touchable.
-            vc.view.layer.opacity = 0
+            // R6: An opacity-zero hosting view can suppress the first remote
+            // compositor frames. Keep the NEW scene drawable UNDER the
+            // previously interactive full-screen guest until content attaches.
+            // Initial guest still uses the same exact native viewport.
+            vc.view.layer.opacity = 1
             vc.view.isUserInteractionEnabled = false
             addChild(vc)
-            view.addSubview(vc.view)
+            if let visibleGuest = controllers.values.first(where: {
+                $0.view.isUserInteractionEnabled && $0.view.superview === view
+            }) {
+                view.insertSubview(vc.view, belowSubview: visibleGuest.view)
+            } else {
+                view.addSubview(vc.view)
+            }
             vc.didMove(toParent: self)
             controllers[slot.id] = vc
         }
