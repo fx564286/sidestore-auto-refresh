@@ -283,8 +283,7 @@ final class ScarletFullscreenSceneStack: NSObject, ObservableObject,
     @discardableResult
     func activate(folder: String) -> Bool {
         guard let slot = slots.first(where: { $0.id == folder }),
-              slot.pid > 0, viewport?.isAlive(folder: folder) == true,
-              viewport?.select(folder: folder) == true else {
+              slot.pid > 0, viewport?.isAlive(folder: folder) == true else {
             ScarletDiagnosticRecorder.shared.record(
                 "guest", "fullscreen_scene_reuse_failed",
                 status: "warning",
@@ -292,8 +291,21 @@ final class ScarletFullscreenSceneStack: NSObject, ObservableObject,
                          "memory": "not_preserved"])
             return false
         }
-        activeID = folder
+        // A hidden compositor is intentionally prevented from foregrounding
+        // its remote guest. Explicit user activation must reveal the viewport
+        // BEFORE select() is allowed to resume this exact guest's audio.
+        let wasVisible = isVisible
         isVisible = true
+        guard viewport?.select(folder: folder) == true else {
+            isVisible = wasVisible
+            ScarletDiagnosticRecorder.shared.record(
+                "guest", "fullscreen_scene_reuse_failed",
+                status: "warning", fields: [
+                    "reason": "remote_content_not_ready",
+                    "memory": "not_preserved"])
+            return false
+        }
+        activeID = folder
         ScarletDiagnosticRecorder.shared.record(
             "guest", "fullscreen_scene_process_reused",
             status: "success", fields: [
@@ -635,6 +647,7 @@ final class ScarletFullscreenSceneViewport: UIViewController {
     private var outsideDismissGesture: UITapGestureRecognizer?
     private var lastHostingOwnerProbes: [ObjectIdentifier: String] = [:]
     private var audioScopedPID: Int32 = 0
+    private var hiddenAudioReconcileReported = false
 
     func setResidentOutsideDismissEnabled(_ enabled: Bool) {
         guard let tap = outsideDismissGesture else { return }
@@ -939,6 +952,11 @@ final class ScarletFullscreenSceneViewport: UIViewController {
     }
 
     func select(folder: String) -> Bool {
+        // R6P3: SwiftUI can call reconcile() after goHome() has paused every
+        // retained LiveProcess. Never let a hidden guest receive resume or
+        // foreground notifications merely because its view is still mounted.
+        // Only explicit in-app activation makes stack.isVisible true.
+        guard stack?.isVisible == true else { return false }
         guard let target = controllers[folder],
               target.isAppRunning,
               target.scarletRemoteContentReady() else { return false }
@@ -1012,7 +1030,16 @@ final class ScarletFullscreenSceneViewport: UIViewController {
         }
         if let active = stack.activeID,
            stack.slots.contains(where: { $0.id == active && $0.pid > 0 }) {
-            _ = select(folder: active)
+            if stack.isVisible {
+                hiddenAudioReconcileReported = false
+                _ = select(folder: active)
+            } else if !hiddenAudioReconcileReported {
+                hiddenAudioReconcileReported = true
+                ScarletDiagnosticRecorder.shared.record(
+                    "guest", "home_audio_reactivation_suppressed",
+                    fields: ["reason": "hidden_resident_viewport",
+                             "process_retained": "true"])
+            }
         }
         // Newly created controllers are not present during the earlier
         // viewDidLayoutSubviews pass. Synchronize after attaching them.
