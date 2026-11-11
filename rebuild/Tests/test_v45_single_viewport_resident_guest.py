@@ -23,7 +23,9 @@ class TestV45(unittest.TestCase):
         self.assertIn('vc.scaleRatio = 1', SCENE)
         self.assertIn('view.addSubview(vc.view)',SCENE)
         self.assertIn('view.bringSubviewToFront(target.view)',SCENE)
-        self.assertIn('vc.view.layer.opacity = key == folder ? 1 : 0',SCENE)
+        self.assertIn('vc.view.layer.opacity = 1',SCENE)
+        self.assertIn('vc.view.isUserInteractionEnabled = key == folder',SCENE)
+        self.assertIn('view.insertSubview(vc.view, belowSubview: visibleGuest.view)',SCENE)
         for forbidden in ('DecoratedAppSceneViewController(', 'MultitaskDockManager.',
                           'MultitaskWindowManager.', 'UISceneSessionDestruction',
                           'requestSceneSessionDestruction', 'CGAffineTransform',
