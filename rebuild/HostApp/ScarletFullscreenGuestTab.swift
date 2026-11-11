@@ -49,6 +49,7 @@ final class ScarletGuestTouchPassthroughWindow: UIWindow {
         didSet {
             outsideShield?.isHidden = !isExpanded
             if isExpanded, let shield = outsideShield {
+                shield.frame = bounds
                 bringSubviewToFront(shield)
             }
             expandedChanged?(isExpanded)
@@ -64,6 +65,13 @@ final class ScarletGuestTouchPassthroughWindow: UIWindow {
     var panelRect: CGRect = .zero
     var dismissState: ScarletSwitcherDismissState?
     private var outsideShield: ScarletSwitcherOutsideShield?
+
+    override func layoutSubviews() {
+        super.layoutSubviews()
+        // The shield is the modal outside-tap owner in resident mode. Keep it
+        // exactly coextensive with the overlay window after rotation/resize.
+        outsideShield?.frame = bounds
+    }
 
     func enableNativeOutsideDismiss() {
         guard outsideShield == nil else { return }
@@ -95,11 +103,14 @@ final class ScarletGuestTouchPassthroughWindow: UIWindow {
     override func point(inside point: CGPoint, with event: UIEvent?) -> Bool {
         guard bounds.contains(point) else { return false }
         if isExpanded {
-            if residentHostOwnsOutsideTaps {
-                // UIKit sends the touch to the host root instead, whose
-                // existing resident VC ancestors own the recognizer.
-                return panelRect.insetBy(dx: -3, dy: -3).contains(point)
-            }
+            // V48-R6: a LiveProcess guest surface consumes touches in its own
+            // process, so an ancestor UITapGestureRecognizer on the host
+            // viewport never sees a tap that lands outside the panel. Keep
+            // this non-key overlay window hit-testable for its full bounds;
+            // ScarletSwitcherOutsideShield (a real UIControl above the
+            // hosting view) owns outside hits and calls requestClose().
+            // The shield still refuses hits inside panelRect, so every panel
+            // button keeps receiving touches.
             return super.point(inside: point, with: event)
         }
         // Collapsed: guest receives touches except at the 62pt circle.

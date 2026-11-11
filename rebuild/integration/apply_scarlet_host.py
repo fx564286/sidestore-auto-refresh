@@ -1071,7 +1071,11 @@ static UIEdgeInsets ScarletPilotHostInsets(UIWindowScene *scene,
                 self.view.window.windowScene, self.view.safeAreaInsets);
             // Initial settings can be populated before a scene exists;
             // remote FBScene authority validates and caches at attachment.
-            settings.peripheryInsets = safe;
+            // V48-R6: the resident guest scene fills the host window, so it
+            // has no periphery of its own. Express Dynamic Island and home
+            // indicator only through the safe area; a nonzero periphery here
+            // re-applies the island inset to an already full-bleed frame.
+            settings.peripheryInsets = UIEdgeInsetsZero;
             settings.safeAreaInsetsPortrait = safe;
             if(@available(iOS 19.0, *)) {
                 settings.safeAreaEdgeInsets = safe;
@@ -1202,7 +1206,11 @@ static UIEdgeInsets ScarletPilotHostInsets(UIWindowScene *scene,
             BOOL recovered = NO;
             safe = SCGeometryResolve(self, safe, settings.interfaceOrientation,
                                      &recovered);
-            settings.peripheryInsets = safe;
+            // V48-R6: keep the guest scene full-bleed and send Dynamic
+            // Island/home-indicator guidance only through the scene's safe
+            // area. peripheryInsets=safe double-applied the host inset and
+            // could shift guest content back under the island.
+            settings.peripheryInsets = UIEdgeInsetsZero;
             settings.safeAreaInsetsPortrait =
                 LCUIEdgeInsetsRotateToOrientation(safe, settings.interfaceOrientation);
             if(@available(iOS 19.0, *)) {
@@ -1232,6 +1240,133 @@ static UIEdgeInsets ScarletPilotHostInsets(UIWindowScene *scene,
     return {"singleViewport": True, "legacyDecoratedWindow": False,
             "guestFrameScale": 1, "optIn": True, "sceneTagOnly": True,
             "pilotRemoteSafeArea": "scene_tagged_initial_and_FBScene_update"}
+
+
+def add_scarlet_guest_audio_isolation(engine: Path) -> dict:
+    """V48-R6: keep only the active LiveProcess guest's audio session alive.
+
+    Every guest is a separate LiveProcess extension process, so the host's
+    AVAudioSession cannot silence another guest. The host posts a Darwin
+    notification scoped to the exact guest PID; the injected TweakLoader hook
+    in that process posts the standard interruption/resign-active lifecycle
+    and deactivates only its own audio session. Processes and RAM are kept.
+    """
+    source = r'''// SCARLET_GUEST_AUDIO_ISOLATION_V1
+// Runs inside each LiveProcess guest through TweakLoader. The host can only
+// name the guest by its exact PID; no host audio session or guest process is
+// touched here. Deactivating the guest's own session stops mixed background
+// audio without terminating or suspending the retained LiveProcess.
+#import <Foundation/Foundation.h>
+#import <UIKit/UIKit.h>
+#import <AVFoundation/AVFoundation.h>
+#include <unistd.h>
+#import "../LiveContainer/utils.h"
+
+static BOOL scarletGuestAudioPaused = NO;
+static int scarletGuestAudioObserver = 0;
+
+static void ScarletGuestAudioApply(BOOL active) {
+    if(scarletGuestAudioPaused == !active) return;
+    scarletGuestAudioPaused = !active;
+    AVAudioSession *session = AVAudioSession.sharedInstance;
+    NSError *error = nil;
+    if(active) {
+        [session setActive:YES error:&error];
+        [[NSNotificationCenter defaultCenter]
+            postNotificationName:AVAudioSessionInterruptionNotification
+            object:session
+            userInfo:@{AVAudioSessionInterruptionTypeKey:
+                           @(AVAudioSessionInterruptionTypeEnded),
+                       AVAudioSessionInterruptionOptionKey:
+                           @(AVAudioSessionInterruptionOptionShouldResume)}];
+        [[NSNotificationCenter defaultCenter]
+            postNotificationName:UIApplicationDidBecomeActiveNotification
+            object:UIApplication.sharedApplication];
+    } else {
+        [[NSNotificationCenter defaultCenter]
+            postNotificationName:AVAudioSessionInterruptionNotification
+            object:session
+            userInfo:@{AVAudioSessionInterruptionTypeKey:
+                           @(AVAudioSessionInterruptionTypeBegan)}];
+        [[NSNotificationCenter defaultCenter]
+            postNotificationName:UIApplicationWillResignActiveNotification
+            object:UIApplication.sharedApplication];
+        [session setActive:NO
+              withOptions:AVAudioSessionSetActiveOptionNotifyOthersOnDeactivation
+                    error:&error];
+    }
+    NSLog(@"[SCARLET_AUDIO] guest pid=%d active=%d error=%@",
+          getpid(), active ? 1 : 0, error);
+}
+
+static void ScarletGuestAudioPauseCallback(CFNotificationCenterRef center,
+                                           void *observer,
+                                           CFNotificationName name,
+                                           const void *object,
+                                           CFDictionaryRef userInfo) {
+    dispatch_async(dispatch_get_main_queue(), ^{ ScarletGuestAudioApply(NO); });
+}
+
+static void ScarletGuestAudioResumeCallback(CFNotificationCenterRef center,
+                                            void *observer,
+                                            CFNotificationName name,
+                                            const void *object,
+                                            CFDictionaryRef userInfo) {
+    dispatch_async(dispatch_get_main_queue(), ^{ ScarletGuestAudioApply(YES); });
+}
+
+void initScarletGuestAudioIsolation(void) {
+    if(!NSUserDefaults.isLiveProcess) return;
+    static dispatch_once_t once;
+    dispatch_once(&once, ^{
+        int pid = getpid();
+        NSString *pauseName = [NSString stringWithFormat:
+            @"com.scarlet.guest.audio.pause.%d", pid];
+        NSString *resumeName = [NSString stringWithFormat:
+            @"com.scarlet.guest.audio.resume.%d", pid];
+        CFNotificationCenterRef center = CFNotificationCenterGetDarwinNotifyCenter();
+        CFNotificationCenterAddObserver(center, &scarletGuestAudioObserver,
+            ScarletGuestAudioPauseCallback,
+            (__bridge CFStringRef)pauseName, NULL,
+            CFNotificationSuspensionBehaviorDeliverImmediately);
+        CFNotificationCenterAddObserver(center, &scarletGuestAudioObserver,
+            ScarletGuestAudioResumeCallback,
+            (__bridge CFStringRef)resumeName, NULL,
+            CFNotificationSuspensionBehaviorDeliverImmediately);
+        NSLog(@"[SCARLET_AUDIO] guest isolation armed pid=%d", pid);
+    });
+}
+'''
+    tweaks = engine/"LiveContainer/Tweaks"
+    target = tweaks/"ScarletGuestAudioIsolation.m"
+    assert tweaks.is_dir(), "Pinned LiveContainer Tweaks folder missing"
+    target.write_text(source)
+
+    header = tweaks/"Tweaks.h"
+    header_source = header.read_text()
+    declaration = "void initScarletGuestAudioIsolation(void);\n"
+    if declaration not in header_source:
+        anchor = "void initDead10ccFix(void);\n"
+        assert header_source.count(anchor) == 1, "Pinned Tweaks.h anchor changed"
+        header_source = header_source.replace(anchor, anchor + declaration, 1)
+        header.write_text(header_source)
+
+    bootstrap = engine/"LiveContainer/LCBootstrap.m"
+    bootstrap_source = bootstrap.read_text()
+    call = "        initScarletGuestAudioIsolation();\n"
+    if call not in bootstrap_source:
+        anchor = "        initDead10ccFix();\n"
+        assert bootstrap_source.count(anchor) == 1, "Pinned LCBootstrap init anchor changed"
+        bootstrap_source = bootstrap_source.replace(anchor, anchor + call, 1)
+        bootstrap.write_text(bootstrap_source)
+    return {
+        "guestProcessScoped": True,
+        "hostAudioSessionUntouched": True,
+        "guestProcessKeptAlive": True,
+        "notificationPrefix": "com.scarlet.guest.audio",
+        "source": str(target.relative_to(engine)),
+        "sha256": file_sha(target),
+    }
 
 
 def main():
@@ -1490,6 +1625,7 @@ static void ScarletGuestHookTrace(NSString *event) {
     # hiding the old LC dock from host UIKit.
     legacy_visuals = remove_upstream_legacy_window_ui(engine)
     fullscreen_slot = add_v45_fullscreen_scene_slot(engine)
+    guest_audio = add_scarlet_guest_audio_isolation(engine)
     guest_signing=instrument_original_guest_signing(engine)
     guest_manager=hide_embedded_sidestore_guest_navigation(engine)
     native_settings=attach_native_settings_diagnostics(engine)
@@ -1505,6 +1641,7 @@ static void ScarletGuestHookTrace(NSString *event) {
         "legacyVisualSourceRemoved":True,
         "legacyVisualRemoval":legacy_visuals,
         "experimentalResidentFullscreenViewport": fullscreen_slot,
+        "guestAudioIsolation": guest_audio,
         "dockAttachDeferredToWindowVisibility":False,
         "hostEntry":"ScarletIntegratedHostView",
         "realLCGuestModelsUsed":True,

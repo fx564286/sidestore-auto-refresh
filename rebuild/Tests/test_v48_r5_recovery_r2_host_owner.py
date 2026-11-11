@@ -12,8 +12,9 @@ W=(R.parent/'.github/workflows/scarlet-paired-engines-build.yml').read_text()
 class RecoveryR2(unittest.TestCase):
  def test_restored_r5_gesture_keeps_classic_and_r2_new_resident_owner(self):
   self.assertIn('residentHostOwnsOutsideTaps = true',T)
-  self.assertIn('if residentHostOwnsOutsideTaps {',T)
-  self.assertIn('return panelRect.insetBy(dx: -3, dy: -3).contains(point)',T)
+  # V48-R6: the expanded resident overlay window is full-bounds hit-testable
+  # and the native shield, not an ancestor gesture, owns outside taps.
+  self.assertNotIn('return panelRect.insetBy(dx: -3, dy: -3).contains(point)',T)
   self.assertIn('return super.point(inside: point, with: event)',T)
   self.assertIn('expandedChanged?(isExpanded)',T)
   self.assertIn('resident_host_background_gesture_installed',S)

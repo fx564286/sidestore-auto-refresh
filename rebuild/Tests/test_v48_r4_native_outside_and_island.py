@@ -39,7 +39,9 @@ class NativeOutsideAndIsland(unittest.TestCase):
   self.assertIn('if(scarletPilot) {',GLUE)
   self.assertIn('settings.safeAreaEdgeInsets = safe;',GLUE)
   self.assertIn('settings.safeAreaInsetsPortrait =',GLUE)
-  self.assertIn('settings.peripheryInsets = safe;',GLUE)
+  # V48-R6: the resident scene fills the host window, so periphery is zero
+  # and only the safe area carries the Dynamic Island inset.
+  self.assertIn('settings.peripheryInsets = UIEdgeInsetsZero;',GLUE)
   self.assertIn('CGRectGetMaxY(hostScene.statusBarManager.statusBarFrame)',GLUE)
   self.assertIn('CGRectGetMaxY(homeScene.statusBarManager.statusBarFrame)',GLUE)
   self.assertIn('window.windowLevel == UIWindowLevelNormal && !window.isHidden',GLUE)

@@ -630,6 +630,7 @@ final class ScarletFullscreenSceneViewport: UIViewController {
     private var observedRemoteInsets: [ObjectIdentifier: UIEdgeInsets] = [:]
     private var outsideDismissGesture: UITapGestureRecognizer?
     private var lastHostingOwnerProbes: [ObjectIdentifier: String] = [:]
+    private var audioScopedPID: Int32 = 0
 
     func setResidentOutsideDismissEnabled(_ enabled: Bool) {
         guard let tap = outsideDismissGesture else { return }
@@ -665,9 +666,19 @@ final class ScarletFullscreenSceneViewport: UIViewController {
     // Keep the guest's full original pixel viewport and update its safe
     // CONTENT REGION; no frame transform, inset overlay or guest resizing.
     private func resolvedHostInsets(_ scene: UIWindowScene) -> UIEdgeInsets {
+        // V48-R6: creating the switcher overlay UIWindow transiently makes
+        // `windows.first(normal)`/`view.safeAreaInsets` report a 0pt top.
+        // Device log: 62 -> 0 -> 62 within 0.5ms, flagged as
+        // island_overlap_suspected. A 0pt top applied to the guest puts its
+        // top bar under Dynamic Island, so resolve against the window that
+        // actually contains this viewport and never downgrade a positive top.
         var safe = scene.windows.first(where: {
             $0.windowLevel == .normal && !$0.isHidden
         })?.safeAreaInsets ?? view.window?.safeAreaInsets ?? .zero
+        if let host = view.window?.safeAreaInsets {
+            safe.top = max(safe.top, host.top)
+            safe.bottom = max(safe.bottom, host.bottom)
+        }
         if scene.interfaceOrientation.isPortrait {
             let statusBottom = scene.statusBarManager?.statusBarFrame.maxY ?? 0
             safe.top = max(safe.top, statusBottom)
@@ -676,9 +687,9 @@ final class ScarletFullscreenSceneViewport: UIViewController {
     }
 
     private func synchronizeAttachedGuestSafeAreas(_ scene: UIWindowScene) {
-        let safe = resolvedHostInsets(scene)
-        guard safe.top > 0 || safe.bottom > 0 ||
-              safe.left > 0 || safe.right > 0 else {
+        let hostSafe = resolvedHostInsets(scene)
+        guard hostSafe.top > 0 || hostSafe.bottom > 0 ||
+              hostSafe.left > 0 || hostSafe.right > 0 else {
             ScarletDiagnosticRecorder.shared.record(
                 "layout", "attached_guest_safearea_unavailable",
                 status: "warning",
@@ -687,6 +698,18 @@ final class ScarletFullscreenSceneViewport: UIViewController {
         }
         for controller in controllers.values where controller.scarletNativeFullscreenSlot {
             let key = ObjectIdentifier(controller)
+            // Never let a transient resolver zero erase a real island inset.
+            var safe = hostSafe
+            if scene.interfaceOrientation.isPortrait, safe.top < 2,
+               let previous = observedRemoteInsets[key], previous.top >= 18 {
+                safe.top = previous.top
+                ScarletDiagnosticRecorder.shared.record(
+                    "layout", "guest_zero_safe_top_rejected",
+                    status: "warning",
+                    fields: ["result": "kept_previous_positive_top",
+                             "rejected_top_pt": "0",
+                             "kept_top_pt": String(Int(previous.top))])
+            }
             // Check the *nested* UIKit hosting scene on EVERY reconcile.
             // The initial FBScene settings callback can arrive before
             // _UISceneHostingController.sceneViewController even exists.
@@ -878,10 +901,26 @@ final class ScarletFullscreenSceneViewport: UIViewController {
         old.willMove(toParent: nil)
         old.view.removeFromSuperview()
         old.removeFromParent()
+        if old.pid == audioScopedPID { audioScopedPID = 0 }
         controllers.removeValue(forKey: folder)
         observedRemoteInsets.removeValue(forKey: ObjectIdentifier(old))
         lastHostingOwnerProbes.removeValue(forKey: ObjectIdentifier(old))
         return true
+    }
+
+    /// V48-R6: cross-process audio scope. Each guest lives in its own
+    /// LiveProcess extension, so only that process can deactivate its own
+    /// AVAudioSession. The guest hook registers `com.scarlet.guest.audio.*`
+    /// for its own PID; this posts to that exact PID and nothing else.
+    private func postGuestAudioScope(_ action: String, pid: Int32) {
+        guard pid > 0 else { return }
+        let name = "com.scarlet.guest.audio.\(action).\(pid)"
+        CFNotificationCenterPostNotification(
+            CFNotificationCenterGetDarwinNotifyCenter(),
+            name as CFString, nil, nil, true)
+        ScarletDiagnosticRecorder.shared.record(
+            "guest", "guest_audio_scope_applied",
+            fields: ["action": action, "process_pid": String(pid)])
     }
 
     func select(folder: String) -> Bool {
@@ -895,6 +934,17 @@ final class ScarletFullscreenSceneViewport: UIViewController {
             vc.view.isUserInteractionEnabled = key == folder
         }
         view.bringSubviewToFront(target.view)
+        // V48-R6: every resident guest is a separate LiveProcess with its own
+        // AVAudioSession, so the host's session cannot silence another
+        // process. Tell the exact guest PIDs to pause/resume their own
+        // session; processes, RAM and scenes stay untouched.
+        if audioScopedPID != target.pid {
+            for (key, vc) in controllers where key != folder {
+                postGuestAudioScope("pause", pid: vc.pid)
+            }
+            postGuestAudioScope("resume", pid: target.pid)
+            audioScopedPID = target.pid
+        }
         // One-shot foreground request after the real remote surface is
         // attached. Never restart or re-sign an existing guest process.
         let foregroundRequested = target.scarletEnsureRemoteForeground()
