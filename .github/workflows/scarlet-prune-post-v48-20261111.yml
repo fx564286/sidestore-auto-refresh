@@ -1,0 +1,71 @@
+name: Prune Scarlet V49-V53 after explicit V48 rollback
+on:
+  push:
+    branches:
+      - maintenance/scarlet-prune-post-v48-20261111
+permissions:
+  contents: write
+jobs:
+  prune-post-v48:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Delete only V49-V53 releases, tags, and feature branches
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TARGET_REPO: ${{ github.repository }}
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          [[ "$TARGET_REPO" == 'fx564286/sidestore-auto-refresh' ]]
+          expected_v48='25665e1b82aeaa443c61a7c635a874d14171bed3'
+          actual_v48="$(gh api "repos/$TARGET_REPO/git/ref/heads/fix/scarlet-v48-guest-runtime-recovery-20261111" --jq .object.sha)"
+          [[ "$actual_v48" == "$expected_v48" ]] || { echo '[BLOCK] V48 reference changed'; exit 2; }
+          [[ "$(gh api "repos/$TARGET_REPO/releases/tags/scarlet-v48-unsigned-20261111" --jq .tag_name)" == 'scarlet-v48-unsigned-20261111' ]]
+          echo '[PASS] V48 release and original branch present; proceeding with exact explicit scope'
+          for v in 49 50 51 52 53; do
+            tag="scarlet-v${v}-unsigned-20261111"
+            case "$v" in
+              49) branch='fix/scarlet-v49-safearea-no-unrequested-add-20261111' ;;
+              50) branch='fix/scarlet-v50-dismiss-and-remote-scene-safearea-20261111' ;;
+              51) branch='fix/scarlet-v51-install-home-longpress-20261111' ;;
+              52) branch='fix/scarlet-v52-independent-native-guest-window-20261111' ;;
+              53) branch='fix/scarlet-v53-hostwindow-touch-island-20261111' ;;
+            esac
+            if release_id="$(gh api "repos/$TARGET_REPO/releases/tags/$tag" --jq .id 2>/dev/null)"; then
+              gh api --method DELETE "repos/$TARGET_REPO/releases/$release_id" >/dev/null
+              echo "[DELETED] GitHub Release $tag id=$release_id"
+            else
+              echo "[ABSENT] GitHub Release $tag"
+            fi
+            if gh api "repos/$TARGET_REPO/git/ref/tags/$tag" >/dev/null 2>&1; then
+              gh api --method DELETE "repos/$TARGET_REPO/git/refs/tags/$tag" >/dev/null
+              echo "[DELETED] Git tag $tag"
+            else
+              echo "[ABSENT] Git tag $tag"
+            fi
+            if gh api "repos/$TARGET_REPO/git/ref/heads/$branch" >/dev/null 2>&1; then
+              gh api --method DELETE "repos/$TARGET_REPO/git/refs/heads/$branch" >/dev/null
+              echo "[DELETED] Branch $branch"
+            else
+              echo "[ABSENT] Branch $branch"
+            fi
+          done
+          echo '[VERIFY] all five deleted release/tag/branch groups'
+          for v in 49 50 51 52 53; do
+            tag="scarlet-v${v}-unsigned-20261111"
+            if gh api "repos/$TARGET_REPO/releases/tags/$tag" >/dev/null 2>&1; then echo "[FAIL] release remains: $tag"; exit 10; fi
+            if gh api "repos/$TARGET_REPO/git/ref/tags/$tag" >/dev/null 2>&1; then echo "[FAIL] tag remains: $tag"; exit 11; fi
+            case "$v" in
+              49) branch='fix/scarlet-v49-safearea-no-unrequested-add-20261111' ;;
+              50) branch='fix/scarlet-v50-dismiss-and-remote-scene-safearea-20261111' ;;
+              51) branch='fix/scarlet-v51-install-home-longpress-20261111' ;;
+              52) branch='fix/scarlet-v52-independent-native-guest-window-20261111' ;;
+              53) branch='fix/scarlet-v53-hostwindow-touch-island-20261111' ;;
+            esac
+            if gh api "repos/$TARGET_REPO/git/ref/heads/$branch" >/dev/null 2>&1; then echo "[FAIL] branch remains: $branch"; exit 12; fi
+            echo "[VERIFIED] v$v release, tag, branch absent"
+          done
+          [[ "$(gh api "repos/$TARGET_REPO/git/ref/heads/fix/scarlet-v48-guest-runtime-recovery-20261111" --jq .object.sha)" == "$expected_v48" ]]
+          gh api "repos/$TARGET_REPO/releases/tags/scarlet-v48-unsigned-20261111" --jq .tag_name
+          echo '[PASS] V48 baseline retained; V49-V53 removed'
