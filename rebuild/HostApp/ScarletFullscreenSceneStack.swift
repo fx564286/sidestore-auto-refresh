@@ -633,6 +633,51 @@ final class ScarletFullscreenSceneStack: NSObject, ObservableObject,
 
 // One persistent UIViewController root for all remote guest scenes. No
 // DecoratedAppSceneViewController, window manager, scene destruction or scaling.
+// Guest-side AVAudioSession receipts are scoped to the exact LiveProcess
+// PID, just like the original pause/resume commands. A singleton keeps
+// observation valid across SwiftUI viewport reparenting without attaching
+// a new App ID, window, or signing entitlement.
+@available(iOS 17.0, *)
+@MainActor
+private final class ScarletGuestAudioReceiptObserver {
+    static let shared = ScarletGuestAudioReceiptObserver()
+    private var observedPIDs: Set<Int32> = []
+
+    func observe(pid: Int32) {
+        guard pid > 0, observedPIDs.insert(pid).inserted else { return }
+        let center = CFNotificationCenterGetDarwinNotifyCenter()
+        for action in ["pause", "resume"] {
+            for outcome in ["ok", "error"] {
+                let notification = "com.scarlet.guest.audio.ack.\(action).\(outcome).\(pid)"
+                CFNotificationCenterAddObserver(
+                    center, Unmanaged.passUnretained(self).toOpaque(),
+                    { _, _, name, _, _ in
+                        guard let name else { return }
+                        let parts = String(describing: name.rawValue)
+                            .components(separatedBy: ".")
+                        guard parts.count == 8,
+                              parts[0] == "com", parts[1] == "scarlet",
+                              parts[4] == "ack" else { return }
+                        let action = parts[5]
+                        let outcome = parts[6]
+                        let processPID = parts[7]
+                        DispatchQueue.main.async {
+                            ScarletDiagnosticRecorder.shared.record(
+                                "guest", "guest_audio_device_receipt",
+                                status: outcome == "ok" ? "success" : "warning",
+                                fields: ["action": action,
+                                         "result": outcome,
+                                         "process_pid": processPID,
+                                         "source": "guest_liveprocess_darwin_ack",
+                                         "scope": "av_audio_session_set_active"])
+                        }
+                    },
+                    notification as CFString, nil, .deliverImmediately)
+            }
+        }
+    }
+}
+
 @available(iOS 17.0, *)
 @MainActor
 final class ScarletFullscreenSceneViewport: UIViewController {
@@ -931,6 +976,8 @@ final class ScarletFullscreenSceneViewport: UIViewController {
     /// for its own PID; this posts to that exact PID and nothing else.
     private func postGuestAudioScope(_ action: String, pid: Int32) {
         guard pid > 0 else { return }
+        // Subscribe before dispatch: the guest may acknowledge immediately.
+        ScarletGuestAudioReceiptObserver.shared.observe(pid: pid)
         let name = "com.scarlet.guest.audio.\(action).\(pid)"
         CFNotificationCenterPostNotification(
             CFNotificationCenterGetDarwinNotifyCenter(),
