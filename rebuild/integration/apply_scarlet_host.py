@@ -1317,6 +1317,15 @@ static void SCPilotRegisterAudioFocus(void) {
         '    }\n'
         + boot, 1)
     target.write_text(source)
+    # Swift's import Darwin does not expose notify_post in Xcode 27.2.
+    # Import notify.h into the existing Swift bridging header explicitly.
+    # This is a C declaration only: no global sound policy or new App ID.
+    swift_bridge = engine / "LiveContainerSwiftUI/LiveContainerSwiftUI-Bridging-Header.h"
+    bridge_source = swift_bridge.read_text()
+    bridge_anchor = '#include "LCAppInfo.h"'
+    assert bridge_source.count(bridge_anchor) == 1, "Pinned Swift C bridge changed"
+    swift_bridge.write_text(bridge_source.replace(
+        bridge_anchor, bridge_anchor + '\n#include <notify.h>', 1))
     return {"target": str(target.relative_to(engine)), "sha256": file_sha(target),
             "guestProcessOnly": True, "optInSceneFocus": True,
             "hostAudioUntouched": True, "deviceAudioResultVerified": False}
