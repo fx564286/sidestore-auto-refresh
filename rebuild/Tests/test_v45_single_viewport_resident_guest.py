@@ -51,7 +51,7 @@ class TestV45(unittest.TestCase):
         self.assertIn('abs(expected.height - actual.height) < 2',SCENE)
         self.assertIn('fullscreen_scene_geometry_rejected',SCENE)
         self.assertIn('settings.setFrame(full)',SCENE)
-        self.assertIn('settings.safeAreaInsetsPortrait = safe',SCENE)
+        self.assertIn('SCGeometryResolve(self, safe, settings.interfaceOrientation',GLUE)
         self.assertIn('view.bounds',SCENE)
         self.assertIn('!self.scarletNativeFullscreenSlot && UIInterfaceOrientationIsLandscape',GLUE)
         self.assertIn('settings.statusBarDisabled = !self.isNativeWindow;',GLUE)

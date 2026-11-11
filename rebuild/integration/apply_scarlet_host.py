@@ -955,9 +955,69 @@ def add_v45_fullscreen_scene_slot(engine: Path) -> dict:
     assert a.count("        settings.statusBarDisabled = !self.isNativeWindow;") == 1
     a = a.replace("        settings.statusBarDisabled = !self.isNativeWindow;",
                   "        settings.statusBarDisabled = !self.isNativeWindow && !self.scarletNativeFullscreenSlot;", 1)
+    # Pilot-only, host-process geometry authority. No guest-app UIKit swizzle
+    # and no extra window/presentation layer. Per FBScene instance cache keeps
+    # the last validated portrait geometry across inactive UIKit transitions.
+    authority_header = r"""#pragma once
+#import <UIKit/UIKit.h>
+#import <objc/runtime.h>
+#import <math.h>
+
+// Each distinct FBScene owns its own last valid portrait insets. A global
+// singleton would mix guest A and B and reproduce the old misalignment.
+static inline const void *SCGeometryCacheKey(void) {
+    return (const void *)sel_registerName("Scarlet.SceneGeometry.Authority.V1");
+}
+static inline const void *SCGeometryReportKey(void) {
+    return (const void *)sel_registerName("Scarlet.SceneGeometry.LastPublished.V1");
+}
+static inline UIEdgeInsets SCGeometryResolve(id remoteScene, UIEdgeInsets measured,
+                                            UIInterfaceOrientation orientation,
+                                            BOOL *didRecover) {
+    if(didRecover) *didRecover = NO;
+    if(!remoteScene) return measured;
+    // Never reuse portrait Dynamic Island geometry after rotation.
+    if(!UIInterfaceOrientationIsPortrait(orientation)) return measured;
+    NSValue *saved = objc_getAssociatedObject(remoteScene, SCGeometryCacheKey());
+    UIEdgeInsets previous = saved ? saved.UIEdgeInsetsValue : UIEdgeInsetsZero;
+    BOOL valid = isfinite(measured.top) && measured.top >= 18 && measured.top <= 160;
+    if(valid) {
+        if(!saved || fabs(previous.top-measured.top) > 0.5 ||
+           fabs(previous.bottom-measured.bottom) > 0.5) {
+            objc_setAssociatedObject(remoteScene, SCGeometryCacheKey(),
+                [NSValue valueWithUIEdgeInsets:measured], OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+        }
+        return measured;
+    }
+    // iOS sometimes temporarily detaches the host window at deactivation.
+    // A zero from that transient state must NOT erase a known 62pt island.
+    if(saved && previous.top >= 18 && previous.top <= 160 &&
+       isfinite(measured.top) && measured.top >= 0 && measured.top < 18) {
+        measured.top = previous.top;
+        if(measured.bottom <= 0 && previous.bottom >= 0)
+            measured.bottom = previous.bottom;
+        if(didRecover) *didRecover = YES;
+    }
+    return measured;
+}
+// Reduce tens of identical FBScene update notifications to one state change.
+static inline BOOL SCGeometryShouldReport(id scene, UIEdgeInsets insets,
+                                           BOOL recovered) {
+    if(!scene) return NO;
+    NSString *now = [NSString stringWithFormat:@"%.0f:%.0f:%d",
+                           insets.top, insets.bottom, (int)recovered];
+    NSString *previous = objc_getAssociatedObject(scene, SCGeometryReportKey());
+    if([now isEqualToString:previous]) return NO;
+    objc_setAssociatedObject(scene, SCGeometryReportKey(),
+                             now, OBJC_ASSOCIATION_COPY_NONATOMIC);
+    return YES;
+}
+"""
+    (engine/"MultitaskSupport/ScarletSceneGeometryAuthority.h").write_text(authority_header)
     assert a.count('#import "UIKitPrivate+MultitaskSupport.h"') == 1
     a = a.replace('#import "UIKitPrivate+MultitaskSupport.h"',
-                  '#import "UIKitPrivate+MultitaskSupport.h"\n#import <objc/runtime.h>', 1)
+                  '#import "UIKitPrivate+MultitaskSupport.h"\n#import <objc/runtime.h>\n'
+                  '#import "ScarletSceneGeometryAuthority.h"', 1)
     # Both initialization and later FBScene settings mutations use actual
     # normal-level host UIWindow or the public statusBarManager dimensions.
     helper = r"""
@@ -1000,6 +1060,8 @@ static UIEdgeInsets ScarletPilotHostInsets(UIWindowScene *scene,
     a = a.replace(old, '''        if(self.scarletNativeFullscreenSlot) {
             UIEdgeInsets safe = ScarletPilotHostInsets(
                 self.view.window.windowScene, self.view.safeAreaInsets);
+            // Initial settings can be populated before a scene exists;
+            // remote FBScene authority validates and caches at attachment.
             settings.peripheryInsets = safe;
             settings.safeAreaInsetsPortrait = safe;
             if(@available(iOS 19.0, *)) {
@@ -1017,35 +1079,29 @@ static UIEdgeInsets ScarletPilotHostInsets(UIWindowScene *scene,
     assert a.count(old) == 1
     a = a.replace(old, '''        FBScene *scene = self.presenter.scene;
         if(self.scarletNativeFullscreenSlot) {
-            // This association is stored on the ACTUAL remote FBScene,
-            // so UIKitHooks can recognize it without guest names or IDs.
+            // Associated only with this remote guest scene; other guests and
+            // classic LiveContainer never share a geometry authority.
             objc_setAssociatedObject(scene,
                 (const void *)sel_registerName("scarletNativeFullscreenSlot"),
                 @YES, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+            UIEdgeInsets first = ScarletPilotHostInsets(
+                self.view.window.windowScene, self.view.safeAreaInsets);
+            BOOL recovered = NO;
+            (void)SCGeometryResolve(scene, first, UIInterfaceOrientationPortrait,
+                                   &recovered);
         }
         [scene configureParameters:^(FBSMutableSceneParameters *parameters) {''', 1)
     # iOS27 remote display is actually owned by the nested UIKit
     # _UISceneHostingController.sceneViewController. The old outer VC's
     # additionalSafeAreaInsets does not necessarily reach that owner.
     helper = r"""
+// Read-only on the UIKit hosting owner. Geometry writes belong to the
+// per-FBScene authority, not multiple ancestor additionalSafeAreaInsets.
 - (NSNumber *)scarletApplyHostingContentSafeArea:(UIEdgeInsets)desired {
     if(!self.scarletNativeFullscreenSlot || !self.hostingController)
         return nil;
     UIViewController *owner = self.hostingController.sceneViewController;
     if(!owner || !owner.isViewLoaded) return nil;
-    UIEdgeInsets observed = owner.view.safeAreaInsets;
-    UIEdgeInsets previous = owner.additionalSafeAreaInsets;
-    // Subtract previously applied compensation to avoid cumulative growth
-    // when iOS reports a new inset in the next asynchronous layout pass.
-    CGFloat nativeTop = MAX(0, observed.top - previous.top);
-    CGFloat nativeBottom = MAX(0, observed.bottom - previous.bottom);
-    UIEdgeInsets next = previous;
-    next.top = MAX(0, desired.top - nativeTop);
-    next.bottom = MAX(0, desired.bottom - nativeBottom);
-    if(fabs(next.top - previous.top) > 0.5 ||
-       fabs(next.bottom - previous.bottom) > 0.5) {
-        owner.additionalSafeAreaInsets = next;
-    }
     return @(owner.view.safeAreaInsets.top);
 }
 """
@@ -1056,6 +1112,10 @@ static UIEdgeInsets ScarletPilotHostInsets(UIWindowScene *scene,
 
     hook_file = engine / "MultitaskSupport/UIKitHooks.m"
     hooks = hook_file.read_text()
+    assert hooks.count('#import "UIKitPrivate+MultitaskSupport.h"') == 1
+    hooks = hooks.replace('#import "UIKitPrivate+MultitaskSupport.h"',
+        '#import "UIKitPrivate+MultitaskSupport.h"\n'
+        '#import "ScarletSceneGeometryAuthority.h"',1)
     old = '''    // We don't wanna mess up system extensions on iOS 26+
     if(LCHasRemoteSheetProviderSelector && self.ui_viewServiceComponent) {'''
     assert hooks.count(old) == 1
@@ -1087,16 +1147,21 @@ static UIEdgeInsets ScarletPilotHostInsets(UIWindowScene *scene,
                 CGFloat statusBottom = CGRectGetMaxY(homeScene.statusBarManager.statusBarFrame);
                 safe.top = MAX(safe.top, statusBottom);
             }
+            BOOL recovered = NO;
+            safe = SCGeometryResolve(self, safe, settings.interfaceOrientation,
+                                     &recovered);
             settings.peripheryInsets = safe;
             settings.safeAreaInsetsPortrait =
                 LCUIEdgeInsetsRotateToOrientation(safe, settings.interfaceOrientation);
             if(@available(iOS 19.0, *)) {
                 settings.safeAreaEdgeInsets = safe;
             }
-            [NSNotificationCenter.defaultCenter postNotificationName:
-                @"ScarletPilotRemoteSafeAreaChanged" object:nil
-                userInfo:@{@"stage": @"remote_fbscene_update",
-                           @"top": @(safe.top), @"bottom": @(safe.bottom)}];
+            if(SCGeometryShouldReport(self, safe, recovered)) {
+                [NSNotificationCenter.defaultCenter postNotificationName:
+                    @"ScarletPilotRemoteSafeAreaChanged" object:nil
+                    userInfo:@{@"stage": recovered ? @"cached_scene_geometry" : @"live_scene_geometry",
+                               @"top": @(safe.top), @"bottom": @(safe.bottom)}];
+            }
         };
         [self hook__performUpdateWithoutActivation:safeUpdate];
         return;

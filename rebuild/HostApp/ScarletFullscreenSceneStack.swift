@@ -444,8 +444,8 @@ final class ScarletFullscreenSceneStack: NSObject, ObservableObject,
             // Keep the original V48 remote parameters until real device data
             // distinguishes the overridden remote scene inset from a
             // dynamically invalid superview inset. No speculative scaling.
-            settings.peripheryInsets = safe
-            settings.safeAreaInsetsPortrait = safe
+            // The FBScene authority owns all safe-area settings; this
+            // delegate owns only full-resolution frame and orientation.
             settings.setFrame(full)
             if let orientation = vc.view.window?.windowScene?.interfaceOrientation {
                 settings.setInterfaceOrientation(orientation)
@@ -478,7 +478,9 @@ final class ScarletFullscreenSceneViewport: UIViewController {
     private var lastBounds: CGSize = .zero
     private var lastRejectedBounds: CGSize?
     private var lastInsetsSignature: String = ""
-    private var appliedRemoteInsets: [ObjectIdentifier: UIEdgeInsets] = [:]
+    // R3: geometry has exactly one writer: FBScene authority in UIKitHooks.m.
+    // Swift only observes the hosting owner's UIKit readback.
+    private var observedRemoteInsets: [ObjectIdentifier: UIEdgeInsets] = [:]
     private var outsideDismissGesture: UITapGestureRecognizer?
     private var lastHostingOwnerProbes: [ObjectIdentifier: String] = [:]
 
@@ -555,37 +557,18 @@ final class ScarletFullscreenSceneViewport: UIViewController {
                              "guest_safe_top_pt": String(Int(controller.view.safeAreaInsets.top)),
                              "host_owner_top_pt": String(Int(owner?.doubleValue ?? -1))])
             }
-            if let previous = appliedRemoteInsets[key],
+            // The R2 device trace had a 62pt owner readback but guest UI
+            // still overlapped the island. Remove repeated ancestor writes:
+            // they can race asynchronous FBScene update callbacks.
+            if let previous = observedRemoteInsets[key],
                UIEdgeInsetsEqualToEdgeInsets(previous, safe) { continue }
-            // additionalSafeAreaInsets affects content in the hosting
-            // controller, not UIView.frame or the guest display scale.
-            // Record first to avoid a reentrant layout pass retransmitting
-            // the same scene settings before the UIKit callback returns.
-            appliedRemoteInsets[key] = safe
-            controller.additionalSafeAreaInsets = .zero
-            let base = controller.view.safeAreaInsets
-            controller.additionalSafeAreaInsets = UIEdgeInsets(
-                top: max(0, safe.top - base.top),
-                left: max(0, safe.left - base.left),
-                bottom: max(0, safe.bottom - base.bottom),
-                right: max(0, safe.right - base.right))
-            controller.updateSettings { settings in
-                guard let settings else { return }
-                settings.peripheryInsets = safe
-                settings.safeAreaInsetsPortrait = safe
-                if #available(iOS 19.0, *) {
-                    settings.safeAreaEdgeInsets = safe
-                }
-            }
+            observedRemoteInsets[key] = safe
             ScarletDiagnosticRecorder.shared.record(
-                "layout", "attached_guest_safearea_synchronized",
-                status: safe.top > 0 ? "success" : "warning",
-                fields: ["result": "attached_native_scene_runtime_update",
+                "layout", "guest_geometry_authority_observed",
+                fields: ["result": "read_only_host_observer",
                          "safe_top_pt": String(Int(safe.top)),
                          "safe_bottom_pt": String(Int(safe.bottom)),
                          "guest_safe_top_pt": String(Int(controller.view.safeAreaInsets.top)),
-                         "viewport_width_pt": String(Int(view.bounds.width)),
-                         "viewport_height_pt": String(Int(view.bounds.height)),
                          "scene_width_pt": String(Int(scene.coordinateSpace.bounds.width)),
                          "scene_height_pt": String(Int(scene.coordinateSpace.bounds.height))])
         }
@@ -726,7 +709,7 @@ final class ScarletFullscreenSceneViewport: UIViewController {
         old.view.removeFromSuperview()
         old.removeFromParent()
         controllers.removeValue(forKey: folder)
-        appliedRemoteInsets.removeValue(forKey: ObjectIdentifier(old))
+        observedRemoteInsets.removeValue(forKey: ObjectIdentifier(old))
         lastHostingOwnerProbes.removeValue(forKey: ObjectIdentifier(old))
         return true
     }

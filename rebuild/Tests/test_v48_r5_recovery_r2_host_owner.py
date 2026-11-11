@@ -28,9 +28,9 @@ class RecoveryR2(unittest.TestCase):
  def test_pure_objc_nested_host_owner_not_guest_global_swizzle(self):
   self.assertIn('scarletApplyHostingContentSafeArea:',I)
   self.assertIn('self.hostingController.sceneViewController',I)
-  self.assertIn('owner.additionalSafeAreaInsets = next;',I)
-  self.assertIn('CGFloat nativeTop = MAX(0, observed.top - previous.top);',I)
-  self.assertIn('CGFloat nativeBottom = MAX(0, observed.bottom - previous.bottom);',I)
+  self.assertNotIn('owner.additionalSafeAreaInsets = next;',I)
+  self.assertIn('SCGeometryResolve(self, safe, settings.interfaceOrientation',I)
+  self.assertIn('UIEdgeInsets previous = saved ? saved.UIEdgeInsetsValue',I)
   self.assertIn('controller.scarletApplyHostingContentSafeArea(safe)',S)
   self.assertIn('lastHostingOwnerProbes[key] != ownerSignature',S)
   self.assertIn('native_hosting_safearea_owner_readback',S)
