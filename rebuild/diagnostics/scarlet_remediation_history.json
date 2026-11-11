@@ -257,7 +257,113 @@
       "observation": "게스트 크기/상단 잘림 회귀로 부적절",
       "evidence": "13fcbf04d",
       "status": "device_unresolved",
-      "repeat_policy": "no_repeat_without_new_device_evidence"
+      "repeat_policy": "no_repeat_without_new_device_evidence",
+      "code_locations": [
+        {
+          "commit": "13fcbf04d993279911cdf026da78e179538b33cf",
+          "file": "rebuild/HostApp/ScarletFullscreenGuestTab.swift",
+          "location": "@@ -785,7 +785,9 @@ final class ScarletFullscreenGuestTabInstaller: NSObject {",
+          "before": [
+            "                    activeSceneIDs.contains($0) && MultitaskManager.isUsing(container: $0)"
+          ],
+          "after": [
+            "                    (activeSceneIDs.contains($0) &&",
+            "                     MultitaskManager.isUsing(container: $0)) ||",
+            "                    ScarletGuestLiveBridge.isHostKnownLive($0)"
+          ]
+        },
+        {
+          "commit": "13fcbf04d993279911cdf026da78e179538b33cf",
+          "file": "rebuild/HostApp/ScarletFullscreenGuestTab.swift",
+          "location": "@@ -858,14 +860,19 @@ final class ScarletFullscreenGuestTabInstaller: NSObject {",
+          "before": [
+            "        if latest.canSwitch, let container = latest.containerID,",
+            "           MultitaskManager.isUsing(container: container),",
+            "           (MultitaskWindowManager.openExistingAppWindow(dataUUID: container) ||",
+            "            MultitaskDockManager.shared.bringMultitaskViewToFront(uuid: container)) {",
+            "            ScarletDiagnosticRecorder.shared.record(",
+            "                \"guest\", \"switch_existing_multitask_session\","
+          ],
+          "after": [
+            "        if latest.canSwitch, let container = latest.containerID {",
+            "            if MultitaskManager.isUsing(container: container) &&",
+            "               (MultitaskWindowManager.openExistingAppWindow(dataUUID: container) ||",
+            "                MultitaskDockManager.shared.bringMultitaskViewToFront(uuid: container)) {",
+            "                ScarletDiagnosticRecorder.shared.record(",
+            "                    \"guest\", \"switch_existing_multitask_session\","
+          ]
+        },
+        {
+          "commit": "13fcbf04d993279911cdf026da78e179538b33cf",
+          "file": "rebuild/HostApp/ScarletGuestSessionLedger.swift",
+          "location": "@@ -3,6 +3,7 @@",
+          "before": [],
+          "after": [
+            "import CoreFoundation"
+          ]
+        },
+        {
+          "commit": "13fcbf04d993279911cdf026da78e179538b33cf",
+          "file": "rebuild/HostApp/ScarletGuestSessionLedger.swift",
+          "location": "@@ -86,6 +87,7 @@ enum ScarletGuestSessionLedger {",
+          "before": [],
+          "after": [
+            "        \"switch_host_live_requested\","
+          ]
+        },
+        {
+          "commit": "13fcbf04d993279911cdf026da78e179538b33cf",
+          "file": "rebuild/HostApp/ScarletGuestSessionLedger.swift",
+          "location": "@@ -238,3 +240,94 @@ enum ScarletGuestSessionLedger {",
+          "before": [],
+          "after": [
+            "// V34: LiveContainer's original virtual-window manager exists ONLY in the",
+            "// Scarlet host process. The guest overlay runs in a different LiveProcess",
+            "// extension, so MultitaskManager.isUsing() there cannot find host windows.",
+            "// Share opaque container IDs via the pre-existing App Group, and send only",
+            "// a constant Darwin notification. Never transfer guest app names or content.",
+            "@available(iOS 17.0, *)"
+          ]
+        },
+        {
+          "commit": "13fcbf04d993279911cdf026da78e179538b33cf",
+          "file": "rebuild/HostApp/ScarletIntegratedHostView.swift",
+          "location": "@@ -417,28 +417,77 @@ struct ScarletIntegratedHostView: View {",
+          "before": [
+            "                // Native scene path, where genuinely supported, retains each",
+            "                // guest's RAM without changing the guest UIWindow geometry.",
+            "                // On devices lacking multi-scene support retain the original",
+            "                // full-screen LC bootstrap; never force a resized virtual dock.",
+            "                   UIApplication.shared.supportsMultipleScenes,",
+            "                   app.appInfo.defaultClassicMode == 0 {"
+          ],
+          "after": [
+            "                // iPhone supports LC's *virtual* LiveProcess windows even",
+            "                // though UIKit's native supportsMultipleScenes is false.",
+            "                // V33 checked only native scenes and always replaced the",
+            "                // current guest process, destroying RAM continuity.",
+            "                let virtualOnPhone = UIDevice.current.userInterfaceIdiom == .phone",
+            "                let nativeScenesAvailable ="
+          ]
+        },
+        {
+          "commit": "13fcbf04d993279911cdf026da78e179538b33cf",
+          "file": "rebuild/HostApp/ScarletIntegratedHostView.swift",
+          "location": "@@ -957,6 +1006,7 @@ struct ScarletIntegratedHostView: View {",
+          "before": [],
+          "after": [
+            "            ScarletGuestLiveBridge.installHostReceiver()"
+          ]
+        }
+      ],
+      "source_revisions": [
+        {
+          "sha": "13fcbf04d993279911cdf026da78e179538b33cf",
+          "url": "https://github.com/fx564286/sidestore-auto-refresh/commit/13fcbf04d993279911cdf026da78e179538b33cf",
+          "title": "feat(scarlet v34): iPhone LiveProcess virtual windows, maximize guest scenes and resume resident A/B from switcher"
+        }
+      ],
+      "source_verification": "git_patch_observed"
     },
     {
       "id": "L022",
@@ -269,7 +375,120 @@
       "observation": "기존 크기 복구, 상단 터치 원인 해결 미증명",
       "evidence": "46284c0b2",
       "status": "rollback",
-      "repeat_policy": "no_repeat_without_new_device_evidence"
+      "repeat_policy": "no_repeat_without_new_device_evidence",
+      "code_locations": [
+        {
+          "commit": "46284c0b2a1afbcbc3c1ee9dfecb7ec00d094ed1",
+          "file": "rebuild/HostApp/ScarletFullscreenGuestTab.swift",
+          "location": "@@ -785,9 +785,7 @@ final class ScarletFullscreenGuestTabInstaller: NSObject {",
+          "before": [
+            "                    (activeSceneIDs.contains($0) &&",
+            "                     MultitaskManager.isUsing(container: $0)) ||",
+            "                    ScarletGuestLiveBridge.isHostKnownLive($0)"
+          ],
+          "after": [
+            "                    activeSceneIDs.contains($0) && MultitaskManager.isUsing(container: $0)"
+          ]
+        },
+        {
+          "commit": "46284c0b2a1afbcbc3c1ee9dfecb7ec00d094ed1",
+          "file": "rebuild/HostApp/ScarletFullscreenGuestTab.swift",
+          "location": "@@ -860,19 +858,14 @@ final class ScarletFullscreenGuestTabInstaller: NSObject {",
+          "before": [
+            "        if latest.canSwitch, let container = latest.containerID {",
+            "            if MultitaskManager.isUsing(container: container) &&",
+            "               (MultitaskWindowManager.openExistingAppWindow(dataUUID: container) ||",
+            "                MultitaskDockManager.shared.bringMultitaskViewToFront(uuid: container)) {",
+            "                ScarletDiagnosticRecorder.shared.record(",
+            "                    \"guest\", \"switch_existing_multitask_session\","
+          ],
+          "after": [
+            "        if latest.canSwitch, let container = latest.containerID,",
+            "           MultitaskManager.isUsing(container: container),",
+            "           (MultitaskWindowManager.openExistingAppWindow(dataUUID: container) ||",
+            "            MultitaskDockManager.shared.bringMultitaskViewToFront(uuid: container)) {",
+            "            ScarletDiagnosticRecorder.shared.record(",
+            "                \"guest\", \"switch_existing_multitask_session\","
+          ]
+        },
+        {
+          "commit": "46284c0b2a1afbcbc3c1ee9dfecb7ec00d094ed1",
+          "file": "rebuild/HostApp/ScarletGuestSessionLedger.swift",
+          "location": "@@ -3,7 +3,6 @@",
+          "before": [
+            "import CoreFoundation"
+          ],
+          "after": []
+        },
+        {
+          "commit": "46284c0b2a1afbcbc3c1ee9dfecb7ec00d094ed1",
+          "file": "rebuild/HostApp/ScarletGuestSessionLedger.swift",
+          "location": "@@ -87,7 +86,6 @@ enum ScarletGuestSessionLedger {",
+          "before": [
+            "        \"switch_host_live_requested\","
+          ],
+          "after": []
+        },
+        {
+          "commit": "46284c0b2a1afbcbc3c1ee9dfecb7ec00d094ed1",
+          "file": "rebuild/HostApp/ScarletGuestSessionLedger.swift",
+          "location": "@@ -240,94 +238,3 @@ enum ScarletGuestSessionLedger {",
+          "before": [
+            "// V34: LiveContainer's original virtual-window manager exists ONLY in the",
+            "// Scarlet host process. The guest overlay runs in a different LiveProcess",
+            "// extension, so MultitaskManager.isUsing() there cannot find host windows.",
+            "// Share opaque container IDs via the pre-existing App Group, and send only",
+            "// a constant Darwin notification. Never transfer guest app names or content.",
+            "@available(iOS 17.0, *)"
+          ],
+          "after": []
+        },
+        {
+          "commit": "46284c0b2a1afbcbc3c1ee9dfecb7ec00d094ed1",
+          "file": "rebuild/HostApp/ScarletIntegratedHostView.swift",
+          "location": "@@ -417,87 +417,46 @@ struct ScarletIntegratedHostView: View {",
+          "before": [
+            "                // iPhone supports LC's *virtual* LiveProcess windows even",
+            "                // though UIKit's native supportsMultipleScenes is false.",
+            "                // V33 checked only native scenes and always replaced the",
+            "                // current guest process, destroying RAM continuity.",
+            "                let virtualOnPhone = UIDevice.current.userInterfaceIdiom == .phone",
+            "                let nativeScenesAvailable ="
+          ],
+          "after": [
+            "                // Native scene path, where genuinely supported, retains each",
+            "                // guest's RAM without changing the guest UIWindow geometry.",
+            "                // On devices lacking multi-scene support retain the original",
+            "                // full-screen LC bootstrap; never force a resized virtual dock.",
+            "                   UIDevice.current.userInterfaceIdiom == .pad,",
+            "                   UIApplication.shared.supportsMultipleScenes,"
+          ]
+        },
+        {
+          "commit": "46284c0b2a1afbcbc3c1ee9dfecb7ec00d094ed1",
+          "file": "rebuild/HostApp/ScarletIntegratedHostView.swift",
+          "location": "@@ -1006,7 +965,18 @@ struct ScarletIntegratedHostView: View {",
+          "before": [
+            "            ScarletGuestLiveBridge.installHostReceiver()"
+          ],
+          "after": [
+            "            // Disable the V34 maximized virtual-window experiment on iPhone.",
+            "            // Only presentation preferences are touched; never guest data,",
+            "            // certificates, pairing or installed application bundles.",
+            "            if UIDevice.current.userInterfaceIdiom == .phone {",
+            "                UserDefaults.standard.set(false, forKey: \"LCLaunchInMultitaskMode\")",
+            "                UserDefaults.standard.set(false, forKey: \"LCLaunchMultitaskMaximized\")"
+          ]
+        }
+      ],
+      "source_revisions": [
+        {
+          "sha": "46284c0b2a1afbcbc3c1ee9dfecb7ec00d094ed1",
+          "url": "https://github.com/fx564286/sidestore-auto-refresh/commit/46284c0b2a1afbcbc3c1ee9dfecb7ec00d094ed1",
+          "title": "fix(scarlet v35): ban iPhone virtual windows, restore original full-screen guest geometry"
+        }
+      ],
+      "source_verification": "git_patch_observed"
     },
     {
       "id": "L023",
@@ -281,7 +500,89 @@
       "observation": "호스트 창 장식 제거, 게스트 상단 문제 계속",
       "evidence": "f5de15cc5",
       "status": "device_unresolved",
-      "repeat_policy": "no_repeat_without_new_device_evidence"
+      "repeat_policy": "no_repeat_without_new_device_evidence",
+      "code_locations": [
+        {
+          "commit": "f5de15cc5f17d9a36d2a2969ee6b61c721add530",
+          "file": "rebuild/HostApp/ScarletFullscreenGuestTab.swift",
+          "location": "@@ -859,9 +859,9 @@ final class ScarletFullscreenGuestTabInstaller: NSObject {",
+          "before": [
+            "           (MultitaskWindowManager.openExistingAppWindow(dataUUID: container) ||",
+            "            MultitaskDockManager.shared.bringMultitaskViewToFront(uuid: container)) {"
+          ],
+          "after": [
+            "           UIDevice.current.userInterfaceIdiom == .pad,",
+            "           MultitaskWindowManager.openExistingAppWindow(dataUUID: container) {"
+          ]
+        },
+        {
+          "commit": "f5de15cc5f17d9a36d2a2969ee6b61c721add530",
+          "file": "rebuild/HostApp/ScarletGuestSwitcherOverlay.swift",
+          "location": "@@ -38,10 +38,6 @@ enum ScarletGuestSceneRegistry {",
+          "before": [
+            "        for app in MultitaskDockManager.shared.apps {",
+            "            guard let view = app.view, view.window != nil, !view.isHidden else { continue }",
+            "            found[app.appUUID] = ScarletGuestTarget(id: app.appUUID, title: app.appName)",
+            "        }"
+          ],
+          "after": []
+        },
+        {
+          "commit": "f5de15cc5f17d9a36d2a2969ee6b61c721add530",
+          "file": "rebuild/HostApp/ScarletGuestSwitcherOverlay.swift",
+          "location": "@@ -56,10 +52,6 @@ enum ScarletGuestSceneRegistry {",
+          "before": [
+            "        } else if let dock = MultitaskDockManager.shared.apps.first(where: {",
+            "            $0.appUUID == dataUUID",
+            "        }), let view = dock.view, view.window != nil && !view.isHidden {",
+            "            eligible = view"
+          ],
+          "after": []
+        },
+        {
+          "commit": "f5de15cc5f17d9a36d2a2969ee6b61c721add530",
+          "file": "rebuild/HostApp/ScarletGuestSwitcherOverlay.swift",
+          "location": "@@ -85,10 +77,8 @@ enum ScarletGuestSceneRegistry {",
+          "before": [
+            "        if MultitaskDockManager.shared.bringMultitaskViewToFront(uuid: dataUUID) {",
+            "            return true",
+            "        }",
+            "        return MultitaskWindowManager.openExistingAppWindow(dataUUID: dataUUID)"
+          ],
+          "after": [
+            "        return UIDevice.current.userInterfaceIdiom == .pad &&",
+            "            MultitaskWindowManager.openExistingAppWindow(dataUUID: dataUUID)"
+          ]
+        },
+        {
+          "commit": "f5de15cc5f17d9a36d2a2969ee6b61c721add530",
+          "file": "rebuild/HostApp/ScarletIntegratedHostView.swift",
+          "location": "@@ -997,13 +997,11 @@ struct ScarletIntegratedHostView: View {",
+          "before": [
+            "            DispatchQueue.main.async {",
+            "                MultitaskDockManager.shared.scarletEnsureWindowHost()",
+            "                let mounted = MultitaskDockManager.shared.windowHostingView.superview != nil",
+            "                NSLog(\"[SCARLET_BOOT] phase=home-visible dock-root-attached=%d\", mounted ? 1 : 0)",
+            "                ScarletDiagnosticRecorder.shared.record(\"boot\", \"dock_attachment\",",
+            "                    fields: [\"window_attached\": mounted ? \"true\" : \"false\"])"
+          ],
+          "after": [
+            "            // V36: legacy LC dock renderer is absent from the binary.",
+            "            NSLog(\"[SCARLET_BOOT] phase=home-visible legacy-dock-source-removed=1\")",
+            "            ScarletDiagnosticRecorder.shared.record(",
+            "                \"boot\", \"legacy_dock_source_removed\",",
+            "                status: \"success\", fields: [\"owner\": \"scarlet_guest_switcher\"])"
+          ]
+        }
+      ],
+      "source_revisions": [
+        {
+          "sha": "f5de15cc5f17d9a36d2a2969ee6b61c721add530",
+          "url": "https://github.com/fx564286/sidestore-auto-refresh/commit/f5de15cc5f17d9a36d2a2969ee6b61c721add530",
+          "title": "fix(scarlet v36): remove legacy LiveContainer dock renderer and decorated window chrome at source"
+        }
+      ],
+      "source_verification": "git_patch_observed"
     },
     {
       "id": "L024",
@@ -293,7 +594,104 @@
       "observation": "A/B 메모리 유지 기반 구현, 검은 첫 화면/상단 문제 존재",
       "evidence": "1c20f05db",
       "status": "device_unresolved",
-      "repeat_policy": "no_repeat_without_new_device_evidence"
+      "repeat_policy": "no_repeat_without_new_device_evidence",
+      "code_locations": [
+        {
+          "commit": "1c20f05dbf58d28c2493d958d4734bf74e6cba77",
+          "file": "rebuild/HostApp/ScarletFullscreenSceneStack.swift",
+          "location": "@@ -0,0 +1,355 @@",
+          "before": [],
+          "after": [
+            "// Scarlet V45 experimental single-viewport LiveProcess compositor.",
+            "// This is NOT a virtual UIWindow, not a decorated LC scene, not a scene",
+            "// session, and does not mutate the full-screen guest's display scale.",
+            "// Keep it mounted while Scarlet's Home UI is visible so live process view",
+            "// controllers are not torn down by dismissing a sheet.",
+            "import Foundation"
+          ]
+        },
+        {
+          "commit": "1c20f05dbf58d28c2493d958d4734bf74e6cba77",
+          "file": "rebuild/HostApp/ScarletIntegratedHostView.swift",
+          "location": "@@ -68,6 +68,11 @@ struct ScarletIntegratedHostView: View {",
+          "before": [],
+          "after": [
+            "    // V45 new architecture: one stable original-size viewport for multiple",
+            "    // resident LiveProcess scenes; disabled unless enabled in Settings.",
+            "    @StateObject private var fullscreenStack = ScarletFullscreenSceneStack()",
+            "    @AppStorage(\"Scarlet.Feature.FullscreenResidentPilot.V45\")",
+            "    private var experimentalFullscreenResident = false"
+          ]
+        },
+        {
+          "commit": "1c20f05dbf58d28c2493d958d4734bf74e6cba77",
+          "file": "rebuild/HostApp/ScarletIntegratedHostView.swift",
+          "location": "@@ -436,6 +441,28 @@ struct ScarletIntegratedHostView: View {",
+          "before": [],
+          "after": [
+            "                // Third path (V45 opt-in): each guest is one original LC",
+            "                // LiveProcess hosted inside ONE real full-screen viewport.",
+            "                // No UIWindow.resize, native window decorations, virtual",
+            "                // multitask app windows, zoom or process-killing cold swap.",
+            "                if experimentalFullscreenResident,",
+            "                   UIDevice.current.userInterfaceIdiom == .phone,"
+          ]
+        },
+        {
+          "commit": "1c20f05dbf58d28c2493d958d4734bf74e6cba77",
+          "file": "rebuild/HostApp/ScarletIntegratedHostView.swift",
+          "location": "@@ -1010,6 +1037,19 @@ struct ScarletIntegratedHostView: View {",
+          "before": [],
+          "after": [
+            "                        .safeAreaInset(edge: .top) {",
+            "                            Toggle(isOn: $experimentalFullscreenResident) {",
+            "                                VStack(alignment: .leading, spacing: 2) {",
+            "                                    Text(\"실험적 전체화면 RAM 유지\")",
+            "                                        .font(.subheadline.weight(.medium))",
+            "                                    Text(\"창 크기를 바꾸지 않는 LiveProcess 장면 전환 · 기기 검증 전\")"
+          ]
+        },
+        {
+          "commit": "1c20f05dbf58d28c2493d958d4734bf74e6cba77",
+          "file": "rebuild/integration/apply_scarlet_host.py",
+          "location": "@@ -931,6 +931,37 @@ def remove_upstream_legacy_window_ui(engine: Path) -> dict:",
+          "before": [],
+          "after": [
+            "def add_v45_fullscreen_scene_slot(engine: Path) -> dict:",
+            "    \"\"\"Create a single full-screen remote-scene viewport, never a fake LC window.",
+            "    Only Scarlet-tagged AppSceneViewController instances use this non-scaling",
+            "    geometry path; all pinned normal LC scene behavior remains unchanged.",
+            "    \"\"\"",
+            "    header = engine/\"MultitaskSupport/AppSceneViewController.h\""
+          ]
+        },
+        {
+          "commit": "1c20f05dbf58d28c2493d958d4734bf74e6cba77",
+          "file": "rebuild/integration/apply_scarlet_host.py",
+          "location": "@@ -965,6 +996,7 @@ def main():",
+          "before": [],
+          "after": [
+            "        root/\"rebuild/HostApp/ScarletFullscreenSceneStack.swift\":\"ScarletFullscreenSceneStack.swift\","
+          ]
+        },
+        {
+          "commit": "1c20f05dbf58d28c2493d958d4734bf74e6cba77",
+          "file": "rebuild/integration/apply_scarlet_host.py",
+          "location": "@@ -1185,6 +1217,7 @@ def main():",
+          "before": [],
+          "after": [
+            "    fullscreen_slot = add_v45_fullscreen_scene_slot(engine)"
+          ]
+        }
+      ],
+      "source_revisions": [
+        {
+          "sha": "1c20f05dbf58d28c2493d958d4734bf74e6cba77",
+          "url": "https://github.com/fx564286/sidestore-auto-refresh/commit/1c20f05dbf58d28c2493d958d4734bf74e6cba77",
+          "title": "feat(v45): experimental unscaled single-fullscreen LiveProcess scene stack, keep V40 fallback"
+        }
+      ],
+      "source_verification": "git_patch_observed"
     },
     {
       "id": "L025",
@@ -305,7 +703,47 @@
       "observation": "프레임 손상 방지 소스 수정, 상단 가림 해결 미검증",
       "evidence": "fb0ace726",
       "status": "unverified",
-      "repeat_policy": "no_repeat_without_new_device_evidence"
+      "repeat_policy": "no_repeat_without_new_device_evidence",
+      "code_locations": [
+        {
+          "commit": "fb0ace72630d80e7c3b5bcb97dd3eefbed97c58a",
+          "file": "rebuild/HostApp/ScarletFullscreenSceneStack.swift",
+          "location": "@@ -239,6 +239,7 @@ final class ScarletFullscreenSceneViewport: UIViewController {",
+          "before": [],
+          "after": [
+            "    private var lastRejectedBounds: CGSize?"
+          ]
+        },
+        {
+          "commit": "fb0ace72630d80e7c3b5bcb97dd3eefbed97c58a",
+          "file": "rebuild/HostApp/ScarletFullscreenSceneStack.swift",
+          "location": "@@ -259,30 +260,49 @@ final class ScarletFullscreenSceneViewport: UIViewController {",
+          "before": [
+            "        if view.bounds.size != lastBounds {",
+            "            lastBounds = view.bounds.size",
+            "            for vc in controllers.values {",
+            "                vc.view.frame = view.bounds",
+            "            }",
+            "        }"
+          ],
+          "after": [
+            "        guard let scene = view.window?.windowScene else { return }",
+            "        // Check real UIWindowScene size *before* touching any child scene.",
+            "        // During rotation, SwiftUI may first deliver a cropped safe-area frame.",
+            "        // V45 accidentally applied this provisional frame to every guest,",
+            "        // then rejected it: the rejection happened after the damage.",
+            "        let expected = scene.coordinateSpace.bounds.size"
+          ]
+        }
+      ],
+      "source_revisions": [
+        {
+          "sha": "fb0ace72630d80e7c3b5bcb97dd3eefbed97c58a",
+          "url": "https://github.com/fx564286/sidestore-auto-refresh/commit/fb0ace72630d80e7c3b5bcb97dd3eefbed97c58a",
+          "title": "fix(v46): validate fullscreen viewport before applying rotation geometry to resident guest scenes"
+        }
+      ],
+      "source_verification": "git_patch_observed"
     },
     {
       "id": "L026",
@@ -317,7 +755,16 @@
       "observation": "전환 기능 일부 진전, 화면 가림·검은 화면 남음",
       "evidence": "74c237d6c",
       "status": "device_unresolved",
-      "repeat_policy": "no_repeat_without_new_device_evidence"
+      "repeat_policy": "no_repeat_without_new_device_evidence",
+      "code_locations": [],
+      "source_revisions": [
+        {
+          "sha": "74c237d6ca39f38deb679d02a3b76b45ecb067ae",
+          "url": "https://github.com/fx564286/sidestore-auto-refresh/commit/74c237d6ca39f38deb679d02a3b76b45ecb067ae",
+          "title": "fix(v48): keep live guest PID, recover exited scenes, lock runtime mode and restore native status area"
+        }
+      ],
+      "source_verification": "commit_without_mapped_source_diff"
     },
     {
       "id": "L027",
