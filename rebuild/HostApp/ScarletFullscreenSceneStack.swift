@@ -36,7 +36,16 @@ final class ScarletFullscreenSceneStack: NSObject, ObservableObject,
     // must not both own this host process at the same time. Disallow toggles
     // until all resident guest processes have exited and been released.
     var hasResidentSession: Bool {
-        !slots.isEmpty || pendingInPlaceLaunch
+        // V48 root cause: stale failed/exited guest slots kept the native
+        // experimental engine latched even AFTER the user switched it OFF.
+        // A historical row is not a running LC LiveProcess session. Keep the
+        // compositor mounted only while a boot is pending or an owner is live.
+        if pendingInPlaceLaunch { return true }
+        return slots.contains { slot in
+            guard !slot.failed else { return false }
+            if slot.pid <= 0 { return isVisible }  // provisional async start
+            return viewport?.isAlive(folder: slot.id) ?? true
+        }
     }
 
     var hasLiveResidentProcess: Bool {

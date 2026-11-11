@@ -501,6 +501,12 @@ struct ScarletIntegratedHostView: View {
                     showOriginalError = "현재 실행 중인 RAM 유지 게스트와 실행 방식이 다른 앱입니다. 현재 세션을 종료한 뒤 기존 실행 방식으로 실행할 수 있습니다."
                     return
                 }
+                if !experimentalFullscreenResident {
+                    ScarletDiagnosticRecorder.shared.record(
+                        "guest", "v48_original_launch_mode_selected",
+                        fields: ["result": "classic_mode_after_pilot_disabled",
+                                 "memory": "not_preserved"])
+                }
                 // Native scene path, where genuinely supported, retains each
                 // guest's RAM without changing the guest UIWindow geometry.
                 // On devices lacking multi-scene support retain the original
@@ -1110,15 +1116,19 @@ struct ScarletIntegratedHostView: View {
             }
         )
         .environmentObject(downloadHelper)
-        // Persistent single-screen compositor: opacity/hit testing change
-        // only; do not dismiss the UIViewController and kill its guest PIDs.
+        // V48 recovery: OFF means truly OFF. The previous unconditional
+        // ignoresSafeArea compositor stayed mounted even in classic mode and
+        // stale ledger slots could keep forcing the pilot engine.
+        // Never mount its UIKit subtree for an ordinary original-LC launch.
         .overlay {
-            ScarletFullscreenSceneViewportRepresentable(
-                stack: fullscreenStack, installedApps: sharedModel.apps)
-                .ignoresSafeArea(.all, edges: .all)
-                .opacity(fullscreenStack.isVisible ? 1 : 0)
-                .allowsHitTesting(fullscreenStack.isVisible)
-                .accessibilityIdentifier("SCARLET_V45_NATIVE_FULLSCREEN_VIEWPORT")
+            if experimentalFullscreenResident || fullscreenStack.hasResidentSession {
+                ScarletFullscreenSceneViewportRepresentable(
+                    stack: fullscreenStack, installedApps: sharedModel.apps)
+                    .ignoresSafeArea(.all, edges: .all)
+                    .opacity(fullscreenStack.isVisible ? 1 : 0)
+                    .allowsHitTesting(fullscreenStack.isVisible)
+                    .accessibilityIdentifier("SCARLET_V45_NATIVE_FULLSCREEN_VIEWPORT")
+            }
         }
         .statusBarHidden(false)
         // Keep the real LiveContainer importer mounted OUTSIDE the sheet.

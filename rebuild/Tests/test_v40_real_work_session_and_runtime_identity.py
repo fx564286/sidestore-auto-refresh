@@ -47,8 +47,10 @@ class V40TrueActiveWork(unittest.TestCase):
     def test_guest_return_tied_to_actual_runtime_guest(self):
         self.assertIn('static func beginReturnToHost(folder: String)',L)
         self.assertIn('noteGuestDeparted(folder: folder)',L)
-        self.assertIn('guard let activeGuestFolder else',G)
-        self.assertIn('ScarletGuestSessionLedger.beginReturnToHost(\n                    folder: activeGuestFolder)',G)
+        self.assertIn('if let activeGuestFolder {',G)
+        self.assertNotIn('guard let activeGuestFolder else',G)
+        self.assertIn('ScarletGuestSessionLedger.beginReturnToHost(',G)
+        self.assertIn('folder: activeGuestFolder)',G)
         self.assertIn('UIApplication.willResignActiveNotification',G)
         self.assertIn('ScarletGuestSessionLedger.noteGuestDeparted(folder: id)',G)
         self.assertIn('private static var activeGuestFolder: String?',G)

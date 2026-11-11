@@ -1032,17 +1032,29 @@ final class ScarletFullscreenGuestTabInstaller: NSObject {
             onExit: {
                 ScarletDiagnosticRecorder.shared.record(
                     "guest", "fullscreen_tab_exit_requested")
-                guard let defaults = UserDefaults.lc() else { return }
-                guard let activeGuestFolder else {
+                guard let defaults = UserDefaults.lc() else {
                     ScarletDiagnosticRecorder.shared.record(
-                        "guest", "return_to_host_unidentified_guest",
-                        status: "warning")
+                        "guest", "return_to_host_defaults_unavailable",
+                        status: "error")
                     return
                 }
-                ScarletGuestSessionLedger.beginReturnToHost(
-                    folder: activeGuestFolder)
+                // The original LC bootstrap can return to `selected=ui`
+                // without knowing which guest was active. V48 incorrectly
+                // treated failed runtime-ID detection as a hard navigation
+                // failure. The work-session ticket is OPTIONAL metadata.
+                if let activeGuestFolder {
+                    ScarletGuestSessionLedger.beginReturnToHost(
+                        folder: activeGuestFolder)
+                } else {
+                    ScarletDiagnosticRecorder.shared.record(
+                        "guest", "return_to_host_without_guest_identity",
+                        status: "warning")
+                }
                 defaults.set("ui", forKey: "selected")
                 defaults.removeObject(forKey: "selectedContainer")
+                ScarletDiagnosticRecorder.shared.record(
+                    "guest", "return_to_host_bootstrap_requested",
+                    fields: ["result": "original_lc_bootstrap_to_ui"])
                 if !LCSharedUtils.launchToGuestApp(withClassicMode: 0) {
                     ScarletGuestSessionLedger.cancelReturnToHost()
                     ScarletDiagnosticRecorder.shared.record(
