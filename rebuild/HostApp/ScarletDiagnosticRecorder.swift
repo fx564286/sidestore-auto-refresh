@@ -47,7 +47,8 @@ final class ScarletDiagnosticRecorder: @unchecked Sendable {
         "scene_width_pt", "scene_height_pt", "viewport_width_pt",
         "viewport_height_pt", "layout_status", "island_overlap_suspected",
         "launch_mode", "toggle_enabled", "sample_index", "history_count",
-        "native_drag_gesture_state", "original_pan_used", "controller_present"
+        "native_drag_gesture_state", "original_pan_used", "controller_present",
+        "host_owner_top_pt"
     ]
 
     private init() {

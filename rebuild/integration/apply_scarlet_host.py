@@ -942,7 +942,8 @@ def add_v45_fullscreen_scene_slot(engine: Path) -> dict:
     old = "@property(nonatomic) CGFloat scaleRatio;\n"
     assert h.count(old) == 1, "V45 upstream AppScene header changed"
     h = h.replace(old, old +
-        "@property(nonatomic) BOOL scarletNativeFullscreenSlot;\n", 1)
+        "@property(nonatomic) BOOL scarletNativeFullscreenSlot;\n"
+        "- (nullable NSNumber *)scarletApplyHostingContentSafeArea:(UIEdgeInsets)desired;\n", 1)
     header.write_text(h)
     target = engine/"MultitaskSupport/AppSceneViewController.m"
     a = target.read_text()
@@ -1023,6 +1024,34 @@ static UIEdgeInsets ScarletPilotHostInsets(UIWindowScene *scene,
                 @YES, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
         }
         [scene configureParameters:^(FBSMutableSceneParameters *parameters) {''', 1)
+    # iOS27 remote display is actually owned by the nested UIKit
+    # _UISceneHostingController.sceneViewController. The old outer VC's
+    # additionalSafeAreaInsets does not necessarily reach that owner.
+    helper = r"""
+- (NSNumber *)scarletApplyHostingContentSafeArea:(UIEdgeInsets)desired {
+    if(!self.scarletNativeFullscreenSlot || !self.hostingController)
+        return nil;
+    UIViewController *owner = self.hostingController.sceneViewController;
+    if(!owner || !owner.isViewLoaded) return nil;
+    UIEdgeInsets observed = owner.view.safeAreaInsets;
+    UIEdgeInsets previous = owner.additionalSafeAreaInsets;
+    // Subtract previously applied compensation to avoid cumulative growth
+    // when iOS reports a new inset in the next asynchronous layout pass.
+    CGFloat nativeTop = MAX(0, observed.top - previous.top);
+    CGFloat nativeBottom = MAX(0, observed.bottom - previous.bottom);
+    UIEdgeInsets next = previous;
+    next.top = MAX(0, desired.top - nativeTop);
+    next.bottom = MAX(0, desired.bottom - nativeBottom);
+    if(fabs(next.top - previous.top) > 0.5 ||
+       fabs(next.bottom - previous.bottom) > 0.5) {
+        owner.additionalSafeAreaInsets = next;
+    }
+    return @(owner.view.safeAreaInsets.top);
+}
+"""
+    anchor = "- (void)setUpAppPresenter {"
+    assert a.count(anchor) == 1
+    a = a.replace(anchor, helper + "\n" + anchor, 1)
     target.write_text(a)
 
     hook_file = engine / "MultitaskSupport/UIKitHooks.m"

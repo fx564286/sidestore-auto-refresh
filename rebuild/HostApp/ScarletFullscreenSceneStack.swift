@@ -28,6 +28,13 @@ final class ScarletFullscreenSceneStack: NSObject, ObservableObject,
     // R5 recovery: observation only, no guest UIKit method interception.
     private var guestProcessStartTimes: [ObjectIdentifier: Date] = [:]
     private var overlayWindow: ScarletGuestTouchPassthroughWindow?
+    // A resident overlay can be non-key and lose background hit ownership.
+    // Gesture is attached to the actual parent viewport, not a guest process.
+    var activeOutsideOverlay: ScarletGuestTouchPassthroughWindow? {
+        guard isVisible, let overlayWindow, !overlayWindow.isHidden,
+              overlayWindow.isExpanded else { return nil }
+        return overlayWindow
+    }
     // Catalog is host-owned LCAppModel data, not a second install database.
     // The switcher can now start an eligible installed guest without going
     // through Scarlet Home. Existing live scenes are always preferred.
@@ -146,6 +153,7 @@ final class ScarletFullscreenSceneStack: NSObject, ObservableObject,
             return
         }
         if !isVisible {
+            viewport?.setResidentOutsideDismissEnabled(false)
             overlayWindow?.isHidden = true
             ScarletDiagnosticRecorder.shared.record(
                 "guest", "resident_overlay_hidden",
@@ -166,6 +174,9 @@ final class ScarletFullscreenSceneStack: NSObject, ObservableObject,
                     self?.switchOrLaunch(target) ?? false
                 },
                 onExit: { [weak self] in self?.goHome() })
+            window.expandedChanged = { [weak self] expanded in
+                self?.viewport?.setResidentOutsideDismissEnabled(expanded)
+            }
             overlayWindow = window
         }
         overlayWindow?.frame = scene.coordinateSpace.bounds
@@ -288,6 +299,7 @@ final class ScarletFullscreenSceneStack: NSObject, ObservableObject,
         // Keep each remote scene in the original full-screen viewport.
         isVisible = false
         overlayWindow?.isHidden = true
+        viewport?.setResidentOutsideDismissEnabled(false)
         ScarletDiagnosticRecorder.shared.record(
             "guest", "fullscreen_scene_home",
             fields: ["count": String(slots.count),
@@ -467,6 +479,36 @@ final class ScarletFullscreenSceneViewport: UIViewController {
     private var lastRejectedBounds: CGSize?
     private var lastInsetsSignature: String = ""
     private var appliedRemoteInsets: [ObjectIdentifier: UIEdgeInsets] = [:]
+    private var outsideDismissGesture: UITapGestureRecognizer?
+    private var lastHostingOwnerProbes: [ObjectIdentifier: String] = [:]
+
+    func setResidentOutsideDismissEnabled(_ enabled: Bool) {
+        guard let tap = outsideDismissGesture else { return }
+        if tap.isEnabled == enabled { return }
+        tap.isEnabled = enabled
+        // Only while the panel is expanded do outside guest touches belong
+        // to the modal overlay; the guest receives normal input otherwise.
+        tap.cancelsTouchesInView = enabled
+        tap.delaysTouchesEnded = enabled
+        ScarletDiagnosticRecorder.shared.record(
+            "guest", "resident_host_outside_gesture_state",
+            fields: ["result": enabled ? "expanded_host_receives_taps"
+                                         : "collapsed_guest_receives_taps",
+                     "overlay_expanded": enabled ? "true" : "false"])
+    }
+
+    @objc private func didTapResidentBackground(_ tap: UITapGestureRecognizer) {
+        guard tap.state == .ended, let overlay = stack?.activeOutsideOverlay
+        else { return }
+        let location = view.convert(tap.location(in: view), to: overlay)
+        guard !overlay.panelRect.insetBy(dx: -3, dy: -3).contains(location)
+        else { return }
+        ScarletDiagnosticRecorder.shared.record(
+            "guest", "resident_host_background_tap_received",
+            fields: ["result": "original_R5_close_requested",
+                     "overlay_expanded": "true"])
+        overlay.dismissState?.requestClose()
+    }
 
     // V48-R5: iOS 27 finishes attaching the remote _UISceneHostingController
     // AFTER appSceneVCWillActivateScene. The previous initial/FBScene hooks
@@ -496,6 +538,23 @@ final class ScarletFullscreenSceneViewport: UIViewController {
         }
         for controller in controllers.values where controller.scarletNativeFullscreenSlot {
             let key = ObjectIdentifier(controller)
+            // Check the *nested* UIKit hosting scene on EVERY reconcile.
+            // The initial FBScene settings callback can arrive before
+            // _UISceneHostingController.sceneViewController even exists.
+            // Cache outer FBScene settings independently from this owner.
+            let owner = controller.scarletApplyHostingContentSafeArea(safe)
+            let ownerSignature = owner.map { String(Int($0.doubleValue)) } ?? "unavailable"
+            if lastHostingOwnerProbes[key] != ownerSignature {
+                lastHostingOwnerProbes[key] = ownerSignature
+                ScarletDiagnosticRecorder.shared.record(
+                    "layout", "native_hosting_safearea_owner_readback",
+                    status: owner == nil ? "warning" : "info",
+                    fields: ["result": owner == nil ? "hosting_owner_unavailable"
+                                                  : "hosting_owner_available",
+                             "safe_top_pt": String(Int(safe.top)),
+                             "guest_safe_top_pt": String(Int(controller.view.safeAreaInsets.top)),
+                             "host_owner_top_pt": String(Int(owner?.doubleValue ?? -1))])
+            }
             if let previous = appliedRemoteInsets[key],
                UIEdgeInsetsEqualToEdgeInsets(previous, safe) { continue }
             // additionalSafeAreaInsets affects content in the hosting
@@ -579,6 +638,16 @@ final class ScarletFullscreenSceneViewport: UIViewController {
         super.viewDidLoad()
         view.backgroundColor = .black
         view.clipsToBounds = false
+        let outside = UITapGestureRecognizer(target: self,
+            action: #selector(didTapResidentBackground(_:)))
+        outside.isEnabled = false
+        outside.cancelsTouchesInView = true
+        outside.delaysTouchesEnded = true
+        view.addGestureRecognizer(outside)
+        outsideDismissGesture = outside
+        ScarletDiagnosticRecorder.shared.record(
+            "guest", "resident_host_background_gesture_installed",
+            fields: ["result": "native_viewport_ancestor_recognizer"])
     }
 
     override func viewDidAppear(_ animated: Bool) {
@@ -658,6 +727,7 @@ final class ScarletFullscreenSceneViewport: UIViewController {
         old.removeFromParent()
         controllers.removeValue(forKey: folder)
         appliedRemoteInsets.removeValue(forKey: ObjectIdentifier(old))
+        lastHostingOwnerProbes.removeValue(forKey: ObjectIdentifier(old))
         return true
     }
 
@@ -672,6 +742,9 @@ final class ScarletFullscreenSceneViewport: UIViewController {
             vc.view.isUserInteractionEnabled = key == folder
         }
         view.bringSubviewToFront(target.view)
+        if let scene = view.window?.windowScene {
+            synchronizeAttachedGuestSafeAreas(scene)
+        }
         stack?.updateOverlay()
         return true
     }

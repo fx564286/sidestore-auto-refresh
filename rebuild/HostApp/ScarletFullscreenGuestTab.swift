@@ -51,8 +51,14 @@ final class ScarletGuestTouchPassthroughWindow: UIWindow {
             if isExpanded, let shield = outsideShield {
                 bringSubviewToFront(shield)
             }
+            expandedChanged?(isExpanded)
         }
     }
+    // Resident viewport: use a parent-view gesture instead of a separate
+    // non-key UIWindow touch target. Classic R5 remains byte-for-byte in
+    // the existing shield and Pan handlers.
+    var residentHostOwnsOutsideTaps = false
+    var expandedChanged: ((Bool) -> Void)?
     var dockRight = false
     var buttonCenter: CGPoint = .zero
     var panelRect: CGRect = .zero
@@ -88,7 +94,14 @@ final class ScarletGuestTouchPassthroughWindow: UIWindow {
 
     override func point(inside point: CGPoint, with event: UIEvent?) -> Bool {
         guard bounds.contains(point) else { return false }
-        if isExpanded { return super.point(inside: point, with: event) }
+        if isExpanded {
+            if residentHostOwnsOutsideTaps {
+                // UIKit sends the touch to the host root instead, whose
+                // existing resident VC ancestors own the recognizer.
+                return panelRect.insetBy(dx: -3, dy: -3).contains(point)
+            }
+            return super.point(inside: point, with: event)
+        }
         // Collapsed: guest receives touches except at the 62pt circle.
         return hypot(point.x - buttonCenter.x,
                      point.y - buttonCenter.y) <= 35 &&
@@ -1294,6 +1307,7 @@ extension ScarletFullscreenGuestTabInstaller {
         dragHandler = panHandler
         overlay.rootViewController = root
         overlay.dismissState = dismissState
+        overlay.residentHostOwnsOutsideTaps = true
         overlay.enableNativeOutsideDismiss()
         overlay.frame = frame(in: host)
         overlay.buttonCenter = center(in: host)
