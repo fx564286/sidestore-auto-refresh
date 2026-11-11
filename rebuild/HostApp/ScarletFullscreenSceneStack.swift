@@ -455,6 +455,29 @@ final class ScarletFullscreenSceneViewport: UIViewController {
     private var lastRejectedBounds: CGSize?
     private var lastInsetsSignature: String = ""
     private var appliedRemoteInsets: [ObjectIdentifier: UIEdgeInsets] = [:]
+    private var lastPublishedPilotSafeTop: CGFloat = -1
+    private static let pilotRootSafeEnabledKey = "Scarlet.Pilot.GuestRootSafeArea.Enabled.V1"
+    private static let pilotRootSafeTopKey = "Scarlet.Pilot.GuestRootSafeArea.TopPoints.V1"
+
+    private func publishPilotGuestRootSafeArea(_ scene: UIWindowScene) {
+        let top = scene.interfaceOrientation.isPortrait
+            ? resolvedHostInsets(scene).top : CGFloat.zero
+        // Never publish transient zero/inactive measurements in portrait;
+        // that was R7's measured 62 -> 0 -> 62 scene-churn failure.
+        if scene.interfaceOrientation.isPortrait && top < 20 { return }
+        guard abs(top - lastPublishedPilotSafeTop) > 0.5 else { return }
+        guard let shared = UserDefaults.lc() else { return }
+        lastPublishedPilotSafeTop = top
+        shared.set(Double(top), forKey: Self.pilotRootSafeTopKey)
+        shared.set(true, forKey: Self.pilotRootSafeEnabledKey)
+        ScarletDiagnosticRecorder.shared.record(
+            "layout", "pilot_guest_root_safearea_published",
+            fields: ["safe_top_pt": String(Int(top)),
+                     "result": "shared_guest_root_safearea",
+                     "orientation": scene.interfaceOrientation.isPortrait
+                         ? "portrait" : "landscape"])
+    }
+
 
     // V48-R5: iOS 27 finishes attaching the remote _UISceneHostingController
     // AFTER appSceneVCWillActivateScene. The previous initial/FBScene hooks
@@ -619,8 +642,14 @@ final class ScarletFullscreenSceneViewport: UIViewController {
                          "height_pt": String(Int(actual.height)),
                          "reason": "verified_fullscreen_viewport"])
         }
+        // Alternative route: guest UIKit owns its own root safe layout.
+        // Keep the original R5 host-mutation implementation intact as a
+        // reversible fallback, but do not call it during this experiment.
+        publishPilotGuestRootSafeArea(scene)
         reconcile()
-        synchronizeAttachedGuestSafeAreas(scene)
+        if UserDefaults.lc()?.bool(forKey: "Scarlet.Pilot.LegacyHostInsetsFallback.V1") == true {
+            synchronizeAttachedGuestSafeAreas(scene)
+        }
     }
 
     func isAlive(folder: String) -> Bool {
@@ -703,9 +732,12 @@ final class ScarletFullscreenSceneViewport: UIViewController {
            stack.slots.contains(where: { $0.id == active && $0.pid > 0 }) {
             _ = select(folder: active)
         }
-        // Newly created controllers are not present during the earlier
-        // viewDidLayoutSubviews pass. Synchronize after attaching them.
-        synchronizeAttachedGuestSafeAreas(scene)
+        // A guest can attach after viewDidLayoutSubviews; publish the
+        // snapshot again without forcing an early remote FBScene update.
+        publishPilotGuestRootSafeArea(scene)
+        if UserDefaults.lc()?.bool(forKey: "Scarlet.Pilot.LegacyHostInsetsFallback.V1") == true {
+            synchronizeAttachedGuestSafeAreas(scene)
+        }
     }
 }
 
