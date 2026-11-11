@@ -47,7 +47,10 @@ final class ScarletDiagnosticRecorder: @unchecked Sendable {
         "scene_width_pt", "scene_height_pt", "viewport_width_pt",
         "viewport_height_pt", "layout_status", "island_overlap_suspected",
         "launch_mode", "toggle_enabled", "sample_index", "history_count",
-        "native_drag_gesture_state", "original_pan_used", "controller_present"
+        "native_drag_gesture_state", "original_pan_used", "controller_present",
+        // Read-only native remote surface visibility evidence; never guest
+        // app names, rendered pixels, UDID or private runtime state.
+        "guest_view_attached", "guest_running", "guest_view_width_pt", "guest_view_height_pt"
     ]
 
     private init() {
