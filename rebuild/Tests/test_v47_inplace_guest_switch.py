@@ -41,9 +41,10 @@ class TestV47InPlaceGuestSwitch(unittest.TestCase):
         self.assertIn('installedApps: sharedModel.apps',HOST)
 
     def test_live_process_never_disappears_during_new_scene_bootstrap(self):
-        self.assertIn('vc.view.layer.opacity = 0',SCENE)
+        self.assertIn('vc.view.layer.opacity = 1',SCENE)
+        self.assertIn('view.insertSubview(vc.view, belowSubview: visibleGuest.view)',SCENE)
         self.assertIn('vc.view.isUserInteractionEnabled = false',SCENE)
-        self.assertIn('fullscreen_scene_first_surface_revealed',SCENE)
+        self.assertIn('fullscreen_scene_presenter_attached',SCENE)
         self.assertIn('slots[index].pid = vc.pid',SCENE)
         self.assertIn('revealStartedScene(slots[index].id)',SCENE)
         self.assertIn('if ready, viewport?.select(folder: folder) == true',SCENE)
