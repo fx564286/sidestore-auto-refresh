@@ -49,7 +49,7 @@ final class ScarletDiagnosticRecorder: @unchecked Sendable {
         "launch_mode", "toggle_enabled", "sample_index", "history_count",
         "native_drag_gesture_state", "original_pan_used", "controller_present",
         "host_owner_top_pt", "error_domain", "error_code", "fast_exit",
-        "mode"
+        "mode", "focus_state"
     ]
 
     private init() {
