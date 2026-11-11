@@ -1242,6 +1242,113 @@ static UIEdgeInsets ScarletPilotHostInsets(UIWindowScene *scene,
             "pilotRemoteSafeArea": "scene_tagged_initial_and_FBScene_update"}
 
 
+
+def add_scarlet_guest_launch_policy_probe(engine: Path) -> dict:
+    """R6P7: inspect the launch-time *bundle policy*, not Safe Area/UIWindow.
+
+    UIKit may cache app-level status bar and scene declarations at startup.
+    LiveContainer substitutes its main NSBundle and CFBundle before calling
+    the guest's main(); compare the original LiveProcess extension's declared
+    policy with the guest bundle and the effective post-substitution main bundle.
+    This observes only boolean/plist-presence facts. It changes no policies,
+    guest process, viewport, UIWindow, overlay or signing.
+    """
+    target = engine / "LiveContainer/LCBootstrap.m"
+    source = target.read_text()
+    anchor = "bool sideStoreExist = false;\n"
+    assert source.count(anchor) == 1, "Pinned LCBootstrap globals changed"
+    helper = r'''
+// R6P7: launch-policy differential, not a UIKit or Safe Area modification.
+// No identifiers, guest names, paths, view tree or screenshots are exported.
+static NSNumber *ScarletPolicyFlag(NSDictionary *dict, NSString *key) {
+    id value = dict[key];
+    return [value respondsToSelector:@selector(boolValue)]
+        ? @([value boolValue]) : @(-1);
+}
+
+static NSNumber *ScarletPolicyOrientationCount(NSDictionary *dict) {
+    id arr = dict[@"UISupportedInterfaceOrientations"];
+    return [arr isKindOfClass:NSArray.class] ? @([(NSArray *)arr count]) : @(-1);
+}
+
+static void ScarletGuestLaunchPolicySnapshot(NSString *stage,
+                                               NSBundle *guestBundle) {
+    if(!isLiveProcess || !guestBundle || !lcSharedDefaults) return;
+    NSDictionary *host = lcMainBundle.infoDictionary ?: @{};
+    NSDictionary *guest = guestBundle.infoDictionary ?: @{};
+    NSDictionary *actual = NSBundle.mainBundle.infoDictionary ?: @{};
+    CFBundleRef cf = CFBundleGetMainBundle();
+    NSDictionary *core = cf ? (__bridge NSDictionary *)CFBundleGetInfoDictionary(cf) : @{};
+    if(!core) core = @{};
+    // -1 means undeclared: do not conflate a missing key with false.
+    NSDictionary *snapshot = @{
+        @"id": NSUUID.UUID.UUIDString,
+        @"epoch": @([[NSDate date] timeIntervalSince1970]),
+        @"pid": @(getpid()), @"stage": stage,
+        @"host_status_hidden": ScarletPolicyFlag(host, @"UIStatusBarHidden"),
+        @"guest_status_hidden": ScarletPolicyFlag(guest, @"UIStatusBarHidden"),
+        @"actual_status_hidden": ScarletPolicyFlag(actual, @"UIStatusBarHidden"),
+        @"cf_status_hidden": ScarletPolicyFlag(core, @"UIStatusBarHidden"),
+        @"host_controller_status": ScarletPolicyFlag(host, @"UIViewControllerBasedStatusBarAppearance"),
+        @"guest_controller_status": ScarletPolicyFlag(guest, @"UIViewControllerBasedStatusBarAppearance"),
+        @"actual_controller_status": ScarletPolicyFlag(actual, @"UIViewControllerBasedStatusBarAppearance"),
+        @"host_fullscreen": ScarletPolicyFlag(host, @"UIRequiresFullScreen"),
+        @"guest_fullscreen": ScarletPolicyFlag(guest, @"UIRequiresFullScreen"),
+        @"actual_fullscreen": ScarletPolicyFlag(actual, @"UIRequiresFullScreen"),
+        @"host_scene_manifest": @(host[@"UIApplicationSceneManifest"] != nil),
+        @"guest_scene_manifest": @(guest[@"UIApplicationSceneManifest"] != nil),
+        @"actual_scene_manifest": @(actual[@"UIApplicationSceneManifest"] != nil),
+        @"host_orientations": ScarletPolicyOrientationCount(host),
+        @"guest_orientations": ScarletPolicyOrientationCount(guest),
+        @"actual_orientations": ScarletPolicyOrientationCount(actual)
+    };
+    NSData *previous = [lcSharedDefaults dataForKey:@"Scarlet.Guest.LaunchPolicy.V1"];
+    NSMutableArray *items = [NSMutableArray array];
+    if(previous) {
+        id decoded = [NSJSONSerialization JSONObjectWithData:previous
+            options:NSJSONReadingMutableContainers error:NULL];
+        if([decoded isKindOfClass:NSArray.class]) [items addObjectsFromArray:decoded];
+    }
+    [items addObject:snapshot];
+    if(items.count > 16)
+        [items removeObjectsInRange:NSMakeRange(0, items.count - 16)];
+    NSData *encoded = [NSJSONSerialization dataWithJSONObject:items
+        options:0 error:NULL];
+    if(encoded) [lcSharedDefaults setObject:encoded
+                                    forKey:@"Scarlet.Guest.LaunchPolicy.V1"];
+}
+'''
+    source = source.replace(anchor, anchor + helper, 1)
+    before = '''    // Overwrite NSBundle
+    overwriteMainNSBundle(appBundle);
+
+    // Overwrite CFBundle
+    overwriteMainCFBundle();
+'''
+    after = '''    // R6P7: compare original LiveProcess launch metadata with the guest
+    // before and after main bundle substitution. Do not mutate either.
+    ScarletGuestLaunchPolicySnapshot(@"before_bundle_swap", appBundle);
+    // Overwrite NSBundle
+    overwriteMainNSBundle(appBundle);
+
+    // Overwrite CFBundle
+    overwriteMainCFBundle();
+    ScarletGuestLaunchPolicySnapshot(@"after_bundle_swap", appBundle);
+'''
+    assert source.count(before) == 1, "Pinned LCBootstrap bundle-swap changed"
+    source = source.replace(before, after, 1)
+    if "#include <unistd.h>" not in source:
+        source = source.replace("#include <stdlib.h>", "#include <stdlib.h>\n#include <unistd.h>", 1)
+    target.write_text(source)
+    return {
+        "recordKey": "Scarlet.Guest.LaunchPolicy.V1",
+        "source": str(target.relative_to(engine)),
+        "readOnly": True,
+        "bundleSwapStages": 2,
+        "noViewportOrSafeAreaChanges": True
+    }
+
+
 def add_scarlet_guest_audio_isolation(engine: Path) -> dict:
     """V48-R6: keep only the active LiveProcess guest's audio session alive.
 
@@ -1673,6 +1780,7 @@ static void ScarletGuestHookTrace(NSString *event) {
     legacy_visuals = remove_upstream_legacy_window_ui(engine)
     fullscreen_slot = add_v45_fullscreen_scene_slot(engine)
     guest_audio = add_scarlet_guest_audio_isolation(engine)
+    guest_launch_policy = add_scarlet_guest_launch_policy_probe(engine)
     guest_signing=instrument_original_guest_signing(engine)
     guest_manager=hide_embedded_sidestore_guest_navigation(engine)
     native_settings=attach_native_settings_diagnostics(engine)
@@ -1689,6 +1797,7 @@ static void ScarletGuestHookTrace(NSString *event) {
         "legacyVisualRemoval":legacy_visuals,
         "experimentalResidentFullscreenViewport": fullscreen_slot,
         "guestAudioIsolation": guest_audio,
+        "guestLaunchPolicyDifferential": guest_launch_policy,
         "dockAttachDeferredToWindowVisibility":False,
         "hostEntry":"ScarletIntegratedHostView",
         "realLCGuestModelsUsed":True,
