@@ -180,7 +180,8 @@ enum ScarletGuestSessionLedger {
         "safearea_root_getter_installed", "safearea_root_observer_installed",
         "safearea_root_ready_after_window", "safearea_root_window_timeout",
         "safearea_root_waiting_for_window", "safearea_root_not_liveprocess",
-        "safearea_root_pilot_disabled"
+        "safearea_root_pilot_disabled", "safearea_root_not_guest",
+        "safearea_root_local_measurement", "guest_outside_touch_forwarded"
     ]
 
     struct SwitchTrace: Codable {

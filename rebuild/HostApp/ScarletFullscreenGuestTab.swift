@@ -232,6 +232,23 @@ final class ScarletGuestTouchPassthroughWindow: UIWindow {
     }
 }
 
+// R5V: the visible guest FBScene owns hits outside the overlaid card.
+// Darwin notification bridges an actual guest UIApplication event to the
+// same V48 closePanel() without installing competing recognizers.
+private enum ScarletGuestOutsideDarwinBridge {
+    static let name = CFNotificationName("com.kdt.scarlet.guest.outside.v1" as CFString)
+    static let installed: Void = {
+        CFNotificationCenterAddObserver(CFNotificationCenterGetDarwinNotifyCenter(),
+            nil, { _, _, _, _, _ in
+                DispatchQueue.main.async {
+                    NotificationCenter.default.post(
+                        name: Notification.Name("ScarletGuestOutsideDarwinReceived"),
+                        object: nil)
+                }
+            }, name.rawValue, nil, .deliverImmediately)
+    }()
+}
+
 @available(iOS 17.0, *)
 struct ScarletFullscreenGuestFloatingTab: View {
     let guestTitle: String
@@ -278,6 +295,12 @@ struct ScarletFullscreenGuestFloatingTab: View {
     }
 
     private func openPanel() {
+        _ = ScarletGuestOutsideDarwinBridge.installed
+        // The guest-process event handler checks these values rather than
+        // relying on any host UIWindow hit-test path.
+        let shared = LCUtils.appGroupUserDefault
+        shared.set(true, forKey: "Scarlet.Pilot.Switcher.Expanded.V1")
+        shared.synchronize()
         apps = reloadApps()
         showingInstallChoices = false
         ScarletGuestSessionLedger.traceSwitcher("panel_opened", count: apps.count)
@@ -299,6 +322,9 @@ struct ScarletFullscreenGuestFloatingTab: View {
     }
 
     private func closePanel() {
+        let shared = LCUtils.appGroupUserDefault
+        shared.set(false, forKey: "Scarlet.Pilot.Switcher.Expanded.V1")
+        shared.synchronize()
         showingInstallChoices = false
         ScarletGuestSessionLedger.traceSwitcher("panel_closed")
         transitionVersion += 1
@@ -624,8 +650,19 @@ struct ScarletFullscreenGuestFloatingTab: View {
         .ignoresSafeArea()
         .animation(morphAnimation, value: isOpen)
         .onAppear {
+            _ = ScarletGuestOutsideDarwinBridge.installed
+            LCUtils.appGroupUserDefault.set(false,
+                forKey: "Scarlet.Pilot.Switcher.Expanded.V1")
             screenButtonCenter = initialButtonCenter
             dockRight = initialDockRight
+        }
+        .onReceive(NotificationCenter.default.publisher(
+            for: Notification.Name("ScarletGuestOutsideDarwinReceived"))) { _ in
+            guard isOpen else { return }
+            ScarletDiagnosticRecorder.shared.record(
+                "guest", "guest_process_outside_tap_received",
+                fields: ["result": "darwin_guest_event_to_host"])
+            closePanel()
         }
         .onChange(of: dismissState.closeGeneration) { _, _ in
             guard isOpen else { return }

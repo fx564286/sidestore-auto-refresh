@@ -1217,6 +1217,11 @@ def main():
     guest_hook_file = engine/"TweakLoader/UIKit+GuestHooks.m"
     assert guest_hook_file.is_file(), "Pinned LC guest UIKit hook missing"
     guest_hook_source = guest_hook_file.read_text()
+    guest_app_swizzle = '    swizzle(UIApplication.class, @selector(_applicationOpenURLAction:payload:origin:), @selector(hook__applicationOpenURLAction:payload:origin:));'
+    assert guest_hook_source.count(guest_app_swizzle) == 1
+    guest_hook_source = guest_hook_source.replace(guest_app_swizzle,
+        '    swizzle(UIApplication.class, @selector(sendEvent:), @selector(hook_scarletGuestSendEvent:));\n' + guest_app_swizzle, 1)
+
     guest_hook_anchor = "    if(!NSUserDefaults.lcGuestAppId) return;\n"
     assert guest_hook_source.count(guest_hook_anchor)==1, "Guest hook changed"
     guest_hook_source = guest_hook_source.replace(
@@ -1239,7 +1244,9 @@ static void ScarletGuestHookTrace(NSString *event) {
             @"safearea_root_not_liveprocess", @"safearea_root_pilot_disabled",
             @"safearea_root_observer_installed",
             @"safearea_root_ready_after_window", @"safearea_root_window_timeout",
-            @"safearea_root_waiting_for_window"]];
+            @"safearea_root_waiting_for_window",
+            @"safearea_root_not_guest", @"safearea_root_local_measurement",
+            @"guest_outside_touch_forwarded"]];
     });
     if(![allowed containsObject:event]) return;
     NSUserDefaults *shared = NSUserDefaults.lcSharedDefaults;
@@ -1267,6 +1274,51 @@ static void ScarletGuestHookTrace(NSString *event) {
 }
 
 """
+    guest_event_helper = r"""
+// iOS 27 remote FBScene owns the actual touch delivery. The host's separate
+// overlay and underlying normal UIWindow do not receive touches outside it.
+static void ScarletGuestHandleOutsideEvent(UIEvent *event) {
+    if(!NSUserDefaults.lcGuestAppId || event.type != UIEventTypeTouches) return;
+    NSUserDefaults *shared = NSUserDefaults.lcSharedDefaults;
+    [shared synchronize];
+    if(![shared boolForKey:@"Scarlet.Pilot.Switcher.Expanded.V1"]) return;
+    UIWindowScene *scene = nil;
+    for(UIScene *candidate in UIApplication.sharedApplication.connectedScenes) {
+        if([candidate isKindOfClass:UIWindowScene.class] &&
+           candidate.activationState == UISceneActivationStateForegroundActive) {
+            scene = (UIWindowScene *)candidate;
+            break;
+        }
+    }
+    if(!scene) return;
+    CGRect bounds = scene.coordinateSpace.bounds;
+    CGFloat width = MIN(430, MAX(72, bounds.size.width - 32));
+    CGFloat height = MIN(MIN(width * 1.02, 435), MAX(210, bounds.size.height - 156));
+    CGRect panel = CGRectMake((bounds.size.width - width) / 2,
+                               (bounds.size.height - height) / 2, width, height);
+    for(UITouch *touch in event.allTouches) {
+        if(touch.phase != UITouchPhaseEnded || touch.tapCount == 0) continue;
+        UIWindow *window = touch.window;
+        if(!window || window.windowScene != scene) continue;
+        CGPoint point = [touch locationInView:window];
+        point = [window convertPoint:point toCoordinateSpace:scene.coordinateSpace];
+        if(!CGRectContainsPoint(bounds,point) ||
+           CGRectContainsPoint(CGRectInset(panel,-3,-3),point)) continue;
+        ScarletGuestHookTrace(@"guest_outside_touch_forwarded");
+        CFNotificationCenterPostNotification(CFNotificationCenterGetDarwinNotifyCenter(),
+            CFSTR("com.kdt.scarlet.guest.outside.v1"), NULL, NULL, true);
+        break;
+    }
+}
+"""
+    guest_hook_anchor_method = '@implementation UIApplication(LiveContainerHook)\n'
+    assert guest_hook_source.count(guest_hook_anchor_method) == 1
+    guest_hook_source = guest_hook_source.replace(guest_hook_anchor_method,
+        guest_event_helper + guest_hook_anchor_method +
+        '- (void)hook_scarletGuestSendEvent:(UIEvent *)event {\n'
+        '    ScarletGuestHandleOutsideEvent(event);\n'
+        '    [self hook_scarletGuestSendEvent:event];\n'
+        '}\n', 1)
     guest_root_helper = r"""
 // V48-R5X: alternative approach inside the *guest process*. The host never
 // changes this guest's frame/scale and avoids premature FBScene updates.
@@ -1284,9 +1336,13 @@ static UIEdgeInsets ScarletGuestRootSafeAreaOverride(id view, SEL sel) {
     if(!window || window.isHidden ||
        window.rootViewController.view != rootView) return original;
     NSUserDefaults *shared = NSUserDefaults.lcSharedDefaults;
-    if(![shared boolForKey:@"Scarlet.Pilot.GuestRootSafeArea.Enabled.V1"]) return original;
+    // The guest bootstrap can see a stale pilot marker. Resolve actual safe top below.
     CGFloat desired = [shared doubleForKey:@"Scarlet.Pilot.GuestRootSafeArea.TopPoints.V1"];
-    if(!isfinite(desired) || desired < 0 || desired > 160) return original;
+    if(!isfinite(desired) || desired < 20 || desired > 160) {
+        desired = CGRectGetMaxY(window.windowScene.statusBarManager.statusBarFrame);
+        if(desired < 20 || desired > 160) return original;
+        ScarletGuestHookTrace(@"safearea_root_local_measurement");
+    }
     if(UIInterfaceOrientationIsLandscape(window.windowScene.interfaceOrientation)) desired = 0;
     original.top = MAX(original.top, desired);
     return original;
@@ -1295,9 +1351,7 @@ static UIEdgeInsets ScarletGuestRootSafeAreaOverride(id view, SEL sel) {
 // Clang/Objective-C must see a typed declaration first.
 static void ScarletGuestInstallRootSafeAreaObserver(void);
 static void ScarletGuestInstallRootSafeAreaGetter(void) {
-    if(!NSUserDefaults.lcGuestAppId ||
-       ![NSUserDefaults.lcSharedDefaults boolForKey:
-           @"Scarlet.Pilot.GuestRootSafeArea.Enabled.V1"]) return;
+    if(!NSUserDefaults.lcGuestAppId) return;
     static dispatch_once_t once;
     dispatch_once(&once, ^{
         Method method = class_getInstanceMethod(UIView.class, @selector(safeAreaInsets));
@@ -1314,9 +1368,17 @@ static NSUInteger ScarletGuestRootAttempts = 0;
 static void ScarletGuestTryApplyRootSafeArea(void) {
     if(!NSUserDefaults.lcGuestAppId) return;
     NSUserDefaults *shared = NSUserDefaults.lcSharedDefaults;
-    if(![shared boolForKey:@"Scarlet.Pilot.GuestRootSafeArea.Enabled.V1"]) return;
+    // A guest's defaults can be initialized before the host sends the pilot
+    // marker; use the host's measured value when available, otherwise the
+    // guest's UIWindowScene status bar frame. The guest identity is the gate.
+
     CGFloat desired = (CGFloat)[shared doubleForKey:@"Scarlet.Pilot.GuestRootSafeArea.TopPoints.V1"];
-    if(!isfinite(desired) || desired < 0 || desired > 160) return;
+    if(!isfinite(desired) || desired < 20 || desired > 160) {
+        UIWindowScene *ws = (UIWindowScene *)UIApplication.sharedApplication.connectedScenes.anyObject;
+        desired = CGRectGetMaxY(ws.statusBarManager.statusBarFrame);
+        if(desired < 20 || desired > 160) return;
+        ScarletGuestHookTrace(@"safearea_root_local_measurement");
+    }
     for(UIScene *s in UIApplication.sharedApplication.connectedScenes) {
         if(![s isKindOfClass:UIWindowScene.class] ||
            s.activationState != UISceneActivationStateForegroundActive) continue;
@@ -1358,10 +1420,8 @@ static void ScarletGuestTryApplyRootSafeArea(void) {
     }
 }
 static void ScarletGuestInstallRootSafeAreaObserver(void) {
-    if(!NSUserDefaults.lcGuestAppId ||
-       ![NSUserDefaults.lcSharedDefaults boolForKey:
-           @"Scarlet.Pilot.GuestRootSafeArea.Enabled.V1"]) {
-        ScarletGuestHookTrace(@"safearea_root_pilot_disabled");
+    if(!NSUserDefaults.lcGuestAppId) {
+        ScarletGuestHookTrace(@"safearea_root_not_guest");
         return;
     }
     ScarletGuestHookTrace(@"safearea_root_observer_installed");
