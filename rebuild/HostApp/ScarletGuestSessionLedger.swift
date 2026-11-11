@@ -173,7 +173,14 @@ enum ScarletGuestSessionLedger {
         "runtime_current_resolved", "runtime_current_unresolved",
         "switch_target_boot_ack", "switch_target_boot_mismatch",
         "glass_morph_opened", "glass_morph_closed",
-        "runtime_guest_process_observed"
+        "runtime_guest_process_observed",
+        // Prior versions wrote these guest-safe-area diagnostics to the
+        // App Group but silently filtered them out of the host report.
+        "safearea_root_adjusted", "safearea_root_already_correct",
+        "safearea_root_getter_installed", "safearea_root_observer_installed",
+        "safearea_root_ready_after_window", "safearea_root_window_timeout",
+        "safearea_root_waiting_for_window", "safearea_root_not_liveprocess",
+        "safearea_root_pilot_disabled"
     ]
 
     struct SwitchTrace: Codable {

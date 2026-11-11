@@ -27,7 +27,7 @@ class WindowTouchAndGuestReadiness(unittest.TestCase):
   self.assertIn('ScarletGuestRootApplied = YES;',GLUE)
   self.assertIn('safearea_root_ready_after_window',GLUE)
   self.assertIn('safearea_root_window_timeout',GLUE)
-  self.assertIn('safearea_root_not_liveprocess',GLUE)
+  self.assertIn('safearea_root_pilot_disabled',GLUE)
   self.assertIn('ScarletGuestInstallRootSafeAreaGetter();',GLUE)
   self.assertIn('safearea_root_observer_installed',GLUE)
   self.assertNotIn('for(NSNumber *delay in @[@0.2, @0.6, @1.2, @2.5])',GLUE)

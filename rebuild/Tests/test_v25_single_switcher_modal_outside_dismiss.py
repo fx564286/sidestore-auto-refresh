@@ -29,8 +29,9 @@ class V25ModalSwitcher(unittest.TestCase):
         self.assertIn('guard bounds.contains(point)',body)
         self.assertIn('if isExpanded {',body)
         self.assertIn('return super.point(inside: point, with: event)',body)
-        self.assertNotIn('panelRect.contains(point)',body)
-        self.assertIn('return hypot(point.x - buttonCenter.x,',body)
+        self.assertIn('panelRect.insetBy(dx: -3, dy: -3).contains(point)',body)
+        self.assertIn('guard hypot(point.x - buttonCenter.x,',body)
+        self.assertIn('host_outside_shield_tapped',SRC)
 
     def test_transparent_backdrop_dismisses_without_dimming_guest(self):
         root=SRC.split('    var body: some View {',1)[1].split('// UIkit pan tracks finger',1)[0]

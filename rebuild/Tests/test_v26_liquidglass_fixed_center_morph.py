@@ -62,7 +62,7 @@ class V26MatchedGlassGeometry(unittest.TestCase):
         self.assertIn('closePanel()',UI)
         self.assertIn('if isExpanded {', UI)
         self.assertIn('return super.point(inside: point, with: event)', UI)
-        self.assertIn('return hypot(point.x - buttonCenter.x,', UI)
+        self.assertIn('guard hypot(point.x - buttonCenter.x,', UI)
         self.assertIn('onPanel(false, apps.count)',UI)
         self.assertNotIn('Color.black.opacity(',UI)
         self.assertIn('SCNativeLiquidGlassSurface(cornerRadius: radius, showsRim: false)',UI)

@@ -66,7 +66,7 @@ class InAppCertAndGlassContracts(unittest.TestCase):
         # V25: expanded window intercepts outside taps for modal dismiss;
         # collapsed 62pt button still passes all other guest touches through.
         self.assertIn("if isExpanded {", UI)
-        self.assertIn("return hypot(point.x - buttonCenter.x,", UI)
+        self.assertIn("guard hypot(point.x - buttonCenter.x,", UI)
         self.assertNotIn("return isExpanded && panelRect.contains(point)", UI)
 
     def test_remove_requested_visible_brand_label(self):

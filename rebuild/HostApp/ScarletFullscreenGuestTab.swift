@@ -42,6 +42,22 @@ private final class ScarletSwitcherOutsideShield: UIControl {
     }
 }
 
+// Underlying UIWindow gets touch events only after the glass overlay window
+// declines outside-card hits. A native control on the actual host window owns
+// outside taps, even if UIKit refuses to dispatch a touch to a non-key alert
+// UIWindow (as observed in the R5Z device trace).
+@available(iOS 17.0, *)
+@MainActor
+private final class ScarletSwitcherHostOutsideShield: UIControl {
+    weak var owner: ScarletGuestTouchPassthroughWindow?
+    override func point(inside point: CGPoint, with event: UIEvent?) -> Bool {
+        guard let owner, owner.isExpanded, !owner.isHidden,
+              bounds.contains(point) else { return false }
+        let inOverlay = owner.convert(point, from: self)
+        return !owner.panelRect.insetBy(dx: -3, dy: -3).contains(inOverlay)
+    }
+}
+
 @available(iOS 17.0, *)
 @MainActor
 final class ScarletGuestTouchPassthroughWindow: UIWindow {
@@ -51,6 +67,7 @@ final class ScarletGuestTouchPassthroughWindow: UIWindow {
             if isExpanded, let shield = outsideShield {
                 bringSubviewToFront(shield)
             }
+            syncHostOutsideShield()
         }
     }
     var dockRight = false
@@ -59,6 +76,60 @@ final class ScarletGuestTouchPassthroughWindow: UIWindow {
     var dismissState: ScarletSwitcherDismissState?
     private var outsideShield: ScarletSwitcherOutsideShield?
     private var outsideTouchStart: Set<ObjectIdentifier> = []
+    weak var touchHostWindow: UIWindow?
+    private var hostOutsideShield: ScarletSwitcherHostOutsideShield?
+
+    private func syncHostOutsideShield() {
+        if !isExpanded {
+            if let shield = hostOutsideShield {
+                shield.removeFromSuperview()
+                hostOutsideShield = nil
+                ScarletDiagnosticRecorder.shared.record(
+                    "guest", "host_outside_shield_removed",
+                    fields: ["result": "guest_touches_restored"])
+            }
+            return
+        }
+        guard let host = touchHostWindow, host !== self else {
+            ScarletDiagnosticRecorder.shared.record(
+                "guest", "host_outside_shield_no_owner", status: "warning",
+                fields: ["reason": "normal_window_missing"])
+            return
+        }
+        let shield: ScarletSwitcherHostOutsideShield
+        if let existing = hostOutsideShield, existing.superview === host {
+            shield = existing
+        } else {
+            hostOutsideShield?.removeFromSuperview()
+            let created = ScarletSwitcherHostOutsideShield(frame: host.bounds)
+            created.owner = self
+            created.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+            created.backgroundColor = .clear
+            created.isOpaque = false
+            created.addTarget(self, action: #selector(didPressHostOutside(_:)),
+                              for: .touchUpInside)
+            host.addSubview(created)
+            hostOutsideShield = created
+            shield = created
+            ScarletDiagnosticRecorder.shared.record(
+                "guest", "host_outside_shield_attached",
+                fields: ["result": "normal_window_control_owns_taps",
+                         "window_attached": host.windowScene != nil ? "true" : "false"])
+        }
+        host.bringSubviewToFront(shield)
+    }
+
+    @objc private func didPressHostOutside(_ sender: UIControl) {
+        guard isExpanded, !isHidden else { return }
+        ScarletDiagnosticRecorder.shared.record(
+            "guest", "host_outside_shield_tapped",
+            fields: ["result": "direct_normal_window_touch_delivered"])
+        dismissState?.requestClose()
+    }
+
+    override var isHidden: Bool {
+        didSet { if isHidden { hostOutsideShield?.removeFromSuperview(); hostOutsideShield = nil } }
+    }
 
     // Observe original UIWindow touch events independently from SwiftUI
     // hit-test ordering. No additional recognizer competes with V48 Pan.
@@ -132,6 +203,11 @@ final class ScarletGuestTouchPassthroughWindow: UIWindow {
     // Unlike R4, return the real UIControl, NOT the UIWindow itself:
     // .touchUpInside will fire and the existing working R5 dismissState runs.
     override func hitTest(_ point: CGPoint, with event: UIEvent?) -> UIView? {
+        // Explicitly yield ALL outside-card taps to the normal UIWindow's
+        // host shield. The original R5Z window never received these taps.
+        if isExpanded && !panelRect.insetBy(dx: -3, dy: -3).contains(point) {
+            return nil
+        }
         if isExpanded, !isHidden, let shield = outsideShield,
            !shield.isHidden, shield.isUserInteractionEnabled {
             let inShield = convert(point, to: shield)
@@ -144,11 +220,15 @@ final class ScarletGuestTouchPassthroughWindow: UIWindow {
 
     override func point(inside point: CGPoint, with event: UIEvent?) -> Bool {
         guard bounds.contains(point) else { return false }
-        if isExpanded { return super.point(inside: point, with: event) }
+        if isExpanded {
+            // UIKit checks pointInside before hitTest. Allow only the real
+            // card; the underlying normal window owns the rest of the screen.
+            return panelRect.insetBy(dx: -3, dy: -3).contains(point)
+        }
         // Collapsed: guest receives touches except at the 62pt circle.
-        return hypot(point.x - buttonCenter.x,
-                     point.y - buttonCenter.y) <= 35 &&
-            super.point(inside: point, with: event)
+        guard hypot(point.x - buttonCenter.x,
+                    point.y - buttonCenter.y) <= 35 else { return false }
+        return super.point(inside: point, with: event)
     }
 }
 
@@ -731,8 +811,8 @@ final class ScarletFullscreenGuestTabInstaller: NSObject {
         guard let floating = floatingWindow else { return }
         // Toggling the panel never changes the UIWindow frame, the saved
         // button center, or the guest app view. Only hit testing expands.
-        floating.isExpanded = open
         floating.panelRect = panelFrame(in: floating)
+        floating.isExpanded = open
         UIView.performWithoutAnimation {
             floating.rootViewController?.view.setNeedsLayout()
             floating.rootViewController?.view.layoutIfNeeded()
@@ -1193,6 +1273,7 @@ final class ScarletFullscreenGuestTabInstaller: NSObject {
         dragHandler = panHandler
         overlay.rootViewController = controller
         overlay.dismissState = dismissState
+        overlay.touchHostWindow = original
         overlay.enableNativeOutsideDismiss()
         overlay.frame = frame(in: original)
         overlay.buttonCenter = center(in: original)
@@ -1350,6 +1431,7 @@ extension ScarletFullscreenGuestTabInstaller {
         dragHandler = panHandler
         overlay.rootViewController = root
         overlay.dismissState = dismissState
+        overlay.touchHostWindow = host
         overlay.enableNativeOutsideDismiss()
         overlay.frame = frame(in: host)
         overlay.buttonCenter = center(in: host)

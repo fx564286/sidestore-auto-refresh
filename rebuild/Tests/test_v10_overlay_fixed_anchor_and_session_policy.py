@@ -27,8 +27,8 @@ class V10Contract(unittest.TestCase):
         # hit testing passed those taps to the running guest and never closed.
         self.assertIn('if isExpanded {',GUEST)
         self.assertIn('return super.point(inside: point, with: event)',GUEST)
-        self.assertIn('return hypot(point.x - buttonCenter.x',GUEST)
-        self.assertNotIn('return isExpanded && panelRect.contains(point)',GUEST)
+        self.assertIn('guard hypot(point.x - buttonCenter.x',GUEST)
+        self.assertIn('return panelRect.insetBy(dx: -3, dy: -3).contains(point)',GUEST)
         self.assertIn('hypot(point.x - buttonCenter.x',GUEST)
         self.assertIn('return super.point(inside: point, with: event)',GUEST)
         self.assertIn('overlay.windowLevel = UIWindow.Level.alert + 1',GUEST)

@@ -14,8 +14,8 @@ class GuestFloatingDragHitThrough(unittest.TestCase):
                          'return super.point(inside: point, with: event)',
                          'private static func panelFrame(in window: UIWindow)',
                          'super.point(inside: point, with: event)',
-                         'return hypot(point.x - buttonCenter.x,',
-                         'point.y - buttonCenter.y) <= 35 &&',
+                         'guard hypot(point.x - buttonCenter.x,',
+                         'point.y - buttonCenter.y) <= 35 else { return false }',
                          'overlay.windowLevel = UIWindow.Level.alert + 1',
                          'overlay.isHidden = false'):
             self.assertIn(fragment,GUEST)

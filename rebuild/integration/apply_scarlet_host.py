@@ -1236,7 +1236,8 @@ static void ScarletGuestHookTrace(NSString *event) {
             @"framework_missing", @"provider_ready", @"provider_missing",
             @"safearea_root_adjusted", @"safearea_root_already_correct",
             @"safearea_root_getter_installed",
-            @"safearea_root_not_liveprocess", @"safearea_root_observer_installed",
+            @"safearea_root_not_liveprocess", @"safearea_root_pilot_disabled",
+            @"safearea_root_observer_installed",
             @"safearea_root_ready_after_window", @"safearea_root_window_timeout",
             @"safearea_root_waiting_for_window"]];
     });
@@ -1277,8 +1278,7 @@ static void ScarletGuestHookTrace(NSString *event) {
 static UIEdgeInsets (*ScarletGuestOriginalRootSafeArea)(id,SEL) = NULL;
 static UIEdgeInsets ScarletGuestRootSafeAreaOverride(id view, SEL sel) {
     UIEdgeInsets original = ScarletGuestOriginalRootSafeArea(view,sel);
-    if(!NSUserDefaults.isLiveProcess || !NSUserDefaults.lcGuestAppId ||
-       ![NSThread isMainThread]) return original;
+    if(!NSUserDefaults.lcGuestAppId || ![NSThread isMainThread]) return original;
     UIView *rootView = (UIView *)view;
     UIWindow *window = rootView.window;
     if(!window || window.isHidden ||
@@ -1292,7 +1292,9 @@ static UIEdgeInsets ScarletGuestRootSafeAreaOverride(id view, SEL sel) {
     return original;
 }
 static void ScarletGuestInstallRootSafeAreaGetter(void) {
-    if(!NSUserDefaults.isLiveProcess) return;
+    if(!NSUserDefaults.lcGuestAppId ||
+       ![NSUserDefaults.lcSharedDefaults boolForKey:
+           @"Scarlet.Pilot.GuestRootSafeArea.Enabled.V1"]) return;
     static dispatch_once_t once;
     dispatch_once(&once, ^{
         Method method = class_getInstanceMethod(UIView.class, @selector(safeAreaInsets));
@@ -1307,7 +1309,7 @@ static const void *ScarletGuestRootAppliedTopKey = &ScarletGuestRootAppliedTopKe
 static BOOL ScarletGuestRootApplied = NO;
 static NSUInteger ScarletGuestRootAttempts = 0;
 static void ScarletGuestTryApplyRootSafeArea(void) {
-    if(!NSUserDefaults.isLiveProcess || !NSUserDefaults.lcGuestAppId) return;
+    if(!NSUserDefaults.lcGuestAppId) return;
     NSUserDefaults *shared = NSUserDefaults.lcSharedDefaults;
     if(![shared boolForKey:@"Scarlet.Pilot.GuestRootSafeArea.Enabled.V1"]) return;
     CGFloat desired = (CGFloat)[shared doubleForKey:@"Scarlet.Pilot.GuestRootSafeArea.TopPoints.V1"];
@@ -1353,8 +1355,10 @@ static void ScarletGuestTryApplyRootSafeArea(void) {
     }
 }
 static void ScarletGuestInstallRootSafeAreaObserver(void) {
-    if(!NSUserDefaults.isLiveProcess) {
-        ScarletGuestHookTrace(@"safearea_root_not_liveprocess");
+    if(!NSUserDefaults.lcGuestAppId ||
+       ![NSUserDefaults.lcSharedDefaults boolForKey:
+           @"Scarlet.Pilot.GuestRootSafeArea.Enabled.V1"]) {
+        ScarletGuestHookTrace(@"safearea_root_pilot_disabled");
         return;
     }
     ScarletGuestHookTrace(@"safearea_root_observer_installed");

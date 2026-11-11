@@ -33,7 +33,8 @@ class AlternativeGuestRootSafeArea(unittest.TestCase):
    self.assertIn(fragment,GLUE)
   self.assertIn('unmodified_passthrough_guest_root_inset',GLUE)
   self.assertIn('[self hook__performUpdateWithoutActivation:updateBlock];',GLUE)
-  self.assertIn('if(!NSUserDefaults.isLiveProcess || !NSUserDefaults.lcGuestAppId) return;',GLUE)
+  self.assertIn('if(!NSUserDefaults.lcGuestAppId) return;',GLUE)
+  self.assertIn('safearea_root_pilot_disabled',GLUE)
   self.assertNotIn('root.view.frame =',GLUE)
  def test_protected_existing_v48_r5_touch_geometry(self):
   self.assertIn('private final class ScarletSwitcherOutsideShield: UIControl',UI)
