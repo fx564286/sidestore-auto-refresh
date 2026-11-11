@@ -917,7 +917,7 @@ final class ScarletFullscreenSceneViewport: UIViewController {
         let name = "com.scarlet.guest.audio.\(action).\(pid)"
         CFNotificationCenterPostNotification(
             CFNotificationCenterGetDarwinNotifyCenter(),
-            name as CFString, nil, nil, true)
+            CFNotificationName(name as CFString), nil, nil, true)
         ScarletDiagnosticRecorder.shared.record(
             "guest", "guest_audio_scope_applied",
             fields: ["action": action, "process_pid": String(pid)])

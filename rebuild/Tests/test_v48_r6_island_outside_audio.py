@@ -54,6 +54,7 @@ class ResidentThreeIssueRegression(unittest.TestCase):
 
     def test_guest_audio_is_scoped_to_the_visible_pid(self):
         self.assertIn('private func postGuestAudioScope', STACK)
+        self.assertIn('CFNotificationName(name as CFString)', STACK)
         self.assertIn('com.scarlet.guest.audio.', STACK)
         self.assertIn('audioScopedPID != target.pid', STACK)
         self.assertIn('postGuestAudioScope("pause"', STACK)
