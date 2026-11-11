@@ -1,8 +1,8 @@
 {
   "schema": 2,
   "scope": "Scarlet Crystal guest top-screen overlap, touch access, rotation, remote guest render and related resident regressions",
-  "updated_utc": "2026-11-11T23:40:27Z",
-  "current_baseline": "R6P9 f29ddd833305; iPhone iOS 27.2 24B119",
+  "updated_utc": "2026-11-12T00:10:00Z",
+  "current_baseline": "R6P9 f29ddd833305; R6P10 history export implementation underway",
   "current_issue_status": "UNRESOLVED: Dynamic Island clipping/touch failure not proven fixed",
   "confidence_note": "Past-chat-only historical versions were reported in earlier conversations; not all have a GitHub revision or device verification. An implementation, a CI success, a telemetry event, and a real device visual fix are distinct.",
   "privacy": "No credentials, Apple ID, OTP, UDID, guest names or device identifiers are stored.",
@@ -2503,14 +2503,82 @@
       "version": "new-r6p10",
       "problem": "diagnostics",
       "mechanism": "remediation_audit",
-      "action": "상단 문제 조치 이력 및 AI 중복 시도 방지 지침을 보고서에 자동 포함하고 이력·코드 동기화 테스트 추가",
-      "observation": "새 소스/CI 검증 예정; 기기에서 이력이 출력되는지는 다음 설치 빌드 확인 필요",
+      "action": "Host DiagnosticRecorder.makeShareFile에 변조 방지 형식의 전체 remediation JSON과 AI handoff prompt 섹션을 추가; apply_scarlet_host.py가 CI archive 시 Git 추적 JSON/MD를 base64로 삽입하고 원본 diff 유효성 확인",
+      "observation": "소스 변경·GitHub diff는 확인. CI·IPA·실기기 진단 보고서 내 실제 표시 및 중복 방지 효과는 아직 검증 필요",
       "evidence": "pending",
-      "status": "implementation_pending",
-      "repeat_policy": "no_repeat_without_new_device_evidence",
-      "code_locations": [],
-      "source_verification": "source_unavailable",
-      "missing_source_reason": "확실한 원본 코드 diff 확보되지 않음. 새 구현으로 오인하여 재시도 금지."
+      "status": "ci_pending",
+      "repeat_policy": "동일 진단 JSON·기존 프로젝트 코드 위치 검증을 하지 않고 단순 로그 UI 문구만 추가하는 변경 금지",
+      "code_locations": [
+        {
+          "commit": "356c5b7b4104bac35112c97bb100fd1ccfb314bf",
+          "file": "rebuild/HostApp/ScarletDiagnosticRecorder.swift",
+          "location": "@@ -186,6 +186,20 @@ final class ScarletDiagnosticRecorder: @unchecked Sendable {",
+          "before": [],
+          "after": [
+            "    // Build-time embedded, version-pinned, immutable remediation log.",
+            "    // The current-run JSONL remains small and privacy filtered. Only the",
+            "    // explicit user-shared report includes historical code diffs/prompt.",
+            "    // CI replaces both markers with base64 of repo-tracked audited sources.",
+            "    private static let remediationHistoryBlob = \"__SCARLET_REMEDIATION_HISTORY_B64__\"",
+            "    private static let handoffPromptBlob = \"__SCARLET_HANDOFF_PROMPT_B64__\"",
+            "    private static func decodedAudit(_ base64: String) -> String {",
+            "        guard let data = Data(base64Encoded: base64),",
+            "              let text = String(data: data, encoding: .utf8) else {",
+            "            return \"EMBEDDED_AUDIT_UNAVAILABLE: missing or invalid archive payload.\""
+          ]
+        },
+        {
+          "commit": "356c5b7b4104bac35112c97bb100fd1ccfb314bf",
+          "file": "rebuild/HostApp/ScarletDiagnosticRecorder.swift",
+          "location": "@@ -215,6 +229,14 @@ final class ScarletDiagnosticRecorder: @unchecked Sendable {",
+          "before": [],
+          "after": [
+            "        // R6P10: full immutable fix history, including where/how each line",
+            "        // was changed. This survives log rotation and app restarts because",
+            "        // it is bundled into the signed binary; not the rolling JSONL.",
+            "        body += \"\\n===== REMEDIATION HISTORY · FILE/FUNCTION/BEFORE/AFTER DIFF =====\\n\"",
+            "        body += Self.decodedAudit(Self.remediationHistoryBlob)",
+            "        body += \"\\n===== NO-REPEAT POLICY & AI HANDOFF PROMPT =====\\n\"",
+            "        body += Self.decodedAudit(Self.handoffPromptBlob)",
+            "        body += \"\\n===== END OF EMBEDDED AUDIT =====\\n\""
+          ]
+        },
+        {
+          "commit": "3fa96d8bb762c148b4dff60f1acd3bb36db33e11",
+          "file": "rebuild/integration/apply_scarlet_host.py",
+          "location": "@@ -1711,6 +1711,35 @@ def main():",
+          "before": [],
+          "after": [
+            "    # R6P10: a one-file user diagnostic report must contain all earlier",
+            "    # interventions with file/function, original and replacement source code,",
+            "    # verification grade, and the complete AI no-repeat instructions.",
+            "    # Embed the repo-reviewed JSON/prompt at archive time, not by trying to",
+            "    # recover old JSONL files (rotated) or fetching external URLs on iPhone.",
+            "    history_path = root/\"rebuild/diagnostics/scarlet_remediation_history.json\"",
+            "    handoff_path = root/\"rebuild/diagnostics/SCARLET_LOG_ONLY_HANDOFF_PROMPT.md\"",
+            "    audit = json.loads(history_path.read_text(encoding=\"utf-8\"))",
+            "    assert audit[\"schema\"] >= 2 and len(audit[\"entries\"]) >= 45, \"Repair ledger unexpectedly truncated\"",
+            "    ids = [e[\"id\"] for e in audit[\"entries\"]]"
+          ]
+        }
+      ],
+      "source_verification": "git_patch_observed",
+      "missing_source_reason": "확실한 원본 코드 diff 확보되지 않음. 새 구현으로 오인하여 재시도 금지.",
+      "source_revisions": [
+        {
+          "sha": "356c5b7b4104bac35112c97bb100fd1ccfb314bf",
+          "url": "https://github.com/fx564286/sidestore-auto-refresh/commit/356c5b7b4104bac35112c97bb100fd1ccfb314bf",
+          "title": "feat(r6p10): embed full code-level repair history and AI handoff prompt in every exported diagnostic report"
+        },
+        {
+          "sha": "3fa96d8bb762c148b4dff60f1acd3bb36db33e11",
+          "url": "https://github.com/fx564286/sidestore-auto-refresh/commit/3fa96d8bb762c148b4dff60f1acd3bb36db33e11",
+          "title": "build(r6p10): fail closed unless exact code diff ledger and handoff prompt embed into host archive"
+        }
+      ],
+      "hypothesis": "다음 대화가 이전 기술·메커니즘을 다시 제안하는 원인은 현재 iPhone 로그에 과거 수정의 실제 소스 diff와 실패 근거가 포함되지 않기 때문",
+      "device_verification": "not_installed_or_tested",
+      "rollback_commit": "f29ddd833305e0f2fc020912605a787efbb5b773"
     }
   ],
   "gate": {
