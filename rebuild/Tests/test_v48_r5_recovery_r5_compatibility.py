@@ -46,7 +46,8 @@ class R5Compatibility(unittest.TestCase):
                  'stack?.restoreForegroundOnHostActive()',
                  'no_resign_no_process_restart'):
    self.assertIn(needle,SCENE)
-  self.assertIn('fullscreen_scene_first_surface_revealed',SCENE)
+  self.assertIn('fullscreen_scene_presenter_attached',SCENE)
+  self.assertIn('content_ready_visibility_not_verified',SCENE)
  def test_no_global_swizzles_and_original_pan_preserved(self):
   self.assertIn('ScarletSceneGeometryAuthority.h',BRIDGE)
   for bad in ('hook_scarletGuestSendEvent','ScarletGuestRootSafeAreaOverride'):
