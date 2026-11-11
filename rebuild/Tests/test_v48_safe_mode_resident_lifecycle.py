@@ -33,7 +33,7 @@ class TestV48(unittest.TestCase):
   self.assertIn('viewport?.ownsController(vc, folder: vc.bundleId)',S)
   self.assertIn('canRelaunch: canRestart',S)
   self.assertIn('slots.map { slot in',S)
-  self.assertIn('target.contentView?.superview != nil',S)
+  self.assertIn('target.scarletRemoteContentReady()',S)
   self.assertNotIn('.terminate()',S)
  def test_original_fullscreen_statusbar_behavior_restored(self):
   self.assertIn('assert a.count("        settings.statusBarDisabled = !self.isNativeWindow;") == 1',I)

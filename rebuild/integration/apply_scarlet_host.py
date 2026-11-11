@@ -943,8 +943,17 @@ def add_v45_fullscreen_scene_slot(engine: Path) -> dict:
     assert h.count(old) == 1, "V45 upstream AppScene header changed"
     h = h.replace(old, old +
         "@property(nonatomic) BOOL scarletNativeFullscreenSlot;\n"
-        "- (nullable NSNumber *)scarletApplyHostingContentSafeArea:(UIEdgeInsets)desired;\n", 1)
+        "- (nullable NSNumber *)scarletApplyHostingContentSafeArea:(UIEdgeInsets)desired;\n"
+        "- (BOOL)scarletRemoteContentReady;\n"
+        "- (BOOL)scarletEnsureRemoteForeground;\n", 1)
     header.write_text(h)
+    protocol_header = engine/"MultitaskSupport/AppSceneViewController.h"
+    protocol_src = protocol_header.read_text()
+    marker = '- (void)appSceneVCWillActivateScene:(AppSceneViewController *)vc;'
+    assert protocol_src.count(marker) == 1
+    protocol_src = protocol_src.replace(marker, marker +
+        '\n- (void)appSceneVCDidAttachRemoteContent:(AppSceneViewController *)vc;', 1)
+    protocol_header.write_text(protocol_src)
     target = engine/"MultitaskSupport/AppSceneViewController.m"
     a = target.read_text()
     # V48-R4: iOS 27 uses _UISceneHostingController. The V48 delegate
@@ -1105,9 +1114,50 @@ static UIEdgeInsets ScarletPilotHostInsets(UIWindowScene *scene,
     return @(owner.view.safeAreaInsets.top);
 }
 """
+    helper += r"""
+// Pilot-only two-phase native render handshake. PID is not proof that the
+// remote FBScene hosting view exists. Nothing is injected in the guest.
+- (BOOL)scarletRemoteContentReady {
+    if(!self.scarletNativeFullscreenSlot || !self.isAppRunning ||
+       !self.hostingController || !self.presenter || !self.presenter.scene ||
+       !self.contentView || self.contentView.superview != self.view ||
+       !self.view.window || CGRectGetWidth(self.contentView.bounds) < 2 ||
+       CGRectGetHeight(self.contentView.bounds) < 2)
+        return NO;
+    return self.hostingController.sceneViewController.view == self.contentView;
+}
+- (BOOL)scarletEnsureRemoteForeground {
+    if(![self scarletRemoteContentReady]) return NO;
+    static const void *kFirstForeground = (const void *)@selector(scarletEnsureRemoteForeground);
+    if([objc_getAssociatedObject(self,kFirstForeground) boolValue]) return YES;
+    objc_setAssociatedObject(self,kFirstForeground,@YES,OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+    // LiveContainer already has the equivalent update path in
+    // setBackgroundNotificationEnabled. Issue it only once after content is
+    // attached to prevent inactive->foreground spam and process restarts.
+    [self.presenter.scene updateSettingsWithBlock:^(UIMutableApplicationSceneSettings *settings) {
+        settings.foreground = YES;
+        settings.deactivationReasons = 0;
+    }];
+    return YES;
+}
+"""
     anchor = "- (void)setUpAppPresenter {"
     assert a.count(anchor) == 1
     a = a.replace(anchor, helper + "\n" + anchor, 1)
+    # Wait until original LC code attaches the actual remote content view;
+    # this callback is later than beginExtensionRequestWithInputItems PID.
+    needle_content = '    [self.view addSubview:_contentView];'
+    assert a.count(needle_content) == 1
+    a = a.replace(needle_content, needle_content + r"""
+    if(self.scarletNativeFullscreenSlot &&
+       [self.delegate respondsToSelector:@selector(appSceneVCDidAttachRemoteContent:)]) {
+        __weak typeof(self) weakSelf = self;
+        dispatch_async(dispatch_get_main_queue(), ^{
+            if(weakSelf && weakSelf.scarletNativeFullscreenSlot)
+                [weakSelf.delegate appSceneVCDidAttachRemoteContent:weakSelf];
+        });
+    }
+""",1)
     target.write_text(a)
 
     hook_file = engine / "MultitaskSupport/UIKitHooks.m"

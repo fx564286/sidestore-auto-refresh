@@ -43,10 +43,10 @@ class TestV47InPlaceGuestSwitch(unittest.TestCase):
     def test_live_process_never_disappears_during_new_scene_bootstrap(self):
         self.assertIn('vc.view.layer.opacity = 0',SCENE)
         self.assertIn('vc.view.isUserInteractionEnabled = false',SCENE)
-        self.assertIn('fullscreen_scene_inplace_display_handoff',SCENE)
+        self.assertIn('fullscreen_scene_first_surface_revealed',SCENE)
         self.assertIn('slots[index].pid = vc.pid',SCENE)
         self.assertIn('revealStartedScene(slots[index].id)',SCENE)
-        self.assertIn('if viewport?.select(folder: folder) == true',SCENE)
+        self.assertIn('if ready, viewport?.select(folder: folder) == true',SCENE)
         self.assertIn('attemptsRemaining > 0',SCENE)
         self.assertIn('guard !old.isAppRunning else { return false }',SCENE)
         self.assertIn('old.view.removeFromSuperview()',SCENE)

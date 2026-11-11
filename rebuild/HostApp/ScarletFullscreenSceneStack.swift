@@ -27,6 +27,9 @@ final class ScarletFullscreenSceneStack: NSObject, ObservableObject,
     weak var viewport: ScarletFullscreenSceneViewport?
     // R5 recovery: observation only, no guest UIKit method interception.
     private var guestProcessStartTimes: [ObjectIdentifier: Date] = [:]
+    private var pendingReveal: Set<String> = []
+    private var remoteAttachSeen: Set<String> = []
+    private var firstRevealCompleted: Set<String> = []
     private var overlayWindow: ScarletGuestTouchPassthroughWindow?
     // A resident overlay can be non-key and lose background hit ownership.
     // Gesture is attached to the actual parent viewport, not a guest process.
@@ -130,6 +133,9 @@ final class ScarletFullscreenSceneStack: NSObject, ObservableObject,
                           bundleID: app.bundleIdentifier,
                           icon: icon, pid: 0, failed: false))
         activeID = folder
+        pendingReveal.remove(folder)
+        remoteAttachSeen.remove(folder)
+        firstRevealCompleted.remove(folder)
         lastError = nil
         isVisible = true
         ScarletDiagnosticRecorder.shared.record(
@@ -314,27 +320,49 @@ final class ScarletFullscreenSceneStack: NSObject, ObservableObject,
 
     }
 
-    // A PID can be reported before the remote UIKit surface is interactive.
-    // Retry only a bounded number of times while leaving the old scene visible.
-    private func revealStartedScene(_ folder: String, attemptsRemaining: Int = 8) {
-        guard activeID == folder else { return }
-        if viewport?.select(folder: folder) == true {
-            ScarletDiagnosticRecorder.shared.record(
-                "guest", "fullscreen_scene_inplace_display_handoff",
-                status: "success",
-                fields: ["result": "live_scene_selected",
-                         "memory": "same_host_scene_stack"])
+    // PID readiness and remote UIKit presentation readiness are different.
+    // An actual iPhone can leave a black remote surface until the user goes
+    // Home and back, because first handoff occurs before UIKit content attach.
+    private func revealStartedScene(_ folder: String,
+                                    attemptsRemaining: Int = 60,
+                                    isRetry: Bool = false) {
+        guard activeID == folder else {
+            pendingReveal.remove(folder)
+            return
+        }
+        let ready = viewport?.isRemoteReady(folder: folder) == true
+        if ready, viewport?.select(folder: folder) == true {
+            pendingReveal.remove(folder)
+            if firstRevealCompleted.insert(folder).inserted {
+                ScarletDiagnosticRecorder.shared.record(
+                    "guest", "fullscreen_scene_first_surface_revealed",
+                    status: "success",
+                    fields: ["result": "content_attached_foreground_requested",
+                             "memory": "same_host_scene_stack"])
+            }
             return
         }
         guard attemptsRemaining > 0 else {
+            pendingReveal.remove(folder)
             ScarletDiagnosticRecorder.shared.record(
-                "guest", "fullscreen_scene_inplace_display_handoff",
-                status: "warning", fields: ["result": "scene_not_ready"])
+                "guest", "fullscreen_scene_first_surface_timeout",
+                status: "warning", fields: ["reason": "remote_content_not_attached",
+                                             "memory": "pid_not_render_readiness"])
+            return
+        }
+        if pendingReveal.insert(folder).inserted {
+            ScarletDiagnosticRecorder.shared.record(
+                "guest", "fullscreen_scene_waiting_for_remote_content",
+                fields: ["reason": "pid_precedes_presenter_scene_and_content_view"])
+        } else if !isRetry {
+            // Native attach callback may arrive during an existing retry;
+            // that retry remains authoritative to prevent timer duplication.
             return
         }
         Task { @MainActor [weak self] in
-            try? await Task.sleep(nanoseconds: 180_000_000)
-            self?.revealStartedScene(folder, attemptsRemaining: attemptsRemaining - 1)
+            try? await Task.sleep(nanoseconds: 250_000_000)
+            self?.revealStartedScene(folder,
+                attemptsRemaining: attemptsRemaining - 1, isRetry: true)
         }
     }
 
@@ -365,11 +393,29 @@ final class ScarletFullscreenSceneStack: NSObject, ObservableObject,
                      "memory": "new_live_process"])
     }
 
+    // Native signal after setUpAppPresenter added _contentView to its real
+    // owning VC. This was absent in R2/R3, where PID could be reported first.
+    func appSceneVCDidAttachRemoteContent(_ vc: AppSceneViewController!) {
+        guard let vc, viewport?.ownsController(vc, folder: vc.bundleId) == true else { return }
+        remoteAttachSeen.insert(vc.bundleId)
+        ScarletDiagnosticRecorder.shared.record(
+            "guest", "fullscreen_scene_remote_content_attached",
+            fields: ["result": "native_after_content_subview",
+                     "window_attached": vc.view.window != nil ? "true" : "false",
+                     "process_pid": String(vc.pid)])
+        if activeID == vc.bundleId {
+            revealStartedScene(vc.bundleId)
+        }
+    }
+
     // Objective-C delegate callbacks from the ORIGINAL AppSceneViewController.
     func appSceneVCAppDidExit(_ vc: AppSceneViewController!) {
         guard let vc, viewport?.ownsController(vc, folder: vc.bundleId) == true
         else { return }
         let wasActive = activeID == vc.bundleId
+        pendingReveal.remove(vc.bundleId)
+        remoteAttachSeen.remove(vc.bundleId)
+        firstRevealCompleted.remove(vc.bundleId)
         let pid = vc.pid
         let lifetime = guestProcessStartTimes.removeValue(forKey: ObjectIdentifier(vc))
         let durationMs = lifetime.map {
@@ -691,6 +737,10 @@ final class ScarletFullscreenSceneViewport: UIViewController {
         controllers[folder]?.isAppRunning == true
     }
 
+    func isRemoteReady(folder: String) -> Bool {
+        controllers[folder]?.scarletRemoteContentReady() == true
+    }
+
     func activePID(folder: String) -> Int32? {
         guard let owned = controllers[folder], owned.isAppRunning,
               owned.pid > 0 else { return nil }
@@ -717,7 +767,7 @@ final class ScarletFullscreenSceneViewport: UIViewController {
     func select(folder: String) -> Bool {
         guard let target = controllers[folder],
               target.isAppRunning,
-              target.contentView?.superview != nil else { return false }
+              target.scarletRemoteContentReady() else { return false }
         for (key, vc) in controllers {
             // A hidden scene stays ATTACHED and its NSExtension request
             // continues. No app process kills or UIKit view detachment.
@@ -725,6 +775,14 @@ final class ScarletFullscreenSceneViewport: UIViewController {
             vc.view.isUserInteractionEnabled = key == folder
         }
         view.bringSubviewToFront(target.view)
+        // One-shot foreground request after the real remote surface is
+        // attached. Never restart or re-sign an existing guest process.
+        let foregroundRequested = target.scarletEnsureRemoteForeground()
+        ScarletDiagnosticRecorder.shared.record(
+            "guest", "fullscreen_scene_remote_foreground_confirmed",
+            fields: ["result": foregroundRequested
+                         ? "native_one_shot_request_sent" : "not_ready",
+                     "process_pid": String(target.pid)])
         if let scene = view.window?.windowScene {
             synchronizeAttachedGuestSafeAreas(scene)
         }
