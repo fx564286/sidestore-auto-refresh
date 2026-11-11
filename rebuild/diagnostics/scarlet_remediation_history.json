@@ -1,5 +1,5 @@
 {
-  "schema": 1,
+  "schema": 2,
   "scope": "Scarlet Crystal guest top-screen overlap, touch access, rotation, remote guest render and related resident regressions",
   "updated_utc": "2026-11-11T23:40:27Z",
   "current_baseline": "R6P9 f29ddd833305; iPhone iOS 27.2 24B119",
@@ -17,7 +17,10 @@
       "observation": "상단 Safe Area/터치 좌표 불일치가 지속",
       "evidence": "past_chat",
       "status": "device_unresolved",
-      "repeat_policy": "no_repeat_without_new_device_evidence"
+      "repeat_policy": "no_repeat_without_new_device_evidence",
+      "code_locations": [],
+      "source_verification": "source_unavailable",
+      "missing_source_reason": "이전 프로젝트 저장소/원본 커밋이 현재 확인되지 않아 파일·함수·변경 전후를 임의 기입할 수 없음."
     },
     {
       "id": "L002",
@@ -29,7 +32,10 @@
       "observation": "중복 버튼·조작 문제, 상단 겹침 해결 근거 없음",
       "evidence": "past_chat",
       "status": "unverified",
-      "repeat_policy": "no_repeat_without_new_device_evidence"
+      "repeat_policy": "no_repeat_without_new_device_evidence",
+      "code_locations": [],
+      "source_verification": "source_unavailable",
+      "missing_source_reason": "이전 프로젝트 저장소/원본 커밋이 현재 확인되지 않아 파일·함수·변경 전후를 임의 기입할 수 없음."
     },
     {
       "id": "L003",
@@ -41,7 +47,10 @@
       "observation": "수정 시도, 기기 정상화 미확인",
       "evidence": "past_chat",
       "status": "device_unresolved",
-      "repeat_policy": "no_repeat_without_new_device_evidence"
+      "repeat_policy": "no_repeat_without_new_device_evidence",
+      "code_locations": [],
+      "source_verification": "source_unavailable",
+      "missing_source_reason": "이전 프로젝트 저장소/원본 커밋이 현재 확인되지 않아 파일·함수·변경 전후를 임의 기입할 수 없음."
     },
     {
       "id": "L004",
@@ -53,7 +62,10 @@
       "observation": "창 UI 정리, 상단 터치 해결 미확인",
       "evidence": "past_chat",
       "status": "unverified",
-      "repeat_policy": "no_repeat_without_new_device_evidence"
+      "repeat_policy": "no_repeat_without_new_device_evidence",
+      "code_locations": [],
+      "source_verification": "source_unavailable",
+      "missing_source_reason": "이전 프로젝트 저장소/원본 커밋이 현재 확인되지 않아 파일·함수·변경 전후를 임의 기입할 수 없음."
     },
     {
       "id": "L005",
@@ -65,7 +77,10 @@
       "observation": "사용자 재현에서 계속 잘림/상단 겹침",
       "evidence": "past_chat",
       "status": "device_unresolved",
-      "repeat_policy": "no_repeat_without_new_device_evidence"
+      "repeat_policy": "no_repeat_without_new_device_evidence",
+      "code_locations": [],
+      "source_verification": "source_unavailable",
+      "missing_source_reason": "이전 프로젝트 저장소/원본 커밋이 현재 확인되지 않아 파일·함수·변경 전후를 임의 기입할 수 없음."
     },
     {
       "id": "L006",
@@ -77,7 +92,10 @@
       "observation": "레이아웃/터치 원인 분리 실패",
       "evidence": "past_chat",
       "status": "unverified",
-      "repeat_policy": "no_repeat_without_new_device_evidence"
+      "repeat_policy": "no_repeat_without_new_device_evidence",
+      "code_locations": [],
+      "source_verification": "source_unavailable",
+      "missing_source_reason": "이전 프로젝트 저장소/원본 커밋이 현재 확인되지 않아 파일·함수·변경 전후를 임의 기입할 수 없음."
     },
     {
       "id": "L007",
@@ -89,7 +107,10 @@
       "observation": "빈 영역 탭 닫기 기능 회귀, 상단 문제 지속",
       "evidence": "past_chat",
       "status": "device_unresolved",
-      "repeat_policy": "no_repeat_without_new_device_evidence"
+      "repeat_policy": "no_repeat_without_new_device_evidence",
+      "code_locations": [],
+      "source_verification": "source_unavailable",
+      "missing_source_reason": "이전 프로젝트 저장소/원본 커밋이 현재 확인되지 않아 파일·함수·변경 전후를 임의 기입할 수 없음."
     },
     {
       "id": "L008",
@@ -101,7 +122,10 @@
       "observation": "소스 테스트 통과, 실제 상단 문제 해결 미입증",
       "evidence": "past_chat",
       "status": "source_only",
-      "repeat_policy": "no_repeat_without_new_device_evidence"
+      "repeat_policy": "no_repeat_without_new_device_evidence",
+      "code_locations": [],
+      "source_verification": "source_unavailable",
+      "missing_source_reason": "이전 프로젝트 저장소/원본 커밋이 현재 확인되지 않아 파일·함수·변경 전후를 임의 기입할 수 없음."
     },
     {
       "id": "L009",
@@ -113,7 +137,10 @@
       "observation": "창 UI 개선은 별도이며 상단 문제 해결 미확인",
       "evidence": "past_chat",
       "status": "unverified",
-      "repeat_policy": "no_repeat_without_new_device_evidence"
+      "repeat_policy": "no_repeat_without_new_device_evidence",
+      "code_locations": [],
+      "source_verification": "source_unavailable",
+      "missing_source_reason": "이전 프로젝트 저장소/원본 커밋이 현재 확인되지 않아 파일·함수·변경 전후를 임의 기입할 수 없음."
     },
     {
       "id": "L010",
@@ -125,7 +152,10 @@
       "observation": "소스 테스트 통과, 앱별 불일치 실제 해결 근거 없음",
       "evidence": "past_chat",
       "status": "source_only",
-      "repeat_policy": "no_repeat_without_new_device_evidence"
+      "repeat_policy": "no_repeat_without_new_device_evidence",
+      "code_locations": [],
+      "source_verification": "source_unavailable",
+      "missing_source_reason": "이전 프로젝트 저장소/원본 커밋이 현재 확인되지 않아 파일·함수·변경 전후를 임의 기입할 수 없음."
     },
     {
       "id": "L011",
@@ -137,7 +167,10 @@
       "observation": "IPA 생성, 화면/터치 미검증",
       "evidence": "past_chat",
       "status": "ci_only",
-      "repeat_policy": "no_repeat_without_new_device_evidence"
+      "repeat_policy": "no_repeat_without_new_device_evidence",
+      "code_locations": [],
+      "source_verification": "source_unavailable",
+      "missing_source_reason": "이전 프로젝트 저장소/원본 커밋이 현재 확인되지 않아 파일·함수·변경 전후를 임의 기입할 수 없음."
     },
     {
       "id": "L012",
@@ -149,7 +182,10 @@
       "observation": "사용자 실행 실패 보고",
       "evidence": "past_chat",
       "status": "device_unresolved",
-      "repeat_policy": "no_repeat_without_new_device_evidence"
+      "repeat_policy": "no_repeat_without_new_device_evidence",
+      "code_locations": [],
+      "source_verification": "source_unavailable",
+      "missing_source_reason": "이전 프로젝트 저장소/원본 커밋이 현재 확인되지 않아 파일·함수·변경 전후를 임의 기입할 수 없음."
     },
     {
       "id": "L013",
@@ -161,7 +197,10 @@
       "observation": "재계산 시점 변경, 기기 상단 겹침 해결 미확인",
       "evidence": "past_chat",
       "status": "unverified",
-      "repeat_policy": "no_repeat_without_new_device_evidence"
+      "repeat_policy": "no_repeat_without_new_device_evidence",
+      "code_locations": [],
+      "source_verification": "source_unavailable",
+      "missing_source_reason": "이전 프로젝트 저장소/원본 커밋이 현재 확인되지 않아 파일·함수·변경 전후를 임의 기입할 수 없음."
     },
     {
       "id": "L014",
@@ -173,7 +212,10 @@
       "observation": "V172 사용자 재발 보고, 후속 실기기 해결 근거 없음",
       "evidence": "past_chat",
       "status": "device_unresolved",
-      "repeat_policy": "no_repeat_without_new_device_evidence"
+      "repeat_policy": "no_repeat_without_new_device_evidence",
+      "code_locations": [],
+      "source_verification": "source_unavailable",
+      "missing_source_reason": "이전 프로젝트 저장소/원본 커밋이 현재 확인되지 않아 파일·함수·변경 전후를 임의 기입할 수 없음."
     },
     {
       "id": "L015",
@@ -185,7 +227,10 @@
       "observation": "기능 누락 발생, 상단 터치 해결 미확인",
       "evidence": "past_chat",
       "status": "unverified",
-      "repeat_policy": "no_repeat_without_new_device_evidence"
+      "repeat_policy": "no_repeat_without_new_device_evidence",
+      "code_locations": [],
+      "source_verification": "source_unavailable",
+      "missing_source_reason": "이전 프로젝트 저장소/원본 커밋이 현재 확인되지 않아 파일·함수·변경 전후를 임의 기입할 수 없음."
     },
     {
       "id": "L016",
@@ -971,15 +1016,38 @@
       "evidence": "74c237d6c",
       "status": "device_unresolved",
       "repeat_policy": "no_repeat_without_new_device_evidence",
-      "code_locations": [],
+      "code_locations": [
+        {
+          "commit": "96efdb75ecc0574e312f6fddc1f384d82d324c96",
+          "file": "rebuild/integration/apply_scarlet_host.py",
+          "location": "@@ -946,10 +946,10 @@ def add_v45_fullscreen_scene_slot(engine: Path) -> dict:",
+          "before": [
+            "    old = \"        settings.statusBarDisabled = !self.isNativeWindow;\"",
+            "    assert a.count(old) == 1",
+            "    a = a.replace(old,",
+            "        \"        settings.statusBarDisabled = !self.isNativeWindow && !self.scarletNativeFullscreenSlot;\", 1)"
+          ],
+          "after": [
+            "    # Preserve the EXACT upstream full-screen status bar contract. V45's",
+            "    # pilot override could make the guest's remote scene draw a second",
+            "    # status-bar/safe-area policy over Scarlet's real host status bar.",
+            "    assert a.count(\"        settings.statusBarDisabled = !self.isNativeWindow;\") == 1"
+          ]
+        }
+      ],
       "source_revisions": [
         {
           "sha": "74c237d6ca39f38deb679d02a3b76b45ecb067ae",
           "url": "https://github.com/fx564286/sidestore-auto-refresh/commit/74c237d6ca39f38deb679d02a3b76b45ecb067ae",
           "title": "fix(v48): keep live guest PID, recover exited scenes, lock runtime mode and restore native status area"
+        },
+        {
+          "sha": "96efdb75ecc0574e312f6fddc1f384d82d324c96",
+          "url": "https://github.com/fx564286/sidestore-auto-refresh/commit/96efdb75ecc0574e312f6fddc1f384d82d324c96",
+          "title": "fix(v48): keep live guest PID, recover exited scenes, lock runtime mode and restore native status area"
         }
       ],
-      "source_verification": "commit_without_mapped_source_diff"
+      "source_verification": "git_patch_observed"
     },
     {
       "id": "L027",
@@ -2047,6 +2115,30 @@
             "            scarletGuestAudioPaused = YES;",
             "            [[NSNotificationCenter defaultCenter]"
           ]
+        },
+        {
+          "commit": "a04ff2f142ea1a134571590f8314e902eac6ea9b",
+          "file": "rebuild/HostApp/ScarletFullscreenSceneStack.swift",
+          "location": "@@ -633,6 +633,51 @@ final class ScarletFullscreenSceneStack: NSObject, ObservableObject,",
+          "before": [],
+          "after": [
+            "// Guest-side AVAudioSession receipts are scoped to the exact LiveProcess",
+            "// PID, just like the original pause/resume commands. A singleton keeps",
+            "// observation valid across SwiftUI viewport reparenting without attaching",
+            "// a new App ID, window, or signing entitlement.",
+            "@available(iOS 17.0, *)",
+            "@MainActor"
+          ]
+        },
+        {
+          "commit": "a04ff2f142ea1a134571590f8314e902eac6ea9b",
+          "file": "rebuild/HostApp/ScarletFullscreenSceneStack.swift",
+          "location": "@@ -931,6 +976,8 @@ final class ScarletFullscreenSceneViewport: UIViewController {",
+          "before": [],
+          "after": [
+            "        // Subscribe before dispatch: the guest may acknowledge immediately.",
+            "        ScarletGuestAudioReceiptObserver.shared.observe(pid: pid)"
+          ]
         }
       ],
       "source_revisions": [
@@ -2054,6 +2146,11 @@
           "sha": "c8379afab982031c8f817726d4ac654c66093f3b",
           "url": "https://github.com/fx564286/sidestore-auto-refresh/commit/c8379afab982031c8f817726d4ac654c66093f3b",
           "title": "fix(r6p4): report guest-side audio receipts and retry failed AVAudioSession pause"
+        },
+        {
+          "sha": "a04ff2f142ea1a134571590f8314e902eac6ea9b",
+          "url": "https://github.com/fx564286/sidestore-auto-refresh/commit/a04ff2f142ea1a134571590f8314e902eac6ea9b",
+          "title": "feat(r6p4): record real per-process audio deactivation acknowledgments in host logs"
         }
       ],
       "source_verification": "git_patch_observed"
@@ -2119,15 +2216,56 @@
       "evidence": "c7beff3cb",
       "status": "diagnostic_only",
       "repeat_policy": "no_repeat_without_new_device_evidence",
-      "code_locations": [],
+      "code_locations": [
+        {
+          "commit": "1d8c641b1c938330d0e7d06837ca8e3b9931ef1d",
+          "file": "rebuild/integration/apply_scarlet_host.py",
+          "location": "@@ -1617,12 +1617,111 @@ def main():",
+          "before": [
+            "        hook_probe_anchor, hook_probe_helper + hook_probe_anchor)"
+          ],
+          "after": [
+            "    # R6P6 is deliberately NOT another host/FBScene safe-area correction.",
+            "    # Observe the actual guest UIKit window and its root hierarchy in the",
+            "    # LiveProcess. Only numbers, event stage and process PID cross App Group.",
+            "    # We do not reposition a single guest view, scale the scene, swizzle",
+            "    # UIWindow geometry, or require a new application entitlement.",
+            "    guest_layout_probe = r'''"
+          ]
+        },
+        {
+          "commit": "6611a55a1c2c29c431741973f663c1b42070410a",
+          "file": "rebuild/HostApp/ScarletGuestSessionLedger.swift",
+          "location": "@@ -257,6 +257,62 @@ enum ScarletGuestSessionLedger {",
+          "before": [],
+          "after": [
+            "    // R6P6: compare actual guest-process UIKit geometry with the host's",
+            "    // FBScene readback. Guest writes only numeric positions and a stage;",
+            "    // there are no app names, user text, view class names or screenshots.",
+            "    // Import on diagnostic viewer open, not by repeatedly polling guest UI.",
+            "    private static let guestGeometryKey = \"Scarlet.Guest.WindowGeometry.V1\"",
+            "    private static let guestGeometryCursorKey = \"Scarlet.Guest.WindowGeometryCursor.V1\""
+          ]
+        }
+      ],
       "source_revisions": [
         {
           "sha": "c7beff3cb53a6a46b5d4520796a7744068c5a80c",
           "url": "https://github.com/fx564286/sidestore-auto-refresh/commit/c7beff3cb53a6a46b5d4520796a7744068c5a80c",
           "title": "ci(r6p6): validate and publish isolated guest UIKit geometry diagnostic IPA"
+        },
+        {
+          "sha": "1d8c641b1c938330d0e7d06837ca8e3b9931ef1d",
+          "url": "https://github.com/fx564286/sidestore-auto-refresh/commit/1d8c641b1c938330d0e7d06837ca8e3b9931ef1d",
+          "title": "diag(r6p6): capture guest UIWindow/root view geometry inside LiveProcess instead of rewriting host safe area"
+        },
+        {
+          "sha": "6611a55a1c2c29c431741973f663c1b42070410a",
+          "url": "https://github.com/fx564286/sidestore-auto-refresh/commit/6611a55a1c2c29c431741973f663c1b42070410a",
+          "title": "diag(r6p6): replay anonymous guest UIWindow and root view coordinates in host diagnostic journal"
         }
       ],
-      "source_verification": "commit_without_mapped_source_diff"
+      "source_verification": "git_patch_observed"
     },
     {
       "id": "L040",
@@ -2250,7 +2388,10 @@
       "observation": "PID1036 manifest 있음 3방향, PID1046 manifest 없음 1방향; 상단 잘림과의 인과성 미입증",
       "evidence": "440953bed",
       "status": "diagnostic_only",
-      "repeat_policy": "no_repeat_without_new_device_evidence"
+      "repeat_policy": "no_repeat_without_new_device_evidence",
+      "code_locations": [],
+      "source_verification": "source_unavailable",
+      "missing_source_reason": "확실한 원본 코드 diff 확보되지 않음. 새 구현으로 오인하여 재시도 금지."
     },
     {
       "id": "L043",
@@ -2351,7 +2492,10 @@
       "observation": "두 게스트 pause ok, host owner -1→62, Safe Area 순간 0 반복. 동작 정상=상단 터치 해결 아님",
       "evidence": "f29ddd833",
       "status": "device_unresolved",
-      "repeat_policy": "no_repeat_without_new_device_evidence"
+      "repeat_policy": "no_repeat_without_new_device_evidence",
+      "code_locations": [],
+      "source_verification": "source_unavailable",
+      "missing_source_reason": "확실한 원본 코드 diff 확보되지 않음. 새 구현으로 오인하여 재시도 금지."
     },
     {
       "id": "L045",
@@ -2363,7 +2507,10 @@
       "observation": "새 소스/CI 검증 예정; 기기에서 이력이 출력되는지는 다음 설치 빌드 확인 필요",
       "evidence": "pending",
       "status": "implementation_pending",
-      "repeat_policy": "no_repeat_without_new_device_evidence"
+      "repeat_policy": "no_repeat_without_new_device_evidence",
+      "code_locations": [],
+      "source_verification": "source_unavailable",
+      "missing_source_reason": "확실한 원본 코드 diff 확보되지 않음. 새 구현으로 오인하여 재시도 금지."
     }
   ],
   "gate": {
@@ -2393,5 +2540,27 @@
       "repeat_policy"
     ],
     "success_definition": "iPhone visual screenshot/recording confirms correct top controls and direct touch in portrait, landscape and home-reentry for more than one guest; CI passing alone is not success."
+  },
+  "required_fields_for_new_attempt": [
+    "id",
+    "date",
+    "version",
+    "problem",
+    "mechanism",
+    "action",
+    "hypothesis",
+    "code_locations",
+    "source_revisions",
+    "source_verification",
+    "observation",
+    "device_verification",
+    "status",
+    "repeat_policy",
+    "rollback_commit"
+  ],
+  "fields_guide": {
+    "code_locations": "Each code location MUST contain actual repo-relative file, exact unified-diff @@ function/line context, and before/after changed source. Empty only when source_unavailable, never fill by inference.",
+    "source_revisions": "Original actual source-modifying commit, not just the subsequent CI release commit.",
+    "device_verification": "Explicit visual+touch proof from real iPhone; Xcode archive and successful telemetry aren't equivalent."
   }
 }
