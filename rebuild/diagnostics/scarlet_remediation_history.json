@@ -1629,7 +1629,90 @@
       "observation": "PID 선행 검은 화면 일부 방어, 완전한 상단 해결 증거 없음",
       "evidence": "7dcbbccdc",
       "status": "device_unresolved",
-      "repeat_policy": "no_repeat_without_new_device_evidence"
+      "repeat_policy": "no_repeat_without_new_device_evidence",
+      "code_locations": [
+        {
+          "commit": "7dcbbccdc296787d246da58cbbf464b6f31f5a4e",
+          "file": "rebuild/HostApp/ScarletFullscreenSceneStack.swift",
+          "location": "@@ -27,6 +27,9 @@ final class ScarletFullscreenSceneStack: NSObject, ObservableObject,",
+          "before": [],
+          "after": [
+            "    private var pendingReveal: Set<String> = []",
+            "    private var remoteAttachSeen: Set<String> = []",
+            "    private var firstRevealCompleted: Set<String> = []"
+          ]
+        },
+        {
+          "commit": "7dcbbccdc296787d246da58cbbf464b6f31f5a4e",
+          "file": "rebuild/HostApp/ScarletFullscreenSceneStack.swift",
+          "location": "@@ -130,6 +133,9 @@ final class ScarletFullscreenSceneStack: NSObject, ObservableObject,",
+          "before": [],
+          "after": [
+            "        pendingReveal.remove(folder)",
+            "        remoteAttachSeen.remove(folder)",
+            "        firstRevealCompleted.remove(folder)"
+          ]
+        },
+        {
+          "commit": "7dcbbccdc296787d246da58cbbf464b6f31f5a4e",
+          "file": "rebuild/HostApp/ScarletFullscreenSceneStack.swift",
+          "location": "@@ -314,27 +320,49 @@ final class ScarletFullscreenSceneStack: NSObject, ObservableObject,",
+          "before": [
+            "    // A PID can be reported before the remote UIKit surface is interactive.",
+            "    // Retry only a bounded number of times while leaving the old scene visible.",
+            "    private func revealStartedScene(_ folder: String, attemptsRemaining: Int = 8) {",
+            "        guard activeID == folder else { return }",
+            "        if viewport?.select(folder: folder) == true {",
+            "            ScarletDiagnosticRecorder.shared.record("
+          ],
+          "after": [
+            "    // PID readiness and remote UIKit presentation readiness are different.",
+            "    // An actual iPhone can leave a black remote surface until the user goes",
+            "    // Home and back, because first handoff occurs before UIKit content attach.",
+            "    private func revealStartedScene(_ folder: String,",
+            "                                    attemptsRemaining: Int = 60,",
+            "                                    isRetry: Bool = false) {"
+          ]
+        },
+        {
+          "commit": "7dcbbccdc296787d246da58cbbf464b6f31f5a4e",
+          "file": "rebuild/integration/apply_scarlet_host.py",
+          "location": "@@ -943,8 +943,17 @@ def add_v45_fullscreen_scene_slot(engine: Path) -> dict:",
+          "before": [
+            "        \"- (nullable NSNumber *)scarletApplyHostingContentSafeArea:(UIEdgeInsets)desired;\\n\", 1)"
+          ],
+          "after": [
+            "        \"- (nullable NSNumber *)scarletApplyHostingContentSafeArea:(UIEdgeInsets)desired;\\n\"",
+            "        \"- (BOOL)scarletRemoteContentReady;\\n\"",
+            "        \"- (BOOL)scarletEnsureRemoteForeground;\\n\", 1)",
+            "    protocol_header = engine/\"MultitaskSupport/AppSceneViewController.h\"",
+            "    protocol_src = protocol_header.read_text()",
+            "    marker = '- (void)appSceneVCWillActivateScene:(AppSceneViewController *)vc;'"
+          ]
+        },
+        {
+          "commit": "7dcbbccdc296787d246da58cbbf464b6f31f5a4e",
+          "file": "rebuild/integration/apply_scarlet_host.py",
+          "location": "@@ -1104,10 +1113,51 @@ def add_v45_fullscreen_scene_slot(engine: Path) -> dict:",
+          "before": [],
+          "after": [
+            "\"\"\"",
+            "    helper += r\"\"\"",
+            "// Pilot-only two-phase native render handshake. PID is not proof that the",
+            "// remote FBScene hosting view exists. Nothing is injected in the guest.",
+            "- (BOOL)scarletRemoteContentReady {",
+            "    if(!self.scarletNativeFullscreenSlot || !self.isAppRunning ||"
+          ]
+        }
+      ],
+      "source_revisions": [
+        {
+          "sha": "7dcbbccdc296787d246da58cbbf464b6f31f5a4e",
+          "url": "https://github.com/fx564286/sidestore-auto-refresh/commit/7dcbbccdc296787d246da58cbbf464b6f31f5a4e",
+          "title": "fix(v48-r5-recovery-r4): wait for native remote UIKit content and host UIWindow before first reveal, one-shot foreground activation after attachment, retain per-scene safe geometry and V48 switcher"
+        }
+      ],
+      "source_verification": "git_patch_observed"
     },
     {
       "id": "L034",
@@ -1641,7 +1724,69 @@
       "observation": "시작 실패 대응, 실제 상단 터치 미해결",
       "evidence": "bf4d9eeab",
       "status": "unverified",
-      "repeat_policy": "no_repeat_without_new_device_evidence"
+      "repeat_policy": "no_repeat_without_new_device_evidence",
+      "code_locations": [
+        {
+          "commit": "bf4d9eeabff3b0e2999d17703ba540c88526e9da",
+          "file": "rebuild/HostApp/ScarletDiagnosticRecorder.swift",
+          "location": "@@ -48,7 +48,8 @@ final class ScarletDiagnosticRecorder: @unchecked Sendable {",
+          "before": [
+            "        \"host_owner_top_pt\""
+          ],
+          "after": [
+            "        \"host_owner_top_pt\", \"error_domain\", \"error_code\", \"fast_exit\",",
+            "        \"mode\""
+          ]
+        },
+        {
+          "commit": "bf4d9eeabff3b0e2999d17703ba540c88526e9da",
+          "file": "rebuild/HostApp/ScarletFullscreenSceneStack.swift",
+          "location": "@@ -30,6 +30,10 @@ final class ScarletFullscreenSceneStack: NSObject, ObservableObject,",
+          "before": [],
+          "after": [
+            "    // Compatibility fallback is once per guest per host session. It can",
+            "    // never displace another live resident guest or revoke a certificate.",
+            "    private var classicFallbackAttempted: Set<String> = []",
+            "    private var pendingClassicFallback: Set<String> = []"
+          ]
+        },
+        {
+          "commit": "bf4d9eeabff3b0e2999d17703ba540c88526e9da",
+          "file": "rebuild/HostApp/ScarletFullscreenSceneStack.swift",
+          "location": "@@ -300,6 +304,20 @@ final class ScarletFullscreenSceneStack: NSObject, ObservableObject,",
+          "before": [],
+          "after": [
+            "    func restoreForegroundOnHostActive() {",
+            "        guard isVisible, let activeID,",
+            "              viewport?.isAlive(folder: activeID) == true else { return }",
+            "        let refreshed = viewport?.refreshExistingRemoteScene(folder: activeID) == true",
+            "        ScarletDiagnosticRecorder.shared.record(",
+            "            \"guest\", \"fullscreen_scene_host_active_refresh\","
+          ]
+        },
+        {
+          "commit": "bf4d9eeabff3b0e2999d17703ba540c88526e9da",
+          "file": "rebuild/HostApp/ScarletFullscreenSceneStack.swift",
+          "location": "@@ -320,6 +338,67 @@ final class ScarletFullscreenSceneStack: NSObject, ObservableObject,",
+          "before": [],
+          "after": [
+            "    // Some closed-source guests cannot start in a LiveProcess extension.",
+            "    // If a new extension terminates immediately, perform one ORIGINAL LC",
+            "    // launch attempt using the exact same installed .app and data container.",
+            "    // Only safe when no other live resident guest will lose its work state.",
+            "    private func recoverFastFailedGuest(_ folder: String, dataUUID: String,",
+            "                                        reason: String) {"
+          ]
+        }
+      ],
+      "source_revisions": [
+        {
+          "sha": "bf4d9eeabff3b0e2999d17703ba540c88526e9da",
+          "url": "https://github.com/fx564286/sidestore-auto-refresh/commit/bf4d9eeabff3b0e2999d17703ba540c88526e9da",
+          "title": "fix(v48-r5-recovery-r5): recover fast LiveProcess guest failures via one-shot original LC only when no resident guest; reassert foreground for existing scene on host active without guest restart, add crash code diagnostics"
+        }
+      ],
+      "source_verification": "git_patch_observed"
     },
     {
       "id": "L035",
@@ -1653,7 +1798,142 @@
       "observation": "상단 가림 해결 확인 없음",
       "evidence": "5f34369c7",
       "status": "device_unresolved",
-      "repeat_policy": "no_repeat_without_new_device_evidence"
+      "repeat_policy": "no_repeat_without_new_device_evidence",
+      "code_locations": [
+        {
+          "commit": "5f34369c748e0f4cc5666bb782ca9873b774fd93",
+          "file": "rebuild/HostApp/ScarletFullscreenGuestTab.swift",
+          "location": "@@ -49,6 +49,7 @@ final class ScarletGuestTouchPassthroughWindow: UIWindow {",
+          "before": [],
+          "after": [
+            "                shield.frame = bounds"
+          ]
+        },
+        {
+          "commit": "5f34369c748e0f4cc5666bb782ca9873b774fd93",
+          "file": "rebuild/HostApp/ScarletFullscreenGuestTab.swift",
+          "location": "@@ -65,6 +66,13 @@ final class ScarletGuestTouchPassthroughWindow: UIWindow {",
+          "before": [],
+          "after": [
+            "    override func layoutSubviews() {",
+            "        super.layoutSubviews()",
+            "        // The shield is the modal outside-tap owner in resident mode. Keep it",
+            "        // exactly coextensive with the overlay window after rotation/resize.",
+            "        outsideShield?.frame = bounds",
+            "    }"
+          ]
+        },
+        {
+          "commit": "5f34369c748e0f4cc5666bb782ca9873b774fd93",
+          "file": "rebuild/HostApp/ScarletFullscreenGuestTab.swift",
+          "location": "@@ -95,11 +103,14 @@ final class ScarletGuestTouchPassthroughWindow: UIWindow {",
+          "before": [
+            "            if residentHostOwnsOutsideTaps {",
+            "                // UIKit sends the touch to the host root instead, whose",
+            "                // existing resident VC ancestors own the recognizer.",
+            "                return panelRect.insetBy(dx: -3, dy: -3).contains(point)",
+            "            }"
+          ],
+          "after": [
+            "            // V48-R6: a LiveProcess guest surface consumes touches in its own",
+            "            // process, so an ancestor UITapGestureRecognizer on the host",
+            "            // viewport never sees a tap that lands outside the panel. Keep",
+            "            // this non-key overlay window hit-testable for its full bounds;",
+            "            // ScarletSwitcherOutsideShield (a real UIControl above the",
+            "            // hosting view) owns outside hits and calls requestClose()."
+          ]
+        },
+        {
+          "commit": "5f34369c748e0f4cc5666bb782ca9873b774fd93",
+          "file": "rebuild/HostApp/ScarletFullscreenSceneStack.swift",
+          "location": "@@ -630,6 +630,7 @@ final class ScarletFullscreenSceneViewport: UIViewController {",
+          "before": [],
+          "after": [
+            "    private var audioScopedPID: Int32 = 0"
+          ]
+        },
+        {
+          "commit": "5f34369c748e0f4cc5666bb782ca9873b774fd93",
+          "file": "rebuild/HostApp/ScarletFullscreenSceneStack.swift",
+          "location": "@@ -665,9 +666,19 @@ final class ScarletFullscreenSceneViewport: UIViewController {",
+          "before": [],
+          "after": [
+            "        // V48-R6: creating the switcher overlay UIWindow transiently makes",
+            "        // `windows.first(normal)`/`view.safeAreaInsets` report a 0pt top.",
+            "        // Device log: 62 -> 0 -> 62 within 0.5ms, flagged as",
+            "        // island_overlap_suspected. A 0pt top applied to the guest puts its",
+            "        // top bar under Dynamic Island, so resolve against the window that",
+            "        // actually contains this viewport and never downgrade a positive top."
+          ]
+        },
+        {
+          "commit": "5f34369c748e0f4cc5666bb782ca9873b774fd93",
+          "file": "rebuild/HostApp/ScarletFullscreenSceneStack.swift",
+          "location": "@@ -676,9 +687,9 @@ final class ScarletFullscreenSceneViewport: UIViewController {",
+          "before": [
+            "        let safe = resolvedHostInsets(scene)",
+            "        guard safe.top > 0 || safe.bottom > 0 ||",
+            "              safe.left > 0 || safe.right > 0 else {"
+          ],
+          "after": [
+            "        let hostSafe = resolvedHostInsets(scene)",
+            "        guard hostSafe.top > 0 || hostSafe.bottom > 0 ||",
+            "              hostSafe.left > 0 || hostSafe.right > 0 else {"
+          ]
+        },
+        {
+          "commit": "5f34369c748e0f4cc5666bb782ca9873b774fd93",
+          "file": "rebuild/integration/apply_scarlet_host.py",
+          "location": "@@ -1071,7 +1071,11 @@ def add_v45_fullscreen_scene_slot(engine: Path) -> dict:",
+          "before": [
+            "            settings.peripheryInsets = safe;"
+          ],
+          "after": [
+            "            // V48-R6: the resident guest scene fills the host window, so it",
+            "            // has no periphery of its own. Express Dynamic Island and home",
+            "            // indicator only through the safe area; a nonzero periphery here",
+            "            // re-applies the island inset to an already full-bleed frame.",
+            "            settings.peripheryInsets = UIEdgeInsetsZero;"
+          ]
+        },
+        {
+          "commit": "5f34369c748e0f4cc5666bb782ca9873b774fd93",
+          "file": "rebuild/integration/apply_scarlet_host.py",
+          "location": "@@ -1202,7 +1206,11 @@ def add_v45_fullscreen_scene_slot(engine: Path) -> dict:",
+          "before": [
+            "            settings.peripheryInsets = safe;"
+          ],
+          "after": [
+            "            // V48-R6: keep the guest scene full-bleed and send Dynamic",
+            "            // Island/home-indicator guidance only through the scene's safe",
+            "            // area. peripheryInsets=safe double-applied the host inset and",
+            "            // could shift guest content back under the island.",
+            "            settings.peripheryInsets = UIEdgeInsetsZero;"
+          ]
+        },
+        {
+          "commit": "5f34369c748e0f4cc5666bb782ca9873b774fd93",
+          "file": "rebuild/integration/apply_scarlet_host.py",
+          "location": "@@ -1234,6 +1242,133 @@ def add_v45_fullscreen_scene_slot(engine: Path) -> dict:",
+          "before": [],
+          "after": [
+            "def add_scarlet_guest_audio_isolation(engine: Path) -> dict:",
+            "    \"\"\"V48-R6: keep only the active LiveProcess guest's audio session alive.",
+            "    Every guest is a separate LiveProcess extension process, so the host's",
+            "    AVAudioSession cannot silence another guest. The host posts a Darwin",
+            "    notification scoped to the exact guest PID; the injected TweakLoader hook",
+            "    in that process posts the standard interruption/resign-active lifecycle"
+          ]
+        }
+      ],
+      "source_revisions": [
+        {
+          "sha": "5f34369c748e0f4cc5666bb782ca9873b774fd93",
+          "url": "https://github.com/fx564286/sidestore-auto-refresh/commit/5f34369c748e0f4cc5666bb782ca9873b774fd93",
+          "title": "fix(v48-r6): close resident switcher on outside tap, keep island inset in safe area only, scope guest audio to the visible process"
+        }
+      ],
+      "source_verification": "git_patch_observed"
     },
     {
       "id": "L036",
@@ -1665,7 +1945,57 @@
       "observation": "오디오 재활성화 소스 가드 추가, 상단 문제와 별개",
       "evidence": "40c236e27",
       "status": "source_only",
-      "repeat_policy": "reference_only"
+      "repeat_policy": "reference_only",
+      "code_locations": [
+        {
+          "commit": "40c236e273e65776f38ef219b59f8df551364760",
+          "file": "rebuild/HostApp/ScarletFullscreenSceneStack.swift",
+          "location": "@@ -283,17 +283,29 @@ final class ScarletFullscreenSceneStack: NSObject, ObservableObject,",
+          "before": [
+            "              slot.pid > 0, viewport?.isAlive(folder: folder) == true,",
+            "              viewport?.select(folder: folder) == true else {",
+            "        activeID = folder"
+          ],
+          "after": [
+            "              slot.pid > 0, viewport?.isAlive(folder: folder) == true else {",
+            "        // A hidden compositor is intentionally prevented from foregrounding",
+            "        // its remote guest. Explicit user activation must reveal the viewport",
+            "        // BEFORE select() is allowed to resume this exact guest's audio.",
+            "        let wasVisible = isVisible",
+            "        guard viewport?.select(folder: folder) == true else {"
+          ]
+        },
+        {
+          "commit": "40c236e273e65776f38ef219b59f8df551364760",
+          "file": "rebuild/HostApp/ScarletFullscreenSceneStack.swift",
+          "location": "@@ -635,6 +647,7 @@ final class ScarletFullscreenSceneViewport: UIViewController {",
+          "before": [],
+          "after": [
+            "    private var hiddenAudioReconcileReported = false"
+          ]
+        },
+        {
+          "commit": "40c236e273e65776f38ef219b59f8df551364760",
+          "file": "rebuild/HostApp/ScarletFullscreenSceneStack.swift",
+          "location": "@@ -939,6 +952,11 @@ final class ScarletFullscreenSceneViewport: UIViewController {",
+          "before": [],
+          "after": [
+            "        // R6P3: SwiftUI can call reconcile() after goHome() has paused every",
+            "        // retained LiveProcess. Never let a hidden guest receive resume or",
+            "        // foreground notifications merely because its view is still mounted.",
+            "        // Only explicit in-app activation makes stack.isVisible true.",
+            "        guard stack?.isVisible == true else { return false }"
+          ]
+        }
+      ],
+      "source_revisions": [
+        {
+          "sha": "40c236e273e65776f38ef219b59f8df551364760",
+          "url": "https://github.com/fx564286/sidestore-auto-refresh/commit/40c236e273e65776f38ef219b59f8df551364760",
+          "title": "fix(r6p3): block hidden guest foreground and audio resume during Home reconcile"
+        }
+      ],
+      "source_verification": "git_patch_observed"
     },
     {
       "id": "L037",
@@ -1677,7 +2007,56 @@
       "observation": "iPhone 로그에서 두 PID pause ok 확인, 물리 음향은 미측정",
       "evidence": "341ef98d0",
       "status": "device_partial_pass",
-      "repeat_policy": "reference_only"
+      "repeat_policy": "reference_only",
+      "code_locations": [
+        {
+          "commit": "c8379afab982031c8f817726d4ac654c66093f3b",
+          "file": "rebuild/integration/apply_scarlet_host.py",
+          "location": "@@ -1272,13 +1272,49 @@ def add_scarlet_guest_audio_isolation(engine: Path) -> dict:",
+          "before": [
+            "    if(scarletGuestAudioPaused == !active) return;",
+            "    scarletGuestAudioPaused = !active;",
+            "        [session setActive:YES error:&error];"
+          ],
+          "after": [
+            "// Darwin notifications do not carry a cross-process userInfo dictionary.",
+            "// The receipt name encodes only action, result, and this LiveProcess PID.",
+            "// A receipt reports AVAudioSession setActive's return value; it is NOT",
+            "// an acoustic microphone measurement nor proof that every media API stopped.",
+            "static void ScarletGuestAudioReceipt(BOOL active, BOOL success) {",
+            "    NSString *name = [NSString stringWithFormat:"
+          ]
+        },
+        {
+          "commit": "c8379afab982031c8f817726d4ac654c66093f3b",
+          "file": "rebuild/integration/apply_scarlet_host.py",
+          "location": "@@ -1289,21 +1325,25 @@ def add_scarlet_guest_audio_isolation(engine: Path) -> dict:",
+          "before": [
+            "        [[NSNotificationCenter defaultCenter]",
+            "            postNotificationName:AVAudioSessionInterruptionNotification",
+            "            object:session",
+            "            userInfo:@{AVAudioSessionInterruptionTypeKey:",
+            "                           @(AVAudioSessionInterruptionTypeBegan)}];",
+            "        [[NSNotificationCenter defaultCenter]"
+          ],
+          "after": [
+            "        ScarletGuestAudioReceipt(YES, result);",
+            "        NSLog(@\"[SCARLET_AUDIO] guest pid=%d resume result=%d code=%ld\",",
+            "              getpid(), result ? 1 : 0, (long)error.code);",
+            "        if(!scarletGuestAudioPaused) {",
+            "            scarletGuestAudioPaused = YES;",
+            "            [[NSNotificationCenter defaultCenter]"
+          ]
+        }
+      ],
+      "source_revisions": [
+        {
+          "sha": "c8379afab982031c8f817726d4ac654c66093f3b",
+          "url": "https://github.com/fx564286/sidestore-auto-refresh/commit/c8379afab982031c8f817726d4ac654c66093f3b",
+          "title": "fix(r6p4): report guest-side audio receipts and retry failed AVAudioSession pause"
+        }
+      ],
+      "source_verification": "git_patch_observed"
     },
     {
       "id": "L038",
@@ -1689,7 +2068,45 @@
       "observation": "실기기 화면 해결 근거 없음, 현재 R6P9에는 미포함",
       "evidence": "2be5c03ff",
       "status": "diagnostic_only",
-      "repeat_policy": "no_repeat_without_new_device_evidence"
+      "repeat_policy": "no_repeat_without_new_device_evidence",
+      "code_locations": [
+        {
+          "commit": "2be5c03ff198cc53265bc985af98a5b2fd43395c",
+          "file": "rebuild/integration/apply_scarlet_host.py",
+          "location": "@@ -1021,6 +1021,26 @@ def add_v45_fullscreen_scene_slot(engine: Path) -> dict:",
+          "before": [],
+          "after": [
+            "// Pilot-only actual status bar frame. Safe-area readback at 62pt alone",
+            "// does not imply the remote UIKit scene has status-bar avoidance metadata.",
+            "static inline CGRect ScarletPilotHostStatusBarFrame(UIWindowScene *scene) {",
+            "    UIWindowScene *hostScene = scene;",
+            "    if(!hostScene) {",
+            "        for(UIScene *candidate in UIApplication.sharedApplication.connectedScenes) {"
+          ]
+        },
+        {
+          "commit": "2be5c03ff198cc53265bc985af98a5b2fd43395c",
+          "file": "rebuild/integration/apply_scarlet_host.py",
+          "location": "@@ -1059,26 +1079,7 @@ def add_v45_fullscreen_scene_slot(engine: Path) -> dict:",
+          "before": [
+            "// Pilot-only actual status bar frame. Safe-area readback at 62pt alone",
+            "// does not imply the remote UIKit scene has status-bar avoidance metadata.",
+            "static CGRect ScarletPilotHostStatusBarFrame(UIWindowScene *scene) {",
+            "    UIWindowScene *hostScene = scene;",
+            "    if(!hostScene) {",
+            "        for(UIScene *candidate in UIApplication.sharedApplication.connectedScenes) {"
+          ],
+          "after": []
+        }
+      ],
+      "source_revisions": [
+        {
+          "sha": "2be5c03ff198cc53265bc985af98a5b2fd43395c",
+          "url": "https://github.com/fx564286/sidestore-auto-refresh/commit/2be5c03ff198cc53265bc985af98a5b2fd43395c",
+          "title": "fix(r6p5): share statusbar resolver across AppSceneViewController and UIKitHooks translation units"
+        }
+      ],
+      "source_verification": "git_patch_observed"
     },
     {
       "id": "L039",
@@ -1701,7 +2118,16 @@
       "observation": "원래 UIKit 위치 검사 계열 재실험, 문제 해결 아닌 진단",
       "evidence": "c7beff3cb",
       "status": "diagnostic_only",
-      "repeat_policy": "no_repeat_without_new_device_evidence"
+      "repeat_policy": "no_repeat_without_new_device_evidence",
+      "code_locations": [],
+      "source_revisions": [
+        {
+          "sha": "c7beff3cb53a6a46b5d4520796a7744068c5a80c",
+          "url": "https://github.com/fx564286/sidestore-auto-refresh/commit/c7beff3cb53a6a46b5d4520796a7744068c5a80c",
+          "title": "ci(r6p6): validate and publish isolated guest UIKit geometry diagnostic IPA"
+        }
+      ],
+      "source_verification": "commit_without_mapped_source_diff"
     },
     {
       "id": "L040",
