@@ -51,8 +51,8 @@ class ScarletModularArchitecture(unittest.TestCase):
         for fragment in ('withAnimation(morphAnimation)',
                          '.animation(morphAnimation, value: isOpen)',
                          'if switcherHaptics {',
-                         'overlay.buttonCenter.x',
-                         'overlay.buttonCenter.y'):
+                         'buttonCenter.x',
+                         'buttonCenter.y'):
             self.assertIn(fragment,GUEST)
         self.assertNotIn('let cx = overlay.dockRight ?',GUEST)
         self.assertNotIn("dlopen(",MODULE)

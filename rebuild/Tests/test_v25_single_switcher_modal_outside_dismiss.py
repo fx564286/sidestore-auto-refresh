@@ -57,7 +57,7 @@ class V25ModalSwitcher(unittest.TestCase):
         self.assertNotIn('floating.frame =',close)
 
     def test_pan_disabled_in_modal_and_existing_session_policy_preserved(self):
-        self.assertIn('!overlay.isExpanded else { return false }',SRC)
+        self.assertIn('guard !isExpanded, gestureRecognizer === holdGesture else { return false }',SRC)
         self.assertIn('let recent = ScarletGuestSessionLedger.recent()',SRC)
         self.assertIn('switch_target_boot_ack',LEDGER)
         self.assertIn('switch_target_boot_mismatch',LEDGER)

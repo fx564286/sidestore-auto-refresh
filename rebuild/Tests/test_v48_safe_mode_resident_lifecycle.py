@@ -30,7 +30,8 @@ class TestV48(unittest.TestCase):
   self.assertIn('releaseExitedController(folder: folder)',S)
   self.assertIn('viewport?.ownsController(vc, folder: vc.bundleId)',S)
   self.assertIn('canRelaunch: canRestart',S)
-  self.assertIn('let activeFolders = Set(slots.map(\.id))',S)
+  self.assertIn('slots.map { slot in',S)
+  self.assertNotIn('inplace_first_launch',S)
   self.assertIn('target.contentView?.superview != nil',S)
   self.assertNotIn('.terminate()',S)
  def test_original_fullscreen_statusbar_behavior_restored(self):

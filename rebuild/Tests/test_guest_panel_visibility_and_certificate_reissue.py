@@ -21,10 +21,10 @@ class V5Contracts(unittest.TestCase):
         self.assertNotIn(".glassEffectTransition(.matchedGeometry)", UI)
 
     def test_pan_stays_in_screen_coordinates(self):
-        for fragment in ("ScarletGuestScreenPan", "UIGestureRecognizerDelegate",
-                         "window.convert(point, to: window.screen.coordinateSpace)",
-                         "dragStartScreen = screenPoint",
-                         "initial.x + screenPoint.x - touch.x",
+        for fragment in ("ScarletGuestSwitcherWindowFactory", "UIGestureRecognizerDelegate",
+                         "UILongPressGestureRecognizer(",
+                         "origin.x + point.x - start.x",
+                         "synchronizeButtonCenter(",
                          "ScarletGuestFloatingDockChanged"):
             self.assertIn(fragment, UI)
         self.assertNotIn('DragGesture(minimumDistance: 12, coordinateSpace: .global)', UI)

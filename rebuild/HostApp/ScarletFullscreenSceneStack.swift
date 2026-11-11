@@ -147,31 +147,18 @@ final class ScarletFullscreenSceneStack: NSObject, ObservableObject,
             overlayWindow = nil
         }
         if overlayWindow == nil {
-            let window = ScarletGuestTouchPassthroughWindow(windowScene: scene)
-            window.backgroundColor = .clear
-            window.isOpaque = false
-            window.windowLevel = UIWindow.Level.alert + 1
-            window.frame = scene.coordinateSpace.bounds
-            let circle = CGPoint(x: window.bounds.maxX - 48,
-                                 y: window.bounds.midY)
-            window.buttonCenter = circle
-            window.isExpanded = false
-            window.rootViewController = UIHostingController(
-                rootView: ScarletFullscreenGuestFloatingTab(
-                    guestTitle: "현재 실행 중인 앱",
-                    reloadApps: { [weak self] in self?.availableTargets() ?? [] },
-                    onPanel: { [weak window] expanded, _ in
-                        window?.isExpanded = expanded
-                    },
-                    initialDockRight: true,
-                    initialButtonCenter: circle,
-                    onSwitch: { [weak self] target in
-                        self?.switchOrLaunch(target) ?? false
-                    },
-                    onExit: { [weak self] in self?.goHome() }
-                )
-            )
-            window.rootViewController?.view.backgroundColor = .clear
+            let center = CGPoint(x: scene.coordinateSpace.bounds.midX,
+                                 y: scene.coordinateSpace.bounds.midY)
+            let window = ScarletGuestSwitcherWindowFactory.make(
+                scene: scene,
+                center: center,
+                guestTitle: "현재 실행 중인 앱",
+                reloadApps: { [weak self] in self?.availableTargets() ?? [] },
+                onPanel: { _, _ in },
+                onSwitch: { [weak self] target in
+                    self?.switchOrLaunch(target) ?? false
+                },
+                onExit: { [weak self] in self?.goHome() })
             overlayWindow = window
         }
         overlayWindow?.frame = scene.coordinateSpace.bounds
@@ -194,24 +181,8 @@ final class ScarletFullscreenSceneStack: NSObject, ObservableObject,
                 icon: slot.icon,
                 reason: live ? nil : "process_not_live")
         }
-        let activeFolders = Set(slots.map(\.id))
-        // An in-place first launch is possible only when the original LC
-        // guest is JIT-less, has an owned data container and can be signed.
-        for (folder, model) in installedModels.sorted(by: {
-            $0.value.displayName.localizedStandardCompare($1.value.displayName)
-                == .orderedAscending
-        }) where !activeFolders.contains(folder) && eligibleForInPlaceLaunch(model) {
-            let icon = UIImage(contentsOfFile:
-                (model.appInfo.bundlePath() ?? "") + "/LCAppIconLight.png")
-            targets.append(ScarletGuestSwitchTarget(
-                id: folder, title: model.displayName,
-                bundleID: model.bundleIdentifier,
-                containerID: model.uiSelectedContainer?.folderName,
-                classicMode: 0, isCurrent: false,
-                canSwitch: false, canRelaunch: true,
-                isShared: false, icon: icon,
-                reason: "inplace_first_launch"))
-        }
+        // Only guests launched in this work session belong in multitasking.
+        // All installation and first launch actions remain in Scarlet Home.
         return targets
     }
 
