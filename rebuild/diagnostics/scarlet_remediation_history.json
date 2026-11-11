@@ -197,7 +197,54 @@
       "observation": "설치/표시·터치 회귀가 이어짐",
       "evidence": "ec6930c47",
       "status": "device_unresolved",
-      "repeat_policy": "no_repeat_without_new_device_evidence"
+      "repeat_policy": "no_repeat_without_new_device_evidence",
+      "code_locations": [
+        {
+          "commit": "ec6930c47258e4c1e89cb8b25965afde0ab569a5",
+          "file": "rebuild/HostApp/ScarletFullscreenGuestTab.swift",
+          "location": "@@ -0,0 +1,170 @@",
+          "before": [],
+          "after": [
+            "// Scarlet PR48: a guest-only controller overlay. Do NOT alter the host shell,",
+            "// LCAppModel.runApp() or the guest's bounds, orientation and UI hierarchy.",
+            "// PR48 can run exactly one foreground guest process at a time; the panel must",
+            "// not mislabel unlaunched apps as concurrently running.",
+            "import Foundation",
+            "import SwiftUI"
+          ]
+        },
+        {
+          "commit": "ec6930c47258e4c1e89cb8b25965afde0ab569a5",
+          "file": "rebuild/integration/apply_scarlet_host.py",
+          "location": "@@ -747,6 +747,7 @@ def main():",
+          "before": [],
+          "after": [
+            "        root/\"rebuild/HostApp/ScarletFullscreenGuestTab.swift\":\"ScarletFullscreenGuestTab.swift\","
+          ]
+        },
+        {
+          "commit": "ec6930c47258e4c1e89cb8b25965afde0ab569a5",
+          "file": "rebuild/integration/apply_scarlet_host.py",
+          "location": "@@ -829,6 +830,36 @@ def main():",
+          "before": [],
+          "after": [
+            "    # Overlay only: the PR48 default runApp() relaunches an entire guest",
+            "    # process and does NOT create a MultitaskAppWindow. Inject the floating",
+            "    # control via existing guest UIKit hook after its UIApplication is active.",
+            "    # Avoid touching guest bounds, transforms, orientation policies, host tabs.",
+            "    guest_hook_file = engine/\"TweakLoader/UIKit+GuestHooks.m\"",
+            "    assert guest_hook_file.is_file(), \"Pinned LC guest UIKit hook missing\""
+          ]
+        }
+      ],
+      "source_revisions": [
+        {
+          "sha": "ec6930c47258e4c1e89cb8b25965afde0ab569a5",
+          "url": "https://github.com/fx564286/sidestore-auto-refresh/commit/ec6930c47258e4c1e89cb8b25965afde0ab569a5",
+          "title": "feat(scarlet): guest-only floating Liquid Glass tab without resizing PR48"
+        }
+      ],
+      "source_verification": "git_patch_observed"
     },
     {
       "id": "L017",
@@ -209,7 +256,59 @@
       "observation": "표시·회전·터치 문제 계속",
       "evidence": "ee5a61e86",
       "status": "device_unresolved",
-      "repeat_policy": "no_repeat_without_new_device_evidence"
+      "repeat_policy": "no_repeat_without_new_device_evidence",
+      "code_locations": [
+        {
+          "commit": "ee5a61e86bf0886729e7ed7b3295bdc37e5e2529",
+          "file": "rebuild/HostApp/ScarletFullscreenGuestTab.swift",
+          "location": "@@ -75,96 +75,119 @@ struct ScarletFullscreenGuestFloatingTab: View {",
+          "before": [
+            "    private static weak var installedRoot: UIViewController?",
+            "    private static var hosting: UIHostingController<ScarletFullscreenGuestFloatingTab>?",
+            "    private static var wrapper: UIView?",
+            "    private static var widthConstraint: NSLayoutConstraint?",
+            "    private static var heightConstraint: NSLayoutConstraint?",
+            "    private static var expanded = false"
+          ],
+          "after": [
+            "// The normal full-screen guest runs a completely separate UIApplicationMain",
+            "// path, so do not attach to the guest's root controller or alter its size.",
+            "// A small non-key UIWindow drawn above it stays visible even when the guest",
+            "// replaces its own root controller (e.g. after login).",
+            "    private static var floatingWindow: UIWindow?",
+            "    private static weak var guestWindow: UIWindow?"
+          ]
+        },
+        {
+          "commit": "ee5a61e86bf0886729e7ed7b3295bdc37e5e2529",
+          "file": "rebuild/integration/apply_scarlet_host.py",
+          "location": "@@ -841,22 +841,45 @@ def main():",
+          "before": [
+            "        '#import \"Localization.h\"\\n#import <objc/message.h>\\n')",
+            "    guest_hook_source = guest_hook_source.replace(guest_hook_anchor,",
+            "        \"    // PR48 independent floating guest tab; no virtual windows.\\n\"",
+            "        \"        [[NSNotificationCenter defaultCenter] addObserverForName:UIApplicationDidBecomeActiveNotification\\n\"",
+            "        \"          object:nil queue:NSOperationQueue.mainQueue usingBlock:^(NSNotification *note) {\\n\"",
+            "        \"        }];\\n\""
+          ],
+          "after": [
+            "        '#import \"Localization.h\"\\n#import <objc/message.h>\\n#import <dlfcn.h>\\n')",
+            "    guest_hook_source = guest_hook_source.replace(",
+            "        guest_hook_anchor,",
+            "        \"    // The full-screen LC guest skips LiveContainerSwiftUI's main().\\n\"",
+            "        \"    // Its classes are in a separate dylib, not in the main executable.\\n\"",
+            "        \"    // Explicitly load the exact built-in framework before NSClassFromString.\\n\""
+          ]
+        }
+      ],
+      "source_revisions": [
+        {
+          "sha": "ee5a61e86bf0886729e7ed7b3295bdc37e5e2529",
+          "url": "https://github.com/fx564286/sidestore-auto-refresh/commit/ee5a61e86bf0886729e7ed7b3295bdc37e5e2529",
+          "title": "fix(scarlet): load floating tab framework in guest and mount independent overlay window"
+        }
+      ],
+      "source_verification": "git_patch_observed"
     },
     {
       "id": "L018",
@@ -221,7 +320,46 @@
       "observation": "상단 게스트 컨트롤 가림 문제 별도 미해결",
       "evidence": "9e003e6f4",
       "status": "unverified",
-      "repeat_policy": "no_repeat_without_new_device_evidence"
+      "repeat_policy": "no_repeat_without_new_device_evidence",
+      "code_locations": [
+        {
+          "commit": "9e003e6f46eef8f5ade52734603db3ceb5b20a46",
+          "file": "rebuild/HostApp/ScarletSigningReadinessPanel.swift",
+          "location": "@@ -90,6 +90,7 @@ struct ScarletSigningReadinessPanel: View {",
+          "before": [],
+          "after": [
+            "    @State private var lastRefreshFailureReason: String?"
+          ]
+        },
+        {
+          "commit": "9e003e6f46eef8f5ade52734603db3ceb5b20a46",
+          "file": "rebuild/HostApp/ScarletSigningReadinessPanel.swift",
+          "location": "@@ -108,6 +109,8 @@ struct ScarletSigningReadinessPanel: View {",
+          "before": [],
+          "after": [
+            "        lastRefreshFailureReason = UserDefaults.standard.string(",
+            "            forKey: \"Scarlet.Refresh.LastFailureReason\")"
+          ]
+        },
+        {
+          "commit": "9e003e6f46eef8f5ade52734603db3ceb5b20a46",
+          "file": "rebuild/HostApp/ScarletSigningReadinessPanel.swift",
+          "location": "@@ -129,6 +132,8 @@ struct ScarletSigningReadinessPanel: View {",
+          "before": [],
+          "after": [
+            "        UserDefaults.standard.removeObject(forKey: \"Scarlet.Refresh.LastFailureReason\")",
+            "        lastRefreshFailureReason = nil"
+          ]
+        }
+      ],
+      "source_revisions": [
+        {
+          "sha": "9e003e6f46eef8f5ade52734603db3ceb5b20a46",
+          "url": "https://github.com/fx564286/sidestore-auto-refresh/commit/9e003e6f46eef8f5ade52734603db3ceb5b20a46",
+          "title": "fix(scarlet): display specific native SideStore renewal failure without blaming healthy P12"
+        }
+      ],
+      "source_verification": "git_patch_observed"
     },
     {
       "id": "L019",
@@ -233,7 +371,46 @@
       "observation": "전환 UI 일부 개선, 상단 문제 해결 근거 없음",
       "evidence": "08b010bb5",
       "status": "unverified",
-      "repeat_policy": "no_repeat_without_new_device_evidence"
+      "repeat_policy": "no_repeat_without_new_device_evidence",
+      "code_locations": [
+        {
+          "commit": "08b010bb59166c88a5f1b544486764aa551be2d3",
+          "file": "rebuild/HostApp/ScarletFullscreenGuestTab.swift",
+          "location": "@@ -474,7 +474,15 @@ final class ScarletFullscreenGuestTabInstaller: NSObject {",
+          "before": [
+            "        guard let guestWindow, let floatingWindow else { return }"
+          ],
+          "after": [
+            "        guard let floatingWindow else { return }",
+            "        // Rotation can replace the guest's key UIWindow. Reacquire the",
+            "        // current real owner instead of tracking a stale weak window pointer.",
+            "        if let key = floatingWindow.windowScene?.windows.first(where: {",
+            "            $0 !== floatingWindow && $0.isKeyWindow",
+            "        }) {"
+          ]
+        },
+        {
+          "commit": "08b010bb59166c88a5f1b544486764aa551be2d3",
+          "file": "rebuild/HostApp/ScarletFullscreenGuestTab.swift",
+          "location": "@@ -541,7 +549,9 @@ final class ScarletFullscreenGuestTabInstaller: NSObject {",
+          "before": [
+            "        guard let floatingWindow, let guestWindow else { return }"
+          ],
+          "after": [
+            "        guard let floatingWindow else { return }",
+            "        placeFloatingWindow()",
+            "        guard let guestWindow else { return }"
+          ]
+        }
+      ],
+      "source_revisions": [
+        {
+          "sha": "08b010bb59166c88a5f1b544486764aa551be2d3",
+          "url": "https://github.com/fx564286/sidestore-auto-refresh/commit/08b010bb59166c88a5f1b544486764aa551be2d3",
+          "title": "fix(scarlet): reattach floating tab to actual guest key UIWindow after scene rotation"
+        }
+      ],
+      "source_verification": "git_patch_observed"
     },
     {
       "id": "L020",
@@ -245,7 +422,45 @@
       "observation": "오버레이 동작 개선, 상단 타이틀/터치 해결 미확인",
       "evidence": "d165077b4",
       "status": "unverified",
-      "repeat_policy": "no_repeat_without_new_device_evidence"
+      "repeat_policy": "no_repeat_without_new_device_evidence",
+      "code_locations": [
+        {
+          "commit": "d165077b4d74b726fe4a2ba684e1111d3086a3f2",
+          "file": "rebuild/HostApp/ScarletFullscreenGuestTab.swift",
+          "location": "@@ -838,10 +838,20 @@ final class ScarletFullscreenGuestTabInstaller: NSObject {",
+          "before": [
+            "              let original = scene.windows.first(where: { $0.isKeyWindow }),",
+            "              original.rootViewController?.viewIfLoaded?.window != nil else {"
+          ],
+          "after": [
+            "              // Some full-screen LC guest scenes never expose a key window",
+            "              // after an app-to-app handoff. Recover only the visible normal",
+            "              // level root guest window, not an alert/keyboard/our overlay.",
+            "              let original = scene.windows.first(where: { window in",
+            "                    window !== floatingWindow && window.isKeyWindow &&",
+            "                    window.rootViewController?.viewIfLoaded?.window != nil"
+          ]
+        },
+        {
+          "commit": "d165077b4d74b726fe4a2ba684e1111d3086a3f2",
+          "file": "rebuild/HostApp/ScarletFullscreenGuestTab.swift",
+          "location": "@@ -927,6 +937,9 @@ final class ScarletFullscreenGuestTabInstaller: NSObject {",
+          "before": [],
+          "after": [
+            "        if lastFailure == \"window_not_ready\" {",
+            "            ScarletGuestSessionLedger.traceSwitcher(\"mount_window_recovered\")",
+            "        }"
+          ]
+        }
+      ],
+      "source_revisions": [
+        {
+          "sha": "d165077b4d74b726fe4a2ba684e1111d3086a3f2",
+          "url": "https://github.com/fx564286/sidestore-auto-refresh/commit/d165077b4d74b726fe4a2ba684e1111d3086a3f2",
+          "title": "fix(scarlet): mount the guest switcher on the actual visible normal UIWindow after handoff"
+        }
+      ],
+      "source_verification": "git_patch_observed"
     },
     {
       "id": "L021",
