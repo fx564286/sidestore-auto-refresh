@@ -485,7 +485,49 @@
       "observation": "8개 이벤트는 기록되나 값이 필터에 누락",
       "evidence": "2d16d43dd",
       "status": "diagnostic_failure",
-      "repeat_policy": "no_repeat_without_new_device_evidence"
+      "repeat_policy": "no_repeat_without_new_device_evidence",
+      "code_locations": [
+        {
+          "commit": "1bd32e44b462c4a81e69d1aae8b4dff52454e3bc",
+          "file": "rebuild/integration/apply_scarlet_host.py",
+          "location": "@@ -1242,6 +1242,113 @@ def add_v45_fullscreen_scene_slot(engine: Path) -> dict:",
+          "before": [],
+          "after": [
+            "def add_scarlet_guest_launch_policy_probe(engine: Path) -> dict:",
+            "    \"\"\"R6P7: inspect the launch-time *bundle policy*, not Safe Area/UIWindow.",
+            "    UIKit may cache app-level status bar and scene declarations at startup.",
+            "    LiveContainer substitutes its main NSBundle and CFBundle before calling",
+            "    the guest's main(); compare the original LiveProcess extension's declared",
+            "    policy with the guest bundle and the effective post-substitution main bundle."
+          ]
+        },
+        {
+          "commit": "1bd32e44b462c4a81e69d1aae8b4dff52454e3bc",
+          "file": "rebuild/integration/apply_scarlet_host.py",
+          "location": "@@ -1673,6 +1780,7 @@ def main():",
+          "before": [],
+          "after": [
+            "    guest_launch_policy = add_scarlet_guest_launch_policy_probe(engine)"
+          ]
+        },
+        {
+          "commit": "1bd32e44b462c4a81e69d1aae8b4dff52454e3bc",
+          "file": "rebuild/integration/apply_scarlet_host.py",
+          "location": "@@ -1689,6 +1797,7 @@ def main():",
+          "before": [],
+          "after": [
+            "        \"guestLaunchPolicyDifferential\": guest_launch_policy,"
+          ]
+        }
+      ],
+      "source_revisions": [
+        {
+          "sha": "1bd32e44b462c4a81e69d1aae8b4dff52454e3bc",
+          "url": "https://github.com/fx564286/sidestore-auto-refresh/commit/1bd32e44b462c4a81e69d1aae8b4dff52454e3bc",
+          "title": "diag(r6p7): audit guest launch Info.plist policy before and after NSBundle/CFBundle substitution"
+        }
+      ],
+      "source_verification": "git_patch_observed"
     },
     {
       "id": "L041",
@@ -497,7 +539,52 @@
       "observation": "실기기 1036/1046: 실제 번들 정책은 게스트 선언과 일치. 상단 문제 원인 아님",
       "evidence": "440953bed",
       "status": "device_diagnostic_pass",
-      "repeat_policy": "no_repeat_without_new_device_evidence"
+      "repeat_policy": "no_repeat_without_new_device_evidence",
+      "code_locations": [
+        {
+          "commit": "16f616c379cce318a402b5dbac23dc982ca53f69",
+          "file": "rebuild/HostApp/ScarletDiagnosticRecorder.swift",
+          "location": "@@ -49,7 +49,20 @@ final class ScarletDiagnosticRecorder: @unchecked Sendable {",
+          "before": [
+            "        \"mode\""
+          ],
+          "after": [
+            "        \"mode\",",
+            "        // R6P8: R6P7 guest bootloader correctly collected these 0/1/-1",
+            "        // launch-policy counts, but the recorder silently dropped them.",
+            "        // Only anonymous bounded BOOL/array-count fields are permitted.",
+            "        \"policy_only\",",
+            "        \"host_status_hidden\", \"guest_status_hidden\","
+          ]
+        },
+        {
+          "commit": "00d3c940f633d3e0a1f32b53ceb1c0e43243f65b",
+          "file": "rebuild/HostApp/ScarletGuestSessionLedger.swift",
+          "location": "@@ -305,8 +305,17 @@ enum ScarletGuestSessionLedger {",
+          "before": [],
+          "after": [
+            "                let received = allowed.reduce(0) { count, key in",
+            "                    count + ((row[key] as? NSNumber) == nil ? 0 : 1)",
+            "                }",
+            "                let persisted = allowed.reduce(0) { count, key in",
+            "                    count + (fields[key] == nil ? 0 : 1)",
+            "                }"
+          ]
+        }
+      ],
+      "source_revisions": [
+        {
+          "sha": "16f616c379cce318a402b5dbac23dc982ca53f69",
+          "url": "https://github.com/fx564286/sidestore-auto-refresh/commit/16f616c379cce318a402b5dbac23dc982ca53f69",
+          "title": "fix(r6p8): retain numeric guest launch-policy fields previously discarded by log allowlist"
+        },
+        {
+          "sha": "00d3c940f633d3e0a1f32b53ceb1c0e43243f65b",
+          "url": "https://github.com/fx564286/sidestore-auto-refresh/commit/00d3c940f633d3e0a1f32b53ceb1c0e43243f65b",
+          "title": "diag(r6p8): count collected policy fields and warn when guest raw payload is incomplete"
+        }
+      ],
+      "source_verification": "git_patch_observed"
     },
     {
       "id": "L042",
@@ -521,7 +608,84 @@
       "observation": "실기기 PID1120/1130 시작/컨텐츠 attach 성공, 초기 hosting owner -1 및 62→0→62 여전히 관찰. 화면 겹침 해결 미확인",
       "evidence": "f29ddd833",
       "status": "device_partial_pass",
-      "repeat_policy": "no_repeat_without_new_device_evidence"
+      "repeat_policy": "no_repeat_without_new_device_evidence",
+      "code_locations": [
+        {
+          "commit": "31a807fc3d02b5db8807135bda00c09914df6a67",
+          "file": "rebuild/integration/apply_scarlet_host.py",
+          "location": "@@ -1243,6 +1243,108 @@ def add_v45_fullscreen_scene_slot(engine: Path) -> dict:",
+          "before": [],
+          "after": [
+            "def add_r6p9_deferred_liveprocess_boot(engine: Path) -> dict:",
+            "    \"\"\"Start resident LiveProcess requests only after owning host window attach.",
+            "    LiveContainer's AppSceneViewController constructor calls",
+            "    beginExtensionRequestWithInputItems: *before* the caller can addChild,",
+            "    mount the remote controller, set scarletNativeFullscreenSlot, or attach",
+            "    it to the foreground UIWindowScene. The device log accordingly reports"
+          ]
+        },
+        {
+          "commit": "31a807fc3d02b5db8807135bda00c09914df6a67",
+          "file": "rebuild/integration/apply_scarlet_host.py",
+          "location": "@@ -1779,6 +1881,7 @@ def main():",
+          "before": [],
+          "after": [
+            "    deferred_scene_boot = add_r6p9_deferred_liveprocess_boot(engine)"
+          ]
+        },
+        {
+          "commit": "31a807fc3d02b5db8807135bda00c09914df6a67",
+          "file": "rebuild/integration/apply_scarlet_host.py",
+          "location": "@@ -1796,6 +1899,7 @@ def main():",
+          "before": [],
+          "after": [
+            "        \"deferredRemoteLaunchUntilHosted\": deferred_scene_boot,"
+          ]
+        },
+        {
+          "commit": "321dc9151264fbba3dc37c3e6183ceee9e14353b",
+          "file": "rebuild/HostApp/ScarletFullscreenSceneStack.swift",
+          "location": "@@ -1053,9 +1053,14 @@ final class ScarletFullscreenSceneViewport: UIViewController {",
+          "before": [
+            "                delegate: stack) else {"
+          ],
+          "after": [
+            "            // R6P9: original LC init() starts NSExtension XPC before this",
+            "            // child belongs to any UIWindow. The device observed initial",
+            "            // host owner unavailable, then 62pt after remote attachment.",
+            "            // Request an *unstarted* VC; this is resident-only and does not",
+            "            // affect original/classic LiveContainer or signed guest bundles.",
+            "                delegate: stack, scarletDeferExtensionRequest: true) else {"
+          ]
+        },
+        {
+          "commit": "321dc9151264fbba3dc37c3e6183ceee9e14353b",
+          "file": "rebuild/HostApp/ScarletFullscreenSceneStack.swift",
+          "location": "@@ -1075,6 +1080,20 @@ final class ScarletFullscreenSceneViewport: UIViewController {",
+          "before": [],
+          "after": [
+            "        // The actual host/window/parent relation now exists. Start each",
+            "        // resident extension at most once only AFTER attaching its VC.",
+            "        // Reconcile is already called on viewDidAppear, verified full-screen",
+            "        // layout and SwiftUI updates; no polling timer, fixed status-bar",
+            "        // offsets, or process recycling.",
+            "        for (folder, vc) in controllers"
+          ]
+        }
+      ],
+      "source_revisions": [
+        {
+          "sha": "31a807fc3d02b5db8807135bda00c09914df6a67",
+          "url": "https://github.com/fx564286/sidestore-auto-refresh/commit/31a807fc3d02b5db8807135bda00c09914df6a67",
+          "title": "fix(r6p9): defer resident LiveProcess XPC startup until AppScene VC attaches to real host UIWindowScene"
+        },
+        {
+          "sha": "321dc9151264fbba3dc37c3e6183ceee9e14353b",
+          "url": "https://github.com/fx564286/sidestore-auto-refresh/commit/321dc9151264fbba3dc37c3e6183ceee9e14353b",
+          "title": "fix(r6p9): construct resident AppScene without XPC; start only after parent UIWindowScene attachment"
+        }
+      ],
+      "source_verification": "git_patch_observed"
     },
     {
       "id": "L044",
