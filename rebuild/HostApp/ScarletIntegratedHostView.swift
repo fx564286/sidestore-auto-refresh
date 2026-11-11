@@ -1162,12 +1162,18 @@ struct ScarletIntegratedHostView: View {
             let stage = note.userInfo?["stage"] as? String ?? "unknown"
             let top = (note.userInfo?["top"] as? NSNumber)?.intValue ?? -1
             let bottom = (note.userInfo?["bottom"] as? NSNumber)?.intValue ?? -1
+            let barHeight = (note.userInfo?["status_bar_height"] as? NSNumber)?.intValue ?? -1
+            let avoidanceBottom = (note.userInfo?["avoidance_max_y"] as? NSNumber)?.intValue ?? -1
+            let sceneOrientation = (note.userInfo?["orientation"] as? NSNumber)?.intValue ?? -1
             ScarletDiagnosticRecorder.shared.record(
                 "layout", "pilot_remote_safearea_applied",
                 status: top > 0 ? "success" : "warning",
                 fields: ["stage": stage,
                          "safe_top_pt": String(top),
                          "safe_bottom_pt": String(bottom),
+                         "status_bar_height_pt": String(barHeight),
+                         "status_bar_avoidance_max_y_pt": String(avoidanceBottom),
+                         "remote_scene_orientation": String(sceneOrientation),
                          "result": top > 0 ? "nonzero_remote_scene_safearea"
                                            : "zero_remote_scene_safearea"])
         }

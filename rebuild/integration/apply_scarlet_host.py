@@ -1021,6 +1021,26 @@ static inline BOOL SCGeometryShouldReport(id scene, UIEdgeInsets insets,
                              now, OBJC_ASSOCIATION_COPY_NONATOMIC);
     return YES;
 }
+// Pilot-only actual status bar frame. Safe-area readback at 62pt alone
+// does not imply the remote UIKit scene has status-bar avoidance metadata.
+static inline CGRect ScarletPilotHostStatusBarFrame(UIWindowScene *scene) {
+    UIWindowScene *hostScene = scene;
+    if(!hostScene) {
+        for(UIScene *candidate in UIApplication.sharedApplication.connectedScenes) {
+            if([candidate isKindOfClass:UIWindowScene.class] &&
+               candidate.activationState == UISceneActivationStateForegroundActive) {
+                hostScene = (UIWindowScene *)candidate;
+                break;
+            }
+        }
+    }
+    if(!hostScene || !hostScene.statusBarManager) return CGRectZero;
+    CGRect bar = hostScene.statusBarManager.statusBarFrame;
+    if(!isfinite(bar.origin.x) || !isfinite(bar.origin.y) ||
+       !isfinite(bar.size.width) || !isfinite(bar.size.height) ||
+       bar.size.width < 0 || bar.size.height < 0) return CGRectZero;
+    return bar;
+}
 """
     (engine/"MultitaskSupport/ScarletSceneGeometryAuthority.h").write_text(authority_header)
     assert a.count('#import "UIKitPrivate+MultitaskSupport.h"') == 1
@@ -1058,6 +1078,8 @@ static UIEdgeInsets ScarletPilotHostInsets(UIWindowScene *scene,
     }
     return insets;
 }
+
+
 """
     old = '@interface AppSceneViewController()\n'
     assert a.count(old) == 2
@@ -1079,6 +1101,16 @@ static UIEdgeInsets ScarletPilotHostInsets(UIWindowScene *scene,
             settings.safeAreaInsetsPortrait = safe;
             if(@available(iOS 19.0, *)) {
                 settings.safeAreaEdgeInsets = safe;
+            }
+            // R6P5: fill absent native status-bar metadata without touching
+            // pixels, root view frame, transform or the guest touch surface.
+            CGRect bar = ScarletPilotHostStatusBarFrame(
+                self.view.window.windowScene);
+            if(CGRectGetHeight(bar) > 0) {
+                if(settings.statusBarHeight <= 0)
+                    settings.statusBarHeight = CGRectGetHeight(bar);
+                if(CGRectIsEmpty(settings.statusBarAvoidanceFrame))
+                    settings.statusBarAvoidanceFrame = bar;
             }
             [NSNotificationCenter.defaultCenter postNotificationName:
                 @"ScarletPilotRemoteSafeAreaChanged" object:nil
@@ -1216,11 +1248,24 @@ static UIEdgeInsets ScarletPilotHostInsets(UIWindowScene *scene,
             if(@available(iOS 19.0, *)) {
                 settings.safeAreaEdgeInsets = safe;
             }
+            // This FBScene owns the remote guest UIKit layout; host
+            // UIViewController.safeAreaInsets is insufficient evidence.
+            // Use measured system status-bar frame, never a magic 62pt.
+            CGRect bar = ScarletPilotHostStatusBarFrame(homeScene);
+            if(CGRectGetHeight(bar) > 0) {
+                if(settings.statusBarHeight <= 0)
+                    settings.statusBarHeight = CGRectGetHeight(bar);
+                if(CGRectIsEmpty(settings.statusBarAvoidanceFrame))
+                    settings.statusBarAvoidanceFrame = bar;
+            }
             if(SCGeometryShouldReport(self, safe, recovered)) {
                 [NSNotificationCenter.defaultCenter postNotificationName:
                     @"ScarletPilotRemoteSafeAreaChanged" object:nil
                     userInfo:@{@"stage": recovered ? @"cached_scene_geometry" : @"live_scene_geometry",
-                               @"top": @(safe.top), @"bottom": @(safe.bottom)}];
+                               @"top": @(safe.top), @"bottom": @(safe.bottom),
+                               @"status_bar_height": @(settings.statusBarHeight),
+                               @"avoidance_max_y": @(CGRectGetMaxY(settings.statusBarAvoidanceFrame)),
+                               @"orientation": @(settings.interfaceOrientation)}];
             }
         };
         [self hook__performUpdateWithoutActivation:safeUpdate];
