@@ -25,6 +25,8 @@ final class ScarletFullscreenSceneStack: NSObject, ObservableObject,
     @Published private(set) var isVisible = false
     @Published private(set) var lastError: String?
     weak var viewport: ScarletFullscreenSceneViewport?
+    // R5 recovery: observation only, no guest UIKit method interception.
+    private var guestProcessStartTimes: [ObjectIdentifier: Date] = [:]
     private var overlayWindow: ScarletGuestTouchPassthroughWindow?
     // Catalog is host-owned LCAppModel data, not a second install database.
     // The switcher can now start an eligible installed guest without going
@@ -338,6 +340,7 @@ final class ScarletFullscreenSceneStack: NSObject, ObservableObject,
             return
         }
         slots[index].pid = vc.pid
+        guestProcessStartTimes[ObjectIdentifier(vc)] = Date()
         // Keep prior scene visible until this exact remote process reports
         // readiness; never flash an uninitialized black child scene.
         if slots[index].id == activeID {
@@ -355,6 +358,11 @@ final class ScarletFullscreenSceneStack: NSObject, ObservableObject,
         guard let vc, viewport?.ownsController(vc, folder: vc.bundleId) == true
         else { return }
         let wasActive = activeID == vc.bundleId
+        let pid = vc.pid
+        let lifetime = guestProcessStartTimes.removeValue(forKey: ObjectIdentifier(vc))
+        let durationMs = lifetime.map {
+            String(max(0, Int(Date().timeIntervalSince($0) * 1000)))
+        } ?? "unknown"
         if let index = slots.firstIndex(where: {
             $0.id == vc.bundleId && $0.dataUUID == vc.dataUUID
         }) {
@@ -366,7 +374,11 @@ final class ScarletFullscreenSceneStack: NSObject, ObservableObject,
         ScarletDiagnosticRecorder.shared.record(
             "guest", "fullscreen_scene_process_exited",
             fields: ["memory": "not_preserved",
-                     "dead_controller_released": released ? "true" : "false"])
+                     "dead_controller_released": released ? "true" : "false",
+                     "process_pid": String(pid),
+                     "duration_ms": durationMs,
+                     "reason": "native_exit_callback_no_ips_reason",
+                     "source": "original_LC_scene_delegate"])
         if wasActive {
             activeID = nil
             goHome()
