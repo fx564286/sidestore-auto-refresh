@@ -1149,6 +1149,20 @@ struct ScarletIntegratedHostView: View {
         }
         .statusBarHidden(false)
         .onReceive(NotificationCenter.default.publisher(
+            for: Notification.Name("ScarletPilotStatusBarGeometryApplied"))) { note in
+            let top = (note.userInfo?["top"] as? NSNumber)?.intValue ?? -1
+            let avoidance = (note.userInfo?["avoidance"] as? NSNumber)?.intValue ?? -1
+            let width = (note.userInfo?["screen_width"] as? NSNumber)?.intValue ?? -1
+            ScarletDiagnosticRecorder.shared.record(
+                "layout", "pilot_statusbar_avoidance_applied",
+                status: avoidance > 0 ? "success" : "warning",
+                fields: ["safe_top_pt": String(top),
+                         "avoidance_height_pt": String(avoidance),
+                         "avoidance_width_pt": String(width),
+                         "result": avoidance > 0 ? "statusbar_exclusion_set"
+                                               : "statusbar_exclusion_zero"])
+        }
+        .onReceive(NotificationCenter.default.publisher(
             for: Notification.Name("ScarletPilotRemoteSafeAreaChanged"))) { note in
             let stage = note.userInfo?["stage"] as? String ?? "unknown"
             let top = (note.userInfo?["top"] as? NSNumber)?.intValue ?? -1

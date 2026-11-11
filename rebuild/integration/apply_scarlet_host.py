@@ -989,6 +989,47 @@ static UIEdgeInsets ScarletPilotHostInsets(UIWindowScene *scene,
     return insets;
 }
 """
+    # An FBScene may expose safeAreaInsetsPortrait=62 while still placing
+    # guest status/navigation controls at y=0. Supply distinct status bar
+    # exclusion geometry, measured on the host, only for tagged pilot scenes.
+    helper += r'''
+void ScarletPilotApplyStatusBarGeometry(UIMutableApplicationSceneSettings *settings,
+                                        UIWindowScene *scene, UIEdgeInsets safe) {
+    if(!settings) { return; }
+    UIWindowScene *hostScene = scene;
+    if(!hostScene) {
+        for(UIScene *candidate in UIApplication.sharedApplication.connectedScenes) {
+            if([candidate isKindOfClass:UIWindowScene.class] &&
+               candidate.activationState == UISceneActivationStateForegroundActive) {
+                hostScene = (UIWindowScene *)candidate;
+                break;
+            }
+        }
+    }
+    UIInterfaceOrientation orientation = settings.interfaceOrientation;
+    if(!UIInterfaceOrientationIsPortrait(orientation) &&
+       !UIInterfaceOrientationIsLandscape(orientation) && hostScene) {
+        orientation = hostScene.interfaceOrientation;
+    }
+    CGRect statusFrame = hostScene.statusBarManager.statusBarFrame;
+    CGFloat reserved = UIInterfaceOrientationIsLandscape(orientation) ? 0 :
+        MAX(safe.top, CGRectGetMaxY(statusFrame));
+    CGFloat width = CGRectGetWidth(hostScene.coordinateSpace.bounds);
+    if(width < 1) { width = UIScreen.mainScreen.bounds.size.width; }
+    CGRect exclusion = CGRectMake(0, 0, width, MAX(0, reserved));
+    if([settings respondsToSelector:@selector(setStatusBarAvoidanceFrame:)]) {
+        settings.statusBarAvoidanceFrame = exclusion;
+    }
+    if([settings respondsToSelector:@selector(setStatusBarHeight:)]) {
+        settings.statusBarHeight = MAX(0, reserved);
+    }
+    [NSNotificationCenter.defaultCenter postNotificationName:
+        @"ScarletPilotStatusBarGeometryApplied" object:nil
+        userInfo:@{@"top": @(safe.top), @"avoidance": @(reserved),
+                   @"screen_width": @(width),
+                   @"stage": @"pilot_scene_statusbar_geometry"}];
+}
+'''
     old = '@interface AppSceneViewController()\n'
     assert a.count(old) == 2
     a = a.replace(old, helper + '\n' + old, 1)
@@ -1001,6 +1042,8 @@ static UIEdgeInsets ScarletPilotHostInsets(UIWindowScene *scene,
                 self.view.window.windowScene, self.view.safeAreaInsets);
             settings.peripheryInsets = safe;
             settings.safeAreaInsetsPortrait = safe;
+            ScarletPilotApplyStatusBarGeometry(settings,
+                self.view.window.windowScene, safe);
             if(@available(iOS 19.0, *)) {
                 settings.safeAreaEdgeInsets = safe;
             }
@@ -1027,6 +1070,11 @@ static UIEdgeInsets ScarletPilotHostInsets(UIWindowScene *scene,
 
     hook_file = engine / "MultitaskSupport/UIKitHooks.m"
     hooks = hook_file.read_text()
+    # Same exported native helper for initial creation and FBScene updates.
+    assert hooks.count('#import "UIKitPrivate+MultitaskSupport.h"') == 1
+    hooks = hooks.replace('#import "UIKitPrivate+MultitaskSupport.h"',
+        '#import "UIKitPrivate+MultitaskSupport.h"\n'
+        'extern void ScarletPilotApplyStatusBarGeometry(UIMutableApplicationSceneSettings *, UIWindowScene *, UIEdgeInsets);', 1)
     old = '''    // We don't wanna mess up system extensions on iOS 26+
     if(LCHasRemoteSheetProviderSelector && self.ui_viewServiceComponent) {'''
     assert hooks.count(old) == 1
@@ -1059,6 +1107,7 @@ static UIEdgeInsets ScarletPilotHostInsets(UIWindowScene *scene,
                 safe.top = MAX(safe.top, statusBottom);
             }
             settings.peripheryInsets = safe;
+            ScarletPilotApplyStatusBarGeometry(settings, homeScene, safe);
             settings.safeAreaInsetsPortrait =
                 LCUIEdgeInsetsRotateToOrientation(safe, settings.interfaceOrientation);
             if(@available(iOS 19.0, *)) {
@@ -1085,7 +1134,8 @@ static UIEdgeInsets ScarletPilotHostInsets(UIWindowScene *scene,
     target.write_text(a)
     return {"singleViewport": True, "legacyDecoratedWindow": False,
             "guestFrameScale": 1, "optIn": True, "sceneTagOnly": True,
-            "pilotRemoteSafeArea": "scene_tagged_initial_and_FBScene_update"}
+            "pilotRemoteSafeArea": "scene_tagged_initial_and_FBScene_update",
+            "pilotStatusBarAvoidance": "host_measured_exclusion_initial_and_FBScene"}
 
 
 def main():
