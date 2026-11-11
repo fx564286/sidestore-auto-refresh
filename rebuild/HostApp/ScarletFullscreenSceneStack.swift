@@ -502,7 +502,12 @@ final class ScarletFullscreenSceneStack: NSObject, ObservableObject,
         guard let vc, viewport?.ownsController(vc, folder: vc.bundleId) == true
         else { return }
         let wasActive = activeID == vc.bundleId
-        let exitedDataUUID = vc.dataUUID
+        // The upstream Objective-C controller exposes dataUUID as an
+        // implicitly optional String. Preserve the exact existing slot's
+        // verified data container rather than force-unwrapping on an exit.
+        let exitedDataUUID = slots.first(where: {
+            $0.id == vc.bundleId && $0.dataUUID == vc.dataUUID
+        })?.dataUUID
         pendingReveal.remove(vc.bundleId)
         remoteAttachSeen.remove(vc.bundleId)
         firstRevealCompleted.remove(vc.bundleId)
@@ -533,7 +538,7 @@ final class ScarletFullscreenSceneStack: NSObject, ObservableObject,
             activeID = nil
             goHome()
         }
-        if fastExit && wasActive {
+        if fastExit && wasActive, let exitedDataUUID {
             recoverFastFailedGuest(vc.bundleId, dataUUID: exitedDataUUID,
                                    reason: "liveprocess_exited_under_4s")
         }
