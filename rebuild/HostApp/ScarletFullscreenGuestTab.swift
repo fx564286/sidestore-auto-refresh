@@ -86,6 +86,22 @@ final class ScarletGuestTouchPassthroughWindow: UIWindow {
         dismissState?.requestClose()
     }
 
+    // R5Y: choose the native shield as the touch OWNER for all taps outside
+    // the actual card. This avoids SwiftUI hosting view z-order and rerenders
+    // replacing a full-window invisible backdrop over our UIControl.
+    // Unlike R4, return the real UIControl, NOT the UIWindow itself:
+    // .touchUpInside will fire and the existing working R5 dismissState runs.
+    override func hitTest(_ point: CGPoint, with event: UIEvent?) -> UIView? {
+        if isExpanded, !isHidden, let shield = outsideShield,
+           !shield.isHidden, shield.isUserInteractionEnabled {
+            let inShield = convert(point, to: shield)
+            if shield.point(inside: inShield, with: event) {
+                return shield
+            }
+        }
+        return super.hitTest(point, with: event)
+    }
+
     override func point(inside point: CGPoint, with event: UIEvent?) -> Bool {
         guard bounds.contains(point) else { return false }
         if isExpanded { return super.point(inside: point, with: event) }

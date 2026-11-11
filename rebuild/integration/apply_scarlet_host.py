@@ -1234,7 +1234,8 @@ static void ScarletGuestHookTrace(NSString *event) {
     dispatch_once(&once, ^{
         allowed = [NSSet setWithArray:@[@"hook_entered", @"framework_loaded",
             @"framework_missing", @"provider_ready", @"provider_missing",
-            @"safearea_root_adjusted", @"safearea_root_already_correct"]];
+            @"safearea_root_adjusted", @"safearea_root_already_correct",
+            @"safearea_root_getter_installed"]];
     });
     if(![allowed containsObject:event]) return;
     NSUserDefaults *shared = NSUserDefaults.lcSharedDefaults;
@@ -1267,6 +1268,37 @@ static void ScarletGuestHookTrace(NSString *event) {
 // changes this guest's frame/scale and avoids premature FBScene updates.
 // iOS 27 may report a remote scene Safe Area but the guest UIWindow/root
 // hierarchy still lays out its first navigation bar at y=0.
+// Native UIKit guest root view safe-area getter, not repeated FBS updates.
+// The previous additionalSafeAreaInsets path cannot guarantee a root view
+// reports nonzero safeArea when the remote FBScene's actual root is full-bleed.
+static UIEdgeInsets (*ScarletGuestOriginalRootSafeArea)(id,SEL) = NULL;
+static UIEdgeInsets ScarletGuestRootSafeAreaOverride(id view, SEL sel) {
+    UIEdgeInsets original = ScarletGuestOriginalRootSafeArea(view,sel);
+    if(!NSUserDefaults.isLiveProcess || !NSUserDefaults.lcGuestAppId ||
+       ![NSThread isMainThread]) return original;
+    UIView *rootView = (UIView *)view;
+    UIWindow *window = rootView.window;
+    if(!window || window.isHidden ||
+       window.rootViewController.view != rootView) return original;
+    NSUserDefaults *shared = NSUserDefaults.lcSharedDefaults;
+    if(![shared boolForKey:@"Scarlet.Pilot.GuestRootSafeArea.Enabled.V1"]) return original;
+    CGFloat desired = [shared doubleForKey:@"Scarlet.Pilot.GuestRootSafeArea.TopPoints.V1"];
+    if(!isfinite(desired) || desired < 0 || desired > 160) return original;
+    if(UIInterfaceOrientationIsLandscape(window.windowScene.interfaceOrientation)) desired = 0;
+    original.top = MAX(original.top, desired);
+    return original;
+}
+static void ScarletGuestInstallRootSafeAreaGetter(void) {
+    if(!NSUserDefaults.isLiveProcess) return;
+    static dispatch_once_t once;
+    dispatch_once(&once, ^{
+        Method method = class_getInstanceMethod(UIView.class, @selector(safeAreaInsets));
+        if(!method) return;
+        ScarletGuestOriginalRootSafeArea = (void *)method_getImplementation(method);
+        method_setImplementation(method, (IMP)ScarletGuestRootSafeAreaOverride);
+        ScarletGuestHookTrace(@"safearea_root_getter_installed");
+    });
+}
 static const void *ScarletGuestRootBaselineTopKey = &ScarletGuestRootBaselineTopKey;
 static const void *ScarletGuestRootAppliedTopKey = &ScarletGuestRootAppliedTopKey;
 static void ScarletGuestTryApplyRootSafeArea(void) {
@@ -1341,6 +1373,7 @@ static void ScarletGuestInstallRootSafeAreaObserver(void) {
         guest_hook_anchor,
         guest_hook_anchor +
         "    ScarletGuestHookTrace(@\"hook_entered\");\n"
+        "    ScarletGuestInstallRootSafeAreaGetter();\n"
         "    ScarletGuestInstallRootSafeAreaObserver();\n"
         "    // The full-screen LC guest skips LiveContainerSwiftUI's main().\n"
         "    // Its classes are in a separate dylib, not in the main executable.\n"

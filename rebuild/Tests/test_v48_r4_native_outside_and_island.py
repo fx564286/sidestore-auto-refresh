@@ -21,7 +21,9 @@ class NativeOutsideAndIsland(unittest.TestCase):
   self.assertIn('.onChange(of: dismissState.closeGeneration)',TAB)
   self.assertIn('closePanel() // Original V48 closePanel and button remain.',TAB)
   self.assertEqual(TAB.count('overlay.enableNativeOutsideDismiss()'),2)
-  self.assertNotIn('override func hitTest(',TAB)
+  self.assertIn('override func hitTest(_ point: CGPoint, with event: UIEvent?) -> UIView?',TAB)
+  self.assertIn('return shield',TAB)
+  self.assertIn('return super.hitTest(point, with: event)',TAB)
   self.assertIn('hypot(point.x - buttonCenter.x,',TAB)
  def test_original_v48_pan_implementation_not_replaced(self):
   self.assertEqual(TAB.count('let pan = UIPanGestureRecognizer(target: panHandler,'),2)
