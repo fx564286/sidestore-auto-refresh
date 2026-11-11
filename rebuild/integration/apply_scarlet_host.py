@@ -1243,6 +1243,108 @@ static UIEdgeInsets ScarletPilotHostInsets(UIWindowScene *scene,
 
 
 
+
+def add_r6p9_deferred_liveprocess_boot(engine: Path) -> dict:
+    """Start resident LiveProcess requests only after owning host window attach.
+
+    LiveContainer's AppSceneViewController constructor calls
+    beginExtensionRequestWithInputItems: *before* the caller can addChild,
+    mount the remote controller, set scarletNativeFullscreenSlot, or attach
+    it to the foreground UIWindowScene. The device log accordingly reports
+    hosting owner unavailable (-1) before it becomes 62pt. Unlike earlier
+    inset workarounds, defer the request at its source until host ownership
+    is established; leave every original LC constructor and frame unchanged.
+    """
+    header = engine/"MultitaskSupport/AppSceneViewController.h"
+    h = header.read_text()
+    signature = "- (instancetype)initWithBundleId:(NSString*)bundleId dataUUID:(NSString*)dataUUID delegate:(id<AppSceneViewControllerDelegate>)delegate;\n"
+    assert h.count(signature) == 1, "R6P9 pinned AppScene initializer header changed"
+    addition = (
+        "// Resident-only: the extension must not bootstrap before its hosting window exists.\n"
+        "- (instancetype)initWithBundleId:(NSString*)bundleId dataUUID:(NSString*)dataUUID "
+        "delegate:(id<AppSceneViewControllerDelegate>)delegate scarletDeferExtensionRequest:(BOOL)defer;\n"
+        "- (BOOL)scarletBeginDeferredExtensionIfHosted;\n"
+    )
+    h = h.replace(signature, signature + addition, 1)
+    header.write_text(h)
+
+    file = engine/"MultitaskSupport/AppSceneViewController.m"
+    a = file.read_text()
+    private_anchor = "@property(nonatomic) UIWindowScene *hostScene;\n"
+    assert a.count(private_anchor) == 1, "R6P9 private hostScene slot changed"
+    a = a.replace(private_anchor,
+        "@property(nonatomic, strong) NSExtensionItem *scarletPendingExtensionItem;\n"
+        + private_anchor, 1)
+    origin = ("- (instancetype)initWithBundleId:(NSString*)bundleId "
+              "dataUUID:(NSString*)dataUUID delegate:(id<AppSceneViewControllerDelegate>)delegate {\n")
+    assert a.count(origin) == 1, "R6P9 constructor signature changed"
+    replacement = (
+        "- (instancetype)initWithBundleId:(NSString*)bundleId "
+        "dataUUID:(NSString*)dataUUID delegate:(id<AppSceneViewControllerDelegate>)delegate {\n"
+        "    return [self initWithBundleId:bundleId dataUUID:dataUUID "
+        "delegate:delegate scarletDeferExtensionRequest:NO];\n"
+        "}\n"
+        "- (instancetype)initWithBundleId:(NSString*)bundleId "
+        "dataUUID:(NSString*)dataUUID delegate:(id<AppSceneViewControllerDelegate>)delegate "
+        "scarletDeferExtensionRequest:(BOOL)defer {\n"
+    )
+    a = a.replace(origin, replacement, 1)
+    begin = "    [_extension beginExtensionRequestWithInputItems:@[item] completion:^(NSUUID *identifier) {\n"
+    assert a.count(begin) == 1, "R6P9 original NSExtension start changed"
+    a = a.replace(begin, """    if(defer) {
+        // No XPC launch here: the call site has not yet added this VC to a
+        // real UIWindowScene. The NSExtension and request payload are ready.
+        self.scarletPendingExtensionItem = item;
+    } else {
+        [self scarletBeginExtensionWithItem:item];
+    }
+
+    return self;
+}
+
+// Exact original LC extension completion semantics, simply moved into a
+// reusable method. Classic/native LC callers invoke it immediately as before.
+- (void)scarletBeginExtensionWithItem:(NSExtensionItem *)item {
+    id<AppSceneViewControllerDelegate> delegate = self.delegate;
+    [self.extension beginExtensionRequestWithInputItems:@[item] completion:^(NSUUID *identifier) {
+""", 1)
+    end = "    }];\n    \n    return self;\n}\n\n- (void)setUpAppPresenter {"
+    # R6P8 setUpAppPresenter has pilot utility methods preceding it;
+    # replace only constructor completion end, not the downstream presenter.
+    end = "    }];\n    \n    return self;\n}"
+    assert a.count(end) == 1, "R6P9 original completion end changed"
+    a = a.replace(end, """    }];
+}
+
+// Idempotent resident-only kick-off. Do not request any process until this
+// exact controller has an owning host UIWindowScene, thus no provisional
+// process/remote scene can observe an unattached UIKit hierarchy.
+- (BOOL)scarletBeginDeferredExtensionIfHosted {
+    NSExtensionItem *item = self.scarletPendingExtensionItem;
+    if(!item || !self.scarletNativeFullscreenSlot ||
+       !self.isViewLoaded || !self.view.window ||
+       !self.view.window.windowScene || !self.parentViewController)
+        return NO;
+    self.scarletPendingExtensionItem = nil; // exactly-once, no self-retain cycle
+    [self scarletBeginExtensionWithItem:item];
+    return YES;
+}
+""", 1)
+    # Important: the source path still retains a single original LC
+    # beginExtensionRequestWithInputItems: call in the shared start routine.
+    assert a.count("beginExtensionRequestWithInputItems:@[item]") == 1
+    assert a.count("scarletDeferExtensionRequest:NO") == 1
+    assert a.count("self.scarletPendingExtensionItem = nil;") == 1
+    file.write_text(a)
+    return {
+        "source": str(file.relative_to(engine)),
+        "residentLaunchDeferred": True,
+        "classicLaunchImmediate": True,
+        "extensionStartSites": 1,
+        "noStatusBarOrGeometryMutation": True,
+    }
+
+
 def add_scarlet_guest_launch_policy_probe(engine: Path) -> dict:
     """R6P7: inspect the launch-time *bundle policy*, not Safe Area/UIWindow.
 
@@ -1779,6 +1881,7 @@ static void ScarletGuestHookTrace(NSString *event) {
     # hiding the old LC dock from host UIKit.
     legacy_visuals = remove_upstream_legacy_window_ui(engine)
     fullscreen_slot = add_v45_fullscreen_scene_slot(engine)
+    deferred_scene_boot = add_r6p9_deferred_liveprocess_boot(engine)
     guest_audio = add_scarlet_guest_audio_isolation(engine)
     guest_launch_policy = add_scarlet_guest_launch_policy_probe(engine)
     guest_signing=instrument_original_guest_signing(engine)
@@ -1796,6 +1899,7 @@ static void ScarletGuestHookTrace(NSString *event) {
         "legacyVisualSourceRemoved":True,
         "legacyVisualRemoval":legacy_visuals,
         "experimentalResidentFullscreenViewport": fullscreen_slot,
+        "deferredRemoteLaunchUntilHosted": deferred_scene_boot,
         "guestAudioIsolation": guest_audio,
         "guestLaunchPolicyDifferential": guest_launch_policy,
         "dockAttachDeferredToWindowVisibility":False,

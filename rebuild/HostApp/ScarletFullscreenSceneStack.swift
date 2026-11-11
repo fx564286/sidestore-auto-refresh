@@ -1053,9 +1053,14 @@ final class ScarletFullscreenSceneViewport: UIViewController {
             guard !slot.failed else { continue }
             // Input is the original LC relative .app path and existing
             // dataUUID. The pinned NSExtension owns each guest process.
+            // R6P9: original LC init() starts NSExtension XPC before this
+            // child belongs to any UIWindow. The device observed initial
+            // host owner unavailable, then 62pt after remote attachment.
+            // Request an *unstarted* VC; this is resident-only and does not
+            // affect original/classic LiveContainer or signed guest bundles.
             guard let vc = AppSceneViewController(
                 bundleId: slot.id, dataUUID: slot.dataUUID,
-                delegate: stack) else {
+                delegate: stack, scarletDeferExtensionRequest: true) else {
                 ScarletDiagnosticRecorder.shared.record(
                     "guest", "fullscreen_scene_vc_unavailable",
                     status: "error")
@@ -1074,6 +1079,20 @@ final class ScarletFullscreenSceneViewport: UIViewController {
             view.addSubview(vc.view)
             vc.didMove(toParent: self)
             controllers[slot.id] = vc
+        }
+        // The actual host/window/parent relation now exists. Start each
+        // resident extension at most once only AFTER attaching its VC.
+        // Reconcile is already called on viewDidAppear, verified full-screen
+        // layout and SwiftUI updates; no polling timer, fixed status-bar
+        // offsets, or process recycling.
+        for (folder, vc) in controllers
+            where stack.slots.contains(where: { $0.id == folder }) {
+            if vc.scarletBeginDeferredExtensionIfHosted() {
+                ScarletDiagnosticRecorder.shared.record(
+                    "guest", "fullscreen_scene_xpc_started_after_host_attach",
+                    fields: ["result": "window_scene_and_parent_present",
+                             "stage": "before_extension_request"])
+            }
         }
         if let active = stack.activeID,
            stack.slots.contains(where: { $0.id == active && $0.pid > 0 }) {
