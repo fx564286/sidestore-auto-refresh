@@ -30,6 +30,7 @@ class R5WCorrectOwners(unittest.TestCase):
  def test_full_guest_hook_is_not_wrongly_gated_on_liveprocess(self):
   self.assertIn('if(!NSUserDefaults.lcGuestAppId || ![NSThread isMainThread]) return original;',INTEGRATE)
   self.assertIn('safearea_root_pilot_disabled',INTEGRATE)
+  self.assertIn('static void ScarletGuestInstallRootSafeAreaObserver(void);',INTEGRATE)
   self.assertIn('safearea_root_ready_after_window',TRACE)
   self.assertIn('safearea_root_window_timeout',TRACE)
   self.assertIn('safearea_root_adjusted',TRACE)

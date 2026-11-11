@@ -1291,6 +1291,9 @@ static UIEdgeInsets ScarletGuestRootSafeAreaOverride(id view, SEL sel) {
     original.top = MAX(original.top, desired);
     return original;
 }
+// The bootstrap calls this function before its implementation appears.
+// Clang/Objective-C must see a typed declaration first.
+static void ScarletGuestInstallRootSafeAreaObserver(void);
 static void ScarletGuestInstallRootSafeAreaGetter(void) {
     if(!NSUserDefaults.lcGuestAppId ||
        ![NSUserDefaults.lcSharedDefaults boolForKey:
