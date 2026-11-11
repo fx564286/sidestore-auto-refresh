@@ -1577,7 +1577,7 @@ def main():
     assert guest_hook_source.count(guest_hook_anchor)==1, "Guest hook changed"
     guest_hook_source = guest_hook_source.replace(
         '#import "Localization.h"\n',
-        '#import "Localization.h"\n#import <objc/message.h>\n#import <dlfcn.h>\n')
+        '#import "Localization.h"\n#import <objc/message.h>\n#import <dlfcn.h>\n#import <math.h>\n#include <unistd.h>\n')
     # This can execute before the SwiftUI framework exists. The host can
     # distinguish a missing TweakLoader hook from a broken Swift overlay.
     # Only fixed event names; bounded to 48, and never a guest title/ID.
@@ -1714,7 +1714,7 @@ static void ScarletGuestWindowGeometryCapture(UIWindow *window,
         "                    if(![note.object isKindOfClass:UIWindow.class]) return;\n"
         "                    UIWindow *window = (UIWindow *)note.object;\n"
         "                    ScarletGuestWindowGeometryCapture(window,\n"
-        "                        n == UIWindowDidBecomeKeyNotification ? @\"key\" : @\"visible\");\n"
+        "                        [n isEqualToString:UIWindowDidBecomeKeyNotification] ? @\"key\" : @\"visible\");\n"
         "                    dispatch_after(dispatch_time(DISPATCH_TIME_NOW,\n"
         "                        (int64_t)(1.0 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{\n"
         "                            ScarletGuestWindowGeometryCapture(window, @\"settled\");\n"
