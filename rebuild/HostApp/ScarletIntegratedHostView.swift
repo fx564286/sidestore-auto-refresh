@@ -496,6 +496,15 @@ struct ScarletIntegratedHostView: View {
                 if residentSessionActive && experimentalFullscreenResident {
                     // A pilot-compatible guest may fall back to classic only
                     // when no existing pilot owns an active live scene.
+                    // noteLaunch() was intentionally called before native
+                    // handoff, but an incompatible guest never reaches that
+                    // handoff. Undo its provisional entry; otherwise the
+                    // switcher shows apps that were blocked from launching.
+                    ScarletGuestSessionLedger.restore(historyBeforeLaunch)
+                    ScarletDiagnosticRecorder.shared.record(
+                        "guest", "blocked_launch_history_reverted",
+                        fields: ["reason": "requires_original_lc_runtime",
+                                 "count": String(ScarletGuestSessionLedger.recent().count)])
                     ScarletDiagnosticRecorder.shared.record(
                         "guest", "resident_incompatible_launch_blocked",
                         status: "blocked",
