@@ -257,6 +257,64 @@ enum ScarletGuestSessionLedger {
         }
     }
 
+    // R6P7: the LiveProcess bootloader records Info.plist declarations
+    // before/after NSBundle + CFBundle main bundle substitution. This does
+    // not inspect or change UIKit geometry, guest windows or Safe Areas.
+    private static let guestPolicyKey = "Scarlet.Guest.LaunchPolicy.V1"
+    private static let guestPolicyCursor = "Scarlet.Guest.LaunchPolicyCursor.V1"
+    static func replayGuestLaunchPolicyToHostJournal() {
+        guard let raw = store.data(forKey: guestPolicyKey),
+              let decoded = try? JSONSerialization.jsonObject(with: raw),
+              let rows = decoded as? [[String: Any]], !rows.isEmpty else {
+            ScarletDiagnosticRecorder.shared.record(
+                "launch_policy", "guest_policy_probe_unavailable",
+                fields: ["reason": "no_guest_bootloader_result"])
+            return
+        }
+        let cursor = UserDefaults.standard.string(forKey: guestPolicyCursor)
+        let start = cursor.flatMap { id in
+            rows.lastIndex(where: { $0["id"] as? String == id }).map { $0 + 1 }
+        } ?? 0
+        let currentStart = ScarletDiagnosticRecorder.shared.currentProcessStartDate
+            .timeIntervalSince1970
+        let allowed = ["host_status_hidden", "guest_status_hidden",
+                       "actual_status_hidden", "cf_status_hidden",
+                       "host_controller_status", "guest_controller_status",
+                       "actual_controller_status", "host_fullscreen",
+                       "guest_fullscreen", "actual_fullscreen",
+                       "host_scene_manifest", "guest_scene_manifest",
+                       "actual_scene_manifest", "host_orientations",
+                       "guest_orientations", "actual_orientations"]
+        if start < rows.count {
+            for row in rows[start...] {
+                guard let epoch = (row["epoch"] as? NSNumber)?.doubleValue,
+                      epoch >= currentStart,
+                      let pid = (row["pid"] as? NSNumber)?.int32Value,
+                      pid > 0, let stage = row["stage"] as? String,
+                      ["before_bundle_swap", "after_bundle_swap"].contains(stage)
+                else { continue }
+                var fields = ["stage": stage,
+                              "process_pid": String(pid),
+                              "source": "original_lc_bootloader",
+                              "policy_only": "true"]
+                for key in allowed {
+                    if let value = row[key] as? NSNumber {
+                        let n = value.intValue
+                        if n >= -1 && n <= 20 {
+                            fields[key] = String(n)
+                        }
+                    }
+                }
+                ScarletDiagnosticRecorder.shared.record(
+                    "launch_policy", "guest_bundle_policy_observed",
+                    fields: fields)
+            }
+        }
+        if let last = rows.last?["id"] as? String {
+            UserDefaults.standard.set(last, forKey: guestPolicyCursor)
+        }
+    }
+
     // Keep an exact, short-lived pending target only in the existing secure
     // App Group; export an ANONYMOUS acknowledgement to the host diagnostic
     // journal after the next TweakLoader guest bootstrap.
