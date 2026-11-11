@@ -1021,6 +1021,26 @@ static inline BOOL SCGeometryShouldReport(id scene, UIEdgeInsets insets,
                              now, OBJC_ASSOCIATION_COPY_NONATOMIC);
     return YES;
 }
+// Pilot-only actual status bar frame. Safe-area readback at 62pt alone
+// does not imply the remote UIKit scene has status-bar avoidance metadata.
+static inline CGRect ScarletPilotHostStatusBarFrame(UIWindowScene *scene) {
+    UIWindowScene *hostScene = scene;
+    if(!hostScene) {
+        for(UIScene *candidate in UIApplication.sharedApplication.connectedScenes) {
+            if([candidate isKindOfClass:UIWindowScene.class] &&
+               candidate.activationState == UISceneActivationStateForegroundActive) {
+                hostScene = (UIWindowScene *)candidate;
+                break;
+            }
+        }
+    }
+    if(!hostScene || !hostScene.statusBarManager) return CGRectZero;
+    CGRect bar = hostScene.statusBarManager.statusBarFrame;
+    if(!isfinite(bar.origin.x) || !isfinite(bar.origin.y) ||
+       !isfinite(bar.size.width) || !isfinite(bar.size.height) ||
+       bar.size.width < 0 || bar.size.height < 0) return CGRectZero;
+    return bar;
+}
 """
     (engine/"MultitaskSupport/ScarletSceneGeometryAuthority.h").write_text(authority_header)
     assert a.count('#import "UIKitPrivate+MultitaskSupport.h"') == 1
@@ -1059,26 +1079,7 @@ static UIEdgeInsets ScarletPilotHostInsets(UIWindowScene *scene,
     return insets;
 }
 
-// Pilot-only actual status bar frame. Safe-area readback at 62pt alone
-// does not imply the remote UIKit scene has status-bar avoidance metadata.
-static CGRect ScarletPilotHostStatusBarFrame(UIWindowScene *scene) {
-    UIWindowScene *hostScene = scene;
-    if(!hostScene) {
-        for(UIScene *candidate in UIApplication.sharedApplication.connectedScenes) {
-            if([candidate isKindOfClass:UIWindowScene.class] &&
-               candidate.activationState == UISceneActivationStateForegroundActive) {
-                hostScene = (UIWindowScene *)candidate;
-                break;
-            }
-        }
-    }
-    if(!hostScene || !hostScene.statusBarManager) return CGRectZero;
-    CGRect bar = hostScene.statusBarManager.statusBarFrame;
-    if(!isfinite(bar.origin.x) || !isfinite(bar.origin.y) ||
-       !isfinite(bar.size.width) || !isfinite(bar.size.height) ||
-       bar.size.width < 0 || bar.size.height < 0) return CGRectZero;
-    return bar;
-}
+
 """
     old = '@interface AppSceneViewController()\n'
     assert a.count(old) == 2
