@@ -1235,7 +1235,10 @@ static void ScarletGuestHookTrace(NSString *event) {
         allowed = [NSSet setWithArray:@[@"hook_entered", @"framework_loaded",
             @"framework_missing", @"provider_ready", @"provider_missing",
             @"safearea_root_adjusted", @"safearea_root_already_correct",
-            @"safearea_root_getter_installed"]];
+            @"safearea_root_getter_installed",
+            @"safearea_root_not_liveprocess", @"safearea_root_observer_installed",
+            @"safearea_root_ready_after_window", @"safearea_root_window_timeout",
+            @"safearea_root_waiting_for_window"]];
     });
     if(![allowed containsObject:event]) return;
     NSUserDefaults *shared = NSUserDefaults.lcSharedDefaults;
@@ -1301,6 +1304,8 @@ static void ScarletGuestInstallRootSafeAreaGetter(void) {
 }
 static const void *ScarletGuestRootBaselineTopKey = &ScarletGuestRootBaselineTopKey;
 static const void *ScarletGuestRootAppliedTopKey = &ScarletGuestRootAppliedTopKey;
+static BOOL ScarletGuestRootApplied = NO;
+static NSUInteger ScarletGuestRootAttempts = 0;
 static void ScarletGuestTryApplyRootSafeArea(void) {
     if(!NSUserDefaults.isLiveProcess || !NSUserDefaults.lcGuestAppId) return;
     NSUserDefaults *shared = NSUserDefaults.lcSharedDefaults;
@@ -1341,12 +1346,18 @@ static void ScarletGuestTryApplyRootSafeArea(void) {
             }
             objc_setAssociatedObject(root, ScarletGuestRootAppliedTopKey,
                 @(desired), OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+            ScarletGuestRootApplied = YES;
+            ScarletGuestHookTrace(@"safearea_root_ready_after_window");
             return;
         }
     }
 }
 static void ScarletGuestInstallRootSafeAreaObserver(void) {
-    if(!NSUserDefaults.isLiveProcess) return;
+    if(!NSUserDefaults.isLiveProcess) {
+        ScarletGuestHookTrace(@"safearea_root_not_liveprocess");
+        return;
+    }
+    ScarletGuestHookTrace(@"safearea_root_observer_installed");
     for(NSNotificationName name in @[UIApplicationDidBecomeActiveNotification,
           UIWindowDidBecomeKeyNotification, UIWindowDidBecomeVisibleNotification,
           UISceneDidActivateNotification]) {
@@ -1357,13 +1368,27 @@ static void ScarletGuestInstallRootSafeAreaObserver(void) {
             });
         }];
     }
-    for(NSNumber *delay in @[@0.2, @0.6, @1.2, @2.5]) {
+    // Previous one-shot retries stopped after 2.5s, before the actual
+    // guest UIWindow appeared. Retry until the root is attached (max 30s).
+    // Never block iOS launch, never alter guest view size or scale.
+    __block void (^poll)(void);
+    poll = ^{
+        if(ScarletGuestRootApplied || ScarletGuestRootAttempts >= 60) {
+            if(!ScarletGuestRootApplied)
+                ScarletGuestHookTrace(@"safearea_root_window_timeout");
+            poll = nil;
+            return;
+        }
+        ScarletGuestRootAttempts++;
+        ScarletGuestTryApplyRootSafeArea();
+        if(ScarletGuestRootApplied) { poll = nil; return; }
+        if(ScarletGuestRootAttempts == 2)
+            ScarletGuestHookTrace(@"safearea_root_waiting_for_window");
         dispatch_after(dispatch_time(DISPATCH_TIME_NOW,
-            (int64_t)(delay.doubleValue * NSEC_PER_SEC)),
-            dispatch_get_main_queue(), ^{
-                ScarletGuestTryApplyRootSafeArea();
-        });
-    }
+            (int64_t)(0.5 * NSEC_PER_SEC)),
+            dispatch_get_main_queue(), poll);
+    };
+    dispatch_async(dispatch_get_main_queue(), poll);
 }
 """
     guest_hook_source = guest_hook_source.replace(

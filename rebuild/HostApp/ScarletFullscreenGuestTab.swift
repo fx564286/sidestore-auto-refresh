@@ -58,6 +58,46 @@ final class ScarletGuestTouchPassthroughWindow: UIWindow {
     var panelRect: CGRect = .zero
     var dismissState: ScarletSwitcherDismissState?
     private var outsideShield: ScarletSwitcherOutsideShield?
+    private var outsideTouchStart: Set<ObjectIdentifier> = []
+
+    // Observe original UIWindow touch events independently from SwiftUI
+    // hit-test ordering. No additional recognizer competes with V48 Pan.
+    override func sendEvent(_ event: UIEvent) {
+        let touches = (event.allTouches ?? []).filter { $0.window === self }
+        let began = touches.filter { $0.phase == .began }
+        let ended = touches.filter { $0.phase == .ended }
+        let cancelled = touches.filter { $0.phase == .cancelled }
+        if isExpanded {
+            for touch in began {
+                let p = touch.location(in: self)
+                if bounds.contains(p) && !panelRect.insetBy(dx: -3, dy: -3).contains(p) {
+                    outsideTouchStart.insert(ObjectIdentifier(touch))
+                    ScarletDiagnosticRecorder.shared.record(
+                        "guest", "outside_window_touch_began",
+                        fields: ["result": "window_received_native_touch",
+                                 "button_x_pt": String(Int(p.x)),
+                                 "button_y_pt": String(Int(p.y)),
+                                 "overlay_expanded": "true"])
+                }
+            }
+        }
+        super.sendEvent(event)
+        if isExpanded {
+            for touch in ended {
+                let key = ObjectIdentifier(touch)
+                guard outsideTouchStart.remove(key) != nil else { continue }
+                let p = touch.location(in: self)
+                guard bounds.contains(p),
+                      !panelRect.insetBy(dx: -3, dy: -3).contains(p) else { continue }
+                ScarletDiagnosticRecorder.shared.record(
+                    "guest", "outside_window_touch_ended",
+                    fields: ["result": "window_direct_close_dispatch"])
+                dismissState?.requestClose()
+            }
+        }
+        for touch in cancelled { outsideTouchStart.remove(ObjectIdentifier(touch)) }
+        if !isExpanded { outsideTouchStart.removeAll() }
+    }
 
     func enableNativeOutsideDismiss() {
         guard outsideShield == nil else { return }
