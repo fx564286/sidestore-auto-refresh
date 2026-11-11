@@ -1234,6 +1234,93 @@ static UIEdgeInsets ScarletPilotHostInsets(UIWindowScene *scene,
             "pilotRemoteSafeArea": "scene_tagged_initial_and_FBScene_update"}
 
 
+
+def install_pilot_audio_focus_in_liveprocess(engine: Path) -> dict:
+    """Per-LiveProcess audio-focus transport; never affect host/SideStore.
+    No guest-API swizzles, global volume changes, or process termination.
+    This is a pilot: delivery and audible results require device verification.
+    """
+    target = engine / "LiveProcess/main.m"
+    assert target.is_file(), "Pinned LiveProcess main missing"
+    source = target.read_text()
+    anchor = '#import <dlfcn.h>\n'
+    assert source.count(anchor) == 1, "LiveProcess header changed"
+    source = source.replace(anchor, anchor +
+        '#import <notify.h>\n#import <objc/message.h>\n#import <unistd.h>\n', 1)
+    marker = '@interface LiveProcessHandler : NSObject<NSExtensionRequestHandling>\n'
+    assert source.count(marker) == 1, "LiveProcess main handler changed"
+    receiver = r"""
+// Scarlet R6 experimental audio focus belongs to EACH LiveProcess extension.
+// A transparent remote UIView does not make its AVAudioSession inactive.
+// Do not deactivate a voice-call/recording session or host/SideStore audio.
+static BOOL SCPilotAudioSuppressed = NO;
+static void SCPilotApplyGuestAudioFocus(BOOL foreground) {
+    if(foreground && !SCPilotAudioSuppressed) return;
+    Class audioClass = NSClassFromString(@"AVAudioSession");
+    if(!audioClass) {
+        (void)dlopen("/System/Library/Frameworks/AVFAudio.framework/AVFAudio",
+                     RTLD_LAZY | RTLD_LOCAL);
+        audioClass = NSClassFromString(@"AVAudioSession");
+    }
+    if(!audioClass || ![audioClass respondsToSelector:@selector(sharedInstance)]) {
+        NSLog(@"[SCARLET_AUDIO] focus=%d status=audio_session_unavailable", foreground);
+        return;
+    }
+    id session = ((id (*)(id,SEL))objc_msgSend)((id)audioClass,
+                                                @selector(sharedInstance));
+    if(!session || ![session respondsToSelector:@selector(category)]) return;
+    NSString *category = ((id (*)(id,SEL))objc_msgSend)(session,@selector(category));
+    BOOL playback = [category isEqualToString:@"AVAudioSessionCategoryPlayback"] ||
+                    [category isEqualToString:@"AVAudioSessionCategoryAmbient"] ||
+                    [category isEqualToString:@"AVAudioSessionCategorySoloAmbient"];
+    if(!playback) {
+        NSLog(@"[SCARLET_AUDIO] focus=%d status=non_playback_category_preserved",
+              foreground);
+        return;
+    }
+    NSError *error = nil;
+    SEL selector = @selector(setActive:withOptions:error:);
+    if(![session respondsToSelector:selector]) return;
+    // On iOS, deactivation while playback is running may return isBusy EVEN
+    // THOUGH the system has deactivated the session. Do not kill the process.
+    BOOL accepted = ((BOOL (*)(id,SEL,BOOL,NSUInteger,NSError **))objc_msgSend)(
+        session,selector,foreground,foreground ? 0u : 1u,&error);
+    SCPilotAudioSuppressed = !foreground;
+    NSLog(@"[SCARLET_AUDIO] focus=%d accepted=%d error_code=%ld",
+          foreground, accepted, (long)(error ? error.code : 0));
+}
+static void SCPilotRegisterAudioFocus(void) {
+    static int focusOnToken = 0, focusOffToken = 0;
+    NSString *prefix = [NSString stringWithFormat:
+        @"com.kdt.scarlet.audiofocus.%d",getpid()];
+    NSString *onName = [prefix stringByAppendingString:@".on"];
+    NSString *offName = [prefix stringByAppendingString:@".off"];
+    int onStatus = notify_register_dispatch(onName.UTF8String, &focusOnToken,
+        dispatch_get_main_queue(), ^(int ignored) {
+            SCPilotApplyGuestAudioFocus(YES);
+        });
+    int offStatus = notify_register_dispatch(offName.UTF8String, &focusOffToken,
+        dispatch_get_main_queue(), ^(int ignored) {
+            SCPilotApplyGuestAudioFocus(NO);
+        });
+    NSLog(@"[SCARLET_AUDIO] receiver_registered on=%d off=%d",onStatus,offStatus);
+}
+"""
+    source = source.replace(marker, receiver + "\n" + marker, 1)
+    boot = '    return LiveContainerMain(argc, argv);\n'
+    assert source.count(boot) == 1, "Pinned LiveProcess bootstrap changed"
+    source = source.replace(boot,
+        '    // Never touch embedded SideStore audio or custom XPC payloads.\n'
+        '    if([appInfo[@"selected"] isKindOfClass:NSString.class] &&\n'
+        '       [appInfo[@"selected"] hasSuffix:@".app"]) {\n'
+        '        SCPilotRegisterAudioFocus();\n'
+        '    }\n'
+        + boot, 1)
+    target.write_text(source)
+    return {"target": str(target.relative_to(engine)), "sha256": file_sha(target),
+            "guestProcessOnly": True, "optInSceneFocus": True,
+            "hostAudioUntouched": True, "deviceAudioResultVerified": False}
+
 def main():
     p=argparse.ArgumentParser()
     p.add_argument("--engine",type=Path,required=True)
@@ -1490,6 +1577,7 @@ static void ScarletGuestHookTrace(NSString *event) {
     # hiding the old LC dock from host UIKit.
     legacy_visuals = remove_upstream_legacy_window_ui(engine)
     fullscreen_slot = add_v45_fullscreen_scene_slot(engine)
+    pilot_audio_focus=install_pilot_audio_focus_in_liveprocess(engine)
     guest_signing=instrument_original_guest_signing(engine)
     guest_manager=hide_embedded_sidestore_guest_navigation(engine)
     native_settings=attach_native_settings_diagnostics(engine)
@@ -1505,6 +1593,7 @@ static void ScarletGuestHookTrace(NSString *event) {
         "legacyVisualSourceRemoved":True,
         "legacyVisualRemoval":legacy_visuals,
         "experimentalResidentFullscreenViewport": fullscreen_slot,
+        "pilotLiveProcessAudioFocus": pilot_audio_focus,
         "dockAttachDeferredToWindowVisibility":False,
         "hostEntry":"ScarletIntegratedHostView",
         "realLCGuestModelsUsed":True,
