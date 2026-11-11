@@ -30,6 +30,10 @@ final class ScarletFullscreenSceneStack: NSObject, ObservableObject,
     private var pendingReveal: Set<String> = []
     private var remoteAttachSeen: Set<String> = []
     private var firstRevealCompleted: Set<String> = []
+    // Compatibility fallback is once per guest per host session. It can
+    // never displace another live resident guest or revoke a certificate.
+    private var classicFallbackAttempted: Set<String> = []
+    private var pendingClassicFallback: Set<String> = []
     private var overlayWindow: ScarletGuestTouchPassthroughWindow?
     // A resident overlay can be non-key and lose background hit ownership.
     // Gesture is attached to the actual parent viewport, not a guest process.
@@ -300,6 +304,20 @@ final class ScarletFullscreenSceneStack: NSObject, ObservableObject,
         return true
     }
 
+    func restoreForegroundOnHostActive() {
+        guard isVisible, let activeID,
+              viewport?.isAlive(folder: activeID) == true else { return }
+        let refreshed = viewport?.refreshExistingRemoteScene(folder: activeID) == true
+        ScarletDiagnosticRecorder.shared.record(
+            "guest", "fullscreen_scene_host_active_refresh",
+            fields: ["result": refreshed ? "foreground_reasserted_on_existing_pid"
+                                          : "native_scene_not_attached",
+                     "memory": "no_resign_no_process_restart"])
+        if !refreshed {
+            revealStartedScene(activeID)
+        }
+    }
+
     func goHome() {
         // No close, terminate, detach, scene destruction or relaunch.
         // Keep each remote scene in the original full-screen viewport.
@@ -318,6 +336,67 @@ final class ScarletFullscreenSceneStack: NSObject, ObservableObject,
                      "overlay_visible": overlayWindow?.isHidden == false ? "true" : "false",
                      "controller_present": viewport != nil ? "true" : "false"])
 
+    }
+
+    // Some closed-source guests cannot start in a LiveProcess extension.
+    // If a new extension terminates immediately, perform one ORIGINAL LC
+    // launch attempt using the exact same installed .app and data container.
+    // Only safe when no other live resident guest will lose its work state.
+    private func recoverFastFailedGuest(_ folder: String, dataUUID: String,
+                                        reason: String) {
+        guard !classicFallbackAttempted.contains(folder),
+              !pendingClassicFallback.contains(folder) else { return }
+        pendingClassicFallback.insert(folder)
+        ScarletDiagnosticRecorder.shared.record(
+            "guest", "experimental_guest_compatibility_route_scheduled",
+            status: "warning",
+            fields: ["reason": reason,
+                     "result": "classic_original_LC_eligible_if_no_live_guest",
+                     "mode": "experimental_remains_enabled"])
+        Task { @MainActor [weak self] in
+            // Original LC unregisters the exited extension container after
+            // notifying its delegate. Do not race that unregister callback.
+            try? await Task.sleep(nanoseconds: 650_000_000)
+            guard let self else { return }
+            self.pendingClassicFallback.remove(folder)
+            guard !self.classicFallbackAttempted.contains(folder) else { return }
+            // Never tear down an app A just to rescue app B.
+            guard !self.hasLiveResidentProcess, !self.pendingInPlaceLaunch else {
+                ScarletDiagnosticRecorder.shared.record(
+                    "guest", "experimental_guest_compatibility_route_blocked",
+                    status: "warning",
+                    fields: ["reason": "another_live_guest_or_launch_in_progress",
+                             "memory": "preserve_other_guest_work"])
+                return
+            }
+            guard let model = self.installedModels[folder],
+                  model.appInfo.relativeBundlePath == folder,
+                  model.uiSelectedContainer?.folderName == dataUUID,
+                  let defaults = UserDefaults.lc() else {
+                ScarletDiagnosticRecorder.shared.record(
+                    "guest", "experimental_guest_compatibility_route_blocked",
+                    status: "warning",
+                    fields: ["reason": "original_model_container_or_defaults_unavailable"])
+                return
+            }
+            self.classicFallbackAttempted.insert(folder)
+            // This uses the exact path already used by the original LC
+            // cold-handoff implementation. Never uninstall or re-sign here.
+            defaults.set(folder, forKey: "selected")
+            defaults.set(dataUUID, forKey: "selectedContainer")
+            let accepted = LCSharedUtils.launchToGuestApp(withClassicMode: 0)
+            ScarletDiagnosticRecorder.shared.record(
+                "guest", "experimental_guest_compatibility_route_submitted",
+                status: accepted ? "warning" : "error",
+                fields: ["result": accepted
+                           ? "classic_original_LC_launch_requested"
+                           : "original_launch_not_accepted",
+                         "mode": "experimental_remains_enabled",
+                         "memory": "this_guest_new_process_other_live_guests_protected"])
+            if !accepted {
+                self.lastError = "실험 모드에서 게스트 실행이 실패했습니다. 기본 실행 전환도 승인되지 않았습니다."
+            }
+        }
     }
 
     // PID readiness and remote UIKit presentation readiness are different.
@@ -372,11 +451,21 @@ final class ScarletFullscreenSceneStack: NSObject, ObservableObject,
         }) else { return }
         if error != nil || vc.pid <= 0 {
             slots[index].failed = true
+            let ns = error as NSError?
+            let folder = slots[index].id
+            let dataUUID = slots[index].dataUUID
             lastError = "게스트 원격 실행을 시작하지 못했습니다."
             ScarletDiagnosticRecorder.shared.record(
                 "guest", "fullscreen_scene_start_failed",
-                status: "error", fields: ["reason": "liveprocess_failed"])
-            if slots[index].id == activeID { goHome() }
+                status: "error",
+                fields: ["reason": "liveprocess_failed",
+                         "error_domain": ns?.domain ?? "no_nserror",
+                         "error_code": ns.map { String($0.code) } ?? "unknown",
+                         "process_pid": String(vc.pid),
+                         "stage": "before_or_during_remote_extension_request"])
+            if folder == activeID { goHome() }
+            recoverFastFailedGuest(folder, dataUUID: dataUUID,
+                                   reason: "extension_initialization_failed")
             return
         }
         slots[index].pid = vc.pid
@@ -413,6 +502,7 @@ final class ScarletFullscreenSceneStack: NSObject, ObservableObject,
         guard let vc, viewport?.ownsController(vc, folder: vc.bundleId) == true
         else { return }
         let wasActive = activeID == vc.bundleId
+        let exitedDataUUID = vc.dataUUID
         pendingReveal.remove(vc.bundleId)
         remoteAttachSeen.remove(vc.bundleId)
         firstRevealCompleted.remove(vc.bundleId)
@@ -429,17 +519,23 @@ final class ScarletFullscreenSceneStack: NSObject, ObservableObject,
         // Removing a dead remote controller is NOT killing a live guest.
         // Drop only the exact exited instance, never a sibling or replacement.
         let released = viewport?.releaseExitedController(folder: vc.bundleId) == true
+        let fastExit = lifetime.map { Date().timeIntervalSince($0) < 4 } ?? false
         ScarletDiagnosticRecorder.shared.record(
             "guest", "fullscreen_scene_process_exited",
             fields: ["memory": "not_preserved",
                      "dead_controller_released": released ? "true" : "false",
                      "process_pid": String(pid),
                      "duration_ms": durationMs,
+                     "fast_exit": fastExit ? "true" : "false",
                      "reason": "native_exit_callback_no_ips_reason",
                      "source": "original_LC_scene_delegate"])
         if wasActive {
             activeID = nil
             goHome()
+        }
+        if fastExit && wasActive {
+            recoverFastFailedGuest(vc.bundleId, dataUUID: exitedDataUUID,
+                                   reason: "liveprocess_exited_under_4s")
         }
     }
 
@@ -674,14 +770,22 @@ final class ScarletFullscreenSceneViewport: UIViewController {
         outside.delaysTouchesEnded = true
         view.addGestureRecognizer(outside)
         outsideDismissGesture = outside
+        NotificationCenter.default.addObserver(
+            self, selector: #selector(onHostAppBecameActive),
+            name: UIApplication.didBecomeActiveNotification, object: nil)
         ScarletDiagnosticRecorder.shared.record(
             "guest", "resident_host_background_gesture_installed",
             fields: ["result": "native_viewport_ancestor_recognizer"])
     }
 
+    @objc private func onHostAppBecameActive() {
+        stack?.restoreForegroundOnHostActive()
+    }
+
     override func viewDidAppear(_ animated: Bool) {
         super.viewDidAppear(animated)
         stack?.attach(self)
+        stack?.restoreForegroundOnHostActive()
     }
 
     override func viewDidLayoutSubviews() {
@@ -739,6 +843,17 @@ final class ScarletFullscreenSceneViewport: UIViewController {
 
     func isRemoteReady(folder: String) -> Bool {
         controllers[folder]?.scarletRemoteContentReady() == true
+    }
+
+    func refreshExistingRemoteScene(folder: String) -> Bool {
+        guard let owner = controllers[folder], owner.isAppRunning,
+              owner.scarletRemoteContentReady() else { return false }
+        // This exact original LC API reasserts foreground after the user
+        // returns from Home without touching guest process/data/signature.
+        owner.setBackgroundNotificationEnabled(false)
+        owner.view.setNeedsLayout()
+        owner.contentView?.setNeedsLayout()
+        return true
     }
 
     func activePID(folder: String) -> Int32? {
