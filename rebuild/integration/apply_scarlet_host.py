@@ -1711,6 +1711,35 @@ def main():
     runner_sha = os.environ.get("GITHUB_SHA", "").strip()
     build_sha = runner_sha[:12].lower() if re.fullmatch(r"[0-9a-fA-F]{40}", runner_sha) else "local-unverified"
     recorder.write_text(report_source.replace(marker, build_sha))
+    # R6P10: a one-file user diagnostic report must contain all earlier
+    # interventions with file/function, original and replacement source code,
+    # verification grade, and the complete AI no-repeat instructions.
+    # Embed the repo-reviewed JSON/prompt at archive time, not by trying to
+    # recover old JSONL files (rotated) or fetching external URLs on iPhone.
+    history_path = root/"rebuild/diagnostics/scarlet_remediation_history.json"
+    handoff_path = root/"rebuild/diagnostics/SCARLET_LOG_ONLY_HANDOFF_PROMPT.md"
+    audit = json.loads(history_path.read_text(encoding="utf-8"))
+    assert audit["schema"] >= 2 and len(audit["entries"]) >= 45, "Repair ledger unexpectedly truncated"
+    ids = [e["id"] for e in audit["entries"]]
+    assert len(ids) == len(set(ids)), "Repair history contains duplicate IDs"
+    for item in audit["entries"]:
+        assert "source_verification" in item and "code_locations" in item, (
+            "Repair history lacks source traceability: " + item["id"])
+        if item["source_verification"] == "git_patch_observed":
+            assert item["code_locations"], "Source-verified entry missing source diff: " + item["id"]
+            for source in item["code_locations"]:
+                assert source.get("file") and source.get("location"), (
+                    "Changed file/line missing: " + item["id"])
+                assert source.get("before") or source.get("after"), (
+                    "Before/after source missing: " + item["id"])
+    r = recorder.read_text(encoding="utf-8")
+    for token, source_bytes in (
+        ("__SCARLET_REMEDIATION_HISTORY_B64__", history_path.read_bytes()),
+        ("__SCARLET_HANDOFF_PROMPT_B64__", handoff_path.read_bytes()),
+    ):
+        assert r.count(token) == 1, "Diagnostic ledger embed anchor changed: " + token
+        r = r.replace(token, base64.b64encode(source_bytes).decode("ascii"), 1)
+    recorder.write_text(r, encoding="utf-8")
     figma_icon=apply_figma_app_icon(root,engine)
     # Pinned LiveContainer initialization force-unwraps each persisted guest
     # bundle. A damaged/partial historical guest can otherwise terminate the
