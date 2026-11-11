@@ -66,6 +66,16 @@ class ResidentThreeIssueRegression(unittest.TestCase):
         self.assertIn('AVAudioSessionSetActiveOptionNotifyOthersOnDeactivation', GLUE)
         self.assertIn('NSUserDefaults.isLiveProcess', GLUE)
         self.assertIn('"guestAudioIsolation": guest_audio', GLUE)
+        # Tweaks/ already has LiveContainer/ on its header search path, so the
+        # generated file must import "utils.h" like its siblings. The earlier
+        # "../LiveContainer/utils.h" resolved to LiveContainer/LiveContainer
+        # and failed the real Xcode archive (exit 65).
+        self.assertIn('#import "utils.h"', GLUE)
+        self.assertNotIn('../LiveContainer/utils.h', GLUE)
+        # The hook is linked into a LiveProcess app extension, where
+        # UIApplication.sharedApplication is unavailable.
+        self.assertNotIn('object:UIApplication.sharedApplication]', GLUE)
+        self.assertIn('ScarletUIBecameActiveNotification', GLUE)
 
     def test_r6_release_branch_and_asset(self):
         self.assertIn('fix/scarlet-v48-r6-island-outside-audio-20261111', W)

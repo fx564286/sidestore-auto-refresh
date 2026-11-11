@@ -1257,10 +1257,17 @@ def add_scarlet_guest_audio_isolation(engine: Path) -> dict:
 // touched here. Deactivating the guest's own session stops mixed background
 // audio without terminating or suspending the retained LiveProcess.
 #import <Foundation/Foundation.h>
-#import <UIKit/UIKit.h>
 #import <AVFoundation/AVFoundation.h>
 #include <unistd.h>
-#import "../LiveContainer/utils.h"
+#import "utils.h"
+
+// This file runs inside an app extension. UIApplication.sharedApplication is
+// unavailable there, so the standard lifecycle notifications are posted by
+// their documented names with a nil object instead.
+static NSNotificationName const ScarletUIBecameActiveNotification =
+    @"UIApplicationDidBecomeActiveNotification";
+static NSNotificationName const ScarletUIResignActiveNotification =
+    @"UIApplicationWillResignActiveNotification";
 
 static BOOL scarletGuestAudioPaused = NO;
 static int scarletGuestAudioObserver = 0;
@@ -1280,8 +1287,8 @@ static void ScarletGuestAudioApply(BOOL active) {
                        AVAudioSessionInterruptionOptionKey:
                            @(AVAudioSessionInterruptionOptionShouldResume)}];
         [[NSNotificationCenter defaultCenter]
-            postNotificationName:UIApplicationDidBecomeActiveNotification
-            object:UIApplication.sharedApplication];
+            postNotificationName:ScarletUIBecameActiveNotification
+            object:nil];
     } else {
         [[NSNotificationCenter defaultCenter]
             postNotificationName:AVAudioSessionInterruptionNotification
@@ -1289,8 +1296,8 @@ static void ScarletGuestAudioApply(BOOL active) {
             userInfo:@{AVAudioSessionInterruptionTypeKey:
                            @(AVAudioSessionInterruptionTypeBegan)}];
         [[NSNotificationCenter defaultCenter]
-            postNotificationName:UIApplicationWillResignActiveNotification
-            object:UIApplication.sharedApplication];
+            postNotificationName:ScarletUIResignActiveNotification
+            object:nil];
         [session setActive:NO
               withOptions:AVAudioSessionSetActiveOptionNotifyOthersOnDeactivation
                     error:&error];
