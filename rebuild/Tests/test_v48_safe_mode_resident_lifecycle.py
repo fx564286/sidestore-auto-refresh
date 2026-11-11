@@ -37,7 +37,8 @@ class TestV48(unittest.TestCase):
   self.assertNotIn('.terminate()',S)
  def test_original_fullscreen_statusbar_behavior_restored(self):
   self.assertIn('assert a.count("        settings.statusBarDisabled = !self.isNativeWindow;") == 1',I)
-  self.assertNotIn('settings.statusBarDisabled = !self.isNativeWindow && !self.scarletNativeFullscreenSlot;',I)
+  self.assertIn('settings.statusBarDisabled = !self.isNativeWindow && !self.scarletNativeFullscreenSlot;',I)
+  self.assertIn('pilotRemoteSafeArea',I)
   self.assertIn('settings.safeAreaInsetsPortrait = safe',S)
   self.assertIn('fullscreen_scene_host_safe_area',S)
  def test_existing_ids_unchanged_and_pilot_opt_in(self):

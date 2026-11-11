@@ -946,10 +946,135 @@ def add_v45_fullscreen_scene_slot(engine: Path) -> dict:
     header.write_text(h)
     target = engine/"MultitaskSupport/AppSceneViewController.m"
     a = target.read_text()
-    # Preserve the EXACT upstream full-screen status bar contract. V45's
-    # pilot override could make the guest's remote scene draw a second
-    # status-bar/safe-area policy over Scarlet's real host status bar.
+    # V48-R4: iOS 27 uses _UISceneHostingController. The V48 delegate
+    # updates only a temporary settings COPY and its FBScene remote guest
+    # still receives zero safe insets while statusBarDisabled is YES.
+    # This patch is limited to scarletNativeFullscreenSlot. The original LC
+    # scene path remains untouched, including classic guest launch geometry.
     assert a.count("        settings.statusBarDisabled = !self.isNativeWindow;") == 1
+    a = a.replace("        settings.statusBarDisabled = !self.isNativeWindow;",
+                  "        settings.statusBarDisabled = !self.isNativeWindow && !self.scarletNativeFullscreenSlot;", 1)
+    assert a.count('#import "UIKitPrivate+MultitaskSupport.h"') == 1
+    a = a.replace('#import "UIKitPrivate+MultitaskSupport.h"',
+                  '#import "UIKitPrivate+MultitaskSupport.h"\n#import <objc/runtime.h>', 1)
+    # Both initialization and later FBScene settings mutations use actual
+    # normal-level host UIWindow or the public statusBarManager dimensions.
+    helper = r"""
+static UIEdgeInsets ScarletPilotHostInsets(UIWindowScene *scene,
+                                           UIEdgeInsets fallback) {
+    UIWindowScene *hostScene = scene;
+    if(!hostScene) {
+        for(UIScene *item in UIApplication.sharedApplication.connectedScenes) {
+            if([item isKindOfClass:UIWindowScene.class] &&
+               item.activationState == UISceneActivationStateForegroundActive) {
+                hostScene = (UIWindowScene *)item;
+                break;
+            }
+        }
+    }
+    if(!hostScene) { return fallback; }
+    UIEdgeInsets insets = fallback;
+    for(UIWindow *window in hostScene.windows) {
+        if(window.windowLevel == UIWindowLevelNormal && !window.isHidden) {
+            insets = window.safeAreaInsets;
+            break;
+        }
+    }
+    if(insets.top < 1) {
+        // Do not hardcode Dynamic Island height (models and orientation vary).
+        // A full-bleed SwiftUI host can report 0 even on iPhone island devices.
+        CGFloat realStatusBottom = CGRectGetMaxY(hostScene.statusBarManager.statusBarFrame);
+        insets.top = MAX(insets.top, realStatusBottom);
+    }
+    return insets;
+}
+"""
+    old = '@interface AppSceneViewController()\n'
+    assert a.count(old) == 2
+    a = a.replace(old, helper + '\n' + old, 1)
+    old = '''        if(!self.usesHostingControllerAPI) {
+            settings.safeAreaInsetsPortrait = self.view.safeAreaInsets;
+        }'''
+    assert a.count(old) == 1
+    a = a.replace(old, '''        if(self.scarletNativeFullscreenSlot) {
+            UIEdgeInsets safe = ScarletPilotHostInsets(
+                self.view.window.windowScene, self.view.safeAreaInsets);
+            settings.peripheryInsets = safe;
+            settings.safeAreaInsetsPortrait = safe;
+            if(@available(iOS 19.0, *)) {
+                settings.safeAreaEdgeInsets = safe;
+            }
+            [NSNotificationCenter.defaultCenter postNotificationName:
+                @"ScarletPilotRemoteSafeAreaChanged" object:nil
+                userInfo:@{@"stage": @"initial_configuration",
+                           @"top": @(safe.top), @"bottom": @(safe.bottom)}];
+        } else if(!self.usesHostingControllerAPI) {
+            settings.safeAreaInsetsPortrait = self.view.safeAreaInsets;
+        }''', 1)
+    old = '''        FBScene *scene = self.presenter.scene;
+        [scene configureParameters:^(FBSMutableSceneParameters *parameters) {'''
+    assert a.count(old) == 1
+    a = a.replace(old, '''        FBScene *scene = self.presenter.scene;
+        if(self.scarletNativeFullscreenSlot) {
+            // This association is stored on the ACTUAL remote FBScene,
+            // so UIKitHooks can recognize it without guest names or IDs.
+            objc_setAssociatedObject(scene,
+                (const void *)sel_registerName("scarletNativeFullscreenSlot"),
+                @YES, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+        }
+        [scene configureParameters:^(FBSMutableSceneParameters *parameters) {''', 1)
+    target.write_text(a)
+
+    hook_file = engine / "MultitaskSupport/UIKitHooks.m"
+    hooks = hook_file.read_text()
+    old = '''    // We don't wanna mess up system extensions on iOS 26+
+    if(LCHasRemoteSheetProviderSelector && self.ui_viewServiceComponent) {'''
+    assert hooks.count(old) == 1
+    hooks = hooks.replace(old, '''    // Unlike the legacy LC delegate, iOS 27's hosting controller updates
+    // FBScene asynchronously. The remote scene's actual safe area must be
+    // recomputed here, not only on the temporary copy in updateSettings.
+    BOOL scarletPilot = [objc_getAssociatedObject(self,
+        (const void *)sel_registerName("scarletNativeFullscreenSlot")) boolValue];
+    if(scarletPilot) {
+        id safeUpdate = ^(UIMutableApplicationSceneSettings *settings,
+                          FBSSceneTransitionContext *context) {
+            updateBlock(settings, context);
+            UIEdgeInsets safe = UIEdgeInsetsZero;
+            UIWindowScene *homeScene = nil;
+            for(UIScene *scene in UIApplication.sharedApplication.connectedScenes) {
+                if([scene isKindOfClass:UIWindowScene.class] &&
+                   scene.activationState == UISceneActivationStateForegroundActive) {
+                    homeScene = (UIWindowScene *)scene;
+                    break;
+                }
+            }
+            for(UIWindow *window in homeScene.windows) {
+                if(window.windowLevel == UIWindowLevelNormal && !window.isHidden) {
+                    safe = window.safeAreaInsets;
+                    break;
+                }
+            }
+            if(safe.top < 1) {
+                CGFloat statusBottom = CGRectGetMaxY(homeScene.statusBarManager.statusBarFrame);
+                safe.top = MAX(safe.top, statusBottom);
+            }
+            settings.peripheryInsets = safe;
+            settings.safeAreaInsetsPortrait =
+                LCUIEdgeInsetsRotateToOrientation(safe, settings.interfaceOrientation);
+            if(@available(iOS 19.0, *)) {
+                settings.safeAreaEdgeInsets = safe;
+            }
+            [NSNotificationCenter.defaultCenter postNotificationName:
+                @"ScarletPilotRemoteSafeAreaChanged" object:nil
+                userInfo:@{@"stage": @"remote_fbscene_update",
+                           @"top": @(safe.top), @"bottom": @(safe.bottom)}];
+        };
+        [self hook__performUpdateWithoutActivation:safeUpdate];
+        return;
+    }
+    // Do not touch original LC, system, SideStore or other view services.
+    if(LCHasRemoteSheetProviderSelector && self.ui_viewServiceComponent) {''', 1)
+    hook_file.write_text(hooks)
     old = "            if(UIInterfaceOrientationIsLandscape(settings.interfaceOrientation)) {"
     assert a.count(old) == 1
     a = a.replace(old, "            if(!self.scarletNativeFullscreenSlot && UIInterfaceOrientationIsLandscape(settings.interfaceOrientation)) {",1)
@@ -959,7 +1084,8 @@ def add_v45_fullscreen_scene_slot(engine: Path) -> dict:
         "    if(!self.scarletNativeFullscreenSlot && UIInterfaceOrientationIsLandscape(tempSettings.interfaceOrientation)) {",1)
     target.write_text(a)
     return {"singleViewport": True, "legacyDecoratedWindow": False,
-            "guestFrameScale": 1, "optIn": True, "sceneTagOnly": True}
+            "guestFrameScale": 1, "optIn": True, "sceneTagOnly": True,
+            "pilotRemoteSafeArea": "scene_tagged_initial_and_FBScene_update"}
 
 
 def main():

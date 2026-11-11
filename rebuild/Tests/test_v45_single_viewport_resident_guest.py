@@ -55,7 +55,8 @@ class TestV45(unittest.TestCase):
         self.assertIn('view.bounds',SCENE)
         self.assertIn('!self.scarletNativeFullscreenSlot && UIInterfaceOrientationIsLandscape',GLUE)
         self.assertIn('settings.statusBarDisabled = !self.isNativeWindow;',GLUE)
-        self.assertNotIn('settings.statusBarDisabled = !self.isNativeWindow && !self.scarletNativeFullscreenSlot;',GLUE)
+        self.assertIn('settings.statusBarDisabled = !self.isNativeWindow && !self.scarletNativeFullscreenSlot;',GLUE)
+        self.assertIn('ScarletPilotRemoteSafeAreaChanged',GLUE)
         self.assertNotIn('CGRectMake(0, 0, 320, 480)',SCENE)
         self.assertNotIn('self.view.frame = CGRect(',SCENE)
 

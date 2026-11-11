@@ -1148,6 +1148,20 @@ struct ScarletIntegratedHostView: View {
             }
         }
         .statusBarHidden(false)
+        .onReceive(NotificationCenter.default.publisher(
+            for: Notification.Name("ScarletPilotRemoteSafeAreaChanged"))) { note in
+            let stage = note.userInfo?["stage"] as? String ?? "unknown"
+            let top = (note.userInfo?["top"] as? NSNumber)?.intValue ?? -1
+            let bottom = (note.userInfo?["bottom"] as? NSNumber)?.intValue ?? -1
+            ScarletDiagnosticRecorder.shared.record(
+                "layout", "pilot_remote_safearea_applied",
+                status: top > 0 ? "success" : "warning",
+                fields: ["stage": stage,
+                         "safe_top_pt": String(top),
+                         "safe_bottom_pt": String(bottom),
+                         "result": top > 0 ? "nonzero_remote_scene_safearea"
+                                           : "zero_remote_scene_safearea"])
+        }
         // Keep the real LiveContainer importer mounted OUTSIDE the sheet.
         // The sheet is a read-only view of host-owned progress, so swiping
         // it down cannot cancel work or delete its staged input IPA.
