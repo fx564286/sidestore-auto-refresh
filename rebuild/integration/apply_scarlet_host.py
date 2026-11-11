@@ -1577,7 +1577,7 @@ def main():
     assert guest_hook_source.count(guest_hook_anchor)==1, "Guest hook changed"
     guest_hook_source = guest_hook_source.replace(
         '#import "Localization.h"\n',
-        '#import "Localization.h"\n#import <objc/message.h>\n#import <dlfcn.h>\n')
+        '#import "Localization.h"\n#import <objc/message.h>\n#import <dlfcn.h>\n#import <math.h>\n#include <unistd.h>\n')
     # This can execute before the SwiftUI framework exists. The host can
     # distinguish a missing TweakLoader hook from a broken Swift overlay.
     # Only fixed event names; bounded to 48, and never a guest title/ID.
@@ -1617,12 +1617,111 @@ static void ScarletGuestHookTrace(NSString *event) {
 }
 
 """
+
+    # R6P6 is deliberately NOT another host/FBScene safe-area correction.
+    # Observe the actual guest UIKit window and its root hierarchy in the
+    # LiveProcess. Only numbers, event stage and process PID cross App Group.
+    # We do not reposition a single guest view, scale the scene, swizzle
+    # UIWindow geometry, or require a new application entitlement.
+    guest_layout_probe = r'''
+// SCARLET_GUEST_WINDOW_GEOMETRY_PROBE_V1
+// A guest-owned sample distinguishes a real 0pt content inset from a host
+// reported 62pt inset. Never write into the guest hierarchy or status bar.
+static void ScarletGuestWindowGeometryCapture(UIWindow *window,
+                                                NSString *stage) {
+    if(!NSUserDefaults.isLiveProcess || !window || !window.windowScene ||
+       ![NSThread isMainThread]) return;
+    UIViewController *root = window.rootViewController;
+    UIView *rootView = root.isViewLoaded ? root.view : nil;
+    CGRect rootRect = rootView
+        ? [rootView convertRect:rootView.bounds toView:window] : CGRectZero;
+    CGRect statusRect = window.windowScene.statusBarManager.statusBarFrame;
+    NSInteger controlsAboveSafeTop = 0;
+    CGFloat minimumControlY = -1;
+    if(rootView) {
+        // Geometry-only scan of a bounded view subtree. No labels, text,
+        // accessibility IDs, bundle IDs, screenshots or app names collected.
+        NSMutableArray<UIView *> *queue = [NSMutableArray arrayWithObject:rootView];
+        NSUInteger inspected = 0;
+        while(queue.count && inspected++ < 120) {
+            UIView *candidate = queue.lastObject;
+            [queue removeLastObject];
+            if(candidate != rootView &&
+               [candidate isKindOfClass:UIControl.class] &&
+               candidate.userInteractionEnabled && !candidate.isHidden &&
+               candidate.alpha > 0.05) {
+                CGRect rect = [candidate convertRect:candidate.bounds toView:window];
+                if(isfinite(rect.origin.y) && rect.size.height >= 12 &&
+                   rect.size.height <= 160 && rect.size.width >= 12 &&
+                   CGRectGetMaxY(rect) > 0 &&
+                   CGRectGetMinY(rect) < window.safeAreaInsets.top) {
+                    controlsAboveSafeTop++;
+                    if(minimumControlY < 0 ||
+                       CGRectGetMinY(rect) < minimumControlY)
+                        minimumControlY = CGRectGetMinY(rect);
+                }
+            }
+            [queue addObjectsFromArray:candidate.subviews];
+        }
+    }
+    NSUserDefaults *shared = NSUserDefaults.lcSharedDefaults;
+    if(!shared) return;
+    NSData *raw = [shared dataForKey:@"Scarlet.Guest.WindowGeometry.V1"];
+    NSMutableArray *entries = [NSMutableArray array];
+    if(raw) {
+        id decoded = [NSJSONSerialization JSONObjectWithData:raw
+            options:NSJSONReadingMutableContainers error:NULL];
+        if([decoded isKindOfClass:NSArray.class]) [entries addObjectsFromArray:decoded];
+    }
+    [entries addObject:@{
+        @"id": NSUUID.UUID.UUIDString,
+        @"epoch": @([[NSDate date] timeIntervalSince1970]),
+        @"pid": @(getpid()),
+        @"stage": stage,
+        @"window_top": @(window.safeAreaInsets.top),
+        @"window_bottom": @(window.safeAreaInsets.bottom),
+        @"root_top": @(rootView ? rootView.safeAreaInsets.top : -1),
+        @"root_y": @(rootView ? rootRect.origin.y : -1),
+        @"status_max_y": @(CGRectGetMaxY(statusRect)),
+        @"orientation": @(window.windowScene.interfaceOrientation),
+        @"width": @(window.bounds.size.width),
+        @"height": @(window.bounds.size.height),
+        @"controls_above_safe": @(controlsAboveSafeTop),
+        @"first_control_y": @(minimumControlY)
+    }];
+    if(entries.count > 24)
+        [entries removeObjectsInRange:NSMakeRange(0, entries.count - 24)];
+    NSData *encoded = [NSJSONSerialization dataWithJSONObject:entries
+        options:0 error:NULL];
+    if(encoded) [shared setObject:encoded
+                           forKey:@"Scarlet.Guest.WindowGeometry.V1"];
+}
+'''
     guest_hook_source = guest_hook_source.replace(
-        hook_probe_anchor, hook_probe_helper + hook_probe_anchor)
+        hook_probe_anchor, hook_probe_helper + guest_layout_probe + hook_probe_anchor)
     guest_hook_source = guest_hook_source.replace(
         guest_hook_anchor,
         guest_hook_anchor +
         "    ScarletGuestHookTrace(@\"hook_entered\");\n"
+        "    // Probe UIKit *inside the LiveProcess*, not the host's FBScene.\n"
+        "    // Each sample is read-only and does not move any guest pixels.\n"
+        "    if(NSUserDefaults.isLiveProcess) {\n"
+        "        for(NSNotificationName n in @[UIWindowDidBecomeKeyNotification,\n"
+        "             UIWindowDidBecomeVisibleNotification]) {\n"
+        "            [[NSNotificationCenter defaultCenter] addObserverForName:n\n"
+        "                object:nil queue:NSOperationQueue.mainQueue\n"
+        "                usingBlock:^(NSNotification *note) {\n"
+        "                    if(![note.object isKindOfClass:UIWindow.class]) return;\n"
+        "                    UIWindow *window = (UIWindow *)note.object;\n"
+        "                    ScarletGuestWindowGeometryCapture(window,\n"
+        "                        [n isEqualToString:UIWindowDidBecomeKeyNotification] ? @\"key\" : @\"visible\");\n"
+        "                    dispatch_after(dispatch_time(DISPATCH_TIME_NOW,\n"
+        "                        (int64_t)(1.0 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{\n"
+        "                            ScarletGuestWindowGeometryCapture(window, @\"settled\");\n"
+        "                    });\n"
+        "                }];\n"
+        "        }\n"
+        "    }\n"
         "    // The full-screen LC guest skips LiveContainerSwiftUI's main().\n"
         "    // Its classes are in a separate dylib, not in the main executable.\n"
         "    // Explicitly load the exact built-in framework before NSClassFromString.\n"

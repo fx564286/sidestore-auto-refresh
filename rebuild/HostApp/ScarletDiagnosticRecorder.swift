@@ -222,6 +222,7 @@ struct ScarletDiagnosticLogView: View {
         // Import shared guest hook/switcher events whenever logs are opened.
         if #available(iOS 17.0, *) {
             ScarletGuestSessionLedger.replaySwitcherTraceToHostJournal()
+            ScarletGuestSessionLedger.replayGuestWindowGeometryToHostJournal()
         }
         ScarletDiagnosticRecorder.shared.record("diagnostics", "viewer_opened")
         let content = ScarletDiagnosticRecorder.shared.readRecent(

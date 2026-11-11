@@ -257,6 +257,62 @@ enum ScarletGuestSessionLedger {
         }
     }
 
+    // R6P6: compare actual guest-process UIKit geometry with the host's
+    // FBScene readback. Guest writes only numeric positions and a stage;
+    // there are no app names, user text, view class names or screenshots.
+    // Import on diagnostic viewer open, not by repeatedly polling guest UI.
+    private static let guestGeometryKey = "Scarlet.Guest.WindowGeometry.V1"
+    private static let guestGeometryCursorKey = "Scarlet.Guest.WindowGeometryCursor.V1"
+    static func replayGuestWindowGeometryToHostJournal() {
+        guard let raw = store.data(forKey: guestGeometryKey),
+              let decoded = try? JSONSerialization.jsonObject(with: raw),
+              let rows = decoded as? [[String: Any]], !rows.isEmpty else {
+            ScarletDiagnosticRecorder.shared.record(
+                "layout", "guest_window_probe_unavailable",
+                fields: ["reason": "no_guest_measurement_received"])
+            return
+        }
+        let cursor = UserDefaults.standard.string(forKey: guestGeometryCursorKey)
+        let start = cursor.flatMap { id in
+            rows.lastIndex(where: { $0["id"] as? String == id }).map { $0 + 1 }
+        } ?? 0
+        let currentStart = ScarletDiagnosticRecorder.shared.currentProcessStartDate
+            .timeIntervalSince1970
+        let keys = ["window_top", "window_bottom", "root_top",
+                    "root_y", "status_max_y", "orientation", "width",
+                    "height", "controls_above_safe", "first_control_y"]
+        if start < rows.count {
+            for row in rows[start...] {
+                guard let epoch = (row["epoch"] as? NSNumber)?.doubleValue,
+                      epoch >= currentStart,
+                      let pid = (row["pid"] as? NSNumber)?.int32Value,
+                      pid > 0,
+                      let stage = row["stage"] as? String,
+                      ["key", "visible", "settled"].contains(stage) else {
+                    continue
+                }
+                var fields = ["stage": stage, "process_pid": String(pid),
+                              "source": "guest_liveprocess_uikit_window",
+                              "geometry_only": "true"]
+                for key in keys {
+                    if let value = row[key] as? NSNumber {
+                        // Snapshot fields are bounded coordinates and counts.
+                        let number = value.doubleValue
+                        if number.isFinite && abs(number) <= 10000 {
+                            fields[key] = String(Int(number.rounded()))
+                        }
+                    }
+                }
+                ScarletDiagnosticRecorder.shared.record(
+                    "layout", "guest_window_geometry_observed",
+                    fields: fields)
+            }
+        }
+        if let id = rows.last?["id"] as? String {
+            UserDefaults.standard.set(id, forKey: guestGeometryCursorKey)
+        }
+    }
+
     // Keep an exact, short-lived pending target only in the existing secure
     // App Group; export an ANONYMOUS acknowledgement to the host diagnostic
     // journal after the next TweakLoader guest bootstrap.
