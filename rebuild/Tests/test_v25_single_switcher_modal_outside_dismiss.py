@@ -25,7 +25,7 @@ class V25ModalSwitcher(unittest.TestCase):
         self.assertNotIn('Image(systemName: isOpen ? "xmark"',root)
 
     def test_expanded_window_receives_outside_taps(self):
-        body=SRC.split('override func point(inside point:',1)[1].split('\n}',1)[0]
+        body=SRC.split('final class ScarletGuestTouchPassthroughWindow: UIWindow',1)[1].split('override func point(inside point:',1)[1].split('\n}',1)[0]
         self.assertIn('guard bounds.contains(point)',body)
         self.assertIn('if isExpanded {',body)
         self.assertIn('return super.point(inside: point, with: event)',body)

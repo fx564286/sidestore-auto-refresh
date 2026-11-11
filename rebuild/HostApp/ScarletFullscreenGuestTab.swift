@@ -22,82 +22,74 @@ struct ScarletGuestSwitchTarget: Identifiable {
     let reason: String?
 }
 
-// A separate non-key UIWindow can still swallow touches in transparent
-// corners. Only the visible round button or the expanded card is interactive;
-// all other touches fall through to the full-screen guest.
+// V48-R5: Direct UIKit touch layer; V48 Pan remains unchanged.
+// UIWindow hitTest -> self had no reliable close action in R4.
+// A real UIControl in front of the hosting view owns outside-panel hits.
 @available(iOS 17.0, *)
-final class ScarletGuestTouchPassthroughWindow: UIWindow, UIGestureRecognizerDelegate {
-    static let outsideDismiss = Notification.Name("ScarletGuestSwitcherNativeOutsideDismiss")
-    private var nativeOutsideTap: UITapGestureRecognizer?
-    var isExpanded = false
+@MainActor
+final class ScarletSwitcherDismissState: ObservableObject {
+    @Published private(set) var closeGeneration: UInt64 = 0
+    func requestClose() { closeGeneration &+= 1 }
+}
+
+@available(iOS 17.0, *)
+@MainActor
+private final class ScarletSwitcherOutsideShield: UIControl {
+    weak var owner: ScarletGuestTouchPassthroughWindow?
+    override func point(inside point: CGPoint, with event: UIEvent?) -> Bool {
+        guard let owner, owner.isExpanded, bounds.contains(point) else { return false }
+        return !owner.panelRect.insetBy(dx: -3, dy: -3).contains(point)
+    }
+}
+
+@available(iOS 17.0, *)
+@MainActor
+final class ScarletGuestTouchPassthroughWindow: UIWindow {
+    var isExpanded = false {
+        didSet {
+            outsideShield?.isHidden = !isExpanded
+            if isExpanded, let shield = outsideShield {
+                bringSubviewToFront(shield)
+            }
+        }
+    }
     var dockRight = false
-    // A stable full-scene non-key window avoids clipping the 62pt glass
-    // circle inside a 72pt moving UIWindow. All taps outside the exact
-    // circle and panel pass through to the running guest.
     var buttonCenter: CGPoint = .zero
     var panelRect: CGRect = .zero
+    var dismissState: ScarletSwitcherDismissState?
+    private var outsideShield: ScarletSwitcherOutsideShield?
 
-    // A transparent UIHostingController cannot reliably consume Color.clear
-    // taps on iOS 27. Route outside touches at UIWindow level instead of
-    // relying on SwiftUI's clear backdrop (which sometimes returns no hit).
-    // Installed once for both original LC and resident LiveProcess switchers.
     func enableNativeOutsideDismiss() {
-        guard nativeOutsideTap == nil else { return }
-        let tap = UITapGestureRecognizer(
-            target: self, action: #selector(didTapOutside(_:)))
-        tap.cancelsTouchesInView = true
-        tap.delegate = self
-        addGestureRecognizer(tap)
-        nativeOutsideTap = tap
+        guard outsideShield == nil else { return }
+        let shield = ScarletSwitcherOutsideShield(frame: bounds)
+        shield.owner = self
+        shield.isOpaque = false
+        shield.backgroundColor = .clear
+        shield.isHidden = !isExpanded
+        shield.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+        shield.addTarget(self, action: #selector(didPressOutside(_:)),
+                         for: .touchUpInside)
+        // Above the SwiftUI backdrop; ignore touch hits within the card.
+        addSubview(shield)
+        outsideShield = shield
         ScarletDiagnosticRecorder.shared.record(
-            "guest", "switch_outside_native_recognizer_installed",
-            fields: ["result": "native_window_outside_dispatch"])
+            "guest", "outside_shield_installed",
+            fields: ["result": "native_UIControl_above_hosting_view"])
     }
 
-    func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer,
-                           shouldReceive touch: UITouch) -> Bool {
-        guard gestureRecognizer === nativeOutsideTap, isExpanded else { return false }
-        let p = touch.location(in: self)
-        let isOutside = bounds.contains(p) && !panelRect.insetBy(dx: -3, dy: -3).contains(p)
-        if isOutside {
-            ScarletDiagnosticRecorder.shared.record(
-                "guest", "switch_outside_native_touch_received",
-                fields: ["result": "outside_panel_bounds",
-                         "button_x_pt": String(Int(p.x)),
-                         "button_y_pt": String(Int(p.y)),
-                         "overlay_expanded": "true"])
-        }
-        return isOutside
-    }
-
-    @objc private func didTapOutside(_ recognizer: UITapGestureRecognizer) {
-        guard recognizer.state == .ended, isExpanded else { return }
+    @objc private func didPressOutside(_ sender: UIControl) {
+        guard isExpanded, !isHidden else { return }
         ScarletDiagnosticRecorder.shared.record(
-            "guest", "switch_outside_native_dismiss_dispatched",
-            fields: ["result": "window_tap_to_panel_close"])
-        NotificationCenter.default.post(name: Self.outsideDismiss, object: self)
-    }
-
-    override func hitTest(_ point: CGPoint, with event: UIEvent?) -> UIView? {
-        guard isExpanded, bounds.contains(point),
-              !panelRect.insetBy(dx: -3, dy: -3).contains(point) else {
-            return super.hitTest(point, with: event)
-        }
-        // Do not forward touches to the guest while the switcher is open;
-        // return the UIWindow itself to guarantee our native tap is delivered.
-        return self
+            "guest", "outside_shield_touch_up_inside",
+            fields: ["result": "direct_state_close_requested",
+                     "overlay_expanded": "true"])
+        dismissState?.requestClose()
     }
 
     override func point(inside point: CGPoint, with event: UIEvent?) -> Bool {
         guard bounds.contains(point) else { return false }
-        if isExpanded {
-            // The panel is modal in its own non-key UIWindow. Swallow an
-            // outside tap HERE so the SwiftUI clear backdrop can dismiss
-            // the panel; do not forward it to the running guest below.
-            return super.point(inside: point, with: event)
-        }
-        // Collapsed: native guest remains interactive everywhere except
-        // the round floating button at its persisted absolute position.
+        if isExpanded { return super.point(inside: point, with: event) }
+        // Collapsed: guest receives touches except at the 62pt circle.
         return hypot(point.x - buttonCenter.x,
                      point.y - buttonCenter.y) <= 35 &&
             super.point(inside: point, with: event)
@@ -113,6 +105,7 @@ struct ScarletFullscreenGuestFloatingTab: View {
     let initialButtonCenter: CGPoint
     let onSwitch: (ScarletGuestSwitchTarget) -> Bool
     let onExit: () -> Void
+    @ObservedObject var dismissState: ScarletSwitcherDismissState
 
     @State private var isOpen = false
     @State private var apps: [ScarletGuestSwitchTarget] = []
@@ -498,12 +491,13 @@ struct ScarletFullscreenGuestFloatingTab: View {
             screenButtonCenter = initialButtonCenter
             dockRight = initialDockRight
         }
-        .onReceive(NotificationCenter.default.publisher(
-            for: ScarletGuestTouchPassthroughWindow.outsideDismiss)) { note in
-            guard isOpen, let origin = note.object as? ScarletGuestTouchPassthroughWindow,
-                  origin.isExpanded, origin.isHidden == false else { return }
+        .onChange(of: dismissState.closeGeneration) { _, _ in
+            guard isOpen else { return }
             ScarletGuestSessionLedger.traceSwitcher("panel_dismissed_outside_native")
-            closePanel()  // Existing V48 closePanel owns button geometry.
+            ScarletDiagnosticRecorder.shared.record(
+                "guest", "outside_shield_close_handled",
+                fields: ["result": "existing_V48_closePanel_called"])
+            closePanel() // Original V48 closePanel and button remain.
         }
         .onReceive(NotificationCenter.default.publisher(
             for: Notification.Name("ScarletGuestFloatingDockChanged"))) { note in
@@ -1081,6 +1075,7 @@ final class ScarletFullscreenGuestTabInstaller: NSObject {
         dragHandler = nil
 
         ScarletGuestSessionLedger.confirmSwitchHandoff(runtimeGuestID: runtimeGuestID)
+        let dismissState = ScarletSwitcherDismissState()
         let content = ScarletFullscreenGuestFloatingTab(
             guestTitle: "현재 실행 중인 앱",
             reloadApps: { installedApps(guestIdentifier: runtimeGuestID) },
@@ -1116,7 +1111,8 @@ final class ScarletFullscreenGuestTabInstaller: NSObject {
                     ScarletDiagnosticRecorder.shared.record(
                         "guest", "return_to_host_request_failed", status: "warning")
                 }
-            }
+            },
+            dismissState: dismissState
         )
         let overlay = ScarletGuestTouchPassthroughWindow(windowScene: scene)
         overlay.windowLevel = UIWindow.Level.alert + 1
@@ -1140,6 +1136,7 @@ final class ScarletFullscreenGuestTabInstaller: NSObject {
         controller.view.addGestureRecognizer(pan)
         dragHandler = panHandler
         overlay.rootViewController = controller
+        overlay.dismissState = dismissState
         overlay.enableNativeOutsideDismiss()
         overlay.frame = frame(in: original)
         overlay.buttonCenter = center(in: original)
@@ -1262,6 +1259,7 @@ extension ScarletFullscreenGuestTabInstaller {
         dragStartScreen = nil
         dragHandler = nil
         let start = center(in: host)
+        let dismissState = ScarletSwitcherDismissState()
         let content = ScarletFullscreenGuestFloatingTab(
             guestTitle: "현재 실행 중인 앱",
             reloadApps: reloadApps,
@@ -1269,7 +1267,8 @@ extension ScarletFullscreenGuestTabInstaller {
             initialDockRight: start.x >= host.bounds.midX,
             initialButtonCenter: start,
             onSwitch: onSwitch,
-            onExit: onExit)
+            onExit: onExit,
+            dismissState: dismissState)
         let overlay = ScarletGuestTouchPassthroughWindow(windowScene: scene)
         overlay.windowLevel = UIWindow.Level.alert + 1
         overlay.backgroundColor = .clear
@@ -1294,6 +1293,7 @@ extension ScarletFullscreenGuestTabInstaller {
         root.view.addGestureRecognizer(pan)
         dragHandler = panHandler
         overlay.rootViewController = root
+        overlay.dismissState = dismissState
         overlay.enableNativeOutsideDismiss()
         overlay.frame = frame(in: host)
         overlay.buttonCenter = center(in: host)

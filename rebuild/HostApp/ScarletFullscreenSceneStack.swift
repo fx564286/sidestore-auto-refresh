@@ -454,6 +454,71 @@ final class ScarletFullscreenSceneViewport: UIViewController {
     private var lastBounds: CGSize = .zero
     private var lastRejectedBounds: CGSize?
     private var lastInsetsSignature: String = ""
+    private var appliedRemoteInsets: [ObjectIdentifier: UIEdgeInsets] = [:]
+
+    // V48-R5: iOS 27 finishes attaching the remote _UISceneHostingController
+    // AFTER appSceneVCWillActivateScene. The previous initial/FBScene hooks
+    // alone did not synchronize a safe inset once the real UIWindow existed.
+    // Keep the guest's full original pixel viewport and update its safe
+    // CONTENT REGION; no frame transform, inset overlay or guest resizing.
+    private func resolvedHostInsets(_ scene: UIWindowScene) -> UIEdgeInsets {
+        var safe = scene.windows.first(where: {
+            $0.windowLevel == .normal && !$0.isHidden
+        })?.safeAreaInsets ?? view.window?.safeAreaInsets ?? .zero
+        if scene.interfaceOrientation.isPortrait {
+            let statusBottom = scene.statusBarManager?.statusBarFrame.maxY ?? 0
+            safe.top = max(safe.top, statusBottom)
+        }
+        return safe
+    }
+
+    private func synchronizeAttachedGuestSafeAreas(_ scene: UIWindowScene) {
+        let safe = resolvedHostInsets(scene)
+        guard safe.top > 0 || safe.bottom > 0 ||
+              safe.left > 0 || safe.right > 0 else {
+            ScarletDiagnosticRecorder.shared.record(
+                "layout", "attached_guest_safearea_unavailable",
+                status: "warning",
+                fields: ["reason": "host_and_statusbar_zero"])
+            return
+        }
+        for controller in controllers.values where controller.scarletNativeFullscreenSlot {
+            let key = ObjectIdentifier(controller)
+            if let previous = appliedRemoteInsets[key],
+               UIEdgeInsetsEqualToEdgeInsets(previous, safe) { continue }
+            // additionalSafeAreaInsets affects content in the hosting
+            // controller, not UIView.frame or the guest display scale.
+            // Record first to avoid a reentrant layout pass retransmitting
+            // the same scene settings before the UIKit callback returns.
+            appliedRemoteInsets[key] = safe
+            controller.additionalSafeAreaInsets = .zero
+            let base = controller.view.safeAreaInsets
+            controller.additionalSafeAreaInsets = UIEdgeInsets(
+                top: max(0, safe.top - base.top),
+                left: max(0, safe.left - base.left),
+                bottom: max(0, safe.bottom - base.bottom),
+                right: max(0, safe.right - base.right))
+            controller.updateSettings { settings in
+                guard let settings else { return }
+                settings.peripheryInsets = safe
+                settings.safeAreaInsetsPortrait = safe
+                if #available(iOS 19.0, *) {
+                    settings.safeAreaEdgeInsets = safe
+                }
+            }
+            ScarletDiagnosticRecorder.shared.record(
+                "layout", "attached_guest_safearea_synchronized",
+                status: safe.top > 0 ? "success" : "warning",
+                fields: ["result": "attached_native_scene_runtime_update",
+                         "safe_top_pt": String(Int(safe.top)),
+                         "safe_bottom_pt": String(Int(safe.bottom)),
+                         "guest_safe_top_pt": String(Int(controller.view.safeAreaInsets.top)),
+                         "viewport_width_pt": String(Int(view.bounds.width)),
+                         "viewport_height_pt": String(Int(view.bounds.height)),
+                         "scene_width_pt": String(Int(scene.coordinateSpace.bounds.width)),
+                         "scene_height_pt": String(Int(scene.coordinateSpace.bounds.height))])
+        }
+    }
 
     private func captureSafeAreaSnapshot(_ event: String) {
         guard let window = view.window else { return }
@@ -555,6 +620,7 @@ final class ScarletFullscreenSceneViewport: UIViewController {
                          "reason": "verified_fullscreen_viewport"])
         }
         reconcile()
+        synchronizeAttachedGuestSafeAreas(scene)
     }
 
     func isAlive(folder: String) -> Bool {
@@ -579,6 +645,7 @@ final class ScarletFullscreenSceneViewport: UIViewController {
         old.view.removeFromSuperview()
         old.removeFromParent()
         controllers.removeValue(forKey: folder)
+        appliedRemoteInsets.removeValue(forKey: ObjectIdentifier(old))
         return true
     }
 
@@ -636,6 +703,9 @@ final class ScarletFullscreenSceneViewport: UIViewController {
            stack.slots.contains(where: { $0.id == active && $0.pid > 0 }) {
             _ = select(folder: active)
         }
+        // Newly created controllers are not present during the earlier
+        // viewDidLayoutSubviews pass. Synchronize after attaching them.
+        synchronizeAttachedGuestSafeAreas(scene)
     }
 }
 
