@@ -6,6 +6,7 @@
 import Foundation
 import UIKit
 import SwiftUI
+import Darwin
 
 @available(iOS 17.0, *)
 @MainActor
@@ -308,6 +309,7 @@ final class ScarletFullscreenSceneStack: NSObject, ObservableObject,
         guard isVisible, let activeID,
               viewport?.isAlive(folder: activeID) == true else { return }
         let refreshed = viewport?.refreshExistingRemoteScene(folder: activeID) == true
+        viewport?.synchronizeGuestAudioFocus(selectedFolder: activeID, force: true)
         ScarletDiagnosticRecorder.shared.record(
             "guest", "fullscreen_scene_host_active_refresh",
             fields: ["result": refreshed ? "foreground_reasserted_on_existing_pid"
@@ -322,6 +324,7 @@ final class ScarletFullscreenSceneStack: NSObject, ObservableObject,
         // No close, terminate, detach, scene destruction or relaunch.
         // Keep each remote scene in the original full-screen viewport.
         isVisible = false
+        viewport?.synchronizeGuestAudioFocus(selectedFolder: nil)
         overlayWindow?.isHidden = true
         viewport?.setResidentOutsideDismissEnabled(false)
         ScarletDiagnosticRecorder.shared.record(
@@ -492,6 +495,9 @@ final class ScarletFullscreenSceneStack: NSObject, ObservableObject,
             fields: ["result": "native_after_content_subview",
                      "window_attached": vc.view.window != nil ? "true" : "false",
                      "process_pid": String(vc.pid)])
+        // Newly attached secondary guests must not retain audio focus merely
+        // because their remote UIView is hidden with layer opacity zero.
+        viewport?.synchronizeGuestAudioFocus(selectedFolder: isVisible ? activeID : nil)
         if activeID == vc.bundleId {
             revealStartedScene(vc.bundleId)
         }
@@ -621,6 +627,8 @@ final class ScarletFullscreenSceneStack: NSObject, ObservableObject,
 @MainActor
 final class ScarletFullscreenSceneViewport: UIViewController {
     private weak var stack: ScarletFullscreenSceneStack?
+    // Per-controller audio intent. Never infer audio state from view opacity.
+    private var lastAudioFocusRequests: [ObjectIdentifier: Bool] = [:]
     private var controllers: [String: AppSceneViewController] = [:]
     private var lastBounds: CGSize = .zero
     private var lastRejectedBounds: CGSize?
@@ -842,6 +850,32 @@ final class ScarletFullscreenSceneViewport: UIViewController {
         synchronizeAttachedGuestSafeAreas(scene)
     }
 
+    // Each LiveProcess has its own AVAudioSession, distinct from Scarlet's host.
+    // Signal ONLY the process that owns this particular guest. The guest-side
+    // receiver exempts call/record categories and never terminates a guest.
+    // A successful Darwin notify_post is delivery intent, NOT an audio ACK.
+    func synchronizeGuestAudioFocus(selectedFolder: String?, force: Bool = false) {
+        for (folder, vc) in controllers {
+            guard vc.pid > 0, vc.isAppRunning else { continue }
+            let shouldPlay = selectedFolder == folder
+            let key = ObjectIdentifier(vc)
+            guard force || lastAudioFocusRequests[key] != shouldPlay else { continue }
+            let name = "com.kdt.scarlet.audiofocus.\(vc.pid).\(shouldPlay ? "on" : "off")"
+            let status = name.withCString { notify_post($0) }
+            if status == 0 { lastAudioFocusRequests[key] = shouldPlay }
+            ScarletDiagnosticRecorder.shared.record(
+                "audio", "guest_audio_focus_signal",
+                status: status == 0 ? "info" : "warning",
+                fields: ["process_pid": String(vc.pid),
+                         "focus_state": shouldPlay ? "selected" : "inactive",
+                         "code": String(status),
+                         "result": status == 0
+                             ? "posted_not_device_verified"
+                             : "notification_post_failed",
+                         "memory": "same_live_process"])
+        }
+    }
+
     func isAlive(folder: String) -> Bool {
         controllers[folder]?.isAppRunning == true
     }
@@ -856,6 +890,7 @@ final class ScarletFullscreenSceneViewport: UIViewController {
         // This exact original LC API reasserts foreground after the user
         // returns from Home without touching guest process/data/signature.
         owner.setBackgroundNotificationEnabled(false)
+        synchronizeGuestAudioFocus(selectedFolder: folder, force: true)
         owner.view.setNeedsLayout()
         owner.contentView?.setNeedsLayout()
         return true
@@ -880,6 +915,7 @@ final class ScarletFullscreenSceneViewport: UIViewController {
         old.removeFromParent()
         controllers.removeValue(forKey: folder)
         observedRemoteInsets.removeValue(forKey: ObjectIdentifier(old))
+        lastAudioFocusRequests.removeValue(forKey: ObjectIdentifier(old))
         lastHostingOwnerProbes.removeValue(forKey: ObjectIdentifier(old))
         return true
     }
@@ -895,6 +931,7 @@ final class ScarletFullscreenSceneViewport: UIViewController {
             vc.view.isUserInteractionEnabled = key == folder
         }
         view.bringSubviewToFront(target.view)
+        synchronizeGuestAudioFocus(selectedFolder: folder)
         // One-shot foreground request after the real remote surface is
         // attached. Never restart or re-sign an existing guest process.
         let foregroundRequested = target.scarletEnsureRemoteForeground()
@@ -945,7 +982,7 @@ final class ScarletFullscreenSceneViewport: UIViewController {
             vc.didMove(toParent: self)
             controllers[slot.id] = vc
         }
-        if let active = stack.activeID,
+        if stack.isVisible, let active = stack.activeID,
            stack.slots.contains(where: { $0.id == active && $0.pid > 0 }) {
             _ = select(folder: active)
         }
