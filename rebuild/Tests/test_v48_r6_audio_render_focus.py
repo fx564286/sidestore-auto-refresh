@@ -25,7 +25,7 @@ class R6AudioAndDrawability(unittest.TestCase):
         self.assertIn('engine / "LiveProcess/main.m"', INTEGRATION)
         self.assertIn("SCPilotRegisterAudioFocus();", INTEGRATION)
         self.assertIn('notify_register_dispatch(', INTEGRATION)
-        self.assertIn('AVAudioSessionCategoryPlayAndRecord', 'AVAudioSessionCategoryPlayAndRecord')  # stated exempt below
+        self.assertIn('if(!playback)', INTEGRATION)  # call and recording categories are intentionally excluded
         self.assertIn('AVAudioSessionCategoryPlayback', INTEGRATION)
         self.assertIn('AVAudioSessionCategoryAmbient', INTEGRATION)
         self.assertIn('AVAudioSessionCategorySoloAmbient', INTEGRATION)
