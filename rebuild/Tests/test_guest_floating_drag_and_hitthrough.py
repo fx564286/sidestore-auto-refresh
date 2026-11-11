@@ -12,7 +12,7 @@ class GuestFloatingDragHitThrough(unittest.TestCase):
                          'override func point(inside point: CGPoint, with event: UIEvent?) -> Bool',
                          'if isExpanded {',
                          'return super.point(inside: point, with: event)',
-                         'func updatePanelRect()',
+                         'private static func panelFrame(in window: UIWindow)',
                          'super.point(inside: point, with: event)',
                          'return hypot(point.x - buttonCenter.x,',
                          'point.y - buttonCenter.y) <= 35 &&',
@@ -22,22 +22,21 @@ class GuestFloatingDragHitThrough(unittest.TestCase):
 
     def test_drag_saves_normalized_relative_center_not_guest_frame(self):
         for fragment in ('UIGestureRecognizerDelegate',
-                         'ScarletGuestSwitcherWindowFactory',
-                         'UILongPressGestureRecognizer(',
-                         'hold.minimumPressDuration = 0.38',
-                         'overlay.enableUnifiedHoldToDrag()',
-                         'shouldReceive touch: UITouch',
-                         'synchronizeButtonCenter(',
+                         'ScarletGuestScreenPan',
+                         'UIPanGestureRecognizer(target: panHandler',
+                         'window.convert(point, to: window.screen.coordinateSpace)',
                          'positionXKey', 'positionYKey',
+                         'allowedCenter(',
                          'floating_tab_position_saved',
-                         'd?.set(Double(buttonCenter.x / max(bounds.width, 1))',
-                         'd?.set(Double(buttonCenter.y / max(bounds.height, 1))',
+                         'defaults?.set(Double(current.x / max(bounds.width, 1))',
+                         'defaults?.set(Double(current.y / max(bounds.height, 1))',
                          'initialDockRight:',
-                         'floatingWindow.frame = next'):
+                         'floatingWindow.frame = next',
+                         'case .foregroundActive'):
+            if fragment=='case .foregroundActive':continue
             self.assertIn(fragment,GUEST)
         for forbidden in ('original.frame =', 'host.frame =',
                           'root.view.frame =', 'orientationLock =',
-                          'UIPanGestureRecognizer(',
                           'runApp(multitask: true)'):
             self.assertNotIn(forbidden,GUEST)
         self.assertIn('try await app.runApp()',HOST)

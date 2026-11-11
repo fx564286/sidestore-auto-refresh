@@ -21,8 +21,8 @@ class CurrentLaunchOnly(unittest.TestCase):
         record=S[S.index('func record('):S.index('func recordError(')]
         self.assertNotIn('fm.moveItem(',record)
         self.assertIn('Data(previous.suffix(maxFileBytes / 2))',record)
-        self.assertIn('maxFileBytes = 1_500_000',S)
-        self.assertIn('retainedFiles = 4',S)
+        self.assertIn('maxFileBytes = 4_000_000',S)
+        self.assertIn('retainedFiles = 8',S)
 
     def test_share_and_view_default_current_process_only(self):
         self.assertIn('func makeShareFile(includeHistory: Bool = false)',S)

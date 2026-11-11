@@ -22,126 +22,29 @@ struct ScarletGuestSwitchTarget: Identifiable {
     let reason: String?
 }
 
-// Shared by BOTH LC guest-bootstrap and experimental LiveProcess runtimes.
-// The parent execution engine differs; the switcher presentation, gesture,
-// normalized drag storage and hit testing have ONE native implementation.
+// A separate non-key UIWindow can still swallow touches in transparent
+// corners. Only the visible round button or the expanded card is interactive;
+// all other touches fall through to the full-screen guest.
 @available(iOS 17.0, *)
-@MainActor
-final class ScarletGuestTouchPassthroughWindow: UIWindow, UIGestureRecognizerDelegate {
-    static let positionXKey = "ScarletGuestRoundTabCenterXFractionV1"
-    static let positionYKey = "ScarletGuestRoundTabCenterYFractionV1"
+final class ScarletGuestTouchPassthroughWindow: UIWindow {
     var isExpanded = false
     var dockRight = false
+    // A stable full-scene non-key window avoids clipping the 62pt glass
+    // circle inside a 72pt moving UIWindow. All taps outside the exact
+    // circle and panel pass through to the running guest.
     var buttonCenter: CGPoint = .zero
     var panelRect: CGRect = .zero
-    private var pressOrigin: CGPoint?
-    private var buttonOrigin: CGPoint?
-    private var holdGesture: UILongPressGestureRecognizer?
-
-    func updatePanelRect() {
-        let w = min(CGFloat(430), max(CGFloat(72), bounds.width - 32))
-        let h = min(w * 1.02, CGFloat(435),
-                    max(CGFloat(210), bounds.height - 156))
-        panelRect = CGRect(x: (bounds.width - w) / 2,
-                           y: (bounds.height - h) / 2,
-                           width: w, height: h)
-    }
-
-    private func constrained(_ p: CGPoint) -> CGPoint {
-        // Only the circle is repositioned. Never resize a guest scene/window.
-        let rootSafe = windowScene?.windows.first(where: {
-            $0 !== self && $0.windowLevel == .normal && !$0.isHidden
-        })?.safeAreaInsets ?? safeAreaInsets
-        let minX = rootSafe.left + 38
-        let maxX = max(minX, bounds.width - rootSafe.right - 38)
-        let minY = rootSafe.top + 38
-        let maxY = max(minY, bounds.height - rootSafe.bottom - 38)
-        return CGPoint(x: min(max(p.x, minX), maxX),
-                       y: min(max(p.y, minY), maxY))
-    }
-
-    func savedCenter(fallback: CGPoint) -> CGPoint {
-        let defaults = UserDefaults.lc()
-        let x = (defaults?.object(forKey: Self.positionXKey) as? NSNumber)?.doubleValue
-        let y = (defaults?.object(forKey: Self.positionYKey) as? NSNumber)?.doubleValue
-        guard let x, let y, x.isFinite, y.isFinite,
-              (0...1).contains(x), (0...1).contains(y) else {
-            return constrained(fallback)
-        }
-        return constrained(CGPoint(x: bounds.width * CGFloat(x),
-                                   y: bounds.height * CGFloat(y)))
-    }
-
-    func synchronizeButtonCenter(_ position: CGPoint) {
-        buttonCenter = constrained(position)
-        dockRight = buttonCenter.x >= bounds.midX
-        NotificationCenter.default.post(
-            name: Notification.Name("ScarletGuestFloatingDockChanged"),
-            object: nil, userInfo: ["x": buttonCenter.x, "y": buttonCenter.y,
-                                   "right": dockRight])
-    }
-
-    // iOS UIKit delivery is attached to UIWindow itself. The previous
-    // UIPanRecognizer attached to UIHostingController.view never served the
-    // experimental window; a held (stationary) finger also never began Pan.
-    func enableUnifiedHoldToDrag() {
-        guard holdGesture == nil else { return }
-        let hold = UILongPressGestureRecognizer(
-            target: self, action: #selector(handleUnifiedHold(_:)))
-        hold.minimumPressDuration = 0.38
-        hold.allowableMovement = 18
-        hold.cancelsTouchesInView = true
-        hold.delegate = self
-        addGestureRecognizer(hold)
-        holdGesture = hold
-    }
-
-    func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer,
-                           shouldReceive touch: UITouch) -> Bool {
-        guard !isExpanded, gestureRecognizer === holdGesture else { return false }
-        let p = touch.location(in: self)
-        return hypot(p.x - buttonCenter.x, p.y - buttonCenter.y) <= 35
-    }
-
-    @objc private func handleUnifiedHold(_ recognizer: UILongPressGestureRecognizer) {
-        let point = recognizer.location(in: self)
-        switch recognizer.state {
-        case .began:
-            pressOrigin = point
-            buttonOrigin = buttonCenter
-            UIImpactFeedbackGenerator(style: .soft).impactOccurred()
-            ScarletDiagnosticRecorder.shared.record(
-                "guest", "floating_tab_hold_started",
-                fields: ["result": "unified_native_window"])
-        case .changed:
-            guard let start = pressOrigin, let origin = buttonOrigin else { return }
-            synchronizeButtonCenter(CGPoint(
-                x: origin.x + point.x - start.x,
-                y: origin.y + point.y - start.y))
-        case .ended:
-            if buttonOrigin != nil {
-                let d = UserDefaults.lc()
-                d?.set(Double(buttonCenter.x / max(bounds.width, 1)),
-                       forKey: Self.positionXKey)
-                d?.set(Double(buttonCenter.y / max(bounds.height, 1)),
-                       forKey: Self.positionYKey)
-                ScarletDiagnosticRecorder.shared.record(
-                    "guest", "floating_tab_position_saved",
-                    fields: ["result": "unified_normalized_position"])
-            }
-            pressOrigin = nil
-            buttonOrigin = nil
-        case .failed, .cancelled:
-            if let initial = buttonOrigin { synchronizeButtonCenter(initial) }
-            pressOrigin = nil
-            buttonOrigin = nil
-        default: break
-        }
-    }
 
     override func point(inside point: CGPoint, with event: UIEvent?) -> Bool {
         guard bounds.contains(point) else { return false }
-        if isExpanded { return super.point(inside: point, with: event) }
+        if isExpanded {
+            // The panel is modal in its own non-key UIWindow. Swallow an
+            // outside tap HERE so the SwiftUI clear backdrop can dismiss
+            // the panel; do not forward it to the running guest below.
+            return super.point(inside: point, with: event)
+        }
+        // Collapsed: native guest remains interactive everywhere except
+        // the round floating button at its persisted absolute position.
         return hypot(point.x - buttonCenter.x,
                      point.y - buttonCenter.y) <= 35 &&
             super.point(inside: point, with: event)
@@ -160,6 +63,7 @@ struct ScarletFullscreenGuestFloatingTab: View {
 
     @State private var isOpen = false
     @State private var apps: [ScarletGuestSwitchTarget] = []
+    @State private var showingInstallChoices = false
     @State private var feedback: String?
     @State private var transitionVersion = 0
     @State private var dockRight = false
@@ -183,11 +87,17 @@ struct ScarletFullscreenGuestFloatingTab: View {
     private var otherApps: [ScarletGuestSwitchTarget] {
         // Running/recently launched guests only. Do not pollute the normal
         // switcher with every app installed in LiveContainer.
-        apps.filter { !$0.isCurrent }
+        let launched = apps.filter { !$0.isCurrent }
+        return launched.filter { $0.reason != "inplace_first_launch" }
+    }
+
+    private var installChoices: [ScarletGuestSwitchTarget] {
+        apps.filter { $0.reason == "inplace_first_launch" }
     }
 
     private func openPanel() {
         apps = reloadApps()
+        showingInstallChoices = false
         ScarletGuestSessionLedger.traceSwitcher("panel_opened", count: apps.count)
         feedback = nil
         transitionVersion += 1
@@ -207,6 +117,7 @@ struct ScarletFullscreenGuestFloatingTab: View {
     }
 
     private func closePanel() {
+        showingInstallChoices = false
         ScarletGuestSessionLedger.traceSwitcher("panel_closed")
         transitionVersion += 1
         // Restore round-button-only hit testing synchronously. Keeping
@@ -330,9 +241,11 @@ struct ScarletFullscreenGuestFloatingTab: View {
                 .clipShape(RoundedRectangle(cornerRadius: 11))
                 VStack(alignment: .leading, spacing: 3) {
                     Text(app.title).font(.subheadline.weight(.medium)).lineLimit(1)
-                    Text(app.canSwitch ? "실행 중 · 작업 유지"
-                         : (app.canRelaunch ? "최근 실행 · 누르면 다시 열기"
-                                            : "최근 실행 · 실행 준비 필요"))
+                    Text(app.reason == "inplace_first_launch"
+                         ? "설치됨 · 여기서 바로 실행"
+                         : (app.canSwitch ? "실행 중 · 작업 유지"
+                            : (app.canRelaunch ? "최근 실행 · 누르면 다시 열기"
+                                               : "최근 실행 · 실행 준비 필요")))
                         .font(.caption2).foregroundStyle(.secondary)
                 }
                 Spacer(minLength: 0)
@@ -361,13 +274,33 @@ struct ScarletFullscreenGuestFloatingTab: View {
                     Spacer(minLength: 0)
                 }
                 currentAppRow
-                if !otherApps.isEmpty {
+                if !otherApps.isEmpty || (showingInstallChoices && !installChoices.isEmpty) {
                     ScrollView {
                         LazyVStack(alignment: .leading, spacing: 12) {
                             ForEach(otherApps) { entry in otherAppRow(entry) }
+                            if showingInstallChoices {
+                                ForEach(installChoices) { entry in otherAppRow(entry) }
+                            }
                         }
                     }
-                    .frame(maxHeight: 300)
+                    .frame(maxHeight: 260)
+                }
+                // Keep the established A/B session list unchanged. Adding a
+                // new installed guest is an inline second state of the SAME
+                // glass card, not a trip through Scarlet Home or another window.
+                if false && !installChoices.isEmpty { // V48-R3: user-forbidden add action hidden
+                    Button {
+                        withAnimation(morphAnimation) {
+                            showingInstallChoices.toggle()
+                        }
+                    } label: {
+                        Label(showingInstallChoices ? "앱 선택 접기" : "앱 추가",
+                              systemImage: showingInstallChoices ? "chevron.up" : "plus")
+                            .font(.subheadline.weight(.medium))
+                            .frame(maxWidth: .infinity, minHeight: 32)
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityIdentifier("SCARLET_RESIDENT_GUEST_ADD_INLINE")
                 }
                 if let feedback {
                     Text(feedback).font(.caption).foregroundStyle(.orange)
@@ -525,49 +458,30 @@ struct ScarletFullscreenGuestFloatingTab: View {
     }
 }
 
-// One switcher window factory for all guest run modes. Backend callbacks
-// intentionally differ because classic LC bootstrap and native LiveProcess
-// have distinct process lifecycles; neither has a second glass/drag UI path.
+// UIkit pan tracks finger in fixed screen space; no moving-window feedback.
 @available(iOS 17.0, *)
 @MainActor
-enum ScarletGuestSwitcherWindowFactory {
-    static func make(scene: UIWindowScene,
-                     center: CGPoint,
-                     guestTitle: String,
-                     reloadApps: @escaping () -> [ScarletGuestSwitchTarget],
-                     onPanel: @escaping (Bool, Int) -> Void,
-                     onSwitch: @escaping (ScarletGuestSwitchTarget) -> Bool,
-                     onExit: @escaping () -> Void) -> ScarletGuestTouchPassthroughWindow {
-        let overlay = ScarletGuestTouchPassthroughWindow(windowScene: scene)
-        overlay.windowLevel = UIWindow.Level.alert + 1
-        overlay.backgroundColor = .clear
-        overlay.isOpaque = false
-        overlay.layer.backgroundColor = UIColor.clear.cgColor
-        overlay.layer.masksToBounds = false
-        overlay.frame = scene.coordinateSpace.bounds
-        let initialCenter = overlay.savedCenter(fallback: center)
-        overlay.buttonCenter = initialCenter
-        overlay.dockRight = initialCenter.x >= overlay.bounds.midX
-        overlay.updatePanelRect()
-        let content = ScarletFullscreenGuestFloatingTab(
-            guestTitle: guestTitle,
-            reloadApps: reloadApps,
-            onPanel: { [weak overlay] open, count in
-                overlay?.isExpanded = open
-                overlay?.updatePanelRect()
-                onPanel(open, count)
-            },
-            initialDockRight: overlay.dockRight,
-            initialButtonCenter: initialCenter,
-            onSwitch: onSwitch,
-            onExit: onExit)
-        let controller = UIHostingController(rootView: content)
-        controller.view.backgroundColor = .clear
-        controller.view.isOpaque = false
-        overlay.rootViewController = controller
-        overlay.enableUnifiedHoldToDrag()
-        overlay.isHidden = true
-        return overlay
+private final class ScarletGuestScreenPan: NSObject, UIGestureRecognizerDelegate {
+    let onChange: (CGPoint, UIGestureRecognizer.State) -> Void
+    init(onChange: @escaping (CGPoint, UIGestureRecognizer.State) -> Void) {
+        self.onChange = onChange
+        super.init()
+    }
+    func gestureRecognizerShouldBegin(_ recognizer: UIGestureRecognizer) -> Bool {
+        guard let view = recognizer.view,
+              let overlay = view.window as? ScarletGuestTouchPassthroughWindow,
+              !overlay.isExpanded else { return false }
+        let point = recognizer.location(in: overlay)
+        // V10 is a full-scene overlay. The button is at a persisted absolute
+        // screen point, NOT the bottom corner of the UIWindow.
+        return hypot(point.x - overlay.buttonCenter.x,
+                     point.y - overlay.buttonCenter.y) <= 35
+    }
+    @objc func didPan(_ gesture: UIPanGestureRecognizer) {
+        guard let window = gesture.view?.window else { return }
+        let point = gesture.location(in: window)
+        let screenPoint = window.convert(point, to: window.screen.coordinateSpace)
+        onChange(screenPoint, gesture.state)
     }
 }
 
@@ -577,6 +491,10 @@ enum ScarletGuestSwitcherWindowFactory {
 final class ScarletFullscreenGuestTabInstaller: NSObject {
     private static var floatingWindow: ScarletGuestTouchPassthroughWindow?
     private static weak var guestWindow: UIWindow?
+    private static var dragOrigin: CGPoint?
+    private static var dragCenter: CGPoint?
+    private static var dragStartScreen: CGPoint?
+    private static var dragHandler: ScarletGuestScreenPan?
     private static var rotationObserver: NSObjectProtocol?
     private static var foregroundObserver: NSObjectProtocol?
     private static var guestDepartureObserver: NSObjectProtocol?
@@ -586,6 +504,8 @@ final class ScarletFullscreenGuestTabInstaller: NSObject {
     private static var lastStableSceneSize: CGSize?
     private static var rotationWatchTask: Task<Void, Never>?
     private static var lastFailure: String?
+    private static let positionXKey = "ScarletGuestRoundTabCenterXFractionV1"
+    private static let positionYKey = "ScarletGuestRoundTabCenterYFractionV1"
 
     private static func allowedCenter(_ value: CGPoint, in window: UIWindow) -> CGPoint {
         let b = window.windowScene?.coordinateSpace.bounds ?? window.bounds
@@ -599,21 +519,19 @@ final class ScarletFullscreenGuestTabInstaller: NSObject {
     }
 
     private static func center(in window: UIWindow) -> CGPoint {
-        let size = window.windowScene?.coordinateSpace.bounds.size ?? window.bounds.size
-        let defaultPoint = CGPoint(x: window.safeAreaInsets.left + 44,
-                                   y: size.height - window.safeAreaInsets.bottom - 44)
-        // The same normalized position store is read in both execution modes.
+        if let dragCenter { return allowedCenter(dragCenter, in: window) }
+        let b = window.windowScene?.coordinateSpace.bounds ?? window.bounds
         let defaults = UserDefaults.lc()
-        let x = (defaults?.object(forKey: ScarletGuestTouchPassthroughWindow.positionXKey)
-                 as? NSNumber)?.doubleValue
-        let y = (defaults?.object(forKey: ScarletGuestTouchPassthroughWindow.positionYKey)
-                 as? NSNumber)?.doubleValue
-        if let x, let y, x.isFinite, y.isFinite,
-           (0...1).contains(x), (0...1).contains(y) {
-            return allowedCenter(CGPoint(x: size.width * CGFloat(x),
-                                         y: size.height * CGFloat(y)), in: window)
-        }
-        return allowedCenter(defaultPoint, in: window)
+        let x = (defaults?.object(forKey: positionXKey) as? NSNumber)?.doubleValue
+        let y = (defaults?.object(forKey: positionYKey) as? NSNumber)?.doubleValue
+        let xFraction = (x?.isFinite == true && x! >= 0 && x! <= 1) ? x! : 0
+        let yFraction = (y?.isFinite == true && y! >= 0 && y! <= 1) ? y! : 1
+        let fallback = CGPoint(x: window.safeAreaInsets.left + 44,
+                               y: b.height - window.safeAreaInsets.bottom - 44)
+        return allowedCenter(
+            CGPoint(x: x == nil ? fallback.x : b.width * xFraction,
+                    y: y == nil ? fallback.y : b.height * yFraction),
+            in: window)
     }
 
     private static func frame(in window: UIWindow) -> CGRect {
@@ -622,10 +540,26 @@ final class ScarletFullscreenGuestTabInstaller: NSObject {
         window.windowScene?.coordinateSpace.bounds ?? window.bounds
     }
 
+    private static func panelFrame(in window: UIWindow) -> CGRect {
+        let b = window.bounds
+        let panelWidth = min(CGFloat(430), max(CGFloat(72), b.width - 32))
+        let panelHeight = min(panelWidth * 1.02, CGFloat(435),
+                              max(CGFloat(210), b.height - 156))
+        return CGRect(x: (b.width - panelWidth) / 2,
+                      y: (b.height - panelHeight) / 2,
+                      width: panelWidth, height: panelHeight)
+    }
+
     private static func syncButtonCenter(in host: UIWindow) {
         guard let overlay = floatingWindow else { return }
         let point = center(in: host)
-        overlay.synchronizeButtonCenter(point)
+        overlay.buttonCenter = point
+        overlay.dockRight = point.x >= host.bounds.midX
+        NotificationCenter.default.post(
+            name: Notification.Name("ScarletGuestFloatingDockChanged"),
+            object: nil,
+            userInfo: ["x": point.x, "y": point.y,
+                       "right": point.x >= host.bounds.midX])
     }
 
     private static func placeFloatingWindow() {
@@ -640,8 +574,47 @@ final class ScarletFullscreenGuestTabInstaller: NSObject {
         guard let guestWindow else { return }
         let next = frame(in: guestWindow)
         if floatingWindow.frame != next { floatingWindow.frame = next }
-        floatingWindow.updatePanelRect()
+        floatingWindow.panelRect = panelFrame(in: floatingWindow)
         syncButtonCenter(in: guestWindow)
+    }
+
+    private static func panChanged(screenPoint: CGPoint, state: UIGestureRecognizer.State) {
+        guard let host = guestWindow else { return }
+        let bounds = host.windowScene?.coordinateSpace.bounds ?? host.bounds
+        switch state {
+        case .began:
+            dragStartScreen = screenPoint
+            dragOrigin = center(in: host)
+        case .changed:
+            guard let touch = dragStartScreen, let initial = dragOrigin else { return }
+            dragCenter = allowedCenter(
+                CGPoint(x: initial.x + screenPoint.x - touch.x,
+                        y: initial.y + screenPoint.y - touch.y), in: host)
+            syncButtonCenter(in: host)
+        case .ended:
+            if let current = dragCenter {
+                let defaults = UserDefaults.lc()
+                defaults?.set(Double(current.x / max(bounds.width, 1)), forKey: positionXKey)
+                defaults?.set(Double(current.y / max(bounds.height, 1)), forKey: positionYKey)
+                dragCenter = nil
+                dragOrigin = nil
+                dragStartScreen = nil
+                syncButtonCenter(in: host)
+                UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                ScarletDiagnosticRecorder.shared.record(
+                    "guest", "floating_tab_position_saved",
+                    fields: ["result": "normalized_screen_center"])
+            } else {
+                dragStartScreen = nil
+                dragOrigin = nil
+            }
+        case .cancelled, .failed:
+            dragCenter = nil
+            dragOrigin = nil
+            dragStartScreen = nil
+            placeFloatingWindow()
+        default: break
+        }
     }
 
     private static func resizeOverlay(open: Bool, appCount: Int) {
@@ -649,7 +622,7 @@ final class ScarletFullscreenGuestTabInstaller: NSObject {
         // Toggling the panel never changes the UIWindow frame, the saved
         // button center, or the guest app view. Only hit testing expands.
         floating.isExpanded = open
-        floating.updatePanelRect()
+        floating.panelRect = panelFrame(in: floating)
         UIView.performWithoutAnimation {
             floating.rootViewController?.view.setNeedsLayout()
             floating.rootViewController?.view.layoutIfNeeded()
@@ -1042,28 +1015,28 @@ final class ScarletFullscreenGuestTabInstaller: NSObject {
         floatingWindow = nil
         guestWindow = original
         lastStableSceneSize = scene.coordinateSpace.bounds.size
+        dragOrigin = nil
+        dragCenter = nil
+        dragStartScreen = nil
+        dragHandler = nil
 
         ScarletGuestSessionLedger.confirmSwitchHandoff(runtimeGuestID: runtimeGuestID)
-        let overlay = ScarletGuestSwitcherWindowFactory.make(
-            scene: scene,
-            center: center(in: original),
+        let content = ScarletFullscreenGuestFloatingTab(
             guestTitle: "현재 실행 중인 앱",
             reloadApps: { installedApps(guestIdentifier: runtimeGuestID) },
             onPanel: resizeOverlay,
+            initialDockRight: center(in: original).x >=
+                (original.windowScene?.coordinateSpace.bounds ?? original.bounds).midX,
+            initialButtonCenter: center(in: original),
             onSwitch: { switchGuest(to: $0, runtimeGuestID: runtimeGuestID) },
             onExit: {
                 ScarletDiagnosticRecorder.shared.record(
                     "guest", "fullscreen_tab_exit_requested")
                 guard let defaults = UserDefaults.lc() else {
                     ScarletDiagnosticRecorder.shared.record(
-                        "guest", "return_to_host_defaults_unavailable",
-                        status: "error")
+                        "guest", "return_to_host_defaults_unavailable", status: "error")
                     return
                 }
-                // The original LC bootstrap can return to `selected=ui`
-                // without knowing which guest was active. V48 incorrectly
-                // treated failed runtime-ID detection as a hard navigation
-                // failure. The work-session ticket is OPTIONAL metadata.
                 if let activeGuestFolder {
                     ScarletGuestSessionLedger.beginReturnToHost(
                         folder: activeGuestFolder)
@@ -1076,20 +1049,43 @@ final class ScarletFullscreenGuestTabInstaller: NSObject {
                 defaults.removeObject(forKey: "selectedContainer")
                 ScarletDiagnosticRecorder.shared.record(
                     "guest", "return_to_host_bootstrap_requested",
-                    fields: ["result": "original_lc_bootstrap_to_ui"])
+                    fields: ["result": "original_lc_bootstrap_to_ui",
+                             "original_pan_used": "true"])
                 if !LCSharedUtils.launchToGuestApp(withClassicMode: 0) {
                     ScarletGuestSessionLedger.cancelReturnToHost()
                     ScarletDiagnosticRecorder.shared.record(
-                        "guest", "return_to_host_request_failed",
-                        status: "warning")
+                        "guest", "return_to_host_request_failed", status: "warning")
                 }
             }
         )
+        let overlay = ScarletGuestTouchPassthroughWindow(windowScene: scene)
+        overlay.windowLevel = UIWindow.Level.alert + 1
+        overlay.backgroundColor = .clear
+        overlay.isOpaque = false
+        overlay.layer.backgroundColor = UIColor.clear.cgColor
+        overlay.layer.masksToBounds = false
+        let controller = UIHostingController(rootView: content)
+        controller.view.backgroundColor = .clear
+        controller.view.isOpaque = false
+        ScarletDiagnosticRecorder.shared.record(
+            "gesture", "original_pan_binding_prepared",
+            fields: ["result": "v48_original_recognizer",
+                     "original_pan_used": "true",
+                     "overlay_visible": "true"])
+        let panHandler = ScarletGuestScreenPan(onChange: traceOriginalPan)
+        let pan = UIPanGestureRecognizer(target: panHandler,
+                                        action: #selector(ScarletGuestScreenPan.didPan(_:)))
+        pan.delegate = panHandler
+        pan.cancelsTouchesInView = true
+        controller.view.addGestureRecognizer(pan)
+        dragHandler = panHandler
+        overlay.rootViewController = controller
         overlay.frame = frame(in: original)
-        overlay.updatePanelRect()
+        overlay.buttonCenter = center(in: original)
+        overlay.panelRect = panelFrame(in: overlay)
         // Stay non-key to protect guest keyboard and all native presentations.
-        floatingWindow = overlay
         overlay.isHidden = false
+        floatingWindow = overlay
         if rotationObserver == nil {
             rotationObserver = NotificationCenter.default.addObserver(
                 forName: UIDevice.orientationDidChangeNotification,
@@ -1129,5 +1125,123 @@ final class ScarletFullscreenGuestTabInstaller: NSObject {
         ScarletDiagnosticRecorder.shared.record(
             "guest", "fullscreen_tab_mounted",
             fields: ["api": "UIKit.UIWindow", "material_owner": "system"])
+    }
+}
+
+
+// V48-R3 ADAPTER: The original guest and experimental LiveProcess hosts now
+// use the EXACT SAME V48 ScarletGuestScreenPan and panChanged implementation.
+// It is additional wiring only. No V48 gesture/position method was removed.
+@available(iOS 17.0, *)
+@MainActor
+extension ScarletFullscreenGuestTabInstaller {
+    private static var panSampleTime: TimeInterval = 0
+    private static var panSampleCount: Int = 0
+    private static var panStartPoint: CGPoint?
+
+    private static func traceOriginalPan(screenPoint: CGPoint,
+                                         state: UIGestureRecognizer.State) {
+        // Observer around the VERBATIM V48 panChanged. Never interfere with
+        // touch recognition, coordinate transformations, or original storage.
+        let now = ProcessInfo.processInfo.systemUptime
+        if state == .began {
+            panStartPoint = screenPoint
+            panSampleTime = 0
+            panSampleCount = 0
+        }
+        panSampleCount += 1
+        let interesting = state != .changed || now - panSampleTime >= 0.12
+        if interesting {
+            panSampleTime = now
+            let phase: String
+            switch state {
+            case .began: phase = "began"
+            case .changed: phase = "changed"
+            case .ended: phase = "ended"
+            case .failed: phase = "failed"
+            case .cancelled: phase = "cancelled"
+            default: phase = "other"
+            }
+            let origin = panStartPoint ?? screenPoint
+            let w = floatingWindow
+            let location = w?.buttonCenter ?? .zero
+            ScarletDiagnosticRecorder.shared.record(
+                "gesture", "v48_original_pan_observed",
+                fields: ["gesture_phase": phase,
+                         "finger_x_pt": String(Int(screenPoint.x)),
+                         "finger_y_pt": String(Int(screenPoint.y)),
+                         "button_x_pt": String(Int(location.x)),
+                         "button_y_pt": String(Int(location.y)),
+                         "drag_dx_pt": String(Int(screenPoint.x - origin.x)),
+                         "drag_dy_pt": String(Int(screenPoint.y - origin.y)),
+                         "overlay_visible": w?.isHidden == false ? "true" : "false",
+                         "overlay_expanded": w?.isExpanded == true ? "true" : "false",
+                         "sample_index": String(panSampleCount),
+                         "original_pan_used": "true"])
+        }
+        panChanged(screenPoint: screenPoint, state: state)
+        if state == .ended || state == .failed || state == .cancelled {
+            panStartPoint = nil
+        }
+    }
+
+    static func makeResidentSwitcherWindow(
+        host: UIWindow, scene: UIWindowScene,
+        reloadApps: @escaping () -> [ScarletGuestSwitchTarget],
+        onSwitch: @escaping (ScarletGuestSwitchTarget) -> Bool,
+        onExit: @escaping () -> Void
+    ) -> ScarletGuestTouchPassthroughWindow {
+        // The classic bootstrap runs in a separate process. In this process
+        // the static V48 pan state belongs to precisely one overlay at a time.
+        floatingWindow?.isHidden = true
+        floatingWindow = nil
+        guestWindow = host
+        dragCenter = nil
+        dragOrigin = nil
+        dragStartScreen = nil
+        dragHandler = nil
+        let start = center(in: host)
+        let content = ScarletFullscreenGuestFloatingTab(
+            guestTitle: "현재 실행 중인 앱",
+            reloadApps: reloadApps,
+            onPanel: resizeOverlay,
+            initialDockRight: start.x >= host.bounds.midX,
+            initialButtonCenter: start,
+            onSwitch: onSwitch,
+            onExit: onExit)
+        let overlay = ScarletGuestTouchPassthroughWindow(windowScene: scene)
+        overlay.windowLevel = UIWindow.Level.alert + 1
+        overlay.backgroundColor = .clear
+        overlay.isOpaque = false
+        overlay.layer.backgroundColor = UIColor.clear.cgColor
+        overlay.layer.masksToBounds = false
+        let root = UIHostingController(rootView: content)
+        root.view.backgroundColor = .clear
+        root.view.isOpaque = false
+        // These are the verbatim V48 construction/wiring steps, NOT a new
+        // recognizer. The delegate & its screen-coordinate state machine stay.
+        ScarletDiagnosticRecorder.shared.record(
+            "gesture", "original_pan_binding_prepared",
+            fields: ["result": "v48_original_recognizer",
+                     "original_pan_used": "true",
+                     "overlay_visible": "true"])
+        let panHandler = ScarletGuestScreenPan(onChange: traceOriginalPan)
+        let pan = UIPanGestureRecognizer(target: panHandler,
+                                        action: #selector(ScarletGuestScreenPan.didPan(_:)))
+        pan.delegate = panHandler
+        pan.cancelsTouchesInView = true
+        root.view.addGestureRecognizer(pan)
+        dragHandler = panHandler
+        overlay.rootViewController = root
+        overlay.frame = frame(in: host)
+        overlay.buttonCenter = center(in: host)
+        overlay.panelRect = panelFrame(in: overlay)
+        floatingWindow = overlay
+        overlay.isHidden = false
+        ScarletDiagnosticRecorder.shared.record(
+            "guest", "v48_original_pan_reused_in_resident",
+            fields: ["result": "verbatim_v48_gesture_state_machine",
+                     "source": "v48_original_pan"])
+        return overlay
     }
 }

@@ -79,8 +79,8 @@ struct LCSettingsView: View {
             self.assertEqual(source.count("Form {"),1)
 
     def test_logger_jsonl_bounded_and_rotated_without_guest_deletion(self):
-        for required in ("session.jsonl","maxFileBytes = 1_500_000",
-                         "retainedFiles = 4", "JSONSerialization.data",
+        for required in ("session.jsonl","maxFileBytes = 4_000_000",
+                         "retainedFiles = 8", "JSONSerialization.data",
                          "ISO8601DateFormatter", "FileHandle(forWritingTo:",
                          "readRecent(maxLines:", "makeShareFile(includeHistory: Bool = false)",
                          "SCARLET_DIAGNOSTICS_VIEW", "ShareLink(item:",

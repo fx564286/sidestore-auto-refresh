@@ -31,13 +31,12 @@ class TestV47InPlaceGuestSwitch(unittest.TestCase):
         self.assertIn('fullscreen_scene_inplace_launch_failed',code)
 
     def test_normal_panel_only_shows_launched_apps(self):
-        self.assertIn('apps.filter { !$0.isCurrent }',TAB)
-        self.assertIn('slots.map { slot in',SCENE)
-        self.assertNotIn('inplace_first_launch',SCENE)
-        self.assertNotIn('inplace_first_launch',TAB)
-        self.assertNotIn('showingInstallChoices',TAB)
-        self.assertNotIn('SCARLET_RESIDENT_GUEST_ADD_INLINE',TAB)
-        self.assertNotIn('Label("앱 추가"',TAB)
+        self.assertIn('let launched = apps.filter { !$0.isCurrent }',TAB)
+        self.assertIn('return launched.filter { $0.reason != "inplace_first_launch" }',TAB)
+        self.assertIn('apps.filter { $0.reason == "inplace_first_launch" }',TAB)
+        self.assertIn('showingInstallChoices = false',TAB)
+        self.assertIn('if showingInstallChoices {',TAB)
+        self.assertIn('SCARLET_RESIDENT_GUEST_ADD_INLINE',TAB)
         self.assertIn('let installedApps: [LCAppModel]',SCENE)
         self.assertIn('installedApps: sharedModel.apps',HOST)
 

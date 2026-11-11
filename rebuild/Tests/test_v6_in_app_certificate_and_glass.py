@@ -61,8 +61,8 @@ class InAppCertAndGlassContracts(unittest.TestCase):
         # 62pt button and fixed 28pt-radius glass card. No duplicate glass.
         self.assertIn("glassPlate(radius: isOpen ? 28 : 31)",UI)
         self.assertNotIn("ScarletUIKitGlassBackdrop",UI)
-        self.assertIn("x: (bounds.width - w) / 2",UI)
-        self.assertIn("let w = min(CGFloat(430)",UI)
+        self.assertIn("x: (b.width - panelWidth) / 2",UI)
+        self.assertIn("let panelWidth = min(CGFloat(430)",UI)
         # V25: expanded window intercepts outside taps for modal dismiss;
         # collapsed 62pt button still passes all other guest touches through.
         self.assertIn("if isExpanded {", UI)

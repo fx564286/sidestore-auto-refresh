@@ -12,13 +12,15 @@ W=(R.parent/'.github/workflows/scarlet-paired-engines-build.yml').read_text()
 class TestV48(unittest.TestCase):
  def test_mode_change_cannot_mix_legacy_with_running_liveprocess(self):
   self.assertIn('let residentSessionActive = fullscreenStack.hasResidentSession',H)
-  self.assertIn('experimentalFullscreenResident || residentSessionActive',H)
+  self.assertIn('if experimentalFullscreenResident,',H)
+  self.assertNotIn('experimentalFullscreenResident || residentSessionActive',H)
   self.assertIn('resident_incompatible_launch_blocked',H)
-  self.assertIn('.disabled(fullscreenStack.hasResidentSession)',H)
-  self.assertIn('resident_mode_change_deferred',H)
+  self.assertNotIn('.disabled(fullscreenStack.hasResidentSession)',H)
+  self.assertIn('pilot_mode_disabled_immediately',H)
+  self.assertNotIn('resident_mode_change_deferred',H)
   self.assertLess(H.index('resident_incompatible_launch_blocked'),H.index('try await app.runApp(multitask: false)'))
  def test_live_open_skips_resign_and_relaunch(self):
-  part=H[H.index('if (experimentalFullscreenResident || residentSessionActive)'):H.index('native_multiscene_launch_requested')]
+  part=H[H.index('if experimentalFullscreenResident,'):H.index('native_multiscene_launch_requested')]
   self.assertLess(part.index('fullscreenStack.livePID(folder: folder)'),part.index('try await app.signApp(force: false)'))
   self.assertIn('fullscreen_scene_reopened_without_resign',part)
   self.assertIn('fullscreenStack.activate(folder: folder)',part)
@@ -31,7 +33,6 @@ class TestV48(unittest.TestCase):
   self.assertIn('viewport?.ownsController(vc, folder: vc.bundleId)',S)
   self.assertIn('canRelaunch: canRestart',S)
   self.assertIn('slots.map { slot in',S)
-  self.assertNotIn('inplace_first_launch',S)
   self.assertIn('target.contentView?.superview != nil',S)
   self.assertNotIn('.terminate()',S)
  def test_original_fullscreen_statusbar_behavior_restored(self):

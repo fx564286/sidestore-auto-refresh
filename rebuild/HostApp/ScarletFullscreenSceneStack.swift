@@ -137,9 +137,18 @@ final class ScarletFullscreenSceneStack: NSObject, ObservableObject,
     }
 
     func updateOverlay() {
-        guard let scene = viewport?.view.window?.windowScene else { return }
+        guard let scene = viewport?.view.window?.windowScene else {
+            ScarletDiagnosticRecorder.shared.record(
+                "guest", "resident_overlay_no_window_scene",
+                status: "warning", fields: ["window_attached": "false"])
+            return
+        }
         if !isVisible {
             overlayWindow?.isHidden = true
+            ScarletDiagnosticRecorder.shared.record(
+                "guest", "resident_overlay_hidden",
+                fields: ["result": "mode_or_home_hidden",
+                         "live_session": hasResidentSession ? "true" : "false"])
             return
         }
         if overlayWindow?.windowScene !== scene {
@@ -147,14 +156,10 @@ final class ScarletFullscreenSceneStack: NSObject, ObservableObject,
             overlayWindow = nil
         }
         if overlayWindow == nil {
-            let center = CGPoint(x: scene.coordinateSpace.bounds.midX,
-                                 y: scene.coordinateSpace.bounds.midY)
-            let window = ScarletGuestSwitcherWindowFactory.make(
-                scene: scene,
-                center: center,
-                guestTitle: "현재 실행 중인 앱",
+            guard let host = viewport?.view.window else { return }
+            let window = ScarletFullscreenGuestTabInstaller.makeResidentSwitcherWindow(
+                host: host, scene: scene,
                 reloadApps: { [weak self] in self?.availableTargets() ?? [] },
-                onPanel: { _, _ in },
                 onSwitch: { [weak self] target in
                     self?.switchOrLaunch(target) ?? false
                 },
@@ -163,6 +168,17 @@ final class ScarletFullscreenSceneStack: NSObject, ObservableObject,
         }
         overlayWindow?.frame = scene.coordinateSpace.bounds
         overlayWindow?.isHidden = false
+        if let w = overlayWindow {
+            ScarletDiagnosticRecorder.shared.record(
+                "guest", "resident_overlay_visible",
+                fields: ["window_attached": w.windowScene != nil ? "true" : "false",
+                         "overlay_visible": w.isHidden ? "false" : "true",
+                         "button_x_pt": String(Int(w.buttonCenter.x)),
+                         "button_y_pt": String(Int(w.buttonCenter.y)),
+                         "scene_width_pt": String(Int(scene.coordinateSpace.bounds.width)),
+                         "scene_height_pt": String(Int(scene.coordinateSpace.bounds.height)),
+                         "original_pan_used": "true"])
+        }
     }
 
     private func availableTargets() -> [ScarletGuestSwitchTarget] {
@@ -273,7 +289,15 @@ final class ScarletFullscreenSceneStack: NSObject, ObservableObject,
         ScarletDiagnosticRecorder.shared.record(
             "guest", "fullscreen_scene_home",
             fields: ["count": String(slots.count),
-                     "memory": "retained_until_pid_exits"])
+                     "memory": "retained_until_pid_exits",
+                     "overlay_visible": overlayWindow?.isHidden == false ? "true" : "false",
+                     "live_session": hasResidentSession ? "true" : "false"])
+        ScarletDiagnosticRecorder.shared.record(
+            "guest", "resident_home_visibility_probe",
+            fields: ["host_visible": "true",
+                     "overlay_visible": overlayWindow?.isHidden == false ? "true" : "false",
+                     "controller_present": viewport != nil ? "true" : "false"])
+
     }
 
     // A PID can be reported before the remote UIKit surface is interactive.
@@ -368,11 +392,34 @@ final class ScarletFullscreenSceneStack: NSObject, ObservableObject,
             // and home indicator geometry from the guest's ignored-safe view.
             let safe = windowScene?.windows.first(where: { $0.isKeyWindow })?.safeAreaInsets
                 ?? vc.view.window?.safeAreaInsets ?? .zero
+            let sceneBounds = windowScene?.coordinateSpace.bounds ?? .zero
+            let guestInsets = vc.view.safeAreaInsets
+            let normalWindow = windowScene?.windows.first(where: {
+                $0.windowLevel == .normal && !$0.isHidden
+            })
+            let rootInsets = normalWindow?.safeAreaInsets ?? .zero
             ScarletDiagnosticRecorder.shared.record(
                 "layout", "fullscreen_scene_host_safe_area",
                 fields: ["safe_top_pt": String(Int(safe.top)),
                          "safe_bottom_pt": String(Int(safe.bottom)),
-                         "source": "key_window"])
+                         "safe_left_pt": String(Int(safe.left)),
+                         "safe_right_pt": String(Int(safe.right)),
+                         "window_safe_top_pt": String(Int(rootInsets.top)),
+                         "window_safe_bottom_pt": String(Int(rootInsets.bottom)),
+                         "guest_safe_top_pt": String(Int(guestInsets.top)),
+                         "guest_safe_bottom_pt": String(Int(guestInsets.bottom)),
+                         "scene_width_pt": String(Int(sceneBounds.width)),
+                         "scene_height_pt": String(Int(sceneBounds.height)),
+                         "viewport_width_pt": String(Int(vc.view.bounds.width)),
+                         "viewport_height_pt": String(Int(vc.view.bounds.height)),
+                         "island_overlap_suspected":
+                             (rootInsets.top > 20 && guestInsets.top < 2)
+                             ? "true" : "false",
+                         "window_count": String(windowScene?.windows.count ?? 0),
+                         "source": "key_and_normal_window_comparison"])
+            // Keep the original V48 remote parameters until real device data
+            // distinguishes the overridden remote scene inset from a
+            // dynamically invalid superview inset. No speculative scaling.
             settings.peripheryInsets = safe
             settings.safeAreaInsetsPortrait = safe
             settings.setFrame(full)
@@ -406,6 +453,44 @@ final class ScarletFullscreenSceneViewport: UIViewController {
     private var controllers: [String: AppSceneViewController] = [:]
     private var lastBounds: CGSize = .zero
     private var lastRejectedBounds: CGSize?
+    private var lastInsetsSignature: String = ""
+
+    private func captureSafeAreaSnapshot(_ event: String) {
+        guard let window = view.window else { return }
+        let s = window.windowScene
+        let actual = view.safeAreaInsets
+        let host = window.safeAreaInsets
+        let key = s?.windows.first(where: { $0.isKeyWindow })
+        let normal = s?.windows.first(where: {
+            $0.windowLevel == .normal && !$0.isHidden
+        })
+        let n = normal?.safeAreaInsets ?? .zero
+        let signature = [Int(actual.top),Int(actual.bottom),Int(host.top),
+                         Int(host.bottom),Int(n.top),Int(n.bottom),
+                         Int(view.bounds.width),Int(view.bounds.height)].map(String.init).joined(separator: ":")
+        guard signature != lastInsetsSignature else { return }
+        lastInsetsSignature = signature
+        ScarletDiagnosticRecorder.shared.record(
+            "layout", event,
+            fields: ["safe_top_pt": String(Int(actual.top)),
+                     "safe_bottom_pt": String(Int(actual.bottom)),
+                     "window_safe_top_pt": String(Int(host.top)),
+                     "window_safe_bottom_pt": String(Int(host.bottom)),
+                     "guest_safe_top_pt": String(Int(n.top)),
+                     "guest_safe_bottom_pt": String(Int(n.bottom)),
+                     "host_key": key === normal ? "true" : "false",
+                     "viewport_width_pt": String(Int(view.bounds.width)),
+                     "viewport_height_pt": String(Int(view.bounds.height)),
+                     "scene_width_pt": String(Int(s?.coordinateSpace.bounds.width ?? 0)),
+                     "scene_height_pt": String(Int(s?.coordinateSpace.bounds.height ?? 0)),
+                     "window_count": String(s?.windows.count ?? 0),
+                     "island_overlap_suspected": n.top > 20 && actual.top < 2 ? "true" : "false"])
+    }
+
+    override func viewSafeAreaInsetsDidChange() {
+        super.viewSafeAreaInsetsDidChange()
+        captureSafeAreaSnapshot("resident_viewport_safearea_changed")
+    }
 
     init(stack: ScarletFullscreenSceneStack) {
         self.stack = stack
@@ -426,6 +511,7 @@ final class ScarletFullscreenSceneViewport: UIViewController {
 
     override func viewDidLayoutSubviews() {
         super.viewDidLayoutSubviews()
+        captureSafeAreaSnapshot("resident_viewport_layout_snapshot")
         guard let scene = view.window?.windowScene else { return }
         // Check real UIWindowScene size *before* touching any child scene.
         // During rotation, SwiftUI may first deliver a cropped safe-area frame.

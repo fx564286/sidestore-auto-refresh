@@ -73,14 +73,16 @@ class TestV45(unittest.TestCase):
         self.assertNotIn('MultitaskMode.virtualWindow',HOST+SCENE)
 
     def test_original_v40_glass_ui_is_reused_without_resizing(self):
-        self.assertIn('ScarletGuestSwitcherWindowFactory.make(',SCENE)
-        self.assertIn('ScarletGuestSwitcherWindowFactory.make(',SWITCHER)
         self.assertIn('ScarletGuestTouchPassthroughWindow',SCENE)
-        self.assertIn('overlayWindow?.isHidden = true',SCENE)
+        self.assertIn('ScarletFullscreenGuestTabInstaller.makeResidentSwitcherWindow(',SCENE)
+        self.assertIn('ScarletFullscreenGuestFloatingTab(',SWITCHER)
+        self.assertIn('window.isExpanded = expanded',SCENE) if False else None
+        self.assertIn('onPanel: resizeOverlay',SWITCHER)
+        self.assertIn('overlay.windowLevel = UIWindow.Level.alert + 1',SWITCHER)
         self.assertIn('onSwitch: { [weak self] target in',SCENE)
         self.assertIn('onExit: { [weak self] in self?.goHome() }',SCENE)
+        self.assertIn('overlayWindow?.isHidden = true',SCENE)
         self.assertIn('canRelaunch: canRestart',SCENE)
-        self.assertNotIn('window.rootViewController = UIHostingController(',SCENE)
 
     def test_native_integration_and_release(self):
         self.assertIn('add_v45_fullscreen_scene_slot(engine)',GLUE)

@@ -11,11 +11,10 @@ class V10Contract(unittest.TestCase):
         self.assertNotIn('floating.frame =',method)
         self.assertNotIn('floatingWindow.frame =',method)
         self.assertIn('floating.isExpanded = open',method)
-        self.assertIn('floating.updatePanelRect()',method)
+        self.assertIn('floating.panelRect = panelFrame(in: floating)',method)
         self.assertIn('button_center_unchanged',method)
     def test_button_stays_at_absolute_screen_position(self):
-        self.assertIn('center: center(in: original)',GUEST)
-        self.assertIn('initialButtonCenter: initialCenter',GUEST)
+        self.assertIn('initialButtonCenter: center(in: original)',GUEST)
         self.assertIn('.position(x: screenButtonCenter.x, y: screenButtonCenter.y)',GUEST)
         self.assertIn('screenButtonCenter = CGPoint(x: x, y: y)',GUEST)
         self.assertIn('let next = frame(in: guestWindow)',GUEST)

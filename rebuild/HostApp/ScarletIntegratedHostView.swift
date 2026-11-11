@@ -445,16 +445,16 @@ struct ScarletIntegratedHostView: View {
                 // LiveProcess hosted inside ONE real full-screen viewport.
                 // No UIWindow.resize, native window decorations, virtual
                 // multitask app windows, zoom or process-killing cold swap.
-                // Once a resident LiveProcess session exists, its engine is
-                // latched until every guest exits. A setting change must not
-                // dispatch a competing classic LC bootstrap in this process.
+                // The old latching logic silently kept the pilot ON after
+                // user explicitly switched it OFF. The toggle is authoritative.
                 let residentSessionActive = fullscreenStack.hasResidentSession
-                if residentSessionActive && !experimentalFullscreenResident {
-                    ScarletDiagnosticRecorder.shared.record(
-                        "guest", "resident_mode_change_deferred",
-                        fields: ["result": "preserve_live_session"])
-                }
-                if (experimentalFullscreenResident || residentSessionActive),
+                ScarletDiagnosticRecorder.shared.record(
+                    "guest", "guest_launch_mode_routed",
+                    fields: ["new_mode": experimentalFullscreenResident ? "on" : "off",
+                             "live_session": residentSessionActive ? "true" : "false",
+                             "result": experimentalFullscreenResident
+                                 ? "pilot_requested" : "original_lc_requested"])
+                if experimentalFullscreenResident,
                    UIDevice.current.userInterfaceIdiom == .phone,
                    #available(iOS 27.0, *),
                    app.appInfo.defaultClassicMode == 0,
@@ -493,7 +493,9 @@ struct ScarletIntegratedHostView: View {
                 // the resident engine still owns LiveProcess requests. The
                 // fallback previously returned without displaying a guest and
                 // users could tap the same entry dozens of times.
-                if residentSessionActive {
+                if residentSessionActive && experimentalFullscreenResident {
+                    // A pilot-compatible guest may fall back to classic only
+                    // when no existing pilot owns an active live scene.
                     ScarletDiagnosticRecorder.shared.record(
                         "guest", "resident_incompatible_launch_blocked",
                         status: "blocked",
@@ -1093,10 +1095,25 @@ struct ScarletIntegratedHostView: View {
                             .padding(.horizontal, 14)
                             .padding(.vertical, 8)
                             .background(.regularMaterial)
-                            .disabled(fullscreenStack.hasResidentSession)
-                            .accessibilityHint(fullscreenStack.hasResidentSession
-                                ? "실행 중인 게스트 RAM 상태를 보호하기 위해 변경할 수 없습니다."
-                                : "전체화면 게스트 RAM 유지 모드를 설정합니다.")
+                            // Always allow OFF without restarting Scarlet.
+                            // Preserve existing LiveProcess objects; only stop
+                            // new pilot dispatch and hide its UI on OFF.
+                            .onChange(of: experimentalFullscreenResident) { oldMode, newMode in
+                                ScarletDiagnosticRecorder.shared.record(
+                                    "guest", "pilot_setting_changed",
+                                    fields: ["old_mode": oldMode ? "on" : "off",
+                                             "new_mode": newMode ? "on" : "off",
+                                             "live_session": fullscreenStack.hasResidentSession ? "true" : "false",
+                                             "result": "setting_applied_without_restart"])
+                                if !newMode {
+                                    fullscreenStack.goHome()
+                                    ScarletDiagnosticRecorder.shared.record(
+                                        "guest", "pilot_mode_disabled_immediately",
+                                        fields: ["result": "classic_launch_selected_next",
+                                                 "memory": "existing_liveprocess_not_terminated"])
+                                }
+                            }
+                            .accessibilityHint("실험 모드는 앱 재실행 없이 켜거나 끌 수 있습니다.")
                         }
                         .environmentObject(sharedModel)
                         .environmentObject(LCAppSortManager.shared)

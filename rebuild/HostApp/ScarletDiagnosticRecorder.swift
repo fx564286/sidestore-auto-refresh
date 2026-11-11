@@ -17,8 +17,10 @@ final class ScarletDiagnosticRecorder: @unchecked Sendable {
     private let sessionID = UUID().uuidString.prefix(8).lowercased()
     private let salt = UUID().uuidString
     private var sequence: UInt64 = 0
-    private let maxFileBytes = 1_500_000
-    private let retainedFiles = 4
+    // Full, device-local diagnostic history for the experimental compositor.
+    // Bounded to 8 x 4 MiB, never exported to a network service automatically.
+    private let maxFileBytes = 4_000_000
+    private let retainedFiles = 8
     // Process-specific journal, independent of archived runs.
     private let launchedAt = Date()
     var currentProcessStartDate: Date { launchedAt }
@@ -34,7 +36,18 @@ final class ScarletDiagnosticRecorder: @unchecked Sendable {
         "entitled_app_group", "group_accessible", "signed_host_identity",
         "lc_cert_present", "installation_verified", "material_owner",
         "optical_verified", "api", "source", "retry_minutes",
-        "process_pid", "memory", "stage", "worker_stage"
+        "process_pid", "memory", "stage", "worker_stage",
+        // New V48-R3 diagnostic fields: numbers, bools and fixed enum states.
+        "old_mode", "new_mode", "live_session", "gesture_phase",
+        "button_x_pt", "button_y_pt", "finger_x_pt", "finger_y_pt",
+        "drag_dx_pt", "drag_dy_pt", "window_count", "host_key",
+        "host_visible", "overlay_visible", "overlay_expanded", "safe_left_pt",
+        "safe_right_pt", "guest_safe_top_pt", "guest_safe_bottom_pt",
+        "window_safe_top_pt", "window_safe_bottom_pt",
+        "scene_width_pt", "scene_height_pt", "viewport_width_pt",
+        "viewport_height_pt", "layout_status", "island_overlap_suspected",
+        "launch_mode", "toggle_enabled", "sample_index", "history_count",
+        "native_drag_gesture_state", "original_pan_used", "controller_present"
     ]
 
     private init() {

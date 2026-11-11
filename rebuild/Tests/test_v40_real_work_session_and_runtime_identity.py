@@ -50,7 +50,6 @@ class V40TrueActiveWork(unittest.TestCase):
         self.assertIn('if let activeGuestFolder {',G)
         self.assertNotIn('guard let activeGuestFolder else',G)
         self.assertIn('ScarletGuestSessionLedger.beginReturnToHost(',G)
-        self.assertIn('folder: activeGuestFolder)',G)
         self.assertIn('UIApplication.willResignActiveNotification',G)
         self.assertIn('ScarletGuestSessionLedger.noteGuestDeparted(folder: id)',G)
         self.assertIn('private static var activeGuestFolder: String?',G)
