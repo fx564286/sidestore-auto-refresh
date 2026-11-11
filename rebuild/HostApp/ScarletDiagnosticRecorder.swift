@@ -49,7 +49,20 @@ final class ScarletDiagnosticRecorder: @unchecked Sendable {
         "launch_mode", "toggle_enabled", "sample_index", "history_count",
         "native_drag_gesture_state", "original_pan_used", "controller_present",
         "host_owner_top_pt", "error_domain", "error_code", "fast_exit",
-        "mode"
+        "mode",
+        // R6P8: R6P7 guest bootloader correctly collected these 0/1/-1
+        // launch-policy counts, but the recorder silently dropped them.
+        // Only anonymous bounded BOOL/array-count fields are permitted.
+        "policy_only",
+        "host_status_hidden", "guest_status_hidden",
+        "actual_status_hidden", "cf_status_hidden",
+        "host_controller_status", "guest_controller_status",
+        "actual_controller_status", "host_fullscreen",
+        "guest_fullscreen", "actual_fullscreen",
+        "host_scene_manifest", "guest_scene_manifest",
+        "actual_scene_manifest", "host_orientations",
+        "guest_orientations", "actual_orientations",
+        "policy_fields_received", "policy_fields_persisted"
     ]
 
     private init() {

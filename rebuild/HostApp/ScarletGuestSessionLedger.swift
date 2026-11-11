@@ -305,8 +305,17 @@ enum ScarletGuestSessionLedger {
                         }
                     }
                 }
+                let received = allowed.reduce(0) { count, key in
+                    count + ((row[key] as? NSNumber) == nil ? 0 : 1)
+                }
+                let persisted = allowed.reduce(0) { count, key in
+                    count + (fields[key] == nil ? 0 : 1)
+                }
+                fields["policy_fields_received"] = String(received)
+                fields["policy_fields_persisted"] = String(persisted)
                 ScarletDiagnosticRecorder.shared.record(
                     "launch_policy", "guest_bundle_policy_observed",
+                    status: persisted == allowed.count ? "success" : "warning",
                     fields: fields)
             }
         }
