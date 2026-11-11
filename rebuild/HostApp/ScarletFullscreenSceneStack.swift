@@ -322,6 +322,10 @@ final class ScarletFullscreenSceneStack: NSObject, ObservableObject,
         // No close, terminate, detach, scene destruction or relaunch.
         // Keep each remote scene in the original full-screen viewport.
         isVisible = false
+        // R6.1: returning to the Scarlet host is a real audio-focus change.
+        // A retained LiveProcess must not keep playing simply because its
+        // full-screen remote view is hidden. Preserve its process and data.
+        viewport?.pauseAllResidentAudioOnHome()
         overlayWindow?.isHidden = true
         viewport?.setResidentOutsideDismissEnabled(false)
         ScarletDiagnosticRecorder.shared.record(
@@ -920,7 +924,18 @@ final class ScarletFullscreenSceneViewport: UIViewController {
             CFNotificationName(name as CFString), nil, nil, true)
         ScarletDiagnosticRecorder.shared.record(
             "guest", "guest_audio_scope_applied",
-            fields: ["action": action, "process_pid": String(pid)])
+            fields: ["action": action, "process_pid": String(pid),
+                     "result": "posted_not_device_verified"])
+    }
+
+    // R6.1: an audio-scoped PID can no longer stay selected when the host
+    // Home UI is visible. Clearing it also guarantees a resume signal when
+    // the SAME retained guest returns (without requiring PID recreation).
+    func pauseAllResidentAudioOnHome() {
+        for vc in controllers.values where vc.pid > 0 && vc.isAppRunning {
+            postGuestAudioScope("pause", pid: vc.pid)
+        }
+        audioScopedPID = 0
     }
 
     func select(folder: String) -> Bool {
