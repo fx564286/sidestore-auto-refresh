@@ -1128,9 +1128,11 @@ static UIEdgeInsets ScarletPilotHostInsets(UIWindowScene *scene,
 }
 - (BOOL)scarletEnsureRemoteForeground {
     if(![self scarletRemoteContentReady]) return NO;
-    static const void *kFirstForeground = (const void *)@selector(scarletEnsureRemoteForeground);
-    if([objc_getAssociatedObject(self,kFirstForeground) boolValue]) return YES;
-    objc_setAssociatedObject(self,kFirstForeground,@YES,OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+    // Clang does not permit casting a @selector expression to void*.
+    // Use a stable associated-object key unique to this method.
+    static char kFirstForeground;
+    if([objc_getAssociatedObject(self,&kFirstForeground) boolValue]) return YES;
+    objc_setAssociatedObject(self,&kFirstForeground,@YES,OBJC_ASSOCIATION_RETAIN_NONATOMIC);
     // LiveContainer already has the equivalent update path in
     // setBackgroundNotificationEnabled. Issue it only once after content is
     // attached to prevent inactive->foreground spam and process restarts.

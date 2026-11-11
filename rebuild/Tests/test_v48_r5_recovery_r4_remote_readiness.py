@@ -23,7 +23,8 @@ class R4NativeSceneReady(unittest.TestCase):
  def test_initial_foreground_single_write_after_real_attach(self):
   self.assertIn('- (BOOL)scarletEnsureRemoteForeground',BRIDGE)
   self.assertIn('if(![self scarletRemoteContentReady]) return NO;',BRIDGE)
-  self.assertIn('objc_setAssociatedObject(self,kFirstForeground,@YES',BRIDGE)
+  self.assertIn('static char kFirstForeground;',BRIDGE)
+  self.assertIn('objc_setAssociatedObject(self,&kFirstForeground,@YES',BRIDGE)
   self.assertIn('settings.foreground = YES;',BRIDGE)
   self.assertIn('settings.deactivationReasons = 0;',BRIDGE)
   self.assertIn('fullscreen_scene_remote_foreground_confirmed',HOST)
