@@ -1272,13 +1272,49 @@ static NSNotificationName const ScarletUIResignActiveNotification =
 static BOOL scarletGuestAudioPaused = NO;
 static int scarletGuestAudioObserver = 0;
 
+// Darwin notifications do not carry a cross-process userInfo dictionary.
+// The receipt name encodes only action, result, and this LiveProcess PID.
+// A receipt reports AVAudioSession setActive's return value; it is NOT
+// an acoustic microphone measurement nor proof that every media API stopped.
+static void ScarletGuestAudioReceipt(BOOL active, BOOL success) {
+    NSString *name = [NSString stringWithFormat:
+        @"com.scarlet.guest.audio.ack.%@.%@.%d",
+        active ? @"resume" : @"pause", success ? @"ok" : @"error", getpid()];
+    CFNotificationCenterPostNotification(
+        CFNotificationCenterGetDarwinNotifyCenter(),
+        (__bridge CFStringRef)name, NULL, NULL, true);
+}
+
+static void ScarletGuestAudioRetryPause(int attempt) {
+    if(!scarletGuestAudioPaused) return;
+    NSError *error = nil;
+    BOOL result = [AVAudioSession.sharedInstance setActive:NO
+        withOptions:AVAudioSessionSetActiveOptionNotifyOthersOnDeactivation
+        error:&error];
+    NSLog(@"[SCARLET_AUDIO] guest pid=%d pause attempt=%d result=%d code=%ld",
+          getpid(), attempt, result ? 1 : 0, (long)error.code);
+    ScarletGuestAudioReceipt(NO, result);
+    // R6P4: do not treat a failed deactivation as if the guest is silent.
+    // Retry within the same LiveProcess, without resigning or killing it.
+    if(!result && attempt < 2) {
+        int delayMs = attempt == 0 ? 300 : 900;
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW,
+            (int64_t)delayMs * NSEC_PER_MSEC), dispatch_get_main_queue(), ^{
+                if(scarletGuestAudioPaused) ScarletGuestAudioRetryPause(attempt + 1);
+            });
+    }
+}
+
 static void ScarletGuestAudioApply(BOOL active) {
-    if(scarletGuestAudioPaused == !active) return;
-    scarletGuestAudioPaused = !active;
     AVAudioSession *session = AVAudioSession.sharedInstance;
     NSError *error = nil;
     if(active) {
-        [session setActive:YES error:&error];
+        if(!scarletGuestAudioPaused) {
+            ScarletGuestAudioReceipt(YES, YES); // Already unpaused.
+            return;
+        }
+        scarletGuestAudioPaused = NO;
+        BOOL result = [session setActive:YES error:&error];
         [[NSNotificationCenter defaultCenter]
             postNotificationName:AVAudioSessionInterruptionNotification
             object:session
@@ -1289,21 +1325,25 @@ static void ScarletGuestAudioApply(BOOL active) {
         [[NSNotificationCenter defaultCenter]
             postNotificationName:ScarletUIBecameActiveNotification
             object:nil];
+        ScarletGuestAudioReceipt(YES, result);
+        NSLog(@"[SCARLET_AUDIO] guest pid=%d resume result=%d code=%ld",
+              getpid(), result ? 1 : 0, (long)error.code);
     } else {
-        [[NSNotificationCenter defaultCenter]
-            postNotificationName:AVAudioSessionInterruptionNotification
-            object:session
-            userInfo:@{AVAudioSessionInterruptionTypeKey:
-                           @(AVAudioSessionInterruptionTypeBegan)}];
-        [[NSNotificationCenter defaultCenter]
-            postNotificationName:ScarletUIResignActiveNotification
-            object:nil];
-        [session setActive:NO
-              withOptions:AVAudioSessionSetActiveOptionNotifyOthersOnDeactivation
-                    error:&error];
+        if(!scarletGuestAudioPaused) {
+            scarletGuestAudioPaused = YES;
+            [[NSNotificationCenter defaultCenter]
+                postNotificationName:AVAudioSessionInterruptionNotification
+                object:session
+                userInfo:@{AVAudioSessionInterruptionTypeKey:
+                               @(AVAudioSessionInterruptionTypeBegan)}];
+            [[NSNotificationCenter defaultCenter]
+                postNotificationName:ScarletUIResignActiveNotification
+                object:nil];
+        }
+        // Always reassert the pause, including if an earlier call failed:
+        // the previous implementation ignored all later pause requests.
+        ScarletGuestAudioRetryPause(0);
     }
-    NSLog(@"[SCARLET_AUDIO] guest pid=%d active=%d error=%@",
-          getpid(), active ? 1 : 0, error);
 }
 
 static void ScarletGuestAudioPauseCallback(CFNotificationCenterRef center,
