@@ -2,8 +2,8 @@
   "schema": 2,
   "scope": "Scarlet Crystal guest top-screen overlap, touch access, rotation, remote guest render and related resident regressions",
   "updated_utc": "2026-11-12T06:56:00+00:00",
-  "current_baseline": "R6P20 7212364c7c65 current iPhone launch 19667412 now has AppGroup=true, 2FA auth restored, BG registered+scheduled, pairing restored, 2 LiveProcess guests and switcher A/B count2. Island still visually unverified because R6P18 guest scanner depth9 capped at 46/15 nodes; SideStore cert missing before native provider at 06:50:00/07, but native provider returned existing_portal P12 at 06:50:08 without post-provider SideStore inspector. R6P21 L061 deep bounded scan and L062 post-provider readback, 531 tests PASS, device tests pending.",
-  "current_issue_status": "UNRESOLVED VISUAL OVERLAP: New L061 gathers actual guest text/image/control Y at depth24; no screen movement. SideStore signer AFTER existing portal provider is unknown until L062 device receipt. Profile auto-install remains installation_verified=false; app manager code3 and transient -1005 were historical not reproduced this R6P20 launch.",
+  "current_baseline": "R6P21 installed SourceCommit fffd38ee27d4895c6b8f705ee860d38902934e38; 2026-11-12 07:30:44 UTC current session99b3825e; root safe62 yet PID6059 unsafe controls8/images7 and scroll top inset missing3. R6P22 L063 guarded descendant scroll content-inset source commit recorded; iPhone build and visual/touch checks pending.",
+  "current_issue_status": "UNRESOLVED ISLAND: PID6059 still has unsafe interactive top descendants after normal root 62; R6P22 one eligible unsafe scroll content-inset path is coded, but must be confirmed by native archive and fresh device sample. Source download -1005 after two retries, profile installation_verified=false; no claim of resolution.",
   "confidence_note": "Past-chat-only historical versions were reported in earlier conversations; not all have a GitHub revision or device verification. An implementation, a CI success, a telemetry event, and a real device visual fix are distinct.",
   "privacy": "No credentials, Apple ID, OTP, UDID, guest names or device identifiers are stored.",
   "entries": [
@@ -9149,6 +9149,165 @@
       ],
       "repeat_policy": "Do not add another duplicate issuer or revoke a certificate. First use post-provider signing-ready/managed-host readback; if false with group true, compare original SideStore CertificateManager and Keychain state without serials or secret bytes in logs.",
       "success_gate": "After R6P21 real provider flow, certificate/sidestore_signing_rechecked shows actual status. Signing-ready true is NOT proof of installation; automatic renewal still needs signed profile and installed app readback."
+    },
+    {
+      "id": "L063",
+      "date": "2026-11-12",
+      "version": "new-v48-r6p22-guest-scroll-content-safearea",
+      "problem": "guest_top",
+      "mechanism": "single_unsafe_descendant_scroll_content_inset_while_root_already_safe",
+      "hypothesis": "Content in a top-anchored vertical guest UIScrollView is being positioned under the Dynamic Island even though the root UIViewController already reports a correct 62pt safe area. For a lone vertically scrollable content owner with unsafe child UIControls and zero adjusted top inset, shifting only scroll content avoids duplicating the root/scene Safe Area modifications that repeatedly failed.",
+      "action": "Preserve original root window/scene/viewport/SDK/gesture/button/multitasking and 650/2600ms read-only geometry probes. At 900ms, only for already-safe portrait guest roots, inspect at most 1200 visible descendants; require exactly one wide full-height vertical scroller containing an objectively unsafe interactive child, no existing inset, no nested parent scroll, and no active gesture/scrolling. Add at most 90pt contentInset.top once and reposition that same scroll to the new adjusted start; record a guest receipt. No arbitrary app ID exceptions. Add 5 regression tests and an isolated GitHub Actions unsigned IPA release target. Build and device visual/touch outcome remain pending.",
+      "observation": "Current device R6P21 SourceCommit=fffd38ee27d4, session99b3825e: PID6050 has root62/unsafe0; PID6059 has root62 but 8 unsafe controls at y3 and 7 unsafe images at y13, and 3 top scrollers missing adjusted inset. Prior output did not compensate scroll content. Changes to R6P22 branch are source-only until GitHub Actions archive and a new iPhone diagnostic confirm behavior. 2026-11-12 source commits: 1f47c3f15841, 5bdbde4386f2, 91653e7195ab.",
+      "evidence": [
+        "R6P21 PID6059 samples seq161/seq180: safe_top_pt=62, root_guide_y=62, unsafe_controls=8, first_unsafe_control_y=3, unsafe_image_nodes=7, first_unsafe_image_y=13, scroll_top_without_inset=3, depth_capped=true, count_capped=false.",
+        "R6P21 PID6050 samples seq84/seq91: 62pt root, unsafe_controls=0, top scroll without inset=1, demonstrates why a 0-inset scroll alone must NOT trigger mutation.",
+        "UIKit documentation contentInsetAdjustmentBehavior/contentInset: adjustedContentInset combines safe area and custom inset; intentionally target only proven unsafe scroll content and preserve guest root."
+      ],
+      "novelty": {
+        "prior_excluded_ids": [
+          "L003",
+          "L028",
+          "L031",
+          "L032",
+          "L035",
+          "L050",
+          "L054",
+          "L061"
+        ],
+        "causal_difference": "R6P21 iPhone guest PID6059 has an already-correct root safe-top 62pt (root guide y62), yet descendant UIControls begin at y3, UIImageViews y13, with 3 scroll views whose adjustedContentInset.top is zero. R6P22 does not alter the UIWindow, root additionalSafeAreaInsets, scene orientation, status bar, or delayed first-scene boot. It identifies exactly one top-anchored, vertical, full-width UIScrollView containing an actually unsafe interactive descendant, and gives only that scroll's content a one-shot top inset. This content-inset ownership is independent from L050 root geometry and L061 read-only measurement.",
+        "falsifiable_prediction": "On R6P22 on-device PID with matching one eligible scroller, a guest_root_safearea_receipt(result=guest_scroll_content_inset_applied, before≈0, after>0) appears between 650ms and 2600ms probes; the later probe must show fewer y<62 unsafe controls without window/root/scale changes. If guest_scroll_no_unique_unsafe_target appears or unsafe controls persist, do not repeat this fix; inspect which unsafe controls are outside the scroll, including SwiftUI virtual navigation items. Guest A with no unsafe descendants must remain unchanged.",
+        "new_device_evidence": {
+          "source_commit": "fffd38ee27d4895c6b8f705ee860d38902934e38",
+          "event": "layout/guest_content_geometry_probe",
+          "observed_value": "2026-11-12 07:31:29.415 UTC pid6059 650ms: root guide y62/root safe62; first unsafe control y3; first unsafe image y13; unsafe_controls8; unsafe_image_nodes7; scroll_top_without_inset3; visited135, depth_capped true. At 07:31:31.341 UTC 2600ms same unsafe counts (visited190). PID6050 at 650/2600 had unsafe_controls0 with safe root62."
+        },
+        "why_prior_fix_failed": "L050 root additionalSafeAreaInsets corrected only when the guest root itself lacked a top inset. Current PID6059 root has 62pt already, so L050 correctly returns already_safe while its descendant controls remain at y3. L054/L061 were telemetry-only and made no content layout write. R6P22 specifically targets scroll content whose intrinsic adjusted inset remains zero despite a safe root, and is therefore a different causal intervention."
+      },
+      "status": "source_committed_ci_pending",
+      "device_verification": "not_installed_or_device_tested_after_r6p22",
+      "rollback_commit": "fffd38ee27d4895c6b8f705ee860d38902934e38",
+      "source_verification": "git_patch_observed",
+      "privacy": "Only numeric window-space geometry and result categories; no app name, label, visual pixels, user credentials, device identity or network endpoints.",
+      "source_revisions": [
+        {
+          "sha": "1f47c3f158419ecf396626d9f8899e2367f6fd1c",
+          "url": "https://github.com/fx564286/sidestore-auto-refresh/commit/1f47c3f158419ecf396626d9f8899e2367f6fd1c",
+          "title": "fix(r6p22): guarded one-shot content inset for a single unsafe guest scroll descendant"
+        },
+        {
+          "sha": "5bdbde4386f223fa78f30edbb0b5c2b1967dad60",
+          "url": "https://github.com/fx564286/sidestore-auto-refresh/commit/5bdbde4386f223fa78f30edbb0b5c2b1967dad60",
+          "title": "test(r6p22): enforce one-shot descendant scroll-only island correction and no global geometry regression"
+        },
+        {
+          "sha": "91653e7195abd16abe0a607a0de3fa8c76e35265",
+          "url": "https://github.com/fx564286/sidestore-auto-refresh/commit/91653e7195abd16abe0a607a0de3fa8c76e35265",
+          "title": "build(r6p22): add isolated signed-source audit and unique native unsigned IPA release target"
+        }
+      ],
+      "code_locations": [
+        {
+          "commit": "1f47c3f158419ecf396626d9f8899e2367f6fd1c",
+          "file": "rebuild/integration/ScarletGuestIslandContentGuard.m.txt",
+          "function": "ScarletIslandInspect",
+          "location": "@@ -294,6 +299,9 @@ static void ScarletIslandInspect(UIWindow *window, NSUInteger attempt) {",
+          "before": [
+            "        ScarletIslandScheduleContentProbe(window, root, target);",
+            "        return;"
+          ],
+          "after": [
+            "        ScarletIslandScheduleContentProbe(window, root, target);",
+            "        // R6P22: one separate, bounded descendant-scroll remedy. Never add",
+            "        // another inset to this already-correct guest root or its UIWindow.",
+            "        ScarletIslandScheduleScrollContentRepair(window, root, target);",
+            "        return;"
+          ]
+        },
+        {
+          "commit": "1f47c3f158419ecf396626d9f8899e2367f6fd1c",
+          "file": "rebuild/integration/ScarletGuestIslandContentGuard.m.txt",
+          "function": "ScarletIslandRepairTopScrollableContent / ScarletIslandCollectUnsafeScrolls",
+          "location": "@@ -317,6 +325,136 @@ static void ScarletIslandInspect(UIWindow *window, NSUInteger attempt) {",
+          "before": [
+            "void initScarletGuestIslandContentGuard(void) {"
+          ],
+          "after": [
+            "static void ScarletIslandCollectUnsafeScrolls(",
+            "    UIView *view, UIView *root, UIWindow *window, CGFloat safeY,",
+            "    NSUInteger depth, NSUInteger *budget,",
+            "    NSMutableArray<UIScrollView *> *candidates) {",
+            "    // nested scrolls, active gestures, non-top offsets, pre-existing inset and unsafe descendants are excluded",
+            "}",
+            "static void ScarletIslandRepairTopScrollableContent(",
+            "    UIWindow *window, UIViewController *root, CGFloat expectedTop) {",
+            "    if(candidates.count != 1) {",
+            "        ScarletIslandReceipt(@\"guest_scroll_no_unique_unsafe_target\",",
+            "                             expectedTop, candidates.count, candidates.count);",
+            "        return;",
+            "    }",
+            "    UIEdgeInsets inset = scroll.contentInset;",
+            "    inset.top += deficit;",
+            "    scroll.contentInset = inset;",
+            "    CGPoint offset = scroll.contentOffset;",
+            "    offset.y = -scroll.adjustedContentInset.top;",
+            "    scroll.contentOffset = offset;",
+            "    ScarletIslandReceipt(@\"guest_scroll_content_inset_applied\",",
+            "                         expectedTop, before, scroll.adjustedContentInset.top);",
+            "}",
+            "void initScarletGuestIslandContentGuard(void) {"
+          ]
+        },
+        {
+          "commit": "5bdbde4386f223fa78f30edbb0b5c2b1967dad60",
+          "file": "rebuild/Tests/test_v48_r6p22_guest_scroll_content_inset.py",
+          "function": "GuardedGuestScrollContentInset",
+          "location": "@@ -0,0 +1,73 @@",
+          "before": [],
+          "after": [
+            "\"\"\"R6P22: causal correction is scroll content, not the already-safe root.",
+            "class GuardedGuestScrollContentInset(unittest.TestCase):",
+            "    def test_single_full_width_vertical_unsafe_scroll_only(self):",
+            "        self.assertIn(\"candidates.count != 1\",fix)"
+          ]
+        },
+        {
+          "commit": "91653e7195abd16abe0a607a0de3fa8c76e35265",
+          "file": ".github/workflows/scarlet-paired-engines-build.yml",
+          "function": "on.push.branches, publish-unsigned-github-release",
+          "location": "@@ -334,7 +334,9 @@ jobs:",
+          "before": [
+            "          if [ \"$GITHUB_REF\" = \"refs/heads/fix/scarlet-v48-r6p21-depth-probe-cert-recheck-20261112\" ]; then",
+            "            asset=\"Scarlet-Crystal-V48-R6P21-CONTENT-CERT-UNSIGNED.ipa\""
+          ],
+          "after": [
+            "          if [ \"$GITHUB_REF\" = \"refs/heads/fix/scarlet-v48-r6p22-guest-scroll-content-inset-20261112\" ]; then",
+            "            asset=\"Scarlet-Crystal-V48-R6P22-SCROLL-CONTENT-UNSIGNED.ipa\"",
+            "          elif [ \"$GITHUB_REF\" = \"refs/heads/fix/scarlet-v48-r6p21-depth-probe-cert-recheck-20261112\" ]; then",
+            "            asset=\"Scarlet-Crystal-V48-R6P21-CONTENT-CERT-UNSIGNED.ipa\""
+          ]
+        }
+      ],
+      "generated_runtime_targets": [
+        {
+          "source_template": "rebuild/integration/ScarletGuestIslandContentGuard.m.txt",
+          "generated_file": "engine/LiveContainer/LiveContainer/Tweaks/ScarletGuestIslandContentGuard.m",
+          "source_generation_script": "rebuild/integration/apply_scarlet_host.py",
+          "function": "add_scarlet_guest_island_content_guard",
+          "before": [
+            "        ScarletIslandScheduleContentProbe(window, root, target);",
+            "        return;"
+          ],
+          "after": [
+            "        ScarletIslandScheduleContentProbe(window, root, target);",
+            "        // R6P22: one separate, bounded descendant-scroll remedy. Never add",
+            "        // another inset to this already-correct guest root or its UIWindow.",
+            "        ScarletIslandScheduleScrollContentRepair(window, root, target);",
+            "        return;"
+          ],
+          "note": "The Git-tracked .m.txt is copied by integration into the pinned upstream engine during CI. This generated engine file is not separately tracked by the repository."
+        }
+      ]
     }
   ],
   "gate": {
