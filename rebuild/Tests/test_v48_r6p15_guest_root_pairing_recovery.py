@@ -77,7 +77,7 @@ class GuestRootAndPairingRecovery(unittest.TestCase):
         part = WORKER.split("@objc static func inspectDevicePairing(", 1)[1].split(
             "// V29: in-app iOS 27 RPPairing", 1)[0]
         self.assertEqual(part.count("try await ScarletGuestDeviceTransport.ensureReady()"), 2)
-        self.assertIn("Task.sleep(for: .milliseconds(1100))", part)
+        self.assertIn("Task.sleep(nanoseconds: 1_100_000_000)", part)
         self.assertIn('reply(false, "pairing_saved_transport_unavailable")', part)
         self.assertIn('reply(true, "pairing_saved_and_transport_ready")', part)
         self.assertNotIn("savePairingFile(", part)
