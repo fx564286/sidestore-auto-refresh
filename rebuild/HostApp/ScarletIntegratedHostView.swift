@@ -900,8 +900,9 @@ struct ScarletIntegratedHostView: View {
     // current iPhone sessions, regardless of guest engine or root geometry.
     // Retry ONLY transient network-connection-loss (not HTTP 403/404,
     // untrusted URL, cancellation, IPA validation or other failures).
-    // Use server-provided resume bytes if available and fall back safely
-    // to one fresh attempt only when iOS declares that resume is invalid.
+    // Use server-provided resume bytes if available. If that single resume
+    // fails (except cancellation), make one ordinary HTTPS attempt; all
+    // retries remain bounded and never weaken ATS or ZIP validation.
     private func downloadSourceWithConnectionRecovery(
         from url: URL, using session: URLSession
     ) async throws -> (URL, URLResponse) {
@@ -915,8 +916,12 @@ struct ScarletIntegratedHostView: View {
                     } catch {
                         try Task.checkCancellation()
                         let ns = error as NSError
+                        // `NSURLErrorCannotResume` does NOT exist in the
+                        // pinned Xcode 27.2 Foundation SDK. Fall back only
+                        // after an actual URL-loading error; a user cancel
+                        // never restarts a download.
                         guard ns.domain == NSURLErrorDomain &&
-                              ns.code == NSURLErrorCannotResume else {
+                              ns.code != NSURLErrorCancelled else {
                             throw error
                         }
                         ScarletDiagnosticRecorder.shared.record(
