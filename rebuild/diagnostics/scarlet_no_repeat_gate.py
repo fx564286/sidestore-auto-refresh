@@ -42,6 +42,15 @@ def _mechanism(value: str) -> str:
     return ALIASES.get(key, key)
 
 
+def _problem_family(value: str) -> str:
+    # Different symptom labels do not make the same guest launch/layout
+    # mechanism a new fix. R6P9 was classified guest_boot, but later
+    # attempts target its visible symptom guest_top.
+    if value in {"guest_top", "rotation_top", "guest_boot"}:
+        return "resident_guest_surface"
+    return value
+
+
 def _code_signature(change: dict) -> tuple:
     def canonical(parts: list) -> str:
         # Comments and formatting alone are not a new implementation.
@@ -65,9 +74,12 @@ def check_candidate(candidate: dict, prior: list[dict]) -> list[str]:
     problem = candidate.get("problem", "")
     mech = _mechanism(candidate.get("mechanism", ""))
     novelty = candidate.get("novelty") or {}
-    previous = [e for e in prior if e.get("problem") == problem]
+    previous = [e for e in prior if _problem_family(e.get("problem", ""))
+                == _problem_family(problem)]
     conflicts = [e for e in previous if _mechanism(e.get("mechanism", "")) == mech
-                 and e.get("status") in FAILURE_STATES]
+                 and (e.get("status") in FAILURE_STATES
+                      or e.get("device_verification")
+                      != "device_visual_and_touch_pass")]
     if len(novelty.get("causal_difference", "")) < 40:
         errors.append(f"{ident}: missing concrete causal_difference (>=40 chars)")
     if len(novelty.get("falsifiable_prediction", "")) < 35:
@@ -92,6 +104,8 @@ def check_candidate(candidate: dict, prior: list[dict]) -> list[str]:
             errors.append(f"{ident}: BLOCK repeated mechanism {mech}; "
                           "requires new device source_commit/event/value and "
                           "specific explanation why prior code failed")
+    if not candidate.get("code_locations"):
+        errors.append(f"{ident}: candidate must contain proposed file/diff context")
     # Also block an identical source patch even if renamed to a new mechanism.
     prior_patches = {
         _code_signature(loc)
