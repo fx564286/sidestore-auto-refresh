@@ -366,7 +366,7 @@ extension ScarletGuestRefreshAgent {
             } catch {
                 // Wait only for a transient launch/foreground handoff; do not
                 // spin when VPN is disabled or a device is unreachable.
-                try? await Task.sleep(for: .milliseconds(1100))
+                try? await Task.sleep(nanoseconds: 1_100_000_000)
                 do {
                     _ = try await ScarletGuestDeviceTransport.ensureReady()
                     reply(true, "pairing_saved_and_transport_ready")
