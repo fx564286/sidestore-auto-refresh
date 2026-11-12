@@ -6,9 +6,11 @@
 #import <CoreFoundation/CoreFoundation.h>
 #import <math.h>
 #import <unistd.h>
+#import <objc/runtime.h>
 #import "utils.h"
 
 static __weak UIWindow *scarletIslandLastWindow;
+static char scarletIslandRootAddedInsetKey;
 
 static void ScarletIslandReceipt(NSString *result, CGFloat required,
                                  CGFloat before, CGFloat after) {
@@ -52,11 +54,13 @@ static void ScarletIslandInspect(UIWindow *window, NSUInteger attempt) {
     UIViewController *root = window.rootViewController;
     UIView *content = root.isViewLoaded ? root.view : nil;
     if(!root || !content || content.window != window ||
-       CGRectGetWidth(window.bounds) < 250) {
-        if(attempt < 3) {
+       CGRectGetWidth(window.bounds) < 250 || attempt < 2) {
+        // Avoid a false root 0pt while UIWindow is visible but its initial
+        // UIKit safe area has not completed first layout; one bounded settle.
+        if(attempt < 7) {
             __weak UIWindow *weakWindow = window;
             dispatch_after(dispatch_time(DISPATCH_TIME_NOW,
-                (int64_t)(attempt + 1) * 200 * NSEC_PER_MSEC),
+                (int64_t)(attempt + 1) * 150 * NSEC_PER_MSEC),
                 dispatch_get_main_queue(), ^{
                     ScarletIslandInspect(weakWindow, attempt + 1);
                 });
@@ -75,15 +79,41 @@ static void ScarletIslandInspect(UIWindow *window, NSUInteger attempt) {
         ScarletIslandReceipt(@"target_unavailable", 0, before, before);
         return;
     }
+    // Two UIWindow notifications can arrive in the same layout pass. Own
+    // exactly one additive delta per guest root and prevent double padding.
+    NSNumber *owned = objc_getAssociatedObject(
+        root, &scarletIslandRootAddedInsetKey);
+    CGFloat ourDelta = MAX(0, owned.doubleValue);
+    if(ourDelta > 0 && before > target + 3) {
+        // If UIKit's natural safe area became valid after an earlier 0pt
+        // readback, remove ONLY our excess contribution, not app-owned inset.
+        CGFloat trim = MIN(ourDelta, before - target);
+        UIEdgeInsets extra = root.additionalSafeAreaInsets;
+        extra.top -= trim;
+        objc_setAssociatedObject(root, &scarletIslandRootAddedInsetKey,
+            @(ourDelta - trim), OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+        root.additionalSafeAreaInsets = extra;
+        [content setNeedsLayout];
+        [content layoutIfNeeded];
+        ScarletIslandReceipt(@"guest_root_excess_trimmed", target, before,
+                             content.safeAreaInsets.top);
+        return;
+    }
     if(before >= target - 2) {
         ScarletIslandReceipt(@"guest_root_already_safe", target, before, before);
         return;
     }
+    if(ourDelta > 0) {
+        // A pending UIKit layout readback cannot authorize a second write.
+        ScarletIslandReceipt(@"guest_root_update_unconfirmed", target,
+                             before, before);
+        return;
+    }
     UIEdgeInsets extra = root.additionalSafeAreaInsets;
-    // Only the missing amount is added; UIKit updates its layout guide,
-    // never the view's pixel frame or the guest app's drawing scale.
     CGFloat deficit = MIN(130, MAX(0, target - before));
-    extra.top += deficit;
+    objc_setAssociatedObject(root, &scarletIslandRootAddedInsetKey,
+        @(deficit), OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+    extra.top += deficit; // no guest window/frame/scale changes
     root.additionalSafeAreaInsets = extra;
     [content setNeedsLayout];
     [content layoutIfNeeded];
