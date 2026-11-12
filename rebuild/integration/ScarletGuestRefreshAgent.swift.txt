@@ -223,6 +223,21 @@ extension ScarletGuestRefreshAgent {
         return "sidestore_native_operation_failed"
     }
 
+    // R6P23: SideStore's generic code 1 hides which *native* stage failed.
+    // Preserve all recognized typed failure reasons verbatim; categorize only
+    // the unmatched fallback, never serialize original NSError descriptions.
+    private static func stagedFailureReason(_ error: Error, stage: String) -> String {
+        let reason = safeFailureReason(error)
+        guard reason == "sidestore_native_operation_failed" else { return reason }
+        switch stage {
+        case "database": return "native_unknown_database_stage"
+        case "team": return "native_unknown_team_stage"
+        case "transport": return "native_unknown_transport_stage"
+        case "refresh": return "native_unknown_appmanager_stage"
+        default: return reason
+        }
+    }
+
     @objc static func perform(_ reply: @escaping (Bool, String) -> Void) {
         Task {
             let gate = ScarletGuestNativeRefreshGate.shared
@@ -231,6 +246,7 @@ extension ScarletGuestRefreshAgent {
                 return
             }
             defer { Task { await gate.release() } }
+            var stage = "database"
             do {
                 try await DatabaseManager.shared.start()
                 let context = DatabaseManager.shared.persistentContainer.newBackgroundContext()
@@ -258,6 +274,7 @@ extension ScarletGuestRefreshAgent {
                 // writes that record, but Scarlet's headless login previously
                 // did not. Recover only the exact Apple-verified existing
                 // signed team before running original PreflightChecksOperation.
+                stage = "team"
                 let teamState = await ScarletGuestSignInAgent
                     .ensureActiveTeamForRefresh()
                 guard teamState == "ready" || teamState == "team_restored" else {
@@ -269,10 +286,12 @@ extension ScarletGuestRefreshAgent {
                 // have skipped the SideStore UIApplication launch lifecycle.
                 // Restore only the original transport, then re-check its
                 // own preconditions. A failed check aborts before signing.
+                stage = "transport"
                 let recoveredTransport = try await
                     ScarletGuestDeviceTransport.ensureReady()
                 // Original SideStore refresh operation, not an AppIntent
                 // proxy and not a fake successful "request accepted" flag.
+                stage = "refresh"
                 let results: [String: Result<InstalledApp, Error>] =
                     try await withCheckedThrowingContinuation { continuation in
                     let operation = try? AppManager.shared.backgroundRefresh(
@@ -288,7 +307,7 @@ extension ScarletGuestRefreshAgent {
                 }
                 for (_, result) in results {
                     if case let .failure(error) = result {
-                        reply(false, safeFailureReason(error))
+                        reply(false, stagedFailureReason(error, stage: stage))
                         return
                     }
                 }
@@ -319,7 +338,7 @@ extension ScarletGuestRefreshAgent {
                     ? "native_operation_returned_unverified_transport_recovered"
                     : "native_operation_returned_unverified")
             } catch {
-                reply(false, safeFailureReason(error))
+                reply(false, stagedFailureReason(error, stage: stage))
             }
         }
     }

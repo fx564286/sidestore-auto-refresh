@@ -75,7 +75,14 @@ final class ScarletDiagnosticRecorder: @unchecked Sendable {
         "scroll_top_without_inset", "scroll_first_y", "scan_capped",
         "top_text_nodes", "unsafe_text_nodes", "first_unsafe_text_y",
         "top_image_nodes", "unsafe_image_nodes", "first_unsafe_image_y",
-        "max_depth_seen", "depth_capped", "count_capped"
+        "max_depth_seen", "depth_capped", "count_capped",
+        // R6P23: bounded read-only ancestry and scroll-selection predicates.
+        "unsafe_controls_in_scroll", "unsafe_controls_outside_scroll",
+        "unsafe_controls_under_zero_inset_child_owner",
+        "unsafe_image_nodes_in_scroll", "unsafe_image_nodes_outside_scroll",
+        "seen", "nested", "not_top_full_width", "not_vertical",
+        "existing_inset", "not_at_top", "busy",
+        "missing_unsafe_descendant", "eligible", "scan_budget_exhausted"
     ]
 
     private init() {
