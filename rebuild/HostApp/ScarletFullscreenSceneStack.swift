@@ -750,11 +750,15 @@ private final class ScarletGuestIslandReceiptObserver {
                 ]
                 let numericFields = ["sample_index", "root_frame_y", "root_guide_y",
                     "visited", "candidate_controls", "top_controls",
-                    "unsafe_controls", "first_top_control_y",
+                    "unsafe_controls", "unsafe_controls_in_scroll",
+                    "unsafe_controls_outside_scroll",
+                    "unsafe_controls_under_zero_inset_child_owner",
+                    "first_top_control_y",
                     "first_unsafe_control_y", "scroll_top_without_inset",
                     "scroll_first_y", "top_text_nodes", "unsafe_text_nodes",
                     "first_unsafe_text_y", "top_image_nodes",
-                    "unsafe_image_nodes", "first_unsafe_image_y",
+                    "unsafe_image_nodes", "unsafe_image_nodes_in_scroll",
+                    "unsafe_image_nodes_outside_scroll", "first_unsafe_image_y",
                     "max_depth_seen"]
                 for field in numericFields {
                     if let number = row[field] as? NSNumber {
@@ -768,6 +772,30 @@ private final class ScarletGuestIslandReceiptObserver {
                 }
                 ScarletDiagnosticRecorder.shared.record(
                     "layout", "guest_content_geometry_probe", fields: fields)
+                continue
+            }
+            if result == "guest_scroll_target_classifier" {
+                // Exclusion counts correspond exactly to the R6P22 predicates.
+                // All fields remain anonymous integers; no class names,
+                // UI text, guest IDs, URLs, paths or certificates.
+                var fields: [String: String] = [
+                    "process_pid": String(pid),
+                    "safe_top_pt": String(target)
+                ]
+                let keys = ["seen", "nested", "not_top_full_width",
+                    "not_vertical", "existing_inset", "not_at_top",
+                    "busy", "missing_unsafe_descendant", "eligible"]
+                for key in keys {
+                    if let number = row[key] as? NSNumber {
+                        fields[key] = number.stringValue
+                    }
+                }
+                if let capped = row["scan_budget_exhausted"] as? NSNumber {
+                    fields["scan_budget_exhausted"] =
+                        capped.boolValue ? "true" : "false"
+                }
+                ScarletDiagnosticRecorder.shared.record(
+                    "layout", "guest_scroll_target_classifier", fields: fields)
                 continue
             }
             ScarletDiagnosticRecorder.shared.record(
