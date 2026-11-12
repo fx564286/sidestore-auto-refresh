@@ -329,6 +329,24 @@ struct ScarletSigningReadinessPanel: View {
                 ScarletDiagnosticRecorder.shared.record(
                     "certificate", "native_provider_returned",
                     fields: ["result": "team_validation_pending_or_passed"])
+                // R6P21: LC P12 equality does NOT prove SideStore's signing
+                // Keychain is populated. R6P20 read it BEFORE this provider,
+                // then never again. Re-read the real SideStore worker NOW.
+                // This is observation only: no certificate import/reissue,
+                // keychain deletion, profile updates or auto-install claim.
+                let nativeState = await ScarletNativeRefreshInspector.inspect()
+                refreshManagedAppCount = nativeState.count
+                refreshHostManaged = nativeState.hostManaged
+                ScarletDiagnosticRecorder.shared.record(
+                    "certificate", "sidestore_signing_rechecked",
+                    status: nativeState.signingReady ? "success" : "warning",
+                    fields: ["count": String(nativeState.count),
+                             "host_managed": nativeState.hostManaged ? "true" : "false",
+                             "signing_ready": nativeState.signingReady ? "true" : "false",
+                             "reason": nativeState.reason])
+                if !nativeState.signingReady {
+                    certificateRecoveryStatus = "기존 LC 인증서는 유지됩니다. SideStore 내부 서명 인증서 준비는 아직 확인되지 않았습니다."
+                }
             } catch {
                 let failure = error as NSError
                 certificateRecoveryStatus =
