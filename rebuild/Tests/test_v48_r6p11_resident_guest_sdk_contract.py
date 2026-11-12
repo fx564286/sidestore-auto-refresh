@@ -6,6 +6,7 @@ by itself prove UIKit's cached launch-time layout mode was repaired.
 """
 from pathlib import Path
 import unittest
+import json
 
 ROOT = Path(__file__).resolve().parents[1]
 INTEGRATION = (ROOT / "integration/apply_scarlet_host.py").read_text()
@@ -39,6 +40,25 @@ class ResidentSDKContract(unittest.TestCase):
         self.assertNotIn('appBundle.infoDictionary[@"DTSDKName"]', CUT)
         self.assertNotIn('Instagram', CUT)
         self.assertNotIn('KakaoTalk', CUT)
+
+    def test_generated_native_edit_locations_are_auditable(self):
+        history = json.loads((ROOT / "diagnostics/scarlet_remediation_history.json")
+                             .read_text(encoding="utf-8"))
+        record = next(x for x in history["entries"] if x["id"] == "L046")
+        targets = record["generated_runtime_targets"]
+        self.assertEqual({x["file"] for x in targets}, {
+            "MultitaskSupport/AppSceneViewController.m",
+            "LiveProcess/main.m",
+            "LiveContainer/LCBootstrap.m",
+            "LiveContainer/Tweaks/Dyld.m",
+        })
+        for target in targets:
+            self.assertTrue(target["symbol"])
+            self.assertTrue(target["generator"])
+            self.assertTrue(target["before"])
+            self.assertTrue(target["after"])
+        prompt = (ROOT / "diagnostics/SCARLET_LOG_ONLY_HANDOFF_PROMPT.md").read_text()
+        self.assertIn("generated_runtime_targets", prompt)
 
     def test_no_existing_geometry_or_touch_rewrites(self):
         for forbidden in (
