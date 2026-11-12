@@ -1,0 +1,132 @@
+// R6P15: reconcile the real guest UIWindow root safe area after attachment.
+// No global UIKit hook, UIApplication.sharedApplication, scene/frame transform,
+// bundle rewrite, display-scale adjustment, or per-app exceptions.
+#import <Foundation/Foundation.h>
+#import <UIKit/UIKit.h>
+#import <CoreFoundation/CoreFoundation.h>
+#import <math.h>
+#import <unistd.h>
+#import "utils.h"
+
+static __weak UIWindow *scarletIslandLastWindow;
+
+static void ScarletIslandReceipt(NSString *result, CGFloat required,
+                                 CGFloat before, CGFloat after) {
+    NSUserDefaults *store = NSUserDefaults.lcSharedDefaults;
+    if(!store) return;
+    NSString *key = @"Scarlet.Guest.IslandRootReceipt.V1";
+    NSData *raw = [store dataForKey:key];
+    NSMutableArray *items = [NSMutableArray array];
+    if(raw) {
+        id decoded = [NSJSONSerialization JSONObjectWithData:raw
+            options:NSJSONReadingMutableContainers error:NULL];
+        if([decoded isKindOfClass:NSArray.class]) [items addObjectsFromArray:decoded];
+    }
+    [items addObject:@{@"receipt":NSUUID.UUID.UUIDString,
+                      @"pid":@(getpid()),
+                      @"epoch":@([[NSDate date] timeIntervalSince1970]),
+                      @"result":result ?: @"unknown",
+                      @"target":@((int)round(required)),
+                      @"before":@((int)round(before)),
+                      @"after":@((int)round(after))}];
+    if(items.count > 18)
+        [items removeObjectsInRange:NSMakeRange(0, items.count - 18)];
+    NSData *bytes = [NSJSONSerialization dataWithJSONObject:items
+        options:0 error:NULL];
+    if(!bytes) return;
+    [store setObject:bytes forKey:key];
+    NSString *name = [NSString stringWithFormat:
+        @"com.scarlet.guest.island.ack.%d", getpid()];
+    CFNotificationCenterPostNotification(
+        CFNotificationCenterGetDarwinNotifyCenter(),
+        (__bridge CFStringRef)name, NULL, NULL, true);
+}
+
+static void ScarletIslandInspect(UIWindow *window, NSUInteger attempt) {
+    if(!window || window.hidden || window.windowLevel != UIWindowLevelNormal ||
+       UIDevice.currentDevice.userInterfaceIdiom != UIUserInterfaceIdiomPhone)
+        return;
+    UIWindowScene *scene = window.windowScene;
+    if(!scene || !UIInterfaceOrientationIsPortrait(scene.interfaceOrientation))
+        return;
+    UIViewController *root = window.rootViewController;
+    UIView *content = root.isViewLoaded ? root.view : nil;
+    if(!root || !content || content.window != window ||
+       CGRectGetWidth(window.bounds) < 250) {
+        if(attempt < 3) {
+            __weak UIWindow *weakWindow = window;
+            dispatch_after(dispatch_time(DISPATCH_TIME_NOW,
+                (int64_t)(attempt + 1) * 200 * NSEC_PER_MSEC),
+                dispatch_get_main_queue(), ^{
+                    ScarletIslandInspect(weakWindow, attempt + 1);
+                });
+        }
+        return;
+    }
+    // Host safe-top fallback is anonymous normal UIWindow geometry; the
+    // correction itself is applied inside the real guest UI root.
+    CGFloat sceneTop = CGRectGetMaxY(scene.statusBarManager.statusBarFrame);
+    CGFloat hostTop = [NSUserDefaults.lcSharedDefaults
+        doubleForKey:@"Scarlet.Guest.PortraitSafeTop.V1"];
+    CGFloat target = MAX(sceneTop, hostTop);
+    [content layoutIfNeeded];
+    CGFloat before = content.safeAreaInsets.top;
+    if(!isfinite(target) || target < 20 || target > 130) {
+        ScarletIslandReceipt(@"target_unavailable", 0, before, before);
+        return;
+    }
+    if(before >= target - 2) {
+        ScarletIslandReceipt(@"guest_root_already_safe", target, before, before);
+        return;
+    }
+    UIEdgeInsets extra = root.additionalSafeAreaInsets;
+    // Only the missing amount is added; UIKit updates its layout guide,
+    // never the view's pixel frame or the guest app's drawing scale.
+    CGFloat deficit = MIN(130, MAX(0, target - before));
+    extra.top += deficit;
+    root.additionalSafeAreaInsets = extra;
+    [content setNeedsLayout];
+    [content layoutIfNeeded];
+    CGFloat after = content.safeAreaInsets.top;
+    ScarletIslandReceipt(after >= target - 2
+                             ? @"guest_root_corrected"
+                             : @"guest_root_update_unconfirmed",
+                         target, before, after);
+}
+
+void initScarletGuestIslandContentGuard(void) {
+    // The resident opt-in bit is supplied before LC guest bootstrap; all
+    // classic LC, embedded SideStore, and unrelated extensions remain inert.
+    if(!NSUserDefaults.isLiveProcess ||
+       ![NSUserDefaults.standardUserDefaults
+           boolForKey:@"Scarlet.ResidentSDKContract.V1"])
+        return;
+    static dispatch_once_t once;
+    dispatch_once(&once, ^{
+        NSNotificationCenter *center = NSNotificationCenter.defaultCenter;
+        [center addObserverForName:UIWindowDidBecomeVisibleNotification
+            object:nil queue:NSOperationQueue.mainQueue
+            usingBlock:^(NSNotification *note) {
+                UIWindow *window = [note.object isKindOfClass:UIWindow.class]
+                    ? (UIWindow *)note.object : nil;
+                if(!window) return;
+                scarletIslandLastWindow = window;
+                ScarletIslandInspect(window, 0);
+            }];
+        [center addObserverForName:UIWindowDidBecomeKeyNotification
+            object:nil queue:NSOperationQueue.mainQueue
+            usingBlock:^(NSNotification *note) {
+                UIWindow *window = [note.object isKindOfClass:UIWindow.class]
+                    ? (UIWindow *)note.object : nil;
+                if(!window) return;
+                scarletIslandLastWindow = window;
+                ScarletIslandInspect(window, 0);
+            }];
+        [center addObserverForName:
+            @"UIApplicationDidBecomeActiveNotification"
+            object:nil queue:NSOperationQueue.mainQueue
+            usingBlock:^(__unused NSNotification *note) {
+                ScarletIslandInspect(scarletIslandLastWindow, 0);
+            }];
+    });
+}
