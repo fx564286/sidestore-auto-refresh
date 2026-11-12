@@ -1,8 +1,8 @@
 {
   "schema": 2,
   "scope": "Scarlet Crystal guest top-screen overlap, touch access, rotation, remote guest render and related resident regressions",
-  "updated_utc": "2026-11-12T06:40:00+00:00",
-  "current_baseline": "R6P18 device reports from current and archives: source download -1005 repeated, Apple 2FA team -3402, App Group entitlement missing on latest signed launch, BG task register unavailable, guest fast exit 107ms, install appmanager error3 and unverified refresh. R6P19 source retries and signer-aware guidance are compiled native verification pending. R6P20 L058 reuses actual verified 2FA session through original SideStore AuthManager before team lookup and L059 scopes background task identifiers to two observed signer Bundle ID variants; 524 source regression tests PASS. No device success yet.",
+  "updated_utc": "2026-11-12T06:44:00+00:00",
+  "current_baseline": "R6P20 source token session optimization L058 was blocked by actual private AuthManager.session in pinned Xcode. L060 adds same-file AuthManager extension to access private member without widening visibility; source tests 525 PASS, native CI still pending. Original R6P18 latest iPhone signature lacks App Group and blocks guest; no claim of visual Dynamic Island fix.",
   "current_issue_status": "UNRESOLVED ON DEVICE: Apple signed entitlement missing in latest R6P18 launch, no guest can run to measure Dynamic Island; R6P20 adds bounded auth session and BG identifier corrections but actual post-signature App Group rights, team reconciliation, IPA install and 7-day refresh must be verified.",
   "confidence_note": "Past-chat-only historical versions were reported in earlier conversations; not all have a GitHub revision or device verification. An implementation, a CI success, a telemetry event, and a real device visual fix are distinct.",
   "privacy": "No credentials, Apple ID, OTP, UDID, guest names or device identifiers are stored.",
@@ -8273,6 +8273,159 @@
       ],
       "repeat_policy": "If BG register still unavailable, inspect installed signed Info.plist and app permissions before considering iOS scheduling restrictions. Do not add arbitrary bundle variations, request unsupported BG tasks, or fake background scheduling success.",
       "success_gate": "Compiled IPA has two exact permitted BG identifier variants. On iPhone, host BG registration returns registered with matching actual signed bundle; background refresh installation_verified must be independently checked."
+    },
+    {
+      "id": "L060",
+      "date": "2026-11-12",
+      "version": "new-v48-r6p20-private-auth-session-bridge-compile-fix",
+      "problem": "native_sidestore_auth_compilation",
+      "mechanism": "private_auth_session_setter_samefile_extension",
+      "hypothesis": "The pinned SideStore AuthManager.swift declares session PRIVATE, so a separate ScarletGuestSignInAgent cannot assign AuthManager.shared.session even when the Swift source is appended to the same file. A same-file extension of AuthManager can access its own private session, unlike the separate agent type.",
+      "action": "Add a fileprivate same-file extension AuthManager.scarletCacheVerifiedAuthSession(_:) setting the existing private session variable and use it after verified 2FA Keychain readback. Leave original auth API, stored passwords, team and provisioning behavior unchanged; add test that prohibits direct private assignment.",
+      "observation": "R6P20 GitHub Actions 43168704621 SideStore job 131016551170 exit 2. Downloaded failed sidestore-build.log: AuthManager.swift:390:36 error session inaccessible due to private protection level. New L060 source fix committed, 525 local tests PASS, new native CI not yet device verified.",
+      "evidence": [
+        "GitHub run 43168704621, SideStore failure archive 13920399533, sidestore-build.log line 7113: AuthManager.swift:390:36: error: session is inaccessible due to private protection level.",
+        "Compiled pinned upstream file has private var session. Same-file extension of AuthManager (not other types) can access it."
+      ],
+      "novelty": {
+        "prior_excluded_ids": [
+          "L058"
+        ],
+        "causal_difference": "R6P20 native SideStore Xcode 27.2 archive failed because pinned AuthManager.session is declared private. L058 attempted to assign AuthManager.shared.session from a DIFFERENT type ScarletGuestSignInAgent after token readback, and real Swift access control forbids this. The integration template is appended to original AuthManager.swift, allowing a same-file extension OF AuthManager to access its own private stored property while exposing only a fileprivate method to the separate agent. This retains the identical verified-session data-flow and does not broaden the upstream property or auth API visibility.",
+        "falsifiable_prediction": "The next pinned SideStore Xcode 27.2 compile no longer reports `session is inaccessible due to private protection level` at guest AuthManager.swift:390; the live SideStore process executes the verified session cache through a same-file extension before the team query. 2FA team recovery still requires real device validation, no fake success.",
+        "new_device_evidence": {
+          "source_commit": "82f3e1dd58edf6cf500692f91cf6340936366fa3",
+          "event": "GitHub Actions run 43168704621 sideStore job 131016551170 Xcode 27.2 compile",
+          "observed_value": "AuthManager.swift:390:36: error: 'session' is inaccessible due to 'private' protection level (pinned upstream private var session)."
+        },
+        "why_prior_fix_failed": "The P20 source-level 524-test suite verified the conceptual session assignment but did not compile the actual pinned SideStore AuthManager, where session is private. The historical local Oct SideStore snapshot differs and exposes it publicly; the R6P20 native job established the actual private access contract."
+      },
+      "status": "source_committed_ci_pending",
+      "source_verification": "git_patch_observed",
+      "device_verification": "not_installed_or_tested_iphone_after_r6p20",
+      "code_locations": [
+        {
+          "commit": "d93f6e9036084f19c1a7c8da82321627568a1a7e",
+          "file": "rebuild/integration/ScarletGuestSignInAgent.swift.txt",
+          "function": "ScarletGuestSignInAgent.swift.txt",
+          "location": "@@ -3,6 +3,17 @@",
+          "before": [
+            "// It runs in SideStore's LiveProcess context, never inside the Scarlet UI.",
+            "// NotificationCenter messages stay inside the guest process; XPC is the only",
+            "// host/guest boundary. Never log Apple IDs, passwords, OTPs or auth tokens.",
+            "@objc(ScarletGuestSignInAgent)",
+            "final class ScarletGuestSignInAgent: NSObject {",
+            "    @MainActor private static var activeRequest: String?"
+          ],
+          "after": [
+            "// It runs in SideStore's LiveProcess context, never inside the Scarlet UI.",
+            "// NotificationCenter messages stay inside the guest process; XPC is the only",
+            "// host/guest boundary. Never log Apple IDs, passwords, OTPs or auth tokens.",
+            "// Pinned SideStore AuthManager declares its session PRIVATE. This source is",
+            "// appended inside AuthManager.swift by apply_scarlet_host.py. Swift permits",
+            "// a same-file extension OF AuthManager to access that private member, but",
+            "// a separate ScarletGuestSignInAgent class cannot. Keep the bridge",
+            "// fileprivate, never change upstream session visibility or sign-in policy.",
+            "extension AuthManager {",
+            "    fileprivate func scarletCacheVerifiedAuthSession(_ verified: ALTAppleAPISession) {",
+            "        session = verified",
+            "    }",
+            "}",
+            "",
+            "@objc(ScarletGuestSignInAgent)",
+            "final class ScarletGuestSignInAgent: NSObject {",
+            "    @MainActor private static var activeRequest: String?"
+          ]
+        },
+        {
+          "commit": "d93f6e9036084f19c1a7c8da82321627568a1a7e",
+          "file": "rebuild/integration/ScarletGuestSignInAgent.swift.txt",
+          "function": "ScarletGuestSignInAgent.swift.txt",
+          "location": "@@ -165,7 +176,7 @@ final class ScarletGuestSignInAgent: NSObject {",
+          "before": [
+            "                // successful 2FA. Reuse only this already authenticated,",
+            "                // Keychain-readback-verified session in the SAME process.",
+            "                // Never cache the password, OTP, or raw identity in logs.",
+            "                AuthManager.shared.session = session",
+            "                // Non-secret successful Anisette route for token restoration.",
+            "                // Only commit the chosen route after a verified Keychain save.",
+            "                UserDefaults.standard.set(profile,"
+          ],
+          "after": [
+            "                // successful 2FA. Reuse only this already authenticated,",
+            "                // Keychain-readback-verified session in the SAME process.",
+            "                // Never cache the password, OTP, or raw identity in logs.",
+            "                AuthManager.shared.scarletCacheVerifiedAuthSession(session)",
+            "                // Non-secret successful Anisette route for token restoration.",
+            "                // Only commit the chosen route after a verified Keychain save.",
+            "                UserDefaults.standard.set(profile,"
+          ]
+        },
+        {
+          "commit": "4c7486b65cdecd397c156791281dcaa0b26a3af2",
+          "file": "rebuild/Tests/test_v48_r6p20_live_session_bg_identifier.py",
+          "function": "test_v48_r6p20_live_session_bg_identifier.py",
+          "location": "@@ -12,15 +12,23 @@ class RealSignInSessionAndSignedIdentifierTests(unittest.TestCase):",
+          "before": [
+            "    def test_verified_apple_session_reused_after_2fa_before_team_portal(self):",
+            "        self.assertIn('let (_, session) = try await AuthManager.shared.signIn(',AUTH)",
+            "        verified=AUTH.index('guard persistedState() else {',AUTH.index('@objc(begin:)'))",
+            "        cached=AUTH.index('AuthManager.shared.session = session',verified)",
+            "        active=AUTH.index('let teamState = await ensureActiveTeamForRefresh()',cached)",
+            "        self.assertLess(verified,cached)",
+            "        self.assertLess(cached,active)",
+            "        self.assertIn('finish(id, code: -3401',AUTH[verified:cached])",
+            "        self.assertIn('finish(id, code: -3402',AUTH[active:])",
+            "    def test_engine_get_authenticated_session_may_need_anisette_without_cache(self):",
+            "        self.assertIn('DeveloperPortalProxy.shared.fetchTeams(',AUTH)",
+            "        self.assertIn('AuthManager.shared.session = session',AUTH)",
+            "        self.assertNotIn('AuthManager.shared.signOut()',AUTH)",
+            "        self.assertNotIn('clearActiveCertificate()',AUTH)",
+            "    def test_bg_task_id_tracks_exact_installed_signed_bundle(self):"
+          ],
+          "after": [
+            "    def test_verified_apple_session_reused_after_2fa_before_team_portal(self):",
+            "        self.assertIn('let (_, session) = try await AuthManager.shared.signIn(',AUTH)",
+            "        verified=AUTH.index('guard persistedState() else {',AUTH.index('@objc(begin:)'))",
+            "        cached=AUTH.index('AuthManager.shared.scarletCacheVerifiedAuthSession(session)',verified)",
+            "        active=AUTH.index('let teamState = await ensureActiveTeamForRefresh()',cached)",
+            "        self.assertLess(verified,cached)",
+            "        self.assertLess(cached,active)",
+            "        self.assertIn('finish(id, code: -3401',AUTH[verified:cached])",
+            "        self.assertIn('finish(id, code: -3402',AUTH[active:])",
+            "    def test_authmanager_private_session_is_only_written_in_its_same_file_extension(self):",
+            "        self.assertIn('extension AuthManager {', AUTH)",
+            "        self.assertIn('fileprivate func scarletCacheVerifiedAuthSession(',AUTH)",
+            "        self.assertIn('session = verified',AUTH)",
+            "        self.assertNotIn('AuthManager.shared.session = session',AUTH)",
+            "        self.assertLess(AUTH.index('extension AuthManager {'),",
+            "                        AUTH.index('@objc(ScarletGuestSignInAgent)'))",
+            "",
+            "    def test_engine_get_authenticated_session_may_need_anisette_without_cache(self):",
+            "        self.assertIn('DeveloperPortalProxy.shared.fetchTeams(',AUTH)",
+            "        self.assertIn('AuthManager.shared.scarletCacheVerifiedAuthSession(session)',AUTH)",
+            "        self.assertNotIn('AuthManager.shared.signOut()',AUTH)",
+            "        self.assertNotIn('clearActiveCertificate()',AUTH)",
+            "    def test_bg_task_id_tracks_exact_installed_signed_bundle(self):"
+          ]
+        }
+      ],
+      "source_revisions": [
+        {
+          "sha": "d93f6e9036084f19c1a7c8da82321627568a1a7e",
+          "url": "https://github.com/fx564286/sidestore-auto-refresh/commit/d93f6e9036084f19c1a7c8da82321627568a1a7e",
+          "title": "fix(r6p20): bridge verified auth session via same-file AuthManager extension to respect private access"
+        },
+        {
+          "sha": "4c7486b65cdecd397c156791281dcaa0b26a3af2",
+          "url": "https://github.com/fx564286/sidestore-auto-refresh/commit/4c7486b65cdecd397c156791281dcaa0b26a3af2",
+          "title": "test(r6p20): reject direct access to pinned private auth session; require same-file bridge"
+        }
+      ],
+      "rollback_commit": "82f3e1dd58edf6cf500692f91cf6340936366fa3",
+      "repeat_policy": "If pinned SideStore still fails, review exact Xcode errors; do not make the original private session public or bypass 2FA, portal team authorization or file-keychain checks.",
+      "success_gate": "Pinned SideStore Xcode 27.2 compile passes and combined iOS IPA releases, then live user 2FA team verification succeeds or a new specific error is captured.",
+      "privacy": "Only in-memory previously verified session reference reused; no credentials, tokens or OTP are logged or added to App Groups or user defaults."
     }
   ],
   "gate": {
