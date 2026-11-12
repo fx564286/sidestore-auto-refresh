@@ -1,7 +1,7 @@
 {
   "schema": 2,
   "scope": "Scarlet Crystal guest top-screen overlap, touch access, rotation, remote guest render and related resident regressions",
-  "updated_utc": "2026-11-12T00:55:00Z",
+  "updated_utc": "2026-11-12T01:05:00Z",
   "current_baseline": "R6P10 858214ab66e5 device exported full history; R6P11 SDK compatibility experiment awaits CI and iPhone visual validation",
   "current_issue_status": "UNRESOLVED: guest app top bars/controls can overlap Dynamic Island (Instagram verified by user, others possible).",
   "confidence_note": "Past-chat-only historical versions were reported in earlier conversations; not all have a GitHub revision or device verification. An implementation, a CI success, a telemetry event, and a real device visual fix are distinct.",
@@ -2587,8 +2587,8 @@
       "problem": "guest_top",
       "mechanism": "dyld_guest_sdk_compatibility",
       "hypothesis": "Original LiveProcess NSExtensionMain loads UIKit before the selected guest Info.plist/CFBundle swap. Even when R6P8 bundle flags are correct after swap, guest code can observe the LiveProcess extension executable's SDK compatibility level through dyld, rather than the guest Mach-O's own SDK. This untested process-level compatibility mismatch might affect UIKit/SwiftUI default navigation-bar placement across multiple guests. Changing dyld queries after UIKit initial load cannot guarantee cached UIKit behavior changes; testing is essential.",
-      "action": "Only for resident (deferred) LiveProcess requests add anonymous scarletResidentSDKContract flag; parse selected guest LC_BUILD_VERSION.sdk or LC_VERSION_MIN_IPHONEOS read-only; when guest has no explicit spoofSDKVersion preference, set DyldHooksInit effective SDK to guest-declared SDK within current iOS major range; preserve original for classic LC, SideStore, and explicit settings. Relay anonymous per-process SDK selection to host journal. No UI frame, scale, Safe Area, status bar, UIWindow or overlay changes.",
-      "observation": "R6P10 iPhone device log seq 31/84: XPC launch after host attach; host_owner_top_pt -1→62; safe_top_pt 62→0→62 repeatedly; guest PID 1560/1570 started and reused. User confirms guest app top controls including Instagram remain covered by Dynamic Island; other affected apps possible. R6P11 implementation source exists but iPhone visual/touch effect not tested.",
+      "action": "Only for resident (deferred) LiveProcess requests add anonymous scarletResidentSDKContract flag; parse selected guest LC_BUILD_VERSION.sdk or LC_VERSION_MIN_IPHONEOS read-only; when guest has no explicit spoofSDKVersion preference, set DyldHooksInit effective SDK to guest-declared SDK within current iOS major range; preserve original for classic LC, SideStore, and explicit settings. Relay anonymous per-process SDK selection to host journal. No UI frame, scale, Safe Area, status bar, UIWindow or overlay changes. Because pinned SDK dyld support has OS-version-sensitive asserts, unknown dyld symbol/version-map patterns now fail closed; avoiding premature abort of jitless_hook_dlopen. This is a nonvisual safety guard; visual correction remains unproven.",
+      "observation": "R6P10 iPhone device log seq 31/84: XPC launch after host attach; host_owner_top_pt -1→62; safe_top_pt 62→0→62 repeatedly; guest PID 1560/1570 started and reused. User confirms guest app top controls including Instagram remain covered by Dynamic Island; other affected apps possible. R6P11 implementation source exists but iPhone visual/touch effect not tested. R6P11 SDK hook unknown-layout guard and regression assertion added; still requires device confirmation of UI and that both guest processes survive.",
       "evidence": "source_patch_verified_ci_pending",
       "status": "ci_pending",
       "repeat_policy": "Do not repeat previously tried L003/L008/L028/L032/L035 Safe Area, UIHosting, statusBar or overlay adjustments; nor reapply R6P9 XPC order. Do not change any guest bundle ID or patch individual guest IPA. If SDK mechanism fails, record it and investigate a different cause, not a different SDK constant.",
@@ -2693,6 +2693,52 @@
             "LEDGER = (ROOT / \"HostApp/ScarletGuestSessionLedger.swift\").read_text()",
             "CUT = INTEGRATION.split(\"def add_r6p11_guest_sdk_contract(\", 1)[1].split("
           ]
+        },
+        {
+          "commit": "62e19b2e147f45aee6dc4ac0951ce9bebc968d7c",
+          "file": "rebuild/integration/apply_scarlet_host.py",
+          "location": "@@ -1477,10 +1477,59 @@ def add_r6p11_guest_sdk_contract(engine: Path) -> dict:",
+          "before": [],
+          "after": [
+            "    # The pinned LC SDK spoof machinery contains assert() on dyld symbol",
+            "    # format/signature. It used to be an optional user action, but an",
+            "    # automatic resident experiment must never SIGABRT when OS 27 dyld differs.",
+            "    # Fail closed on an unknown signature and continue other guest boot hooks.",
+            "    dyld = engine / \"LiveContainer/Tweaks/Dyld.m\"",
+            "    dyld_text = dyld.read_text()",
+            "    changes = (",
+            "        (\"    assert(baseAddr != 0);\", \"    if(!baseAddr) return false;\"),",
+            "        (\"        assert(adrpExtraOffset != -1);\",",
+            "         \"        if(adrpExtraOffset == -1) return false;\"),",
+            "        (\"    assert(gdyldPtr != 0);\", \"    if(!gdyldPtr) return false;\"),",
+            "        (\"    assert(*(void**)gdyldPtr != 0);\",",
+            "         \"    if(!*(void**)gdyldPtr) return false;\"),",
+            "        (\"        assert((*ldrInstPtr2 & 0xBFC00000) == 0xB9400000);\",",
+            "         \"        if((*ldrInstPtr2 & 0xBFC00000) != 0xB9400000) return false;\"),"
+          ]
+        },
+        {
+          "commit": "e4050015234598a5c498018ef282f396269c5485",
+          "file": "rebuild/Tests/test_v48_r6p11_resident_guest_sdk_contract.py",
+          "location": "@@ -51,6 +51,23 @@ def test_no_existing_geometry_or_touch_rewrites(self):",
+          "before": [],
+          "after": [
+            "    def test_dyld_unknown_os_signature_does_not_abort_guest(self):",
+            "        for guard in (",
+            "            'if(!baseAddr) return false;',",
+            "            'if(adrpExtraOffset == -1) return false;',",
+            "            'if(!gdyldPtr) return false;',",
+            "            'if(!*(void**)gdyldPtr) return false;',",
+            "            'if(!offset) return false;',",
+            "            'if(!versionMapPtr) return false;',",
+            "            'if(!size) return false;',",
+            "        ):",
+            "            self.assertIn(guard, CUT)",
+            "        self.assertIn('BOOL firstHook = performHookDyldApi', CUT)",
+            "        self.assertIn('BOOL secondHook = firstHook && performHookDyldApi', CUT)",
+            "        self.assertIn('jitless_hook_dlopen', CUT)",
+            "        self.assertIn('dyld_version_map_unavailable', CUT)"
+          ]
         }
       ],
       "source_revisions": [
@@ -2715,6 +2761,16 @@
           "sha": "f5fc759c78df6beb2f8296156cc713d11cf96c45",
           "url": "https://github.com/fx564286/sidestore-auto-refresh/commit/f5fc759c78df6beb2f8296156cc713d11cf96c45",
           "title": "test(r6p11): forbid per-app SDK special casing or geometry rework; validate read-only guest SDK selection and logged scope"
+        },
+        {
+          "sha": "62e19b2e147f45aee6dc4ac0951ce9bebc968d7c",
+          "url": "https://github.com/fx564286/sidestore-auto-refresh/commit/62e19b2e147f45aee6dc4ac0951ce9bebc968d7c",
+          "title": "safety(r6p11): guard guest SDK dyld symbol signature failures and preserve original jitless launch hooks"
+        },
+        {
+          "sha": "e4050015234598a5c498018ef282f396269c5485",
+          "url": "https://github.com/fx564286/sidestore-auto-refresh/commit/e4050015234598a5c498018ef282f396269c5485",
+          "title": "test(r6p11): SDK dyld preflight unknown layout must not skip original jitless guest hook"
         }
       ],
       "device_verification": "not_installed_or_tested",
