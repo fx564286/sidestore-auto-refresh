@@ -1,9 +1,9 @@
 {
   "schema": 2,
   "scope": "Scarlet Crystal guest top-screen overlap, touch access, rotation, remote guest render and related resident regressions",
-  "updated_utc": "2026-11-12T04:31:00+00:00",
-  "current_baseline": "R6P15 is the installed iPhone baseline a3eedc4174c9. R6P16 adds immutable L001-L051 digest and full Git SHA+path coverage gate, in-app full index and updated handoff, 503 local Python tests PASS. New paired Xcode CI, unsigned IPA and device visual proof pending.",
-  "current_issue_status": "UNRESOLVED: P15 guest upper controls may still overlap Dynamic Island; P16 changes diagnostics guard only, not guest layout. Separate appmanager_error_code_3 install failure remains.",
+  "updated_utc": "2026-11-12T05:12:00+00:00",
+  "current_baseline": "R6P16 installed iPhone report c17b165 with 52 entries. R6P17 corrects resident guest opt-in NSUserDefaults domain mismatch verified against pinned LiveContainer lifecycle and adds guard arming receipt. 508 local tests PASS; paired native CI, unsigned IPA and iPhone visual confirmation pending.",
+  "current_issue_status": "UNRESOLVED on R6P16 iPhone: guest upper controls overlap Dynamic Island. R6P17 opt-in domain fix needs independent device guard/root receipt and visual confirmation; IPA install error code 3, source -999, refresh installation_verified=false remain separate.",
   "confidence_note": "Past-chat-only historical versions were reported in earlier conversations; not all have a GitHub revision or device verification. An implementation, a CI success, a telemetry event, and a real device visual fix are distinct.",
   "privacy": "No credentials, Apple ID, OTP, UDID, guest names or device identifiers are stored.",
   "entries": [
@@ -6196,6 +6196,360 @@
           "integration": "rebuild/integration/apply_scarlet_host.py embeds source and ledger at build time; generated files are not directly tracked in this repo."
         }
       ]
+    },
+    {
+      "id": "L053",
+      "date": "2026-11-12",
+      "version": "new-v48-r6p17-resident-guest-original-defaults",
+      "problem": "guest_top",
+      "mechanism": "resident_feature_optin_storage_replaced_by_guest_defaults",
+      "hypothesis": "R6P16 iPhone log has 2 guest LiveProcess launches and SDK decision traces, yet zero guest_root_safearea_receipt. In original pinned LiveProcess/main.m the resident bit is set in NSUserDefaults.standardUserDefaults before LiveContainerMain; NUDGuestHooksInit in pinned Tweaks/NSUserDefaults.m replaces this default object with per-guest defaults before the Island guard initializer. R6P15 incorrectly checked the replaced object, so guard can silently skip all UIWindow observer installation despite host 62pt safe area.",
+      "action": "Use the original LC NSUserDefaults.lcUserDefaults retained by LiveContainerMain to read Scarlet.ResidentSDKContract.V1 inside R6P15 existing guard; do not change the root additionalSafeAreaInsets, screen geometry, per-app policies, XPC order or animation. Emit guest_root_guard_armed through existing app-group PID-scoped guest receipt channel before registering original window observers, to distinguish successful initialization from actual root correction. Add 5 activation/storage-domain tests and preserve the complete per-commit/line history in L053. Add a unique R6P17 paired native build/release branch.",
+      "observation": "Evidence available for installed predecessor R6P16 c17b165: guest PID 4364/4370, host safe-top 62pt, dynamic-island controls user-reported clipped; no guest_root_safearea_receipt despite remote surfaces. Pinned upstream source confirms NSUserDefaults object reassignment. 508 local Python source regressions PASS including 5 new R6P17 cases. Actual R6P17 native CI and iPhone guest_root_guard_armed, guest_root_corrected, visual/touch still pending.",
+      "evidence": [
+        "2026-11-12 R6P16 iPhone diagnostic SourceCommit=c17b16519c2b, current session b7233f34, remote content process PID 4364/4370, host owner safe top=62, no guest_root_safearea_receipt in current run.",
+        "Pinned LiveContainer 9108ae624ea001f7d7696d48407f890b48fa2653 LiveProcess/main.m and LC bootstrap write resident optin to original standard defaults, then NUDGuestHooksInit replaces standard defaults with guest app domain before island initializer.",
+        "Existing R6P15 source checks NSUserDefaults.standardUserDefaults for the opt-in, so wrong defaults domain can result in early return; hypothesis grounded in source ordering, not solely from missing log."
+      ],
+      "status": "source_committed_ci_pending",
+      "source_verification": "git_patch_observed",
+      "device_verification": "not_installed_or_iphone_visual_verified_after_r6p17",
+      "novelty": {
+        "prior_excluded_ids": [
+          "L003",
+          "L028",
+          "L031",
+          "L032",
+          "L035",
+          "L038",
+          "L039",
+          "L046",
+          "L050",
+          "L052"
+        ],
+        "causal_difference": "Unlike L050 Safe Area correction, R6P17 does not change any geometry, display scale or root additionalSafeAreaInsets delta. It repairs the identity mismatch between original LiveProcess defaults where the resident bit was written and per-guest standard defaults where that bit was erroneously read after the original LC preference hook.",
+        "falsifiable_prediction": "With an installed R6P17 guest, a PID-scoped guest_root_safearea_receipt(result=guest_root_guard_armed) must appear before real root correction observations; if guard armed but safe area receipt shows already-safe or changes fail to move visible controls, a separate content layout mechanism must be investigated and this opt-in fix not repeated.",
+        "new_device_evidence": {
+          "source_commit": "c17b16519c2b7fa9ebf9fae92ea8d78f6324c213",
+          "event": "guest process launched, SDK decisions, but guest_root_safearea_receipt absent",
+          "observed_value": "2 guest processes 4364/4370; host normal window safe top 62, no guest_root_safearea_receipt in R6P16 export"
+        },
+        "why_prior_fix_failed": "L050 read the correct normal-window host geometry but gated observer installation on NSUserDefaults.standardUserDefaults after LC had rebound it to the isolated guest domain. The original LiveProcess opt-in still resided in lcUserDefaults; the guard could never reach its window observations."
+      },
+      "code_locations": [
+        {
+          "commit": "82a092bcd060d3cf401db2bab3f801e88d0c2699",
+          "file": "rebuild/integration/ScarletGuestIslandContentGuard.m.txt",
+          "function": "ScarletGuestIslandContentGuard.m.txt",
+          "location": "@@ -127,12 +127,18 @@ static void ScarletIslandInspect(UIWindow *window, NSUInteger attempt) {",
+          "before": [
+            "void initScarletGuestIslandContentGuard(void) {",
+            "    // The resident opt-in bit is supplied before LC guest bootstrap; all",
+            "    // classic LC, embedded SideStore, and unrelated extensions remain inert.",
+            "    if(!NSUserDefaults.isLiveProcess ||",
+            "       ![NSUserDefaults.standardUserDefaults",
+            "           boolForKey:@\"Scarlet.ResidentSDKContract.V1\"])",
+            "        return;",
+            "    static dispatch_once_t once;",
+            "    dispatch_once(&once, ^{",
+            "        NSNotificationCenter *center = NSNotificationCenter.defaultCenter;",
+            "        [center addObserverForName:UIWindowDidBecomeVisibleNotification",
+            "            object:nil queue:NSOperationQueue.mainQueue"
+          ],
+          "after": [
+            "void initScarletGuestIslandContentGuard(void) {",
+            "    // The resident opt-in bit is supplied before LC guest bootstrap; all",
+            "    // classic LC, embedded SideStore, and unrelated extensions remain inert.",
+            "    // R6P17: LiveProcessMain saved this opt-in in the ORIGINAL LC defaults.",
+            "    // NUDGuestHooksInit swaps standardUserDefaults to the guest's own domain",
+            "    // before this initializer runs. Never gate on that replaced instance.",
+            "    if(!NSUserDefaults.isLiveProcess ||",
+            "       ![NSUserDefaults.lcUserDefaults",
+            "           boolForKey:@\"Scarlet.ResidentSDKContract.V1\"])",
+            "        return;",
+            "    static dispatch_once_t once;",
+            "    dispatch_once(&once, ^{",
+            "        // The very first independent guest-process receipt proves the guard",
+            "        // was actually armed; host geometry alone cannot prove this.",
+            "        ScarletIslandReceipt(@\"guest_root_guard_armed\", 0, 0, 0);",
+            "        NSNotificationCenter *center = NSNotificationCenter.defaultCenter;",
+            "        [center addObserverForName:UIWindowDidBecomeVisibleNotification",
+            "            object:nil queue:NSOperationQueue.mainQueue"
+          ]
+        },
+        {
+          "commit": "855438fcb77ac93bca6bb28f883dab62b86a0b5c",
+          "file": "rebuild/Tests/test_v48_r6p15_guest_root_pairing_recovery.py",
+          "function": "test_v48_r6p15_guest_root_pairing_recovery.py",
+          "location": "@@ -23,6 +23,7 @@ class GuestRootAndPairingRecovery(unittest.TestCase):",
+          "before": [
+            "",
+            "    def test_guest_scoped_no_hooks_no_resize_and_no_app_exceptions(self):",
+            "        self.assertIn('boolForKey:@\"Scarlet.ResidentSDKContract.V1\"', GUEST)",
+            "        self.assertIn(\"NSUserDefaults.isLiveProcess\", GUEST)",
+            "        self.assertIn(\"UIWindowDidBecomeVisibleNotification\", GUEST)",
+            "        self.assertIn(\"UIWindowDidBecomeKeyNotification\", GUEST)"
+          ],
+          "after": [
+            "",
+            "    def test_guest_scoped_no_hooks_no_resize_and_no_app_exceptions(self):",
+            "        self.assertIn('boolForKey:@\"Scarlet.ResidentSDKContract.V1\"', GUEST)",
+            "        self.assertIn('NSUserDefaults.lcUserDefaults', GUEST)",
+            "        self.assertIn(\"NSUserDefaults.isLiveProcess\", GUEST)",
+            "        self.assertIn(\"UIWindowDidBecomeVisibleNotification\", GUEST)",
+            "        self.assertIn(\"UIWindowDidBecomeKeyNotification\", GUEST)"
+          ]
+        },
+        {
+          "commit": "26493d759b4393d2342280160cfdbc5674ce7bde",
+          "file": "rebuild/Tests/test_v48_r6p17_resident_guest_optin.py",
+          "function": "test_v48_r6p17_resident_guest_optin.py",
+          "location": "@@ -0,0 +1,54 @@",
+          "before": [],
+          "after": [
+            "\"\"\"R6P17: the resident guard must read the ORIGINAL LC preferences domain.",
+            "",
+            "A host-side safe-top receipt alone is NOT evidence the guest fix has run;",
+            "the guest-owned arming receipt is emitted before UIWindow event observers.",
+            "\"\"\"",
+            "import unittest",
+            "from pathlib import Path",
+            "",
+            "ROOT = Path(__file__).resolve().parents[1]",
+            "BOOTSTRAP_GENERATOR = (ROOT/'integration/apply_scarlet_host.py').read_text()",
+            "GUARD = (ROOT/'integration/ScarletGuestIslandContentGuard.m.txt').read_text()",
+            "HOST = (ROOT/'HostApp/ScarletFullscreenSceneStack.swift').read_text()",
+            "PINNED_LC = Path('/tmp/scarlet-upstream-lc-20261112')",
+            "",
+            "",
+            "class ResidentOptInDomainTests(unittest.TestCase):",
+            "    def test_guest_bit_is_read_from_original_lc_defaults_not_guest_defaults(self):",
+            "        init = GUARD.split('void initScarletGuestIslandContentGuard(void)', 1)[1]",
+            "        self.assertIn('[NSUserDefaults.lcUserDefaults\\n           boolForKey:@\"Scarlet.ResidentSDKContract.V1\"]', init)",
+            "        self.assertNotIn('[NSUserDefaults.standardUserDefaults\\n           boolForKey:@\"Scarlet.ResidentSDKContract.V1\"]', init)",
+            "        self.assertIn('NSUserDefaults.isLiveProcess', init)",
+            "",
+            "    def test_initialized_and_injected_after_guests_are_selected(self):",
+            "        self.assertIn('forKey:@\"Scarlet.ResidentSDKContract.V1\"', BOOTSTRAP_GENERATOR)",
+            "        self.assertIn('initScarletGuestIslandContentGuard();', BOOTSTRAP_GENERATOR)",
+            "        self.assertIn('initScarletGuestAudioIsolation();', BOOTSTRAP_GENERATOR)",
+            "",
+            "    def test_guest_emits_independent_proof_of_activation(self):",
+            "        init = GUARD.split('void initScarletGuestIslandContentGuard(void)', 1)[1]",
+            "        self.assertIn('ScarletIslandReceipt(@\"guest_root_guard_armed\", 0, 0, 0);', init)",
+            "        self.assertLess(init.index('guest_root_guard_armed'), init.index('UIWindowDidBecomeVisibleNotification'))",
+            "        self.assertIn('guest_root_safearea_receipt', HOST)",
+            "        self.assertIn('Scarlet.Guest.IslandRootReceipt.V1', HOST)",
+            "",
+            "    def test_safearea_formula_and_guest_size_are_unchanged(self):",
+            "        self.assertIn('CGFloat deficit = MIN(130, MAX(0, target - before));', GUARD)",
+            "        self.assertIn('root.additionalSafeAreaInsets = extra;', GUARD)",
+            "        self.assertNotIn('window.frame =', GUARD)",
+            "        self.assertNotIn('method_exchangeImplementations(', GUARD)",
+            "        self.assertNotIn('UIApplication.sharedApplication', GUARD.split('#import <Foundation/Foundation.h>', 1)[1])",
+            "",
+            "    def test_pinned_upstream_replaces_defaults_after_guest_flag_was_set(self):",
+            "        # This source contract is the reason the patch is not another blind",
+            "        # Safe Area retry; this is a distinct initialization-data-flow bug.",
+            "        if not (PINNED_LC/'LiveContainer/Tweaks/NSUserDefaults.m').exists():",
+            "            self.skipTest('Pinned upstream checkout unavailable in independent CI')",
+            "        defaults=(PINNED_LC/'LiveContainer/Tweaks/NSUserDefaults.m').read_text()",
+            "        bootstrap=(PINNED_LC/'LiveContainer/LCBootstrap.m').read_text()",
+            "        self.assertIn('NSUserDefaults.standardUserDefaults = newStandardUserDefaults;', defaults)",
+            "        self.assertLess(bootstrap.index('NUDGuestHooksInit();'), bootstrap.index('initDead10ccFix();'))",
+            "",
+            "",
+            "if __name__=='__main__':",
+            "    unittest.main()"
+          ]
+        },
+        {
+          "commit": "e78aa2a461210229db4ff64e8b7dc91cfc27c875",
+          "file": ".github/workflows/scarlet-paired-engines-build.yml",
+          "function": "scarlet-paired-engines-build.yml",
+          "location": "@@ -3,7 +3,7 @@ name: Scarlet paired LiveContainer and SideStore iOS build",
+          "before": [
+            "on:",
+            "  workflow_dispatch:",
+            "  push:",
+            "    branches: [rebuild/scarlet-from-zero-20261106, fix/scarlet-auth-status-rootcause-20261109, fix/scarlet-pr48-guest-overlay-no-resize-20261109, fix/scarlet-pr48-airpods-glass-guest-switch-v3-20261109, fix/scarlet-pr48-draggable-guest-tab-v4-20261109, fix/scarlet-pr48-v5-glass-drag-cert-recovery-20261109, fix/scarlet-pr48-v6-unified-cert-glass-20261109, fix/scarlet-pr48-v7-cert-jitless-unify-panel-rim-20261109, fix/scarlet-pr48-v8-flicker-certificate-menu-20261109, fix/scarlet-pr48-v9-single-glass-rim-20261109, fix/scarlet-pr48-v10-fixed-tab-cert-and-session-20261109, fix/scarlet-pr48-v11-module-settings-appid-20261109, fix/scarlet-pr48-v12-live-sessions-source-auto-refresh-20261109, fix/scarlet-pr48-v13-compact-settings-current-app-20261109, fix/scarlet-pr48-v14-guest-history-native-scenes-three-ids-20261109, fix/scarlet-pr48-v15-source-disclosure-icons-guest-handoff-20261109, fix/scarlet-pr48-v16-guest-switcher-icons-readback-20261110, fix/scarlet-v17-cold-switch-rotation-20261110, fix/scarlet-v18-refresh-diagnostics-native-glass-20261110, fix/scarlet-v19-active-session-switcher-20261110, fix/scarlet-v20-guest-switcher-trace-20261110, fix/scarlet-v21-hook-telemetry-persistence-20261110, fix/scarlet-v22-runtime-guest-identity-20261110, fix/scarlet-v23-session-only-switcher-20261110, fix/scarlet-v24-refresh-lifecycle-switch-receipt-20261110, fix/scarlet-v25-single-panel-outside-dismiss-20261110, fix/scarlet-v26-liquidglass-button-to-fixed-panel-morph-20261110, fix/scarlet-v27-sidestore-direct-native-refresh-20261110, fix/scarlet-v28-minimuxer-readiness-recovery-20261110, fix/scarlet-v29-inapp-rppairing-20261110, fix/scarlet-v30-restore-sidestore-active-team-20261110, fix/scarlet-v31-pairing-persistence-sheet-purple-20261110, fix/scarlet-v32-korean-copy-20261110, fix/scarlet-v33-log-rootcause-20261110, fix/scarlet-v34-iphone-virtual-resident-20261110, fix/scarlet-v35-restore-original-fullscreen-20261110, fix/scarlet-v36-remove-legacy-ui-20261110, fix/scarlet-v37-session-refresh-20261110, fix/scarlet-v38-current-launch-logs-20261110, fix/scarlet-v39-log-truth-20261110, fix/scarlet-v40-clean-work-session-20261110, fix/scarlet-v42-v40-safe-diagnostics-20261110, fix/scarlet-v43-install-rootcause-20261110, fix/scarlet-v44-rppairing-postsign-install-20261111, fix/scarlet-v45-single-viewport-liveprocess-20261111, fix/scarlet-v46-guard-provisional-guest-geometry-20261111, fix/scarlet-v47-resident-inplace-guest-switch-20261111, fix/scarlet-v48-guest-runtime-recovery-20261111, fix/scarlet-v48-restored-20261111, fix/scarlet-v48-r2-unified-switcher-20261111, fix/scarlet-v48-r3-original-pan-diagnostics-20261111, fix/scarlet-v48-r4-native-outside-remote-insets-20261111, fix/scarlet-v48-r5-attached-insets-shield-20261111, fix/scarlet-v48-r5-crash-recovery-20261111, fix/scarlet-v48-r5-recovery-r2-host-owner-20261111, fix/scarlet-v48-r5-recovery-r3-scene-authority-20261111, fix/scarlet-v48-r5-recovery-r4-native-ready-20261111, fix/scarlet-v48-r5-recovery-r5-compat-foreground-20261111, fix/scarlet-v48-r6-island-outside-audio-20261111, fix/scarlet-v48-r6p1-audio-home-focus-20261111, fix/scarlet-v48-r6p2-blocked-history-20261111, fix/scarlet-v48-r6p3-home-audio-gate-20261111, fix/scarlet-v48-r6p4-guest-audio-ack-20261112, fix/scarlet-v48-r6p7-launch-policy-rootcause-20261112, fix/scarlet-v48-r6p8-policy-field-relay-20261112, fix/scarlet-v48-r6p9-deferred-scene-boot-20261112, fix/scarlet-v48-r6p10-persistent-remediation-ledger-20261112, fix/scarlet-v48-r6p11-resident-guest-sdk-contract-20261112, fix/scarlet-v48-r6p12-instant-recent-switcher-20261112, fix/scarlet-v48-r6p14-switcher-reset-on-navigation-20261112, fix/scarlet-v48-r6p15-guest-root-island-pairing-recovery-20261112, fix/scarlet-v48-r6p16-audit-coverage-20261112]",
+            "    paths:",
+            "      - \".github/workflows/scarlet-paired-engines-build.yml\"",
+            "      - \"rebuild/integration/**\""
+          ],
+          "after": [
+            "on:",
+            "  workflow_dispatch:",
+            "  push:",
+            "    branches: [rebuild/scarlet-from-zero-20261106, fix/scarlet-auth-status-rootcause-20261109, fix/scarlet-pr48-guest-overlay-no-resize-20261109, fix/scarlet-pr48-airpods-glass-guest-switch-v3-20261109, fix/scarlet-pr48-draggable-guest-tab-v4-20261109, fix/scarlet-pr48-v5-glass-drag-cert-recovery-20261109, fix/scarlet-pr48-v6-unified-cert-glass-20261109, fix/scarlet-pr48-v7-cert-jitless-unify-panel-rim-20261109, fix/scarlet-pr48-v8-flicker-certificate-menu-20261109, fix/scarlet-pr48-v9-single-glass-rim-20261109, fix/scarlet-pr48-v10-fixed-tab-cert-and-session-20261109, fix/scarlet-pr48-v11-module-settings-appid-20261109, fix/scarlet-pr48-v12-live-sessions-source-auto-refresh-20261109, fix/scarlet-pr48-v13-compact-settings-current-app-20261109, fix/scarlet-pr48-v14-guest-history-native-scenes-three-ids-20261109, fix/scarlet-pr48-v15-source-disclosure-icons-guest-handoff-20261109, fix/scarlet-pr48-v16-guest-switcher-icons-readback-20261110, fix/scarlet-v17-cold-switch-rotation-20261110, fix/scarlet-v18-refresh-diagnostics-native-glass-20261110, fix/scarlet-v19-active-session-switcher-20261110, fix/scarlet-v20-guest-switcher-trace-20261110, fix/scarlet-v21-hook-telemetry-persistence-20261110, fix/scarlet-v22-runtime-guest-identity-20261110, fix/scarlet-v23-session-only-switcher-20261110, fix/scarlet-v24-refresh-lifecycle-switch-receipt-20261110, fix/scarlet-v25-single-panel-outside-dismiss-20261110, fix/scarlet-v26-liquidglass-button-to-fixed-panel-morph-20261110, fix/scarlet-v27-sidestore-direct-native-refresh-20261110, fix/scarlet-v28-minimuxer-readiness-recovery-20261110, fix/scarlet-v29-inapp-rppairing-20261110, fix/scarlet-v30-restore-sidestore-active-team-20261110, fix/scarlet-v31-pairing-persistence-sheet-purple-20261110, fix/scarlet-v32-korean-copy-20261110, fix/scarlet-v33-log-rootcause-20261110, fix/scarlet-v34-iphone-virtual-resident-20261110, fix/scarlet-v35-restore-original-fullscreen-20261110, fix/scarlet-v36-remove-legacy-ui-20261110, fix/scarlet-v37-session-refresh-20261110, fix/scarlet-v38-current-launch-logs-20261110, fix/scarlet-v39-log-truth-20261110, fix/scarlet-v40-clean-work-session-20261110, fix/scarlet-v42-v40-safe-diagnostics-20261110, fix/scarlet-v43-install-rootcause-20261110, fix/scarlet-v44-rppairing-postsign-install-20261111, fix/scarlet-v45-single-viewport-liveprocess-20261111, fix/scarlet-v46-guard-provisional-guest-geometry-20261111, fix/scarlet-v47-resident-inplace-guest-switch-20261111, fix/scarlet-v48-guest-runtime-recovery-20261111, fix/scarlet-v48-restored-20261111, fix/scarlet-v48-r2-unified-switcher-20261111, fix/scarlet-v48-r3-original-pan-diagnostics-20261111, fix/scarlet-v48-r4-native-outside-remote-insets-20261111, fix/scarlet-v48-r5-attached-insets-shield-20261111, fix/scarlet-v48-r5-crash-recovery-20261111, fix/scarlet-v48-r5-recovery-r2-host-owner-20261111, fix/scarlet-v48-r5-recovery-r3-scene-authority-20261111, fix/scarlet-v48-r5-recovery-r4-native-ready-20261111, fix/scarlet-v48-r5-recovery-r5-compat-foreground-20261111, fix/scarlet-v48-r6-island-outside-audio-20261111, fix/scarlet-v48-r6p1-audio-home-focus-20261111, fix/scarlet-v48-r6p2-blocked-history-20261111, fix/scarlet-v48-r6p3-home-audio-gate-20261111, fix/scarlet-v48-r6p4-guest-audio-ack-20261112, fix/scarlet-v48-r6p7-launch-policy-rootcause-20261112, fix/scarlet-v48-r6p8-policy-field-relay-20261112, fix/scarlet-v48-r6p9-deferred-scene-boot-20261112, fix/scarlet-v48-r6p10-persistent-remediation-ledger-20261112, fix/scarlet-v48-r6p11-resident-guest-sdk-contract-20261112, fix/scarlet-v48-r6p12-instant-recent-switcher-20261112, fix/scarlet-v48-r6p14-switcher-reset-on-navigation-20261112, fix/scarlet-v48-r6p15-guest-root-island-pairing-recovery-20261112, fix/scarlet-v48-r6p16-audit-coverage-20261112, fix/scarlet-v48-r6p17-resident-optin-defaults-20261112]",
+            "    paths:",
+            "      - \".github/workflows/scarlet-paired-engines-build.yml\"",
+            "      - \"rebuild/integration/**\""
+          ]
+        },
+        {
+          "commit": "e78aa2a461210229db4ff64e8b7dc91cfc27c875",
+          "file": ".github/workflows/scarlet-paired-engines-build.yml",
+          "function": "scarlet-paired-engines-build.yml",
+          "location": "@@ -305,7 +305,7 @@ jobs:",
+          "before": [
+            "  # A Release asset in this public repo has a stable public download URL.",
+            "  publish-unsigned-github-release:",
+            "    needs: [package-paired]",
+            "    if: github.event_name == 'push' && (github.ref == 'refs/heads/rebuild/scarlet-from-zero-20261106' || github.ref == 'refs/heads/fix/scarlet-v31-pairing-persistence-sheet-purple-20261110' || github.ref == 'refs/heads/fix/scarlet-v32-korean-copy-20261110' || github.ref == 'refs/heads/fix/scarlet-v33-log-rootcause-20261110' || github.ref == 'refs/heads/fix/scarlet-v34-iphone-virtual-resident-20261110' || github.ref == 'refs/heads/fix/scarlet-v35-restore-original-fullscreen-20261110' || github.ref == 'refs/heads/fix/scarlet-v36-remove-legacy-ui-20261110' || github.ref == 'refs/heads/fix/scarlet-v37-session-refresh-20261110' || github.ref == 'refs/heads/fix/scarlet-v38-current-launch-logs-20261110' || github.ref == 'refs/heads/fix/scarlet-v39-log-truth-20261110' || github.ref == 'refs/heads/fix/scarlet-v40-clean-work-session-20261110' || github.ref == 'refs/heads/fix/scarlet-v42-v40-safe-diagnostics-20261110' || github.ref == 'refs/heads/fix/scarlet-v43-install-rootcause-20261110' || github.ref == 'refs/heads/fix/scarlet-v44-rppairing-postsign-install-20261111' || github.ref == 'refs/heads/fix/scarlet-v45-single-viewport-liveprocess-20261111' || github.ref == 'refs/heads/fix/scarlet-v46-guard-provisional-guest-geometry-20261111' || github.ref == 'refs/heads/fix/scarlet-v47-resident-inplace-guest-switch-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-guest-runtime-recovery-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-restored-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r2-unified-switcher-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r3-original-pan-diagnostics-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r4-native-outside-remote-insets-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r5-attached-insets-shield-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r5-crash-recovery-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r5-recovery-r2-host-owner-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r5-recovery-r3-scene-authority-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r5-recovery-r4-native-ready-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r5-recovery-r5-compat-foreground-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r6-island-outside-audio-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r6p1-audio-home-focus-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r6p2-blocked-history-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r6p3-home-audio-gate-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r6p4-guest-audio-ack-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p7-launch-policy-rootcause-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p8-policy-field-relay-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p9-deferred-scene-boot-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p10-persistent-remediation-ledger-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p11-resident-guest-sdk-contract-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p12-instant-recent-switcher-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p14-switcher-reset-on-navigation-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p15-guest-root-island-pairing-recovery-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p16-audit-coverage-20261112')",
+            "    runs-on: ubuntu-24.04",
+            "    timeout-minutes: 10",
+            "    permissions:"
+          ],
+          "after": [
+            "  # A Release asset in this public repo has a stable public download URL.",
+            "  publish-unsigned-github-release:",
+            "    needs: [package-paired]",
+            "    if: github.event_name == 'push' && (github.ref == 'refs/heads/rebuild/scarlet-from-zero-20261106' || github.ref == 'refs/heads/fix/scarlet-v31-pairing-persistence-sheet-purple-20261110' || github.ref == 'refs/heads/fix/scarlet-v32-korean-copy-20261110' || github.ref == 'refs/heads/fix/scarlet-v33-log-rootcause-20261110' || github.ref == 'refs/heads/fix/scarlet-v34-iphone-virtual-resident-20261110' || github.ref == 'refs/heads/fix/scarlet-v35-restore-original-fullscreen-20261110' || github.ref == 'refs/heads/fix/scarlet-v36-remove-legacy-ui-20261110' || github.ref == 'refs/heads/fix/scarlet-v37-session-refresh-20261110' || github.ref == 'refs/heads/fix/scarlet-v38-current-launch-logs-20261110' || github.ref == 'refs/heads/fix/scarlet-v39-log-truth-20261110' || github.ref == 'refs/heads/fix/scarlet-v40-clean-work-session-20261110' || github.ref == 'refs/heads/fix/scarlet-v42-v40-safe-diagnostics-20261110' || github.ref == 'refs/heads/fix/scarlet-v43-install-rootcause-20261110' || github.ref == 'refs/heads/fix/scarlet-v44-rppairing-postsign-install-20261111' || github.ref == 'refs/heads/fix/scarlet-v45-single-viewport-liveprocess-20261111' || github.ref == 'refs/heads/fix/scarlet-v46-guard-provisional-guest-geometry-20261111' || github.ref == 'refs/heads/fix/scarlet-v47-resident-inplace-guest-switch-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-guest-runtime-recovery-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-restored-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r2-unified-switcher-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r3-original-pan-diagnostics-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r4-native-outside-remote-insets-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r5-attached-insets-shield-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r5-crash-recovery-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r5-recovery-r2-host-owner-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r5-recovery-r3-scene-authority-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r5-recovery-r4-native-ready-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r5-recovery-r5-compat-foreground-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r6-island-outside-audio-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r6p1-audio-home-focus-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r6p2-blocked-history-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r6p3-home-audio-gate-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r6p4-guest-audio-ack-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p7-launch-policy-rootcause-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p8-policy-field-relay-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p9-deferred-scene-boot-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p10-persistent-remediation-ledger-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p11-resident-guest-sdk-contract-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p12-instant-recent-switcher-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p14-switcher-reset-on-navigation-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p15-guest-root-island-pairing-recovery-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p16-audit-coverage-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p17-resident-optin-defaults-20261112')",
+            "    runs-on: ubuntu-24.04",
+            "    timeout-minutes: 10",
+            "    permissions:"
+          ]
+        },
+        {
+          "commit": "e78aa2a461210229db4ff64e8b7dc91cfc27c875",
+          "file": ".github/workflows/scarlet-paired-engines-build.yml",
+          "function": "scarlet-paired-engines-build.yml",
+          "location": "@@ -334,7 +334,9 @@ jobs:",
+          "before": [
+            "              assert any(p.endswith(\"LiveProcess.appex/Info.plist\") for p in paths), \"Missing LiveProcess\"",
+            "          print(\"[PASS] Public IPA ZIP structure; Apple signature not verified\")",
+            "          PY",
+            "          if [ \"$GITHUB_REF\" = \"refs/heads/fix/scarlet-v48-r6p16-audit-coverage-20261112\" ]; then",
+            "            asset=\"Scarlet-Crystal-V48-R6P16-REMEDIATION-AUDIT-UNSIGNED.ipa\"",
+            "          elif [ \"$GITHUB_REF\" = \"refs/heads/fix/scarlet-v48-r6p15-guest-root-island-pairing-recovery-20261112\" ]; then",
+            "            asset=\"Scarlet-Crystal-V48-R6P15-GUEST-ISLAND-PAIRING-UNSIGNED.ipa\""
+          ],
+          "after": [
+            "              assert any(p.endswith(\"LiveProcess.appex/Info.plist\") for p in paths), \"Missing LiveProcess\"",
+            "          print(\"[PASS] Public IPA ZIP structure; Apple signature not verified\")",
+            "          PY",
+            "          if [ \"$GITHUB_REF\" = \"refs/heads/fix/scarlet-v48-r6p17-resident-optin-defaults-20261112\" ]; then",
+            "            asset=\"Scarlet-Crystal-V48-R6P17-GUEST-ROOT-OPTIN-UNSIGNED.ipa\"",
+            "          elif [ \"$GITHUB_REF\" = \"refs/heads/fix/scarlet-v48-r6p16-audit-coverage-20261112\" ]; then",
+            "            asset=\"Scarlet-Crystal-V48-R6P16-REMEDIATION-AUDIT-UNSIGNED.ipa\"",
+            "          elif [ \"$GITHUB_REF\" = \"refs/heads/fix/scarlet-v48-r6p15-guest-root-island-pairing-recovery-20261112\" ]; then",
+            "            asset=\"Scarlet-Crystal-V48-R6P15-GUEST-ISLAND-PAIRING-UNSIGNED.ipa\""
+          ]
+        },
+        {
+          "commit": "e78aa2a461210229db4ff64e8b7dc91cfc27c875",
+          "file": ".github/workflows/scarlet-paired-engines-build.yml",
+          "function": "scarlet-paired-engines-build.yml",
+          "location": "@@ -440,7 +442,10 @@ jobs:",
+          "before": [
+            "          GH_TOKEN: ${{ github.token }}",
+            "        run: |",
+            "          set -Eeuo pipefail",
+            "          if [ \"$GITHUB_REF\" = \"refs/heads/fix/scarlet-v48-r6p16-audit-coverage-20261112\" ]; then",
+            "            tag=scarlet-v48-r6p16-remediation-audit-unsigned-20261112",
+            "            asset=Scarlet-Crystal-V48-R6P16-REMEDIATION-AUDIT-UNSIGNED.ipa",
+            "          elif [ \"$GITHUB_REF\" = \"refs/heads/fix/scarlet-v48-r6p15-guest-root-island-pairing-recovery-20261112\" ]; then"
+          ],
+          "after": [
+            "          GH_TOKEN: ${{ github.token }}",
+            "        run: |",
+            "          set -Eeuo pipefail",
+            "          if [ \"$GITHUB_REF\" = \"refs/heads/fix/scarlet-v48-r6p17-resident-optin-defaults-20261112\" ]; then",
+            "            tag=scarlet-v48-r6p17-guest-root-optin-unsigned-20261112",
+            "            asset=Scarlet-Crystal-V48-R6P17-GUEST-ROOT-OPTIN-UNSIGNED.ipa",
+            "          elif [ \"$GITHUB_REF\" = \"refs/heads/fix/scarlet-v48-r6p16-audit-coverage-20261112\" ]; then",
+            "            tag=scarlet-v48-r6p16-remediation-audit-unsigned-20261112",
+            "            asset=Scarlet-Crystal-V48-R6P16-REMEDIATION-AUDIT-UNSIGNED.ipa",
+            "          elif [ \"$GITHUB_REF\" = \"refs/heads/fix/scarlet-v48-r6p15-guest-root-island-pairing-recovery-20261112\" ]; then"
+          ]
+        },
+        {
+          "commit": "3e7409077321646d5878a0ce3270bed4da9b4107",
+          "file": "rebuild/diagnostics/SCARLET_LOG_ONLY_HANDOFF_PROMPT.md",
+          "function": "SCARLET_LOG_ONLY_HANDOFF_PROMPT.md",
+          "location": "@@ -134,3 +134,32 @@ L051=R6P15 저장된 RSD 연결의 제한적 재검사다. 과거 항목에 `dev",
+          "before": [
+            "6. 새 수정에 대한 표준 수용 조건은 **이력 등록+동일 SHA/파일 대조 통과+테스트+네이티브",
+            "   빌드+실기기 확인**이며, 단계별 상태를 따로 기입한다. `source_committed_ci_pending`을",
+            "   해결 완료라고 바꿔서는 안 된다."
+          ],
+          "after": [
+            "6. 새 수정에 대한 표준 수용 조건은 **이력 등록+동일 SHA/파일 대조 통과+테스트+네이티브",
+            "   빌드+실기기 확인**이며, 단계별 상태를 따로 기입한다. `source_committed_ci_pending`을",
+            "   해결 완료라고 바꿔서는 안 된다.",
+            "",
+            "## 8. R6P17: P15 보정기 비활성화의 독립 원인 — 원본 LC UserDefaults와 게스트 전용 UserDefaults",
+            "",
+            "- 2026-11-12 05:04:21 UTC R6P16 실기기 로그 `SourceCommit=c17b16519c2b`는",
+            "  52건 L001~L052의 전체 내역, 게스트 2개 실행과 패널 즉시 접기를 확인하지만,",
+            "  `guest_root_safearea_receipt`를 **한 번도** 포함하지 않는다. 따라서 Safe Area가",
+            "  62pt라는 호스트 기록을 R6P15의 실제 게스트 루트 보정 성공으로 해석할 수 없다.",
+            "- 고정된 upstream LiveContainer 커밋 `9108ae624ea001f7d7696d48407f890b48fa2653`의",
+            "  `LiveProcess/main.m`에서 `NSUserDefaults.standardUserDefaults`(초기 원본 LC 저장소)에",
+            "  `Scarlet.ResidentSDKContract.V1`을 기록한다. 그런데 그 뒤 `LCBootstrap.m`의",
+            "  `NUDGuestHooksInit()`가 `Tweaks/NSUserDefaults.m`에서",
+            "  `NSUserDefaults.standardUserDefaults = newStandardUserDefaults;`로 **게스트 저장소 교체**를 수행한다.",
+            "  R6P15 `ScarletGuestIslandContentGuard.m`은 교체된 `standardUserDefaults`를 읽어",
+            "  원본 LC가 기록한 플래그를 찾지 못하면 조용히 종료할 수 있다. 이 메커니즘은 이전",
+            "  Safe Area/FBScene/호스트 프레임 수정과 무관한 **시작 조건·저장소 동일성** 결함이다.",
+            "- R6P17은 이미 보존된 `NSUserDefaults.lcUserDefaults`를 조회하도록",
+            "  **읽는 객체만** 교체한다. 나머지 화면 배율, 상단 여백 공식, root.additionalSafeAreaInsets,",
+            "  다이나믹 아일랜드 회피값, 버튼, 멀티탭, 페어링, 인증서는 변경하지 않는다.",
+            "- 보정기 시작 성공 시 `guest_root_safearea_receipt(result=guest_root_guard_armed)`가",
+            "  게스트 프로세스 PID별로 우선 기록되어야 한다. 이후 `guest_root_already_safe`,",
+            "  `guest_root_corrected`, `guest_root_update_unconfirmed` 등으로 구체적 결과를 분리한다.",
+            "  시작 이벤트만으로 화면 겹침이 해결됐다고 판정할 수는 없다.",
+            "- 새 로그에서 `guest_root_guard_armed` 없이 SDK 선택 로그만 반복된다면",
+            "  P17도 실패 상태로 보고 주입·빌드 연계 또는 알림 수신 경로를 별개로 조사한다.",
+            "  `guard_armed`가 발생하지만 상단이 여전히 가려지면 Safe Area 값을 더 더하는",
+            "  대신 실제 화면 콘텐츠와 Safe Area 무시 여부를 검증한다. 다른 앱도 동일 기준으로 검사한다.",
+            "- 별도로 `appmanager_error_code_3`, 소스 IPA 다운로드의 `NSURLErrorDomain -999`,",
+            "  갱신의 `installation_verified=false`는 이번 상단 문제와 독립된 미해결 결함이다.",
+            "  R6P17 수정에 설치 성공/페어링 성공을 귀속시키지 않는다."
+          ]
+        }
+      ],
+      "source_revisions": [
+        {
+          "sha": "82a092bcd060d3cf401db2bab3f801e88d0c2699",
+          "url": "https://github.com/fx564286/sidestore-auto-refresh/commit/82a092bcd060d3cf401db2bab3f801e88d0c2699",
+          "title": "fix(r6p17): read resident opt-in from retained LC defaults after guest-domain swap"
+        },
+        {
+          "sha": "855438fcb77ac93bca6bb28f883dab62b86a0b5c",
+          "url": "https://github.com/fx564286/sidestore-auto-refresh/commit/855438fcb77ac93bca6bb28f883dab62b86a0b5c",
+          "title": "audit(r6p17): protect guest startup receipt and immutable paired build compatibility"
+        },
+        {
+          "sha": "26493d759b4393d2342280160cfdbc5674ce7bde",
+          "url": "https://github.com/fx564286/sidestore-auto-refresh/commit/26493d759b4393d2342280160cfdbc5674ce7bde",
+          "title": "test(r6p17): verify original LC default domain and root guard activation receipt"
+        },
+        {
+          "sha": "e78aa2a461210229db4ff64e8b7dc91cfc27c875",
+          "url": "https://github.com/fx564286/sidestore-auto-refresh/commit/e78aa2a461210229db4ff64e8b7dc91cfc27c875",
+          "title": "audit(r6p17): protect guest startup receipt and immutable paired build compatibility"
+        },
+        {
+          "sha": "3e7409077321646d5878a0ce3270bed4da9b4107",
+          "url": "https://github.com/fx564286/sidestore-auto-refresh/commit/3e7409077321646d5878a0ce3270bed4da9b4107",
+          "title": "audit(r6p17): protect guest startup receipt and immutable paired build compatibility"
+        }
+      ],
+      "repeat_policy": "Do not add another Safe Area correction, root offset multiplier, scene frame transform, delayed layout, or per-app exception. First verify guest_root_guard_armed in R6P17 device export. If absent investigate build/link/injection and notification path, not reapply this defaults substitution. If present with overlapping controls investigate actual guest content geometry independently.",
+      "rollback_commit": "c17b16519c2b7fa9ebf9fae92ea8d78f6324c213",
+      "generated_runtime_targets": [
+        {
+          "file": "engine/LiveContainer/LiveContainer/Tweaks/ScarletGuestIslandContentGuard.m",
+          "generator_file": "rebuild/integration/apply_scarlet_host.py",
+          "generator_function": "add_scarlet_guest_island_content_guard",
+          "source": "rebuild/integration/ScarletGuestIslandContentGuard.m.txt",
+          "note": "Generated as direct copy during upstream pinned engine integration; not directly tracked. Exact original/defaults change in tracked .m.txt and Git diff above."
+        }
+      ],
+      "success_gate": "R6P17 paired iOS native source compiled, unique unsigned IPA release; iPhone log shows guard armed plus at least one root readback and actual app controls/touch unobscured in portrait; verify multiple guests and landscape do not regress. CI/test alone cannot prove visual success.",
+      "privacy": "No Apple account, app name, guest ID, pairing file or OTP disclosed."
     }
   ],
   "gate": {
