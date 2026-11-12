@@ -355,13 +355,26 @@ extension ScarletGuestRefreshAgent {
                 reply(false, "pairing_invalid")
                 return
             }
+            // R6P15: a guest/host foreground handoff may temporarily close
+            // the RSD tunnel after a prior successful inspection. The pinned
+            // ensureReady() reconnects from the SAME saved RP record and
+            // performs a fresh UDID transport probe, so retry one bounded
+            // time without clearing credentials or implying a false success.
             do {
                 _ = try await ScarletGuestDeviceTransport.ensureReady()
                 reply(true, "pairing_saved_and_transport_ready")
             } catch {
-                // A saved pairing file is not the same as current connectivity.
-                // Preserve it; explicit retry/refresh can recover later.
-                reply(false, "pairing_saved_transport_unavailable")
+                // Wait only for a transient launch/foreground handoff; do not
+                // spin when VPN is disabled or a device is unreachable.
+                try? await Task.sleep(for: .milliseconds(1100))
+                do {
+                    _ = try await ScarletGuestDeviceTransport.ensureReady()
+                    reply(true, "pairing_saved_and_transport_ready")
+                } catch {
+                    // A valid saved file is not live connectivity. Keep it,
+                    // require real RSD transport before asserting verified.
+                    reply(false, "pairing_saved_transport_unavailable")
+                }
             }
         }
     }
