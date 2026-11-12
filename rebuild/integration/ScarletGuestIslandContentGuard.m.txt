@@ -918,7 +918,8 @@ static void ScarletIslandResidualAutoReceipt(
 }
 
 static void ScarletIslandTryResidualAutomaticInset(
-    UIWindow *window, UIViewController *root, CGFloat expectedTop, BOOL always) {
+    UIWindow *window, UIViewController *root, CGFloat expectedTop,
+    BOOL always, BOOL finalPass) {
     if(!window || window.hidden || window.rootViewController != root ||
        !window.windowScene ||
        !UIInterfaceOrientationIsPortrait(window.windowScene.interfaceOrientation))
@@ -942,6 +943,7 @@ static void ScarletIslandTryResidualAutomaticInset(
     // scroll-state predicates excluded the remaining visible owners.
     NSUInteger withControls = 0, frameMatched = 0, safeMatched = 0;
     NSUInteger insetMatched = 0, contentMatched = 0, stateMatched = 0;
+    NSUInteger disabledScrollOwners = 0;
     CGFloat winW = CGRectGetWidth(window.bounds);
     CGFloat winH = CGRectGetHeight(window.bounds);
     for(NSValue *key in groups) {
@@ -965,14 +967,21 @@ static void ScarletIslandTryResidualAutomaticInset(
             fabs(explicitInset) <= 1;
         BOOL matchedContent = contentRatio >= 0.85 &&
             contentRatio <= 1.12;
+        // R6P32: P30 signed iPhone PID1604 shows the full-viewport
+        // owner has scrollEnabled=0 once stable. This is a stationary
+        // UIScrollView whose child controls still intrude into the island.
+        // UIKit ALWAYS is specifically allowed to manage this owner;
+        // never alter scrollEnabled or enable gestures. Preserve the legacy
+        // AUTOMATIC pathway's stricter scrollEnabled guard.
         BOOL matchedState = fabs(offset) <= 2 &&
-            candidate.scrollEnabled &&
+            (always || candidate.scrollEnabled) &&
             candidate.contentInsetAdjustmentBehavior ==
                 UIScrollViewContentInsetAdjustmentNever &&
             !candidate.dragging && !candidate.tracking &&
             !candidate.decelerating;
         if(n >= 2) {
             withControls++;
+            if(!candidate.scrollEnabled) disabledScrollOwners++;
             if(matchedFrame) frameMatched++;
             if(matchedSafe) safeMatched++;
             if(matchedInset) insetMatched++;
@@ -994,7 +1003,7 @@ static void ScarletIslandTryResidualAutomaticInset(
             contentRatio >= 0.85 && contentRatio <= 1.12 &&
             candidate.contentInsetAdjustmentBehavior ==
                 UIScrollViewContentInsetAdjustmentNever &&
-            candidate.scrollEnabled &&
+            (always || candidate.scrollEnabled) &&
             !candidate.dragging && !candidate.tracking &&
             !candidate.decelerating;
         if(!exactResidualOwner) continue;
@@ -1018,10 +1027,35 @@ static void ScarletIslandTryResidualAutomaticInset(
             @"candidate_safe_matched":@(safeMatched),
             @"candidate_inset_matched":@(insetMatched),
             @"candidate_content_matched":@(contentMatched),
-            @"candidate_state_matched":@(stateMatched)
+            @"candidate_state_matched":@(stateMatched),
+            @"candidate_disabled_scroll":@(disabledScrollOwners),
+            @"owner_gate_pass":@(finalPass ? 2 : 1)
         });
+        if(always && !finalPass) {
+            // P30 PID1604: at 1850ms one full-window owner matched frame,
+            // safeTop and height, but its inset and state gates differed
+            // from the stable 2600ms readback (adjustedInset0,
+            // scrollEnabled0). Retry ONCE after native layout settles.
+            // Keep every frame/inset/safe-area/uniqueness predicate strict.
+            ScarletIslandResidualAutoReceipt(
+                @"guest_always_owner_retry_scheduled",
+                @"owner_metrics_not_stable",
+                expectedTop, 0, 0, 0, metrics.visibleUnsafeControls);
+            __weak UIWindow *retryWindow = window;
+            __weak UIViewController *retryRoot = root;
+            dispatch_after(dispatch_time(DISPATCH_TIME_NOW,
+                (int64_t)900 * NSEC_PER_MSEC),
+                dispatch_get_main_queue(), ^{
+                ScarletIslandTryResidualAutomaticInset(
+                    retryWindow, retryRoot, expectedTop, YES, YES);
+            });
+            return;
+        }
         ScarletIslandResidualAutoReceipt(
-            @"guest_residual_auto_skipped", @"no_matching_fullscreen_owner",
+            always ? @"guest_always_owner_retry_exhausted"
+                   : @"guest_residual_auto_skipped",
+            always ? @"strict_owner_unavailable_after_retry"
+                   : @"no_matching_fullscreen_owner",
             expectedTop, 0, 0, 0, metrics.visibleUnsafeControls);
         return;
     }
@@ -1186,7 +1220,7 @@ static void ScarletIslandScheduleResidualAutomaticInset(
     dispatch_after(dispatch_time(DISPATCH_TIME_NOW,
         (int64_t)1850 * NSEC_PER_MSEC), dispatch_get_main_queue(), ^{
         ScarletIslandTryResidualAutomaticInset(
-            weakWindow, weakRoot, expectedTop, NO);
+            weakWindow, weakRoot, expectedTop, NO, YES);
     });
 }
 
@@ -1206,7 +1240,7 @@ static void ScarletIslandScheduleNonverticalAlwaysInset(
     dispatch_after(dispatch_time(DISPATCH_TIME_NOW,
         (int64_t)1850 * NSEC_PER_MSEC), dispatch_get_main_queue(), ^{
         ScarletIslandTryResidualAutomaticInset(
-            weakWindow, weakRoot, expectedTop, YES);
+            weakWindow, weakRoot, expectedTop, YES, NO);
     });
 }
 
