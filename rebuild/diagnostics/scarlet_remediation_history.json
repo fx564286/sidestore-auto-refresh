@@ -2,8 +2,8 @@
   "schema": 2,
   "scope": "Scarlet Crystal guest top-screen overlap, touch access, rotation, remote guest render and related resident regressions",
   "updated_utc": "2026-11-12T08:55:06+00:00",
-  "current_baseline": "R6P24 device SourceCommit 4b81e33eff8443c799c2ba037cb6d7883c046ec2 iOS27.2 08:54 UTC; R6P25 clip-chain visibility probe source committed; native Xcode CI/iPhone display not yet verified.",
-  "current_issue_status": "UNRESOLVED: PID7232 root safe_top=62 but unsafe_controls=8 at y=3 and unsafe_image_nodes=7 at y=13 under nested scroll; raw frames alone do not prove pixels are visible. L068 adds read-only ancestor clip-intersection receipts. Keyboard 'resign_requested' without 'keyboard_hidden'; audio pause/resume guest ack OK, acoustic separation unverified. Manual refresh native_unknown_appmanager_stage (code1); source download -1005 despite 2 retries. installation_verified=false.",
+  "current_baseline": "R6P25 device SourceCommit 4a6fe9b162f637aac309249fbeaad40510b44409 iOS27.2 09:16 UTC; 4 clip-chain guest→host counters compiled but terminal JSONL recorder allowlist dropped all. R6P26 L069 source committed, full static/native CI and device receipts pending.",
+  "current_issue_status": "UNRESOLVED: PID7583 raw unsafe_controls=8, unsafe_images=7 with safe_top=62; final recorder suppressed visible/clipped fields. R6P26 whitelist fix + full relay contract regression. Keyboard only resign_requested, no keyboard_hidden. Audio ACKs not acoustic proof. Native refresh failed native_unknown_appmanager_stage, code1; pairing read timeout then restored; source download started but no terminal receipt this session.",
   "confidence_note": "Past-chat-only historical versions were reported in earlier conversations; not all have a GitHub revision or device verification. An implementation, a CI success, a telemetry event, and a real device visual fix are distinct.",
   "privacy": "No credentials, Apple ID, OTP, UDID, guest names or device identifiers are stored.",
   "entries": [
@@ -10673,6 +10673,251 @@
             "static void ScarletIslandWalkViews(UIView *view, UIWindow *window,"
           ],
           "note": "The tracked .m.txt template is copied into the pinned upstream LiveContainer/Tweaks during CI; generated file is NOT directly Git tracked."
+        }
+      ]
+    },
+    {
+      "id": "L069",
+      "date": "2026-11-12",
+      "version": "new-v48-r6p26-recorder-visibility-allowlist-contract",
+      "problem": "guest_top_diagnostic_visibility_missing",
+      "mechanism": "recorder_jsonl_field_allowlist_filter",
+      "hypothesis": "R6P25 guest native and host frameworks contain the four clip-chain visibility strings, but the host ScarletDiagnosticRecorder.allowedFields omitted those keys; the recorder silently removes the four fields from exported JSONL despite the host relay and guest probe completing.",
+      "novelty": {
+        "prior_excluded_ids": [
+          "L054",
+          "L064",
+          "L066",
+          "L068"
+        ],
+        "causal_difference": "R6P25 compiled in the guest and SwiftUI framework; host readBack constructs these four numeric fields, but the final ScarletDiagnosticRecorder.allowedFields sanitizer drops them. This changes the terminal JSONL allowlist and asserts the complete guest→relay→recorder contract, not guest geometry, app/scene, XPC, or Safe Area.",
+        "falsifiable_prediction": "The next real-device guest_content_geometry_probe sample must include all four visible_/clipped_ keys; for each category visible+clipped equals the original raw unsafe count, regardless of whether the clipped content is visible. Regression checks assert all 27 host-relayed numeric geometry fields are permitted in recorder JSONL.",
+        "new_device_evidence": {
+          "source_commit": "4a6fe9b162f637aac309249fbeaad40510b44409",
+          "event": "guest_content_geometry_probe",
+          "observed_value": "PID7583 sample 650 and 2600 each raw unsafe_controls=8 and unsafe_image_nodes=7, but visible_unsafe_controls/clipped_unsafe_controls/visible_unsafe_images/clipped_unsafe_images are entirely absent. R6P25 release IPA SHA256=b1917d1387bbfc12731815f8ceff677cf463ade84e11fe0edc045f7f6dd6bbe5 contains new fields in both native frameworks."
+        },
+        "why_prior_fix_failed": "L068 changed only guest clipping measurements and host relay. The final `ScarletDiagnosticRecorder.allowedFields.contains(key)` filter was unchanged and explicitly rejects unknown fields at export, so all R6P25 numbers were discarded."
+      },
+      "action": "Add the exact four missing numeric-only fields to ScarletDiagnosticRecorder.allowedFields; add contract test that all guest_content_geometry_probe relay keys are present in recorder allowlist, keeping guest geometry, SDK version, audio and keyboard behavior intact; route R6P26 native build and unsigned IPA.",
+      "observation": "Current device R6P25 source SHA 4a6fe9b at 09:16-09:17 UTC: 204 events, PID 7583 8 raw unsafe controls/7 unsafe images but all four R6P25 fields missing. Signed IPA native framework strings prove source compiled, not recorder export; code verified static, native CI and device follow-up pending. Separate unresolved native_unknown_appmanager_stage (code1), pairing restored after read timeout, keyboard focus receipt without keyboard hidden, guest pause/resume ack ok.",
+      "status": "source_committed_ci_pending",
+      "device_verification": "device_field_contract_missing_in_r6p25_no_r6p26_device_validation",
+      "rollback_commit": "4a6fe9b162f637aac309249fbeaad40510b44409",
+      "repeat_policy": "Reject modifications to UI safe-area/scroll insets until visible/clipped counters actually appear in device JSONL. If missing even after R6P26, inspect embedded signed LiveProcess/framework binary identity and bridge, not repeat the same allowlist patch.",
+      "source_verification": "git_patch_observed",
+      "source_revisions": [
+        {
+          "sha": "6f6634baa823279fe01846054f9d717b7555a64a",
+          "title": "Recorder whitelist retains missing geometry fields",
+          "url": "https://github.com/fx564286/sidestore-auto-refresh/commit/6f6634baa823279fe01846054f9d717b7555a64a"
+        },
+        {
+          "sha": "8aba49c7901cdabc05202b40c23ac987fdff02e5",
+          "title": "Regression suite enforces guest/host recorder-field contract",
+          "url": "https://github.com/fx564286/sidestore-auto-refresh/commit/8aba49c7901cdabc05202b40c23ac987fdff02e5"
+        },
+        {
+          "sha": "cc547835e8ddf9cc54764c302144094c5782a98f",
+          "title": "Xcode CI route and unique unsigned R6P26 IPA asset",
+          "url": "https://github.com/fx564286/sidestore-auto-refresh/commit/cc547835e8ddf9cc54764c302144094c5782a98f"
+        }
+      ],
+      "code_locations": [
+        {
+          "commit": "6f6634baa823279fe01846054f9d717b7555a64a",
+          "file": "rebuild/HostApp/ScarletDiagnosticRecorder.swift",
+          "location": "@@ -78,6 +78,10 @@ final class ScarletDiagnosticRecorder: @unchecked Sendable {",
+          "before": [
+            "        \"max_depth_seen\", \"depth_capped\", \"count_capped\",",
+            "        // R6P23: bounded read-only ancestry and scroll-selection predicates.",
+            "        \"unsafe_controls_in_scroll\", \"unsafe_controls_outside_scroll\",",
+            "        \"unsafe_controls_under_zero_inset_child_owner\",",
+            "        \"unsafe_image_nodes_in_scroll\", \"unsafe_image_nodes_outside_scroll\",",
+            "        \"seen\", \"nested\", \"not_top_full_width\", \"not_vertical\","
+          ],
+          "after": [
+            "        \"max_depth_seen\", \"depth_capped\", \"count_capped\",",
+            "        // R6P23: bounded read-only ancestry and scroll-selection predicates.",
+            "        \"unsafe_controls_in_scroll\", \"unsafe_controls_outside_scroll\",",
+            "        // R6P26: R6P25 native guest/host packets contained four bounded",
+            "        // counters, but the final recorder silently dropped all four.",
+            "        \"visible_unsafe_controls\", \"clipped_unsafe_controls\",",
+            "        \"visible_unsafe_images\", \"clipped_unsafe_images\",",
+            "        \"unsafe_controls_under_zero_inset_child_owner\",",
+            "        \"unsafe_image_nodes_in_scroll\", \"unsafe_image_nodes_outside_scroll\",",
+            "        \"seen\", \"nested\", \"not_top_full_width\", \"not_vertical\","
+          ]
+        },
+        {
+          "commit": "8aba49c7901cdabc05202b40c23ac987fdff02e5",
+          "file": "rebuild/Tests/test_v48_r6p26_recorder_guest_visibility_contract.py",
+          "location": "@@ -0,0 +1,65 @@",
+          "before": [],
+          "after": [
+            "\"\"\"R6P26 terminal JSONL field allowlist contract.",
+            "",
+            "The R6P25 iPhone build compiled visible/clipped clipping diagnostics into",
+            "LiveProcess and host readBack but emitted none of the four counters:",
+            "ScarletDiagnosticRecorder.allowedFields filtered them. Assert full path.",
+            "\"\"\"",
+            "import re",
+            "import unittest",
+            "from pathlib import Path",
+            "",
+            "ROOT = Path(__file__).resolve().parents[1]",
+            "GUEST = (ROOT / \"integration/ScarletGuestIslandContentGuard.m.txt\").read_text()",
+            "HOST = (ROOT / \"HostApp/ScarletFullscreenSceneStack.swift\").read_text()",
+            "RECORDER = (ROOT / \"HostApp/ScarletDiagnosticRecorder.swift\").read_text()",
+            "",
+            "REQUIRED = {",
+            "    \"visible_unsafe_controls\", \"clipped_unsafe_controls\",",
+            "    \"visible_unsafe_images\", \"clipped_unsafe_images\",",
+            "}",
+            "",
+            "",
+            "def quoted_keys(body: str):",
+            "    return set(re.findall(r'\"([a-z_]+)\"', body))",
+            "",
+            "",
+            "def host_geometry_relay_keys():",
+            "    source = HOST.split(\"if result == \\\"guest_content_geometry_probe\\\" {\", 1)[1]",
+            "    numbers = source.split(\"let numericFields = [\", 1)[1].split(\"]\", 1)[0]",
+            "    return quoted_keys(numbers)",
+            "",
+            "",
+            "def recorder_allowlist():",
+            "    fields = RECORDER.split(\"private static let allowedFields: Set<String> = [\", 1)[1].split(\"]\", 1)[0]",
+            "    return quoted_keys(fields)",
+            "",
+            "",
+            "class RecorderContract(unittest.TestCase):",
+            "    def test_every_guest_geometry_relay_counter_survives_final_jsonl(self):",
+            "        relayed = host_geometry_relay_keys()",
+            "        allowed = recorder_allowlist()",
+            "        self.assertTrue(REQUIRED.issubset(relayed))",
+            "        self.assertEqual(relayed - allowed, set(),",
+            "                         \"Host guest-content geometry relay silently drops JSONL metrics\")",
+            "",
+            "    def test_guest_produces_each_counter_and_host_relay_accepts_it(self):",
+            "        for key in REQUIRED:",
+            "            self.assertIn('@\"' + key + '\"', GUEST)",
+            "            self.assertIn('\"' + key + '\"', HOST)",
+            "            self.assertIn('\"' + key + '\"', RECORDER)",
+            "        self.assertIn('ScarletIslandVisibleFrameInWindow', GUEST)",
+            "        self.assertIn('guest_content_geometry_probe', HOST)",
+            "",
+            "    def test_jsonl_field_filter_is_explicit_and_does_not_admit_secrets(self):",
+            "        self.assertIn('Self.allowedFields.contains(key)', RECORDER)",
+            "        forbidden = {",
+            "            'udid', 'apple_id', 'password', 'private_key',",
+            "            'profile_data', 'guest_name', 'access_token',",
+            "            'file_path', 'raw_url', 'otp',",
+            "        }",
+            "        self.assertFalse(forbidden.intersection(recorder_allowlist()))",
+            "        self.assertEqual(len(REQUIRED), 4)",
+            "",
+            "",
+            "if __name__ == \"__main__\":",
+            "    unittest.main()"
+          ]
+        },
+        {
+          "commit": "cc547835e8ddf9cc54764c302144094c5782a98f",
+          "file": ".github/workflows/scarlet-paired-engines-build.yml",
+          "location": "@@ -3,7 +3,7 @@ name: Scarlet paired LiveContainer and SideStore iOS build",
+          "before": [
+            "on:",
+            "  workflow_dispatch:",
+            "  push:",
+            "    branches: [rebuild/scarlet-from-zero-20261106, fix/scarlet-auth-status-rootcause-20261109, fix/scarlet-pr48-guest-overlay-no-resize-20261109, fix/scarlet-pr48-airpods-glass-guest-switch-v3-20261109, fix/scarlet-pr48-draggable-guest-tab-v4-20261109, fix/scarlet-pr48-v5-glass-drag-cert-recovery-20261109, fix/scarlet-pr48-v6-unified-cert-glass-20261109, fix/scarlet-pr48-v7-cert-jitless-unify-panel-rim-20261109, fix/scarlet-pr48-v8-flicker-certificate-menu-20261109, fix/scarlet-pr48-v9-single-glass-rim-20261109, fix/scarlet-pr48-v10-fixed-tab-cert-and-session-20261109, fix/scarlet-pr48-v11-module-settings-appid-20261109, fix/scarlet-pr48-v12-live-sessions-source-auto-refresh-20261109, fix/scarlet-pr48-v13-compact-settings-current-app-20261109, fix/scarlet-pr48-v14-guest-history-native-scenes-three-ids-20261109, fix/scarlet-pr48-v15-source-disclosure-icons-guest-handoff-20261109, fix/scarlet-pr48-v16-guest-switcher-icons-readback-20261110, fix/scarlet-v17-cold-switch-rotation-20261110, fix/scarlet-v18-refresh-diagnostics-native-glass-20261110, fix/scarlet-v19-active-session-switcher-20261110, fix/scarlet-v20-guest-switcher-trace-20261110, fix/scarlet-v21-hook-telemetry-persistence-20261110, fix/scarlet-v22-runtime-guest-identity-20261110, fix/scarlet-v23-session-only-switcher-20261110, fix/scarlet-v24-refresh-lifecycle-switch-receipt-20261110, fix/scarlet-v25-single-panel-outside-dismiss-20261110, fix/scarlet-v26-liquidglass-button-to-fixed-panel-morph-20261110, fix/scarlet-v27-sidestore-direct-native-refresh-20261110, fix/scarlet-v28-minimuxer-readiness-recovery-20261110, fix/scarlet-v29-inapp-rppairing-20261110, fix/scarlet-v30-restore-sidestore-active-team-20261110, fix/scarlet-v31-pairing-persistence-sheet-purple-20261110, fix/scarlet-v32-korean-copy-20261110, fix/scarlet-v33-log-rootcause-20261110, fix/scarlet-v34-iphone-virtual-resident-20261110, fix/scarlet-v35-restore-original-fullscreen-20261110, fix/scarlet-v36-remove-legacy-ui-20261110, fix/scarlet-v37-session-refresh-20261110, fix/scarlet-v38-current-launch-logs-20261110, fix/scarlet-v39-log-truth-20261110, fix/scarlet-v40-clean-work-session-20261110, fix/scarlet-v42-v40-safe-diagnostics-20261110, fix/scarlet-v43-install-rootcause-20261110, fix/scarlet-v44-rppairing-postsign-install-20261111, fix/scarlet-v45-single-viewport-liveprocess-20261111, fix/scarlet-v46-guard-provisional-guest-geometry-20261111, fix/scarlet-v47-resident-inplace-guest-switch-20261111, fix/scarlet-v48-guest-runtime-recovery-20261111, fix/scarlet-v48-restored-20261111, fix/scarlet-v48-r2-unified-switcher-20261111, fix/scarlet-v48-r3-original-pan-diagnostics-20261111, fix/scarlet-v48-r4-native-outside-remote-insets-20261111, fix/scarlet-v48-r5-attached-insets-shield-20261111, fix/scarlet-v48-r5-crash-recovery-20261111, fix/scarlet-v48-r5-recovery-r2-host-owner-20261111, fix/scarlet-v48-r5-recovery-r3-scene-authority-20261111, fix/scarlet-v48-r5-recovery-r4-native-ready-20261111, fix/scarlet-v48-r5-recovery-r5-compat-foreground-20261111, fix/scarlet-v48-r6-island-outside-audio-20261111, fix/scarlet-v48-r6p1-audio-home-focus-20261111, fix/scarlet-v48-r6p2-blocked-history-20261111, fix/scarlet-v48-r6p3-home-audio-gate-20261111, fix/scarlet-v48-r6p4-guest-audio-ack-20261112, fix/scarlet-v48-r6p7-launch-policy-rootcause-20261112, fix/scarlet-v48-r6p8-policy-field-relay-20261112, fix/scarlet-v48-r6p9-deferred-scene-boot-20261112, fix/scarlet-v48-r6p10-persistent-remediation-ledger-20261112, fix/scarlet-v48-r6p11-resident-guest-sdk-contract-20261112, fix/scarlet-v48-r6p12-instant-recent-switcher-20261112, fix/scarlet-v48-r6p14-switcher-reset-on-navigation-20261112, fix/scarlet-v48-r6p15-guest-root-island-pairing-recovery-20261112, fix/scarlet-v48-r6p16-audit-coverage-20261112, fix/scarlet-v48-r6p17-resident-optin-defaults-20261112, fix/scarlet-v48-r6p18-guest-content-geometry-20261112, fix/scarlet-v48-r6p19-entitlement-failclosed-network-recovery-20261112, fix/scarlet-v48-r6p20-auth-session-bg-id-20261112, fix/scarlet-v48-r6p21-depth-probe-cert-recheck-20261112, fix/scarlet-v48-r6p22-guest-scroll-content-inset-20261112, fix/scarlet-v48-r6p23-guest-owner-refresh-stage-20261112, fix/scarlet-v48-r6p24-keyboard-stage-relay-20261112, fix/scarlet-v48-r6p25-visibility-occlusion-20261112]",
+            "    paths:",
+            "      - \".github/workflows/scarlet-paired-engines-build.yml\"",
+            "      - \"rebuild/integration/**\""
+          ],
+          "after": [
+            "on:",
+            "  workflow_dispatch:",
+            "  push:",
+            "    branches: [rebuild/scarlet-from-zero-20261106, fix/scarlet-auth-status-rootcause-20261109, fix/scarlet-pr48-guest-overlay-no-resize-20261109, fix/scarlet-pr48-airpods-glass-guest-switch-v3-20261109, fix/scarlet-pr48-draggable-guest-tab-v4-20261109, fix/scarlet-pr48-v5-glass-drag-cert-recovery-20261109, fix/scarlet-pr48-v6-unified-cert-glass-20261109, fix/scarlet-pr48-v7-cert-jitless-unify-panel-rim-20261109, fix/scarlet-pr48-v8-flicker-certificate-menu-20261109, fix/scarlet-pr48-v9-single-glass-rim-20261109, fix/scarlet-pr48-v10-fixed-tab-cert-and-session-20261109, fix/scarlet-pr48-v11-module-settings-appid-20261109, fix/scarlet-pr48-v12-live-sessions-source-auto-refresh-20261109, fix/scarlet-pr48-v13-compact-settings-current-app-20261109, fix/scarlet-pr48-v14-guest-history-native-scenes-three-ids-20261109, fix/scarlet-pr48-v15-source-disclosure-icons-guest-handoff-20261109, fix/scarlet-pr48-v16-guest-switcher-icons-readback-20261110, fix/scarlet-v17-cold-switch-rotation-20261110, fix/scarlet-v18-refresh-diagnostics-native-glass-20261110, fix/scarlet-v19-active-session-switcher-20261110, fix/scarlet-v20-guest-switcher-trace-20261110, fix/scarlet-v21-hook-telemetry-persistence-20261110, fix/scarlet-v22-runtime-guest-identity-20261110, fix/scarlet-v23-session-only-switcher-20261110, fix/scarlet-v24-refresh-lifecycle-switch-receipt-20261110, fix/scarlet-v25-single-panel-outside-dismiss-20261110, fix/scarlet-v26-liquidglass-button-to-fixed-panel-morph-20261110, fix/scarlet-v27-sidestore-direct-native-refresh-20261110, fix/scarlet-v28-minimuxer-readiness-recovery-20261110, fix/scarlet-v29-inapp-rppairing-20261110, fix/scarlet-v30-restore-sidestore-active-team-20261110, fix/scarlet-v31-pairing-persistence-sheet-purple-20261110, fix/scarlet-v32-korean-copy-20261110, fix/scarlet-v33-log-rootcause-20261110, fix/scarlet-v34-iphone-virtual-resident-20261110, fix/scarlet-v35-restore-original-fullscreen-20261110, fix/scarlet-v36-remove-legacy-ui-20261110, fix/scarlet-v37-session-refresh-20261110, fix/scarlet-v38-current-launch-logs-20261110, fix/scarlet-v39-log-truth-20261110, fix/scarlet-v40-clean-work-session-20261110, fix/scarlet-v42-v40-safe-diagnostics-20261110, fix/scarlet-v43-install-rootcause-20261110, fix/scarlet-v44-rppairing-postsign-install-20261111, fix/scarlet-v45-single-viewport-liveprocess-20261111, fix/scarlet-v46-guard-provisional-guest-geometry-20261111, fix/scarlet-v47-resident-inplace-guest-switch-20261111, fix/scarlet-v48-guest-runtime-recovery-20261111, fix/scarlet-v48-restored-20261111, fix/scarlet-v48-r2-unified-switcher-20261111, fix/scarlet-v48-r3-original-pan-diagnostics-20261111, fix/scarlet-v48-r4-native-outside-remote-insets-20261111, fix/scarlet-v48-r5-attached-insets-shield-20261111, fix/scarlet-v48-r5-crash-recovery-20261111, fix/scarlet-v48-r5-recovery-r2-host-owner-20261111, fix/scarlet-v48-r5-recovery-r3-scene-authority-20261111, fix/scarlet-v48-r5-recovery-r4-native-ready-20261111, fix/scarlet-v48-r5-recovery-r5-compat-foreground-20261111, fix/scarlet-v48-r6-island-outside-audio-20261111, fix/scarlet-v48-r6p1-audio-home-focus-20261111, fix/scarlet-v48-r6p2-blocked-history-20261111, fix/scarlet-v48-r6p3-home-audio-gate-20261111, fix/scarlet-v48-r6p4-guest-audio-ack-20261112, fix/scarlet-v48-r6p7-launch-policy-rootcause-20261112, fix/scarlet-v48-r6p8-policy-field-relay-20261112, fix/scarlet-v48-r6p9-deferred-scene-boot-20261112, fix/scarlet-v48-r6p10-persistent-remediation-ledger-20261112, fix/scarlet-v48-r6p11-resident-guest-sdk-contract-20261112, fix/scarlet-v48-r6p12-instant-recent-switcher-20261112, fix/scarlet-v48-r6p14-switcher-reset-on-navigation-20261112, fix/scarlet-v48-r6p15-guest-root-island-pairing-recovery-20261112, fix/scarlet-v48-r6p16-audit-coverage-20261112, fix/scarlet-v48-r6p17-resident-optin-defaults-20261112, fix/scarlet-v48-r6p18-guest-content-geometry-20261112, fix/scarlet-v48-r6p19-entitlement-failclosed-network-recovery-20261112, fix/scarlet-v48-r6p20-auth-session-bg-id-20261112, fix/scarlet-v48-r6p21-depth-probe-cert-recheck-20261112, fix/scarlet-v48-r6p22-guest-scroll-content-inset-20261112, fix/scarlet-v48-r6p23-guest-owner-refresh-stage-20261112, fix/scarlet-v48-r6p24-keyboard-stage-relay-20261112, fix/scarlet-v48-r6p25-visibility-occlusion-20261112, fix/scarlet-v48-r6p26-recorder-field-contract-20261112]",
+            "    paths:",
+            "      - \".github/workflows/scarlet-paired-engines-build.yml\"",
+            "      - \"rebuild/integration/**\""
+          ]
+        },
+        {
+          "commit": "cc547835e8ddf9cc54764c302144094c5782a98f",
+          "file": ".github/workflows/scarlet-paired-engines-build.yml",
+          "location": "@@ -305,7 +305,7 @@ jobs:",
+          "before": [
+            "  # A Release asset in this public repo has a stable public download URL.",
+            "  publish-unsigned-github-release:",
+            "    needs: [package-paired]",
+            "    if: github.event_name == 'push' && (github.ref == 'refs/heads/rebuild/scarlet-from-zero-20261106' || github.ref == 'refs/heads/fix/scarlet-v31-pairing-persistence-sheet-purple-20261110' || github.ref == 'refs/heads/fix/scarlet-v32-korean-copy-20261110' || github.ref == 'refs/heads/fix/scarlet-v33-log-rootcause-20261110' || github.ref == 'refs/heads/fix/scarlet-v34-iphone-virtual-resident-20261110' || github.ref == 'refs/heads/fix/scarlet-v35-restore-original-fullscreen-20261110' || github.ref == 'refs/heads/fix/scarlet-v36-remove-legacy-ui-20261110' || github.ref == 'refs/heads/fix/scarlet-v37-session-refresh-20261110' || github.ref == 'refs/heads/fix/scarlet-v38-current-launch-logs-20261110' || github.ref == 'refs/heads/fix/scarlet-v39-log-truth-20261110' || github.ref == 'refs/heads/fix/scarlet-v40-clean-work-session-20261110' || github.ref == 'refs/heads/fix/scarlet-v42-v40-safe-diagnostics-20261110' || github.ref == 'refs/heads/fix/scarlet-v43-install-rootcause-20261110' || github.ref == 'refs/heads/fix/scarlet-v44-rppairing-postsign-install-20261111' || github.ref == 'refs/heads/fix/scarlet-v45-single-viewport-liveprocess-20261111' || github.ref == 'refs/heads/fix/scarlet-v46-guard-provisional-guest-geometry-20261111' || github.ref == 'refs/heads/fix/scarlet-v47-resident-inplace-guest-switch-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-guest-runtime-recovery-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-restored-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r2-unified-switcher-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r3-original-pan-diagnostics-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r4-native-outside-remote-insets-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r5-attached-insets-shield-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r5-crash-recovery-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r5-recovery-r2-host-owner-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r5-recovery-r3-scene-authority-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r5-recovery-r4-native-ready-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r5-recovery-r5-compat-foreground-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r6-island-outside-audio-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r6p1-audio-home-focus-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r6p2-blocked-history-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r6p3-home-audio-gate-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r6p4-guest-audio-ack-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p7-launch-policy-rootcause-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p8-policy-field-relay-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p9-deferred-scene-boot-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p10-persistent-remediation-ledger-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p11-resident-guest-sdk-contract-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p12-instant-recent-switcher-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p14-switcher-reset-on-navigation-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p15-guest-root-island-pairing-recovery-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p16-audit-coverage-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p17-resident-optin-defaults-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p18-guest-content-geometry-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p19-entitlement-failclosed-network-recovery-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p20-auth-session-bg-id-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p21-depth-probe-cert-recheck-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p22-guest-scroll-content-inset-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p23-guest-owner-refresh-stage-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p24-keyboard-stage-relay-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p25-visibility-occlusion-20261112')",
+            "    runs-on: ubuntu-24.04",
+            "    timeout-minutes: 10",
+            "    permissions:"
+          ],
+          "after": [
+            "  # A Release asset in this public repo has a stable public download URL.",
+            "  publish-unsigned-github-release:",
+            "    needs: [package-paired]",
+            "    if: github.event_name == 'push' && (github.ref == 'refs/heads/rebuild/scarlet-from-zero-20261106' || github.ref == 'refs/heads/fix/scarlet-v31-pairing-persistence-sheet-purple-20261110' || github.ref == 'refs/heads/fix/scarlet-v32-korean-copy-20261110' || github.ref == 'refs/heads/fix/scarlet-v33-log-rootcause-20261110' || github.ref == 'refs/heads/fix/scarlet-v34-iphone-virtual-resident-20261110' || github.ref == 'refs/heads/fix/scarlet-v35-restore-original-fullscreen-20261110' || github.ref == 'refs/heads/fix/scarlet-v36-remove-legacy-ui-20261110' || github.ref == 'refs/heads/fix/scarlet-v37-session-refresh-20261110' || github.ref == 'refs/heads/fix/scarlet-v38-current-launch-logs-20261110' || github.ref == 'refs/heads/fix/scarlet-v39-log-truth-20261110' || github.ref == 'refs/heads/fix/scarlet-v40-clean-work-session-20261110' || github.ref == 'refs/heads/fix/scarlet-v42-v40-safe-diagnostics-20261110' || github.ref == 'refs/heads/fix/scarlet-v43-install-rootcause-20261110' || github.ref == 'refs/heads/fix/scarlet-v44-rppairing-postsign-install-20261111' || github.ref == 'refs/heads/fix/scarlet-v45-single-viewport-liveprocess-20261111' || github.ref == 'refs/heads/fix/scarlet-v46-guard-provisional-guest-geometry-20261111' || github.ref == 'refs/heads/fix/scarlet-v47-resident-inplace-guest-switch-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-guest-runtime-recovery-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-restored-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r2-unified-switcher-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r3-original-pan-diagnostics-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r4-native-outside-remote-insets-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r5-attached-insets-shield-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r5-crash-recovery-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r5-recovery-r2-host-owner-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r5-recovery-r3-scene-authority-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r5-recovery-r4-native-ready-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r5-recovery-r5-compat-foreground-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r6-island-outside-audio-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r6p1-audio-home-focus-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r6p2-blocked-history-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r6p3-home-audio-gate-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r6p4-guest-audio-ack-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p7-launch-policy-rootcause-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p8-policy-field-relay-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p9-deferred-scene-boot-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p10-persistent-remediation-ledger-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p11-resident-guest-sdk-contract-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p12-instant-recent-switcher-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p14-switcher-reset-on-navigation-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p15-guest-root-island-pairing-recovery-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p16-audit-coverage-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p17-resident-optin-defaults-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p18-guest-content-geometry-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p19-entitlement-failclosed-network-recovery-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p20-auth-session-bg-id-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p21-depth-probe-cert-recheck-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p22-guest-scroll-content-inset-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p23-guest-owner-refresh-stage-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p24-keyboard-stage-relay-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p25-visibility-occlusion-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p26-recorder-field-contract-20261112')",
+            "    runs-on: ubuntu-24.04",
+            "    timeout-minutes: 10",
+            "    permissions:"
+          ]
+        },
+        {
+          "commit": "cc547835e8ddf9cc54764c302144094c5782a98f",
+          "file": ".github/workflows/scarlet-paired-engines-build.yml",
+          "location": "@@ -334,7 +334,9 @@ jobs:",
+          "before": [
+            "              assert any(p.endswith(\"LiveProcess.appex/Info.plist\") for p in paths), \"Missing LiveProcess\"",
+            "          print(\"[PASS] Public IPA ZIP structure; Apple signature not verified\")",
+            "          PY",
+            "          if [ \"$GITHUB_REF\" = \"refs/heads/fix/scarlet-v48-r6p25-visibility-occlusion-20261112\" ]; then",
+            "            asset=\"Scarlet-Crystal-V48-R6P25-VISIBILITY-UNSIGNED.ipa\"",
+            "          elif [ \"$GITHUB_REF\" = \"refs/heads/fix/scarlet-v48-r6p24-keyboard-stage-relay-20261112\" ]; then",
+            "            asset=\"Scarlet-Crystal-V48-R6P24-KEYBOARD-STAGE-UNSIGNED.ipa\""
+          ],
+          "after": [
+            "              assert any(p.endswith(\"LiveProcess.appex/Info.plist\") for p in paths), \"Missing LiveProcess\"",
+            "          print(\"[PASS] Public IPA ZIP structure; Apple signature not verified\")",
+            "          PY",
+            "          if [ \"$GITHUB_REF\" = \"refs/heads/fix/scarlet-v48-r6p26-recorder-field-contract-20261112\" ]; then",
+            "            asset=\"Scarlet-Crystal-V48-R6P26-RECORDER-CONTRACT-UNSIGNED.ipa\"",
+            "          elif [ \"$GITHUB_REF\" = \"refs/heads/fix/scarlet-v48-r6p25-visibility-occlusion-20261112\" ]; then",
+            "            asset=\"Scarlet-Crystal-V48-R6P25-VISIBILITY-UNSIGNED.ipa\"",
+            "          elif [ \"$GITHUB_REF\" = \"refs/heads/fix/scarlet-v48-r6p24-keyboard-stage-relay-20261112\" ]; then",
+            "            asset=\"Scarlet-Crystal-V48-R6P24-KEYBOARD-STAGE-UNSIGNED.ipa\""
+          ]
+        },
+        {
+          "commit": "cc547835e8ddf9cc54764c302144094c5782a98f",
+          "file": ".github/workflows/scarlet-paired-engines-build.yml",
+          "location": "@@ -458,7 +460,10 @@ jobs:",
+          "before": [
+            "          GH_TOKEN: ${{ github.token }}",
+            "        run: |",
+            "          set -Eeuo pipefail",
+            "          if [ \"$GITHUB_REF\" = \"refs/heads/fix/scarlet-v48-r6p25-visibility-occlusion-20261112\" ]; then",
+            "            tag=scarlet-v48-r6p25-visibility-unsigned-20261112",
+            "            asset=Scarlet-Crystal-V48-R6P25-VISIBILITY-UNSIGNED.ipa",
+            "          elif [ \"$GITHUB_REF\" = \"refs/heads/fix/scarlet-v48-r6p24-keyboard-stage-relay-20261112\" ]; then"
+          ],
+          "after": [
+            "          GH_TOKEN: ${{ github.token }}",
+            "        run: |",
+            "          set -Eeuo pipefail",
+            "          if [ \"$GITHUB_REF\" = \"refs/heads/fix/scarlet-v48-r6p26-recorder-field-contract-20261112\" ]; then",
+            "            tag=scarlet-v48-r6p26-recorder-contract-unsigned-20261112",
+            "            asset=Scarlet-Crystal-V48-R6P26-RECORDER-CONTRACT-UNSIGNED.ipa",
+            "          elif [ \"$GITHUB_REF\" = \"refs/heads/fix/scarlet-v48-r6p25-visibility-occlusion-20261112\" ]; then",
+            "            tag=scarlet-v48-r6p25-visibility-unsigned-20261112",
+            "            asset=Scarlet-Crystal-V48-R6P25-VISIBILITY-UNSIGNED.ipa",
+            "          elif [ \"$GITHUB_REF\" = \"refs/heads/fix/scarlet-v48-r6p24-keyboard-stage-relay-20261112\" ]; then"
+          ]
         }
       ]
     }
