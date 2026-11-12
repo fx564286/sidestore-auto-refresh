@@ -1345,6 +1345,195 @@ def add_r6p9_deferred_liveprocess_boot(engine: Path) -> dict:
     }
 
 
+
+def add_r6p11_guest_sdk_contract(engine: Path) -> dict:
+    """Resident-only automatic guest Mach-O SDK contract at dyld bootstrap.
+
+    Unlike previously retried Safe Area / FBScene / UIWindow geometry, this
+    changes dyld's SDK compatibility query to the *guest executable's own*
+    LC_BUILD_VERSION.sdk rather than always inheriting the LiveProcess
+    extension executable's SDK. UIKit was already loaded by NSExtensionMain;
+    therefore the change is a reversible hypothesis, NOT proven to update
+    all already-cached UIKit layout decisions. The experiment is scoped to
+    Scarlet's resident-only extension request and never overwrites explicit
+    guest spoofSDKVersion settings.
+    """
+    vc = engine / "MultitaskSupport/AppSceneViewController.m"
+    text = vc.read_text()
+    existing = "        self.scarletPendingExtensionItem = item;"
+    assert text.count(existing) == 1, "R6P11 deferred extension contract not found"
+    text = text.replace(existing, """        // R6P11: one anonymous feature bit, never a guest identifier or
+        // per-app exception; only resident/native fullscreen sessions opt in.
+        NSMutableDictionary *residentInfo = [item.userInfo mutableCopy];
+        residentInfo[@"scarletResidentSDKContract"] = @YES;
+        item.userInfo = residentInfo;
+        self.scarletPendingExtensionItem = item;""", 1)
+    vc.write_text(text)
+
+    liveprocess = engine / "LiveProcess/main.m"
+    source = liveprocess.read_text()
+    requested = "    retrievedAppInfo = [context.inputItems.firstObject userInfo];\n"
+    assert source.count(requested) == 1, "R6P11 pinned LiveProcess extension intake changed"
+    source = source.replace(requested, requested + """    // Consumed after app selection, before LiveContainerMain guest bootstrap.
+    // Classic LiveProcess requests have no flag and retain original SDK.
+    [NSUserDefaults.standardUserDefaults setBool:
+        [retrievedAppInfo[@"scarletResidentSDKContract"] boolValue]
+        forKey:@"Scarlet.ResidentSDKContract.V1"];
+""", 1)
+    liveprocess.write_text(source)
+
+    boot = engine / "LiveContainer/LCBootstrap.m"
+    original = boot.read_text()
+    insert_before = "extern char **environ;\n"
+    assert original.count(insert_before) == 1, "R6P11 LC main bootstrap anchor changed"
+    helper = r"""
+// R6P11: parse guest Mach-O's SDK declaration READ-ONLY, never its bundle ID,
+// contents, signature, paths, entitlement or executable bytes for mutation.
+static uint32_t ScarletGuestMachOSDKReadOnly(const char *path) {
+    if(!path || !*path) return 0;
+    __block uint32_t sdk = 0;
+    NSString *parseError = LCParseMachO(path, true,
+        ^(const char *filePath, struct mach_header_64 *header,
+          int fd, void *filePtr) {
+        if(!header || header->magic != MH_MAGIC_64 ||
+           header->ncmds > 8192 || header->sizeofcmds > 1024*1024) return;
+        uint32_t offset = 0;
+        for(uint32_t i = 0; i < header->ncmds; i++) {
+            if(offset > header->sizeofcmds ||
+               header->sizeofcmds - offset < sizeof(struct load_command)) break;
+            struct load_command *command = (struct load_command *)
+                ((uint8_t *)(header + 1) + offset);
+            if(command->cmdsize < sizeof(struct load_command) ||
+               command->cmdsize > header->sizeofcmds - offset) break;
+            if(command->cmd == LC_BUILD_VERSION &&
+               command->cmdsize >= sizeof(struct build_version_command)) {
+                struct build_version_command *build =
+                    (struct build_version_command *)command;
+                if(build->platform == PLATFORM_IOS) sdk = build->sdk;
+            } else if(command->cmd == LC_VERSION_MIN_IPHONEOS &&
+                      command->cmdsize >= sizeof(struct version_min_command) &&
+                      sdk == 0) {
+                sdk = ((struct version_min_command *)command)->sdk;
+            }
+            offset += command->cmdsize;
+        }
+    });
+    return parseError ? 0 : sdk;
+}
+static void ScarletRecordGuestSDKContract(uint32_t sdk, NSString *origin) {
+    NSUserDefaults *store = NSUserDefaults.lcSharedDefaults;
+    if(!store || !origin || !sdk) return;
+    NSString *key = @"Scarlet.Guest.SDKContract.V1";
+    NSData *previous = [store dataForKey:key];
+    NSMutableArray *rows = [NSMutableArray array];
+    if(previous) {
+        id decoded = [NSJSONSerialization JSONObjectWithData:previous
+            options:NSJSONReadingMutableContainers error:NULL];
+        if([decoded isKindOfClass:NSArray.class]) [rows addObjectsFromArray:decoded];
+    }
+    [rows addObject:@{
+        @"id": NSUUID.UUID.UUIDString,
+        @"epoch": @([[NSDate date] timeIntervalSince1970]),
+        @"pid": @(getpid()),
+        @"sdk_major": @((sdk >> 16) & 0xffff),
+        @"sdk_minor": @((sdk >> 8) & 0xff),
+        @"origin": origin
+    }];
+    if(rows.count > 24)
+        [rows removeObjectsInRange:NSMakeRange(0, rows.count - 24)];
+    NSData *encoded = [NSJSONSerialization dataWithJSONObject:rows
+        options:0 error:NULL];
+    if(encoded) [store setObject:encoded forKey:key];
+}
+"""
+    original = original.replace(insert_before, helper + "\n" + insert_before, 1)
+    dyld_before = '    DyldHooksInit([guestAppInfo[@"hideLiveContainer"] boolValue], hookDlopen, [guestAppInfo[@"spoofSDKVersion"] unsignedIntValue]);'
+    assert original.count(dyld_before) == 1, "R6P11 pinned dyld hook call changed"
+    dyld_after = r"""    // R6P11: only opt-in resident LiveProcess, all guest apps identically.
+    // Preserve any explicit user-level Spoof SDK Version preference.
+    uint32_t explicitSDK = [guestAppInfo[@"spoofSDKVersion"] unsignedIntValue];
+    uint32_t effectiveSDK = explicitSDK;
+    BOOL residentSDK = isLiveProcess && !isSideStore &&
+        [lcUserDefaults boolForKey:@"Scarlet.ResidentSDKContract.V1"];
+    NSString *sdkOrigin = @"user_override";
+    if(residentSDK && effectiveSDK == 0) {
+        uint32_t declaredSDK = ScarletGuestMachOSDKReadOnly(appExecPath);
+        uint32_t declaredMajor = (declaredSDK >> 16) & 0xffff;
+        NSOperatingSystemVersion os = NSProcessInfo.processInfo.operatingSystemVersion;
+        if(declaredMajor >= 11 && declaredMajor <= (uint32_t)os.majorVersion) {
+            effectiveSDK = declaredSDK;
+            sdkOrigin = @"guest_macho";
+        } else {
+            sdkOrigin = @"no_usable_sdk";
+        }
+    }
+    if(residentSDK) {
+        // A recorded contract means we *requested* SDK-compatible dyld
+        // semantics. It does not assert that UIKit's cached traits changed.
+        if(effectiveSDK) ScarletRecordGuestSDKContract(effectiveSDK, sdkOrigin);
+        else ScarletRecordGuestSDKContract(0x00000001, @"no_usable_sdk");
+    }
+    DyldHooksInit([guestAppInfo[@"hideLiveContainer"] boolValue],
+                  hookDlopen, effectiveSDK);"""
+    original = original.replace(dyld_before, dyld_after, 1)
+    boot.write_text(original)
+
+    # The pinned LC SDK spoof machinery contains assert() on dyld symbol
+    # format/signature. It used to be an optional user action, but an
+    # automatic resident experiment must never SIGABRT when OS 27 dyld differs.
+    # Fail closed on an unknown signature and continue other guest boot hooks.
+    dyld = engine / "LiveContainer/Tweaks/Dyld.m"
+    dyld_text = dyld.read_text()
+    changes = (
+        ("    assert(baseAddr != 0);", "    if(!baseAddr) return false;"),
+        ("        assert(adrpExtraOffset != -1);",
+         "        if(adrpExtraOffset == -1) return false;"),
+        ("    assert(gdyldPtr != 0);", "    if(!gdyldPtr) return false;"),
+        ("    assert(*(void**)gdyldPtr != 0);",
+         "    if(!*(void**)gdyldPtr) return false;"),
+        ("        assert((*ldrInstPtr2 & 0xBFC00000) == 0xB9400000);",
+         "        if((*ldrInstPtr2 & 0xBFC00000) != 0xB9400000) return false;"),
+        ("        assert(offset);", "        if(!offset) return false;"),
+        ("    assert(versionMapPtr);", "    if(!versionMapPtr) return false;"),
+        ("    assert(versionMapPtr[0] == 0x07db0901 && versionMapPtr[2] == 0x00050000);",
+         "    if(versionMapPtr[0] != 0x07db0901 || versionMapPtr[2] != 0x00050000) return false;"),
+        ("    assert(size);", "    if(!size) return false;"),
+    )
+    for old, new in changes:
+        assert dyld_text.count(old) == 1, "Pinned dyld SDK guard changed: " + old
+        dyld_text = dyld_text.replace(old, new, 1)
+    # Old initGuestSDKVersionInfo failures aborted the rest of DyldHooksInit
+    # including jitless_hook_dlopen. Preserve original fallback/launch.
+    old = """        if(!initGuestSDKVersionInfo() ||
+           !performHookDyldApi("dyld_program_sdk_at_least", 1, (void**)&orig_dyld_program_sdk_at_least, hook_dyld_program_sdk_at_least) ||
+           !performHookDyldApi("dyld_get_program_sdk_version", 0, (void**)&orig_dyld_get_program_sdk_version, hook_dyld_get_program_sdk_version)) {
+            return;
+        }"""
+    assert dyld_text.count(old) == 1, "Pinned SDK dyld hook gating changed"
+    new = """        // Unknown dyld layout is not a guest-process fatal error.
+        // Preserve the original jitless dlopen hook in all cases.
+        if(initGuestSDKVersionInfo()) {
+            BOOL firstHook = performHookDyldApi("dyld_program_sdk_at_least", 1,
+                (void**)&orig_dyld_program_sdk_at_least, hook_dyld_program_sdk_at_least);
+            BOOL secondHook = firstHook && performHookDyldApi("dyld_get_program_sdk_version", 0,
+                (void**)&orig_dyld_get_program_sdk_version, hook_dyld_get_program_sdk_version);
+            if(!secondHook) NSLog(@"[SCARLET_SDK_CONTRACT] dyld_hook_unavailable");
+        } else {
+            NSLog(@"[SCARLET_SDK_CONTRACT] dyld_version_map_unavailable");
+        }"""
+    dyld_text = dyld_text.replace(old, new, 1)
+    dyld.write_text(dyld_text)
+
+    return {
+        "residentOnly": True, "noPerAppExceptions": True,
+        "guestMachOReadOnly": True, "explicitSpoofUnchanged": True,
+        "unchangedGuestGeometry": True,
+        "dyldMissingSignatureFailClosed": True,
+        "jitlessHookPreservedWhenSDKUnrecognized": True,
+        "startupLimitation": "UIKit already loaded by NSExtensionMain; test on device"
+    }
+
+
 def add_scarlet_guest_launch_policy_probe(engine: Path) -> dict:
     """R6P7: inspect the launch-time *bundle policy*, not Safe Area/UIWindow.
 
@@ -1911,6 +2100,7 @@ static void ScarletGuestHookTrace(NSString *event) {
     legacy_visuals = remove_upstream_legacy_window_ui(engine)
     fullscreen_slot = add_v45_fullscreen_scene_slot(engine)
     deferred_scene_boot = add_r6p9_deferred_liveprocess_boot(engine)
+    resident_sdk_contract = add_r6p11_guest_sdk_contract(engine)
     guest_audio = add_scarlet_guest_audio_isolation(engine)
     guest_launch_policy = add_scarlet_guest_launch_policy_probe(engine)
     guest_signing=instrument_original_guest_signing(engine)
@@ -1929,6 +2119,7 @@ static void ScarletGuestHookTrace(NSString *event) {
         "legacyVisualRemoval":legacy_visuals,
         "experimentalResidentFullscreenViewport": fullscreen_slot,
         "deferredRemoteLaunchUntilHosted": deferred_scene_boot,
+        "residentGuestSDKContract": resident_sdk_contract,
         "guestAudioIsolation": guest_audio,
         "guestLaunchPolicyDifferential": guest_launch_policy,
         "dockAttachDeferredToWindowVisibility":False,

@@ -62,7 +62,9 @@ final class ScarletDiagnosticRecorder: @unchecked Sendable {
         "host_scene_manifest", "guest_scene_manifest",
         "actual_scene_manifest", "host_orientations",
         "guest_orientations", "actual_orientations",
-        "policy_fields_received", "policy_fields_persisted"
+        "policy_fields_received", "policy_fields_persisted",
+        // R6P11: anonymous guest Mach-O SDK contract, no identifier/path.
+        "sdk_major", "sdk_minor", "sdk_source"
     ]
 
     private init() {
@@ -258,6 +260,7 @@ struct ScarletDiagnosticLogView: View {
         if #available(iOS 17.0, *) {
             ScarletGuestSessionLedger.replaySwitcherTraceToHostJournal()
             ScarletGuestSessionLedger.replayGuestLaunchPolicyToHostJournal()
+            ScarletGuestSessionLedger.replayGuestSDKContractToHostJournal()
         }
         ScarletDiagnosticRecorder.shared.record("diagnostics", "viewer_opened")
         let content = ScarletDiagnosticRecorder.shared.readRecent(

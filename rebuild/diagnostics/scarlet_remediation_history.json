@@ -1,9 +1,9 @@
 {
   "schema": 2,
   "scope": "Scarlet Crystal guest top-screen overlap, touch access, rotation, remote guest render and related resident regressions",
-  "updated_utc": "2026-11-12T00:10:00Z",
-  "current_baseline": "R6P9 f29ddd833305; R6P10 history export implementation underway",
-  "current_issue_status": "UNRESOLVED: Dynamic Island clipping/touch failure not proven fixed",
+  "updated_utc": "2026-11-12T01:10:00Z",
+  "current_baseline": "R6P10 858214ab66e5 device exported full history; R6P11 SDK compatibility experiment awaits CI and iPhone visual validation",
+  "current_issue_status": "UNRESOLVED: guest app top bars/controls can overlap Dynamic Island (Instagram verified by user, others possible).",
   "confidence_note": "Past-chat-only historical versions were reported in earlier conversations; not all have a GitHub revision or device verification. An implementation, a CI success, a telemetry event, and a real device visual fix are distinct.",
   "privacy": "No credentials, Apple ID, OTP, UDID, guest names or device identifiers are stored.",
   "entries": [
@@ -2504,9 +2504,9 @@
       "problem": "diagnostics",
       "mechanism": "remediation_audit",
       "action": "Host DiagnosticRecorder.makeShareFile에 변조 방지 형식의 전체 remediation JSON과 AI handoff prompt 섹션을 추가; apply_scarlet_host.py가 CI archive 시 Git 추적 JSON/MD를 base64로 삽입하고 원본 diff 유효성 확인",
-      "observation": "소스 변경·GitHub diff는 확인. CI·IPA·실기기 진단 보고서 내 실제 표시 및 중복 방지 효과는 아직 검증 필요",
-      "evidence": "pending",
-      "status": "ci_pending",
+      "observation": "R6P10 Xcode CI 43124493440 all four jobs success; signed-by-user build ran on device, exported report included complete REMEDIATION HISTORY, changed-line hunks and AI HANDOFF PROMPT. No device top-bar/touch fix established.",
+      "evidence": "device_log_source_858214ab66e5",
+      "status": "device_diagnostic_export_pass",
       "repeat_policy": "동일 진단 JSON·기존 프로젝트 코드 위치 검증을 하지 않고 단순 로그 UI 문구만 추가하는 변경 금지",
       "code_locations": [
         {
@@ -2577,8 +2577,316 @@
         }
       ],
       "hypothesis": "다음 대화가 이전 기술·메커니즘을 다시 제안하는 원인은 현재 iPhone 로그에 과거 수정의 실제 소스 diff와 실패 근거가 포함되지 않기 때문",
-      "device_verification": "not_installed_or_tested",
+      "device_verification": "iOS 27.2 (24B119), SourceCommit 858214ab66e5, session 699e5461: exported report includes 45 repair entries and full no-repeat AI prompt (2026-11-12T00:42:11Z). Does not prove a visual/touch fix.",
       "rollback_commit": "f29ddd833305e0f2fc020912605a787efbb5b773"
+    },
+    {
+      "id": "L046",
+      "date": "2026-11-12",
+      "version": "new-v48-r6p11",
+      "problem": "guest_top",
+      "mechanism": "dyld_guest_sdk_compatibility",
+      "hypothesis": "Original LiveProcess NSExtensionMain loads UIKit before the selected guest Info.plist/CFBundle swap. Even when R6P8 bundle flags are correct after swap, guest code can observe the LiveProcess extension executable's SDK compatibility level through dyld, rather than the guest Mach-O's own SDK. This untested process-level compatibility mismatch might affect UIKit/SwiftUI default navigation-bar placement across multiple guests. Changing dyld queries after UIKit initial load cannot guarantee cached UIKit behavior changes; testing is essential.",
+      "action": "Only for resident (deferred) LiveProcess requests add anonymous scarletResidentSDKContract flag; parse selected guest LC_BUILD_VERSION.sdk or LC_VERSION_MIN_IPHONEOS read-only; when guest has no explicit spoofSDKVersion preference, set DyldHooksInit effective SDK to guest-declared SDK within current iOS major range; preserve original for classic LC, SideStore, and explicit settings. Relay anonymous per-process SDK selection to host journal. No UI frame, scale, Safe Area, status bar, UIWindow or overlay changes. Because pinned SDK dyld support has OS-version-sensitive asserts, unknown dyld symbol/version-map patterns now fail closed; avoiding premature abort of jitless_hook_dlopen. This is a nonvisual safety guard; visual correction remains unproven.",
+      "observation": "R6P10 iPhone device log seq 31/84: XPC launch after host attach; host_owner_top_pt -1→62; safe_top_pt 62→0→62 repeatedly; guest PID 1560/1570 started and reused. User confirms guest app top controls including Instagram remain covered by Dynamic Island; other affected apps possible. R6P11 implementation source exists but iPhone visual/touch effect not tested. R6P11 SDK hook unknown-layout guard and regression assertion added; still requires device confirmation of UI and that both guest processes survive. Generator output mapping now includes four precise runtime files and method-level before/after changes, separate from Git-tracked Python integration hunks. Source-level regression tests enforce generated native source mapping and AI handoff preservation.",
+      "evidence": "source_patch_verified_ci_pending",
+      "status": "ci_pending",
+      "repeat_policy": "Do not repeat previously tried L003/L008/L028/L032/L035 Safe Area, UIHosting, statusBar or overlay adjustments; nor reapply R6P9 XPC order. Do not change any guest bundle ID or patch individual guest IPA. If SDK mechanism fails, record it and investigate a different cause, not a different SDK constant.",
+      "source_verification": "git_patch_observed",
+      "code_locations": [
+        {
+          "commit": "5e3abca72dda4b38e75cdc853cad5e2213609675",
+          "file": "rebuild/integration/apply_scarlet_host.py",
+          "location": "@@ -1345,6 +1345,146 @@ def add_r6p9_deferred_liveprocess_boot(engine: Path) -> dict:",
+          "before": [],
+          "after": [
+            "def add_r6p11_guest_sdk_contract(engine: Path) -> dict:",
+            "    \"\"\"Resident-only automatic guest Mach-O SDK contract at dyld bootstrap.",
+            "    Unlike previously retried Safe Area / FBScene / UIWindow geometry, this",
+            "    changes dyld's SDK compatibility query to the *guest executable's own*",
+            "    LC_BUILD_VERSION.sdk rather than always inheriting the LiveProcess",
+            "    extension executable's SDK. UIKit was already loaded by NSExtensionMain;",
+            "    therefore the change is a reversible hypothesis, NOT proven to update",
+            "    all already-cached UIKit layout decisions. The experiment is scoped to",
+            "    Scarlet's resident-only extension request and never overwrites explicit",
+            "    guest spoofSDKVersion settings.",
+            "    \"\"\"",
+            "    vc = engine / \"MultitaskSupport/AppSceneViewController.m\""
+          ]
+        },
+        {
+          "commit": "5e3abca72dda4b38e75cdc853cad5e2213609675",
+          "file": "rebuild/integration/apply_scarlet_host.py",
+          "location": "@@ -1911,6 +2051,7 @@ def main():",
+          "before": [],
+          "after": [
+            "    resident_sdk_contract = add_r6p11_guest_sdk_contract(engine)"
+          ]
+        },
+        {
+          "commit": "5e3abca72dda4b38e75cdc853cad5e2213609675",
+          "file": "rebuild/integration/apply_scarlet_host.py",
+          "location": "@@ -1929,6 +2070,7 @@ def main():",
+          "before": [],
+          "after": [
+            "        \"residentGuestSDKContract\": resident_sdk_contract,"
+          ]
+        },
+        {
+          "commit": "e48cdd0a01adc23be65b5c73348864c84e06bb0b",
+          "file": "rebuild/HostApp/ScarletGuestSessionLedger.swift",
+          "location": "@@ -324,6 +324,52 @@ enum ScarletGuestSessionLedger {",
+          "before": [],
+          "after": [
+            "    // R6P11: attach guest Mach-O SDK compatibility decisions to the host's",
+            "    // privacy-filtered, CURRENT-LAUNCH diagnostic journal. This is NOT a",
+            "    // visual correctness receipt and does not expose guest names or paths.",
+            "    private static let sdkContractKey = \"Scarlet.Guest.SDKContract.V1\"",
+            "    private static let sdkContractCursor = \"Scarlet.Guest.SDKContractCursor.V1\"",
+            "    static func replayGuestSDKContractToHostJournal() {",
+            "        guard let raw = store.data(forKey: sdkContractKey),",
+            "              let decoded = try? JSONSerialization.jsonObject(with: raw),",
+            "              let rows = decoded as? [[String: Any]], !rows.isEmpty",
+            "        else { return }",
+            "        let cursor = UserDefaults.standard.string(forKey: sdkContractCursor)",
+            "        let first = cursor.flatMap { previous in"
+          ]
+        },
+        {
+          "commit": "f401fbd5b6139e9256f03a1ef3e67053b1038ea0",
+          "file": "rebuild/HostApp/ScarletDiagnosticRecorder.swift",
+          "location": "@@ -62,7 +62,9 @@ final class ScarletDiagnosticRecorder: @unchecked Sendable {",
+          "before": [
+            "        \"policy_fields_received\", \"policy_fields_persisted\""
+          ],
+          "after": [
+            "        \"policy_fields_received\", \"policy_fields_persisted\",",
+            "        // R6P11: anonymous guest Mach-O SDK contract, no identifier/path.",
+            "        \"sdk_major\", \"sdk_minor\", \"sdk_source\""
+          ]
+        },
+        {
+          "commit": "f401fbd5b6139e9256f03a1ef3e67053b1038ea0",
+          "file": "rebuild/HostApp/ScarletDiagnosticRecorder.swift",
+          "location": "@@ -258,6 +260,7 @@ struct ScarletDiagnosticLogView: View {",
+          "before": [],
+          "after": [
+            "            ScarletGuestSessionLedger.replayGuestSDKContractToHostJournal()"
+          ]
+        },
+        {
+          "commit": "f5fc759c78df6beb2f8296156cc713d11cf96c45",
+          "file": "rebuild/Tests/test_v48_r6p11_resident_guest_sdk_contract.py",
+          "location": "@@ -0,0 +1,68 @@",
+          "before": [],
+          "after": [
+            "\"\"\"R6P11: SDK compatibility is a general guest contract, never an app allowlist.",
+            "Device visual validation remains mandatory: dyld SDK hooks are installed after",
+            "LiveProcess NSExtensionMain has loaded UIKit, so changing SDK queries cannot",
+            "by itself prove UIKit's cached launch-time layout mode was repaired.",
+            "\"\"\"",
+            "from pathlib import Path",
+            "import unittest",
+            "ROOT = Path(__file__).resolve().parents[1]",
+            "INTEGRATION = (ROOT / \"integration/apply_scarlet_host.py\").read_text()",
+            "RECORDER = (ROOT / \"HostApp/ScarletDiagnosticRecorder.swift\").read_text()",
+            "LEDGER = (ROOT / \"HostApp/ScarletGuestSessionLedger.swift\").read_text()",
+            "CUT = INTEGRATION.split(\"def add_r6p11_guest_sdk_contract(\", 1)[1].split("
+          ]
+        },
+        {
+          "commit": "62e19b2e147f45aee6dc4ac0951ce9bebc968d7c",
+          "file": "rebuild/integration/apply_scarlet_host.py",
+          "location": "@@ -1477,10 +1477,59 @@ def add_r6p11_guest_sdk_contract(engine: Path) -> dict:",
+          "before": [],
+          "after": [
+            "    # The pinned LC SDK spoof machinery contains assert() on dyld symbol",
+            "    # format/signature. It used to be an optional user action, but an",
+            "    # automatic resident experiment must never SIGABRT when OS 27 dyld differs.",
+            "    # Fail closed on an unknown signature and continue other guest boot hooks.",
+            "    dyld = engine / \"LiveContainer/Tweaks/Dyld.m\"",
+            "    dyld_text = dyld.read_text()",
+            "    changes = (",
+            "        (\"    assert(baseAddr != 0);\", \"    if(!baseAddr) return false;\"),",
+            "        (\"        assert(adrpExtraOffset != -1);\",",
+            "         \"        if(adrpExtraOffset == -1) return false;\"),",
+            "        (\"    assert(gdyldPtr != 0);\", \"    if(!gdyldPtr) return false;\"),",
+            "        (\"    assert(*(void**)gdyldPtr != 0);\",",
+            "         \"    if(!*(void**)gdyldPtr) return false;\"),",
+            "        (\"        assert((*ldrInstPtr2 & 0xBFC00000) == 0xB9400000);\",",
+            "         \"        if((*ldrInstPtr2 & 0xBFC00000) != 0xB9400000) return false;\"),"
+          ]
+        },
+        {
+          "commit": "e4050015234598a5c498018ef282f396269c5485",
+          "file": "rebuild/Tests/test_v48_r6p11_resident_guest_sdk_contract.py",
+          "location": "@@ -51,6 +51,23 @@ def test_no_existing_geometry_or_touch_rewrites(self):",
+          "before": [],
+          "after": [
+            "    def test_dyld_unknown_os_signature_does_not_abort_guest(self):",
+            "        for guard in (",
+            "            'if(!baseAddr) return false;',",
+            "            'if(adrpExtraOffset == -1) return false;',",
+            "            'if(!gdyldPtr) return false;',",
+            "            'if(!*(void**)gdyldPtr) return false;',",
+            "            'if(!offset) return false;',",
+            "            'if(!versionMapPtr) return false;',",
+            "            'if(!size) return false;',",
+            "        ):",
+            "            self.assertIn(guard, CUT)",
+            "        self.assertIn('BOOL firstHook = performHookDyldApi', CUT)",
+            "        self.assertIn('BOOL secondHook = firstHook && performHookDyldApi', CUT)",
+            "        self.assertIn('jitless_hook_dlopen', CUT)",
+            "        self.assertIn('dyld_version_map_unavailable', CUT)"
+          ]
+        },
+        {
+          "commit": "0272814637b8caad1b49d7ea5d497e87457e45a8",
+          "file": "rebuild/Tests/test_v48_r6p11_resident_guest_sdk_contract.py",
+          "location": "@@ -6,6 +6,7 @@",
+          "before": [],
+          "after": [
+            "import json"
+          ]
+        },
+        {
+          "commit": "0272814637b8caad1b49d7ea5d497e87457e45a8",
+          "file": "rebuild/Tests/test_v48_r6p11_resident_guest_sdk_contract.py",
+          "location": "@@ -40,6 +41,25 @@ def test_read_only_real_guest_macho_build_sdk_not_bundle_flags(self):",
+          "before": [],
+          "after": [
+            "    def test_generated_native_edit_locations_are_auditable(self):",
+            "        history = json.loads((ROOT / \"diagnostics/scarlet_remediation_history.json\")",
+            "                             .read_text(encoding=\"utf-8\"))",
+            "        record = next(x for x in history[\"entries\"] if x[\"id\"] == \"L046\")",
+            "        targets = record[\"generated_runtime_targets\"]",
+            "        self.assertEqual({x[\"file\"] for x in targets}, {",
+            "            \"MultitaskSupport/AppSceneViewController.m\",",
+            "            \"LiveProcess/main.m\",",
+            "            \"LiveContainer/LCBootstrap.m\",",
+            "            \"LiveContainer/Tweaks/Dyld.m\",",
+            "        })",
+            "        for target in targets:",
+            "            self.assertTrue(target[\"symbol\"])",
+            "            self.assertTrue(target[\"generator\"])",
+            "            self.assertTrue(target[\"before\"])"
+          ]
+        }
+      ],
+      "source_revisions": [
+        {
+          "sha": "5e3abca72dda4b38e75cdc853cad5e2213609675",
+          "url": "https://github.com/fx564286/sidestore-auto-refresh/commit/5e3abca72dda4b38e75cdc853cad5e2213609675",
+          "title": "feat(r6p11): apply guest-declared Mach-O SDK dyld compatibility only to resident LiveProcess; preserve overrides and all viewport geometry"
+        },
+        {
+          "sha": "e48cdd0a01adc23be65b5c73348864c84e06bb0b",
+          "url": "https://github.com/fx564286/sidestore-auto-refresh/commit/e48cdd0a01adc23be65b5c73348864c84e06bb0b",
+          "title": "feat(r6p11): replay anonymous actual resident guest Mach-O SDK contract decisions into user diagnostics"
+        },
+        {
+          "sha": "f401fbd5b6139e9256f03a1ef3e67053b1038ea0",
+          "url": "https://github.com/fx564286/sidestore-auto-refresh/commit/f401fbd5b6139e9256f03a1ef3e67053b1038ea0",
+          "title": "diag(r6p11): allow anonymous SDK version fields and import resident process compatibility receipts"
+        },
+        {
+          "sha": "f5fc759c78df6beb2f8296156cc713d11cf96c45",
+          "url": "https://github.com/fx564286/sidestore-auto-refresh/commit/f5fc759c78df6beb2f8296156cc713d11cf96c45",
+          "title": "test(r6p11): forbid per-app SDK special casing or geometry rework; validate read-only guest SDK selection and logged scope"
+        },
+        {
+          "sha": "62e19b2e147f45aee6dc4ac0951ce9bebc968d7c",
+          "url": "https://github.com/fx564286/sidestore-auto-refresh/commit/62e19b2e147f45aee6dc4ac0951ce9bebc968d7c",
+          "title": "safety(r6p11): guard guest SDK dyld symbol signature failures and preserve original jitless launch hooks"
+        },
+        {
+          "sha": "e4050015234598a5c498018ef282f396269c5485",
+          "url": "https://github.com/fx564286/sidestore-auto-refresh/commit/e4050015234598a5c498018ef282f396269c5485",
+          "title": "test(r6p11): SDK dyld preflight unknown layout must not skip original jitless guest hook"
+        },
+        {
+          "sha": "0272814637b8caad1b49d7ea5d497e87457e45a8",
+          "url": "https://github.com/fx564286/sidestore-auto-refresh/commit/0272814637b8caad1b49d7ea5d497e87457e45a8",
+          "title": "test(r6p11): enforce exact generated LiveProcess and dyld native source edit provenance"
+        }
+      ],
+      "device_verification": "not_installed_or_tested",
+      "rollback_commit": "858214ab66e5416e3f6861f7f87d0d6b463c03ca",
+      "success_gate": "On at least two arbitrary guest apps, portrait+landscape+home-reentry top visible controls fully clear physical Dynamic Island and receive taps; no screen scaling or process loss. Record both successes and failures in the next exported report.",
+      "privacy": "Only SDK major/minor, numeric PID and static SDK source enum; no bundle ID or user guest name.",
+      "generated_runtime_targets": [
+        {
+          "file": "MultitaskSupport/AppSceneViewController.m",
+          "symbol": "-initWithBundleId:dataUUID:delegate:scarletDeferExtensionRequest:",
+          "generator": "add_r6p11_guest_sdk_contract",
+          "before": [
+            "if(defer) {",
+            "    self.scarletPendingExtensionItem = item;"
+          ],
+          "after": [
+            "if(defer) {",
+            "    NSMutableDictionary *residentInfo = [item.userInfo mutableCopy];",
+            "    residentInfo[@\"scarletResidentSDKContract\"] = @YES;",
+            "    item.userInfo = residentInfo;",
+            "    self.scarletPendingExtensionItem = item;"
+          ],
+          "effect": "Resident only, attach a boolean SDK-contract intent to the XPC request, no guest identity or UI modification."
+        },
+        {
+          "file": "LiveProcess/main.m",
+          "symbol": "-[LiveProcessHandler beginRequestWithExtensionContext:]",
+          "generator": "add_r6p11_guest_sdk_contract",
+          "before": [
+            "retrievedAppInfo = [context.inputItems.firstObject userInfo];"
+          ],
+          "after": [
+            "retrievedAppInfo = [context.inputItems.firstObject userInfo];",
+            "[NSUserDefaults.standardUserDefaults setBool:",
+            "  [retrievedAppInfo[@\"scarletResidentSDKContract\"] boolValue]",
+            "  forKey:@\"Scarlet.ResidentSDKContract.V1\"];"
+          ],
+          "effect": "Preserve resident-only contract through extension context until LC bootstrap; classic path remains false."
+        },
+        {
+          "file": "LiveContainer/LCBootstrap.m",
+          "symbol": "LC guest bootstrap before DyldHooksInit",
+          "generator": "add_r6p11_guest_sdk_contract",
+          "before": [
+            "DyldHooksInit([guestAppInfo[@\"hideLiveContainer\"] boolValue], hookDlopen, [guestAppInfo[@\"spoofSDKVersion\"] unsignedIntValue]);"
+          ],
+          "after": [
+            "uint32_t explicitSDK = [guestAppInfo[@\"spoofSDKVersion\"] unsignedIntValue];",
+            "uint32_t effectiveSDK = explicitSDK;",
+            "BOOL residentSDK = isLiveProcess && !isSideStore && [lcUserDefaults boolForKey:@\"Scarlet.ResidentSDKContract.V1\"];",
+            "if(residentSDK && effectiveSDK == 0) {",
+            "    uint32_t declaredSDK = ScarletGuestMachOSDKReadOnly(appExecPath);",
+            "    /* select supported declared SDK; else preserve original */",
+            "}",
+            "DyldHooksInit([guestAppInfo[@\"hideLiveContainer\"] boolValue], hookDlopen, effectiveSDK);"
+          ],
+          "effect": "Read-only Mach-O SDK declaration; preserve explicit guest option; select standard dyld compatibility query for every supported resident guest; record only SDK major/minor/PID."
+        },
+        {
+          "file": "LiveContainer/Tweaks/Dyld.m",
+          "symbol": "performHookDyldApi(), initGuestSDKVersionInfo(), DyldHooksInit()",
+          "generator": "add_r6p11_guest_sdk_contract",
+          "before": [
+            "assert(baseAddr != 0);",
+            "assert(offset);",
+            "assert(versionMapPtr);",
+            "assert(size);",
+            "if(!initGuestSDKVersionInfo() || !performHookDyldApi(...)) return;"
+          ],
+          "after": [
+            "if(!baseAddr) return false;",
+            "if(!offset) return false;",
+            "if(!versionMapPtr) return false;",
+            "if(!size) return false;",
+            "if(initGuestSDKVersionInfo()) { /* SDK hooks */ } else { /* continue base hooks */ }"
+          ],
+          "effect": "Prevent known unsupported dyld symbol/version map from aborting guest or skipping normal jitless dlopen when SDK compatibility attempt unavailable."
+        }
+      ]
     }
   ],
   "gate": {
@@ -2624,11 +2932,13 @@
     "device_verification",
     "status",
     "repeat_policy",
-    "rollback_commit"
+    "rollback_commit",
+    "generated_runtime_targets_if_integrated"
   ],
   "fields_guide": {
     "code_locations": "Each code location MUST contain actual repo-relative file, exact unified-diff @@ function/line context, and before/after changed source. Empty only when source_unavailable, never fill by inference.",
     "source_revisions": "Original actual source-modifying commit, not just the subsequent CI release commit.",
     "device_verification": "Explicit visual+touch proof from real iPhone; Xcode archive and successful telemetry aren't equivalent."
-  }
+  },
+  "generated_source_contract": "When integration Python generates or changes upstream C/Objective-C/Swift, each attempt must include generated_runtime_targets with actual generated file, function, source before/after, and generator function; never call generated files tracked git patches if they are not tracked in repo."
 }
