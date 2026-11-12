@@ -886,6 +886,55 @@ struct ScarletIntegratedHostView: View {
         }
     }
 
+    // R6P19: Source download -1005 was reproduced across archived and
+    // current iPhone sessions, regardless of guest engine or root geometry.
+    // Retry ONLY transient network-connection-loss (not HTTP 403/404,
+    // untrusted URL, cancellation, IPA validation or other failures).
+    // Use server-provided resume bytes if available and fall back safely
+    // to one fresh attempt only when iOS declares that resume is invalid.
+    private func downloadSourceWithConnectionRecovery(
+        from url: URL, using session: URLSession
+    ) async throws -> (URL, URLResponse) {
+        var resumeData: Data?
+        for attempt in 1...3 {
+            try Task.checkCancellation()
+            do {
+                if let resumeData {
+                    do {
+                        return try await session.download(resumeFrom: resumeData)
+                    } catch {
+                        try Task.checkCancellation()
+                        let ns = error as NSError
+                        guard ns.domain == NSURLErrorDomain &&
+                              ns.code == NSURLErrorCannotResume else {
+                            throw error
+                        }
+                        ScarletDiagnosticRecorder.shared.record(
+                            "sources", "guest_download_resume_rejected",
+                            fields: ["count": String(attempt)])
+                        return try await session.download(from: url)
+                    }
+                }
+                return try await session.download(from: url)
+            } catch {
+                try Task.checkCancellation()
+                let ns = error as NSError
+                guard ns.domain == NSURLErrorDomain &&
+                      ns.code == NSURLErrorNetworkConnectionLost &&
+                      attempt < 3 else { throw error }
+                resumeData = ns.userInfo[NSURLSessionDownloadTaskResumeData] as? Data
+                if resumeData?.isEmpty == true { resumeData = nil }
+                ScarletDiagnosticRecorder.shared.record(
+                    "sources", "guest_download_connection_retry",
+                    fields: ["count": String(attempt),
+                             "result": resumeData == nil ? "fresh" : "resume"])
+                sourceDownloadStage = "연결이 끊겨 다운로드 재시도 중 (\(attempt)/2)"
+                try await Task.sleep(for: .milliseconds(attempt == 1 ? 400 : 1000))
+            }
+        }
+        throw URLError(.networkConnectionLost)
+    }
+
     // Source install routes through the same original LC guest IPA importer
     // as Files, never through the unmounted upstream LCAppListView notification.
     private func installSourceGuestApp(_ downloadID: String) {
@@ -923,7 +972,8 @@ struct ScarletIntegratedHostView: View {
             defer { session.invalidateAndCancel() }
             do {
                 sourceDownloadStage = "소스에서 IPA 다운로드 중"
-                let (downloaded, response) = try await session.download(from: url)
+                let (downloaded, response) = try await
+                    downloadSourceWithConnectionRecovery(from: url, using: session)
                 try Task.checkCancellation()
                 defer { try? FileManager.default.removeItem(at: downloaded) }
                 guard let http = response as? HTTPURLResponse,
