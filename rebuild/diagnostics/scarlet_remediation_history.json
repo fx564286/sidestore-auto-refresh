@@ -12801,7 +12801,8 @@
           "function": "add_scarlet_guest_island_content_guard",
           "note": "R6P30 only suppresses one host->guest mutator call and adds one read-only classifier; no source-graph, view sizing, or display scale change."
         }
-      ]
+      ],
+      "repeat_policy": "Signed P29 cc5bafc85b66 proves R6P28 direct short-owner inset is overwritten by guest layout, shifts owner y50->23 and increases visible unsafe controls8->9/images6->8. Keep the old mutator quarantined; do not reapply root/window/frame/scale/manual content inset changes. Retain existing L072 .automatic trial only on strict native candidate; record actual exclusion predicates instead of relaxing guards. Require stable signed-iPhone 2600ms visual/touch evidence before claiming a fix."
     }
   ],
   "gate": {
