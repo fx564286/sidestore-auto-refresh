@@ -1,9 +1,9 @@
 {
   "schema": 2,
   "scope": "Scarlet Crystal guest top-screen overlap, touch access, rotation, remote guest render and related resident regressions",
-  "updated_utc": "2026-11-12T06:56:00+00:00",
-  "current_baseline": "R6P22 installed SourceCommit22355c4b112ea733358acffd2861424437fa8889; iOS27.2 current session 89e04011 2026-11-12 07:55:05Z: guest PID6447 62pt root, unsafeControls8/images7 and 3 top scrolls, R6P22 correction had 0 eligible scrolls. R6P23 L064 source-only owner/exclusion instrumentation and L065 native refresh failure-stage classification; no device pass yet.",
-  "current_issue_status": "UNRESOLVED: Dynamic Island guest PID6447 controls y3 (8), images y13 (7), scrollers without inset 3; zero R6P22 eligible targets. IPA source -1005 after two retries. Manual refresh SideStoreSupport native code1 generic after pairing read timeout; pairing later restored; installation_verified=false. R6P23 followup diagnostic branches must not be reported as physical UI or signing fixes.",
+  "updated_utc": "2026-11-12T08:36:36.953266+00:00",
+  "current_baseline": "R6P23 installed SourceCommit 97c4e885bb6b2a30ccd0dcea7fedfa68fb86a351 iOS27.2 08:18 UTC; R6P24 f884ca13 source-only keyboard focus and native refresh stage relay; no iPhone pass.",
+  "current_issue_status": "UNRESOLVED: guest PID6821 8 unsafe top controls y3 and 7 images y13; nested/scroll selector eligible0; dynamic island visual fix unverified. Keyboard carries across guest apps per user report, R6P24 process-local resign code awaits real keyboardDidHide device proof. Audio PID6807 pause and PID6821 resume succeeded at AVAudioSession but no acoustic test. Manual refresh generic code1; host stage allowlist fixed source only; installation_verified=false.",
   "confidence_note": "Past-chat-only historical versions were reported in earlier conversations; not all have a GitHub revision or device verification. An implementation, a CI success, a telemetry event, and a real device visual fix are distinct.",
   "privacy": "No credentials, Apple ID, OTP, UDID, guest names or device identifiers are stored.",
   "entries": [
@@ -9605,6 +9605,589 @@
             "          if [ \"$GITHUB_REF\" = \"refs/heads/fix/scarlet-v48-r6p23-guest-owner-refresh-stage-20261112\" ]; then",
             "            tag=scarlet-v48-r6p23-owner-stage-unsigned-20261112",
             "            asset=Scarlet-Crystal-V48-R6P23-OWNER-STAGE-UNSIGNED.ipa"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "L066",
+      "date": "2026-11-12",
+      "version": "new-v48-r6p24-native-stage-xpc-allowlist",
+      "problem": "sidestore_refresh_stage_receipt_lost",
+      "mechanism": "host_native_refresh_stage_allowlist_missing",
+      "hypothesis": "The original native SideStore worker reached a stage-specific error in R6P23, but the host executor omitted all four stage names from its allowlist, converting them back to the generic code 1.",
+      "action": "Add only four literal native_unknown_*_stage strings to the XPC host executor allowlist. Keep original SideStore signing, Apple credentials, pairing data and installed profile untouched.",
+      "observation": "R6P23 installed SourceCommit 97c4e885bb6b2a30ccd0dcea7fedfa68fb86a351 still emitted manual_request_failed reason sidestore_native_operation_failed code1. Source readback shows exact stage-code allowlist omission. R6P24 source tests passed, iPhone refresh remains failed/unverified.",
+      "evidence": [
+        "R6P23 2026-11-12 08:19:22Z manual_request_failed generic code1, with preflight ready and one managed app",
+        "GuestRefreshAgent.stagedFailureReason generates four static failure phase labels; ScarletNativeRefreshExecutor previously accepted none of them.",
+        "R6P24 regression tests check all four code paths at both ends of the XPC boundary."
+      ],
+      "status": "source_committed_ci_pending",
+      "source_verification": "git_patch_observed",
+      "device_verification": "not_installed_or_device_tested_after_r6p24",
+      "rollback_commit": "97c4e885bb6b2a30ccd0dcea7fedfa68fb86a351",
+      "repeat_policy": "Do not treat returned phase as actual installation. Do not rerun RSD probe, revoke certificates or reissue p12 without stage-specific evidence; check installed profile separately.",
+      "privacy": "Only static error phase labels; no raw error description, UDID, account, certificate or pairing record.",
+      "novelty": {
+        "prior_excluded_ids": [
+          "L065",
+          "L051"
+        ],
+        "causal_difference": "The R6P23 SideStore LiveProcess categorizes native failures but ScarletAuthXPCSupport.swift host allowlist discards its four new literal stage labels, losing the reason at an independent XPC trust boundary.",
+        "falsifiable_prediction": "With four exact new literals accepted by the host executor, raw native_unknown_*_stage replies will survive into manual_request_failed rather than being overwritten by sidestore_native_operation_failed.",
+        "new_device_evidence": {
+          "source_commit": "97c4e885bb6b2a30ccd0dcea7fedfa68fb86a351",
+          "event": "guest/fullscreen_scene_home then guest/fullscreen_scene_process_started; refresh/manual_request_failed",
+          "observed_value": "Outgoing PID6807 retained and new PID6821 started while root remained full screen; source has no outgoing endEditing and new refresh stage names are missing from host allowlist."
+        },
+        "why_prior_fix_failed": "Previous L065 placed stage-specific errors at native origin but host executor still blocks new values; audio pause in L037 only deactivates AVAudioSession and does not release UIKit keyboard focus."
+      },
+      "source_revisions": [
+        {
+          "sha": "f884ca1312409039c7ebdf271770c66205b8cf61",
+          "url": "https://github.com/fx564286/sidestore-auto-refresh/commit/f884ca1312409039c7ebdf271770c66205b8cf61",
+          "title": "R6P24 outgoing guest keyboard focus handoff and native refresh stage relay"
+        }
+      ],
+      "code_locations": [
+        {
+          "commit": "f884ca1312409039c7ebdf271770c66205b8cf61",
+          "file": "rebuild/HostApp/ScarletAuthXPCSupport.swift",
+          "function": "ScarletNativeRefreshExecutor.execute",
+          "location": "@@ -317,3 +317,7 @@ public enum ScarletNativeRefreshExecutor {",
+          "before": [
+            "            \"sidestore_team_mismatch\", \"sidestore_team_recovery_failed\",",
+            "            \"native_worker_creation_failed\"",
+            "        ]"
+          ],
+          "after": [
+            "            \"sidestore_team_mismatch\", \"sidestore_team_recovery_failed\",",
+            "            \"native_worker_creation_failed\",",
+            "            // R6P24: R6P23's four static native stage receipts must survive",
+            "            // this independent host XPC allowlist. Do not pass raw errors.",
+            "            \"native_unknown_database_stage\", \"native_unknown_team_stage\",",
+            "            \"native_unknown_transport_stage\", \"native_unknown_appmanager_stage\"",
+            "        ]"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "L067",
+      "date": "2026-11-12",
+      "version": "new-v48-r6p24-outgoing-guest-keyboard-focus",
+      "problem": "guest_keyboard_cross_app",
+      "mechanism": "pid_scoped_outgoing_first_responder_resignation",
+      "hypothesis": "App opacity and guest AVAudioSession deactivation are not UIKit input focus transfer. The old LiveProcess may remain first responder, leaving a system keyboard visible over the next remote guest.",
+      "action": "Provide a resident-only guest UIKit hook registered in the original TweakLoader bootstrap. Host sends PID-scoped keyboard dismissal BEFORE hiding the outgoing guest and when going Home. Only that guest normal UIWindow receives endEditing:YES; log bounded request, first-responder release and keyboardDidHide acknowledgments. Preserve guest text and all audio and scene state.",
+      "observation": "The user reported old guest keyboard appearing over newly switched guest. R6P23 log shows PID6807 resident on Home, PID6821 launched; code lacked guest-side focus release. Audio pause/resume device acknowledgments returned OK for the two PIDs, but no acoustic mixing proof. R6P24 source/tests passed; keyboard visual dismissal and audio listening not yet device verified.",
+      "evidence": [
+        "R6P23 08:19:38.822Z guest PID6821 started with PID6807 retained; previous overlay transition only changed opacity and enabled state.",
+        "R6P23 audio guest_audio_device_receipt pause for PID6807 and resume for PID6821 both OK; this confirms setActive return not measured audio silence.",
+        "R6P24 source regression tests require outgoing PID keyboard release before opacity change, home release, guest-only hook, genuine keyboardDidHide receipt, no change to audio and display scale."
+      ],
+      "status": "source_committed_ci_pending",
+      "source_verification": "git_patch_observed",
+      "device_verification": "not_installed_or_device_tested_after_r6p24",
+      "rollback_commit": "97c4e885bb6b2a30ccd0dcea7fedfa68fb86a351",
+      "repeat_policy": "On iPhone require outgoing guest_keyboard_dismiss_requested and guest_keyboard_device_receipt, and if keyboard actually appeared require keyboard_hidden acknowledgment before claiming user-visible fix. Distinguish a lost old PID command from no_owned_window and from a keyboard that remains despite endEditing; do not clear input content or restart LiveProcess.",
+      "privacy": "No keyboard text, view names, app identity, password, OTP, screenshot or app-signing data in telemetry.",
+      "novelty": {
+        "prior_excluded_ids": [
+          "L036",
+          "L037",
+          "L049"
+        ],
+        "causal_difference": "Earlier audio focus isolation pauses a LiveProcess AVAudioSession and scene opacity, but neither causes UIKit to resign the outgoing guest first responder; the keyboard survives across the remote scene handoff.",
+        "falsifiable_prediction": "On switching from A with its keyboard shown to B, outgoing guest PID will receive guest_keyboard_dismiss_requested and a matching first responder receipt; UIKit keyboardDidHide will also be logged if the guest observes a real hide event.",
+        "new_device_evidence": {
+          "source_commit": "97c4e885bb6b2a30ccd0dcea7fedfa68fb86a351",
+          "event": "guest/fullscreen_scene_home then guest/fullscreen_scene_process_started; refresh/manual_request_failed",
+          "observed_value": "Outgoing PID6807 retained and new PID6821 started while root remained full screen; source has no outgoing endEditing and new refresh stage names are missing from host allowlist."
+        },
+        "why_prior_fix_failed": "Previous L065 placed stage-specific errors at native origin but host executor still blocks new values; audio pause in L037 only deactivates AVAudioSession and does not release UIKit keyboard focus."
+      },
+      "source_revisions": [
+        {
+          "sha": "f884ca1312409039c7ebdf271770c66205b8cf61",
+          "url": "https://github.com/fx564286/sidestore-auto-refresh/commit/f884ca1312409039c7ebdf271770c66205b8cf61",
+          "title": "R6P24 outgoing guest keyboard focus handoff and native refresh stage relay"
+        }
+      ],
+      "code_locations": [
+        {
+          "commit": "f884ca1312409039c7ebdf271770c66205b8cf61",
+          "file": ".github/workflows/scarlet-paired-engines-build.yml",
+          "function": "push branch, tagged unsigned distribution",
+          "location": "@@ -5,3 +5,3 @@ on:",
+          "before": [
+            "  push:",
+            "    branches: [rebuild/scarlet-from-zero-20261106, fix/scarlet-auth-status-rootcause-20261109, fix/scarlet-pr48-guest-overlay-no-resize-20261109, fix/scarlet-pr48-airpods-glass-guest-switch-v3-20261109, fix/scarlet-pr48-draggable-guest-tab-v4-20261109, fix/scarlet-pr48-v5-glass-drag-cert-recovery-20261109, fix/scarlet-pr48-v6-unified-cert-glass-20261109, fix/scarlet-pr48-v7-cert-jitless-unify-panel-rim-20261109, fix/scarlet-pr48-v8-flicker-certificate-menu-20261109, fix/scarlet-pr48-v9-single-glass-rim-20261109, fix/scarlet-pr48-v10-fixed-tab-cert-and-session-20261109, fix/scarlet-pr48-v11-module-settings-appid-20261109, fix/scarlet-pr48-v12-live-sessions-source-auto-refresh-20261109, fix/scarlet-pr48-v13-compact-settings-current-app-20261109, fix/scarlet-pr48-v14-guest-history-native-scenes-three-ids-20261109, fix/scarlet-pr48-v15-source-disclosure-icons-guest-handoff-20261109, fix/scarlet-pr48-v16-guest-switcher-icons-readback-20261110, fix/scarlet-v17-cold-switch-rotation-20261110, fix/scarlet-v18-refresh-diagnostics-native-glass-20261110, fix/scarlet-v19-active-session-switcher-20261110, fix/scarlet-v20-guest-switcher-trace-20261110, fix/scarlet-v21-hook-telemetry-persistence-20261110, fix/scarlet-v22-runtime-guest-identity-20261110, fix/scarlet-v23-session-only-switcher-20261110, fix/scarlet-v24-refresh-lifecycle-switch-receipt-20261110, fix/scarlet-v25-single-panel-outside-dismiss-20261110, fix/scarlet-v26-liquidglass-button-to-fixed-panel-morph-20261110, fix/scarlet-v27-sidestore-direct-native-refresh-20261110, fix/scarlet-v28-minimuxer-readiness-recovery-20261110, fix/scarlet-v29-inapp-rppairing-20261110, fix/scarlet-v30-restore-sidestore-active-team-20261110, fix/scarlet-v31-pairing-persistence-sheet-purple-20261110, fix/scarlet-v32-korean-copy-20261110, fix/scarlet-v33-log-rootcause-20261110, fix/scarlet-v34-iphone-virtual-resident-20261110, fix/scarlet-v35-restore-original-fullscreen-20261110, fix/scarlet-v36-remove-legacy-ui-20261110, fix/scarlet-v37-session-refresh-20261110, fix/scarlet-v38-current-launch-logs-20261110, fix/scarlet-v39-log-truth-20261110, fix/scarlet-v40-clean-work-session-20261110, fix/scarlet-v42-v40-safe-diagnostics-20261110, fix/scarlet-v43-install-rootcause-20261110, fix/scarlet-v44-rppairing-postsign-install-20261111, fix/scarlet-v45-single-viewport-liveprocess-20261111, fix/scarlet-v46-guard-provisional-guest-geometry-20261111, fix/scarlet-v47-resident-inplace-guest-switch-20261111, fix/scarlet-v48-guest-runtime-recovery-20261111, fix/scarlet-v48-restored-20261111, fix/scarlet-v48-r2-unified-switcher-20261111, fix/scarlet-v48-r3-original-pan-diagnostics-20261111, fix/scarlet-v48-r4-native-outside-remote-insets-20261111, fix/scarlet-v48-r5-attached-insets-shield-20261111, fix/scarlet-v48-r5-crash-recovery-20261111, fix/scarlet-v48-r5-recovery-r2-host-owner-20261111, fix/scarlet-v48-r5-recovery-r3-scene-authority-20261111, fix/scarlet-v48-r5-recovery-r4-native-ready-20261111, fix/scarlet-v48-r5-recovery-r5-compat-foreground-20261111, fix/scarlet-v48-r6-island-outside-audio-20261111, fix/scarlet-v48-r6p1-audio-home-focus-20261111, fix/scarlet-v48-r6p2-blocked-history-20261111, fix/scarlet-v48-r6p3-home-audio-gate-20261111, fix/scarlet-v48-r6p4-guest-audio-ack-20261112, fix/scarlet-v48-r6p7-launch-policy-rootcause-20261112, fix/scarlet-v48-r6p8-policy-field-relay-20261112, fix/scarlet-v48-r6p9-deferred-scene-boot-20261112, fix/scarlet-v48-r6p10-persistent-remediation-ledger-20261112, fix/scarlet-v48-r6p11-resident-guest-sdk-contract-20261112, fix/scarlet-v48-r6p12-instant-recent-switcher-20261112, fix/scarlet-v48-r6p14-switcher-reset-on-navigation-20261112, fix/scarlet-v48-r6p15-guest-root-island-pairing-recovery-20261112, fix/scarlet-v48-r6p16-audit-coverage-20261112, fix/scarlet-v48-r6p17-resident-optin-defaults-20261112, fix/scarlet-v48-r6p18-guest-content-geometry-20261112, fix/scarlet-v48-r6p19-entitlement-failclosed-network-recovery-20261112, fix/scarlet-v48-r6p20-auth-session-bg-id-20261112, fix/scarlet-v48-r6p21-depth-probe-cert-recheck-20261112, fix/scarlet-v48-r6p22-guest-scroll-content-inset-20261112, fix/scarlet-v48-r6p23-guest-owner-refresh-stage-20261112]",
+            "    paths:"
+          ],
+          "after": [
+            "  push:",
+            "    branches: [rebuild/scarlet-from-zero-20261106, fix/scarlet-auth-status-rootcause-20261109, fix/scarlet-pr48-guest-overlay-no-resize-20261109, fix/scarlet-pr48-airpods-glass-guest-switch-v3-20261109, fix/scarlet-pr48-draggable-guest-tab-v4-20261109, fix/scarlet-pr48-v5-glass-drag-cert-recovery-20261109, fix/scarlet-pr48-v6-unified-cert-glass-20261109, fix/scarlet-pr48-v7-cert-jitless-unify-panel-rim-20261109, fix/scarlet-pr48-v8-flicker-certificate-menu-20261109, fix/scarlet-pr48-v9-single-glass-rim-20261109, fix/scarlet-pr48-v10-fixed-tab-cert-and-session-20261109, fix/scarlet-pr48-v11-module-settings-appid-20261109, fix/scarlet-pr48-v12-live-sessions-source-auto-refresh-20261109, fix/scarlet-pr48-v13-compact-settings-current-app-20261109, fix/scarlet-pr48-v14-guest-history-native-scenes-three-ids-20261109, fix/scarlet-pr48-v15-source-disclosure-icons-guest-handoff-20261109, fix/scarlet-pr48-v16-guest-switcher-icons-readback-20261110, fix/scarlet-v17-cold-switch-rotation-20261110, fix/scarlet-v18-refresh-diagnostics-native-glass-20261110, fix/scarlet-v19-active-session-switcher-20261110, fix/scarlet-v20-guest-switcher-trace-20261110, fix/scarlet-v21-hook-telemetry-persistence-20261110, fix/scarlet-v22-runtime-guest-identity-20261110, fix/scarlet-v23-session-only-switcher-20261110, fix/scarlet-v24-refresh-lifecycle-switch-receipt-20261110, fix/scarlet-v25-single-panel-outside-dismiss-20261110, fix/scarlet-v26-liquidglass-button-to-fixed-panel-morph-20261110, fix/scarlet-v27-sidestore-direct-native-refresh-20261110, fix/scarlet-v28-minimuxer-readiness-recovery-20261110, fix/scarlet-v29-inapp-rppairing-20261110, fix/scarlet-v30-restore-sidestore-active-team-20261110, fix/scarlet-v31-pairing-persistence-sheet-purple-20261110, fix/scarlet-v32-korean-copy-20261110, fix/scarlet-v33-log-rootcause-20261110, fix/scarlet-v34-iphone-virtual-resident-20261110, fix/scarlet-v35-restore-original-fullscreen-20261110, fix/scarlet-v36-remove-legacy-ui-20261110, fix/scarlet-v37-session-refresh-20261110, fix/scarlet-v38-current-launch-logs-20261110, fix/scarlet-v39-log-truth-20261110, fix/scarlet-v40-clean-work-session-20261110, fix/scarlet-v42-v40-safe-diagnostics-20261110, fix/scarlet-v43-install-rootcause-20261110, fix/scarlet-v44-rppairing-postsign-install-20261111, fix/scarlet-v45-single-viewport-liveprocess-20261111, fix/scarlet-v46-guard-provisional-guest-geometry-20261111, fix/scarlet-v47-resident-inplace-guest-switch-20261111, fix/scarlet-v48-guest-runtime-recovery-20261111, fix/scarlet-v48-restored-20261111, fix/scarlet-v48-r2-unified-switcher-20261111, fix/scarlet-v48-r3-original-pan-diagnostics-20261111, fix/scarlet-v48-r4-native-outside-remote-insets-20261111, fix/scarlet-v48-r5-attached-insets-shield-20261111, fix/scarlet-v48-r5-crash-recovery-20261111, fix/scarlet-v48-r5-recovery-r2-host-owner-20261111, fix/scarlet-v48-r5-recovery-r3-scene-authority-20261111, fix/scarlet-v48-r5-recovery-r4-native-ready-20261111, fix/scarlet-v48-r5-recovery-r5-compat-foreground-20261111, fix/scarlet-v48-r6-island-outside-audio-20261111, fix/scarlet-v48-r6p1-audio-home-focus-20261111, fix/scarlet-v48-r6p2-blocked-history-20261111, fix/scarlet-v48-r6p3-home-audio-gate-20261111, fix/scarlet-v48-r6p4-guest-audio-ack-20261112, fix/scarlet-v48-r6p7-launch-policy-rootcause-20261112, fix/scarlet-v48-r6p8-policy-field-relay-20261112, fix/scarlet-v48-r6p9-deferred-scene-boot-20261112, fix/scarlet-v48-r6p10-persistent-remediation-ledger-20261112, fix/scarlet-v48-r6p11-resident-guest-sdk-contract-20261112, fix/scarlet-v48-r6p12-instant-recent-switcher-20261112, fix/scarlet-v48-r6p14-switcher-reset-on-navigation-20261112, fix/scarlet-v48-r6p15-guest-root-island-pairing-recovery-20261112, fix/scarlet-v48-r6p16-audit-coverage-20261112, fix/scarlet-v48-r6p17-resident-optin-defaults-20261112, fix/scarlet-v48-r6p18-guest-content-geometry-20261112, fix/scarlet-v48-r6p19-entitlement-failclosed-network-recovery-20261112, fix/scarlet-v48-r6p20-auth-session-bg-id-20261112, fix/scarlet-v48-r6p21-depth-probe-cert-recheck-20261112, fix/scarlet-v48-r6p22-guest-scroll-content-inset-20261112, fix/scarlet-v48-r6p23-guest-owner-refresh-stage-20261112, fix/scarlet-v48-r6p24-keyboard-stage-relay-20261112]",
+            "    paths:"
+          ]
+        },
+        {
+          "commit": "f884ca1312409039c7ebdf271770c66205b8cf61",
+          "file": ".github/workflows/scarlet-paired-engines-build.yml",
+          "function": "push branch, tagged unsigned distribution",
+          "location": "@@ -307,3 +307,3 @@ jobs:",
+          "before": [
+            "    needs: [package-paired]",
+            "    if: github.event_name == 'push' && (github.ref == 'refs/heads/rebuild/scarlet-from-zero-20261106' || github.ref == 'refs/heads/fix/scarlet-v31-pairing-persistence-sheet-purple-20261110' || github.ref == 'refs/heads/fix/scarlet-v32-korean-copy-20261110' || github.ref == 'refs/heads/fix/scarlet-v33-log-rootcause-20261110' || github.ref == 'refs/heads/fix/scarlet-v34-iphone-virtual-resident-20261110' || github.ref == 'refs/heads/fix/scarlet-v35-restore-original-fullscreen-20261110' || github.ref == 'refs/heads/fix/scarlet-v36-remove-legacy-ui-20261110' || github.ref == 'refs/heads/fix/scarlet-v37-session-refresh-20261110' || github.ref == 'refs/heads/fix/scarlet-v38-current-launch-logs-20261110' || github.ref == 'refs/heads/fix/scarlet-v39-log-truth-20261110' || github.ref == 'refs/heads/fix/scarlet-v40-clean-work-session-20261110' || github.ref == 'refs/heads/fix/scarlet-v42-v40-safe-diagnostics-20261110' || github.ref == 'refs/heads/fix/scarlet-v43-install-rootcause-20261110' || github.ref == 'refs/heads/fix/scarlet-v44-rppairing-postsign-install-20261111' || github.ref == 'refs/heads/fix/scarlet-v45-single-viewport-liveprocess-20261111' || github.ref == 'refs/heads/fix/scarlet-v46-guard-provisional-guest-geometry-20261111' || github.ref == 'refs/heads/fix/scarlet-v47-resident-inplace-guest-switch-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-guest-runtime-recovery-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-restored-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r2-unified-switcher-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r3-original-pan-diagnostics-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r4-native-outside-remote-insets-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r5-attached-insets-shield-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r5-crash-recovery-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r5-recovery-r2-host-owner-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r5-recovery-r3-scene-authority-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r5-recovery-r4-native-ready-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r5-recovery-r5-compat-foreground-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r6-island-outside-audio-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r6p1-audio-home-focus-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r6p2-blocked-history-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r6p3-home-audio-gate-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r6p4-guest-audio-ack-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p7-launch-policy-rootcause-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p8-policy-field-relay-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p9-deferred-scene-boot-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p10-persistent-remediation-ledger-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p11-resident-guest-sdk-contract-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p12-instant-recent-switcher-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p14-switcher-reset-on-navigation-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p15-guest-root-island-pairing-recovery-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p16-audit-coverage-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p17-resident-optin-defaults-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p18-guest-content-geometry-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p19-entitlement-failclosed-network-recovery-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p20-auth-session-bg-id-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p21-depth-probe-cert-recheck-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p22-guest-scroll-content-inset-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p23-guest-owner-refresh-stage-20261112')",
+            "    runs-on: ubuntu-24.04"
+          ],
+          "after": [
+            "    needs: [package-paired]",
+            "    if: github.event_name == 'push' && (github.ref == 'refs/heads/rebuild/scarlet-from-zero-20261106' || github.ref == 'refs/heads/fix/scarlet-v31-pairing-persistence-sheet-purple-20261110' || github.ref == 'refs/heads/fix/scarlet-v32-korean-copy-20261110' || github.ref == 'refs/heads/fix/scarlet-v33-log-rootcause-20261110' || github.ref == 'refs/heads/fix/scarlet-v34-iphone-virtual-resident-20261110' || github.ref == 'refs/heads/fix/scarlet-v35-restore-original-fullscreen-20261110' || github.ref == 'refs/heads/fix/scarlet-v36-remove-legacy-ui-20261110' || github.ref == 'refs/heads/fix/scarlet-v37-session-refresh-20261110' || github.ref == 'refs/heads/fix/scarlet-v38-current-launch-logs-20261110' || github.ref == 'refs/heads/fix/scarlet-v39-log-truth-20261110' || github.ref == 'refs/heads/fix/scarlet-v40-clean-work-session-20261110' || github.ref == 'refs/heads/fix/scarlet-v42-v40-safe-diagnostics-20261110' || github.ref == 'refs/heads/fix/scarlet-v43-install-rootcause-20261110' || github.ref == 'refs/heads/fix/scarlet-v44-rppairing-postsign-install-20261111' || github.ref == 'refs/heads/fix/scarlet-v45-single-viewport-liveprocess-20261111' || github.ref == 'refs/heads/fix/scarlet-v46-guard-provisional-guest-geometry-20261111' || github.ref == 'refs/heads/fix/scarlet-v47-resident-inplace-guest-switch-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-guest-runtime-recovery-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-restored-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r2-unified-switcher-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r3-original-pan-diagnostics-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r4-native-outside-remote-insets-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r5-attached-insets-shield-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r5-crash-recovery-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r5-recovery-r2-host-owner-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r5-recovery-r3-scene-authority-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r5-recovery-r4-native-ready-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r5-recovery-r5-compat-foreground-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r6-island-outside-audio-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r6p1-audio-home-focus-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r6p2-blocked-history-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r6p3-home-audio-gate-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r6p4-guest-audio-ack-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p7-launch-policy-rootcause-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p8-policy-field-relay-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p9-deferred-scene-boot-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p10-persistent-remediation-ledger-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p11-resident-guest-sdk-contract-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p12-instant-recent-switcher-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p14-switcher-reset-on-navigation-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p15-guest-root-island-pairing-recovery-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p16-audit-coverage-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p17-resident-optin-defaults-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p18-guest-content-geometry-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p19-entitlement-failclosed-network-recovery-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p20-auth-session-bg-id-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p21-depth-probe-cert-recheck-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p22-guest-scroll-content-inset-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p23-guest-owner-refresh-stage-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p24-keyboard-stage-relay-20261112')",
+            "    runs-on: ubuntu-24.04"
+          ]
+        },
+        {
+          "commit": "f884ca1312409039c7ebdf271770c66205b8cf61",
+          "file": ".github/workflows/scarlet-paired-engines-build.yml",
+          "function": "push branch, tagged unsigned distribution",
+          "location": "@@ -336,3 +336,5 @@ jobs:",
+          "before": [
+            "          PY",
+            "          if [ \"$GITHUB_REF\" = \"refs/heads/fix/scarlet-v48-r6p23-guest-owner-refresh-stage-20261112\" ]; then",
+            "            asset=\"Scarlet-Crystal-V48-R6P23-OWNER-STAGE-UNSIGNED.ipa\""
+          ],
+          "after": [
+            "          PY",
+            "          if [ \"$GITHUB_REF\" = \"refs/heads/fix/scarlet-v48-r6p24-keyboard-stage-relay-20261112\" ]; then",
+            "            asset=\"Scarlet-Crystal-V48-R6P24-KEYBOARD-STAGE-UNSIGNED.ipa\"",
+            "          elif [ \"$GITHUB_REF\" = \"refs/heads/fix/scarlet-v48-r6p23-guest-owner-refresh-stage-20261112\" ]; then",
+            "            asset=\"Scarlet-Crystal-V48-R6P23-OWNER-STAGE-UNSIGNED.ipa\""
+          ]
+        },
+        {
+          "commit": "f884ca1312409039c7ebdf271770c66205b8cf61",
+          "file": ".github/workflows/scarlet-paired-engines-build.yml",
+          "function": "push branch, tagged unsigned distribution",
+          "location": "@@ -456,3 +458,6 @@ jobs:",
+          "before": [
+            "          set -Eeuo pipefail",
+            "          if [ \"$GITHUB_REF\" = \"refs/heads/fix/scarlet-v48-r6p23-guest-owner-refresh-stage-20261112\" ]; then",
+            "            tag=scarlet-v48-r6p23-owner-stage-unsigned-20261112"
+          ],
+          "after": [
+            "          set -Eeuo pipefail",
+            "          if [ \"$GITHUB_REF\" = \"refs/heads/fix/scarlet-v48-r6p24-keyboard-stage-relay-20261112\" ]; then",
+            "            tag=scarlet-v48-r6p24-keyboard-stage-unsigned-20261112",
+            "            asset=Scarlet-Crystal-V48-R6P24-KEYBOARD-STAGE-UNSIGNED.ipa",
+            "          elif [ \"$GITHUB_REF\" = \"refs/heads/fix/scarlet-v48-r6p23-guest-owner-refresh-stage-20261112\" ]; then",
+            "            tag=scarlet-v48-r6p23-owner-stage-unsigned-20261112"
+          ]
+        },
+        {
+          "commit": "f884ca1312409039c7ebdf271770c66205b8cf61",
+          "file": "rebuild/HostApp/ScarletFullscreenSceneStack.swift",
+          "function": "ScarletGuestKeyboardReceiptObserver; ScarletFullscreenSceneViewport.select",
+          "location": "@@ -697,2 +697,41 @@ private final class ScarletGuestAudioReceiptObserver {",
+          "before": [
+            "",
+            "// R6P15: guest-only safe-area correction evidence. The guest writes an"
+          ],
+          "after": [
+            "",
+            "// R6P24: prove that the *outgoing* resident guest, not the new guest or",
+            "// the host, received the keyboard focus-release request. These are request",
+            "// and keyboard-hide event receipts, not proof of a visually closed keyboard.",
+            "@available(iOS 17.0, *)",
+            "@MainActor",
+            "private final class ScarletGuestKeyboardReceiptObserver {",
+            "    static let shared = ScarletGuestKeyboardReceiptObserver()",
+            "    private var observedPIDs: Set<Int32> = []",
+            "",
+            "    func observe(pid: Int32) {",
+            "        guard pid > 0, observedPIDs.insert(pid).inserted else { return }",
+            "        let center = CFNotificationCenterGetDarwinNotifyCenter()",
+            "        for outcome in [\"resign_requested\", \"no_active_responder\",",
+            "                        \"no_owned_window\", \"keyboard_hidden\"] {",
+            "            let name = \"com.scarlet.guest.keyboard.ack.\\(outcome).\\(pid)\"",
+            "            CFNotificationCenterAddObserver(",
+            "                center, Unmanaged.passUnretained(self).toOpaque(),",
+            "                { _, _, event, _, _ in",
+            "                    guard let event else { return }",
+            "                    let parts=String(describing:event.rawValue)",
+            "                        .components(separatedBy: \".\")",
+            "                    guard parts.count == 7,",
+            "                          parts[0] == \"com\", parts[1] == \"scarlet\",",
+            "                          parts[2] == \"guest\", parts[3] == \"keyboard\",",
+            "                          parts[4] == \"ack\",",
+            "                          Int32(parts[6]) != nil else { return }",
+            "                    DispatchQueue.main.async {",
+            "                        ScarletDiagnosticRecorder.shared.record(",
+            "                            \"guest\", \"guest_keyboard_device_receipt\",",
+            "                            status: \"info\",",
+            "                            fields: [\"result\": parts[5], \"process_pid\": parts[6],",
+            "                                     \"scope\": \"outgoing_guest_first_responder\"])",
+            "                    }",
+            "                },",
+            "                name as CFString, nil, .deliverImmediately)",
+            "        }",
+            "    }",
+            "}",
+            "",
+            "// R6P15: guest-only safe-area correction evidence. The guest writes an"
+          ]
+        },
+        {
+          "commit": "f884ca1312409039c7ebdf271770c66205b8cf61",
+          "file": "rebuild/HostApp/ScarletFullscreenSceneStack.swift",
+          "function": "ScarletGuestKeyboardReceiptObserver; ScarletFullscreenSceneViewport.select",
+          "location": "@@ -1137,2 +1176,18 @@ final class ScarletFullscreenSceneViewport: UIViewController {",
+          "before": [
+            "",
+            "    // R6.1: an audio-scoped PID can no longer stay selected when the host"
+          ],
+          "after": [
+            "",
+            "    /// R6P24: each LiveProcess owns its own UIKit first responder. Request",
+            "    /// keyboard dismissal for the outgoing PID before showing the next one.",
+            "    /// Do not use host.view.endEditing(), which cannot reach guest UIKit.",
+            "    private func dismissGuestKeyboard(pid: Int32) {",
+            "        guard pid > 0 else { return }",
+            "        ScarletGuestKeyboardReceiptObserver.shared.observe(pid: pid)",
+            "        let name = \"com.scarlet.guest.keyboard.dismiss.\\(pid)\"",
+            "        CFNotificationCenterPostNotification(",
+            "            CFNotificationCenterGetDarwinNotifyCenter(),",
+            "            CFNotificationName(name as CFString), nil, nil, true)",
+            "        ScarletDiagnosticRecorder.shared.record(",
+            "            \"guest\", \"guest_keyboard_dismiss_requested\",",
+            "            fields: [\"process_pid\": String(pid),",
+            "                     \"scope\": \"outgoing_guest\", \"result\": \"posted_not_verified\"])",
+            "    }",
+            "",
+            "    // R6.1: an audio-scoped PID can no longer stay selected when the host"
+          ]
+        },
+        {
+          "commit": "f884ca1312409039c7ebdf271770c66205b8cf61",
+          "file": "rebuild/HostApp/ScarletFullscreenSceneStack.swift",
+          "function": "ScarletGuestKeyboardReceiptObserver; ScarletFullscreenSceneViewport.select",
+          "location": "@@ -1142,2 +1197,3 @@ final class ScarletFullscreenSceneViewport: UIViewController {",
+          "before": [
+            "        for vc in controllers.values where vc.pid > 0 && vc.isAppRunning {",
+            "            postGuestAudioScope(\"pause\", pid: vc.pid)"
+          ],
+          "after": [
+            "        for vc in controllers.values where vc.pid > 0 && vc.isAppRunning {",
+            "            dismissGuestKeyboard(pid: vc.pid)",
+            "            postGuestAudioScope(\"pause\", pid: vc.pid)"
+          ]
+        },
+        {
+          "commit": "f884ca1312409039c7ebdf271770c66205b8cf61",
+          "file": "rebuild/HostApp/ScarletFullscreenSceneStack.swift",
+          "function": "ScarletGuestKeyboardReceiptObserver; ScarletFullscreenSceneViewport.select",
+          "location": "@@ -1156,2 +1212,10 @@ final class ScarletFullscreenSceneViewport: UIViewController {",
+          "before": [
+            "              target.scarletRemoteContentReady() else { return false }",
+            "        for (key, vc) in controllers {"
+          ],
+          "after": [
+            "              target.scarletRemoteContentReady() else { return false }",
+            "        if audioScopedPID != target.pid {",
+            "            // Send on the outgoing LiveProcess before its surface is hidden.",
+            "            // This cannot erase input data or steal the new app's focus.",
+            "            for (key, vc) in controllers where key != folder &&",
+            "                    vc.pid > 0 && vc.isAppRunning {",
+            "                dismissGuestKeyboard(pid: vc.pid)",
+            "            }",
+            "        }",
+            "        for (key, vc) in controllers {"
+          ]
+        },
+        {
+          "commit": "f884ca1312409039c7ebdf271770c66205b8cf61",
+          "file": "rebuild/Tests/test_v48_r6p24_keyboard_and_refresh_stage_relay.py",
+          "function": "R6P24 source regression contract",
+          "location": "@@ -0,0 +1,90 @@",
+          "before": [],
+          "after": [
+            "\"\"\"R6P24: source, generator and host dispatch/receipt regression tests.",
+            "",
+            "A successful guest audio setActive receipt alone is not an acoustic measurement.",
+            "Keyboard dismissal receipt alone is not a visual keyboard-hide confirmation.",
+            "\"\"\"",
+            "from pathlib import Path",
+            "from tempfile import TemporaryDirectory",
+            "import importlib.util",
+            "import unittest",
+            "",
+            "ROOT=Path(__file__).resolve().parents[1]",
+            "HOST=(ROOT/'HostApp/ScarletFullscreenSceneStack.swift').read_text()",
+            "XPC=(ROOT/'HostApp/ScarletAuthXPCSupport.swift').read_text()",
+            "NATIVE=(ROOT/'integration/ScarletGuestRefreshAgent.swift.txt').read_text()",
+            "GUIDANCE=(ROOT/'HostApp/ScarletAutomaticRenewal.swift').read_text()",
+            "GLUE=(ROOT/'integration/apply_scarlet_host.py').read_text()",
+            "KEYBOARD=(ROOT/'integration/ScarletGuestKeyboardHandoff.m.txt').read_text()",
+            "WORKFLOW=(ROOT.parent/'.github/workflows/scarlet-paired-engines-build.yml').read_text()",
+            "",
+            "class R6P24(unittest.TestCase):",
+            "    def test_stage_replies_not_erased_at_host_xpc_boundary(self):",
+            "        allow=XPC.split('let allowed: Set<String> = [',1)[1].split(']',1)[0]",
+            "        for code in ('native_unknown_database_stage','native_unknown_team_stage',",
+            "                     'native_unknown_transport_stage','native_unknown_appmanager_stage'):",
+            "            self.assertIn('\"'+code+'\"',allow)",
+            "            self.assertIn('\"'+code+'\"',NATIVE)",
+            "            self.assertIn('case \"'+code+'\"',GUIDANCE)",
+            "        self.assertIn('allowed.contains(rawReason)',XPC)",
+            "        self.assertIn('ScarletNativeRefreshFailure(reason: status)',XPC)",
+            "",
+            "    def test_outgoing_process_keyboard_closed_before_remote_view_hides(self):",
+            "        select=HOST.split('    func select(folder: String) -> Bool {',1)[1].split('    func reconcile() {',1)[0]",
+            "        self.assertLess(select.index('dismissGuestKeyboard(pid: vc.pid)'),",
+            "                        select.index('vc.view.layer.opacity ='))",
+            "        self.assertIn('key != folder',select)",
+            "        self.assertIn('audioScopedPID != target.pid',select)",
+            "        self.assertIn('postGuestAudioScope(\"pause\", pid: vc.pid)',select)",
+            "        self.assertIn('postGuestAudioScope(\"resume\", pid: target.pid)',select)",
+            "        home=HOST.split('    func pauseAllResidentAudioOnHome() {',1)[1].split('    func select(',1)[0]",
+            "        self.assertLess(home.index('dismissGuestKeyboard(pid: vc.pid)'),",
+            "                        home.index('postGuestAudioScope(\"pause\", pid: vc.pid)'))",
+            "",
+            "    def test_guest_focus_release_is_pid_scoped_and_resident_only(self):",
+            "        self.assertIn('com.scarlet.guest.keyboard.dismiss.%d',KEYBOARD)",
+            "        self.assertIn('com.scarlet.guest.keyboard.ack.%@.%d',KEYBOARD)",
+            "        self.assertIn('[window endEditing:YES]',KEYBOARD)",
+            "        self.assertIn('window.windowLevel == UIWindowLevelNormal',KEYBOARD)",
+            "        self.assertIn('Scarlet.ResidentSDKContract.V1',KEYBOARD)",
+            "        self.assertIn('NSUserDefaults.isLiveProcess',KEYBOARD)",
+            "        self.assertIn('UIKeyboardDidHideNotification',KEYBOARD)",
+            "        self.assertIn('ScarletGuestKeyboardAck(@\"keyboard_hidden\")',KEYBOARD)",
+            "        self.assertNotIn('UIApplication.sharedApplication',KEYBOARD.split('static void ScarletGuestKeyboardReleaseFocus(void) {')[1])",
+            "        self.assertNotIn('setText:',KEYBOARD)",
+            "        self.assertNotIn('kill(',KEYBOARD)",
+            "        self.assertNotIn('window.frame =',KEYBOARD)",
+            "        self.assertIn('guest_keyboard_device_receipt',HOST)",
+            "        self.assertIn('guest_keyboard_dismiss_requested',HOST)",
+            "",
+            "    def test_generator_wires_real_extension_tweak_once(self):",
+            "        spec=importlib.util.spec_from_file_location('scarlet_host_glue',ROOT/'integration/apply_scarlet_host.py')",
+            "        module=importlib.util.module_from_spec(spec)",
+            "        spec.loader.exec_module(module)",
+            "        with TemporaryDirectory() as td:",
+            "            eng=Path(td)",
+            "            tweaks=eng/'LiveContainer/Tweaks'",
+            "            tweaks.mkdir(parents=True)",
+            "            (tweaks/'Tweaks.h').write_text('void initScarletGuestIslandContentGuard(void);\\n')",
+            "            (eng/'LiveContainer/LCBootstrap.m').write_text('        initScarletGuestIslandContentGuard();\\n')",
+            "            report=module.add_scarlet_guest_keyboard_handoff(eng)",
+            "            self.assertTrue(report['residentOnly'])",
+            "            self.assertTrue(report['firstResponderRelease'])",
+            "            self.assertTrue((tweaks/'ScarletGuestKeyboardHandoff.m').is_file())",
+            "            self.assertEqual((tweaks/'Tweaks.h').read_text().count('void initScarletGuestKeyboardHandoff(void);'),1)",
+            "            self.assertEqual((eng/'LiveContainer/LCBootstrap.m').read_text().count('        initScarletGuestKeyboardHandoff();'),1)",
+            "        self.assertIn('keyboard_handoff = add_scarlet_guest_keyboard_handoff(engine)',GLUE)",
+            "        self.assertIn('\"guestKeyboardHandoff\": keyboard_handoff',GLUE)",
+            "",
+            "    def test_no_audio_route_or_layout_regression_or_new_bundle_id(self):",
+            "        self.assertIn('ScarletGuestAudioReceipt(NO, result)',GLUE)",
+            "        self.assertIn('if(!result && attempt < 2)',GLUE)",
+            "        self.assertIn('\"guest_audio_device_receipt\"',HOST)",
+            "        self.assertNotIn('AVAudioSession.sharedInstance.setCategory',HOST)",
+            "        self.assertNotIn('vc.scaleRatio = 0.',HOST)",
+            "        self.assertIn('vc.scaleRatio = 1',HOST)",
+            "        self.assertNotIn('PRODUCT_BUNDLE_IDENTIFIER',KEYBOARD)",
+            "        self.assertIn('fix/scarlet-v48-r6p24-keyboard-stage-relay-20261112',WORKFLOW)",
+            "        self.assertIn('Scarlet-Crystal-V48-R6P24-KEYBOARD-STAGE-UNSIGNED.ipa',WORKFLOW)",
+            "",
+            "if __name__=='__main__':",
+            "    unittest.main()"
+          ]
+        },
+        {
+          "commit": "f884ca1312409039c7ebdf271770c66205b8cf61",
+          "file": "rebuild/integration/ScarletGuestKeyboardHandoff.m.txt",
+          "function": "initScarletGuestKeyboardHandoff",
+          "location": "@@ -0,0 +1,107 @@",
+          "before": [],
+          "after": [
+            "// SCARLET_GUEST_KEYBOARD_HANDOFF_V1",
+            "// Only installed in the opt-in resident LiveProcess guest. The outgoing",
+            "// guest must resign its own UIKit first responder; host endEditing cannot",
+            "// reach a remote input field owned by a separate app-extension process.",
+            "#import <Foundation/Foundation.h>",
+            "#import <UIKit/UIKit.h>",
+            "#import <CoreFoundation/CoreFoundation.h>",
+            "#import <unistd.h>",
+            "#import \"utils.h\"",
+            "",
+            "static __weak UIWindow *scarletGuestKeyboardOwnerWindow;",
+            "static int scarletGuestKeyboardToken;",
+            "static BOOL scarletGuestKeyboardWasShown = NO;",
+            "",
+            "static void ScarletGuestKeyboardAck(NSString *outcome) {",
+            "    NSString *name = [NSString stringWithFormat:",
+            "        @\"com.scarlet.guest.keyboard.ack.%@.%d\", outcome, getpid()];",
+            "    CFNotificationCenterPostNotification(",
+            "        CFNotificationCenterGetDarwinNotifyCenter(),",
+            "        (__bridge CFStringRef)name, NULL, NULL, true);",
+            "}",
+            "",
+            "static void ScarletGuestKeyboardRememberWindow(NSNotification *event) {",
+            "    UIWindow *window = [event.object isKindOfClass:UIWindow.class]",
+            "        ? (UIWindow *)event.object : nil;",
+            "    // Do not accidentally grab keyboard/overlay windows. Each guest has",
+            "    // its own normal-level UIWindow; do not use UIApplication.shared.",
+            "    if(window && !window.hidden && window.windowScene &&",
+            "       window.windowLevel == UIWindowLevelNormal &&",
+            "       window.rootViewController && CGRectGetWidth(window.bounds) >= 250)",
+            "        scarletGuestKeyboardOwnerWindow = window;",
+            "}",
+            "",
+            "static void ScarletGuestKeyboardReleaseFocus(void) {",
+            "    UIWindow *window = scarletGuestKeyboardOwnerWindow;",
+            "    if(!window || window.hidden || !window.windowScene ||",
+            "       window.windowLevel != UIWindowLevelNormal ||",
+            "       !window.rootViewController) {",
+            "        ScarletGuestKeyboardAck(@\"no_owned_window\");",
+            "        return;",
+            "    }",
+            "    // Force the outgoing guest's editor (UITextField/TextView/SwiftUI",
+            "    // bridge) to relinquish focus. Never clear text, discard views,",
+            "    // reset the keyboard type, or mutate the incoming guest.",
+            "    BOOL returned = [window endEditing:YES];",
+            "    ScarletGuestKeyboardAck(returned ? @\"resign_requested\" : @\"no_active_responder\");",
+            "}",
+            "",
+            "static void ScarletGuestKeyboardDismissCallback(",
+            "    CFNotificationCenterRef center, void *observer, CFNotificationName name,",
+            "    const void *object, CFDictionaryRef userInfo) {",
+            "    dispatch_async(dispatch_get_main_queue(), ^{",
+            "        ScarletGuestKeyboardReleaseFocus();",
+            "    });",
+            "}",
+            "",
+            "void initScarletGuestKeyboardHandoff(void) {",
+            "    // Match the existing resident-only safe-area opt-in. Normal LiveContainer",
+            "    // and SideStore extensions must retain their own default keyboard.",
+            "    if(!NSUserDefaults.isLiveProcess ||",
+            "       ![NSUserDefaults.lcUserDefaults",
+            "          boolForKey:@\"Scarlet.ResidentSDKContract.V1\"])",
+            "        return;",
+            "    static dispatch_once_t once;",
+            "    dispatch_once(&once, ^{",
+            "        int pid=getpid();",
+            "        NSString *name=[NSString stringWithFormat:",
+            "            @\"com.scarlet.guest.keyboard.dismiss.%d\", pid];",
+            "        CFNotificationCenterAddObserver(",
+            "            CFNotificationCenterGetDarwinNotifyCenter(),",
+            "            &scarletGuestKeyboardToken,",
+            "            ScarletGuestKeyboardDismissCallback,",
+            "            (__bridge CFStringRef)name, NULL,",
+            "            CFNotificationSuspensionBehaviorDeliverImmediately);",
+            "        NSNotificationCenter *center = NSNotificationCenter.defaultCenter;",
+            "        for(NSNotificationName notification in @[",
+            "                UIWindowDidBecomeVisibleNotification,",
+            "                UIWindowDidBecomeKeyNotification]) {",
+            "            [center addObserverForName:notification object:nil",
+            "                queue:NSOperationQueue.mainQueue",
+            "                usingBlock:^(NSNotification *event) {",
+            "                    ScarletGuestKeyboardRememberWindow(event);",
+            "                }];",
+            "        }",
+            "        [center addObserverForName:UIKeyboardDidShowNotification",
+            "            object:nil queue:NSOperationQueue.mainQueue",
+            "            usingBlock:^(__unused NSNotification *event) {",
+            "                scarletGuestKeyboardWasShown=YES;",
+            "            }];",
+            "        [center addObserverForName:UIKeyboardDidHideNotification",
+            "            object:nil queue:NSOperationQueue.mainQueue",
+            "            usingBlock:^(__unused NSNotification *event) {",
+            "                if(scarletGuestKeyboardWasShown) {",
+            "                    scarletGuestKeyboardWasShown=NO;",
+            "                    ScarletGuestKeyboardAck(@\"keyboard_hidden\");",
+            "                }",
+            "            }];",
+            "        // The existing audio scope also posts this standard lifecycle name.",
+            "        // If a PID-scoped command is lost, the guest still resigns on pause.",
+            "        [center addObserverForName:",
+            "            @\"UIApplicationWillResignActiveNotification\"",
+            "            object:nil queue:NSOperationQueue.mainQueue",
+            "            usingBlock:^(__unused NSNotification *event) {",
+            "                ScarletGuestKeyboardReleaseFocus();",
+            "            }];",
+            "    });",
+            "}"
+          ]
+        },
+        {
+          "commit": "f884ca1312409039c7ebdf271770c66205b8cf61",
+          "file": "rebuild/integration/apply_scarlet_host.py",
+          "function": "add_scarlet_guest_keyboard_handoff; main",
+          "location": "@@ -1816,2 +1816,28 @@ void initScarletGuestAudioIsolation(void) {",
+          "before": [
+            "",
+            "def add_scarlet_guest_island_content_guard(engine: Path) -> dict:"
+          ],
+          "after": [
+            "",
+            "",
+            "def add_scarlet_guest_keyboard_handoff(engine: Path) -> dict:",
+            "    \"\"\"R6P24: outgoing remote guest resigns its own editor before a switch.\"\"\"",
+            "    source=Path(__file__).with_name(\"ScarletGuestKeyboardHandoff.m.txt\")",
+            "    target=engine/\"LiveContainer/Tweaks/ScarletGuestKeyboardHandoff.m\"",
+            "    assert source.is_file() and target.parent.is_dir()",
+            "    target.write_bytes(source.read_bytes())",
+            "    header=engine/\"LiveContainer/Tweaks/Tweaks.h\"",
+            "    body=header.read_text()",
+            "    anchor=\"void initScarletGuestIslandContentGuard(void);\\n\"",
+            "    assert body.count(anchor)==1",
+            "    header.write_text(body.replace(anchor,",
+            "        anchor+\"void initScarletGuestKeyboardHandoff(void);\\n\",1))",
+            "    bootstrap=engine/\"LiveContainer/LCBootstrap.m\"",
+            "    body=bootstrap.read_text()",
+            "    anchor=\"        initScarletGuestIslandContentGuard();\\n\"",
+            "    assert body.count(anchor)==1",
+            "    bootstrap.write_text(body.replace(anchor,",
+            "        anchor+\"        initScarletGuestKeyboardHandoff();\\n\",1))",
+            "    return {",
+            "        \"residentOnly\": True, \"outgoingGuestOnly\": True,",
+            "        \"firstResponderRelease\": True, \"keyboardDidHideObserved\": True,",
+            "        \"guestProcessKeptAlive\": True, \"source\":str(target.relative_to(engine)),",
+            "        \"sha256\":file_sha(target),",
+            "    }",
+            "",
+            "def add_scarlet_guest_island_content_guard(engine: Path) -> dict:"
+          ]
+        },
+        {
+          "commit": "f884ca1312409039c7ebdf271770c66205b8cf61",
+          "file": "rebuild/integration/apply_scarlet_host.py",
+          "function": "add_scarlet_guest_keyboard_handoff; main",
+          "location": "@@ -2136,2 +2162,3 @@ static void ScarletGuestHookTrace(NSString *event) {",
+          "before": [
+            "    island_content = add_scarlet_guest_island_content_guard(engine)",
+            "    guest_launch_policy = add_scarlet_guest_launch_policy_probe(engine)"
+          ],
+          "after": [
+            "    island_content = add_scarlet_guest_island_content_guard(engine)",
+            "    keyboard_handoff = add_scarlet_guest_keyboard_handoff(engine)",
+            "    guest_launch_policy = add_scarlet_guest_launch_policy_probe(engine)"
+          ]
+        },
+        {
+          "commit": "f884ca1312409039c7ebdf271770c66205b8cf61",
+          "file": "rebuild/integration/apply_scarlet_host.py",
+          "function": "add_scarlet_guest_keyboard_handoff; main",
+          "location": "@@ -2155,2 +2182,3 @@ static void ScarletGuestHookTrace(NSString *event) {",
+          "before": [
+            "        \"guestAudioIsolation\": guest_audio,",
+            "        \"guestLaunchPolicyDifferential\": guest_launch_policy,"
+          ],
+          "after": [
+            "        \"guestAudioIsolation\": guest_audio,",
+            "        \"guestKeyboardHandoff\": keyboard_handoff,",
+            "        \"guestLaunchPolicyDifferential\": guest_launch_policy,"
           ]
         }
       ]
