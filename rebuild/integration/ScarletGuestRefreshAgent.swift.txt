@@ -238,6 +238,69 @@ extension ScarletGuestRefreshAgent {
         }
     }
 
+    private static func nativeErrorDomain(_ error: NSError) -> String {
+        switch error.domain {
+        case OperationError.errorDomain: return "operation"
+        case NSURLErrorDomain: return "url"
+        case NSCocoaErrorDomain: return "cocoa"
+        case NSPOSIXErrorDomain: return "posix"
+        case NSOSStatusErrorDomain: return "osstatus"
+        case "ALTServerErrorDomain": return "altserver"
+        case "ALTSignErrorDomain": return "altsign"
+        case "ALTAppleAPIErrorDomain": return "appleapi"
+        default: return "other"
+        }
+    }
+
+    private static func nativeErrorKind(_ error: Error) -> String {
+        guard let original = error as? OperationError else { return "other" }
+        switch original {
+        case .unknownResult: return "unknown_result"
+        case .invalidApp: return "invalid_app"
+        case .invalidResponse: return "invalid_response"
+        case .missingAppBundle: return "missing_app_bundle"
+        case .missingInfoPlist: return "missing_info_plist"
+        case .missingUpdate: return "missing_update"
+        case .forbidden: return "forbidden"
+        case .pledgeInactive: return "pledge_inactive"
+        case .noSources: return "no_sources"
+        case .cacheClearError: return "cache_clear"
+        case .openAppFailed: return "open_app_failed"
+        case .unableToConnectSideJIT, .unableToRespondSideJITDevice, .SideJITIssue:
+            return "sidejit"
+        default: return "classified_operation"
+        }
+    }
+
+    private static func failureReceipt(_ error: Error, stage: String) -> String {
+        let original = error as NSError
+        var deepest = original
+        var depth = 0
+        var visited: Set<ObjectIdentifier> = [ObjectIdentifier(original)]
+        while depth < 4,
+              let next = deepest.userInfo[NSUnderlyingErrorKey] as? NSError,
+              visited.insert(ObjectIdentifier(next)).inserted {
+            deepest = next
+            depth += 1
+        }
+        func boundedCode(_ value: Int) -> Int {
+            max(-2_147_483_648, min(2_147_483_647, value))
+        }
+        let reason = stagedFailureReason(error, stage: stage)
+        let payload: [String: Any] = [
+            "v": 1, "reason": reason, "stage": stage,
+            "domain": nativeErrorDomain(original), "code": boundedCode(original.code),
+            "kind": nativeErrorKind(error),
+            "underlyingDomain": depth == 0 ? "none" : nativeErrorDomain(deepest),
+            "underlyingCode": depth == 0 ? 0 : boundedCode(deepest.code),
+            "underlyingKind": depth == 0 ? "none" : nativeErrorKind(deepest),
+            "depth": depth
+        ]
+        guard let data = try? JSONSerialization.data(withJSONObject: payload),
+              let text = String(data: data, encoding: .utf8) else { return reason }
+        return "scarlet_native_failure:" + text
+    }
+
     @objc static func perform(_ reply: @escaping (Bool, String) -> Void) {
         Task {
             let gate = ScarletGuestNativeRefreshGate.shared
@@ -294,20 +357,21 @@ extension ScarletGuestRefreshAgent {
                 stage = "refresh"
                 let results: [String: Result<InstalledApp, Error>] =
                     try await withCheckedThrowingContinuation { continuation in
-                    let operation = try? AppManager.shared.backgroundRefresh(
-                        targets, presentsNotifications: false
-                    ) { result in
-                        continuation.resume(with: result)
+                    do {
+                        let operation = try AppManager.shared.backgroundRefresh(
+                            targets, presentsNotifications: false
+                        ) { result in
+                            continuation.resume(with: result)
+                        }
+                        operation.ignoresServerNotFoundError = false
+                    } catch {
+                        // Preserve the actual synchronous dispatch error.
+                        continuation.resume(throwing: error)
                     }
-                    guard let operation else {
-                        continuation.resume(throwing: ScarletGuestRefreshDispatchError.noOperation)
-                        return
-                    }
-                    operation.ignoresServerNotFoundError = false
                 }
                 for (_, result) in results {
                     if case let .failure(error) = result {
-                        reply(false, stagedFailureReason(error, stage: stage))
+                        reply(false, failureReceipt(error, stage: stage))
                         return
                     }
                 }
@@ -338,7 +402,7 @@ extension ScarletGuestRefreshAgent {
                     ? "native_operation_returned_unverified_transport_recovered"
                     : "native_operation_returned_unverified")
             } catch {
-                reply(false, stagedFailureReason(error, stage: stage))
+                reply(false, failureReceipt(error, stage: stage))
             }
         }
     }

@@ -71,7 +71,7 @@ class NonverticalAlwaysSafeArea(unittest.TestCase):
         self.assertNotIn("ScarletIslandScheduleVisibleLocalOwnerRepair(window, root, target);", SRC)
         self.assertIn('ScarletIslandReceipt(@"guest_local_owner_quarantined"', SRC)
         self.assertNotIn("ScarletIslandScheduleResidualAutomaticInset(window, root, target);", SRC)
-        self.assertEqual(SRC.count("ScarletIslandScheduleNonverticalAlwaysInset(window, root, target);"),1)
+        self.assertEqual(SRC.count("ScarletIslandScheduleNonverticalAlwaysInset(window, root, target);"),0)
 
     def test_final_device_jsonl_has_unredacted_quarantine_and_stage_types(self):
         for token in (

@@ -158,6 +158,12 @@ static void ScarletIslandRecordVisibleScrollOwner(
     }
     NSString *field = image ? @"images" : @"controls";
     counts[field] = @([counts[field] unsignedIntegerValue] + 1);
+    // Only retained for this synchronous probe; never serialize objects.
+    if(!image) {
+        NSMutableArray *nodes = counts[@"control_nodes"];
+        if(!nodes) { nodes = [NSMutableArray array]; counts[@"control_nodes"] = nodes; }
+        if(nodes.count < 8) [nodes addObject:node];
+    }
 }
 
 static NSDictionary *ScarletIslandVisibleOwnerMetrics(
@@ -351,6 +357,166 @@ static void ScarletIslandWalkViews(UIView *view, UIWindow *window,
     }
 }
 
+// R6P34: the signed P33 owner was foreground, inset62, offset/bounds-62,
+// but its unsafe count stayed3. Quarantine that experiment and inspect
+// actual constraints of the observed controls. This helper is READ ONLY.
+static NSInteger ScarletIslandAnonymousSlot(UIView *view) {
+    static NSMapTable<UIView *, NSNumber *> *slots;
+    static NSInteger next = 0;
+    if(!slots) slots = [NSMapTable weakToStrongObjectsMapTable];
+    NSNumber *slot = [slots objectForKey:view];
+    if(slot) return slot.integerValue;
+    if(next >= 64) return 0;
+    slot = @(++next);
+    [slots setObject:slot forKey:view];
+    return slot.integerValue;
+}
+
+static BOOL ScarletIslandVerticalPosition(NSLayoutAttribute attribute) {
+    switch(attribute) {
+        case NSLayoutAttributeTop: case NSLayoutAttributeBottom:
+        case NSLayoutAttributeCenterY: case NSLayoutAttributeBaseline:
+        case NSLayoutAttributeFirstBaseline: case NSLayoutAttributeTopMargin:
+        case NSLayoutAttributeBottomMargin: case NSLayoutAttributeCenterYWithinMargins:
+            return YES;
+        default: return NO;
+    }
+}
+
+static UIView *ScarletIslandConstraintItemView(id item) {
+    if([item isKindOfClass:UIView.class]) return item;
+    if([item isKindOfClass:UILayoutGuide.class]) return [(UILayoutGuide *)item owningView];
+    return nil;
+}
+
+static NSInteger ScarletIslandMetric(CGFloat value) {
+    return isfinite(value) ? (NSInteger)lround(value) : -999;
+}
+
+static void ScarletIslandProbeConstraints(
+    UIWindow *window, UIView *root, CGFloat safeTop, NSUInteger sample,
+    NSDictionary<NSValue *, NSDictionary *> *groups) {
+    NSMutableArray *rows = [NSMutableArray array];
+    BOOL rowsCapped = NO;
+    for(NSValue *key in groups) {
+        UIScrollView *owner = [key nonretainedObjectValue];
+        if(!owner || owner.window != window) continue;
+        NSArray *nodes = groups[key][@"control_nodes"];
+        for(UIView *node in nodes) {
+            if(rows.count >= 12) { rowsCapped = YES; break; }
+            if(node.window != window || ![node isDescendantOfView:owner]) continue;
+            CGRect visible = ScarletIslandVisibleFrameInWindow(node, window);
+            if(CGRectIsNull(visible) || CGRectIsEmpty(visible) ||
+               CGRectGetMinY(visible) >= safeTop - 2) continue;
+            CGRect frame = [node convertRect:node.bounds toView:window];
+            CGRect relative = [node convertRect:node.bounds toView:owner];
+            NSUInteger inspected=0, total=0, frameRefs=0, contentRefs=0;
+            NSUInteger safeRefs=0, externalRefs=0, centerRefs=0, otherRefs=0;
+            NSUInteger levels=0;
+            BOOL capped=NO, inNavbar=NO;
+            CGFloat controllerSafe=-999, firstConstant=-999;
+            NSInteger firstAttribute=-999, firstOtherAttribute=-999;
+            NSInteger firstRelation=-999, firstPriority=-999;
+            NSMutableSet *seen = [NSMutableSet set];
+            UIView *cursor=node;
+            while(cursor && cursor != owner && levels++ < 8) {
+                if([cursor isKindOfClass:UINavigationBar.class]) inNavbar=YES;
+                if(controllerSafe == -999 &&
+                   [cursor.nextResponder isKindOfClass:UIViewController.class]) {
+                    UIViewController *controller=(UIViewController *)cursor.nextResponder;
+                    if(controller.isViewLoaded) controllerSafe=controller.view.safeAreaInsets.top;
+                }
+                for(NSLayoutConstraint *constraint in
+                    [cursor constraintsAffectingLayoutForAxis:UILayoutConstraintAxisVertical]) {
+                    if(inspected++ >= 96) { capped=YES; break; }
+                    if(!constraint.active || [seen containsObject:constraint]) continue;
+                    [seen addObject:constraint];
+                    BOOL first=ScarletIslandConstraintItemView(constraint.firstItem)==cursor;
+                    BOOL second=ScarletIslandConstraintItemView(constraint.secondItem)==cursor;
+                    if(!first && !second) continue;
+                    NSLayoutAttribute attr=first ? constraint.firstAttribute : constraint.secondAttribute;
+                    NSLayoutAttribute otherAttr=first ? constraint.secondAttribute : constraint.firstAttribute;
+                    if(!ScarletIslandVerticalPosition(attr)) continue;
+                    id other=first ? constraint.secondItem : constraint.firstItem;
+                    UIView *otherView=ScarletIslandConstraintItemView(other);
+                    if(!otherView) continue;
+                    total++;
+                    BOOL framePin=NO;
+                    if([other isKindOfClass:UILayoutGuide.class] &&
+                       [otherView isKindOfClass:UIScrollView.class] &&
+                       other == ((UIScrollView *)otherView).frameLayoutGuide) {
+                        frameRefs++; framePin=YES;
+                    } else if([other isKindOfClass:UILayoutGuide.class] &&
+                              [otherView isKindOfClass:UIScrollView.class] &&
+                              other == ((UIScrollView *)otherView).contentLayoutGuide) {
+                        contentRefs++;
+                    } else if([other isKindOfClass:UILayoutGuide.class] &&
+                              other == otherView.safeAreaLayoutGuide) {
+                        safeRefs++;
+                    } else if(otherView != owner && ![otherView isDescendantOfView:owner]) {
+                        externalRefs++; framePin=YES;
+                    } else if(other == owner &&
+                              (otherAttr == NSLayoutAttributeCenterY ||
+                               otherAttr == NSLayoutAttributeCenterYWithinMargins)) {
+                        centerRefs++; framePin=YES;
+                    } else {
+                        otherRefs++;
+                    }
+                    if(framePin && firstAttribute == -999) {
+                        firstAttribute=attr; firstOtherAttribute=otherAttr;
+                        firstRelation=constraint.relation;
+                        firstConstant=constraint.constant;
+                        firstPriority=(NSInteger)lround(constraint.priority);
+                    }
+                }
+                if(capped) break;
+                cursor=cursor.superview;
+            }
+            if(cursor && cursor != owner) capped=YES;
+            [rows addObject:@{
+                @"node_slot":@(ScarletIslandAnonymousSlot(node)),
+                @"scroll_slot":@(ScarletIslandAnonymousSlot(owner)),
+                @"node_window_x":@(ScarletIslandMetric(CGRectGetMinX(frame))),
+                @"node_window_width":@(ScarletIslandMetric(CGRectGetWidth(frame))),
+                @"node_window_height":@(ScarletIslandMetric(CGRectGetHeight(frame))),
+                @"node_window_y":@(ScarletIslandMetric(CGRectGetMinY(frame))),
+                @"node_window_bottom":@(ScarletIslandMetric(CGRectGetMaxY(frame))),
+                @"node_owner_y":@(ScarletIslandMetric(CGRectGetMinY(relative))),
+                @"node_local_y":@(ScarletIslandMetric(CGRectGetMinY(node.frame))),
+                @"node_autoresizing":@(node.translatesAutoresizingMaskIntoConstraints),
+                @"node_ambiguous":@(node.hasAmbiguousLayout),
+                @"node_in_navbar":@(inNavbar),
+                @"controller_safe_top":@(ScarletIslandMetric(controllerSafe)),
+                @"owner_offset_y":@(ScarletIslandMetric(owner.contentOffset.y)),
+                @"owner_bounds_y":@(ScarletIslandMetric(owner.bounds.origin.y)),
+                @"constraint_count":@(total), @"constraint_inspected":@(MIN(inspected,96)),
+                @"constraint_frame_refs":@(frameRefs),
+                @"constraint_content_refs":@(contentRefs),
+                @"constraint_safe_refs":@(safeRefs),
+                @"constraint_external_refs":@(externalRefs),
+                @"constraint_center_refs":@(centerRefs),
+                @"constraint_other_refs":@(otherRefs),
+                @"constraint_first_attribute":@(firstAttribute),
+                @"constraint_other_attribute":@(firstOtherAttribute),
+                @"constraint_first_relation":@(firstRelation),
+                @"constraint_first_constant":@(ScarletIslandMetric(firstConstant)),
+                @"constraint_first_priority":@(firstPriority),
+                @"constraint_scan_capped":@(capped)
+            }];
+        }
+        if(rowsCapped) break;
+    }
+    if(rows.count == 0) return;
+    // One bounded relay packet avoids overflowing the shared 18-packet ring.
+    ScarletIslandPublish(@{
+        @"receipt":NSUUID.UUID.UUIDString, @"pid":@(getpid()),
+        @"epoch":@([[NSDate date] timeIntervalSince1970]),
+        @"result":@"guest_constraint_owner_probe", @"target":@(ScarletIslandMetric(safeTop)),
+        @"sample_index":@(sample), @"scene_activation_state":@(window.windowScene.activationState),
+        @"probe_nodes_capped":@(rowsCapped), @"nodes":rows
+    });
+}
+
 static void ScarletIslandContentProbe(UIWindow *window,
                                       UIViewController *expectedRoot,
                                       CGFloat expectedTop,
@@ -417,6 +583,7 @@ static void ScarletIslandContentProbe(UIWindow *window,
     [fields addEntriesFromDictionary:
         ScarletIslandVisibleOwnerMetrics(ownerGroups, window)];
     ScarletIslandPublish(fields);
+    ScarletIslandProbeConstraints(window, rootView, expectedTop, sample, ownerGroups);
 }
 
 static void ScarletIslandScheduleContentProbe(UIWindow *window,
@@ -525,7 +692,13 @@ static void ScarletIslandInspect(UIWindow *window, NSUInteger attempt) {
         // R6P31: verified P30 iPhone P29 .automatic trial read back 0pt;
         // use the distinct ALWAYS policy for non-vertical content, with
         // immediate AND late content visibility checks and safe rollback.
-        ScarletIslandScheduleNonverticalAlwaysInset(window, root, target);
+        // Signed P33 proves the ALWAYS anchor was actually applied at -62
+        // in foreground and still failed. Do not repeat its enum/offset writes.
+        if(!objc_getAssociatedObject(root, &scarletIslandAlwaysScheduleKey)) {
+            objc_setAssociatedObject(root, &scarletIslandAlwaysScheduleKey,
+                @YES, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+            ScarletIslandReceipt(@"guest_always_policy_quarantined", target, 0, 0);
+        }
         return;
     }
     if(ourDelta > 0) {

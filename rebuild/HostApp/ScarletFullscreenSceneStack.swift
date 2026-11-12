@@ -779,6 +779,40 @@ private final class ScarletGuestIslandReceiptObserver {
             let target = (row["target"] as? NSNumber)?.intValue ?? -1
             let before = (row["before"] as? NSNumber)?.intValue ?? -1
             let after = (row["after"] as? NSNumber)?.intValue ?? -1
+            if result == "guest_constraint_owner_probe" {
+                if let nodes = row["nodes"] as? [[String: Any]] {
+                    for node in nodes.prefix(12) {
+                        var fields: [String: String] = [
+                            "process_pid": String(pid), "safe_top_pt": String(target)
+                        ]
+                        for key in ["sample_index", "scene_activation_state", "probe_nodes_capped"] {
+                            if let value = row[key] as? NSNumber { fields[key] = value.stringValue }
+                        }
+                        for key in [
+                    "node_slot", "scroll_slot", "node_window_x", "node_window_width", "node_window_height", "node_window_y",
+                    "node_window_bottom", "node_owner_y", "node_local_y",
+                    "node_autoresizing", "node_ambiguous", "node_in_navbar",
+                    "controller_safe_top", "constraint_count", "constraint_inspected",
+                    "constraint_frame_refs", "constraint_content_refs", "constraint_safe_refs",
+                    "constraint_external_refs", "constraint_center_refs", "constraint_other_refs",
+                    "constraint_first_attribute", "constraint_other_attribute", "constraint_first_relation",
+                    "constraint_first_constant", "constraint_first_priority", "constraint_scan_capped",
+                    "owner_offset_y", "owner_bounds_y"
+                        ] {
+                            if let value = node[key] as? NSNumber { fields[key] = value.stringValue }
+                        }
+                        ScarletDiagnosticRecorder.shared.record(
+                            "layout", "guest_constraint_owner_probe", fields: fields)
+                    }
+                }
+                continue
+            }
+            if result == "guest_always_policy_quarantined" {
+                ScarletDiagnosticRecorder.shared.record(
+                    "layout", "guest_always_policy_quarantined",
+                    fields: ["process_pid": String(pid), "safe_top_pt": String(target)])
+                continue
+            }
             if result == "guest_content_geometry_probe" {
                 // Anonymous window-space measurements only. No view names,
                 // text, guest IDs, screenshots, labels or private class names.

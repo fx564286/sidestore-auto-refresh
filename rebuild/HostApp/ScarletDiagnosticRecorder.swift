@@ -103,7 +103,18 @@ final class ScarletDiagnosticRecorder: @unchecked Sendable {
         "anchor_initial_inset_pt", "anchor_initial_offset_y",
         "anchor_observed_inset_pt", "anchor_observed_offset_y",
         "anchor_final_offset_y", "anchor_attempts",
-        "owner_bounds_y", "scene_activation_state"
+        "owner_bounds_y", "scene_activation_state",
+        "node_slot", "scroll_slot", "node_window_x", "node_window_width", "node_window_height", "node_window_y",
+                    "node_window_bottom", "node_owner_y", "node_local_y",
+                    "node_autoresizing", "node_ambiguous", "node_in_navbar",
+                    "controller_safe_top", "constraint_count", "constraint_inspected",
+                    "constraint_frame_refs", "constraint_content_refs", "constraint_safe_refs",
+                    "constraint_external_refs", "constraint_center_refs", "constraint_other_refs",
+                    "constraint_first_attribute", "constraint_other_attribute", "constraint_first_relation",
+                    "constraint_first_constant", "constraint_first_priority", "constraint_scan_capped",
+                    "probe_nodes_capped", "native_error_stage", "native_error_domain",
+                    "native_error_code", "native_error_kind", "native_underlying_domain",
+                    "native_underlying_code", "native_underlying_kind", "native_error_depth"
     ]
 
     private init() {
@@ -205,8 +216,18 @@ final class ScarletDiagnosticRecorder: @unchecked Sendable {
 
     func recordError(_ category: String, _ event: String, error: Error) {
         let code = error as NSError
-        record(category, event, status: "error",
-               fields: ["domain": code.domain, "code": String(code.code)])
+        var fields = ["domain": code.domain, "code": String(code.code)]
+        if code.domain == "SideStoreSupport.ScarletNativeRefreshFailure",
+           let native = code.userInfo["ScarletNativeRefreshEvidence"] as? [String: String] {
+            for key in [
+                "native_error_stage", "native_error_domain", "native_error_code",
+                    "native_error_kind", "native_underlying_domain", "native_underlying_code",
+                    "native_underlying_kind", "native_error_depth"
+            ] {
+                if let value = native[key] { fields[key] = value }
+            }
+        }
+        record(category, event, status: "error", fields: fields)
     }
 
     func readRecent(maxLines: Int = 350) -> String {
