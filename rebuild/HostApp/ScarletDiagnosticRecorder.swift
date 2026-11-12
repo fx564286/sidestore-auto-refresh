@@ -135,7 +135,23 @@ final class ScarletDiagnosticRecorder: @unchecked Sendable {
         "probe_root_safe_top", "probe_replacement",
         // R6P37: anonymous proof of only the 50pt nested header owner.
         "header_before_y", "header_after_y", "header_controls_before",
-        "header_controls_after", "header_images_after", "header_gate_pass"
+        "header_controls_after", "header_images_after", "header_gate_pass",
+        // R6P38: numeric parent contract and constraint endpoints only.
+        "header_ambiguous", "header_autoresize_mask", "header_constraint_autoresizing",
+        "header_constraint_constant", "header_constraint_first_attr", "header_constraint_first_kind",
+        "header_constraint_holder", "header_constraint_mask_known", "header_constraint_multiplier_milli",
+        "header_constraint_priority", "header_constraint_relation", "header_constraint_second_attr",
+        "header_constraint_second_kind", "header_constraint_source", "header_constraints_capped",
+        "header_constraints_inspected", "header_constraints_relevant", "header_controller_layout_impl_origin",
+        "header_controller_parent_match", "header_edges", "header_height",
+        "header_layout_impl_origin", "header_local_y", "header_parent_autoresizes",
+        "header_parent_controller_layout_impl_origin", "header_parent_edges", "header_parent_guide_y",
+        "header_parent_layout_impl_origin", "header_parent_layout_override", "header_parent_prefers_status_hidden",
+        "header_parent_slot", "header_prefers_status_hidden", "header_probe_status",
+        "header_scene_status_height", "header_scene_status_hidden", "header_setbounds_impl_origin",
+        "header_setcenter_impl_origin", "header_setframe_impl_origin", "header_severe_nodes",
+        "header_slot", "header_translates", "header_window_y",
+        "header_constraint_index"
     ]
 
     private init() {

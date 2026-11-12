@@ -779,6 +779,50 @@ private final class ScarletGuestIslandReceiptObserver {
             let target = (row["target"] as? NSNumber)?.intValue ?? -1
             let before = (row["before"] as? NSNumber)?.intValue ?? -1
             let after = (row["after"] as? NSNumber)?.intValue ?? -1
+            if result == "guest_short_header_quarantined" {
+                ScarletDiagnosticRecorder.shared.record("layout", result,
+                    fields: ["process_pid": String(pid), "safe_top_pt": String(target)])
+                continue
+            }
+            if result == "guest_header_layout_owner_probe" {
+                var fields: [String: String] = [
+                    "process_pid": String(pid), "safe_top_pt": String(target)]
+                for key in [
+                    "sample_index", "header_ambiguous", "header_autoresize_mask",
+                    "header_constraints_capped", "header_constraints_inspected", "header_constraints_relevant",
+                    "header_controller_layout_impl_origin", "header_controller_parent_match", "header_controls_before",
+                    "header_edges", "header_height", "header_images_after",
+                    "header_layout_impl_origin", "header_local_y", "header_parent_autoresizes",
+                    "header_parent_controller_layout_impl_origin", "header_parent_edges", "header_parent_guide_y",
+                    "header_parent_layout_impl_origin", "header_parent_layout_override", "header_parent_prefers_status_hidden",
+                    "header_parent_slot", "header_prefers_status_hidden", "header_probe_status",
+                    "header_scene_status_height", "header_scene_status_hidden", "header_setbounds_impl_origin",
+                    "header_setcenter_impl_origin", "header_setframe_impl_origin", "header_severe_nodes",
+                    "header_slot", "header_translates", "header_window_y"
+                ] {
+                    if let value = row[key] as? NSNumber { fields[key] = value.stringValue }
+                }
+                ScarletDiagnosticRecorder.shared.record("layout", result, fields: fields)
+                if let constraints = row["header_constraints"] as? [[String: Any]] {
+                    for (index, constraint) in constraints.prefix(16).enumerated() {
+                        var detail = fields
+                        detail["header_constraint_index"] = String(index)
+                        for key in [
+                    "header_constraint_autoresizing", "header_constraint_constant", "header_constraint_first_attr",
+                    "header_constraint_first_kind", "header_constraint_holder", "header_constraint_mask_known",
+                    "header_constraint_multiplier_milli", "header_constraint_priority", "header_constraint_relation",
+                    "header_constraint_second_attr", "header_constraint_second_kind", "header_constraint_source"
+                ] {
+                            if let value = constraint[key] as? NSNumber {
+                                detail[key] = value.stringValue
+                            }
+                        }
+                        ScarletDiagnosticRecorder.shared.record(
+                            "layout", "guest_header_constraint_probe", fields: detail)
+                    }
+                }
+                continue
+            }
             if ["guest_short_header_trial_staged",
                 "guest_short_header_trial_reverted",
                 "guest_short_header_trial_retained"].contains(result) {

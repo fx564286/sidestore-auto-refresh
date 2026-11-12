@@ -22,6 +22,7 @@ static char scarletIslandP28QuarantineReceiptKey;
 static char scarletIslandAlwaysScheduleKey;
 static char scarletIslandAlwaysAppliedKey;
 static char scarletIslandDeepHeaderAnchorAttemptedKey;
+static char scarletIslandHeaderOwnerProbeKey;
 
 // All guest receipts share one anonymous App Group relay. This carries only
 // bounded numbers and a PID; no labels, view names, app identifiers or images.
@@ -623,6 +624,217 @@ static void ScarletIslandProbeUnsafeAncestorChain(
     });
 }
 
+// R6P38_LAYOUT_OWNER_BEGIN
+#import <dlfcn.h>
+#import <string.h>
+// P37 iPhone: header frame62 was restored to0 by native layout. Stop that
+// one-off write. Inspect the exact header contract without changing UIKit.
+static NSInteger ScarletIslandImplementationOrigin(id object, SEL selector) {
+    if(!object) return 0;
+    Method method=class_getInstanceMethod([object class],selector);
+    if(!method) return 0;
+    Dl_info info={0}, own={0};
+    if(!dladdr((const void *)method_getImplementation(method),&info) ||
+       !info.dli_fname) return 0;
+    dladdr((const void *)&ScarletIslandImplementationOrigin,&own);
+    if(info.dli_fbase==own.dli_fbase) return 4; // Injected guard image.
+    if(strstr(info.dli_fname,"UIKit")) return 1;
+    if(strstr(info.dli_fname,"/System/Library/") ||
+       strstr(info.dli_fname,"/usr/lib/")) return 2;
+    return 3; // Guest/third-party image; never export its path or symbols.
+}
+
+static NSInteger ScarletIslandHeaderItemKind(
+    id item, UIView *header, UIView *parent, UIView *root) {
+    if(!item) return 0;
+    if(item==header) return 1;
+    if(item==parent) return 2;
+    if(item==root) return 3;
+    if(item==header.safeAreaLayoutGuide) return 4;
+    if(item==parent.safeAreaLayoutGuide) return 5;
+    if(item==root.safeAreaLayoutGuide) return 6;
+    return [item isKindOfClass:UILayoutGuide.class] ? 8 : 7;
+}
+
+static void ScarletIslandObserveDeepHeaderLayoutOwner(
+    UIWindow *window, UIView *root, CGFloat safeTop, NSUInteger sample,
+    NSDictionary<NSValue *, NSDictionary *> *groups,
+    NSUInteger beforeControls, NSUInteger beforeImages) {
+    if((sample!=650 && sample!=2600) || !window || !root ||
+       safeTop<40 || safeTop>130 || window.hidden ||
+       window.windowLevel!=UIWindowLevelNormal ||
+       window.rootViewController.view!=root ||
+       window.windowScene.activationState!=UISceneActivationStateForegroundActive ||
+       !UIInterfaceOrientationIsPortrait(window.windowScene.interfaceOrientation))
+        return;
+    NSUInteger bit=sample==650 ? 1 : 2;
+    NSUInteger seen=[objc_getAssociatedObject(root,&scarletIslandHeaderOwnerProbeKey)
+        unsignedIntegerValue];
+    if(seen&bit) return;
+    objc_setAssociatedObject(root,&scarletIslandHeaderOwnerProbeKey,@(seen|bit),
+                             OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+    if(!objc_getAssociatedObject(root,&scarletIslandDeepHeaderAnchorAttemptedKey)) {
+        objc_setAssociatedObject(root,&scarletIslandDeepHeaderAnchorAttemptedKey,
+                                 @YES,OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+        ScarletIslandReceipt(@"guest_short_header_quarantined",safeTop,0,0);
+    }
+    UIView *header=nil, *parent=nil;
+    NSUInteger severe=0;
+    BOOL conflicting=NO;
+    __weak UIView *firstWeak=nil, *secondWeak=nil;
+    for(NSValue *key in groups) {
+        UIScrollView *scroll=[key nonretainedObjectValue];
+        if(!scroll || scroll.window!=window) continue;
+        CGRect scrollRect=[scroll convertRect:scroll.bounds toView:window];
+        if(fabs(CGRectGetMinY(scrollRect))>3 ||
+           CGRectGetHeight(scrollRect)<CGRectGetHeight(window.bounds)*0.85)
+            continue;
+        for(UIView *node in groups[key][@"control_nodes"]) {
+            if(!node || node.window!=window) continue;
+            CGRect shown=ScarletIslandVisibleFrameInWindow(node,window);
+            if(CGRectIsNull(shown) || CGRectIsEmpty(shown) ||
+               CGRectGetMinY(shown)>=safeTop-20 ||
+               CGRectGetMaxY(shown)<=5) continue;
+            UIView *candidate=nil, *candidateParent=nil;
+            NSUInteger depth=0;
+            for(UIView *cursor=node; cursor && cursor!=root && depth++<24;
+                cursor=cursor.superview) {
+                UIResponder *responder=cursor.nextResponder;
+                if(![responder isKindOfClass:UIViewController.class] ||
+                   ((UIViewController *)responder).view!=cursor)
+                    continue;
+                UIView *p=cursor.superview;
+                if(!p || p.window!=window ||
+                   CGRectGetHeight(cursor.bounds)<34 ||
+                   CGRectGetHeight(cursor.bounds)>72 ||
+                   CGRectGetHeight(p.bounds)<CGRectGetHeight(window.bounds)*0.85 ||
+                   fabs(CGRectGetMinY([cursor convertRect:cursor.bounds
+                       toView:window]))>3 ||
+                   fabs(CGRectGetMinY([p convertRect:
+                       p.safeAreaLayoutGuide.layoutFrame toView:window])-safeTop)>3 ||
+                   cursor.safeAreaInsets.top<safeTop-2 ||
+                   !cursor.translatesAutoresizingMaskIntoConstraints ||
+                   !CGAffineTransformIsIdentity(cursor.transform))
+                    continue;
+                CGRect guide=[cursor convertRect:
+                    cursor.safeAreaLayoutGuide.layoutFrame toView:window];
+                CGRect frame=[cursor convertRect:cursor.bounds toView:window];
+                if(fabs(CGRectGetMinY(guide)-CGRectGetMaxY(frame))>3)
+                    continue; // Safe guide is collapsed by 50pt header.
+                candidate=cursor; candidateParent=p;
+                break;
+            }
+            if(!candidate) continue;
+            if(header && header!=candidate) { conflicting=YES; break; }
+            header=candidate; parent=candidateParent;
+            severe++;
+            if(severe==1) firstWeak=node;
+            if(severe==2) secondWeak=node;
+        }
+        if(conflicting) break;
+    }
+    BOOL found=header && parent && !conflicting && severe>=2 &&
+        firstWeak && secondWeak;
+    NSMutableDictionary *fields=[@{
+        @"receipt":NSUUID.UUID.UUIDString, @"pid":@(getpid()),
+        @"epoch":@([[NSDate date] timeIntervalSince1970]),
+        @"result":@"guest_header_layout_owner_probe", @"target":@(ScarletIslandMetric(safeTop)),
+        @"sample_index":@(sample), @"header_probe_status":@(conflicting ? 2 : (found ? 1 : 0)),
+        @"header_severe_nodes":@(severe), @"header_controls_before":@(beforeControls),
+        @"header_images_after":@(beforeImages)
+    } mutableCopy];
+    if(!found) { ScarletIslandPublish(fields); return; }
+    UIViewController *controller=(UIViewController *)header.nextResponder;
+    UIViewController *parentController=
+        [parent.nextResponder isKindOfClass:UIViewController.class]
+        ? (UIViewController *)parent.nextResponder : nil;
+    UIStatusBarManager *manager=window.windowScene.statusBarManager;
+    CGRect hrect=[header convertRect:header.bounds toView:window];
+    CGRect guide=[parent convertRect:parent.safeAreaLayoutGuide.layoutFrame toView:window];
+    Method method=class_getInstanceMethod([parent class],@selector(layoutSubviews));
+    Method base=class_getInstanceMethod(UIView.class,@selector(layoutSubviews));
+    [fields addEntriesFromDictionary:@{
+        @"header_slot":@(ScarletIslandAnonymousSlot(header)),
+        @"header_parent_slot":@(ScarletIslandAnonymousSlot(parent)),
+        @"header_window_y":@(ScarletIslandMetric(CGRectGetMinY(hrect))),
+        @"header_height":@(ScarletIslandMetric(CGRectGetHeight(hrect))),
+        @"header_local_y":@(ScarletIslandMetric(header.frame.origin.y)),
+        @"header_parent_guide_y":@(ScarletIslandMetric(CGRectGetMinY(guide))),
+        @"header_translates":@(header.translatesAutoresizingMaskIntoConstraints),
+        @"header_autoresize_mask":@(header.autoresizingMask),
+        @"header_parent_autoresizes":@(parent.autoresizesSubviews),
+        @"header_ambiguous":@(header.hasAmbiguousLayout),
+        @"header_controller_parent_match":@(controller.parentViewController==parentController && parentController!=nil),
+        @"header_edges":@((NSInteger)(controller.edgesForExtendedLayout & 15)),
+        @"header_parent_edges":@(parentController ? (NSInteger)(parentController.edgesForExtendedLayout & 15) : -1),
+        @"header_prefers_status_hidden":@(controller.prefersStatusBarHidden),
+        @"header_parent_prefers_status_hidden":@(parentController ? parentController.prefersStatusBarHidden : -1),
+        @"header_scene_status_hidden":@(manager ? manager.isStatusBarHidden : -1),
+        @"header_scene_status_height":@(manager ? ScarletIslandMetric(manager.statusBarFrame.size.height) : -999),
+        @"header_layout_impl_origin":@(ScarletIslandImplementationOrigin(header,@selector(layoutSubviews))),
+        @"header_parent_layout_impl_origin":@(ScarletIslandImplementationOrigin(parent,@selector(layoutSubviews))),
+        @"header_parent_layout_override":@(method && base &&
+            method_getImplementation(method)!=method_getImplementation(base)),
+        @"header_controller_layout_impl_origin":@(ScarletIslandImplementationOrigin(controller,@selector(viewDidLayoutSubviews))),
+        @"header_parent_controller_layout_impl_origin":@(ScarletIslandImplementationOrigin(parentController,@selector(viewDidLayoutSubviews))),
+        @"header_setframe_impl_origin":@(ScarletIslandImplementationOrigin(header,@selector(setFrame:))),
+        @"header_setcenter_impl_origin":@(ScarletIslandImplementationOrigin(header,@selector(setCenter:))),
+        @"header_setbounds_impl_origin":@(ScarletIslandImplementationOrigin(header,@selector(setBounds:)))
+    }];
+    // These are implementation owners, NOT evidence that a method executed.
+    // Direct constraint endpoints reveal whether reported constraints actually
+    // position the short header or merely describe an unrelated ancestor.
+    NSMutableArray *rows=[NSMutableArray array];
+    NSMutableSet *unique=[NSMutableSet set];
+    NSArray *lists=@[header.constraints,
+        [header constraintsAffectingLayoutForAxis:UILayoutConstraintAxisVertical],
+        parent.constraints];
+    NSUInteger inspected=0, relevant=0, source=0;
+    BOOL capped=NO;
+    Class maskClass=NSClassFromString(@"NSAutoresizingMaskLayoutConstraint");
+    for(NSArray *list in lists) {
+        source++;
+        for(NSLayoutConstraint *constraint in list) {
+            if(inspected++>=96) { capped=YES; break; }
+            if(!constraint.active || [unique containsObject:constraint]) continue;
+            [unique addObject:constraint];
+            UIView *a=ScarletIslandConstraintItemView(constraint.firstItem);
+            UIView *b=ScarletIslandConstraintItemView(constraint.secondItem);
+            if(a!=header && b!=header) continue;
+            if(!ScarletIslandVerticalPosition(constraint.firstAttribute) &&
+               !ScarletIslandVerticalPosition(constraint.secondAttribute) &&
+               constraint.firstAttribute!=NSLayoutAttributeHeight &&
+               constraint.secondAttribute!=NSLayoutAttributeHeight) continue;
+            relevant++;
+            if(rows.count>=16) { capped=YES; continue; }
+            NSInteger holder=0;
+            if([header.constraints containsObject:constraint]) holder=1;
+            else if([parent.constraints containsObject:constraint]) holder=2;
+            else if([root.constraints containsObject:constraint]) holder=3;
+            [rows addObject:@{
+                @"header_constraint_source":@(source), @"header_constraint_holder":@(holder),
+                @"header_constraint_first_kind":@(ScarletIslandHeaderItemKind(constraint.firstItem,header,parent,root)),
+                @"header_constraint_second_kind":@(ScarletIslandHeaderItemKind(constraint.secondItem,header,parent,root)),
+                @"header_constraint_first_attr":@(constraint.firstAttribute),
+                @"header_constraint_second_attr":@(constraint.secondAttribute),
+                @"header_constraint_relation":@(constraint.relation),
+                @"header_constraint_constant":@(ScarletIslandMetric(constraint.constant)),
+                @"header_constraint_multiplier_milli":@(ScarletIslandMetric(constraint.multiplier*1000)),
+                @"header_constraint_priority":@(ScarletIslandMetric(constraint.priority)),
+                @"header_constraint_mask_known":@(maskClass!=Nil),
+                @"header_constraint_autoresizing":@(maskClass && [constraint isKindOfClass:maskClass])
+            }];
+        }
+        if(inspected>=96) break;
+    }
+    fields[@"header_constraints_inspected"]=@(MIN(inspected,96));
+    fields[@"header_constraints_relevant"]=@(relevant);
+    fields[@"header_constraints_capped"]=@(capped);
+    fields[@"header_constraints"]=rows;
+    ScarletIslandPublish(fields);
+}
+// R6P38_LAYOUT_OWNER_END
+
 // R6P37: distinct child-controller safe-guide alignment proof. The P36
 // measured 50pt header controller begins at window Y0 and contains
 // controls at Y3/13 despite parent safe guide at Y62. Never resize the
@@ -701,7 +913,7 @@ static void ScarletIslandContentProbe(UIWindow *window,
     ScarletIslandProbeConstraints(window, rootView, expectedTop, sample, ownerGroups);
     ScarletIslandProbeUnsafeAncestorChain(
         window, rootView, expectedTop, sample, ownerGroups);
-    ScarletIslandTryDeepHeaderSafeGuideAnchor(
+    ScarletIslandObserveDeepHeaderLayoutOwner(
         window, rootView, expectedTop, sample, ownerGroups,
         metrics.visibleUnsafeControls, metrics.visibleUnsafeImageNodes);
 }
