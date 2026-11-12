@@ -217,9 +217,9 @@ final class ScarletDiagnosticRecorder: @unchecked Sendable {
             "Renamed functions, version labels or timings are NOT new solutions.",
             "Complete before/after changed source remains in appended history.",
             "Historical attempts: \(entries.count)",
-            "Recent attempts (oldest first):"
+            "All historical attempts (oldest first):"
         ]
-        for attempt in entries.suffix(18) {
+        for attempt in entries {
             let id = attempt["id"] as? String ?? "?"
             let version = attempt["version"] as? String ?? "?"
             let issue = attempt["problem"] as? String ?? "?"
