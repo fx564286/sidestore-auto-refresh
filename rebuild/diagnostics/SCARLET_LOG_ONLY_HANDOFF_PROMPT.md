@@ -261,3 +261,32 @@ L051=R6P15 저장된 RSD 연결의 제한적 재검사다. 과거 항목에 `dev
 - 기존 L055, L056은 그대로 보존. Xcode 실컴파일 증거가 신규이므로
   L057에 신규 커밋과 정확한 diff를 별도 남긴다. 최종 CI 통과와 기기에서
   실제 네트워크 성공은 여전히 독립적으로 확인해야 한다.
+
+## 11. R6P20: 인증 세션 재사용·백그라운드 signed Bundle ID 경로
+
+- R6P18 2026-11-12T05:56:43Z `-3402` 팀 복원 실패. 고정 SideStore
+  `AuthManager.signIn`은 `(account, ALTAppleAPISession)`을 반환하지만
+  그 결과를 `AuthManager.shared.session`에 저장하지 않는다.
+  그 직후 호출한 `DeveloperPortalProxy.fetchTeams(for:)`는
+  `AuthManager.getAuthenticatedSession()`이 캐시가 없으면 새로운
+  `AnisetteProvider.fetch()`를 실행하는 별도 네트워크 경로를 탄다.
+  R6P20은 이미 2FA 성공 및 Keychain readback 통과된 **동일 세션만**
+  기존 SideStore 메모리 캐시에 저장한 뒤 팀 복원을 실행한다.
+  타인 계정/다른 팀 자동 전환·인증서 폐기·OTP 저장 없음. 새 실기기
+  로그에 `-3402`가 다시 남으면 이 가설은 해소책이 아니므로
+  포털/DB 단계별 실패를 분석해야 한다. App Group 권한 부재를
+  해결하는 수정이 아님.
+- R6P18 현 세션 `automatic_background_registered(unavailable)` vs
+  여러 옛 세션 `registered`. 별도의 부호는 기존 서명기가 사용자의
+  Bundle ID에 `.P8EZT3U5N4`을 덧붙이는 변형을 만들 수 있다는 것.
+  원래 BGTaskScheduler identifier는 기본 번들에 고정돼 있었다.
+  R6P20은 **이미 승인된 두 가지 ID에 한해서만** 실제
+  `Bundle.main.bundleIdentifier`에 `.refresh`/`.pairing`을 붙이며
+  같은 두 variant를 `BGTaskSchedulerPermittedIdentifiers`에 추가한다.
+  서명 App Group, BG 실행 권한, 새 App ID, iOS 스케줄은 변경하지
+  않는다. 다음 실행에서도 `unavailable`이면 실제 signed Info.plist와
+  OS 제약을 확인하고 같은 ID 변경은 재시도하지 않는다.
+- 원인별 신규 코드 기록은 L058(인증 Apple session 사용)과
+  L059(BGTask Bundle ID 선택)로 분리한다. R6P18 하위 콘텐츠
+  지오메트리 `guest_content_geometry_probe`는 다시 실행 성공한
+  게스트에서만 판단한다.
