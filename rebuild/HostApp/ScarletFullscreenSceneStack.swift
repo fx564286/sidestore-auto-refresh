@@ -877,6 +877,35 @@ private final class ScarletGuestIslandReceiptObserver {
                         ? "success" : "info", fields: fields)
                 continue
             }
+            if ["guest_residual_auto_skipped",
+                "guest_residual_auto_reverted",
+                "guest_residual_auto_retained"].contains(result) {
+                // R6P29: this is UIKit's own automatic adjustment on the
+                // residual full-viewport scroll, not another root inset.
+                var fields: [String: String] = [
+                    "process_pid": String(pid),
+                    "result": result,
+                    "safe_top_pt": String(target),
+                    "owner_auto_before_pt": String(before),
+                    "owner_auto_after_pt": String(after)
+                ]
+                for key in ["owner_dominant_controls", "visible_unsafe_controls"] {
+                    if let number = row[key] as? NSNumber {
+                        fields[key] = number.stringValue
+                    }
+                }
+                if let reason = row["reason"] as? String,
+                   ["multiple_matching_owners", "no_matching_fullscreen_owner",
+                    "no_measured_overlap_reduction",
+                    "automatic_inset_proved"].contains(reason) {
+                    fields["reason"] = reason
+                }
+                ScarletDiagnosticRecorder.shared.record(
+                    "layout", "guest_residual_auto_inset_receipt",
+                    status: result == "guest_residual_auto_retained"
+                        ? "success" : "info", fields: fields)
+                continue
+            }
             ScarletDiagnosticRecorder.shared.record(
                 "layout", "guest_root_safearea_receipt",
                 status: result == "guest_root_corrected" ? "success"

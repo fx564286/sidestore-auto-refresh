@@ -33,7 +33,7 @@ class LocalOwnerInsets(unittest.TestCase):
 
     def test_unique_nearest_visible_owner_not_global_scroll_eligible(self):
         fix = G.split('// R6P28: unique visible control owner',1)[1].split(
-            'void initScarletGuestIslandContentGuard',1)[0]
+            '// R6P29: R6P28 actual signed iPhone',1)[0]
         for required in ('ScarletIslandWalkViews(rootView, window, expectedTop',
                          'metrics.visibleUnsafeControls < 2',
                          'selectedControls < 2 || ambiguous',
@@ -51,7 +51,7 @@ class LocalOwnerInsets(unittest.TestCase):
 
     def test_no_global_ui_mutation_and_original_guard_retained(self):
         fix = G.split('// R6P28: unique visible control owner',1)[1].split(
-            'void initScarletGuestIslandContentGuard',1)[0]
+            '// R6P29: R6P28 actual signed iPhone',1)[0]
         for forbidden in ('window.frame =', 'view.frame =',
                           'root.additionalSafeAreaInsets =',
                           'contentInsetAdjustmentBehavior =',
