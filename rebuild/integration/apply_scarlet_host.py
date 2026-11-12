@@ -1814,6 +1814,29 @@ void initScarletGuestAudioIsolation(void) {
     }
 
 
+def add_scarlet_guest_island_content_guard(engine: Path) -> dict:
+    # R6P15: only at the guest's own UIKit root, not host FBScene geometry.
+    target = engine / "LiveContainer/Tweaks/ScarletGuestIslandContentGuard.m"
+    source = Path(__file__).with_name("ScarletGuestIslandContentGuard.m.txt")
+    assert source.is_file() and target.parent.is_dir()
+    target.write_bytes(source.read_bytes())
+    header = engine / "LiveContainer/Tweaks/Tweaks.h"
+    text = header.read_text()
+    anchor = "void initScarletGuestAudioIsolation(void);\n"
+    assert text.count(anchor) == 1
+    header.write_text(text.replace(
+        anchor, anchor + "void initScarletGuestIslandContentGuard(void);\n", 1))
+    boot = engine / "LiveContainer/LCBootstrap.m"
+    text = boot.read_text()
+    anchor = "        initScarletGuestAudioIsolation();\n"
+    assert text.count(anchor) == 1
+    boot.write_text(text.replace(
+        anchor, anchor + "        initScarletGuestIslandContentGuard();\n", 1))
+    return {"residentOnly": True, "windowResized": False,
+            "globalUIKitHook": False, "guestSource": str(target),
+            "sha256": file_sha(target)}
+
+
 def main():
     p=argparse.ArgumentParser()
     p.add_argument("--engine",type=Path,required=True)
@@ -2102,6 +2125,7 @@ static void ScarletGuestHookTrace(NSString *event) {
     deferred_scene_boot = add_r6p9_deferred_liveprocess_boot(engine)
     resident_sdk_contract = add_r6p11_guest_sdk_contract(engine)
     guest_audio = add_scarlet_guest_audio_isolation(engine)
+    island_content = add_scarlet_guest_island_content_guard(engine)
     guest_launch_policy = add_scarlet_guest_launch_policy_probe(engine)
     guest_signing=instrument_original_guest_signing(engine)
     guest_manager=hide_embedded_sidestore_guest_navigation(engine)
