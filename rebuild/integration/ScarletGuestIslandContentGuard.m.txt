@@ -16,6 +16,8 @@ static char scarletIslandScrollScheduleKey;
 static char scarletIslandScrollInsetKey;
 static char scarletIslandLocalOwnerScheduleKey;
 static char scarletIslandLocalOwnerAppliedKey;
+static char scarletIslandResidualAutoScheduleKey;
+static char scarletIslandResidualAutoAppliedKey;
 
 // All guest receipts share one anonymous App Group relay. This carries only
 // bounded numbers and a PID; no labels, view names, app identifiers or images.
@@ -436,6 +438,8 @@ static void ScarletIslandScheduleScrollContentRepair(
     UIWindow *window, UIViewController *root, CGFloat expectedTop);
 static void ScarletIslandScheduleVisibleLocalOwnerRepair(
     UIWindow *window, UIViewController *root, CGFloat expectedTop);
+static void ScarletIslandScheduleResidualAutomaticInset(
+    UIWindow *window, UIViewController *root, CGFloat expectedTop);
 
 static void ScarletIslandInspect(UIWindow *window, NSUInteger attempt) {
     if(!window || window.hidden || window.windowLevel != UIWindowLevelNormal ||
@@ -501,6 +505,9 @@ static void ScarletIslandInspect(UIWindow *window, NSUInteger attempt) {
         // R6P28: separate nested-owner repair, based on R6P27 real device
         // readback (local owner safeTop12, .never, adjusted inset3).
         ScarletIslandScheduleVisibleLocalOwnerRepair(window, root, target);
+        // R6P29: one independent UIKit automatic-inset experiment for a
+        // different, full-viewport residual owner AFTER the R6P28 local fix.
+        ScarletIslandScheduleResidualAutomaticInset(window, root, target);
         return;
     }
     if(ourDelta > 0) {
@@ -862,6 +869,176 @@ static void ScarletIslandScheduleVisibleLocalOwnerRepair(
     dispatch_after(dispatch_time(DISPATCH_TIME_NOW,
         (int64_t)1100 * NSEC_PER_MSEC), dispatch_get_main_queue(), ^{
         ScarletIslandRepairVisibleLocalScrollOwner(
+            weakWindow, weakRoot, expectedTop);
+    });
+}
+
+// R6P29: R6P28 actual signed iPhone (PID698) proved 5/8 controls moved
+// out of the island overlap by the *local* 9pt header inset. At 2600ms the
+// remaining 3 controls + 2 images belonged to another, FULL-SIZE scroll
+// owner (y0, height100%, width103%, adjustedInset0, safeTop62,
+// adjustmentBehavior NEVER). L063 explicitly required a tall VERTICAL
+// scroller and could never select this non-scrolling viewport owner.
+// Different causal lever: ask UIKit to calculate its automatic safe-area
+// inset rather than manually writing another global/root/local inset.
+// Roll back immediately unless UIKit both creates the expected inset and
+// reduces actually visible unsafe controls for this exact owner.
+static void ScarletIslandResidualAutoReceipt(
+    NSString *result, NSString *reason, CGFloat safeTop,
+    CGFloat before, CGFloat after, NSUInteger controls,
+    NSUInteger remaining) {
+    ScarletIslandPublish(@{
+        @"receipt":NSUUID.UUID.UUIDString, @"pid":@(getpid()),
+        @"epoch":@([[NSDate date] timeIntervalSince1970]),
+        @"result":result ?: @"guest_residual_auto_skipped",
+        @"reason":reason ?: @"none",
+        @"target":@((int)lround(safeTop)),
+        @"before":@((int)lround(before)), @"after":@((int)lround(after)),
+        @"owner_dominant_controls":@(controls),
+        @"visible_unsafe_controls":@(remaining)
+    });
+}
+
+static void ScarletIslandTryResidualAutomaticInset(
+    UIWindow *window, UIViewController *root, CGFloat expectedTop) {
+    if(!window || window.hidden || window.rootViewController != root ||
+       !window.windowScene ||
+       !UIInterfaceOrientationIsPortrait(window.windowScene.interfaceOrientation))
+        return;
+    UIView *rootView = root.isViewLoaded ? root.view : nil;
+    if(!rootView || rootView.window != window ||
+       expectedTop < 20 || expectedTop > 130 ||
+       fabs(rootView.safeAreaInsets.top - expectedTop) > 2)
+        return;
+    // The P28 local-owner fix ran at 1100ms. Reclassify REAL remaining
+    // visible controls rather than rediscovering the already-fixed header.
+    ScarletIslandViewMetrics metrics = {0};
+    NSMutableDictionary *groups = [NSMutableDictionary dictionary];
+    ScarletIslandWalkViews(rootView, window, expectedTop, 0,
+                           &metrics, groups);
+    if(metrics.visibleUnsafeControls < 2 || groups.count == 0) return;
+
+    UIScrollView *selected = nil;
+    NSUInteger selectedControls = 0;
+    CGFloat winW = CGRectGetWidth(window.bounds);
+    CGFloat winH = CGRectGetHeight(window.bounds);
+    for(NSValue *key in groups) {
+        UIScrollView *candidate = (UIScrollView *)[key nonretainedObjectValue];
+        if(!candidate || candidate.window != window) continue;
+        NSUInteger n = [groups[key][@"controls"] unsignedIntegerValue];
+        CGRect rect = [candidate convertRect:candidate.bounds toView:window];
+        CGFloat localSafe = candidate.safeAreaInsets.top;
+        CGFloat adjusted = candidate.adjustedContentInset.top;
+        CGFloat explicitInset = candidate.contentInset.top;
+        CGFloat offset = candidate.contentOffset.y;
+        CGFloat contentRatio = candidate.contentSize.height /
+            MAX(1, candidate.bounds.size.height);
+        BOOL exactResidualOwner = n >= 2 &&
+            !objc_getAssociatedObject(candidate, &scarletIslandLocalOwnerAppliedKey) &&
+            !objc_getAssociatedObject(candidate, &scarletIslandResidualAutoAppliedKey) &&
+            fabs(CGRectGetMinY(rect)) <= 3 &&
+            CGRectGetWidth(rect) >= winW * 0.97 &&
+            CGRectGetWidth(rect) <= winW * 1.10 &&
+            CGRectGetHeight(rect) >= winH * 0.85 &&
+            CGRectGetHeight(rect) <= winH * 1.12 &&
+            fabs(localSafe - expectedTop) <= 2 &&
+            fabs(adjusted) <= 1 && fabs(explicitInset) <= 1 &&
+            fabs(offset) <= 2 &&
+            contentRatio >= 0.85 && contentRatio <= 1.12 &&
+            candidate.contentInsetAdjustmentBehavior ==
+                UIScrollViewContentInsetAdjustmentNever &&
+            candidate.scrollEnabled &&
+            !candidate.dragging && !candidate.tracking &&
+            !candidate.decelerating;
+        if(!exactResidualOwner) continue;
+        if(selected) {
+            ScarletIslandResidualAutoReceipt(
+                @"guest_residual_auto_skipped", @"multiple_matching_owners",
+                expectedTop, 0, 0, n, metrics.visibleUnsafeControls);
+            return;
+        }
+        selected = candidate;
+        selectedControls = n;
+    }
+    if(!selected) {
+        ScarletIslandResidualAutoReceipt(
+            @"guest_residual_auto_skipped", @"no_matching_fullscreen_owner",
+            expectedTop, 0, 0, 0, metrics.visibleUnsafeControls);
+        return;
+    }
+    // No frame, transform, additionalSafeAreaInsets, custom contentInset,
+    // appearance, display scale, or gesture state is modified.
+    CGFloat before = selected.adjustedContentInset.top;
+    CGPoint originalOffset = selected.contentOffset;
+    __weak UIWindow *weakWindow = window;
+    __weak UIViewController *weakRoot = root;
+    __weak UIScrollView *weakOwner = selected;
+    selected.contentInsetAdjustmentBehavior =
+        UIScrollViewContentInsetAdjustmentAutomatic;
+    [selected setNeedsLayout];
+    [selected layoutIfNeeded];
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW,
+        (int64_t)180 * NSEC_PER_MSEC), dispatch_get_main_queue(), ^{
+        UIScrollView *owner = weakOwner;
+        UIWindow *liveWindow = weakWindow;
+        UIViewController *liveRoot = weakRoot;
+        if(!owner || !liveWindow || !liveRoot ||
+           liveWindow.rootViewController != liveRoot ||
+           owner.window != liveWindow ||
+           !UIInterfaceOrientationIsPortrait(
+               liveWindow.windowScene.interfaceOrientation)) {
+            if(owner) {
+                owner.contentInsetAdjustmentBehavior =
+                    UIScrollViewContentInsetAdjustmentNever;
+                owner.contentOffset = originalOffset;
+            }
+            return;
+        }
+        ScarletIslandViewMetrics resultMetrics = {0};
+        NSMutableDictionary *remainingGroups = [NSMutableDictionary dictionary];
+        ScarletIslandWalkViews(liveRoot.view, liveWindow, expectedTop, 0,
+                               &resultMetrics, remainingGroups);
+        NSNumber *afterCount = remainingGroups[
+            [NSValue valueWithNonretainedObject:owner]][@"controls"];
+        NSUInteger remaining = afterCount.unsignedIntegerValue;
+        CGFloat after = owner.adjustedContentInset.top;
+        BOOL proved = isfinite(after) &&
+            after >= expectedTop - 3 && after <= expectedTop + 12 &&
+            remaining < selectedControls &&
+            !owner.dragging && !owner.tracking && !owner.decelerating;
+        if(!proved) {
+            owner.contentInsetAdjustmentBehavior =
+                UIScrollViewContentInsetAdjustmentNever;
+            owner.contentOffset = originalOffset;
+            [owner setNeedsLayout];
+            [owner layoutIfNeeded];
+            ScarletIslandResidualAutoReceipt(
+                @"guest_residual_auto_reverted", @"no_measured_overlap_reduction",
+                expectedTop, before, after, selectedControls, remaining);
+            return;
+        }
+        objc_setAssociatedObject(owner, &scarletIslandResidualAutoAppliedKey,
+                                 @YES, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+        ScarletIslandResidualAutoReceipt(
+            @"guest_residual_auto_retained", @"automatic_inset_proved",
+            expectedTop, before, after, selectedControls, remaining);
+    });
+}
+
+static void ScarletIslandScheduleResidualAutomaticInset(
+    UIWindow *window, UIViewController *root, CGFloat expectedTop) {
+    if(objc_getAssociatedObject(root, &scarletIslandResidualAutoScheduleKey))
+        return;
+    objc_setAssociatedObject(root, &scarletIslandResidualAutoScheduleKey,
+                             @YES, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+    __weak UIWindow *weakWindow = window;
+    __weak UIViewController *weakRoot = root;
+    // 650ms untouched read; 1100ms P28 short-owner local inset;
+    // 1850ms residual candidate; 2030ms readback/rollback;
+    // 2600ms existing iPhone geometry proof.
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW,
+        (int64_t)1850 * NSEC_PER_MSEC), dispatch_get_main_queue(), ^{
+        ScarletIslandTryResidualAutomaticInset(
             weakWindow, weakRoot, expectedTop);
     });
 }
