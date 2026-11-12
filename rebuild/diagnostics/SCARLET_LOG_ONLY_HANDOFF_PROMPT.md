@@ -290,3 +290,50 @@ L051=R6P15 저장된 RSD 연결의 제한적 재검사다. 과거 항목에 `dev
   L059(BGTask Bundle ID 선택)로 분리한다. R6P18 하위 콘텐츠
   지오메트리 `guest_content_geometry_probe`는 다시 실행 성공한
   게스트에서만 판단한다.
+
+## 12. R6P20 최신 실기기 증거 · R6P21 깊이 탐색 누락 및 SideStore 인증서 재판정
+
+- 최신 R6P20 실기기 파일 `붙여넣은 텍스트(1)(20261112-065038).txt`:
+  SourceCommit=`7212364c7c65`, session=`19667412`,
+  iOS 27.2 (24B119), 2026-11-12 06:49:28~06:50:30 UTC.
+  **현재 실행의 JSONL 203개 이벤트**. 60개 이전 L001~L060 이력이 완전
+  포함돼 있으며, 과거 안전영역·SDK/overlay 보정 반복 금지.
+- 이번 실제 성공: `automatic_background_registered(registered)` 및
+  scheduled, `pairing_restored(pairing_saved_and_transport_ready)`, Apple
+  `twofactor_code_submitted`→`stored_session_verified`→
+  `host_session_restored`, 게스트 PIDs `5497`/`5506` 모두 실행,
+  `entitled_app_group=true`, `group_accessible=true`, LC P12 true,
+  `signed_host_identity=match`, `team_match=match`, 각각 루트 Safe Area 62pt.
+  게스트 앱 A→B에서 `recent_session_registered` 1→2 누적 기록.
+  `switch_panel_content_rendered=2`, `switch_panel_recent_rows_mounted=1`은
+  **현재 앱 1행을 별도 렌더링하므로 정상**. 이를 버그로 분류하지 않는다.
+- 다이나믹 아일랜드는 **시각적 미해결**. `guest_content_geometry_probe`
+  PID5497은 `visited=46`, `candidate_controls=7`, `unsafe_controls=0`,
+  `scan_capped=true`; PID5506은 `visited=15`, `candidate_controls=0`,
+  `unsafe_controls=0`, `scroll_top_without_inset=3`, `scan_capped=true`.
+  650ms/2600ms 모두 동일. 실제 구현 L054는 깊이 9에서 중단하므로
+  두 프로세스 모두 뷰 개수 640에 도달한 것이 아니라 **깊이 잘림**.
+  이전 `unsafe_controls=0`은 가림 없음의 증거가 될 수 없다.
+  R6P21은 깊이 24/노드 1200으로 제한된 읽기전용 관찰,
+  `depth_capped`/`count_capped`/`max_depth_seen`, 익명 상단 UILabel/
+  UIImageView 등 시각 노드 프레임, 초기 y 좌표 및 스크롤 위치를 수집.
+  루트/UIWindow/액세서빌리티/스크롤 인셋 변경은 없다. 별도 로그·화면
+  확인 없이 가림 해결이라고 표시하지 않는다.
+- `sidestore_managed_apps_inspected(count=1, signing_ready=false,
+  reason=sidestore_certificate_missing)`는 UTC 06:50:00과 06:50:07,
+  **인증서 조회보다 이전**. UTC 06:50:08 Native provider는
+  `existing_portal` P12를 반환하고 LC에 이미 같아
+  `native_provider_same_certificate`가 나왔으나 이후
+  `ScarletNativeRefreshInspector.inspect` 재검사는 없었다.
+  **SideStore 인증서가 계속 누락됐다고 확정할 수 없다.** R6P21은
+  기존 인증서 조회 완료 직후 원본 SideStore Keychain·관리 앱 읽기 경로를
+  재실행해 `certificate/sidestore_signing_rechecked`에
+  `count`, `host_managed`, `signing_ready`, `reason`을 별도 기록.
+  인증서 재발급/폐기/복구를 임의로 반복하지 않는다.
+- `installation_verified=false`는 자동 갱신 재시도 간격 때문에
+  이번 실행에 설치 확인이 없었다는 뜻. BGTask 예약 성공과 실제 앱
+  프로파일 갱신은 다르다. 새로운 iOS `.ips` 크래시나 네트워크 -1005는
+  이번 실행에는 없으므로 이전 실패를 새 재현으로 오인하지 않는다.
+- 신규 수정 이력은 L061(한계를 실제 iPhone에서 반증한 하위 콘텐츠
+  좌표 관찰) / L062(인증서 provider 이후 SideStore 상태 재확인)이며,
+  각각 GitHub 정확한 SHA와 before/after unified diff 기록 필수.
