@@ -1,8 +1,8 @@
 {
   "schema": 2,
   "scope": "Scarlet Crystal guest top-screen overlap, touch access, rotation, remote guest render and related resident regressions",
-  "updated_utc": "2026-11-12T02:10:59.730Z",
-  "current_baseline": "R6P11 attached device report SourceCommit=687fb754e837: two guest SDK contract events are user_override, guest top overlap unresolved. R6P12 switcher instant rows; R6P13 compiled no-repeat gate and early decision index awaiting CI + installed device export.",
+  "updated_utc": "2026-11-12T02:21:00Z",
+  "current_baseline": "Installed iPhone report SourceCommit=f11ce35c2e7b: R6P12 switcher recent-row mount observed 5/16ms, first paint unverified; top bar island overlap unresolved; two guest SDK requests user_override. R6P13 no-repeat CI gate and front summary added, Xcode final validation pending.",
   "current_issue_status": "UNRESOLVED: guest app top bars/controls can overlap Dynamic Island (Instagram verified by user, others possible).",
   "confidence_note": "Past-chat-only historical versions were reported in earlier conversations; not all have a GitHub revision or device verification. An implementation, a CI success, a telemetry event, and a real device visual fix are distinct.",
   "privacy": "No credentials, Apple ID, OTP, UDID, guest names or device identifiers are stored.",
@@ -2588,7 +2588,7 @@
       "mechanism": "dyld_guest_sdk_compatibility",
       "hypothesis": "Original LiveProcess NSExtensionMain loads UIKit before the selected guest Info.plist/CFBundle swap. Even when R6P8 bundle flags are correct after swap, guest code can observe the LiveProcess extension executable's SDK compatibility level through dyld, rather than the guest Mach-O's own SDK. This untested process-level compatibility mismatch might affect UIKit/SwiftUI default navigation-bar placement across multiple guests. Changing dyld queries after UIKit initial load cannot guarantee cached UIKit behavior changes; testing is essential.",
       "action": "Only for resident (deferred) LiveProcess requests add anonymous scarletResidentSDKContract flag; parse selected guest LC_BUILD_VERSION.sdk or LC_VERSION_MIN_IPHONEOS read-only; when guest has no explicit spoofSDKVersion preference, set DyldHooksInit effective SDK to guest-declared SDK within current iOS major range; preserve original for classic LC, SideStore, and explicit settings. Relay anonymous per-process SDK selection to host journal. No UI frame, scale, Safe Area, status bar, UIWindow or overlay changes. Because pinned SDK dyld support has OS-version-sensitive asserts, unknown dyld symbol/version-map patterns now fail closed; avoiding premature abort of jitless_hook_dlopen. This is a nonvisual safety guard; visual correction remains unproven.",
-      "observation": "R6P10 iPhone device log seq 31/84: XPC launch after host attach; host_owner_top_pt -1→62; safe_top_pt 62→0→62 repeatedly; guest PID 1560/1570 started and reused. User confirms guest app top controls including Instagram remain covered by Dynamic Island; other affected apps possible. R6P11 implementation source exists but iPhone visual/touch effect not tested. R6P11 SDK hook unknown-layout guard and regression assertion added; still requires device confirmation of UI and that both guest processes survive. Generator output mapping now includes four precise runtime files and method-level before/after changes, separate from Git-tracked Python integration hunks. Source-level regression tests enforce generated native source mapping and AI handoff preservation. Subsequent iPhone report SourceCommit=687fb754e837 current session=05701f45 contains guest_sdk:resident_sdk_contract_selected for PIDs 2318/2334: sdk_source=user_override, sdk_major/minor=26.4 and 27.1, result=dyld_sdk_query_requested. Since R6P11 chooses declared Mach-O SDK only when explicitSDK==0, these receipts do not demonstrate the auto-selection path. Device visual/touch correction still not verified.",
+      "observation": "R6P10 iPhone device log seq 31/84: XPC launch after host attach; host_owner_top_pt -1→62; safe_top_pt 62→0→62 repeatedly; guest PID 1560/1570 started and reused. User confirms guest app top controls including Instagram remain covered by Dynamic Island; other affected apps possible. R6P11 implementation source exists but iPhone visual/touch effect not tested. R6P11 SDK hook unknown-layout guard and regression assertion added; still requires device confirmation of UI and that both guest processes survive. Generator output mapping now includes four precise runtime files and method-level before/after changes, separate from Git-tracked Python integration hunks. Source-level regression tests enforce generated native source mapping and AI handoff preservation. Subsequent iPhone report SourceCommit=687fb754e837 current session=05701f45 contains guest_sdk:resident_sdk_contract_selected for PIDs 2318/2334: sdk_source=user_override, sdk_major/minor=26.4 and 27.1, result=dyld_sdk_query_requested. Since R6P11 chooses declared Mach-O SDK only when explicitSDK==0, these receipts do not demonstrate the auto-selection path. Device visual/touch correction still not verified. R6P12 device log SourceCommit=f11ce35c2e7b, OS27.2/24B119, session 2dd562a5 again shows guest_sdk resident_sdk_contract_selected on two guest processes with sdk_source=user_override (sdk 26.4 and 27.1). No guest_macho selected; visual top bar remains unresolved.",
       "evidence": "source_patch_verified_ci_pending",
       "status": "device_diagnostic_only_unresolved",
       "repeat_policy": "Do not repeat previously tried L003/L008/L028/L032/L035 Safe Area, UIHosting, statusBar or overlay adjustments; nor reapply R6P9 XPC order. Do not change any guest bundle ID or patch individual guest IPA. If SDK mechanism fails, record it and investigate a different cause, not a different SDK constant. Latest device receipts show explicit user SDK override for both examined guest PIDs, so do not repeat guest SDK selection and claim it applied. Distinguish dyld hook requested from UIKit launch-time cached traits.",
@@ -2810,7 +2810,7 @@
           "title": "test(r6p11): enforce exact generated LiveProcess and dyld native source edit provenance"
         }
       ],
-      "device_verification": "Device log received on 2026-11-12: sdk_source=user_override for two guests; no guest_macho auto-contract receipt; no visual/touch fix verified",
+      "device_verification": "R6P11 and R6P12 installed-device log: user_override SDK for both guest processes, not automatic SDK contract; no island visual/touch correction proved.",
       "rollback_commit": "858214ab66e5416e3f6861f7f87d0d6b463c03ca",
       "success_gate": "On at least two arbitrary guest apps, portrait+landscape+home-reentry top visible controls fully clear physical Dynamic Island and receive taps; no screen scaling or process loss. Record both successes and failures in the next exported report.",
       "privacy": "Only SDK major/minor, numeric PID and static SDK source enum; no bundle ID or user guest name.",
@@ -2896,9 +2896,9 @@
       "mechanism": "eager_switcher_row_mount_without_secondary_content_fade",
       "hypothesis": "R6P11 device launch evidence registers A and B in 11-49ms; switch_panel_opened to appPanelContent.onAppear is 9-21ms. But the code deliberately inserts .transition(.opacity) on the Vstack and defers recently launched rows with LazyVStack. An early panel-level onAppear is not a proof that recent rows are painted at that time. Those independent view-level effects can produce a late-looking arrival while the separate 0.45s glass morph is unfolding. This is a different mechanism from previously retried guest Safe Area, UIKit, FBScene and XPC timing approaches.",
       "action": "In ScarletFullscreenGuestFloatingTab.openPanel() measure synchronous target resolution in monotonic milliseconds before the opening morph; replace recent guest LazyVStack with eager VStack and anonymous rows-mounted observation; replace the nested content .transition(.opacity) with .transition(.identity) plus a content-only transaction disabling animation. Keep the original root-level glassPlate spring, fixed panel center, button pan, app session ledger, overlays, audio, orientation, App Group and bundle IDs unchanged. Update V26 fade expectation and add new R6P12 regression test. GitHub Actions push allowlist accepts the new R6P12 branch; release asset and tag are unique to R6P12, preserving prior R6P11 release assets. Keep exact workflow diff in audit; narrowly extend the existing audit contract to accept .github/workflows/ as an additional source root (without accepting arbitrary paths).",
-      "observation": "Before patch, iPhone diagnostic SourceCommit=687fb754e837 session=05701f45 shows first recent_session_registered 01:42:18.855 (49ms after launch_requested), second 01:42:32.674 (11ms). First switch_panel_opened 01:42:24.872 to switch_panel_content_rendered 01:42:24.893 (21ms); with two apps 01:42:41.914 to 01:42:41.930 (16ms). These events record panel-level appearance, not actual rasterization of every row. User reported that newly running apps appear late in the multitasking switcher. Postpatch UI/paint latency not yet observed. First R6P12 GitHub Actions run 43137491227 failed static suite: 477 tests, 1 failure. Existing R6P10 ledger validator required every git-patched file to start with rebuild/, rejecting legitimate .github/workflows/scarlet-paired-engines-build.yml recorded under L047. Test contract was extended narrowly to also allow .github/workflows/ while preserving exact hunk/commit checks. Subsequent CI result pending.",
+      "observation": "Before patch, iPhone diagnostic SourceCommit=687fb754e837 session=05701f45 shows first recent_session_registered 01:42:18.855 (49ms after launch_requested), second 01:42:32.674 (11ms). First switch_panel_opened 01:42:24.872 to switch_panel_content_rendered 01:42:24.893 (21ms); with two apps 01:42:41.914 to 01:42:41.930 (16ms). These events record panel-level appearance, not actual rasterization of every row. User reported that newly running apps appear late in the multitasking switcher. Postpatch UI/paint latency not yet observed. First R6P12 GitHub Actions run 43137491227 failed static suite: 477 tests, 1 failure. Existing R6P10 ledger validator required every git-patched file to start with rebuild/, rejecting legitimate .github/workflows/scarlet-paired-engines-build.yml recorded under L047. Test contract was extended narrowly to also allow .github/workflows/ while preserving exact hunk/commit checks. Subsequent CI result pending. Later installed iPhone R6P12 SourceCommit=f11ce35c2e7b session 2dd562a5: first launch request at 02:05:21.040, recent-session registered at 02:05:21.059 (19ms); second 02:05:25.997->26.004 (7ms). At two-app panel open 02:05:29.294, recent_rows_mounted and content_rendered both 02:05:29.299 (~5ms); on later open 02:12:38.680 -> recent rows 02:12:38.696 (16ms), overall content onAppear 18ms. This validates eager row mounting observability, but neither first painted frame nor absence of perceived lag; export silently filtered elapsed_ms, fixed in R6P13 recorder allowlist. Both guest PIDs seen and home retained 2 slots.",
       "evidence": "device_log_before_patch_and_github_source_diff",
-      "status": "source_committed_static_and_xcode_ci_pending",
+      "status": "device_code_path_observed_first_paint_unverified",
       "repeat_policy": "Do not reintroduce a second content opacity transition or lazy row rendering without new actual device evidence. Do not alter original V48 pan geometry, native glass morph or restore old Safe Area/Scene modifications; any repeated attempt requires new independent measured failure.",
       "source_verification": "git_patch_observed",
       "code_locations": [
@@ -3114,7 +3114,7 @@
         }
       ],
       "generated_runtime_targets": [],
-      "device_verification": "not_installed_or_tested_after_patch",
+      "device_verification": "installed R6P12 diagnostic code-path receipts: recent rows mounted 5ms/16ms after panel open, actual first-frame visual not measured; app behavior fix not visually confirmed",
       "rollback_commit": "687fb754e8370b68b5af11aa5b235dcd8103c349",
       "success_gate": "On-device iOS 27.2 test with guest A then B: opening already-resident switcher shows A/B icons and rows immediately with no secondary fade while one native glass surface still morphs. Record source resolution and row-mount events, use video/frame capture to establish first-paint timing, and confirm switch-to-A/B retains PID/session. This entry is not proof of visual success.",
       "privacy": "Anonymous event name, count and elapsed_ms only; no bundle identifiers, app names, credentials or UDID."
@@ -3126,8 +3126,8 @@
       "problem": "diagnostics",
       "mechanism": "preedit_no_repeat_gate",
       "hypothesis": "Previous R6P10 embedded a complete historical JSON and written no-repeat prompt, but source changes could still proceed without an executable safeguard. In addition, attaching verbose JSONL before the ~150KB full audit makes newly appended R6P9+ code records invisible to truncated previews. New machine-readable checks and a front-of-report decision index independently address enforcement and observability, without touching guest screen geometry or repeating any failed Dynamic Island fix.",
-      "action": "Create rebuild/diagnostics/scarlet_no_repeat_gate.py with pre-edit proposal mode and CI-test validation: compare problem and normalized mechanism aliases against unresolved prior attempts; reject exact repeated normalized source before/after even under a renamed mechanism; require novelty causal difference, falsifiable prediction, prior attempt IDs and if repeating a failed mechanism new device commit/event/observed value. Add dedicated tests with deliberate failed Safe Area and renamed-code examples. Add remediationDecisionIndex() to HostApp DiagnosticRecorder and render a compact recent 18-entry decision ledger before JSONL; retain full immutable historical JSON and handoff prompt after JSONL. Update bundled AI handoff instructions with mandatory pre-edit CLI usage and latest SDK override evidence.",
-      "observation": "On attached report SourceCommit=687fb754e837, 3261 file lines and full L001-L046 appended only after 200+ event rows. This file contains detailed R6P9/R6P10/R6P11 source diffs but a clipped preview can make them appear absent. Before R6P13 code existed, history validation could only assert entries/diffs were present and could not block duplicate proposals. Static and Xcode verification after patch pending; new summary's actual presence in an installed IPA unverified.",
+      "action": "Create rebuild/diagnostics/scarlet_no_repeat_gate.py with pre-edit proposal mode and CI-test validation: compare problem and normalized mechanism aliases against unresolved prior attempts; reject exact repeated normalized source before/after even under a renamed mechanism; require novelty causal difference, falsifiable prediction, prior attempt IDs and if repeating a failed mechanism new device commit/event/observed value. Add dedicated tests with deliberate failed Safe Area and renamed-code examples. Add remediationDecisionIndex() to HostApp DiagnosticRecorder and render a compact recent 18-entry decision ledger before JSONL; retain full immutable historical JSON and handoff prompt after JSONL. Update bundled AI handoff instructions with mandatory pre-edit CLI usage and latest SDK override evidence. Add explicit no-repeat CI command before native integration, correct regex literal escaping, allow anonymous elapsed_ms through recorder, guard elapsed_ms via static test, normalize related guest_boot/guest_top/rotation_top problems and reject no-diff proposals.",
+      "observation": "On attached report SourceCommit=687fb754e837, 3261 file lines and full L001-L046 appended only after 200+ event rows. This file contains detailed R6P9/R6P10/R6P11 source diffs but a clipped preview can make them appear absent. Before R6P13 code existed, history validation could only assert entries/diffs were present and could not block duplicate proposals. Static and Xcode verification after patch pending; new summary's actual presence in an installed IPA unverified. R6P13 CI run 43139609402 failed static test due to wrongly escaped regex L(\\\\d{3,}) in newly added gate; commit cadf99c fixed regex parsing and canonical whitespace normalization. Later CI runs were cancelled by subsequent pushes while fixes were being recorded. R6P12 device report had switch_panel_sources_ready count but no elapsed_ms due to Recorder allowedFields missing elapsed_ms; corrected and test added. Startup-order alias similarity crossed problem labels guest_boot->guest_top was initially unchecked; now grouped with rotation_top for same resident guest surface, and empty pre-edit diff is rejected.",
       "evidence": "device_export_history_read_and_repository_source_diff",
       "status": "source_committed_ci_pending",
       "source_verification": "git_patch_observed",
@@ -3477,6 +3477,114 @@
             "        self.assertIn('body += Self.decodedAudit(Self.handoffPromptBlob)', source)",
             ""
           ]
+        },
+        {
+          "commit": "cadf99caf6e90a68ca797b53b67402fa8553aa52",
+          "file": "rebuild/diagnostics/scarlet_no_repeat_gate.py",
+          "location": "@@ -45,15 +45,15 @@ def _mechanism(value: str) -> str:",
+          "before": [
+            "        return re.sub(r\"\\\\s+\", \"\", \"\\\\n\".join(",
+            "    match = re.fullmatch(r\"L(\\\\d{3,})\", str(entry.get(\"id\", \"\")))"
+          ],
+          "after": [
+            "        return re.sub(r\"\\s+\", \"\", \"\\n\".join(",
+            "    match = re.fullmatch(r\"L(\\d{3,})\", str(entry.get(\"id\", \"\")))"
+          ]
+        },
+        {
+          "commit": "60e8f5fbc6cc7aac5a2c1445f950e88159982e62",
+          "file": ".github/workflows/scarlet-paired-engines-build.yml",
+          "location": "@@ -34,6 +34,9 @@ jobs:",
+          "before": [],
+          "after": [
+            "          # Fail closed before any native engine integration or archive.",
+            "          python3 rebuild/diagnostics/scarlet_no_repeat_gate.py \\",
+            "            | tee report/scarlet-no-repeat-gate.log"
+          ]
+        },
+        {
+          "commit": "f9b568e3917b80ccdbe11454d754e88adbc9b953",
+          "file": "rebuild/HostApp/ScarletDiagnosticRecorder.swift",
+          "location": "@@ -26,7 +26,7 @@ final class ScarletDiagnosticRecorder: @unchecked Sendable {",
+          "before": [
+            "        \"domain\", \"count\", \"duration_ms\", \"width_pt\", \"height_pt\","
+          ],
+          "after": [
+            "        \"domain\", \"count\", \"duration_ms\", \"elapsed_ms\", \"width_pt\", \"height_pt\","
+          ]
+        },
+        {
+          "commit": "bd7a61ee15c5035801e29f6b6bac3687c2d4905a",
+          "file": "rebuild/Tests/test_v48_r6p13_no_repeat_gate.py",
+          "location": "@@ -60,6 +60,7 @@ def test_export_index_precedes_verbose_jsonl(self):",
+          "before": [],
+          "after": [
+            "        self.assertIn('\"elapsed_ms\"', source)  # R6P12 measurement cannot be privacy-filtered away."
+          ]
+        },
+        {
+          "commit": "c2e9917b9170e9cec184f084093aad550e7da907",
+          "file": "rebuild/diagnostics/scarlet_no_repeat_gate.py",
+          "location": "@@ -42,6 +42,15 @@ def _mechanism(value: str) -> str:",
+          "before": [],
+          "after": [
+            "def _problem_family(value: str) -> str:",
+            "    # Different symptom labels do not make the same guest launch/layout",
+            "    # mechanism a new fix. R6P9 was classified guest_boot, but later",
+            "    # attempts target its visible symptom guest_top.",
+            "    if value in {\"guest_top\", \"rotation_top\", \"guest_boot\"}:",
+            "        return \"resident_guest_surface\"",
+            "    return value",
+            "",
+            ""
+          ]
+        },
+        {
+          "commit": "c2e9917b9170e9cec184f084093aad550e7da907",
+          "file": "rebuild/diagnostics/scarlet_no_repeat_gate.py",
+          "location": "@@ -65,9 +74,12 @@ def check_candidate(candidate: dict, prior: list[dict]) -> list[str]:",
+          "before": [
+            "    previous = [e for e in prior if e.get(\"problem\") == problem]",
+            "                 and e.get(\"status\") in FAILURE_STATES]"
+          ],
+          "after": [
+            "    previous = [e for e in prior if _problem_family(e.get(\"problem\", \"\"))",
+            "                == _problem_family(problem)]",
+            "                 and (e.get(\"status\") in FAILURE_STATES",
+            "                      or e.get(\"device_verification\")",
+            "                      != \"device_visual_and_touch_pass\")]"
+          ]
+        },
+        {
+          "commit": "c2e9917b9170e9cec184f084093aad550e7da907",
+          "file": "rebuild/diagnostics/scarlet_no_repeat_gate.py",
+          "location": "@@ -92,6 +104,8 @@ def check_candidate(candidate: dict, prior: list[dict]) -> list[str]:",
+          "before": [],
+          "after": [
+            "    if not candidate.get(\"code_locations\"):",
+            "        errors.append(f\"{ident}: candidate must contain proposed file/diff context\")"
+          ]
+        },
+        {
+          "commit": "0093ee6f06b1a3358f4229129e9b0314bab3508f",
+          "file": "rebuild/Tests/test_v48_r6p13_no_repeat_gate.py",
+          "location": "@@ -64,6 +64,19 @@ def test_export_index_precedes_verbose_jsonl(self):",
+          "before": [],
+          "after": [
+            "    def test_old_guest_boot_startup_order_blocks_renamed_guest_top_retry(self):",
+            "        p = proposed(\"xpc_boot_order\")",
+            "        p[\"novelty\"][\"prior_excluded_ids\"] = [\"L043\"]",
+            "        errs = check_candidate(p, HISTORY[\"entries\"])",
+            "        self.assertTrue(any(\"BLOCK repeated mechanism startup_order\" in s",
+            "                            for s in errs), errs)",
+            "",
+            "    def test_empty_change_plan_cannot_bypass_history_precheck(self):",
+            "        p = proposed()",
+            "        p[\"code_locations\"] = []",
+            "        errs = check_candidate(p, HISTORY[\"entries\"])",
+            "        self.assertTrue(any(\"proposed file/diff\" in s for s in errs), errs)",
+            ""
+          ]
         }
       ],
       "source_revisions": [
@@ -3504,6 +3612,36 @@
           "sha": "be50cf653ac95d166cb169bd7c6eee8cd0992675",
           "url": "https://github.com/fx564286/sidestore-auto-refresh/commit/be50cf653ac95d166cb169bd7c6eee8cd0992675",
           "title": "test(r6p13): guard decision index position before long JSONL and preserve full source history"
+        },
+        {
+          "sha": "cadf99caf6e90a68ca797b53b67402fa8553aa52",
+          "url": "https://github.com/fx564286/sidestore-auto-refresh/commit/cadf99caf6e90a68ca797b53b67402fa8553aa52",
+          "title": "fix(r6p13): correct escaped regexes so historical IDs validate and source patches normalize"
+        },
+        {
+          "sha": "60e8f5fbc6cc7aac5a2c1445f950e88159982e62",
+          "url": "https://github.com/fx564286/sidestore-auto-refresh/commit/60e8f5fbc6cc7aac5a2c1445f950e88159982e62",
+          "title": "ci(r6p13): run executable no-repeat ledger guard before native build and save audit receipt"
+        },
+        {
+          "sha": "f9b568e3917b80ccdbe11454d754e88adbc9b953",
+          "url": "https://github.com/fx564286/sidestore-auto-refresh/commit/f9b568e3917b80ccdbe11454d754e88adbc9b953",
+          "title": "fix(r6p13): retain measured switcher elapsed_ms in privacy-safe iPhone diagnostics"
+        },
+        {
+          "sha": "bd7a61ee15c5035801e29f6b6bac3687c2d4905a",
+          "url": "https://github.com/fx564286/sidestore-auto-refresh/commit/bd7a61ee15c5035801e29f6b6bac3687c2d4905a",
+          "title": "test(r6p13): require elapsed_ms to survive recorder privacy field filtering"
+        },
+        {
+          "sha": "c2e9917b9170e9cec184f084093aad550e7da907",
+          "url": "https://github.com/fx564286/sidestore-auto-refresh/commit/c2e9917b9170e9cec184f084093aad550e7da907",
+          "title": "fix(r6p13): group guest_boot and guest_top failures, reject unverified same-mechanism retries"
+        },
+        {
+          "sha": "0093ee6f06b1a3358f4229129e9b0314bab3508f",
+          "url": "https://github.com/fx564286/sidestore-auto-refresh/commit/0093ee6f06b1a3358f4229129e9b0314bab3508f",
+          "title": "test(r6p13): cross-symptom XPC no-repeat and no empty pre-edit patches"
         }
       ],
       "generated_runtime_targets": [],
