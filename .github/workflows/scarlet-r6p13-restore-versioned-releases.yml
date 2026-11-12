@@ -1,0 +1,125 @@
+name: Restore R6P12 and publish frozen R6P13 IPA with exact source provenance
+
+on:
+  push:
+    branches:
+      - fix/scarlet-v48-r6p12-instant-recent-switcher-20261112
+    paths:
+      - .github/workflows/scarlet-r6p13-restore-versioned-releases.yml
+
+permissions:
+  actions: read
+  contents: write
+
+jobs:
+  restore-and-publish:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Retrieve immutable originally built R6P12 artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: Scarlet-Paired-Engines-UNSIGNED-DIAGNOSTIC-ONLY
+          run-id: 43137678005
+          repository: fx564286/sidestore-auto-refresh
+          github-token: ${{ github.token }}
+          path: original-r6p12
+      - name: Retrieve verified new R6P13 code artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: Scarlet-Paired-Engines-UNSIGNED-DIAGNOSTIC-ONLY
+          run-id: 43140795987
+          repository: fx564286/sidestore-auto-refresh
+          github-token: ${{ github.token }}
+          path: new-r6p13
+      - name: Verify BOTH frozen successful commit/run identities and IPA integrity
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -Eeuo pipefail
+          repo="$GITHUB_REPOSITORY"
+          old_commit=f11ce35c2e7bc53ef21db3e260c9c1a0ab469eba
+          new_commit=e6afe296a5355dec9361aac6d9d822ca0d8a74c2
+          old_readback="$(gh api "repos/$repo/actions/runs/43137678005" --jq '.head_sha + "|" + .conclusion')"
+          new_readback="$(gh api "repos/$repo/actions/runs/43140795987" --jq '.head_sha + "|" + .conclusion')"
+          test "$old_readback" = "$old_commit|success"
+          test "$new_readback" = "$new_commit|success"
+          test -s original-r6p12/Scarlet-LiveContainer+SideStore-ENGINES-UNSIGNED.ipa
+          test -s new-r6p13/Scarlet-LiveContainer+SideStore-ENGINES-UNSIGNED.ipa
+          python3 - <<'PY'
+          from zipfile import ZipFile
+          from pathlib import Path
+          for folder in ('original-r6p12','new-r6p13'):
+              p=Path(folder,'Scarlet-LiveContainer+SideStore-ENGINES-UNSIGNED.ipa')
+              with ZipFile(p) as z:
+                  assert z.testzip() is None, f'corrupt IPA: {folder}'
+                  names=z.namelist()
+                  assert any(n.startswith('Payload/') and n.endswith('.app/Info.plist') for n in names)
+                  assert any(n.endswith('LiveProcess.appex/Info.plist') for n in names)
+              print('[IPA-VERIFIED]',folder,'size',p.stat().st_size)
+          PY
+          test "$(sha256sum 'new-r6p13/Scarlet-LiveContainer+SideStore-ENGINES-UNSIGNED.ipa' | cut -d' ' -f1)" = "2e0af62d4e824c74cb28c43bb9e65223261eb23b9d66dee4fd94292c7c36f0fc"
+          cp 'original-r6p12/Scarlet-LiveContainer+SideStore-ENGINES-UNSIGNED.ipa' 'Scarlet-Crystal-V48-R6P12-INSTANT-RECENT-SWITCHER-UNSIGNED.ipa'
+          cp 'new-r6p13/Scarlet-LiveContainer+SideStore-ENGINES-UNSIGNED.ipa' 'Scarlet-Crystal-V48-R6P13-NO-REPEAT-GATE-UNSIGNED.ipa'
+          sha256sum Scarlet-Crystal-V48-R6P12-INSTANT-RECENT-SWITCHER-UNSIGNED.ipa > Scarlet-Crystal-V48-R6P12-INSTANT-RECENT-SWITCHER-UNSIGNED.ipa.sha256
+          sha256sum Scarlet-Crystal-V48-R6P13-NO-REPEAT-GATE-UNSIGNED.ipa > Scarlet-Crystal-V48-R6P13-NO-REPEAT-GATE-UNSIGNED.ipa.sha256
+      - name: Restore older R6P12 release asset to its original f11 commit
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -Eeuo pipefail
+          tag=scarlet-v48-r6p12-instant-recent-switcher-unsigned-20261112
+          old_commit=f11ce35c2e7bc53ef21db3e260c9c1a0ab469eba
+          target="$(gh api "repos/$GITHUB_REPOSITORY/releases/tags/$tag" --jq '.target_commitish')"
+          test "$target" = "$old_commit" || { echo "[STOP] Old tag target changed: $target"; exit 5; }
+          cat > original-notes.md <<'EOF'
+          ## Scarlet Crystal V48 R6P12 — original frozen unsigned IPA
+          Build source: f11ce35c2e7bc53ef21db3e260c9c1a0ab469eba
+          CI run: https://github.com/fx564286/sidestore-auto-refresh/actions/runs/43137678005
+          Restored from the immutable successful CI artifact; the earlier shared
+          R6P12 filename had accidentally been overwritten with later R6P13 code.
+          UNSIGNED: requires an existing Apple signing/install workflow.
+          EOF
+          gh release upload "$tag" --repo "$GITHUB_REPOSITORY" \
+            Scarlet-Crystal-V48-R6P12-INSTANT-RECENT-SWITCHER-UNSIGNED.ipa \
+            Scarlet-Crystal-V48-R6P12-INSTANT-RECENT-SWITCHER-UNSIGNED.ipa.sha256 --clobber
+          gh release edit "$tag" --repo "$GITHUB_REPOSITORY" \
+            --notes-file original-notes.md --prerelease
+          echo "[PASS] Original R6P12 release restored to source f11"
+      - name: Publish distinct R6P13 release with frozen e6 source
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -Eeuo pipefail
+          tag=scarlet-v48-r6p13-no-repeat-gate-unsigned-20261112
+          new_commit=e6afe296a5355dec9361aac6d9d822ca0d8a74c2
+          if gh release view "$tag" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "[STOP] R6P13 tag already exists: no overwrite allowed"
+            exit 6
+          fi
+          cat > r6p13-notes.md <<'EOF'
+          ## Scarlet Crystal V48 R6P13 — frozen unsigned diagnostic IPA
+          Build source: e6afe296a5355dec9361aac6d9d822ca0d8a74c2
+          CI run: https://github.com/fx564286/sidestore-auto-refresh/actions/runs/43140795987
+          Includes the R6P12 instant switcher rows plus R6P13 executable
+          anti-repeat source/diff gate and front-loaded remediation decision
+          index L001–L048. 486 static tests and LiveContainer/SideStore
+          Xcode native builds passed. Dynamic Island overlap remains UNRESOLVED;
+          iPhone visual/touch correctness not claimed.
+          UNSIGNED: requires an existing Apple signing/install workflow.
+          EOF
+          gh release create "$tag" --repo "$GITHUB_REPOSITORY" \
+            --target "$new_commit" \
+            --title "Scarlet Crystal V48 R6P13 — no-repeat gate (unsigned)" \
+            --prerelease --latest=false --notes-file r6p13-notes.md \
+            Scarlet-Crystal-V48-R6P13-NO-REPEAT-GATE-UNSIGNED.ipa \
+            Scarlet-Crystal-V48-R6P13-NO-REPEAT-GATE-UNSIGNED.ipa.sha256
+          readback="$(gh api "repos/$GITHUB_REPOSITORY/releases/tags/$tag" --jq '.target_commitish')"
+          test "$readback" = "$new_commit"
+          gh release view "$tag" --repo "$GITHUB_REPOSITORY" --json assets \
+            --jq '.assets[].name' | grep -Fx 'Scarlet-Crystal-V48-R6P13-NO-REPEAT-GATE-UNSIGNED.ipa'
+          echo "[PASS] R6P13 distinct source/asset/tag verified"
+          echo "https://github.com/$GITHUB_REPOSITORY/releases/tag/$tag" >> "$GITHUB_STEP_SUMMARY"

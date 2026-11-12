@@ -1,8 +1,8 @@
 {
   "schema": 2,
   "scope": "Scarlet Crystal guest top-screen overlap, touch access, rotation, remote guest render and related resident regressions",
-  "updated_utc": "2026-11-12T01:10:00Z",
-  "current_baseline": "R6P10 858214ab66e5 device exported full history; R6P11 SDK compatibility experiment awaits CI and iPhone visual validation",
+  "updated_utc": "2026-11-12T02:21:00Z",
+  "current_baseline": "Installed iPhone report SourceCommit=f11ce35c2e7b: R6P12 switcher recent-row mount observed 5/16ms, first paint unverified; top bar island overlap unresolved; two guest SDK requests user_override. R6P13 no-repeat CI gate and front summary added, Xcode final validation pending.",
   "current_issue_status": "UNRESOLVED: guest app top bars/controls can overlap Dynamic Island (Instagram verified by user, others possible).",
   "confidence_note": "Past-chat-only historical versions were reported in earlier conversations; not all have a GitHub revision or device verification. An implementation, a CI success, a telemetry event, and a real device visual fix are distinct.",
   "privacy": "No credentials, Apple ID, OTP, UDID, guest names or device identifiers are stored.",
@@ -2588,10 +2588,10 @@
       "mechanism": "dyld_guest_sdk_compatibility",
       "hypothesis": "Original LiveProcess NSExtensionMain loads UIKit before the selected guest Info.plist/CFBundle swap. Even when R6P8 bundle flags are correct after swap, guest code can observe the LiveProcess extension executable's SDK compatibility level through dyld, rather than the guest Mach-O's own SDK. This untested process-level compatibility mismatch might affect UIKit/SwiftUI default navigation-bar placement across multiple guests. Changing dyld queries after UIKit initial load cannot guarantee cached UIKit behavior changes; testing is essential.",
       "action": "Only for resident (deferred) LiveProcess requests add anonymous scarletResidentSDKContract flag; parse selected guest LC_BUILD_VERSION.sdk or LC_VERSION_MIN_IPHONEOS read-only; when guest has no explicit spoofSDKVersion preference, set DyldHooksInit effective SDK to guest-declared SDK within current iOS major range; preserve original for classic LC, SideStore, and explicit settings. Relay anonymous per-process SDK selection to host journal. No UI frame, scale, Safe Area, status bar, UIWindow or overlay changes. Because pinned SDK dyld support has OS-version-sensitive asserts, unknown dyld symbol/version-map patterns now fail closed; avoiding premature abort of jitless_hook_dlopen. This is a nonvisual safety guard; visual correction remains unproven.",
-      "observation": "R6P10 iPhone device log seq 31/84: XPC launch after host attach; host_owner_top_pt -1→62; safe_top_pt 62→0→62 repeatedly; guest PID 1560/1570 started and reused. User confirms guest app top controls including Instagram remain covered by Dynamic Island; other affected apps possible. R6P11 implementation source exists but iPhone visual/touch effect not tested. R6P11 SDK hook unknown-layout guard and regression assertion added; still requires device confirmation of UI and that both guest processes survive. Generator output mapping now includes four precise runtime files and method-level before/after changes, separate from Git-tracked Python integration hunks. Source-level regression tests enforce generated native source mapping and AI handoff preservation.",
+      "observation": "R6P10 iPhone device log seq 31/84: XPC launch after host attach; host_owner_top_pt -1→62; safe_top_pt 62→0→62 repeatedly; guest PID 1560/1570 started and reused. User confirms guest app top controls including Instagram remain covered by Dynamic Island; other affected apps possible. R6P11 implementation source exists but iPhone visual/touch effect not tested. R6P11 SDK hook unknown-layout guard and regression assertion added; still requires device confirmation of UI and that both guest processes survive. Generator output mapping now includes four precise runtime files and method-level before/after changes, separate from Git-tracked Python integration hunks. Source-level regression tests enforce generated native source mapping and AI handoff preservation. Subsequent iPhone report SourceCommit=687fb754e837 current session=05701f45 contains guest_sdk:resident_sdk_contract_selected for PIDs 2318/2334: sdk_source=user_override, sdk_major/minor=26.4 and 27.1, result=dyld_sdk_query_requested. Since R6P11 chooses declared Mach-O SDK only when explicitSDK==0, these receipts do not demonstrate the auto-selection path. Device visual/touch correction still not verified. R6P12 device log SourceCommit=f11ce35c2e7b, OS27.2/24B119, session 2dd562a5 again shows guest_sdk resident_sdk_contract_selected on two guest processes with sdk_source=user_override (sdk 26.4 and 27.1). No guest_macho selected; visual top bar remains unresolved.",
       "evidence": "source_patch_verified_ci_pending",
-      "status": "ci_pending",
-      "repeat_policy": "Do not repeat previously tried L003/L008/L028/L032/L035 Safe Area, UIHosting, statusBar or overlay adjustments; nor reapply R6P9 XPC order. Do not change any guest bundle ID or patch individual guest IPA. If SDK mechanism fails, record it and investigate a different cause, not a different SDK constant.",
+      "status": "device_diagnostic_only_unresolved",
+      "repeat_policy": "Do not repeat previously tried L003/L008/L028/L032/L035 Safe Area, UIHosting, statusBar or overlay adjustments; nor reapply R6P9 XPC order. Do not change any guest bundle ID or patch individual guest IPA. If SDK mechanism fails, record it and investigate a different cause, not a different SDK constant. Latest device receipts show explicit user SDK override for both examined guest PIDs, so do not repeat guest SDK selection and claim it applied. Distinguish dyld hook requested from UIKit launch-time cached traits.",
       "source_verification": "git_patch_observed",
       "code_locations": [
         {
@@ -2810,7 +2810,7 @@
           "title": "test(r6p11): enforce exact generated LiveProcess and dyld native source edit provenance"
         }
       ],
-      "device_verification": "not_installed_or_tested",
+      "device_verification": "R6P11 and R6P12 installed-device log: user_override SDK for both guest processes, not automatic SDK contract; no island visual/touch correction proved.",
       "rollback_commit": "858214ab66e5416e3f6861f7f87d0d6b463c03ca",
       "success_gate": "On at least two arbitrary guest apps, portrait+landscape+home-reentry top visible controls fully clear physical Dynamic Island and receive taps; no screen scaling or process loss. Record both successes and failures in the next exported report.",
       "privacy": "Only SDK major/minor, numeric PID and static SDK source enum; no bundle ID or user guest name.",
@@ -2887,6 +2887,778 @@
           "effect": "Prevent known unsupported dyld symbol/version map from aborting guest or skipping normal jitless dlopen when SDK compatibility attempt unavailable."
         }
       ]
+    },
+    {
+      "id": "L047",
+      "date": "2026-11-12",
+      "version": "new-v48-r6p12",
+      "problem": "guest_switcher_recent_rows_late",
+      "mechanism": "eager_switcher_row_mount_without_secondary_content_fade",
+      "hypothesis": "R6P11 device launch evidence registers A and B in 11-49ms; switch_panel_opened to appPanelContent.onAppear is 9-21ms. But the code deliberately inserts .transition(.opacity) on the Vstack and defers recently launched rows with LazyVStack. An early panel-level onAppear is not a proof that recent rows are painted at that time. Those independent view-level effects can produce a late-looking arrival while the separate 0.45s glass morph is unfolding. This is a different mechanism from previously retried guest Safe Area, UIKit, FBScene and XPC timing approaches.",
+      "action": "In ScarletFullscreenGuestFloatingTab.openPanel() measure synchronous target resolution in monotonic milliseconds before the opening morph; replace recent guest LazyVStack with eager VStack and anonymous rows-mounted observation; replace the nested content .transition(.opacity) with .transition(.identity) plus a content-only transaction disabling animation. Keep the original root-level glassPlate spring, fixed panel center, button pan, app session ledger, overlays, audio, orientation, App Group and bundle IDs unchanged. Update V26 fade expectation and add new R6P12 regression test. GitHub Actions push allowlist accepts the new R6P12 branch; release asset and tag are unique to R6P12, preserving prior R6P11 release assets. Keep exact workflow diff in audit; narrowly extend the existing audit contract to accept .github/workflows/ as an additional source root (without accepting arbitrary paths).",
+      "observation": "Before patch, iPhone diagnostic SourceCommit=687fb754e837 session=05701f45 shows first recent_session_registered 01:42:18.855 (49ms after launch_requested), second 01:42:32.674 (11ms). First switch_panel_opened 01:42:24.872 to switch_panel_content_rendered 01:42:24.893 (21ms); with two apps 01:42:41.914 to 01:42:41.930 (16ms). These events record panel-level appearance, not actual rasterization of every row. User reported that newly running apps appear late in the multitasking switcher. Postpatch UI/paint latency not yet observed. First R6P12 GitHub Actions run 43137491227 failed static suite: 477 tests, 1 failure. Existing R6P10 ledger validator required every git-patched file to start with rebuild/, rejecting legitimate .github/workflows/scarlet-paired-engines-build.yml recorded under L047. Test contract was extended narrowly to also allow .github/workflows/ while preserving exact hunk/commit checks. Subsequent CI result pending. Later installed iPhone R6P12 SourceCommit=f11ce35c2e7b session 2dd562a5: first launch request at 02:05:21.040, recent-session registered at 02:05:21.059 (19ms); second 02:05:25.997->26.004 (7ms). At two-app panel open 02:05:29.294, recent_rows_mounted and content_rendered both 02:05:29.299 (~5ms); on later open 02:12:38.680 -> recent rows 02:12:38.696 (16ms), overall content onAppear 18ms. This validates eager row mounting observability, but neither first painted frame nor absence of perceived lag; export silently filtered elapsed_ms, fixed in R6P13 recorder allowlist. Both guest PIDs seen and home retained 2 slots.",
+      "evidence": "device_log_before_patch_and_github_source_diff",
+      "status": "device_code_path_observed_first_paint_unverified",
+      "repeat_policy": "Do not reintroduce a second content opacity transition or lazy row rendering without new actual device evidence. Do not alter original V48 pan geometry, native glass morph or restore old Safe Area/Scene modifications; any repeated attempt requires new independent measured failure.",
+      "source_verification": "git_patch_observed",
+      "code_locations": [
+        {
+          "commit": "4fe7507dc900d3314a25c84cace5f427f2113ce6",
+          "file": "rebuild/HostApp/ScarletFullscreenGuestTab.swift",
+          "location": "@@ -166,7 +166,15 @@ struct ScarletFullscreenGuestFloatingTab: View {",
+          "before": [],
+          "after": [
+            "        // Measure synchronous target resolution separately from the glass",
+            "        // animation. A mounted panel is not proof its rows were painted.",
+            "        let reloadStarted = ProcessInfo.processInfo.systemUptime",
+            "        ScarletDiagnosticRecorder.shared.record(",
+            "            \"guest\", \"switch_panel_sources_ready\",",
+            "            fields: [\"count\": String(apps.count),",
+            "                     \"elapsed_ms\": String(Int((ProcessInfo.processInfo.systemUptime -",
+            "                                               reloadStarted) * 1_000))])"
+          ]
+        },
+        {
+          "commit": "4fe7507dc900d3314a25c84cace5f427f2113ce6",
+          "file": "rebuild/HostApp/ScarletFullscreenGuestTab.swift",
+          "location": "@@ -346,12 +354,20 @@ struct ScarletFullscreenGuestFloatingTab: View {",
+          "before": [
+            "                        LazyVStack(alignment: .leading, spacing: 12) {"
+          ],
+          "after": [
+            "                        // Recent live sessions are already materialized.",
+            "                        // Eagerly mount these few rows on first expansion;",
+            "                        // LazyVStack can postpone row creation until layout.",
+            "                        VStack(alignment: .leading, spacing: 12) {",
+            "                        .onAppear {",
+            "                            ScarletDiagnosticRecorder.shared.record(",
+            "                                \"guest\", \"switch_panel_recent_rows_mounted\",",
+            "                                fields: [\"count\": String(otherApps.count)])",
+            "                        }"
+          ]
+        },
+        {
+          "commit": "4fe7507dc900d3314a25c84cace5f427f2113ce6",
+          "file": "rebuild/HostApp/ScarletFullscreenGuestTab.swift",
+          "location": "@@ -395,10 +411,11 @@ struct ScarletFullscreenGuestFloatingTab: View {",
+          "before": [
+            "            // The content fades in AFTER the glass begins unfolding;",
+            "            // moving a fully rendered list across the guest looked like",
+            "            // a second panel and obscured the destination.",
+            "            .transition(.opacity)"
+          ],
+          "after": [
+            "            // Show the fixed-center card and its recent-app rows on the",
+            "            // first expansion frame. Animate only the separate glass plate;",
+            "            // fading the content made already-running apps appear late.",
+            "            .transition(.identity)",
+            "            .transaction { $0.disablesAnimations = true }"
+          ]
+        },
+        {
+          "commit": "cac455c8ba256e1ce9e6564aaf777cc706cffa3c",
+          "file": "rebuild/Tests/test_v26_liquidglass_fixed_center_morph.py",
+          "location": "@@ -54,7 +54,9 @@ def test_animation_runs_both_directions_without_bounce_or_duplicate_x(self):",
+          "before": [
+            "        self.assertIn('.transition(.opacity)', UI)"
+          ],
+          "after": [
+            "        # R6P12: no second fade after the glass starts to unfold.",
+            "        self.assertNotIn('.transition(.opacity)', UI)",
+            "        self.assertIn('.transaction { $0.disablesAnimations = true }', UI)"
+          ]
+        },
+        {
+          "commit": "76e89d98aefe6d96645c4900b7ee9dd5e69c773b",
+          "file": "rebuild/Tests/test_v48_r6p12_switcher_instant_rows.py",
+          "location": "@@ -0,0 +1,49 @@",
+          "before": [],
+          "after": [
+            "\"\"\"R6P12: previously launched guest rows must not visually trail glass expansion.",
+            "",
+            "Source-level regression only. Device first-frame paint/latency needs visual",
+            "capture; SwiftUI onAppear proves mounting, not completed display.",
+            "\"\"\"",
+            "from pathlib import Path",
+            "import unittest",
+            "",
+            "ROOT = Path(__file__).resolve().parents[1]",
+            "TAB = (ROOT / \"HostApp/ScarletFullscreenGuestTab.swift\").read_text()",
+            "STACK = (ROOT / \"HostApp/ScarletFullscreenSceneStack.swift\").read_text()",
+            "",
+            "",
+            "class ImmediateRecentRowsContract(unittest.TestCase):",
+            "    def test_recent_sessions_are_ready_before_panel_animation(self):",
+            "        opened = TAB.split(\"    private func openPanel() {\", 1)[1].split(",
+            "            \"    private func closePanel() {\", 1)[0]",
+            "        self.assertLess(opened.index(\"apps = reloadApps()\"),",
+            "                        opened.index(\"withAnimation(morphAnimation) { isOpen = true }\"))",
+            "        self.assertIn('\"switch_panel_sources_ready\"', opened)",
+            "        self.assertIn('\"elapsed_ms\"', opened)",
+            "        self.assertIn('onPanel(true, apps.count)', opened)",
+            "",
+            "    def test_eager_rows_without_second_fade(self):",
+            "        content = TAB.split(\"    private var appPanelContent: some View {\", 1)[1].split(",
+            "            \"    private var appPanel: some View\", 1)[0]",
+            "        self.assertIn(\"VStack(alignment: .leading, spacing: 12)\", content)",
+            "        self.assertNotIn(\"LazyVStack(\", content)",
+            "        self.assertIn(\"ForEach(otherApps) { entry in otherAppRow(entry) }\", content)",
+            "        self.assertIn('\"switch_panel_recent_rows_mounted\"', content)",
+            "        self.assertIn(\".transition(.identity)\", content)",
+            "        self.assertIn(\".transaction { $0.disablesAnimations = true }\", content)",
+            "        self.assertNotIn(\".transition(.opacity)\", content)",
+            "        self.assertNotIn(\"DispatchQueue.main.asyncAfter\", content)",
+            "",
+            "    def test_native_glass_and_guest_viewport_unchanged(self):",
+            "        # The fixed destination and original glass morph remain intact.",
+            "        self.assertIn(\"glassPlate(radius: isOpen ? 28 : 31)\", TAB)",
+            "        self.assertIn(\"Animation.spring(response: 0.45, dampingFraction: 0.88)\", TAB)",
+            "        self.assertIn(\"withAnimation(morphAnimation) { isOpen = true }\", TAB)",
+            "        self.assertIn(\".position(x: geometry.size.width / 2,\", TAB)",
+            "        self.assertIn(\"ScarletGuestRoundTabCenterXFractionV1\", TAB)",
+            "        self.assertIn(\"slots.map { slot in\", STACK)",
+            "        self.assertIn(\"return targets\", STACK)",
+            "        self.assertIn(\"ScarletFullscreenGuestTabInstaller.makeResidentSwitcherWindow\", STACK)",
+            "",
+            "",
+            "if __name__ == \"__main__\":",
+            "    unittest.main()"
+          ]
+        },
+        {
+          "commit": "9299f039119eecb109a9fd0aeffae9f441d75c60",
+          "file": ".github/workflows/scarlet-paired-engines-build.yml",
+          "location": "@@ -3,7 +3,7 @@ name: Scarlet paired LiveContainer and SideStore iOS build",
+          "before": [
+            "    branches: [rebuild/scarlet-from-zero-20261106, fix/scarlet-auth-status-rootcause-20261109, fix/scarlet-pr48-guest-overlay-no-resize-20261109, fix/scarlet-pr48-airpods-glass-guest-switch-v3-20261109, fix/scarlet-pr48-draggable-guest-tab-v4-20261109, fix/scarlet-pr48-v5-glass-drag-cert-recovery-20261109, fix/scarlet-pr48-v6-unified-cert-glass-20261109, fix/scarlet-pr48-v7-cert-jitless-unify-panel-rim-20261109, fix/scarlet-pr48-v8-flicker-certificate-menu-20261109, fix/scarlet-pr48-v9-single-glass-rim-20261109, fix/scarlet-pr48-v10-fixed-tab-cert-and-session-20261109, fix/scarlet-pr48-v11-module-settings-appid-20261109, fix/scarlet-pr48-v12-live-sessions-source-auto-refresh-20261109, fix/scarlet-pr48-v13-compact-settings-current-app-20261109, fix/scarlet-pr48-v14-guest-history-native-scenes-three-ids-20261109, fix/scarlet-pr48-v15-source-disclosure-icons-guest-handoff-20261109, fix/scarlet-pr48-v16-guest-switcher-icons-readback-20261110, fix/scarlet-v17-cold-switch-rotation-20261110, fix/scarlet-v18-refresh-diagnostics-native-glass-20261110, fix/scarlet-v19-active-session-switcher-20261110, fix/scarlet-v20-guest-switcher-trace-20261110, fix/scarlet-v21-hook-telemetry-persistence-20261110, fix/scarlet-v22-runtime-guest-identity-20261110, fix/scarlet-v23-session-only-switcher-20261110, fix/scarlet-v24-refresh-lifecycle-switch-receipt-20261110, fix/scarlet-v25-single-panel-outside-dismiss-20261110, fix/scarlet-v26-liquidglass-button-to-fixed-panel-morph-20261110, fix/scarlet-v27-sidestore-direct-native-refresh-20261110, fix/scarlet-v28-minimuxer-readiness-recovery-20261110, fix/scarlet-v29-inapp-rppairing-20261110, fix/scarlet-v30-restore-sidestore-active-team-20261110, fix/scarlet-v31-pairing-persistence-sheet-purple-20261110, fix/scarlet-v32-korean-copy-20261110, fix/scarlet-v33-log-rootcause-20261110, fix/scarlet-v34-iphone-virtual-resident-20261110, fix/scarlet-v35-restore-original-fullscreen-20261110, fix/scarlet-v36-remove-legacy-ui-20261110, fix/scarlet-v37-session-refresh-20261110, fix/scarlet-v38-current-launch-logs-20261110, fix/scarlet-v39-log-truth-20261110, fix/scarlet-v40-clean-work-session-20261110, fix/scarlet-v42-v40-safe-diagnostics-20261110, fix/scarlet-v43-install-rootcause-20261110, fix/scarlet-v44-rppairing-postsign-install-20261111, fix/scarlet-v45-single-viewport-liveprocess-20261111, fix/scarlet-v46-guard-provisional-guest-geometry-20261111, fix/scarlet-v47-resident-inplace-guest-switch-20261111, fix/scarlet-v48-guest-runtime-recovery-20261111, fix/scarlet-v48-restored-20261111, fix/scarlet-v48-r2-unified-switcher-20261111, fix/scarlet-v48-r3-original-pan-diagnostics-20261111, fix/scarlet-v48-r4-native-outside-remote-insets-20261111, fix/scarlet-v48-r5-attached-insets-shield-20261111, fix/scarlet-v48-r5-crash-recovery-20261111, fix/scarlet-v48-r5-recovery-r2-host-owner-20261111, fix/scarlet-v48-r5-recovery-r3-scene-authority-20261111, fix/scarlet-v48-r5-recovery-r4-native-ready-20261111, fix/scarlet-v48-r5-recovery-r5-compat-foreground-20261111, fix/scarlet-v48-r6-island-outside-audio-20261111, fix/scarlet-v48-r6p1-audio-home-focus-20261111, fix/scarlet-v48-r6p2-blocked-history-20261111, fix/scarlet-v48-r6p3-home-audio-gate-20261111, fix/scarlet-v48-r6p4-guest-audio-ack-20261112, fix/scarlet-v48-r6p7-launch-policy-rootcause-20261112, fix/scarlet-v48-r6p8-policy-field-relay-20261112, fix/scarlet-v48-r6p9-deferred-scene-boot-20261112, fix/scarlet-v48-r6p10-persistent-remediation-ledger-20261112, fix/scarlet-v48-r6p11-resident-guest-sdk-contract-20261112]"
+          ],
+          "after": [
+            "    branches: [rebuild/scarlet-from-zero-20261106, fix/scarlet-auth-status-rootcause-20261109, fix/scarlet-pr48-guest-overlay-no-resize-20261109, fix/scarlet-pr48-airpods-glass-guest-switch-v3-20261109, fix/scarlet-pr48-draggable-guest-tab-v4-20261109, fix/scarlet-pr48-v5-glass-drag-cert-recovery-20261109, fix/scarlet-pr48-v6-unified-cert-glass-20261109, fix/scarlet-pr48-v7-cert-jitless-unify-panel-rim-20261109, fix/scarlet-pr48-v8-flicker-certificate-menu-20261109, fix/scarlet-pr48-v9-single-glass-rim-20261109, fix/scarlet-pr48-v10-fixed-tab-cert-and-session-20261109, fix/scarlet-pr48-v11-module-settings-appid-20261109, fix/scarlet-pr48-v12-live-sessions-source-auto-refresh-20261109, fix/scarlet-pr48-v13-compact-settings-current-app-20261109, fix/scarlet-pr48-v14-guest-history-native-scenes-three-ids-20261109, fix/scarlet-pr48-v15-source-disclosure-icons-guest-handoff-20261109, fix/scarlet-pr48-v16-guest-switcher-icons-readback-20261110, fix/scarlet-v17-cold-switch-rotation-20261110, fix/scarlet-v18-refresh-diagnostics-native-glass-20261110, fix/scarlet-v19-active-session-switcher-20261110, fix/scarlet-v20-guest-switcher-trace-20261110, fix/scarlet-v21-hook-telemetry-persistence-20261110, fix/scarlet-v22-runtime-guest-identity-20261110, fix/scarlet-v23-session-only-switcher-20261110, fix/scarlet-v24-refresh-lifecycle-switch-receipt-20261110, fix/scarlet-v25-single-panel-outside-dismiss-20261110, fix/scarlet-v26-liquidglass-button-to-fixed-panel-morph-20261110, fix/scarlet-v27-sidestore-direct-native-refresh-20261110, fix/scarlet-v28-minimuxer-readiness-recovery-20261110, fix/scarlet-v29-inapp-rppairing-20261110, fix/scarlet-v30-restore-sidestore-active-team-20261110, fix/scarlet-v31-pairing-persistence-sheet-purple-20261110, fix/scarlet-v32-korean-copy-20261110, fix/scarlet-v33-log-rootcause-20261110, fix/scarlet-v34-iphone-virtual-resident-20261110, fix/scarlet-v35-restore-original-fullscreen-20261110, fix/scarlet-v36-remove-legacy-ui-20261110, fix/scarlet-v37-session-refresh-20261110, fix/scarlet-v38-current-launch-logs-20261110, fix/scarlet-v39-log-truth-20261110, fix/scarlet-v40-clean-work-session-20261110, fix/scarlet-v42-v40-safe-diagnostics-20261110, fix/scarlet-v43-install-rootcause-20261110, fix/scarlet-v44-rppairing-postsign-install-20261111, fix/scarlet-v45-single-viewport-liveprocess-20261111, fix/scarlet-v46-guard-provisional-guest-geometry-20261111, fix/scarlet-v47-resident-inplace-guest-switch-20261111, fix/scarlet-v48-guest-runtime-recovery-20261111, fix/scarlet-v48-restored-20261111, fix/scarlet-v48-r2-unified-switcher-20261111, fix/scarlet-v48-r3-original-pan-diagnostics-20261111, fix/scarlet-v48-r4-native-outside-remote-insets-20261111, fix/scarlet-v48-r5-attached-insets-shield-20261111, fix/scarlet-v48-r5-crash-recovery-20261111, fix/scarlet-v48-r5-recovery-r2-host-owner-20261111, fix/scarlet-v48-r5-recovery-r3-scene-authority-20261111, fix/scarlet-v48-r5-recovery-r4-native-ready-20261111, fix/scarlet-v48-r5-recovery-r5-compat-foreground-20261111, fix/scarlet-v48-r6-island-outside-audio-20261111, fix/scarlet-v48-r6p1-audio-home-focus-20261111, fix/scarlet-v48-r6p2-blocked-history-20261111, fix/scarlet-v48-r6p3-home-audio-gate-20261111, fix/scarlet-v48-r6p4-guest-audio-ack-20261112, fix/scarlet-v48-r6p7-launch-policy-rootcause-20261112, fix/scarlet-v48-r6p8-policy-field-relay-20261112, fix/scarlet-v48-r6p9-deferred-scene-boot-20261112, fix/scarlet-v48-r6p10-persistent-remediation-ledger-20261112, fix/scarlet-v48-r6p11-resident-guest-sdk-contract-20261112, fix/scarlet-v48-r6p12-instant-recent-switcher-20261112]"
+          ]
+        },
+        {
+          "commit": "9299f039119eecb109a9fd0aeffae9f441d75c60",
+          "file": ".github/workflows/scarlet-paired-engines-build.yml",
+          "location": "@@ -293,7 +293,7 @@ jobs:",
+          "before": [
+            "    if: github.event_name == 'push' && (github.ref == 'refs/heads/rebuild/scarlet-from-zero-20261106' || github.ref == 'refs/heads/fix/scarlet-v31-pairing-persistence-sheet-purple-20261110' || github.ref == 'refs/heads/fix/scarlet-v32-korean-copy-20261110' || github.ref == 'refs/heads/fix/scarlet-v33-log-rootcause-20261110' || github.ref == 'refs/heads/fix/scarlet-v34-iphone-virtual-resident-20261110' || github.ref == 'refs/heads/fix/scarlet-v35-restore-original-fullscreen-20261110' || github.ref == 'refs/heads/fix/scarlet-v36-remove-legacy-ui-20261110' || github.ref == 'refs/heads/fix/scarlet-v37-session-refresh-20261110' || github.ref == 'refs/heads/fix/scarlet-v38-current-launch-logs-20261110' || github.ref == 'refs/heads/fix/scarlet-v39-log-truth-20261110' || github.ref == 'refs/heads/fix/scarlet-v40-clean-work-session-20261110' || github.ref == 'refs/heads/fix/scarlet-v42-v40-safe-diagnostics-20261110' || github.ref == 'refs/heads/fix/scarlet-v43-install-rootcause-20261110' || github.ref == 'refs/heads/fix/scarlet-v44-rppairing-postsign-install-20261111' || github.ref == 'refs/heads/fix/scarlet-v45-single-viewport-liveprocess-20261111' || github.ref == 'refs/heads/fix/scarlet-v46-guard-provisional-guest-geometry-20261111' || github.ref == 'refs/heads/fix/scarlet-v47-resident-inplace-guest-switch-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-guest-runtime-recovery-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-restored-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r2-unified-switcher-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r3-original-pan-diagnostics-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r4-native-outside-remote-insets-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r5-attached-insets-shield-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r5-crash-recovery-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r5-recovery-r2-host-owner-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r5-recovery-r3-scene-authority-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r5-recovery-r4-native-ready-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r5-recovery-r5-compat-foreground-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r6-island-outside-audio-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r6p1-audio-home-focus-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r6p2-blocked-history-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r6p3-home-audio-gate-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r6p4-guest-audio-ack-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p7-launch-policy-rootcause-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p8-policy-field-relay-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p9-deferred-scene-boot-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p10-persistent-remediation-ledger-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p11-resident-guest-sdk-contract-20261112')"
+          ],
+          "after": [
+            "    if: github.event_name == 'push' && (github.ref == 'refs/heads/rebuild/scarlet-from-zero-20261106' || github.ref == 'refs/heads/fix/scarlet-v31-pairing-persistence-sheet-purple-20261110' || github.ref == 'refs/heads/fix/scarlet-v32-korean-copy-20261110' || github.ref == 'refs/heads/fix/scarlet-v33-log-rootcause-20261110' || github.ref == 'refs/heads/fix/scarlet-v34-iphone-virtual-resident-20261110' || github.ref == 'refs/heads/fix/scarlet-v35-restore-original-fullscreen-20261110' || github.ref == 'refs/heads/fix/scarlet-v36-remove-legacy-ui-20261110' || github.ref == 'refs/heads/fix/scarlet-v37-session-refresh-20261110' || github.ref == 'refs/heads/fix/scarlet-v38-current-launch-logs-20261110' || github.ref == 'refs/heads/fix/scarlet-v39-log-truth-20261110' || github.ref == 'refs/heads/fix/scarlet-v40-clean-work-session-20261110' || github.ref == 'refs/heads/fix/scarlet-v42-v40-safe-diagnostics-20261110' || github.ref == 'refs/heads/fix/scarlet-v43-install-rootcause-20261110' || github.ref == 'refs/heads/fix/scarlet-v44-rppairing-postsign-install-20261111' || github.ref == 'refs/heads/fix/scarlet-v45-single-viewport-liveprocess-20261111' || github.ref == 'refs/heads/fix/scarlet-v46-guard-provisional-guest-geometry-20261111' || github.ref == 'refs/heads/fix/scarlet-v47-resident-inplace-guest-switch-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-guest-runtime-recovery-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-restored-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r2-unified-switcher-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r3-original-pan-diagnostics-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r4-native-outside-remote-insets-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r5-attached-insets-shield-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r5-crash-recovery-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r5-recovery-r2-host-owner-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r5-recovery-r3-scene-authority-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r5-recovery-r4-native-ready-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r5-recovery-r5-compat-foreground-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r6-island-outside-audio-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r6p1-audio-home-focus-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r6p2-blocked-history-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r6p3-home-audio-gate-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r6p4-guest-audio-ack-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p7-launch-policy-rootcause-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p8-policy-field-relay-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p9-deferred-scene-boot-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p10-persistent-remediation-ledger-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p11-resident-guest-sdk-contract-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p12-instant-recent-switcher-20261112')"
+          ]
+        },
+        {
+          "commit": "9299f039119eecb109a9fd0aeffae9f441d75c60",
+          "file": ".github/workflows/scarlet-paired-engines-build.yml",
+          "location": "@@ -322,7 +322,9 @@ jobs:",
+          "before": [
+            "          if [ \"$GITHUB_REF\" = \"refs/heads/fix/scarlet-v48-r6p11-resident-guest-sdk-contract-20261112\" ]; then"
+          ],
+          "after": [
+            "          if [ \"$GITHUB_REF\" = \"refs/heads/fix/scarlet-v48-r6p12-instant-recent-switcher-20261112\" ]; then",
+            "            asset=\"Scarlet-Crystal-V48-R6P12-INSTANT-RECENT-SWITCHER-UNSIGNED.ipa\"",
+            "          elif [ \"$GITHUB_REF\" = \"refs/heads/fix/scarlet-v48-r6p11-resident-guest-sdk-contract-20261112\" ]; then"
+          ]
+        },
+        {
+          "commit": "9299f039119eecb109a9fd0aeffae9f441d75c60",
+          "file": ".github/workflows/scarlet-paired-engines-build.yml",
+          "location": "@@ -420,7 +422,10 @@ jobs:",
+          "before": [
+            "          if [ \"$GITHUB_REF\" = \"refs/heads/fix/scarlet-v48-r6p11-resident-guest-sdk-contract-20261112\" ]; then"
+          ],
+          "after": [
+            "          if [ \"$GITHUB_REF\" = \"refs/heads/fix/scarlet-v48-r6p12-instant-recent-switcher-20261112\" ]; then",
+            "            tag=scarlet-v48-r6p12-instant-recent-switcher-unsigned-20261112",
+            "            asset=Scarlet-Crystal-V48-R6P12-INSTANT-RECENT-SWITCHER-UNSIGNED.ipa",
+            "          elif [ \"$GITHUB_REF\" = \"refs/heads/fix/scarlet-v48-r6p11-resident-guest-sdk-contract-20261112\" ]; then"
+          ]
+        },
+        {
+          "commit": "52907ebf7edc664b6ac4b1f8d99c2dfcb504dcda",
+          "file": "rebuild/Tests/test_v48_r6p10_remediation_history_export.py",
+          "location": "@@ -43,7 +43,7 @@ def test_verified_entries_have_real_before_and_after_source_diff(self):",
+          "before": [
+            "                    self.assertTrue(loc[\"file\"].startswith(\"rebuild/\"),"
+          ],
+          "after": [
+            "                    self.assertTrue(loc[\"file\"].startswith((\"rebuild/\", \".github/workflows/\")),"
+          ]
+        }
+      ],
+      "source_revisions": [
+        {
+          "sha": "4fe7507dc900d3314a25c84cace5f427f2113ce6",
+          "url": "https://github.com/fx564286/sidestore-auto-refresh/commit/4fe7507dc900d3314a25c84cace5f427f2113ce6",
+          "title": "fix(r6p12): mount recent switcher rows immediately without content fade"
+        },
+        {
+          "sha": "cac455c8ba256e1ce9e6564aaf777cc706cffa3c",
+          "url": "https://github.com/fx564286/sidestore-auto-refresh/commit/cac455c8ba256e1ce9e6564aaf777cc706cffa3c",
+          "title": "test(r6p12): preserve glass morph while prohibiting delayed card fade"
+        },
+        {
+          "sha": "76e89d98aefe6d96645c4900b7ee9dd5e69c773b",
+          "url": "https://github.com/fx564286/sidestore-auto-refresh/commit/76e89d98aefe6d96645c4900b7ee9dd5e69c773b",
+          "title": "test(r6p12): guard eager recent rows and immediate visual content"
+        },
+        {
+          "sha": "9299f039119eecb109a9fd0aeffae9f441d75c60",
+          "url": "https://github.com/fx564286/sidestore-auto-refresh/commit/9299f039119eecb109a9fd0aeffae9f441d75c60",
+          "title": "ci(r6p12): build and publish unique unsigned switcher IPA without overwriting R6P11"
+        },
+        {
+          "sha": "52907ebf7edc664b6ac4b1f8d99c2dfcb504dcda",
+          "url": "https://github.com/fx564286/sidestore-auto-refresh/commit/52907ebf7edc664b6ac4b1f8d99c2dfcb504dcda",
+          "title": "test(r6p12): accept audited GitHub Actions workflow edits with exact hunk provenance"
+        }
+      ],
+      "generated_runtime_targets": [],
+      "device_verification": "installed R6P12 diagnostic code-path receipts: recent rows mounted 5ms/16ms after panel open, actual first-frame visual not measured; app behavior fix not visually confirmed",
+      "rollback_commit": "687fb754e8370b68b5af11aa5b235dcd8103c349",
+      "success_gate": "On-device iOS 27.2 test with guest A then B: opening already-resident switcher shows A/B icons and rows immediately with no secondary fade while one native glass surface still morphs. Record source resolution and row-mount events, use video/frame capture to establish first-paint timing, and confirm switch-to-A/B retains PID/session. This entry is not proof of visual success.",
+      "privacy": "Anonymous event name, count and elapsed_ms only; no bundle identifiers, app names, credentials or UDID."
+    },
+    {
+      "id": "L048",
+      "date": "2026-11-12",
+      "version": "new-v48-r6p13-no-repeat-gate",
+      "problem": "diagnostics",
+      "mechanism": "preedit_no_repeat_gate",
+      "hypothesis": "Previous R6P10 embedded a complete historical JSON and written no-repeat prompt, but source changes could still proceed without an executable safeguard. In addition, attaching verbose JSONL before the ~150KB full audit makes newly appended R6P9+ code records invisible to truncated previews. New machine-readable checks and a front-of-report decision index independently address enforcement and observability, without touching guest screen geometry or repeating any failed Dynamic Island fix.",
+      "action": "Create rebuild/diagnostics/scarlet_no_repeat_gate.py with pre-edit proposal mode and CI-test validation: compare problem and normalized mechanism aliases against unresolved prior attempts; reject exact repeated normalized source before/after even under a renamed mechanism; require novelty causal difference, falsifiable prediction, prior attempt IDs and if repeating a failed mechanism new device commit/event/observed value. Add dedicated tests with deliberate failed Safe Area and renamed-code examples. Add remediationDecisionIndex() to HostApp DiagnosticRecorder and render a compact recent 18-entry decision ledger before JSONL; retain full immutable historical JSON and handoff prompt after JSONL. Update bundled AI handoff instructions with mandatory pre-edit CLI usage and latest SDK override evidence. Add explicit no-repeat CI command before native integration, correct regex literal escaping, allow anonymous elapsed_ms through recorder, guard elapsed_ms via static test, normalize related guest_boot/guest_top/rotation_top problems and reject no-diff proposals.",
+      "observation": "On attached report SourceCommit=687fb754e837, 3261 file lines and full L001-L046 appended only after 200+ event rows. This file contains detailed R6P9/R6P10/R6P11 source diffs but a clipped preview can make them appear absent. Before R6P13 code existed, history validation could only assert entries/diffs were present and could not block duplicate proposals. Static and Xcode verification after patch pending; new summary's actual presence in an installed IPA unverified. R6P13 CI run 43139609402 failed static test due to wrongly escaped regex L(\\\\d{3,}) in newly added gate; commit cadf99c fixed regex parsing and canonical whitespace normalization. Later CI runs were cancelled by subsequent pushes while fixes were being recorded. R6P12 device report had switch_panel_sources_ready count but no elapsed_ms due to Recorder allowedFields missing elapsed_ms; corrected and test added. Startup-order alias similarity crossed problem labels guest_boot->guest_top was initially unchecked; now grouped with rotation_top for same resident guest surface, and empty pre-edit diff is rejected.",
+      "evidence": "device_export_history_read_and_repository_source_diff",
+      "status": "source_committed_ci_pending",
+      "source_verification": "git_patch_observed",
+      "code_locations": [
+        {
+          "commit": "aa1855692f1c7d5fa626a9f6846b8fb671a4d0fd",
+          "file": "rebuild/diagnostics/scarlet_no_repeat_gate.py",
+          "location": "@@ -0,0 +1,162 @@",
+          "before": [],
+          "after": [
+            "\"\"\"Fail-closed, source-audited anti-repeat gate for future Scarlet fixes.",
+            "",
+            "Run before editing with --proposal JSON; CI runs without --proposal via unittest.",
+            "The baseline L001-L047 is immutable history. This check cannot infer causal",
+            "equivalence from arbitrary source code; explicit mechanism aliases and a",
+            "reviewed causal explanation are still required.",
+            "\"\"\"",
+            "from __future__ import annotations",
+            "",
+            "import argparse",
+            "import json",
+            "import re",
+            "import sys",
+            "from pathlib import Path",
+            "",
+            "HISTORY = Path(__file__).with_name(\"scarlet_remediation_history.json\")",
+            "FIRST_GATED_ID = 48",
+            "FAILURE_STATES = {",
+            "    \"device_unresolved\", \"diagnostic_failure\", \"rollback\",",
+            "    \"device_partial_pass\", \"unverified\", \"diagnostic_only\",",
+            "    \"source_only\", \"ci_pending\", \"source_committed_static_and_xcode_ci_pending\",",
+            "}",
+            "ALIASES = {",
+            "    \"safe_area\": {\"safe_area\", \"remote_safearea\", \"safearea_cache\", \"fbscene_safe_insets\"},",
+            "    \"uiwindow_owner\": {\"uiwindow_owner\", \"hosting_owner\", \"root_controller_owner\"},",
+            "    \"statusbar_metrics\": {\"statusbar_metrics\", \"statusbar_frame\", \"statusbar_height\"},",
+            "    \"launch_policy\": {\"launch_policy\", \"scene_manifest\", \"bundle_policy\"},",
+            "    \"startup_order\": {\"startup_order\", \"deferred_xpc\", \"xpc_boot_order\"},",
+            "    \"guest_uikit_geometry\": {\"guest_uikit_geometry\", \"guest_window_offsets\"},",
+            "    \"overlay_hit_test\": {\"overlay_hit_test\", \"outside_shield\"},",
+            "    \"layout_timing\": {\"layout_timing\", \"deferred_layout\", \"ready_reveal\"},",
+            "    \"frame_transform\": {\"frame_transform\", \"viewport_rescale\"},",
+            "    \"dyld_guest_sdk_compatibility\": {",
+            "        \"dyld_guest_sdk_compatibility\", \"guest_macho_sdk_contract\", \"dyld_sdk_query\"",
+            "    },",
+            "}",
+            "ALIASES = {alias: family for family, aliases in ALIASES.items() for alias in aliases}",
+            "",
+            "",
+            "def _mechanism(value: str) -> str:",
+            "    key = re.sub(r\"[^a-z0-9_]+\", \"_\", str(value).strip().lower())",
+            "    return ALIASES.get(key, key)",
+            "",
+            "",
+            "def _code_signature(change: dict) -> tuple:",
+            "    def canonical(parts: list) -> str:",
+            "        # Comments and formatting alone are not a new implementation.",
+            "        return re.sub(r\"\\\\s+\", \"\", \"\\\\n\".join(",
+            "            line for line in parts if not line.lstrip().startswith((\"//\", \"#\"))",
+            "        ))",
+            "    return (change.get(\"file\"), canonical(change.get(\"before\", [])),",
+            "            canonical(change.get(\"after\", [])))",
+            "",
+            "",
+            "def _entry_number(entry: dict) -> int:",
+            "    match = re.fullmatch(r\"L(\\\\d{3,})\", str(entry.get(\"id\", \"\")))",
+            "    if not match:",
+            "        raise ValueError(f\"Invalid remediation ID: {entry.get('id')!r}\")",
+            "    return int(match.group(1))",
+            "",
+            "",
+            "def check_candidate(candidate: dict, prior: list[dict]) -> list[str]:",
+            "    errors = []",
+            "    ident = candidate.get(\"id\", \"PROPOSAL\")",
+            "    problem = candidate.get(\"problem\", \"\")",
+            "    mech = _mechanism(candidate.get(\"mechanism\", \"\"))",
+            "    novelty = candidate.get(\"novelty\") or {}",
+            "    previous = [e for e in prior if e.get(\"problem\") == problem]",
+            "    conflicts = [e for e in previous if _mechanism(e.get(\"mechanism\", \"\")) == mech",
+            "                 and e.get(\"status\") in FAILURE_STATES]",
+            "    if len(novelty.get(\"causal_difference\", \"\")) < 40:",
+            "        errors.append(f\"{ident}: missing concrete causal_difference (>=40 chars)\")",
+            "    if len(novelty.get(\"falsifiable_prediction\", \"\")) < 35:",
+            "        errors.append(f\"{ident}: missing falsifiable_prediction (>=35 chars)\")",
+            "    if not novelty.get(\"prior_excluded_ids\"):",
+            "        errors.append(f\"{ident}: must name previously excluded attempt IDs\")",
+            "    else:",
+            "        known = {e.get(\"id\") for e in prior}",
+            "        unknown = set(novelty[\"prior_excluded_ids\"]) - known",
+            "        if unknown:",
+            "            errors.append(f\"{ident}: unknown excluded attempt IDs {sorted(unknown)}\")",
+            "    # The same failed mechanism is barred unless the proposal supplies an",
+            "    # actual new device observation and a falsifiable differentiation.",
+            "    if conflicts:",
+            "        evidence = novelty.get(\"new_device_evidence\") or {}",
+            "        matching = {e[\"id\"] for e in conflicts}",
+            "        if not matching.issubset(set(novelty.get(\"prior_excluded_ids\", []))):",
+            "            errors.append(f\"{ident}: repeated {mech} omits prior failures {sorted(matching)}\")",
+            "        if not (evidence.get(\"source_commit\") and evidence.get(\"event\") and",
+            "                evidence.get(\"observed_value\") and",
+            "                len(novelty.get(\"why_prior_fix_failed\", \"\")) >= 40):",
+            "            errors.append(f\"{ident}: BLOCK repeated mechanism {mech}; \"",
+            "                          \"requires new device source_commit/event/value and \"",
+            "                          \"specific explanation why prior code failed\")",
+            "    # Also block an identical source patch even if renamed to a new mechanism.",
+            "    prior_patches = {",
+            "        _code_signature(loc)",
+            "        for e in prior for loc in e.get(\"code_locations\", [])",
+            "    }",
+            "    for change in candidate.get(\"code_locations\", []):",
+            "        signature = _code_signature(change)",
+            "        if signature in prior_patches:",
+            "            errors.append(f\"{ident}: duplicate source change {change.get('file')}\")",
+            "        if not change.get(\"location\", \"\").startswith(\"@@ \"):",
+            "            errors.append(f\"{ident}: missing unified diff location\")",
+            "        if not (change.get(\"before\") or change.get(\"after\")):",
+            "            errors.append(f\"{ident}: missing before/after source\")",
+            "    return errors",
+            "",
+            "",
+            "def validate(history: dict, proposal: dict | None = None) -> list[str]:",
+            "    entries = history.get(\"entries\", [])",
+            "    errors = []",
+            "    seen = set()",
+            "    for index, entry in enumerate(entries):",
+            "        try:",
+            "            n = _entry_number(entry)",
+            "        except ValueError as ex:",
+            "            errors.append(str(ex))",
+            "            continue",
+            "        if n in seen:",
+            "            errors.append(f\"Duplicate remediation ID L{n:03d}\")",
+            "        seen.add(n)",
+            "        # Protect the entire frozen history against silent deletion.",
+            "        if n != index + 1:",
+            "            errors.append(f\"History sequence missing/reordered: L{n:03d}\")",
+            "        if n >= FIRST_GATED_ID:",
+            "            errors.extend(check_candidate(entry, entries[:index]))",
+            "            if entry.get(\"source_verification\") != \"git_patch_observed\":",
+            "                errors.append(f\"L{n:03d}: new fix requires source-verified code diff\")",
+            "            if not entry.get(\"source_revisions\"):",
+            "                errors.append(f\"L{n:03d}: source revisions missing\")",
+            "            if not entry.get(\"code_locations\"):",
+            "                errors.append(f\"L{n:03d}: code locations missing\")",
+            "    if len(entries) < FIRST_GATED_ID - 1:",
+            "        errors.append(\"Historical attempts L001-L047 missing\")",
+            "    if proposal is not None:",
+            "        errors.extend(check_candidate(proposal, entries))",
+            "    return errors",
+            "",
+            "",
+            "def main(argv: list[str] | None = None) -> int:",
+            "    parser = argparse.ArgumentParser()",
+            "    parser.add_argument(\"--history\", type=Path, default=HISTORY)",
+            "    parser.add_argument(\"--proposal\", type=Path,",
+            "                        help=\"Pre-edit proposal. Reject duplicate causal mechanisms.\")",
+            "    args = parser.parse_args(argv)",
+            "    data = json.loads(args.history.read_text(encoding=\"utf-8\"))",
+            "    proposal = (json.loads(args.proposal.read_text(encoding=\"utf-8\"))",
+            "                if args.proposal else None)",
+            "    issues = validate(data, proposal)",
+            "    if issues:",
+            "        for issue in issues:",
+            "            print(\"[NO-REPEAT-BLOCK] \" + issue, file=sys.stderr)",
+            "        return 2",
+            "    print(f\"[NO-REPEAT-PASS] {len(data['entries'])} historical attempts reviewed; \"",
+            "          \"candidate source/causal duplicate guard passed\")",
+            "    return 0",
+            "",
+            "",
+            "if __name__ == \"__main__\":",
+            "    raise SystemExit(main())"
+          ]
+        },
+        {
+          "commit": "d9da4be9844c640c16433a79bed38cf001ffdad9",
+          "file": "rebuild/Tests/test_v48_r6p13_no_repeat_gate.py",
+          "location": "@@ -0,0 +1,63 @@",
+          "before": [],
+          "after": [
+            "\"\"\"R6P13: prevent source-equivalent repeated fixes from reaching iOS builds.\"\"\"",
+            "import copy",
+            "import json",
+            "import sys",
+            "import unittest",
+            "from pathlib import Path",
+            "",
+            "ROOT = Path(__file__).resolve().parents[1]",
+            "sys.path.insert(0, str(ROOT / \"diagnostics\"))",
+            "from scarlet_no_repeat_gate import check_candidate, validate  # noqa: E402",
+            "",
+            "HISTORY = json.loads((ROOT / \"diagnostics/scarlet_remediation_history.json\")",
+            "                     .read_text(encoding=\"utf-8\"))",
+            "",
+            "",
+            "def proposed(mechanism=\"independent_new_mechanism\"):",
+            "    return {",
+            "        \"id\": \"L999\", \"problem\": \"guest_top\", \"mechanism\": mechanism,",
+            "        \"novelty\": {",
+            "            \"prior_excluded_ids\": [\"L035\", \"L043\", \"L046\"],",
+            "            \"causal_difference\": \"This probes a separately demonstrated root cause, not previously adjusted scene geometry.\",",
+            "            \"falsifiable_prediction\": \"A new guest-side observation must differ while previous host inset readbacks remain identical.\"",
+            "        }, \"code_locations\": [{",
+            "            \"file\": \"rebuild/HostApp/FutureIsolatedFix.swift\",",
+            "            \"location\": \"@@ -1,0 +1,1 @@\",",
+            "            \"before\": [], \"after\": [\"let neverBeforeTested = 7\"]",
+            "        }]",
+            "    }",
+            "",
+            "",
+            "class NoRepeatContract(unittest.TestCase):",
+            "    def test_existing_archive_and_new_metadata_pass(self):",
+            "        self.assertEqual(validate(HISTORY), [])",
+            "",
+            "    def test_repeated_safe_area_without_new_evidence_is_rejected(self):",
+            "        p = proposed(\"safe_area\")",
+            "        errs = check_candidate(p, HISTORY[\"entries\"])",
+            "        self.assertTrue(any(\"BLOCK repeated mechanism\" in s for s in errs), errs)",
+            "",
+            "    def test_alias_renaming_cannot_reopen_old_safe_area(self):",
+            "        p = proposed(\"fbscene_safe_insets\")",
+            "        errs = check_candidate(p, HISTORY[\"entries\"])",
+            "        self.assertTrue(any(\"BLOCK repeated mechanism\" in s for s in errs), errs)",
+            "",
+            "    def test_new_mechanism_with_causal_test_is_eligible(self):",
+            "        self.assertEqual(check_candidate(proposed(), HISTORY[\"entries\"]), [])",
+            "",
+            "    def test_same_exact_source_change_is_rejected_even_when_renamed(self):",
+            "        old = next(e for e in HISTORY[\"entries\"]",
+            "                   if e.get(\"code_locations\") and e[\"problem\"] == \"guest_top\")",
+            "        p = proposed()",
+            "        p[\"code_locations\"] = [copy.deepcopy(old[\"code_locations\"][0])]",
+            "        errs = check_candidate(p, HISTORY[\"entries\"])",
+            "        self.assertTrue(any(\"duplicate source change\" in s for s in errs), errs)",
+            "",
+            "    def test_novelty_must_be_explained_not_empty(self):",
+            "        p = proposed()",
+            "        p[\"novelty\"] = {}",
+            "        self.assertTrue(check_candidate(p, HISTORY[\"entries\"]))",
+            "",
+            "",
+            "if __name__ == \"__main__\":",
+            "    unittest.main()"
+          ]
+        },
+        {
+          "commit": "9a22a3aa7786a37b8008a5dfe47af8f187fab4d5",
+          "file": "rebuild/HostApp/ScarletDiagnosticRecorder.swift",
+          "location": "@@ -202,6 +202,40 @@ final class ScarletDiagnosticRecorder: @unchecked Sendable {",
+          "before": [],
+          "after": [
+            "    // Put decisions BEFORE verbose JSONL: truncated previews must still",
+            "    // show R6P9+ attempts, their mechanisms and changed source files.",
+            "    private static func remediationDecisionIndex() -> String {",
+            "        guard let bytes = Data(base64Encoded: remediationHistoryBlob),",
+            "              let document = try? JSONSerialization.jsonObject(with: bytes)",
+            "                  as? [String: Any],",
+            "              let entries = document[\"entries\"] as? [[String: Any]]",
+            "        else { return \"AUDIT_INDEX_UNAVAILABLE: embedded history missing.\\n\" }",
+            "        var rows = [",
+            "            \"PRE-EDIT GATE: compare problem, causal mechanism and exact code diff.\",",
+            "            \"Renamed functions, version labels or timings are NOT new solutions.\",",
+            "            \"Complete before/after changed source remains in appended history.\",",
+            "            \"Historical attempts: \\(entries.count)\",",
+            "            \"Recent attempts (oldest first):\"",
+            "        ]",
+            "        for attempt in entries.suffix(18) {",
+            "            let id = attempt[\"id\"] as? String ?? \"?\"",
+            "            let version = attempt[\"version\"] as? String ?? \"?\"",
+            "            let issue = attempt[\"problem\"] as? String ?? \"?\"",
+            "            let mechanism = attempt[\"mechanism\"] as? String ?? \"?\"",
+            "            let status = attempt[\"status\"] as? String ?? \"?\"",
+            "            let changes = attempt[\"code_locations\"] as? [[String: Any]] ?? []",
+            "            let files = Set(changes.compactMap { change -> String? in",
+            "                guard let path = change[\"file\"] as? String else { return nil }",
+            "                return path.components(separatedBy: \"/\").last",
+            "            }).sorted()",
+            "            let sources = files.isEmpty ? \"source_unavailable\"",
+            "                : files.joined(separator: \",\")",
+            "            rows.append(\"\\(id) | \\(version) | \\(issue) | \\(mechanism) | \\(status) | \\(sources)\")",
+            "        }",
+            "        rows.append(\"Inspect the full JSON and handoff prompt before code edits.\")",
+            "        return rows.joined(separator: \"\\n\") + \"\\n\"",
+            "    }",
+            ""
+          ]
+        },
+        {
+          "commit": "9a22a3aa7786a37b8008a5dfe47af8f187fab4d5",
+          "file": "rebuild/HostApp/ScarletDiagnosticRecorder.swift",
+          "location": "@@ -223,6 +257,8 @@ final class ScarletDiagnosticRecorder: @unchecked Sendable {",
+          "before": [],
+          "after": [
+            "        body += \"\\n===== NO-REPEAT DECISION INDEX · READ BEFORE EDIT =====\\n\"",
+            "        body += Self.remediationDecisionIndex()"
+          ]
+        },
+        {
+          "commit": "6ec4a8705d431910a5d21c41fce6e9f198e4d178",
+          "file": "rebuild/diagnostics/SCARLET_LOG_ONLY_HANDOFF_PROMPT.md",
+          "location": "@@ -1,4 +1,4 @@",
+          "before": [
+            "# Scarlet Crystal — 로그 한 개로 이어서 수정하는 AI 전용 지침 (R6P10)"
+          ],
+          "after": [
+            "# Scarlet Crystal — 로그 한 개로 이어서 수정하는 AI 전용 지침 (R6P13)"
+          ]
+        },
+        {
+          "commit": "6ec4a8705d431910a5d21c41fce6e9f198e4d178",
+          "file": "rebuild/diagnostics/SCARLET_LOG_ONLY_HANDOFF_PROMPT.md",
+          "location": "@@ -75,3 +75,19 @@",
+          "before": [],
+          "after": [
+            "",
+            "",
+            "## 6. 자동 중복 차단 게이트 (R6P13)",
+            "",
+            "이 보고서는 단순 런타임 로그가 아니라 다음 코드 변경을 결정하는 **보존된 실패 실험 기록**이다.",
+            "",
+            "- 보고서 앞부분 \\`NO-REPEAT DECISION INDEX\\`는 최근 수정 ID/버전/원인 메커니즘/상태/코드 파일을 먼저 보여준다. 전체 변경 전후 원본 코드와 커밋은 뒤의 \\`REMEDIATION HISTORY\\`에 보존된다. 앞부분만 보고 이전 이력이 없다고 판단하지 않는다.",
+            "- 수정 **전에** 후보 작업을 JSON으로 작성해 \\`python3 rebuild/diagnostics/scarlet_no_repeat_gate.py --proposal proposal.json\\`을 실행한다. 실패하면 코드 수정을 시작하지 않는다.",
+            "- \\`novelty.prior_excluded_ids\\`, \\`novelty.causal_difference\\`, \\`novelty.falsifiable_prediction\\`은 필수다. 동일 실패 원인을 다시 사용할 경우 실제 기기에서 얻은 \\`source_commit/event/observed_value\\`와 이전 방식이 실패한 구체적 이유까지 제출해야 한다.",
+            "- 소스의 변경 전후가 기존 이력과 실질적으로 같은 경우, 메커니즘 이름이나 버전만 바꿔도 \\`NO-REPEAT-BLOCK\\`으로 거부한다. 빈 전후 코드·diff hunk가 없는 새 조치도 거부한다.",
+            "- CI 테스트가 같은 검증 함수를 호출하여 **빌드 시작 전** 이력을 검사한다. 프로그램이 인과관계의 모든 동의어를 자동 이해한다고 가정하지 않는다. 의미적으로 유사한 조치는 앞의 \\`재시도 판별 키\\`에 따라 추가로 수동/AI 검토해야 한다.",
+            "- 새 작업이 성공하지 못한 경우에도 실패 사실과 수정 코드 범위를 \\`Lxxx\\`에 남긴다. 새 로그를 받으면 이전 실패 메커니즘은 자동 제외 후보이며, 성공으로 바꾸려면 별도 실기기 시각·터치 증거가 필요하다.",
+            "",
+            "### 최신 기기 관측: R6P11 SDK 실험 (2026-11-12)",
+            "",
+            "\\`SourceCommit=687fb754e837\\` 실기기 보고서에는 PID 2318과 2334에 각각 \\`resident_sdk_contract_selected\\`, \\`sdk_source=user_override\\`, \\`result=dyld_sdk_query_requested\\`가 기록됐다. 따라서 두 게스트에 R6P11의 **자동 Mach-O SDK 선택 분기**(\\`effectiveSDK == 0\\`)가 실행됐다고 주장할 수 없다. 이 이벤트는 API 변경 요청을 뜻할 뿐 UIKit 상단 콘텐츠가 물리적 Dynamic Island 아래에서 벗어났음을 입증하지 않는다. 기존 Safe Area/Scene/상단 좌표 조정과 R6P9 부팅 순서 변경을 새 이름으로 재시도하지 않는다."
+          ]
+        },
+        {
+          "commit": "be50cf653ac95d166cb169bd7c6eee8cd0992675",
+          "file": "rebuild/Tests/test_v48_r6p13_no_repeat_gate.py",
+          "location": "@@ -53,6 +53,16 @@ def test_same_exact_source_change_is_rejected_even_when_renamed(self):",
+          "before": [],
+          "after": [
+            "    def test_export_index_precedes_verbose_jsonl(self):",
+            "        source = (ROOT / \"HostApp/ScarletDiagnosticRecorder.swift\").read_text()",
+            "        export = source.split(\"    func makeShareFile(includeHistory:\", 1)[1]",
+            "        self.assertIn(\"NO-REPEAT DECISION INDEX\", export)",
+            "        self.assertLess(export.index(\"Self.remediationDecisionIndex()\"),",
+            "                        export.index(\"for index in indices\"))",
+            "        self.assertIn(\"entries.suffix(18)\", source)",
+            "        self.assertIn('body += Self.decodedAudit(Self.remediationHistoryBlob)', source)",
+            "        self.assertIn('body += Self.decodedAudit(Self.handoffPromptBlob)', source)",
+            ""
+          ]
+        },
+        {
+          "commit": "cadf99caf6e90a68ca797b53b67402fa8553aa52",
+          "file": "rebuild/diagnostics/scarlet_no_repeat_gate.py",
+          "location": "@@ -45,15 +45,15 @@ def _mechanism(value: str) -> str:",
+          "before": [
+            "        return re.sub(r\"\\\\s+\", \"\", \"\\\\n\".join(",
+            "    match = re.fullmatch(r\"L(\\\\d{3,})\", str(entry.get(\"id\", \"\")))"
+          ],
+          "after": [
+            "        return re.sub(r\"\\s+\", \"\", \"\\n\".join(",
+            "    match = re.fullmatch(r\"L(\\d{3,})\", str(entry.get(\"id\", \"\")))"
+          ]
+        },
+        {
+          "commit": "60e8f5fbc6cc7aac5a2c1445f950e88159982e62",
+          "file": ".github/workflows/scarlet-paired-engines-build.yml",
+          "location": "@@ -34,6 +34,9 @@ jobs:",
+          "before": [],
+          "after": [
+            "          # Fail closed before any native engine integration or archive.",
+            "          python3 rebuild/diagnostics/scarlet_no_repeat_gate.py \\",
+            "            | tee report/scarlet-no-repeat-gate.log"
+          ]
+        },
+        {
+          "commit": "f9b568e3917b80ccdbe11454d754e88adbc9b953",
+          "file": "rebuild/HostApp/ScarletDiagnosticRecorder.swift",
+          "location": "@@ -26,7 +26,7 @@ final class ScarletDiagnosticRecorder: @unchecked Sendable {",
+          "before": [
+            "        \"domain\", \"count\", \"duration_ms\", \"width_pt\", \"height_pt\","
+          ],
+          "after": [
+            "        \"domain\", \"count\", \"duration_ms\", \"elapsed_ms\", \"width_pt\", \"height_pt\","
+          ]
+        },
+        {
+          "commit": "bd7a61ee15c5035801e29f6b6bac3687c2d4905a",
+          "file": "rebuild/Tests/test_v48_r6p13_no_repeat_gate.py",
+          "location": "@@ -60,6 +60,7 @@ def test_export_index_precedes_verbose_jsonl(self):",
+          "before": [],
+          "after": [
+            "        self.assertIn('\"elapsed_ms\"', source)  # R6P12 measurement cannot be privacy-filtered away."
+          ]
+        },
+        {
+          "commit": "c2e9917b9170e9cec184f084093aad550e7da907",
+          "file": "rebuild/diagnostics/scarlet_no_repeat_gate.py",
+          "location": "@@ -42,6 +42,15 @@ def _mechanism(value: str) -> str:",
+          "before": [],
+          "after": [
+            "def _problem_family(value: str) -> str:",
+            "    # Different symptom labels do not make the same guest launch/layout",
+            "    # mechanism a new fix. R6P9 was classified guest_boot, but later",
+            "    # attempts target its visible symptom guest_top.",
+            "    if value in {\"guest_top\", \"rotation_top\", \"guest_boot\"}:",
+            "        return \"resident_guest_surface\"",
+            "    return value",
+            "",
+            ""
+          ]
+        },
+        {
+          "commit": "c2e9917b9170e9cec184f084093aad550e7da907",
+          "file": "rebuild/diagnostics/scarlet_no_repeat_gate.py",
+          "location": "@@ -65,9 +74,12 @@ def check_candidate(candidate: dict, prior: list[dict]) -> list[str]:",
+          "before": [
+            "    previous = [e for e in prior if e.get(\"problem\") == problem]",
+            "                 and e.get(\"status\") in FAILURE_STATES]"
+          ],
+          "after": [
+            "    previous = [e for e in prior if _problem_family(e.get(\"problem\", \"\"))",
+            "                == _problem_family(problem)]",
+            "                 and (e.get(\"status\") in FAILURE_STATES",
+            "                      or e.get(\"device_verification\")",
+            "                      != \"device_visual_and_touch_pass\")]"
+          ]
+        },
+        {
+          "commit": "c2e9917b9170e9cec184f084093aad550e7da907",
+          "file": "rebuild/diagnostics/scarlet_no_repeat_gate.py",
+          "location": "@@ -92,6 +104,8 @@ def check_candidate(candidate: dict, prior: list[dict]) -> list[str]:",
+          "before": [],
+          "after": [
+            "    if not candidate.get(\"code_locations\"):",
+            "        errors.append(f\"{ident}: candidate must contain proposed file/diff context\")"
+          ]
+        },
+        {
+          "commit": "0093ee6f06b1a3358f4229129e9b0314bab3508f",
+          "file": "rebuild/Tests/test_v48_r6p13_no_repeat_gate.py",
+          "location": "@@ -64,6 +64,19 @@ def test_export_index_precedes_verbose_jsonl(self):",
+          "before": [],
+          "after": [
+            "    def test_old_guest_boot_startup_order_blocks_renamed_guest_top_retry(self):",
+            "        p = proposed(\"xpc_boot_order\")",
+            "        p[\"novelty\"][\"prior_excluded_ids\"] = [\"L043\"]",
+            "        errs = check_candidate(p, HISTORY[\"entries\"])",
+            "        self.assertTrue(any(\"BLOCK repeated mechanism startup_order\" in s",
+            "                            for s in errs), errs)",
+            "",
+            "    def test_empty_change_plan_cannot_bypass_history_precheck(self):",
+            "        p = proposed()",
+            "        p[\"code_locations\"] = []",
+            "        errs = check_candidate(p, HISTORY[\"entries\"])",
+            "        self.assertTrue(any(\"proposed file/diff\" in s for s in errs), errs)",
+            ""
+          ]
+        }
+      ],
+      "source_revisions": [
+        {
+          "sha": "aa1855692f1c7d5fa626a9f6846b8fb671a4d0fd",
+          "url": "https://github.com/fx564286/sidestore-auto-refresh/commit/aa1855692f1c7d5fa626a9f6846b8fb671a4d0fd",
+          "title": "feat(r6p13): enforce attempted-mechanism and exact source-diff duplicate gate"
+        },
+        {
+          "sha": "d9da4be9844c640c16433a79bed38cf001ffdad9",
+          "url": "https://github.com/fx564286/sidestore-auto-refresh/commit/d9da4be9844c640c16433a79bed38cf001ffdad9",
+          "title": "test(r6p13): block repeat of failed Safe Area and byte-equivalent renamed patches"
+        },
+        {
+          "sha": "9a22a3aa7786a37b8008a5dfe47af8f187fab4d5",
+          "url": "https://github.com/fx564286/sidestore-auto-refresh/commit/9a22a3aa7786a37b8008a5dfe47af8f187fab4d5",
+          "title": "diag(r6p13): show recent change decisions up front before truncated JSONL and full diffs"
+        },
+        {
+          "sha": "6ec4a8705d431910a5d21c41fce6e9f198e4d178",
+          "url": "https://github.com/fx564286/sidestore-auto-refresh/commit/6ec4a8705d431910a5d21c41fce6e9f198e4d178",
+          "title": "docs(r6p13): treat exported log as enforceable no-repeat development memory; record SDK override limitation"
+        },
+        {
+          "sha": "be50cf653ac95d166cb169bd7c6eee8cd0992675",
+          "url": "https://github.com/fx564286/sidestore-auto-refresh/commit/be50cf653ac95d166cb169bd7c6eee8cd0992675",
+          "title": "test(r6p13): guard decision index position before long JSONL and preserve full source history"
+        },
+        {
+          "sha": "cadf99caf6e90a68ca797b53b67402fa8553aa52",
+          "url": "https://github.com/fx564286/sidestore-auto-refresh/commit/cadf99caf6e90a68ca797b53b67402fa8553aa52",
+          "title": "fix(r6p13): correct escaped regexes so historical IDs validate and source patches normalize"
+        },
+        {
+          "sha": "60e8f5fbc6cc7aac5a2c1445f950e88159982e62",
+          "url": "https://github.com/fx564286/sidestore-auto-refresh/commit/60e8f5fbc6cc7aac5a2c1445f950e88159982e62",
+          "title": "ci(r6p13): run executable no-repeat ledger guard before native build and save audit receipt"
+        },
+        {
+          "sha": "f9b568e3917b80ccdbe11454d754e88adbc9b953",
+          "url": "https://github.com/fx564286/sidestore-auto-refresh/commit/f9b568e3917b80ccdbe11454d754e88adbc9b953",
+          "title": "fix(r6p13): retain measured switcher elapsed_ms in privacy-safe iPhone diagnostics"
+        },
+        {
+          "sha": "bd7a61ee15c5035801e29f6b6bac3687c2d4905a",
+          "url": "https://github.com/fx564286/sidestore-auto-refresh/commit/bd7a61ee15c5035801e29f6b6bac3687c2d4905a",
+          "title": "test(r6p13): require elapsed_ms to survive recorder privacy field filtering"
+        },
+        {
+          "sha": "c2e9917b9170e9cec184f084093aad550e7da907",
+          "url": "https://github.com/fx564286/sidestore-auto-refresh/commit/c2e9917b9170e9cec184f084093aad550e7da907",
+          "title": "fix(r6p13): group guest_boot and guest_top failures, reject unverified same-mechanism retries"
+        },
+        {
+          "sha": "0093ee6f06b1a3358f4229129e9b0314bab3508f",
+          "url": "https://github.com/fx564286/sidestore-auto-refresh/commit/0093ee6f06b1a3358f4229129e9b0314bab3508f",
+          "title": "test(r6p13): cross-symptom XPC no-repeat and no empty pre-edit patches"
+        }
+      ],
+      "generated_runtime_targets": [],
+      "novelty": {
+        "prior_excluded_ids": [
+          "L045",
+          "L046",
+          "L047"
+        ],
+        "causal_difference": "An executable proposal-time duplicate-checking gate and up-front report index, rather than only an embedded prose prompt and tail-only archived data.",
+        "falsifiable_prediction": "Submitting a copied previously failed Safe Area change without new measured device evidence causes NO-REPEAT-BLOCK, whereas a genuinely new mechanism with causally distinct diff passes; exported report places latest history before JSONL."
+      },
+      "repeat_policy": "Do not replace executable no-repeat enforcement with prompt-only instructions, truncate or erase old entries, or retry prior Safe Area/Scene/bundle-policy fixes without newly measured counterevidence. This safeguard cannot automatically recognize all causal synonyms; human/AI semantic review remains mandatory.",
+      "device_verification": "not_installed_or_export_verified_after_r6p13",
+      "rollback_commit": "f11ce35c2e7bc53ef21db3e260c9c1a0ab469eba",
+      "success_gate": "CI tests including deliberate repeated-fix probes pass, Xcode build succeeds, resulting iPhone-exported report starts with decision index including latest entries and retains all full before/after source changes; actual Dynamic Island issue remains separately unresolved.",
+      "privacy": "No per-guest or personal identifiers; only historical metadata, sanitized source diffs, generic status fields."
     }
   ],
   "gate": {

@@ -166,7 +166,15 @@ struct ScarletFullscreenGuestFloatingTab: View {
     }
 
     private func openPanel() {
+        // Measure synchronous target resolution separately from the glass
+        // animation. A mounted panel is not proof its rows were painted.
+        let reloadStarted = ProcessInfo.processInfo.systemUptime
         apps = reloadApps()
+        ScarletDiagnosticRecorder.shared.record(
+            "guest", "switch_panel_sources_ready",
+            fields: ["count": String(apps.count),
+                     "elapsed_ms": String(Int((ProcessInfo.processInfo.systemUptime -
+                                               reloadStarted) * 1_000))])
         showingInstallChoices = false
         ScarletGuestSessionLedger.traceSwitcher("panel_opened", count: apps.count)
         feedback = nil
@@ -346,11 +354,19 @@ struct ScarletFullscreenGuestFloatingTab: View {
                 currentAppRow
                 if !otherApps.isEmpty || (showingInstallChoices && !installChoices.isEmpty) {
                     ScrollView {
-                        LazyVStack(alignment: .leading, spacing: 12) {
+                        // Recent live sessions are already materialized.
+                        // Eagerly mount these few rows on first expansion;
+                        // LazyVStack can postpone row creation until layout.
+                        VStack(alignment: .leading, spacing: 12) {
                             ForEach(otherApps) { entry in otherAppRow(entry) }
                             if showingInstallChoices {
                                 ForEach(installChoices) { entry in otherAppRow(entry) }
                             }
+                        }
+                        .onAppear {
+                            ScarletDiagnosticRecorder.shared.record(
+                                "guest", "switch_panel_recent_rows_mounted",
+                                fields: ["count": String(otherApps.count)])
                         }
                     }
                     .frame(maxHeight: 260)
@@ -395,10 +411,11 @@ struct ScarletFullscreenGuestFloatingTab: View {
             }
             .padding(19)
             .foregroundStyle(.primary)
-            // The content fades in AFTER the glass begins unfolding;
-            // moving a fully rendered list across the guest looked like
-            // a second panel and obscured the destination.
-            .transition(.opacity)
+            // Show the fixed-center card and its recent-app rows on the
+            // first expansion frame. Animate only the separate glass plate;
+            // fading the content made already-running apps appear late.
+            .transition(.identity)
+            .transaction { $0.disablesAnimations = true }
             .zIndex(2)
         }
         .frame(maxWidth: .infinity, minHeight: 210, maxHeight: 435)

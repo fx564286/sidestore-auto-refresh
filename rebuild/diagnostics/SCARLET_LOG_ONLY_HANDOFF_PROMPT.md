@@ -1,4 +1,4 @@
-# Scarlet Crystal — 로그 한 개로 이어서 수정하는 AI 전용 지침 (R6P10)
+# Scarlet Crystal — 로그 한 개로 이어서 수정하는 AI 전용 지침 (R6P13)
 
 사용자가 Scarlet Crystal 진단 로그만 제공하면 이전 시도 전체를 우선 분석하고, 같은 조치의 반복을 차단하면서 새로운 독립적인 해결책을 실제 코드에 반영해야 한다.
 
@@ -75,3 +75,19 @@
 **이력 반영**: 새 entry ID와 수정된 JSON 및 앱 진단 보고서에 이력이 포함됐는지 확인.
 
 로그에 정보가 없어 실기기 UI를 판단할 수 없다면 그대로 적고, 알 수 없는 문제를 이미 해결됐다고 주장하지 않는다.
+
+
+## 6. 자동 중복 차단 게이트 (R6P13)
+
+이 보고서는 단순 런타임 로그가 아니라 다음 코드 변경을 결정하는 **보존된 실패 실험 기록**이다.
+
+- 보고서 앞부분 \`NO-REPEAT DECISION INDEX\`는 최근 수정 ID/버전/원인 메커니즘/상태/코드 파일을 먼저 보여준다. 전체 변경 전후 원본 코드와 커밋은 뒤의 \`REMEDIATION HISTORY\`에 보존된다. 앞부분만 보고 이전 이력이 없다고 판단하지 않는다.
+- 수정 **전에** 후보 작업을 JSON으로 작성해 \`python3 rebuild/diagnostics/scarlet_no_repeat_gate.py --proposal proposal.json\`을 실행한다. 실패하면 코드 수정을 시작하지 않는다.
+- \`novelty.prior_excluded_ids\`, \`novelty.causal_difference\`, \`novelty.falsifiable_prediction\`은 필수다. 동일 실패 원인을 다시 사용할 경우 실제 기기에서 얻은 \`source_commit/event/observed_value\`와 이전 방식이 실패한 구체적 이유까지 제출해야 한다.
+- 소스의 변경 전후가 기존 이력과 실질적으로 같은 경우, 메커니즘 이름이나 버전만 바꿔도 \`NO-REPEAT-BLOCK\`으로 거부한다. 빈 전후 코드·diff hunk가 없는 새 조치도 거부한다.
+- CI 테스트가 같은 검증 함수를 호출하여 **빌드 시작 전** 이력을 검사한다. 프로그램이 인과관계의 모든 동의어를 자동 이해한다고 가정하지 않는다. 의미적으로 유사한 조치는 앞의 \`재시도 판별 키\`에 따라 추가로 수동/AI 검토해야 한다.
+- 새 작업이 성공하지 못한 경우에도 실패 사실과 수정 코드 범위를 \`Lxxx\`에 남긴다. 새 로그를 받으면 이전 실패 메커니즘은 자동 제외 후보이며, 성공으로 바꾸려면 별도 실기기 시각·터치 증거가 필요하다.
+
+### 최신 기기 관측: R6P11 SDK 실험 (2026-11-12)
+
+\`SourceCommit=687fb754e837\` 실기기 보고서에는 PID 2318과 2334에 각각 \`resident_sdk_contract_selected\`, \`sdk_source=user_override\`, \`result=dyld_sdk_query_requested\`가 기록됐다. 따라서 두 게스트에 R6P11의 **자동 Mach-O SDK 선택 분기**(\`effectiveSDK == 0\`)가 실행됐다고 주장할 수 없다. 이 이벤트는 API 변경 요청을 뜻할 뿐 UIKit 상단 콘텐츠가 물리적 Dynamic Island 아래에서 벗어났음을 입증하지 않는다. 기존 Safe Area/Scene/상단 좌표 조정과 R6P9 부팅 순서 변경을 새 이름으로 재시도하지 않는다.
