@@ -2588,7 +2588,7 @@
       "mechanism": "dyld_guest_sdk_compatibility",
       "hypothesis": "Original LiveProcess NSExtensionMain loads UIKit before the selected guest Info.plist/CFBundle swap. Even when R6P8 bundle flags are correct after swap, guest code can observe the LiveProcess extension executable's SDK compatibility level through dyld, rather than the guest Mach-O's own SDK. This untested process-level compatibility mismatch might affect UIKit/SwiftUI default navigation-bar placement across multiple guests. Changing dyld queries after UIKit initial load cannot guarantee cached UIKit behavior changes; testing is essential.",
       "action": "Only for resident (deferred) LiveProcess requests add anonymous scarletResidentSDKContract flag; parse selected guest LC_BUILD_VERSION.sdk or LC_VERSION_MIN_IPHONEOS read-only; when guest has no explicit spoofSDKVersion preference, set DyldHooksInit effective SDK to guest-declared SDK within current iOS major range; preserve original for classic LC, SideStore, and explicit settings. Relay anonymous per-process SDK selection to host journal. No UI frame, scale, Safe Area, status bar, UIWindow or overlay changes. Because pinned SDK dyld support has OS-version-sensitive asserts, unknown dyld symbol/version-map patterns now fail closed; avoiding premature abort of jitless_hook_dlopen. This is a nonvisual safety guard; visual correction remains unproven.",
-      "observation": "R6P10 iPhone device log seq 31/84: XPC launch after host attach; host_owner_top_pt -1→62; safe_top_pt 62→0→62 repeatedly; guest PID 1560/1570 started and reused. User confirms guest app top controls including Instagram remain covered by Dynamic Island; other affected apps possible. R6P11 implementation source exists but iPhone visual/touch effect not tested. R6P11 SDK hook unknown-layout guard and regression assertion added; still requires device confirmation of UI and that both guest processes survive.",
+      "observation": "R6P10 iPhone device log seq 31/84: XPC launch after host attach; host_owner_top_pt -1→62; safe_top_pt 62→0→62 repeatedly; guest PID 1560/1570 started and reused. User confirms guest app top controls including Instagram remain covered by Dynamic Island; other affected apps possible. R6P11 implementation source exists but iPhone visual/touch effect not tested. R6P11 SDK hook unknown-layout guard and regression assertion added; still requires device confirmation of UI and that both guest processes survive. Generator output mapping now includes four precise runtime files and method-level before/after changes, separate from Git-tracked Python integration hunks.",
       "evidence": "source_patch_verified_ci_pending",
       "status": "ci_pending",
       "repeat_policy": "Do not repeat previously tried L003/L008/L028/L032/L035 Safe Area, UIHosting, statusBar or overlay adjustments; nor reapply R6P9 XPC order. Do not change any guest bundle ID or patch individual guest IPA. If SDK mechanism fails, record it and investigate a different cause, not a different SDK constant.",
@@ -2776,7 +2776,80 @@
       "device_verification": "not_installed_or_tested",
       "rollback_commit": "858214ab66e5416e3f6861f7f87d0d6b463c03ca",
       "success_gate": "On at least two arbitrary guest apps, portrait+landscape+home-reentry top visible controls fully clear physical Dynamic Island and receive taps; no screen scaling or process loss. Record both successes and failures in the next exported report.",
-      "privacy": "Only SDK major/minor, numeric PID and static SDK source enum; no bundle ID or user guest name."
+      "privacy": "Only SDK major/minor, numeric PID and static SDK source enum; no bundle ID or user guest name.",
+      "generated_runtime_targets": [
+        {
+          "file": "MultitaskSupport/AppSceneViewController.m",
+          "symbol": "-initWithBundleId:dataUUID:delegate:scarletDeferExtensionRequest:",
+          "generator": "add_r6p11_guest_sdk_contract",
+          "before": [
+            "if(defer) {",
+            "    self.scarletPendingExtensionItem = item;"
+          ],
+          "after": [
+            "if(defer) {",
+            "    NSMutableDictionary *residentInfo = [item.userInfo mutableCopy];",
+            "    residentInfo[@\"scarletResidentSDKContract\"] = @YES;",
+            "    item.userInfo = residentInfo;",
+            "    self.scarletPendingExtensionItem = item;"
+          ],
+          "effect": "Resident only, attach a boolean SDK-contract intent to the XPC request, no guest identity or UI modification."
+        },
+        {
+          "file": "LiveProcess/main.m",
+          "symbol": "-[LiveProcessHandler beginRequestWithExtensionContext:]",
+          "generator": "add_r6p11_guest_sdk_contract",
+          "before": [
+            "retrievedAppInfo = [context.inputItems.firstObject userInfo];"
+          ],
+          "after": [
+            "retrievedAppInfo = [context.inputItems.firstObject userInfo];",
+            "[NSUserDefaults.standardUserDefaults setBool:",
+            "  [retrievedAppInfo[@\"scarletResidentSDKContract\"] boolValue]",
+            "  forKey:@\"Scarlet.ResidentSDKContract.V1\"];"
+          ],
+          "effect": "Preserve resident-only contract through extension context until LC bootstrap; classic path remains false."
+        },
+        {
+          "file": "LiveContainer/LCBootstrap.m",
+          "symbol": "LC guest bootstrap before DyldHooksInit",
+          "generator": "add_r6p11_guest_sdk_contract",
+          "before": [
+            "DyldHooksInit([guestAppInfo[@\"hideLiveContainer\"] boolValue], hookDlopen, [guestAppInfo[@\"spoofSDKVersion\"] unsignedIntValue]);"
+          ],
+          "after": [
+            "uint32_t explicitSDK = [guestAppInfo[@\"spoofSDKVersion\"] unsignedIntValue];",
+            "uint32_t effectiveSDK = explicitSDK;",
+            "BOOL residentSDK = isLiveProcess && !isSideStore && [lcUserDefaults boolForKey:@\"Scarlet.ResidentSDKContract.V1\"];",
+            "if(residentSDK && effectiveSDK == 0) {",
+            "    uint32_t declaredSDK = ScarletGuestMachOSDKReadOnly(appExecPath);",
+            "    /* select supported declared SDK; else preserve original */",
+            "}",
+            "DyldHooksInit([guestAppInfo[@\"hideLiveContainer\"] boolValue], hookDlopen, effectiveSDK);"
+          ],
+          "effect": "Read-only Mach-O SDK declaration; preserve explicit guest option; select standard dyld compatibility query for every supported resident guest; record only SDK major/minor/PID."
+        },
+        {
+          "file": "LiveContainer/Tweaks/Dyld.m",
+          "symbol": "performHookDyldApi(), initGuestSDKVersionInfo(), DyldHooksInit()",
+          "generator": "add_r6p11_guest_sdk_contract",
+          "before": [
+            "assert(baseAddr != 0);",
+            "assert(offset);",
+            "assert(versionMapPtr);",
+            "assert(size);",
+            "if(!initGuestSDKVersionInfo() || !performHookDyldApi(...)) return;"
+          ],
+          "after": [
+            "if(!baseAddr) return false;",
+            "if(!offset) return false;",
+            "if(!versionMapPtr) return false;",
+            "if(!size) return false;",
+            "if(initGuestSDKVersionInfo()) { /* SDK hooks */ } else { /* continue base hooks */ }"
+          ],
+          "effect": "Prevent known unsupported dyld symbol/version map from aborting guest or skipping normal jitless dlopen when SDK compatibility attempt unavailable."
+        }
+      ]
     }
   ],
   "gate": {
@@ -2822,11 +2895,13 @@
     "device_verification",
     "status",
     "repeat_policy",
-    "rollback_commit"
+    "rollback_commit",
+    "generated_runtime_targets_if_integrated"
   ],
   "fields_guide": {
     "code_locations": "Each code location MUST contain actual repo-relative file, exact unified-diff @@ function/line context, and before/after changed source. Empty only when source_unavailable, never fill by inference.",
     "source_revisions": "Original actual source-modifying commit, not just the subsequent CI release commit.",
     "device_verification": "Explicit visual+touch proof from real iPhone; Xcode archive and successful telemetry aren't equivalent."
-  }
+  },
+  "generated_source_contract": "When integration Python generates or changes upstream C/Objective-C/Swift, each attempt must include generated_runtime_targets with actual generated file, function, source before/after, and generator function; never call generated files tracked git patches if they are not tracked in repo."
 }
