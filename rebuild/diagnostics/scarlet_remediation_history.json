@@ -1,7 +1,7 @@
 {
   "schema": 2,
   "scope": "Scarlet Crystal guest top-screen overlap, touch access, rotation, remote guest render and related resident regressions",
-  "updated_utc": "2026-11-12T01:05:00Z",
+  "updated_utc": "2026-11-12T01:10:00Z",
   "current_baseline": "R6P10 858214ab66e5 device exported full history; R6P11 SDK compatibility experiment awaits CI and iPhone visual validation",
   "current_issue_status": "UNRESOLVED: guest app top bars/controls can overlap Dynamic Island (Instagram verified by user, others possible).",
   "confidence_note": "Past-chat-only historical versions were reported in earlier conversations; not all have a GitHub revision or device verification. An implementation, a CI success, a telemetry event, and a real device visual fix are distinct.",
@@ -2588,7 +2588,7 @@
       "mechanism": "dyld_guest_sdk_compatibility",
       "hypothesis": "Original LiveProcess NSExtensionMain loads UIKit before the selected guest Info.plist/CFBundle swap. Even when R6P8 bundle flags are correct after swap, guest code can observe the LiveProcess extension executable's SDK compatibility level through dyld, rather than the guest Mach-O's own SDK. This untested process-level compatibility mismatch might affect UIKit/SwiftUI default navigation-bar placement across multiple guests. Changing dyld queries after UIKit initial load cannot guarantee cached UIKit behavior changes; testing is essential.",
       "action": "Only for resident (deferred) LiveProcess requests add anonymous scarletResidentSDKContract flag; parse selected guest LC_BUILD_VERSION.sdk or LC_VERSION_MIN_IPHONEOS read-only; when guest has no explicit spoofSDKVersion preference, set DyldHooksInit effective SDK to guest-declared SDK within current iOS major range; preserve original for classic LC, SideStore, and explicit settings. Relay anonymous per-process SDK selection to host journal. No UI frame, scale, Safe Area, status bar, UIWindow or overlay changes. Because pinned SDK dyld support has OS-version-sensitive asserts, unknown dyld symbol/version-map patterns now fail closed; avoiding premature abort of jitless_hook_dlopen. This is a nonvisual safety guard; visual correction remains unproven.",
-      "observation": "R6P10 iPhone device log seq 31/84: XPC launch after host attach; host_owner_top_pt -1→62; safe_top_pt 62→0→62 repeatedly; guest PID 1560/1570 started and reused. User confirms guest app top controls including Instagram remain covered by Dynamic Island; other affected apps possible. R6P11 implementation source exists but iPhone visual/touch effect not tested. R6P11 SDK hook unknown-layout guard and regression assertion added; still requires device confirmation of UI and that both guest processes survive. Generator output mapping now includes four precise runtime files and method-level before/after changes, separate from Git-tracked Python integration hunks.",
+      "observation": "R6P10 iPhone device log seq 31/84: XPC launch after host attach; host_owner_top_pt -1→62; safe_top_pt 62→0→62 repeatedly; guest PID 1560/1570 started and reused. User confirms guest app top controls including Instagram remain covered by Dynamic Island; other affected apps possible. R6P11 implementation source exists but iPhone visual/touch effect not tested. R6P11 SDK hook unknown-layout guard and regression assertion added; still requires device confirmation of UI and that both guest processes survive. Generator output mapping now includes four precise runtime files and method-level before/after changes, separate from Git-tracked Python integration hunks. Source-level regression tests enforce generated native source mapping and AI handoff preservation.",
       "evidence": "source_patch_verified_ci_pending",
       "status": "ci_pending",
       "repeat_policy": "Do not repeat previously tried L003/L008/L028/L032/L035 Safe Area, UIHosting, statusBar or overlay adjustments; nor reapply R6P9 XPC order. Do not change any guest bundle ID or patch individual guest IPA. If SDK mechanism fails, record it and investigate a different cause, not a different SDK constant.",
@@ -2739,6 +2739,38 @@
             "        self.assertIn('jitless_hook_dlopen', CUT)",
             "        self.assertIn('dyld_version_map_unavailable', CUT)"
           ]
+        },
+        {
+          "commit": "0272814637b8caad1b49d7ea5d497e87457e45a8",
+          "file": "rebuild/Tests/test_v48_r6p11_resident_guest_sdk_contract.py",
+          "location": "@@ -6,6 +6,7 @@",
+          "before": [],
+          "after": [
+            "import json"
+          ]
+        },
+        {
+          "commit": "0272814637b8caad1b49d7ea5d497e87457e45a8",
+          "file": "rebuild/Tests/test_v48_r6p11_resident_guest_sdk_contract.py",
+          "location": "@@ -40,6 +41,25 @@ def test_read_only_real_guest_macho_build_sdk_not_bundle_flags(self):",
+          "before": [],
+          "after": [
+            "    def test_generated_native_edit_locations_are_auditable(self):",
+            "        history = json.loads((ROOT / \"diagnostics/scarlet_remediation_history.json\")",
+            "                             .read_text(encoding=\"utf-8\"))",
+            "        record = next(x for x in history[\"entries\"] if x[\"id\"] == \"L046\")",
+            "        targets = record[\"generated_runtime_targets\"]",
+            "        self.assertEqual({x[\"file\"] for x in targets}, {",
+            "            \"MultitaskSupport/AppSceneViewController.m\",",
+            "            \"LiveProcess/main.m\",",
+            "            \"LiveContainer/LCBootstrap.m\",",
+            "            \"LiveContainer/Tweaks/Dyld.m\",",
+            "        })",
+            "        for target in targets:",
+            "            self.assertTrue(target[\"symbol\"])",
+            "            self.assertTrue(target[\"generator\"])",
+            "            self.assertTrue(target[\"before\"])"
+          ]
         }
       ],
       "source_revisions": [
@@ -2771,6 +2803,11 @@
           "sha": "e4050015234598a5c498018ef282f396269c5485",
           "url": "https://github.com/fx564286/sidestore-auto-refresh/commit/e4050015234598a5c498018ef282f396269c5485",
           "title": "test(r6p11): SDK dyld preflight unknown layout must not skip original jitless guest hook"
+        },
+        {
+          "sha": "0272814637b8caad1b49d7ea5d497e87457e45a8",
+          "url": "https://github.com/fx564286/sidestore-auto-refresh/commit/0272814637b8caad1b49d7ea5d497e87457e45a8",
+          "title": "test(r6p11): enforce exact generated LiveProcess and dyld native source edit provenance"
         }
       ],
       "device_verification": "not_installed_or_tested",
