@@ -324,6 +324,52 @@ enum ScarletGuestSessionLedger {
         }
     }
 
+    // R6P11: attach guest Mach-O SDK compatibility decisions to the host's
+    // privacy-filtered, CURRENT-LAUNCH diagnostic journal. This is NOT a
+    // visual correctness receipt and does not expose guest names or paths.
+    private static let sdkContractKey = "Scarlet.Guest.SDKContract.V1"
+    private static let sdkContractCursor = "Scarlet.Guest.SDKContractCursor.V1"
+
+    static func replayGuestSDKContractToHostJournal() {
+        guard let raw = store.data(forKey: sdkContractKey),
+              let decoded = try? JSONSerialization.jsonObject(with: raw),
+              let rows = decoded as? [[String: Any]], !rows.isEmpty
+        else { return }
+        let cursor = UserDefaults.standard.string(forKey: sdkContractCursor)
+        let first = cursor.flatMap { previous in
+            rows.lastIndex(where: { $0["id"] as? String == previous })
+                .map { $0 + 1 }
+        } ?? 0
+        let currentStart = ScarletDiagnosticRecorder.shared.currentProcessStartDate
+            .timeIntervalSince1970
+        if first < rows.count {
+            for row in rows[first...] {
+                guard let epoch = (row["epoch"] as? NSNumber)?.doubleValue,
+                      epoch >= currentStart,
+                      let pid = (row["pid"] as? NSNumber)?.int32Value,
+                      pid > 0,
+                      let major = (row["sdk_major"] as? NSNumber)?.intValue,
+                      let minor = (row["sdk_minor"] as? NSNumber)?.intValue,
+                      (0...40).contains(major),
+                      (0...20).contains(minor),
+                      let origin = row["origin"] as? String,
+                      ["guest_macho", "user_override", "no_usable_sdk"].contains(origin)
+                else { continue }
+                ScarletDiagnosticRecorder.shared.record(
+                    "guest_sdk", "resident_sdk_contract_selected",
+                    status: "info",
+                    fields: ["process_pid": String(pid),
+                             "sdk_major": String(major),
+                             "sdk_minor": String(minor),
+                             "sdk_source": origin,
+                             "result": "dyld_sdk_query_requested"])
+            }
+        }
+        if let last = rows.last?["id"] as? String {
+            UserDefaults.standard.set(last, forKey: sdkContractCursor)
+        }
+    }
+
     // Keep an exact, short-lived pending target only in the existing secure
     // App Group; export an ANONYMOUS acknowledgement to the host diagnostic
     // journal after the next TweakLoader guest bootstrap.
