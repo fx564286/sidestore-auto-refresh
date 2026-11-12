@@ -12,6 +12,8 @@
 static __weak UIWindow *scarletIslandLastWindow;
 static char scarletIslandRootAddedInsetKey;
 static char scarletIslandContentProbeKey;
+static char scarletIslandScrollScheduleKey;
+static char scarletIslandScrollInsetKey;
 
 // All guest receipts share one anonymous App Group relay. This carries only
 // bounded numbers and a PID; no labels, view names, app identifiers or images.
@@ -236,6 +238,9 @@ static void ScarletIslandScheduleContentProbe(UIWindow *window,
     }
 }
 
+static void ScarletIslandScheduleScrollContentRepair(
+    UIWindow *window, UIViewController *root, CGFloat expectedTop);
+
 static void ScarletIslandInspect(UIWindow *window, NSUInteger attempt) {
     if(!window || window.hidden || window.windowLevel != UIWindowLevelNormal ||
        UIDevice.currentDevice.userInterfaceIdiom != UIUserInterfaceIdiomPhone)
@@ -294,6 +299,9 @@ static void ScarletIslandInspect(UIWindow *window, NSUInteger attempt) {
     if(before >= target - 2) {
         ScarletIslandReceipt(@"guest_root_already_safe", target, before, before);
         ScarletIslandScheduleContentProbe(window, root, target);
+        // R6P22: one separate, bounded descendant-scroll remedy. Never add
+        // another inset to this already-correct guest root or its UIWindow.
+        ScarletIslandScheduleScrollContentRepair(window, root, target);
         return;
     }
     if(ourDelta > 0) {
@@ -315,6 +323,136 @@ static void ScarletIslandInspect(UIWindow *window, NSUInteger attempt) {
                              ? @"guest_root_corrected"
                              : @"guest_root_update_unconfirmed",
                          target, before, after);
+}
+
+// R6P22: unlike the L050 root correction and the L061 read-only scanner,
+// repair a single, demonstrably unsafe, full-width vertical scroll's content.
+// Do not change any UIWindow, root safe area, display scale or guest bundle.
+// A deliberate edge-to-edge layout without unsafe interactive descendants is
+// left unchanged. Multiple candidate scrollers are left unchanged rather than
+// guessing which one owns the guest's navigation controls.
+static BOOL ScarletIslandHasUnsafeScrollControl(
+    UIView *view, UIWindow *window, CGFloat safeY,
+    NSUInteger depth, NSUInteger *budget) {
+    if(!view || !*budget || depth > 32 ||
+       view.hidden || view.alpha < 0.05 || view.window != window)
+        return NO;
+    --*budget;
+    if(depth > 0) {
+        CGRect rect = [view convertRect:view.bounds toView:window];
+        CGFloat top = CGRectGetMinY(rect), bottom = CGRectGetMaxY(rect);
+        BOOL control = [view isKindOfClass:UIControl.class] ||
+            (view.isAccessibilityElement &&
+             (view.accessibilityTraits & UIAccessibilityTraitButton) != 0);
+        if(control && isfinite(top) && isfinite(bottom) &&
+           top < safeY - 2 && bottom > 5 &&
+           CGRectGetHeight(rect) > 2 && CGRectGetHeight(rect) < 160)
+            return YES;
+    }
+    for(UIView *child in view.subviews)
+        if(ScarletIslandHasUnsafeScrollControl(
+               child, window, safeY, depth + 1, budget))
+            return YES;
+    return NO;
+}
+
+static void ScarletIslandCollectUnsafeScrolls(
+    UIView *view, UIView *root, UIWindow *window, CGFloat safeY,
+    NSUInteger depth, NSUInteger *budget,
+    NSMutableArray<UIScrollView *> *candidates) {
+    if(!view || !*budget || depth > 32 ||
+       view.hidden || view.alpha < 0.05 || view.window != window)
+        return;
+    --*budget;
+    if([view isKindOfClass:UIScrollView.class]) {
+        UIScrollView *scroll = (UIScrollView *)view;
+        BOOL nested = NO;
+        for(UIView *parent = scroll.superview; parent && parent != root;
+            parent = parent.superview)
+            if([parent isKindOfClass:UIScrollView.class]) {
+                nested = YES;
+                break;
+            }
+        CGRect frame = [scroll convertRect:scroll.bounds toView:window];
+        CGFloat top = CGRectGetMinY(frame);
+        if(!nested && !objc_getAssociatedObject(
+               scroll, &scarletIslandScrollInsetKey) &&
+           isfinite(top) && top >= -5 && top <= 12 &&
+           CGRectGetWidth(frame) >= CGRectGetWidth(window.bounds) * 0.7 &&
+           CGRectGetHeight(frame) >= CGRectGetHeight(window.bounds) * 0.4 &&
+           scroll.scrollEnabled && !scroll.dragging &&
+           !scroll.tracking && !scroll.decelerating &&
+           scroll.adjustedContentInset.top < 2 &&
+           scroll.contentSize.height > scroll.bounds.size.height + 12 &&
+           scroll.contentOffset.y >= -2 && scroll.contentOffset.y <= 8) {
+            NSUInteger childBudget = 900;
+            if(ScarletIslandHasUnsafeScrollControl(scroll, window, safeY,
+                                                    0, &childBudget))
+                [candidates addObject:scroll];
+        }
+    }
+    for(UIView *child in view.subviews)
+        ScarletIslandCollectUnsafeScrolls(
+            child, root, window, safeY, depth + 1, budget, candidates);
+}
+
+static void ScarletIslandRepairTopScrollableContent(
+    UIWindow *window, UIViewController *root, CGFloat expectedTop) {
+    if(!window || window.hidden || window.rootViewController != root ||
+       !UIInterfaceOrientationIsPortrait(window.windowScene.interfaceOrientation))
+        return;
+    UIView *rootView = root.isViewLoaded ? root.view : nil;
+    if(!rootView || rootView.window != window ||
+       rootView.safeAreaInsets.top < expectedTop - 2 ||
+       expectedTop < 20 || expectedTop > 130)
+        return;
+    NSMutableArray<UIScrollView *> *candidates = [NSMutableArray array];
+    NSUInteger budget = 1200;
+    ScarletIslandCollectUnsafeScrolls(rootView, rootView, window,
+                                      expectedTop, 0, &budget, candidates);
+    if(candidates.count != 1) {
+        ScarletIslandReceipt(@"guest_scroll_no_unique_unsafe_target",
+                             expectedTop, candidates.count, candidates.count);
+        return;
+    }
+    UIScrollView *scroll = candidates.firstObject;
+    CGRect frame = [scroll convertRect:scroll.bounds toView:window];
+    CGFloat deficit = ceil(expectedTop - CGRectGetMinY(frame));
+    if(!isfinite(deficit) || deficit < 16 || deficit > 90) return;
+    // One write per actual guest scroller; never modify a scroller with an
+    // existing top inset, active gesture, or a non-top content offset.
+    if(scroll.adjustedContentInset.top >= 2 || scroll.tracking ||
+       scroll.dragging || scroll.decelerating ||
+       scroll.contentOffset.y < -2 || scroll.contentOffset.y > 8)
+        return;
+    CGFloat before = scroll.adjustedContentInset.top;
+    UIEdgeInsets inset = scroll.contentInset;
+    inset.top += deficit;
+    objc_setAssociatedObject(scroll, &scarletIslandScrollInsetKey,
+                             @(deficit), OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+    scroll.contentInset = inset;
+    CGPoint offset = scroll.contentOffset;
+    offset.y = -scroll.adjustedContentInset.top;
+    scroll.contentOffset = offset;
+    ScarletIslandReceipt(@"guest_scroll_content_inset_applied",
+                         expectedTop, before, scroll.adjustedContentInset.top);
+}
+
+static void ScarletIslandScheduleScrollContentRepair(
+    UIWindow *window, UIViewController *root, CGFloat expectedTop) {
+    if(objc_getAssociatedObject(root, &scarletIslandScrollScheduleKey))
+        return;
+    objc_setAssociatedObject(root, &scarletIslandScrollScheduleKey,
+                             @YES, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+    __weak UIWindow *weakWindow = window;
+    __weak UIViewController *weakRoot = root;
+    // 650ms probe captures original layout; 900ms single guarded correction;
+    // 2600ms existing probe observes the result without masking the evidence.
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW,
+        (int64_t)900 * NSEC_PER_MSEC), dispatch_get_main_queue(), ^{
+        ScarletIslandRepairTopScrollableContent(
+            weakWindow, weakRoot, expectedTop);
+    });
 }
 
 void initScarletGuestIslandContentGuard(void) {
