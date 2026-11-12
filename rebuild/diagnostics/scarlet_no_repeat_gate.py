@@ -45,7 +45,7 @@ def _mechanism(value: str) -> str:
 def _code_signature(change: dict) -> tuple:
     def canonical(parts: list) -> str:
         # Comments and formatting alone are not a new implementation.
-        return re.sub(r"\\s+", "", "\\n".join(
+        return re.sub(r"\s+", "", "\n".join(
             line for line in parts if not line.lstrip().startswith(("//", "#"))
         ))
     return (change.get("file"), canonical(change.get("before", [])),
@@ -53,7 +53,7 @@ def _code_signature(change: dict) -> tuple:
 
 
 def _entry_number(entry: dict) -> int:
-    match = re.fullmatch(r"L(\\d{3,})", str(entry.get("id", "")))
+    match = re.fullmatch(r"L(\d{3,})", str(entry.get("id", "")))
     if not match:
         raise ValueError(f"Invalid remediation ID: {entry.get('id')!r}")
     return int(match.group(1))
