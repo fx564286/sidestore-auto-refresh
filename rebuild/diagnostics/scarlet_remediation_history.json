@@ -11853,9 +11853,9 @@
       "version": "new-v48-r6p29-residual-auto-inset",
       "problem": "guest_top",
       "mechanism": "uikit_automatic_adjustment_for_nonvertical_residual_owner",
-      "action": "Based on R6P28 device readback, perform a single bounded UIKit-managed contentInsetAdjustmentBehavior NEVER->AUTOMATIC trial only on a different full-viewport, nonvertical residual nearest scroll owner with >=2 visible unsafe controls and exact root/local safeTop and no existing inset, at 1850ms after the prior 1100ms nested-header repair. Do not write contentInset, root Safe Area, UIWindow, frame, scale or guest layout constraints. At 2030ms remeasure the SAME owner; retain only if UIKit supplies top inset approximately equal to verified 62pt AND that owner's visible unsafe controls decrease. Otherwise restore original .never behavior and scroll offset. Send anonymous outcome and readbacks through the guest bridge and whitelist. Preserve P28 regression scope and add 3 new static tests plus separate unsigned R6P29 CI artifact.",
+      "action": "Based on R6P28 device readback, perform a single bounded UIKit-managed contentInsetAdjustmentBehavior NEVER->AUTOMATIC trial only on a different full-viewport, nonvertical residual nearest scroll owner with >=2 visible unsafe controls and exact root/local safeTop and no existing inset, at 1850ms after the prior 1100ms nested-header repair. Do not write contentInset, root Safe Area, UIWindow, frame, scale or guest layout constraints. At 2030ms remeasure the SAME owner; retain only if UIKit supplies top inset approximately equal to verified 62pt AND that owner's visible unsafe controls decrease. Otherwise restore original .never behavior and scroll offset. Send anonymous outcome and readbacks through the guest bridge and whitelist. Preserve P28 regression scope and add 3 new static tests plus separate unsigned R6P29 CI artifact. CI first-pass isolated R6P22 legacy regression failed because the L063-only no-override assertion accidentally scanned newer R6P29 source; corrected the test scope to stop at the R6P28 section, preserving original behavior assertion.",
       "hypothesis": "In R6P28 the short y50 header-owner repair succeeded (3->12pt) yet exactly three visible unsafe controls remained in another y0 full-viewport scroll owner whose local Safe Area already equals 62pt, adjustedInset0, adjustmentBehavior .never, and nonvertical contentHeight100%. L063's manually inserted contentInset guarded on long vertical scrolling could not target this nonvertical viewport; L071 repaired only short nested header. An independent UIKit automatic-inset policy may restore correct scrolling content geometry while respecting the OS safe area instead of repeating manual inset additions.",
-      "observation": "R6P28 signed-device f00c0d4d1f204fada5eea2956e610d0db3603216 session cf56cc4d iOS27.2 24B119 PID698 650ms: visible unsafe controls8/images6, 2600ms after owner local 3->12pt: controls3/images2, now owner groups1 with frame y0, width103%, height100%, safe top62, adjusted/content inset0, contentHeight100%, adjustmentBehavior2 (.never), scroll enabled. PID707 0 unsafe controls. No R6P29 installed result yet.",
+      "observation": "R6P28 signed-device f00c0d4d1f204fada5eea2956e610d0db3603216 session cf56cc4d iOS27.2 24B119 PID698 650ms: visible unsafe controls8/images6, 2600ms after owner local 3->12pt: controls3/images2, now owner groups1 with frame y0, width103%, height100%, safe top62, adjusted/content inset0, contentHeight100%, adjustmentBehavior2 (.never), scroll enabled. PID707 0 unsafe controls. No R6P29 installed result yet. Initial R6P29 CI run 43206333259: source-history audit PASS and 562/563 Python tests including new P29 tests passed; one legacy R6P22 scope failure, fixed in commit 3d22b3e5. Native Xcode archive not yet reached.",
       "status": "source_committed_ci_pending",
       "source_verification": "git_patch_observed",
       "device_verification": "not_installed_or_device_tested_after_r6p29",
@@ -12315,6 +12315,42 @@
             "            asset=Scarlet-Crystal-V48-R6P29-RESIDUAL-AUTO-INSET-UNSIGNED.ipa",
             "          elif [ \"$GITHUB_REF\" = \"refs/heads/fix/scarlet-v48-r6p28-guest-local-scroll-inset-20261112\" ]; then"
           ]
+        },
+        {
+          "commit": "3d22b3e5ed06567ff6de86a34e6d05bc653aba8b",
+          "file": "rebuild/Tests/test_v48_r6p22_guest_scroll_content_inset.py",
+          "function": "def test_root_receipt_still_unchanged_and_correction_is_separate(self):",
+          "location": "@@ -23,7 +23,7 @@ def test_root_receipt_still_unchanged_and_correction_is_separate(self):",
+          "before": [
+            "        fix = GUARD.split(\"// R6P22: unlike the L050 root correction\",1)[1].split(\"void initScarletGuestIslandContentGuard\",1)[0]"
+          ],
+          "after": [
+            "        fix = GUARD.split(\"// R6P22: unlike the L050 root correction\",1)[1].split(\"// R6P28: unique visible control owner\",1)[0]"
+          ]
+        },
+        {
+          "commit": "3d22b3e5ed06567ff6de86a34e6d05bc653aba8b",
+          "file": "rebuild/Tests/test_v48_r6p22_guest_scroll_content_inset.py",
+          "function": "def test_no_global_app_window_or_status_bar_mutation(self):",
+          "location": "@@ -35,7 +35,7 @@ def test_no_global_app_window_or_status_bar_mutation(self):",
+          "before": [
+            "        fix = GUARD.split(\"// R6P22: unlike the L050 root correction\",1)[1].split(\"void initScarletGuestIslandContentGuard\",1)[0]"
+          ],
+          "after": [
+            "        fix = GUARD.split(\"// R6P22: unlike the L050 root correction\",1)[1].split(\"// R6P28: unique visible control owner\",1)[0]"
+          ]
+        },
+        {
+          "commit": "3d22b3e5ed06567ff6de86a34e6d05bc653aba8b",
+          "file": "rebuild/Tests/test_v48_r6p22_guest_scroll_content_inset.py",
+          "function": "def test_single_full_width_vertical_unsafe_scroll_only(self):",
+          "location": "@@ -49,7 +49,7 @@ def test_single_full_width_vertical_unsafe_scroll_only(self):",
+          "before": [
+            "        fix=GUARD.split(\"// R6P22: unlike the L050 root correction\",1)[1].split(\"void initScarletGuestIslandContentGuard\",1)[0]"
+          ],
+          "after": [
+            "        fix=GUARD.split(\"// R6P22: unlike the L050 root correction\",1)[1].split(\"// R6P28: unique visible control owner\",1)[0]"
+          ]
         }
       ],
       "source_revisions": [
@@ -12347,6 +12383,11 @@
           "sha": "eadf8b7e10a818657c431c2b8e5eded16e6850fc",
           "url": "https://github.com/fx564286/sidestore-auto-refresh/commit/eadf8b7e10a818657c431c2b8e5eded16e6850fc",
           "title": "ci(r6p29): native Xcode regression gate and distinct unsigned residual-owner IPA release"
+        },
+        {
+          "sha": "3d22b3e5ed06567ff6de86a34e6d05bc653aba8b",
+          "url": "https://github.com/fx564286/sidestore-auto-refresh/commit/3d22b3e5ed06567ff6de86a34e6d05bc653aba8b",
+          "title": "test(r6p29): scope frozen R6P22 no-behavior-override contract to original L063 section"
         }
       ],
       "generated_runtime_targets": [
