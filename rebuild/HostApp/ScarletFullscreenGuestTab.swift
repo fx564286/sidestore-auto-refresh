@@ -29,7 +29,9 @@ struct ScarletGuestSwitchTarget: Identifiable {
 @MainActor
 final class ScarletSwitcherDismissState: ObservableObject {
     @Published private(set) var closeGeneration: UInt64 = 0
+    @Published private(set) var immediateCloseGeneration: UInt64 = 0
     func requestClose() { closeGeneration &+= 1 }
+    func requestImmediateClose() { immediateCloseGeneration &+= 1 }
 }
 
 @available(iOS 17.0, *)
@@ -136,6 +138,7 @@ struct ScarletFullscreenGuestFloatingTab: View {
     @State private var showingInstallChoices = false
     @State private var feedback: String?
     @State private var transitionVersion = 0
+    @State private var immediateNavigationClose = false
     @State private var dockRight = false
     @State private var screenButtonCenter = CGPoint.zero
     // One continuously mounted glass surface is animated in the original
@@ -196,6 +199,8 @@ struct ScarletFullscreenGuestFloatingTab: View {
 
     private func closePanel() {
         guard isOpen else { return }
+        let instant = immediateNavigationClose
+        immediateNavigationClose = false
         showingInstallChoices = false
         ScarletGuestSessionLedger.traceSwitcher("panel_closed")
         transitionVersion += 1
@@ -203,7 +208,15 @@ struct ScarletFullscreenGuestFloatingTab: View {
         // UIWindow.isExpanded true during the 390ms dismiss animation
         // previously swallowed guest input and caused overlay ghost taps.
         onPanel(false, apps.count)
-        withAnimation(morphAnimation) { isOpen = false }
+        if !instant {
+            withAnimation(morphAnimation) { isOpen = false }
+        } else {
+            // Navigation cannot leave a 0.45s glass transition floating over
+            // the next guest. Only deliberate manual dismiss keeps the morph.
+            var transaction = Transaction(animation: nil)
+            transaction.disablesAnimations = true
+            withTransaction(transaction) { isOpen = false }
+        }
         ScarletGuestSessionLedger.traceSwitcher("glass_morph_closed")
         ScarletDiagnosticRecorder.shared.record(
             "guest", "glass_morph_closed",
@@ -212,6 +225,13 @@ struct ScarletFullscreenGuestFloatingTab: View {
         ScarletDiagnosticRecorder.shared.record(
             "guest", "switch_panel_dismissed",
             fields: ["result": "round_button_restored_at_saved_center"])
+    }
+
+    private func closePanelImmediately() {
+        // Navigation closes in one update, not during the visible glass morph.
+        guard isOpen else { return }
+        immediateNavigationClose = true
+        closePanel()
     }
 
     private func switchTo(_ target: ScarletGuestSwitchTarget) {
@@ -239,7 +259,7 @@ struct ScarletFullscreenGuestFloatingTab: View {
         // Close the live overlay BEFORE the host selects another guest scene.
         // Closing afterwards can target a hidden/reused hosting view and leave
         // the previous expanded card visible over the next guest.
-        closePanel()
+        closePanelImmediately()
         if onSwitch(target) {
             // A cold target restarts through LC; it is not a preserved RAM scene.
             ScarletGuestSessionLedger.traceSwitcher("switch_submitted")
@@ -405,7 +425,7 @@ struct ScarletFullscreenGuestFloatingTab: View {
                     ScarletDiagnosticRecorder.shared.record(
                         "guest", "fullscreen_tab_exit_requested")
                     // Reset SwiftUI @State before host navigation hides UIWindow.
-                    closePanel()
+                    closePanelImmediately()
                     onExit()
                 } label: {
                     Label("앱 목록", systemImage: "rectangle.portrait.and.arrow.right")
@@ -538,6 +558,13 @@ struct ScarletFullscreenGuestFloatingTab: View {
         .onAppear {
             screenButtonCenter = initialButtonCenter
             dockRight = initialDockRight
+        }
+        .onChange(of: dismissState.immediateCloseGeneration) { _, _ in
+            guard isOpen else { return }
+            ScarletDiagnosticRecorder.shared.record(
+                "guest", "switch_panel_navigation_close_applied",
+                fields: ["result": "immediate_no_morph"])
+            closePanelImmediately()
         }
         .onChange(of: dismissState.closeGeneration) { _, _ in
             guard isOpen else { return }
