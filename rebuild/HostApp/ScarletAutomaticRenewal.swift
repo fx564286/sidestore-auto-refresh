@@ -94,6 +94,14 @@ enum ScarletRefreshFailureDiagnosis {
             return "기기 연결 작업이 응답을 완료하지 못했습니다."
         case "host_not_in_refresh_results":
             return "내장 SideStore 갱신이 종료됐지만 Scarlet 자체의 재서명 결과가 없습니다. 실행 중인 앱 제외 또는 갱신 대상 누락을 확인해야 합니다."
+        case "native_unknown_database_stage":
+            return "원본 SideStore 관리 앱 데이터베이스 준비 도중 원인이 분류되지 않은 오류가 발생했습니다."
+        case "native_unknown_team_stage":
+            return "SideStore의 기존 개발팀 확인 단계에서 분류되지 않은 오류가 발생했습니다. 계정·인증서를 변경하지 않았습니다."
+        case "native_unknown_transport_stage":
+            return "SideStore 기기 전송 연결 준비 단계에서 분류되지 않은 오류가 발생했습니다. 기존 페어링은 유지됩니다."
+        case "native_unknown_appmanager_stage":
+            return "원본 SideStore AppManager 갱신·설치 단계에서 분류되지 않은 오류가 발생했습니다. 재서명이나 설치 성공은 확인되지 않았습니다."
         case "sidestore_native_operation_failed":
             return "SideStore 원본 AppManager 갱신 작업이 실패했습니다. 갱신 결과 로그를 확인하세요."
         case "worker_unresponsive":
