@@ -72,7 +72,10 @@ final class ScarletDiagnosticRecorder: @unchecked Sendable {
         "root_safe_top_pt", "root_frame_y", "root_guide_y", "visited",
         "candidate_controls", "top_controls", "unsafe_controls",
         "first_top_control_y", "first_unsafe_control_y",
-        "scroll_top_without_inset", "scan_capped"
+        "scroll_top_without_inset", "scroll_first_y", "scan_capped",
+        "top_text_nodes", "unsafe_text_nodes", "first_unsafe_text_y",
+        "top_image_nodes", "unsafe_image_nodes", "first_unsafe_image_y",
+        "max_depth_seen", "depth_capped", "count_capped"
     ]
 
     private init() {
