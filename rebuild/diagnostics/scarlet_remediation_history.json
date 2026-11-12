@@ -1,7 +1,7 @@
 {
   "schema": 2,
   "scope": "Scarlet Crystal guest top-screen overlap, touch access, rotation, remote guest render and related resident regressions",
-  "updated_utc": "2026-11-12T03:02:00Z",
+  "updated_utc": "2026-11-12T03:08:00Z",
   "current_baseline": "R6P14 committed source branch: panel reset before guest selection and Home; new 491/491 source tests passed in Linux; iOS CI and iPhone visual test pending. R6P12/R6P13 frozen assets remain unchanged.",
   "current_issue_status": "UNRESOLVED: guest app top bars/controls can overlap Dynamic Island (Instagram verified by user, others possible).",
   "confidence_note": "Past-chat-only historical versions were reported in earlier conversations; not all have a GitHub revision or device verification. An implementation, a CI success, a telemetry event, and a real device visual fix are distinct.",
@@ -3667,8 +3667,8 @@
       "problem": "guest_switcher_navigation_stale_expansion",
       "mechanism": "switcher_lifecycle_reset_before_navigation",
       "hypothesis": "The user identified that the expanded switcher remains visible after moving to another app. iPhone e6afe296a535 report registers second guest at 02:50:27.044 UTC, while a switch_panel_dismissed is not logged until 02:50:34.391; count 2 exists before this. Source inspection shows switchTo calls onSwitch before closePanel and the resident goHome only hides UIWindow without consuming @State isOpen. The UI state can survive the retained overlay and reappear during guest activation.",
-      "action": "In ScarletFullscreenGuestFloatingTab switchTo, closePanel synchronously before onSwitch, and reopen with failure feedback only if synchronous request fails; for the app-list Exit action, closePanel before calling onExit. Make closePanel idempotent. In ScarletFullscreenSceneStack collapse the retained overlay with dismissState.requestClose plus immediate native isExpanded=false at goHome, activate and enqueueSignedGuest. Neither guest viewport geometry nor glass morph timing, sessions, certificates or signed assets are changed. Add a source-level navigation lifecycle regression test.",
-      "observation": "Existing device report SourceCommit=e6afe296a535 has second guest registration at 02:50:27.044 and delayed switch_panel_dismissed at 02:50:34.391; it does not contain the new r6p14 reset event, and the original telemetry cannot prove exact pixels/visibility. Local Python regression suite passed 491 tests including five new navigation tests; git diff --check passed. iOS device and Xcode pipeline not yet verified.",
+      "action": "In ScarletFullscreenGuestFloatingTab switchTo, closePanel synchronously before onSwitch, and reopen with failure feedback only if synchronous request fails; for the app-list Exit action, closePanel before calling onExit. Make closePanel idempotent. In ScarletFullscreenSceneStack collapse the retained overlay with dismissState.requestClose plus immediate native isExpanded=false at goHome, activate and enqueueSignedGuest. Neither guest viewport geometry nor glass morph timing, sessions, certificates or signed assets are changed. Add a source-level navigation lifecycle regression test. Follow-up scope: preserve closePanel() and manual glass morph; call closePanelImmediately() with disabled animation Transaction solely for app navigation; resident scene uses requestImmediateClose to avoid leaving a morph over the incoming app. A dedicated R6P14 build/release branch and immutable unique unsigned tag/asset are added.",
+      "observation": "Existing device report SourceCommit=e6afe296a535 has second guest registration at 02:50:27.044 and delayed switch_panel_dismissed at 02:50:34.391; it does not contain the new r6p14 reset event, and the original telemetry cannot prove exact pixels/visibility. Local Python regression suite passed 491 tests including five new navigation tests; git diff --check passed. iOS device and Xcode pipeline not yet verified. All 491 local Python tests passed after immediate-close adjustments. Xcode 27.2 build and actual iPhone panel pixels still require checking.",
       "evidence": [
         "User attached Scarlet Crystal report (2026-11-12T02:50:48Z) SourceCommit=e6afe296a535, session 7b3e207c, seq76 count2 and seq139 dismiss.",
         "Before code: rebuild/HostApp/ScarletFullscreenGuestTab.swift switchTo onSwitch then closePanel; Exit invokes onExit without closePanel.",
@@ -3913,6 +3913,391 @@
             "if __name__ == \"__main__\":",
             "    unittest.main()"
           ]
+        },
+        {
+          "commit": "e77eb2db6cfae38db797b3d8472ff8a6e195abab",
+          "file": "rebuild/HostApp/ScarletFullscreenGuestTab.swift",
+          "location": "@@ -29,7 +29,9 @@",
+          "before": [
+            "@MainActor",
+            "final class ScarletSwitcherDismissState: ObservableObject {",
+            "    @Published private(set) var closeGeneration: UInt64 = 0",
+            "    func requestClose() { closeGeneration &+= 1 }",
+            "}",
+            "",
+            "@available(iOS 17.0, *)"
+          ],
+          "after": [
+            "@MainActor",
+            "final class ScarletSwitcherDismissState: ObservableObject {",
+            "    @Published private(set) var closeGeneration: UInt64 = 0",
+            "    @Published private(set) var immediateCloseGeneration: UInt64 = 0",
+            "    func requestClose() { closeGeneration &+= 1 }",
+            "    func requestImmediateClose() { immediateCloseGeneration &+= 1 }",
+            "}",
+            "",
+            "@available(iOS 17.0, *)"
+          ]
+        },
+        {
+          "commit": "e77eb2db6cfae38db797b3d8472ff8a6e195abab",
+          "file": "rebuild/HostApp/ScarletFullscreenGuestTab.swift",
+          "location": "@@ -136,6 +138,7 @@",
+          "before": [
+            "    @State private var showingInstallChoices = false",
+            "    @State private var feedback: String?",
+            "    @State private var transitionVersion = 0",
+            "    @State private var dockRight = false",
+            "    @State private var screenButtonCenter = CGPoint.zero",
+            "    // One continuously mounted glass surface is animated in the original"
+          ],
+          "after": [
+            "    @State private var showingInstallChoices = false",
+            "    @State private var feedback: String?",
+            "    @State private var transitionVersion = 0",
+            "    @State private var immediateNavigationClose = false",
+            "    @State private var dockRight = false",
+            "    @State private var screenButtonCenter = CGPoint.zero",
+            "    // One continuously mounted glass surface is animated in the original"
+          ]
+        },
+        {
+          "commit": "e77eb2db6cfae38db797b3d8472ff8a6e195abab",
+          "file": "rebuild/HostApp/ScarletFullscreenGuestTab.swift",
+          "location": "@@ -196,6 +199,8 @@",
+          "before": [
+            "",
+            "    private func closePanel() {",
+            "        guard isOpen else { return }",
+            "        showingInstallChoices = false",
+            "        ScarletGuestSessionLedger.traceSwitcher(\"panel_closed\")",
+            "        transitionVersion += 1"
+          ],
+          "after": [
+            "",
+            "    private func closePanel() {",
+            "        guard isOpen else { return }",
+            "        let instant = immediateNavigationClose",
+            "        immediateNavigationClose = false",
+            "        showingInstallChoices = false",
+            "        ScarletGuestSessionLedger.traceSwitcher(\"panel_closed\")",
+            "        transitionVersion += 1"
+          ]
+        },
+        {
+          "commit": "e77eb2db6cfae38db797b3d8472ff8a6e195abab",
+          "file": "rebuild/HostApp/ScarletFullscreenGuestTab.swift",
+          "location": "@@ -203,7 +208,15 @@",
+          "before": [
+            "        // UIWindow.isExpanded true during the 390ms dismiss animation",
+            "        // previously swallowed guest input and caused overlay ghost taps.",
+            "        onPanel(false, apps.count)",
+            "        withAnimation(morphAnimation) { isOpen = false }",
+            "        ScarletGuestSessionLedger.traceSwitcher(\"glass_morph_closed\")",
+            "        ScarletDiagnosticRecorder.shared.record(",
+            "            \"guest\", \"glass_morph_closed\","
+          ],
+          "after": [
+            "        // UIWindow.isExpanded true during the 390ms dismiss animation",
+            "        // previously swallowed guest input and caused overlay ghost taps.",
+            "        onPanel(false, apps.count)",
+            "        if !instant {",
+            "            withAnimation(morphAnimation) { isOpen = false }",
+            "        } else {",
+            "            // Navigation cannot leave a 0.45s glass transition floating over",
+            "            // the next guest. Only deliberate manual dismiss keeps the morph.",
+            "            var transaction = Transaction(animation: nil)",
+            "            transaction.disablesAnimations = true",
+            "            withTransaction(transaction) { isOpen = false }",
+            "        }",
+            "        ScarletGuestSessionLedger.traceSwitcher(\"glass_morph_closed\")",
+            "        ScarletDiagnosticRecorder.shared.record(",
+            "            \"guest\", \"glass_morph_closed\","
+          ]
+        },
+        {
+          "commit": "e77eb2db6cfae38db797b3d8472ff8a6e195abab",
+          "file": "rebuild/HostApp/ScarletFullscreenGuestTab.swift",
+          "location": "@@ -212,6 +225,13 @@",
+          "before": [
+            "        ScarletDiagnosticRecorder.shared.record(",
+            "            \"guest\", \"switch_panel_dismissed\",",
+            "            fields: [\"result\": \"round_button_restored_at_saved_center\"])",
+            "    }",
+            "",
+            "    private func switchTo(_ target: ScarletGuestSwitchTarget) {"
+          ],
+          "after": [
+            "        ScarletDiagnosticRecorder.shared.record(",
+            "            \"guest\", \"switch_panel_dismissed\",",
+            "            fields: [\"result\": \"round_button_restored_at_saved_center\"])",
+            "    }",
+            "",
+            "    private func closePanelImmediately() {",
+            "        // Navigation closes in one update, not during the visible glass morph.",
+            "        guard isOpen else { return }",
+            "        immediateNavigationClose = true",
+            "        closePanel()",
+            "    }",
+            "",
+            "    private func switchTo(_ target: ScarletGuestSwitchTarget) {"
+          ]
+        },
+        {
+          "commit": "e77eb2db6cfae38db797b3d8472ff8a6e195abab",
+          "file": "rebuild/HostApp/ScarletFullscreenGuestTab.swift",
+          "location": "@@ -239,7 +259,7 @@",
+          "before": [
+            "        // Close the live overlay BEFORE the host selects another guest scene.",
+            "        // Closing afterwards can target a hidden/reused hosting view and leave",
+            "        // the previous expanded card visible over the next guest.",
+            "        closePanel()",
+            "        if onSwitch(target) {",
+            "            // A cold target restarts through LC; it is not a preserved RAM scene.",
+            "            ScarletGuestSessionLedger.traceSwitcher(\"switch_submitted\")"
+          ],
+          "after": [
+            "        // Close the live overlay BEFORE the host selects another guest scene.",
+            "        // Closing afterwards can target a hidden/reused hosting view and leave",
+            "        // the previous expanded card visible over the next guest.",
+            "        closePanelImmediately()",
+            "        if onSwitch(target) {",
+            "            // A cold target restarts through LC; it is not a preserved RAM scene.",
+            "            ScarletGuestSessionLedger.traceSwitcher(\"switch_submitted\")"
+          ]
+        },
+        {
+          "commit": "e77eb2db6cfae38db797b3d8472ff8a6e195abab",
+          "file": "rebuild/HostApp/ScarletFullscreenGuestTab.swift",
+          "location": "@@ -405,7 +425,7 @@",
+          "before": [
+            "                    ScarletDiagnosticRecorder.shared.record(",
+            "                        \"guest\", \"fullscreen_tab_exit_requested\")",
+            "                    // Reset SwiftUI @State before host navigation hides UIWindow.",
+            "                    closePanel()",
+            "                    onExit()",
+            "                } label: {",
+            "                    Label(\"앱 목록\", systemImage: \"rectangle.portrait.and.arrow.right\")"
+          ],
+          "after": [
+            "                    ScarletDiagnosticRecorder.shared.record(",
+            "                        \"guest\", \"fullscreen_tab_exit_requested\")",
+            "                    // Reset SwiftUI @State before host navigation hides UIWindow.",
+            "                    closePanelImmediately()",
+            "                    onExit()",
+            "                } label: {",
+            "                    Label(\"앱 목록\", systemImage: \"rectangle.portrait.and.arrow.right\")"
+          ]
+        },
+        {
+          "commit": "e77eb2db6cfae38db797b3d8472ff8a6e195abab",
+          "file": "rebuild/HostApp/ScarletFullscreenGuestTab.swift",
+          "location": "@@ -538,6 +558,13 @@",
+          "before": [
+            "        .onAppear {",
+            "            screenButtonCenter = initialButtonCenter",
+            "            dockRight = initialDockRight",
+            "        }",
+            "        .onChange(of: dismissState.closeGeneration) { _, _ in",
+            "            guard isOpen else { return }"
+          ],
+          "after": [
+            "        .onAppear {",
+            "            screenButtonCenter = initialButtonCenter",
+            "            dockRight = initialDockRight",
+            "        }",
+            "        .onChange(of: dismissState.immediateCloseGeneration) { _, _ in",
+            "            guard isOpen else { return }",
+            "            ScarletDiagnosticRecorder.shared.record(",
+            "                \"guest\", \"switch_panel_navigation_close_applied\",",
+            "                fields: [\"result\": \"immediate_no_morph\"])",
+            "            closePanelImmediately()",
+            "        }",
+            "        .onChange(of: dismissState.closeGeneration) { _, _ in",
+            "            guard isOpen else { return }"
+          ]
+        },
+        {
+          "commit": "536751002dd018a977e4f147d9e598ac879bf4f0",
+          "file": "rebuild/HostApp/ScarletFullscreenSceneStack.swift",
+          "location": "@@ -100,7 +100,7 @@",
+          "before": [
+            "    // hiding the overlay or selecting a different guest.",
+            "    private func collapseSwitcherForNavigation(_ reason: String) {",
+            "        guard let overlayWindow else { return }",
+            "        overlayWindow.dismissState?.requestClose()",
+            "        overlayWindow.isExpanded = false",
+            "        viewport?.setResidentOutsideDismissEnabled(false)",
+            "        ScarletDiagnosticRecorder.shared.record("
+          ],
+          "after": [
+            "    // hiding the overlay or selecting a different guest.",
+            "    private func collapseSwitcherForNavigation(_ reason: String) {",
+            "        guard let overlayWindow else { return }",
+            "        overlayWindow.dismissState?.requestImmediateClose()",
+            "        overlayWindow.isExpanded = false",
+            "        viewport?.setResidentOutsideDismissEnabled(false)",
+            "        ScarletDiagnosticRecorder.shared.record("
+          ]
+        },
+        {
+          "commit": "669f16f8bfdc7131d9f913d0e0481677711e5b61",
+          "file": "rebuild/Tests/test_v48_r6p14_switcher_navigation_reset.py",
+          "location": "@@ -11,25 +11,28 @@",
+          "before": [
+            "    def test_switch_closes_before_scene_selection_and_reopens_on_rejection(self):",
+            "        body = TAB.split(\"    private func switchTo(\", 1)[1].split(",
+            "            \"    // Native optical surface\", 1)[0]",
+            "        self.assertIn(\"closePanel()\\n        if onSwitch(target)\", body)",
+            "        self.assertIn(\"openPanel()\\n            feedback =\", body)",
+            "",
+            "    def test_home_button_closes_panel_before_invoking_exit(self):",
+            "        body = TAB.split('Label(\"앱 목록\"', 1)[0].rsplit(",
+            "            '\"fullscreen_tab_exit_requested\")', 1)[1]",
+            "        self.assertIn(\"closePanel()\\n                    onExit()\", body)",
+            "",
+            "    def test_close_is_idempotent_and_native_hit_testing_resets_immediately(self):",
+            "        body = TAB.split(\"    private func closePanel() {\", 1)[1].split(",
+            "            \"    private func switchTo(\", 1)[0]",
+            "        self.assertIn(\"guard isOpen else { return }\", body)",
+            "        self.assertLess(body.index(\"onPanel(false, apps.count)\"),",
+            "                        body.index(\"withAnimation(morphAnimation) { isOpen = false }\"))",
+            "",
+            "    def test_external_navigation_resets_retained_switcher_state(self):",
+            "        method = STACK.split(\"private func collapseSwitcherForNavigation(\", 1)[1].split(",
+            "            \"    func enqueueSignedGuest(\", 1)[0]",
+            "        self.assertIn(\"overlayWindow.dismissState?.requestClose()\", method)",
+            "        self.assertIn(\"overlayWindow.isExpanded = false\", method)",
+            "        self.assertIn('\"switch_panel_navigation_reset\"', method)",
+            "        for transition in (\"go_home\", \"activate_guest\", \"enqueue_guest\"):"
+          ],
+          "after": [
+            "    def test_switch_closes_before_scene_selection_and_reopens_on_rejection(self):",
+            "        body = TAB.split(\"    private func switchTo(\", 1)[1].split(",
+            "            \"    // Native optical surface\", 1)[0]",
+            "        self.assertIn(\"closePanelImmediately()\\n        if onSwitch(target)\", body)",
+            "        self.assertIn(\"openPanel()\\n            feedback =\", body)",
+            "",
+            "    def test_home_button_closes_panel_before_invoking_exit(self):",
+            "        body = TAB.split('Label(\"앱 목록\"', 1)[0].rsplit(",
+            "            '\"fullscreen_tab_exit_requested\")', 1)[1]",
+            "        self.assertIn(\"closePanelImmediately()\\n                    onExit()\", body)",
+            "",
+            "    def test_close_is_idempotent_and_native_hit_testing_resets_immediately(self):",
+            "        body = TAB.split(\"    private func closePanel() {\", 1)[1].split(",
+            "            \"    private func switchTo(\", 1)[0]",
+            "        self.assertIn(\"guard isOpen else { return }\", body)",
+            "        self.assertIn(\"transaction.disablesAnimations = true\", body)",
+            "        self.assertIn(\"withTransaction(transaction) { isOpen = false }\", body)",
+            "        self.assertIn(\".onChange(of: dismissState.immediateCloseGeneration)\", TAB)",
+            "        self.assertLess(body.index(\"onPanel(false, apps.count)\"),",
+            "                        body.index(\"withAnimation(morphAnimation) { isOpen = false }\"))",
+            "",
+            "    def test_external_navigation_resets_retained_switcher_state(self):",
+            "        method = STACK.split(\"private func collapseSwitcherForNavigation(\", 1)[1].split(",
+            "            \"    func enqueueSignedGuest(\", 1)[0]",
+            "        self.assertIn(\"overlayWindow.dismissState?.requestImmediateClose()\", method)",
+            "        self.assertIn(\"overlayWindow.isExpanded = false\", method)",
+            "        self.assertIn('\"switch_panel_navigation_reset\"', method)",
+            "        for transition in (\"go_home\", \"activate_guest\", \"enqueue_guest\"):"
+          ]
+        },
+        {
+          "commit": "0bf334eb73b717a0baf57e7367ae546b840eb79e",
+          "file": ".github/workflows/scarlet-paired-engines-build.yml",
+          "location": "@@ -3,7 +3,7 @@",
+          "before": [
+            "on:",
+            "  workflow_dispatch:",
+            "  push:",
+            "    branches: [rebuild/scarlet-from-zero-20261106, fix/scarlet-auth-status-rootcause-20261109, fix/scarlet-pr48-guest-overlay-no-resize-20261109, fix/scarlet-pr48-airpods-glass-guest-switch-v3-20261109, fix/scarlet-pr48-draggable-guest-tab-v4-20261109, fix/scarlet-pr48-v5-glass-drag-cert-recovery-20261109, fix/scarlet-pr48-v6-unified-cert-glass-20261109, fix/scarlet-pr48-v7-cert-jitless-unify-panel-rim-20261109, fix/scarlet-pr48-v8-flicker-certificate-menu-20261109, fix/scarlet-pr48-v9-single-glass-rim-20261109, fix/scarlet-pr48-v10-fixed-tab-cert-and-session-20261109, fix/scarlet-pr48-v11-module-settings-appid-20261109, fix/scarlet-pr48-v12-live-sessions-source-auto-refresh-20261109, fix/scarlet-pr48-v13-compact-settings-current-app-20261109, fix/scarlet-pr48-v14-guest-history-native-scenes-three-ids-20261109, fix/scarlet-pr48-v15-source-disclosure-icons-guest-handoff-20261109, fix/scarlet-pr48-v16-guest-switcher-icons-readback-20261110, fix/scarlet-v17-cold-switch-rotation-20261110, fix/scarlet-v18-refresh-diagnostics-native-glass-20261110, fix/scarlet-v19-active-session-switcher-20261110, fix/scarlet-v20-guest-switcher-trace-20261110, fix/scarlet-v21-hook-telemetry-persistence-20261110, fix/scarlet-v22-runtime-guest-identity-20261110, fix/scarlet-v23-session-only-switcher-20261110, fix/scarlet-v24-refresh-lifecycle-switch-receipt-20261110, fix/scarlet-v25-single-panel-outside-dismiss-20261110, fix/scarlet-v26-liquidglass-button-to-fixed-panel-morph-20261110, fix/scarlet-v27-sidestore-direct-native-refresh-20261110, fix/scarlet-v28-minimuxer-readiness-recovery-20261110, fix/scarlet-v29-inapp-rppairing-20261110, fix/scarlet-v30-restore-sidestore-active-team-20261110, fix/scarlet-v31-pairing-persistence-sheet-purple-20261110, fix/scarlet-v32-korean-copy-20261110, fix/scarlet-v33-log-rootcause-20261110, fix/scarlet-v34-iphone-virtual-resident-20261110, fix/scarlet-v35-restore-original-fullscreen-20261110, fix/scarlet-v36-remove-legacy-ui-20261110, fix/scarlet-v37-session-refresh-20261110, fix/scarlet-v38-current-launch-logs-20261110, fix/scarlet-v39-log-truth-20261110, fix/scarlet-v40-clean-work-session-20261110, fix/scarlet-v42-v40-safe-diagnostics-20261110, fix/scarlet-v43-install-rootcause-20261110, fix/scarlet-v44-rppairing-postsign-install-20261111, fix/scarlet-v45-single-viewport-liveprocess-20261111, fix/scarlet-v46-guard-provisional-guest-geometry-20261111, fix/scarlet-v47-resident-inplace-guest-switch-20261111, fix/scarlet-v48-guest-runtime-recovery-20261111, fix/scarlet-v48-restored-20261111, fix/scarlet-v48-r2-unified-switcher-20261111, fix/scarlet-v48-r3-original-pan-diagnostics-20261111, fix/scarlet-v48-r4-native-outside-remote-insets-20261111, fix/scarlet-v48-r5-attached-insets-shield-20261111, fix/scarlet-v48-r5-crash-recovery-20261111, fix/scarlet-v48-r5-recovery-r2-host-owner-20261111, fix/scarlet-v48-r5-recovery-r3-scene-authority-20261111, fix/scarlet-v48-r5-recovery-r4-native-ready-20261111, fix/scarlet-v48-r5-recovery-r5-compat-foreground-20261111, fix/scarlet-v48-r6-island-outside-audio-20261111, fix/scarlet-v48-r6p1-audio-home-focus-20261111, fix/scarlet-v48-r6p2-blocked-history-20261111, fix/scarlet-v48-r6p3-home-audio-gate-20261111, fix/scarlet-v48-r6p4-guest-audio-ack-20261112, fix/scarlet-v48-r6p7-launch-policy-rootcause-20261112, fix/scarlet-v48-r6p8-policy-field-relay-20261112, fix/scarlet-v48-r6p9-deferred-scene-boot-20261112, fix/scarlet-v48-r6p10-persistent-remediation-ledger-20261112, fix/scarlet-v48-r6p11-resident-guest-sdk-contract-20261112, fix/scarlet-v48-r6p12-instant-recent-switcher-20261112]",
+            "    paths:",
+            "      - \".github/workflows/scarlet-paired-engines-build.yml\"",
+            "      - \"rebuild/integration/**\""
+          ],
+          "after": [
+            "on:",
+            "  workflow_dispatch:",
+            "  push:",
+            "    branches: [rebuild/scarlet-from-zero-20261106, fix/scarlet-auth-status-rootcause-20261109, fix/scarlet-pr48-guest-overlay-no-resize-20261109, fix/scarlet-pr48-airpods-glass-guest-switch-v3-20261109, fix/scarlet-pr48-draggable-guest-tab-v4-20261109, fix/scarlet-pr48-v5-glass-drag-cert-recovery-20261109, fix/scarlet-pr48-v6-unified-cert-glass-20261109, fix/scarlet-pr48-v7-cert-jitless-unify-panel-rim-20261109, fix/scarlet-pr48-v8-flicker-certificate-menu-20261109, fix/scarlet-pr48-v9-single-glass-rim-20261109, fix/scarlet-pr48-v10-fixed-tab-cert-and-session-20261109, fix/scarlet-pr48-v11-module-settings-appid-20261109, fix/scarlet-pr48-v12-live-sessions-source-auto-refresh-20261109, fix/scarlet-pr48-v13-compact-settings-current-app-20261109, fix/scarlet-pr48-v14-guest-history-native-scenes-three-ids-20261109, fix/scarlet-pr48-v15-source-disclosure-icons-guest-handoff-20261109, fix/scarlet-pr48-v16-guest-switcher-icons-readback-20261110, fix/scarlet-v17-cold-switch-rotation-20261110, fix/scarlet-v18-refresh-diagnostics-native-glass-20261110, fix/scarlet-v19-active-session-switcher-20261110, fix/scarlet-v20-guest-switcher-trace-20261110, fix/scarlet-v21-hook-telemetry-persistence-20261110, fix/scarlet-v22-runtime-guest-identity-20261110, fix/scarlet-v23-session-only-switcher-20261110, fix/scarlet-v24-refresh-lifecycle-switch-receipt-20261110, fix/scarlet-v25-single-panel-outside-dismiss-20261110, fix/scarlet-v26-liquidglass-button-to-fixed-panel-morph-20261110, fix/scarlet-v27-sidestore-direct-native-refresh-20261110, fix/scarlet-v28-minimuxer-readiness-recovery-20261110, fix/scarlet-v29-inapp-rppairing-20261110, fix/scarlet-v30-restore-sidestore-active-team-20261110, fix/scarlet-v31-pairing-persistence-sheet-purple-20261110, fix/scarlet-v32-korean-copy-20261110, fix/scarlet-v33-log-rootcause-20261110, fix/scarlet-v34-iphone-virtual-resident-20261110, fix/scarlet-v35-restore-original-fullscreen-20261110, fix/scarlet-v36-remove-legacy-ui-20261110, fix/scarlet-v37-session-refresh-20261110, fix/scarlet-v38-current-launch-logs-20261110, fix/scarlet-v39-log-truth-20261110, fix/scarlet-v40-clean-work-session-20261110, fix/scarlet-v42-v40-safe-diagnostics-20261110, fix/scarlet-v43-install-rootcause-20261110, fix/scarlet-v44-rppairing-postsign-install-20261111, fix/scarlet-v45-single-viewport-liveprocess-20261111, fix/scarlet-v46-guard-provisional-guest-geometry-20261111, fix/scarlet-v47-resident-inplace-guest-switch-20261111, fix/scarlet-v48-guest-runtime-recovery-20261111, fix/scarlet-v48-restored-20261111, fix/scarlet-v48-r2-unified-switcher-20261111, fix/scarlet-v48-r3-original-pan-diagnostics-20261111, fix/scarlet-v48-r4-native-outside-remote-insets-20261111, fix/scarlet-v48-r5-attached-insets-shield-20261111, fix/scarlet-v48-r5-crash-recovery-20261111, fix/scarlet-v48-r5-recovery-r2-host-owner-20261111, fix/scarlet-v48-r5-recovery-r3-scene-authority-20261111, fix/scarlet-v48-r5-recovery-r4-native-ready-20261111, fix/scarlet-v48-r5-recovery-r5-compat-foreground-20261111, fix/scarlet-v48-r6-island-outside-audio-20261111, fix/scarlet-v48-r6p1-audio-home-focus-20261111, fix/scarlet-v48-r6p2-blocked-history-20261111, fix/scarlet-v48-r6p3-home-audio-gate-20261111, fix/scarlet-v48-r6p4-guest-audio-ack-20261112, fix/scarlet-v48-r6p7-launch-policy-rootcause-20261112, fix/scarlet-v48-r6p8-policy-field-relay-20261112, fix/scarlet-v48-r6p9-deferred-scene-boot-20261112, fix/scarlet-v48-r6p10-persistent-remediation-ledger-20261112, fix/scarlet-v48-r6p11-resident-guest-sdk-contract-20261112, fix/scarlet-v48-r6p12-instant-recent-switcher-20261112, fix/scarlet-v48-r6p14-switcher-reset-on-navigation-20261112]",
+            "    paths:",
+            "      - \".github/workflows/scarlet-paired-engines-build.yml\"",
+            "      - \"rebuild/integration/**\""
+          ]
+        },
+        {
+          "commit": "0bf334eb73b717a0baf57e7367ae546b840eb79e",
+          "file": ".github/workflows/scarlet-paired-engines-build.yml",
+          "location": "@@ -296,7 +296,7 @@",
+          "before": [
+            "  # A Release asset in this public repo has a stable public download URL.",
+            "  publish-unsigned-github-release:",
+            "    needs: [package-paired]",
+            "    if: github.event_name == 'push' && (github.ref == 'refs/heads/rebuild/scarlet-from-zero-20261106' || github.ref == 'refs/heads/fix/scarlet-v31-pairing-persistence-sheet-purple-20261110' || github.ref == 'refs/heads/fix/scarlet-v32-korean-copy-20261110' || github.ref == 'refs/heads/fix/scarlet-v33-log-rootcause-20261110' || github.ref == 'refs/heads/fix/scarlet-v34-iphone-virtual-resident-20261110' || github.ref == 'refs/heads/fix/scarlet-v35-restore-original-fullscreen-20261110' || github.ref == 'refs/heads/fix/scarlet-v36-remove-legacy-ui-20261110' || github.ref == 'refs/heads/fix/scarlet-v37-session-refresh-20261110' || github.ref == 'refs/heads/fix/scarlet-v38-current-launch-logs-20261110' || github.ref == 'refs/heads/fix/scarlet-v39-log-truth-20261110' || github.ref == 'refs/heads/fix/scarlet-v40-clean-work-session-20261110' || github.ref == 'refs/heads/fix/scarlet-v42-v40-safe-diagnostics-20261110' || github.ref == 'refs/heads/fix/scarlet-v43-install-rootcause-20261110' || github.ref == 'refs/heads/fix/scarlet-v44-rppairing-postsign-install-20261111' || github.ref == 'refs/heads/fix/scarlet-v45-single-viewport-liveprocess-20261111' || github.ref == 'refs/heads/fix/scarlet-v46-guard-provisional-guest-geometry-20261111' || github.ref == 'refs/heads/fix/scarlet-v47-resident-inplace-guest-switch-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-guest-runtime-recovery-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-restored-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r2-unified-switcher-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r3-original-pan-diagnostics-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r4-native-outside-remote-insets-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r5-attached-insets-shield-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r5-crash-recovery-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r5-recovery-r2-host-owner-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r5-recovery-r3-scene-authority-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r5-recovery-r4-native-ready-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r5-recovery-r5-compat-foreground-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r6-island-outside-audio-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r6p1-audio-home-focus-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r6p2-blocked-history-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r6p3-home-audio-gate-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r6p4-guest-audio-ack-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p7-launch-policy-rootcause-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p8-policy-field-relay-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p9-deferred-scene-boot-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p10-persistent-remediation-ledger-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p11-resident-guest-sdk-contract-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p12-instant-recent-switcher-20261112')",
+            "    runs-on: ubuntu-24.04",
+            "    timeout-minutes: 10",
+            "    permissions:"
+          ],
+          "after": [
+            "  # A Release asset in this public repo has a stable public download URL.",
+            "  publish-unsigned-github-release:",
+            "    needs: [package-paired]",
+            "    if: github.event_name == 'push' && (github.ref == 'refs/heads/rebuild/scarlet-from-zero-20261106' || github.ref == 'refs/heads/fix/scarlet-v31-pairing-persistence-sheet-purple-20261110' || github.ref == 'refs/heads/fix/scarlet-v32-korean-copy-20261110' || github.ref == 'refs/heads/fix/scarlet-v33-log-rootcause-20261110' || github.ref == 'refs/heads/fix/scarlet-v34-iphone-virtual-resident-20261110' || github.ref == 'refs/heads/fix/scarlet-v35-restore-original-fullscreen-20261110' || github.ref == 'refs/heads/fix/scarlet-v36-remove-legacy-ui-20261110' || github.ref == 'refs/heads/fix/scarlet-v37-session-refresh-20261110' || github.ref == 'refs/heads/fix/scarlet-v38-current-launch-logs-20261110' || github.ref == 'refs/heads/fix/scarlet-v39-log-truth-20261110' || github.ref == 'refs/heads/fix/scarlet-v40-clean-work-session-20261110' || github.ref == 'refs/heads/fix/scarlet-v42-v40-safe-diagnostics-20261110' || github.ref == 'refs/heads/fix/scarlet-v43-install-rootcause-20261110' || github.ref == 'refs/heads/fix/scarlet-v44-rppairing-postsign-install-20261111' || github.ref == 'refs/heads/fix/scarlet-v45-single-viewport-liveprocess-20261111' || github.ref == 'refs/heads/fix/scarlet-v46-guard-provisional-guest-geometry-20261111' || github.ref == 'refs/heads/fix/scarlet-v47-resident-inplace-guest-switch-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-guest-runtime-recovery-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-restored-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r2-unified-switcher-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r3-original-pan-diagnostics-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r4-native-outside-remote-insets-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r5-attached-insets-shield-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r5-crash-recovery-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r5-recovery-r2-host-owner-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r5-recovery-r3-scene-authority-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r5-recovery-r4-native-ready-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r5-recovery-r5-compat-foreground-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r6-island-outside-audio-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r6p1-audio-home-focus-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r6p2-blocked-history-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r6p3-home-audio-gate-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r6p4-guest-audio-ack-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p7-launch-policy-rootcause-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p8-policy-field-relay-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p9-deferred-scene-boot-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p10-persistent-remediation-ledger-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p11-resident-guest-sdk-contract-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p12-instant-recent-switcher-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p14-switcher-reset-on-navigation-20261112')",
+            "    runs-on: ubuntu-24.04",
+            "    timeout-minutes: 10",
+            "    permissions:"
+          ]
+        },
+        {
+          "commit": "0bf334eb73b717a0baf57e7367ae546b840eb79e",
+          "file": ".github/workflows/scarlet-paired-engines-build.yml",
+          "location": "@@ -325,7 +325,9 @@",
+          "before": [
+            "              assert any(p.endswith(\"LiveProcess.appex/Info.plist\") for p in paths), \"Missing LiveProcess\"",
+            "          print(\"[PASS] Public IPA ZIP structure; Apple signature not verified\")",
+            "          PY",
+            "          if [ \"$GITHUB_REF\" = \"refs/heads/fix/scarlet-v48-r6p12-instant-recent-switcher-20261112\" ]; then",
+            "            asset=\"Scarlet-Crystal-V48-R6P12-INSTANT-RECENT-SWITCHER-UNSIGNED.ipa\"",
+            "          elif [ \"$GITHUB_REF\" = \"refs/heads/fix/scarlet-v48-r6p11-resident-guest-sdk-contract-20261112\" ]; then",
+            "            asset=\"Scarlet-Crystal-V48-R6P11-RESIDENT-GUEST-SDK-CONTRACT-UNSIGNED.ipa\""
+          ],
+          "after": [
+            "              assert any(p.endswith(\"LiveProcess.appex/Info.plist\") for p in paths), \"Missing LiveProcess\"",
+            "          print(\"[PASS] Public IPA ZIP structure; Apple signature not verified\")",
+            "          PY",
+            "          if [ \"$GITHUB_REF\" = \"refs/heads/fix/scarlet-v48-r6p14-switcher-reset-on-navigation-20261112\" ]; then",
+            "            asset=\"Scarlet-Crystal-V48-R6P14-SWITCHER-NAVIGATION-RESET-UNSIGNED.ipa\"",
+            "          elif [ \"$GITHUB_REF\" = \"refs/heads/fix/scarlet-v48-r6p12-instant-recent-switcher-20261112\" ]; then",
+            "            asset=\"Scarlet-Crystal-V48-R6P12-INSTANT-RECENT-SWITCHER-UNSIGNED.ipa\"",
+            "          elif [ \"$GITHUB_REF\" = \"refs/heads/fix/scarlet-v48-r6p11-resident-guest-sdk-contract-20261112\" ]; then",
+            "            asset=\"Scarlet-Crystal-V48-R6P11-RESIDENT-GUEST-SDK-CONTRACT-UNSIGNED.ipa\""
+          ]
+        },
+        {
+          "commit": "0bf334eb73b717a0baf57e7367ae546b840eb79e",
+          "file": ".github/workflows/scarlet-paired-engines-build.yml",
+          "location": "@@ -425,7 +427,10 @@",
+          "before": [
+            "          GH_TOKEN: ${{ github.token }}",
+            "        run: |",
+            "          set -Eeuo pipefail",
+            "          if [ \"$GITHUB_REF\" = \"refs/heads/fix/scarlet-v48-r6p12-instant-recent-switcher-20261112\" ]; then",
+            "            tag=scarlet-v48-r6p12-instant-recent-switcher-unsigned-20261112",
+            "            asset=Scarlet-Crystal-V48-R6P12-INSTANT-RECENT-SWITCHER-UNSIGNED.ipa",
+            "          elif [ \"$GITHUB_REF\" = \"refs/heads/fix/scarlet-v48-r6p11-resident-guest-sdk-contract-20261112\" ]; then"
+          ],
+          "after": [
+            "          GH_TOKEN: ${{ github.token }}",
+            "        run: |",
+            "          set -Eeuo pipefail",
+            "          if [ \"$GITHUB_REF\" = \"refs/heads/fix/scarlet-v48-r6p14-switcher-reset-on-navigation-20261112\" ]; then",
+            "            tag=scarlet-v48-r6p14-switcher-navigation-reset-unsigned-20261112",
+            "            asset=Scarlet-Crystal-V48-R6P14-SWITCHER-NAVIGATION-RESET-UNSIGNED.ipa",
+            "          elif [ \"$GITHUB_REF\" = \"refs/heads/fix/scarlet-v48-r6p12-instant-recent-switcher-20261112\" ]; then",
+            "            tag=scarlet-v48-r6p12-instant-recent-switcher-unsigned-20261112",
+            "            asset=Scarlet-Crystal-V48-R6P12-INSTANT-RECENT-SWITCHER-UNSIGNED.ipa",
+            "          elif [ \"$GITHUB_REF\" = \"refs/heads/fix/scarlet-v48-r6p11-resident-guest-sdk-contract-20261112\" ]; then"
+          ]
         }
       ],
       "source_revisions": [
@@ -3930,6 +4315,26 @@
           "sha": "a1fe7f6f422e5cd82bb4c2e7819cdc85a417d7ce",
           "url": "https://github.com/fx564286/sidestore-auto-refresh/commit/a1fe7f6f422e5cd82bb4c2e7819cdc85a417d7ce",
           "title": "test(r6p14): prevent expanded panel carryover on guest navigation"
+        },
+        {
+          "sha": "e77eb2db6cfae38db797b3d8472ff8a6e195abab",
+          "url": "https://github.com/fx564286/sidestore-auto-refresh/commit/e77eb2db6cfae38db797b3d8472ff8a6e195abab",
+          "title": "fix(r6p14): immediate navigation close without morph"
+        },
+        {
+          "sha": "536751002dd018a977e4f147d9e598ac879bf4f0",
+          "url": "https://github.com/fx564286/sidestore-auto-refresh/commit/536751002dd018a977e4f147d9e598ac879bf4f0",
+          "title": "fix(r6p14): request immediate close during resident scene navigation"
+        },
+        {
+          "sha": "669f16f8bfdc7131d9f913d0e0481677711e5b61",
+          "url": "https://github.com/fx564286/sidestore-auto-refresh/commit/669f16f8bfdc7131d9f913d0e0481677711e5b61",
+          "title": "test(r6p14): immediate close and V25 compatibility"
+        },
+        {
+          "sha": "0bf334eb73b717a0baf57e7367ae546b840eb79e",
+          "url": "https://github.com/fx564286/sidestore-auto-refresh/commit/0bf334eb73b717a0baf57e7367ae546b840eb79e",
+          "title": "ci(r6p14): unique unsigned release and build branch"
         }
       ],
       "novelty": {
@@ -3951,7 +4356,7 @@
       "device_verification": "not_installed_or_iphone_visual_verified_after_r6p14",
       "rollback_commit": "666fa02a1c8f8b9dac5f3c29e34876aa8bff9267",
       "generated_runtime_targets": [],
-      "success_gate": "Source gate and all 491 static tests pass, Xcode 27.2 build yields unique unsigned R6P14 IPA and nonoverwritten prior releases; on iPhone A expanded -> B selected and A expanded -> Home -> B launched both immediately restore collapsed button; new panel opens with A/B rows first frame and no fullscreen size/orientation regression.",
+      "success_gate": "Source gate and all 491 static tests pass, Xcode 27.2 build yields unique unsigned R6P14 IPA and nonoverwritten prior releases; on iPhone A expanded -> B selected and A expanded -> Home -> B launched both immediately restore collapsed button; new panel opens with A/B rows first frame and no fullscreen size/orientation regression. Inspect switch_panel_navigation_close_applied receipt on device, not only switch_panel_navigation_reset request.",
       "privacy": "Anonymous transition reasons and counts only; no guest names or identifiers exported."
     }
   ],
