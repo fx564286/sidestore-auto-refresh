@@ -15,7 +15,7 @@ class MeasuredChildLayout(unittest.TestCase):
         self.assertNotIn("ScarletIslandTryDeepHeaderSafeGuideAnchor(",probe)
         p38=SRC.split("// R6P38_LAYOUT_OWNER_BEGIN",1)[1].split(
             "// R6P38_LAYOUT_OWNER_END",1)[0]
-        self.assertIn("ScarletIslandTryMeasuredHeaderConstraintBridge(",p38)
+        self.assertNotIn("    ScarletIslandTryMeasuredHeaderConstraintBridge(",p38)
         self.assertIn("    if(!found) { ScarletIslandPublish(fields); return; }",p38)
     def test_only_unique_measured_header_is_anchored(self):
         for token in ("sample!=2600","hasOwnHeight","header.superview!=parent",

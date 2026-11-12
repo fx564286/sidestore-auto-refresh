@@ -69,6 +69,9 @@ final class ScarletDiagnosticRecorder: @unchecked Sendable {
         "guest_root_top_pt", "guest_root_after_pt",
         // R6P18: anonymous, bounded guest descendant geometry only; all
         // strings and identifiers remain excluded by the recorder whitelist.
+        "slot_top_pt", "slot_y_pt", "slot_height_pt",
+        "host_width_pt", "host_height_pt", "scale_milli", "chrome_touches",
+        "remote_content_height_pt", "hosting_safe_top_pt",
         "root_safe_top_pt", "root_frame_y", "root_guide_y", "visited",
         "candidate_controls", "top_controls", "unsafe_controls",
         "first_top_control_y", "first_unsafe_control_y",

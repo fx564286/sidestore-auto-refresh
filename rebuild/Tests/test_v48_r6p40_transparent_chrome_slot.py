@@ -21,9 +21,9 @@ class TransparentChromeSlot(unittest.TestCase):
         layout=HOST.split('override func viewDidLayoutSubviews()',1)[1].split('func isAlive(folder:',1)[0]
         self.assertIn('scene.coordinateSpace.bounds.size',layout)
         self.assertIn('abs(expected.width - actual.width) < 2',layout)
-        self.assertIn('vc.view.frame = slot',layout)
-        self.assertIn('settings.setFrame(slot)',layout)
-        self.assertIn('settings.setInterfaceOrientation(orientation)',layout)
+        self.assertIn('updateNativeChromeSlots(scene)',layout)
+        self.assertIn('settings.setFrame(rect)',HOST)
+        self.assertIn('settings.setInterfaceOrientation(orientation)',HOST)
         self.assertNotIn('CGAffineTransform',layout)
         self.assertNotIn('contentInset',layout)
         self.assertIn('scale_milli',f)
@@ -33,8 +33,8 @@ class TransparentChromeSlot(unittest.TestCase):
                     'transparentChrome.isUserInteractionEnabled = false',
                     'transparentChrome.isAccessibilityElement = false',
                     'view.insertSubview(transparentChrome, at: 0)',
-                    'transparentChrome.frame = CGRect(x: 0, y: 0,',
-                    'transparentChrome.isHidden = chromeTop < 1'):
+                    'transparentChrome.frame = CGRect(x: 0,y: 0,',
+                    'transparentChrome.isHidden = top < 1'):
             self.assertIn(key,HOST,key)
         self.assertIn('remove_upstream_legacy_window_ui',GEN)
         self.assertIn('chromeMinMaxCloseRemoved',GEN)
@@ -50,7 +50,8 @@ class TransparentChromeSlot(unittest.TestCase):
                     'guest_transparent_chrome_slot_unpadded'):
             self.assertIn(key,GUEST,key)
         self.assertIn('Scarlet.Guest.TransparentChromeTop.V1',HOST)
-        self.assertIn('vc.scarletNativeTransparentChromeSlot = chromeTop > 0',HOST)
+        self.assertIn('vc.scarletNativeTransparentChromeSlot = false',HOST)
+        self.assertIn('vc.scarletApplyNativeTransparentChromeSlot(reserved)',HOST)
         self.assertIn('guest_chrome_native_frame_readback',HOST)
         self.assertIn('remote_content_height_pt',HOST)
     def test_no_legacy_virtual_window_and_no_recycled_v37_v39_header_writes(self):

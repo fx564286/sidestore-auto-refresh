@@ -944,6 +944,7 @@ def add_v45_fullscreen_scene_slot(engine: Path) -> dict:
     h = h.replace(old, old +
         "@property(nonatomic) BOOL scarletNativeFullscreenSlot;\n"
         "@property(nonatomic) BOOL scarletNativeTransparentChromeSlot;\n"
+        "- (void)scarletApplyNativeTransparentChromeSlot:(BOOL)enabled;\n"
         "- (nullable NSNumber *)scarletApplyHostingContentSafeArea:(UIEdgeInsets)desired;\n"
         "- (BOOL)scarletRemoteContentReady;\n"
         "- (BOOL)scarletEnsureRemoteForeground;\n", 1)
@@ -1116,6 +1117,15 @@ static UIEdgeInsets ScarletPilotHostInsets(UIWindowScene *scene,
     helper = r"""
 // Read-only on the UIKit hosting owner. Geometry writes belong to the
 // per-FBScene authority, not multiple ancestor additionalSafeAreaInsets.
+- (void)scarletApplyNativeTransparentChromeSlot:(BOOL)enabled {
+    self.scarletNativeTransparentChromeSlot = enabled;
+    FBScene *remote = self.presenter.scene;
+    if(remote) {
+        objc_setAssociatedObject(remote,
+            (const void *)sel_registerName("scarletNativeTransparentChromeSlot"),
+            @(enabled), OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+    }
+}
 - (NSNumber *)scarletApplyHostingContentSafeArea:(UIEdgeInsets)desired {
     if(!self.scarletNativeFullscreenSlot || !self.hostingController)
         return nil;

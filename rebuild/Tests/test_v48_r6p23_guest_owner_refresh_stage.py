@@ -21,9 +21,9 @@ class R6P23(unittest.TestCase):
     def test_safe_root_unchanged_and_guarded_scroll_fix_preserved(self):
         for text in ('guest_root_already_safe',
                      'ScarletIslandScheduleContentProbe(window, root, target);',
-                     'ScarletIslandScheduleScrollContentRepair(window, root, target);',
                      'if(candidates.count != 1)', 'scroll.contentInset = inset;'):
             self.assertIn(text,G)
+        self.assertNotIn('ScarletIslandScheduleScrollContentRepair(window, root, target);',G)
         helper=G.split('// R6P23: inspect ancestry',1)[1].split('static void ScarletIslandInspect',1)[0]
         for forbidden in ('window.frame =', 'root.additionalSafeAreaInsets =',
                           'scroll.contentInset =', 'view.frame =',

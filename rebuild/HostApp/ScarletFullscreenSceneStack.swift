@@ -744,6 +744,7 @@ private final class ScarletGuestIslandReceiptObserver {
     static let shared = ScarletGuestIslandReceiptObserver()
     private var subscribed: Set<Int32> = []
     private var seen: Set<String> = []
+    var onTopRiskMeasured: ((Int32, Int, Int, Int, Int) -> Void)?
 
     func observe(pid: Int32) {
         guard pid > 0 else { return }
@@ -1006,6 +1007,11 @@ private final class ScarletGuestIslandReceiptObserver {
                 }
                 ScarletDiagnosticRecorder.shared.record(
                     "layout", "guest_content_geometry_probe", fields: fields)
+                if let unsafe = (row["visible_unsafe_controls"] as? NSNumber)?.intValue,
+                   let first = (row["first_unsafe_control_y"] as? NSNumber)?.intValue,
+                   let sample = (row["sample_index"] as? NSNumber)?.intValue {
+                    onTopRiskMeasured?(pid, unsafe, first, target, sample)
+                }
                 continue
             }
             if result == "guest_scroll_target_classifier" {
@@ -1198,45 +1204,105 @@ final class ScarletFullscreenSceneViewport: UIViewController {
     private var lastHostingOwnerProbes: [ObjectIdentifier: String] = [:]
     private var audioScopedPID: Int32 = 0
     private var hiddenAudioReconcileReported = false
-    // R6P40: the original LC title-bar *layout role*, without its buttons.
-    // The host keeps the full screen; the remote scene is naturally resized
-    // into the unobstructed content slot, with 1:1 scale (never cropped).
+    // P41: one host-owned native scene slot per measured unsafe guest PID.
     private let transparentChrome = UIView(frame: .zero)
+    private var chromeEligiblePIDs: Set<Int32> = []
     private var lastChromeTop: CGFloat = -1
 
     private func chromeTop(in scene: UIWindowScene) -> CGFloat {
         guard scene.interfaceOrientation.isPortrait else { return 0 }
-        let top = resolvedHostInsets(scene).top
-        return top >= 20 && top <= 130 ? top : 0
+        let value = resolvedHostInsets(scene).top
+        return value >= 20 && value <= 130 ? value : 0
     }
 
-    private func contentSlot(in scene: UIWindowScene) -> CGRect {
+    private func contentSlot(in scene: UIWindowScene, reserved: Bool) -> CGRect {
         let full = view.bounds
-        let top = chromeTop(in: scene)
+        let top = reserved ? chromeTop(in: scene) : 0
         return CGRect(x: full.minX, y: full.minY + top,
                       width: full.width, height: full.height - top)
     }
 
-    private func publishChromeGeometry(_ scene: UIWindowScene, top: CGFloat,
-                                      slot: CGRect) {
-        // Guest process may skip its own additive top inset only if its
-        // UIWindow confirms its exact screen-height-minus-top shape.
-        LCUtils.appGroupUserDefault.set(Double(top),
+    private func updateNativeChromeSlots(_ scene: UIWindowScene) {
+        // Publish the EXACT active PID allowlist; a global chrome 62pt
+        // flag caused P40's fallback root repair on return from Home.
+        let pids: [Int] = controllers.values.compactMap { vc in
+            vc.pid > 0 && vc.isAppRunning && chromeEligiblePIDs.contains(vc.pid)
+                ? Int(vc.pid) : nil
+        }
+        LCUtils.appGroupUserDefault.set(pids,
+            forKey: "Scarlet.Guest.TransparentChromeActivePIDs.V1")
+        LCUtils.appGroupUserDefault.set(Double(chromeTop(in: scene)),
             forKey: "Scarlet.Guest.TransparentChromeTop.V1")
-        ScarletDiagnosticRecorder.shared.record(
-            "layout", "resident_transparent_chrome_slot",
-            fields: ["result": top > 0 ? "native_unscaled_content_slot"
-                                         : "full_viewport_fallback",
-                     "slot_top_pt": String(Int(top)),
-                     "slot_height_pt": String(Int(slot.height)),
-                     "host_width_pt": String(Int(view.bounds.width)),
-                     "host_height_pt": String(Int(view.bounds.height)),
-                     "scale_milli": "1000",
-                     "chrome_touches": "false",
-                     "orientation": scene.interfaceOrientation.isPortrait
-                         ? "portrait" : "landscape"])
+        for vc in controllers.values {
+            let reserved = vc.pid > 0 && chromeEligiblePIDs.contains(vc.pid) &&
+                chromeTop(in: scene) > 0
+            let rect = contentSlot(in: scene, reserved: reserved)
+            if vc.scarletNativeTransparentChromeSlot != reserved ||
+                abs(vc.view.frame.minY - rect.minY) > 0.5 ||
+                abs(vc.view.frame.height - rect.height) > 0.5 ||
+                abs(vc.view.frame.width - rect.width) > 0.5 {
+                vc.scarletApplyNativeTransparentChromeSlot(reserved)
+                vc.view.frame = rect
+                let orientation = scene.interfaceOrientation
+                vc.updateSettings { settings in
+                    guard let settings else { return }
+                    settings.setFrame(rect)
+                    settings.setInterfaceOrientation(orientation)
+                }
+                ScarletDiagnosticRecorder.shared.record(
+                    "layout", "guest_chrome_adaptive_slot_applied",
+                    fields: ["process_pid": String(vc.pid),
+                             "result": reserved ? "measured_unsafe_owner"
+                                                  : "native_fullscreen_preserved",
+                             "slot_y_pt": String(Int(rect.minY)),
+                             "slot_height_pt": String(Int(rect.height)),
+                             "scale_milli": "1000"])
+            }
+        }
+        let pid = stack?.activeID.flatMap { controllers[$0]?.pid }
+        let active = stack?.isVisible == true && pid.map {
+            chromeEligiblePIDs.contains($0)
+        } == true
+        let top = active ? chromeTop(in: scene) : 0
+        transparentChrome.frame = CGRect(x: 0,y: 0,
+                                         width: view.bounds.width,height: top)
+        transparentChrome.isHidden = top < 1
+        if abs(lastChromeTop - top) > 0.5 {
+            lastChromeTop = top
+            ScarletDiagnosticRecorder.shared.record(
+                "layout", "resident_transparent_chrome_slot",
+                fields: ["result": active ? "selected_risky_guest_only"
+                                           : "native_unshifted_guest",
+                         "slot_top_pt": String(Int(top)),
+                         "host_width_pt": String(Int(view.bounds.width)),
+                         "host_height_pt": String(Int(view.bounds.height)),
+                         "chrome_touches": "false", "scale_milli": "1000"])
+        }
     }
 
+    private func onUnsafeGuestControls(pid: Int32, unsafe: Int,
+                                        first: Int, top: Int, sample: Int) {
+        guard sample == 650 || sample == 2600 else { return }
+        guard unsafe >= 3 && top >= 20 && top <= 130,
+              first >= -3 && first < top - 15,
+              !chromeEligiblePIDs.contains(pid),
+              controllers.values.contains(where: {
+                  $0.pid == pid && $0.isAppRunning
+              }) else { return }
+        chromeEligiblePIDs.insert(pid)
+        ScarletDiagnosticRecorder.shared.record(
+            "layout", "guest_chrome_adaptive_qualified",
+            fields: ["process_pid": String(pid),
+                     "visible_unsafe_controls": String(unsafe),
+                     "first_unsafe_control_y": String(first),
+                     "safe_top_pt": String(top),
+                     "sample_index": String(sample),
+                     "result": "native_slot_allowed_once"])
+        if let scene = view.window?.windowScene {
+            updateNativeChromeSlots(scene)
+            synchronizeAttachedGuestSafeAreas(scene)
+        }
+    }
 
     func setResidentOutsideDismissEnabled(_ enabled: Bool) {
         guard let tap = outsideDismissGesture else { return }
@@ -1428,6 +1494,13 @@ final class ScarletFullscreenSceneViewport: UIViewController {
         transparentChrome.isAccessibilityElement = false
         transparentChrome.autoresizingMask = [.flexibleWidth]
         view.insertSubview(transparentChrome, at: 0)
+        LCUtils.appGroupUserDefault.set([Int](),
+            forKey: "Scarlet.Guest.TransparentChromeActivePIDs.V1")
+        ScarletGuestIslandReceiptObserver.shared.onTopRiskMeasured = {
+            [weak self] pid, unsafe, first, top, sample in
+            self?.onUnsafeGuestControls(pid: pid, unsafe: unsafe,
+                first: first, top: top, sample: sample)
+        }
         let outside = UITapGestureRecognizer(target: self,
             action: #selector(didTapResidentBackground(_:)))
         outside.isEnabled = false
@@ -1478,37 +1551,15 @@ final class ScarletFullscreenSceneViewport: UIViewController {
             return
         }
         lastRejectedBounds = nil
-        // R6P40: original LiveContainer placed the guest *below* a native
-        // title-bar area. Keep host/full UIWindow unchanged, replace that bar
-        // with an inert transparent view, and give the remote FBScene its real
-        // remaining geometry so it lays out naturally (no clipping/zoom).
-        let chromeTop = chromeTop(in: scene)
-        let slot = contentSlot(in: scene)
-        transparentChrome.frame = CGRect(x: 0, y: 0,
-                                         width: actual.width, height: chromeTop)
-        transparentChrome.isHidden = chromeTop < 1
-        if actual != lastBounds || abs(chromeTop - lastChromeTop) > 0.5 {
+        if actual != lastBounds {
             lastBounds = actual
-            lastChromeTop = chromeTop
-            publishChromeGeometry(scene, top: chromeTop, slot: slot)
-            let orientation = scene.interfaceOrientation
-            for vc in controllers.values {
-                vc.scarletNativeTransparentChromeSlot = chromeTop > 0
-                vc.view.frame = slot
-                vc.updateSettings { settings in
-                    guard let settings else { return }
-                    settings.setFrame(slot)
-                    settings.setInterfaceOrientation(orientation)
-                }
-            }
             ScarletDiagnosticRecorder.shared.record(
                 "layout", "fullscreen_scene_geometry_applied",
                 fields: ["width_pt": String(Int(actual.width)),
                          "height_pt": String(Int(actual.height)),
-                         "reason": chromeTop > 0
-                             ? "transparent_chrome_native_scene_slot"
-                             : "verified_fullscreen_viewport"])
+                         "reason": "verified_native_adaptive_chrome_viewport"])
         }
+        updateNativeChromeSlots(scene)
         reconcile()
         synchronizeAttachedGuestSafeAreas(scene)
     }
@@ -1553,6 +1604,10 @@ final class ScarletFullscreenSceneViewport: UIViewController {
         controllers.removeValue(forKey: folder)
         observedRemoteInsets.removeValue(forKey: ObjectIdentifier(old))
         lastHostingOwnerProbes.removeValue(forKey: ObjectIdentifier(old))
+        chromeEligiblePIDs.remove(old.pid)
+        if let scene = view.window?.windowScene {
+            updateNativeChromeSlots(scene)
+        }
         return true
     }
 
@@ -1625,6 +1680,9 @@ final class ScarletFullscreenSceneViewport: UIViewController {
             vc.view.isUserInteractionEnabled = key == folder
         }
         view.bringSubviewToFront(target.view)
+        if let scene = view.window?.windowScene {
+            updateNativeChromeSlots(scene)
+        }
         // V48-R6: every resident guest is a separate LiveProcess with its own
         // AVAudioSession, so the host's session cannot silence another
         // process. Tell the exact guest PIDs to pause/resume their own
@@ -1678,11 +1736,12 @@ final class ScarletFullscreenSceneViewport: UIViewController {
                 continue
             }
             vc.scarletNativeFullscreenSlot = true
-            vc.scarletNativeTransparentChromeSlot = chromeTop(in: scene) > 0
+            vc.scarletNativeTransparentChromeSlot = false
             vc.scaleRatio = 1
-            vc.view.frame = contentSlot(in: scene)
-            vc.view.autoresizingMask =
-                [.flexibleWidth, .flexibleHeight]
+            vc.view.frame = contentSlot(in: scene, reserved: false)
+            // Parent autoresize must never expand a reserved 894pt scene
+            // back to 956pt while the guest is hidden.
+            vc.view.autoresizingMask = []
             // Do not show an uninitialized LiveProcess surface (black flash).
             // The prior guest remains fully attached, visible and touchable.
             vc.view.layer.opacity = 0
