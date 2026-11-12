@@ -91,3 +91,46 @@
 ### 최신 기기 관측: R6P11 SDK 실험 (2026-11-12)
 
 \`SourceCommit=687fb754e837\` 실기기 보고서에는 PID 2318과 2334에 각각 \`resident_sdk_contract_selected\`, \`sdk_source=user_override\`, \`result=dyld_sdk_query_requested\`가 기록됐다. 따라서 두 게스트에 R6P11의 **자동 Mach-O SDK 선택 분기**(\`effectiveSDK == 0\`)가 실행됐다고 주장할 수 없다. 이 이벤트는 API 변경 요청을 뜻할 뿐 UIKit 상단 콘텐츠가 물리적 Dynamic Island 아래에서 벗어났음을 입증하지 않는다. 기존 Safe Area/Scene/상단 좌표 조정과 R6P9 부팅 순서 변경을 새 이름으로 재시도하지 않는다.
+
+## 7. R6P15 이후 정확한 이력 보존과 새 코드 변경 검증 (R6P16)
+
+현재 설치된 R6P15 보고서의 `SourceCommit=a3eedc4174c9`는 실제 GitHub R6P15 HEAD다.
+따라서 **현재 버전은 R6P15**이며, 기존 51개 항목 L001~L051 중
+L049=R6P14 스위처 이동·즉시 접기, L050=R6P15 게스트 자체 루트 Safe Area,
+L051=R6P15 저장된 RSD 연결의 제한적 재검사다. 과거 항목에 `device_visual_and_touch_pass`가 없으면
+완성된 화면 수정으로 간주하지 않는다.
+
+### 이번 실기기 로그에서 판정된 항목
+
+- R6P14 `switch_panel_navigation_reset(reason=go_home/enqueue_guest)`를 실제 관찰했다.
+  A를 나와 B를 실행해 count=2인 것도 관찰했다. 그러나 패널의 모든 픽셀 및 전환 속도는 로그만으로 확정할 수 없다.
+- R6P15 실행 시 `safe_top_pt=0` 순간값이 계속 나타났고, `guest_safe_top_pt=62`,
+  `native_hosting_safearea_owner_readback(host_owner_top_pt=-1 -> 62)`를 관찰했다.
+  게스트 내부 실제 루트에서 `guest_root_corrected`와 사용자 터치 검증은 보이지 않는다.
+  기존의 FBScene/루트 additionalSafeAreaInsets/시간 지연 방식 재적용을 금지한다.
+- `resident_sdk_contract_selected(sdk_source=user_override)`는 R6P11 실험이 자동 SDK 선정으로
+  입증됐다는 뜻이 아니다.
+- 별개의 미해결 사항: IPA 설치의 `appmanager_error_code_3`; 수동 갱신은
+  `installation_verified=false`. 이 둘을 성공이라고 보고하면 안 된다.
+
+### R6P16 빌드 차단 계약
+
+1. P15까지의 L001~L051 원본 기록은 내용 해시로 고정된다. 이전 실패를 성공으로
+   재기록하거나 원본을 지우는 대신 L052, L053… 항목을 **추가**한다.
+2. R6P15 기준 Git 커밋 `a3eedc4174c9db698065ecfee7c7da6a9ac316b8` 이후
+   `rebuild/HostApp`, `rebuild/Sources`, `rebuild/integration`, `rebuild/Tests`,
+   `rebuild/diagnostics`, `rebuild/scripts`, 해당 CI workflow의 모든 변경 커밋과 파일을
+   새 이력의 **정확한 SHA 및 코드 경로**와 일대일로 대조한다.
+3. `python3 rebuild/diagnostics/scarlet_no_repeat_gate.py --repository-check`에서
+   `[NO-REPEAT-BLOCK] UNRECORDED SOURCE COMMIT ...`가 발생하면 Xcode/IPA 단계 전에
+   빌드가 실패해야 한다. CI는 `fetch-depth: 0`으로 전체 커밋을 검사한다.
+4. 새 수정 전에 `--proposal`도 제출하여 같은 원인과 변경 전후 코드를 먼저 비교한다.
+   P15 게스트 자체 루트 Safe Area 조치를 `safe_area`와 별개라고 명명하는 우회도
+   중복 분류에 포함한다. 미검증 조치는 별도 원인·실제 기기 증거가 없으면 차단한다.
+5. 보고서 첫머리에는 최근 18개가 아닌 **전체 수정 ID와 상태·파일을 표시**한다.
+   각 entry의 원본 코드 전후 및 작업 당시 정확한 커밋은 뒤의 원본 JSON에 있다.
+   반드시 `SourceCommit`과 `entries[-1]`을 비교하여 설치 기기 버전과 개발 이력을
+   혼동하지 않는다. 실제 CI에서 후속 버전이 배포되더라도 이전 기기 로그는 여전히 P15다.
+6. 새 수정에 대한 표준 수용 조건은 **이력 등록+동일 SHA/파일 대조 통과+테스트+네이티브
+   빌드+실기기 확인**이며, 단계별 상태를 따로 기입한다. `source_committed_ci_pending`을
+   해결 완료라고 바꿔서는 안 된다.
