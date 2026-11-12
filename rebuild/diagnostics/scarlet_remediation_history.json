@@ -1,9 +1,9 @@
 {
   "schema": 2,
   "scope": "Scarlet Crystal guest top-screen overlap, touch access, rotation, remote guest render and related resident regressions",
-  "updated_utc": "2026-11-12T06:28:00+00:00",
-  "current_baseline": "R6P18 dual diagnostic exports: current session failed guest launch because installed SideStore App Group was absent, while prior archive had it; repeatedly -1005 source download and 2FA team -3402, 107ms short LiveProcess exit, install -3 opaque, refresh not verified. R6P19 L055/56 source fixes only; initial native Xcode 27.2 failed missing NSURL constant; L057 commits exact SDK fix; rerun pending.",
-  "current_issue_status": "BLOCKED BY INSTALLED SIGNING ENTITLEMENT: R6P18 current signed app group inaccessible (no guest), headless SideStore team recovery -3402 and source download -1005. R6P19 adds bounded -1005 retry and accurate signing diagnosis but cannot issue Apple profile/group. R6P18 geometry probe remains untested on current signed app.",
+  "updated_utc": "2026-11-12T06:40:00+00:00",
+  "current_baseline": "R6P18 device reports from current and archives: source download -1005 repeated, Apple 2FA team -3402, App Group entitlement missing on latest signed launch, BG task register unavailable, guest fast exit 107ms, install appmanager error3 and unverified refresh. R6P19 source retries and signer-aware guidance are compiled native verification pending. R6P20 L058 reuses actual verified 2FA session through original SideStore AuthManager before team lookup and L059 scopes background task identifiers to two observed signer Bundle ID variants; 524 source regression tests PASS. No device success yet.",
+  "current_issue_status": "UNRESOLVED ON DEVICE: Apple signed entitlement missing in latest R6P18 launch, no guest can run to measure Dynamic Island; R6P20 adds bounded auth session and BG identifier corrections but actual post-signature App Group rights, team reconciliation, IPA install and 7-day refresh must be verified.",
   "confidence_note": "Past-chat-only historical versions were reported in earlier conversations; not all have a GitHub revision or device verification. An implementation, a CI success, a telemetry event, and a real device visual fix are distinct.",
   "privacy": "No credentials, Apple ID, OTP, UDID, guest names or device identifiers are stored.",
   "entries": [
@@ -7835,6 +7835,444 @@
       "repeat_policy": "Do not reintroduce non-existent NSURLSession error constants; use the exact native compiler log and follow up on separate/new failures only. Avoid changing safe area, signing, or unrelated UI.",
       "success_gate": "Actual native Xcode 27.2 archive completes, combined release IPA contains source retry path. Device network success and App Group signing remain separate tests.",
       "privacy": "No URL, Apple ID, OTP, team secrets, passwords, IPA paths, guest names, or provisioning data logged."
+    },
+    {
+      "date": "2026-11-12",
+      "status": "source_committed_ci_pending",
+      "source_verification": "git_patch_observed",
+      "device_verification": "not_installed_or_device_verified_after_r6p20",
+      "rollback_commit": "6cf418a2a062502725d95cf600483730ff4d84b0",
+      "privacy": "No Apple ID, OTP, raw Anisette, certificate, signing key, guest title, downloaded IPA URL, UDID, or P12 data are logged or changed.",
+      "id": "L058",
+      "version": "new-v48-r6p20-original-auth-session-cache",
+      "problem": "sidestore_2fa_team_recovery_failed",
+      "mechanism": "reuse_verified_alt_session_in_authmanager_cache_before_portal_team_query",
+      "hypothesis": "R6P18 Apple 2FA completed but team recovery failed -3402. Pinned SideStore AuthManager.signIn(appleID:) returns authenticated ALTAppleAPISession without populating AuthManager.shared.session; DeveloperPortalProxy.fetchTeams calls getAuthenticatedSession which has a second AnisetteProvider.fetch if the session cache is nil. This is an avoidable second request after the successful 2FA session, independent of signature App Groups.",
+      "action": "After explicitly confirming Keychain persistedState readback, cache exactly the Apple-verified returned session with AuthManager.shared.session = session before calling the existing real Apple Portal team restoration. Reject absent tokens, mismatched team or Core Data failure exactly as before; never invent teams or bypass portal checks.",
+      "observation": "R6P18 current 05:56Z twofactor_code_submitted followed by scarlet.auth.sidestore_team_recovery_failed(-3402). Exact upstream data flow verified in SideStore AuthManager.swift and DeveloperPortalProxy.swift. Source tests plus 524 overall PASS; native CI/device verification pending.",
+      "evidence": [
+        "Current 2026-11-12T05:56:43.646Z R6P18 device: -3402 after Apple 2FA.",
+        "Upstream SideStore `AuthManager.signIn` only returns session; `getAuthenticatedSession` fetches Anisette when self.session is nil; direct session cache avoids that extra pathway."
+      ],
+      "novelty": {
+        "prior_excluded_ids": [
+          "L054",
+          "L056",
+          "L057"
+        ],
+        "causal_difference": "The P18 current device log reports 2FA submitted, then team recovery -3402. Pinned SideStore AuthManager.signIn(appleID...) merely returns an ALTAppleAPISession; it doesn't save that result into AuthManager.shared.session. Immediately invoking DeveloperPortalProxy.fetchTeams calls AuthManager.getAuthenticatedSession and may fetch another Anisette route despite the already verified login. R6P20 populates the original SideStore session cache with the same successfully authenticated session only AFTER Keychain roundtrip succeeded and BEFORE querying the team, without creating a fake team or changing any Apple certificate/profile.",
+        "falsifiable_prediction": "On a correctly signed iPhone after R6P20 2FA success, team reconciliation uses the same authenticated session without a redundant Anisette fetch. If portal/team query still fails, -3402 remains and must be classified by stage and genuine portal result; R6P20 cannot claim login success from Keychain alone, and cannot recover a missing signed App Group.",
+        "new_device_evidence": {
+          "source_commit": "476892cec6cf68a234963d86aa48ab619313e3e4",
+          "event": "auth/remote_failure",
+          "observed_value": "2026-11-12T05:56:43.646Z current R6P18 after 2FA_code_submitted: -3402 scarlet.auth.sidestore_team_recovery_failed"
+        },
+        "why_prior_fix_failed": "The original V30 team-reconciliation logic added the team CoreData restoration path but did not retain the result of the immediately preceding 2FA-authenticated SideStore session, forcing a second Anisette fetch through DeveloperPortalProxy. This is a different data-flow defect from signing entitlement or early UIKit root hooks."
+      },
+      "source_revisions": [
+        {
+          "sha": "1a138634881a7868b3f72f9cc2943b1f84fdc833",
+          "url": "https://github.com/fx564286/sidestore-auto-refresh/commit/1a138634881a7868b3f72f9cc2943b1f84fdc833",
+          "title": "fix(r6p20): reuse already verified 2FA Apple session for SideStore team recovery"
+        },
+        {
+          "sha": "434ae0525a327ed21979794f5dfd9c820bbd2819",
+          "url": "https://github.com/fx564286/sidestore-auto-refresh/commit/434ae0525a327ed21979794f5dfd9c820bbd2819",
+          "title": "test(r6p20): preserve verified team session and BG signed identity variants"
+        }
+      ],
+      "code_locations": [
+        {
+          "commit": "1a138634881a7868b3f72f9cc2943b1f84fdc833",
+          "file": "rebuild/integration/ScarletGuestSignInAgent.swift.txt",
+          "function": "ScarletGuestSignInAgent.swift.txt",
+          "location": "@@ -158,6 +158,14 @@ final class ScarletGuestSignInAgent: NSObject {",
+          "before": [
+            "                    finish(id, code: -3401, domain: \"scarlet.auth.keychain_roundtrip_failed\")",
+            "                    return",
+            "                }",
+            "                // Non-secret successful Anisette route for token restoration.",
+            "                // Only commit the chosen route after a verified Keychain save.",
+            "                UserDefaults.standard.set(profile,"
+          ],
+          "after": [
+            "                    finish(id, code: -3401, domain: \"scarlet.auth.keychain_roundtrip_failed\")",
+            "                    return",
+            "                }",
+            "                // R6P20: original AuthManager.signIn returns a verified",
+            "                // ALTAppleAPISession but does NOT populate `self.session`.",
+            "                // DeveloperPortalProxy.fetchTeams -> getAuthenticatedSession",
+            "                // otherwise starts a second Anisette fetch immediately after",
+            "                // successful 2FA. Reuse only this already authenticated,",
+            "                // Keychain-readback-verified session in the SAME process.",
+            "                // Never cache the password, OTP, or raw identity in logs.",
+            "                AuthManager.shared.session = session",
+            "                // Non-secret successful Anisette route for token restoration.",
+            "                // Only commit the chosen route after a verified Keychain save.",
+            "                UserDefaults.standard.set(profile,"
+          ]
+        },
+        {
+          "commit": "434ae0525a327ed21979794f5dfd9c820bbd2819",
+          "file": "rebuild/Tests/test_v48_r6p20_live_session_bg_identifier.py",
+          "function": "test_v48_r6p20_live_session_bg_identifier.py",
+          "location": "@@ -0,0 +1,42 @@",
+          "before": [],
+          "after": [
+            "\"\"\"R6P20: reuse 2FA-confirmed Apple portal session and signed-ID BG tasks.\"\"\"",
+            "from pathlib import Path",
+            "import unittest",
+            "",
+            "R=Path(__file__).resolve().parents[1]",
+            "AUTH=(R/'integration/ScarletGuestSignInAgent.swift.txt').read_text()",
+            "AUTO=(R/'HostApp/ScarletAutomaticRenewal.swift').read_text()",
+            "PAIR=(R/'HostApp/ScarletNativeDevicePairing.swift').read_text()",
+            "GEN=(R/'integration/apply_scarlet_host.py').read_text()",
+            "",
+            "class RealSignInSessionAndSignedIdentifierTests(unittest.TestCase):",
+            "    def test_verified_apple_session_reused_after_2fa_before_team_portal(self):",
+            "        self.assertIn('let (_, session) = try await AuthManager.shared.signIn(',AUTH)",
+            "        verified=AUTH.index('guard persistedState() else {',AUTH.index('@objc(begin:)'))",
+            "        cached=AUTH.index('AuthManager.shared.session = session',verified)",
+            "        active=AUTH.index('let teamState = await ensureActiveTeamForRefresh()',cached)",
+            "        self.assertLess(verified,cached)",
+            "        self.assertLess(cached,active)",
+            "        self.assertIn('finish(id, code: -3401',AUTH[verified:cached])",
+            "        self.assertIn('finish(id, code: -3402',AUTH[active:])",
+            "    def test_engine_get_authenticated_session_may_need_anisette_without_cache(self):",
+            "        self.assertIn('DeveloperPortalProxy.shared.fetchTeams(',AUTH)",
+            "        self.assertIn('AuthManager.shared.session = session',AUTH)",
+            "        self.assertNotIn('AuthManager.shared.signOut()',AUTH)",
+            "        self.assertNotIn('clearActiveCertificate()',AUTH)",
+            "    def test_bg_task_id_tracks_exact_installed_signed_bundle(self):",
+            "        for src,ending in [(AUTO,'.refresh'),(PAIR,'.pairing')]:",
+            "            self.assertIn('Bundle.main.bundleIdentifier ?? original',src)",
+            "            self.assertIn('actual == original + \".P8EZT3U5N4\"',src)",
+            "            self.assertIn('return actual + \"'+ending+'\"',src)",
+            "            self.assertIn('return original + \"'+ending+'\"',src)",
+            "    def test_both_known_permitted_bundle_id_variants_declared(self):",
+            "        self.assertIn('BGTaskSchedulerPermittedIdentifiers',GEN)",
+            "        self.assertIn('observedBundle=\"com.kdt.livecontainer.P8EZT3U5N4.P8EZT3U5N4\"',GEN)",
+            "        self.assertIn('for suffix in (\"refresh\", \"pairing\")',GEN)",
+            "        self.assertIn('if allowedID not in identifiers: identifiers.append(allowedID)',GEN)",
+            "        self.assertIn('identifier=\"com.kdt.livecontainer.P8EZT3U5N4.refresh\"',GEN)",
+            "    def test_no_signed_entitlement_or_guest_screen_modified(self):",
+            "        self.assertNotIn('SecTaskCopyValueForEntitlement =',AUTH)",
+            "        self.assertNotIn('window.frame =',AUTH)",
+            "        self.assertNotIn('SecItemDelete',AUTH)",
+            "if __name__=='__main__':unittest.main()"
+          ]
+        }
+      ],
+      "repeat_policy": "If -3402 persists, do not set auth state to success or recreate dummy team rows. Trace portal/DB stage or signed session binding with new device evidence. Do not reapply session-cache patch under a new method name.",
+      "success_gate": "R6P20 native build and real signed iPhone 2FA return team status ready/team_restored, visible signed-in state persists, signature unchanged. Source-only tests are not proof of live Apple login."
+    },
+    {
+      "date": "2026-11-12",
+      "status": "source_committed_ci_pending",
+      "source_verification": "git_patch_observed",
+      "device_verification": "not_installed_or_device_verified_after_r6p20",
+      "rollback_commit": "6cf418a2a062502725d95cf600483730ff4d84b0",
+      "privacy": "No Apple ID, OTP, raw Anisette, certificate, signing key, guest title, downloaded IPA URL, UDID, or P12 data are logged or changed.",
+      "id": "L059",
+      "version": "new-v48-r6p20-signed-bg-task-identifiers",
+      "problem": "bg_refresh_registration_unavailable",
+      "mechanism": "select_exact_signed_host_bundle_variant_for_bg_task_identifier",
+      "hypothesis": "Current R6P18 background registration is unavailable while prior sessions showed registered. User has two exactly observed Apple signer host bundle IDs. Previous registered task names only match the base variant and are in base Info.plist; the suffix variant can cause a registration mismatch even if OS otherwise supports BG tasks. Unknown until signed bundle readback.",
+      "action": "Choose only already-approved base or suffix-duplicated actual runtime Bundle.main.bundleIdentifier for refresh/pairing BG request; include both exact variants in generated Info.plist BGTaskSchedulerPermittedIdentifiers. Preserve original installed app identity, existing background modes and entitlements. No new Apple App IDs.",
+      "observation": "Current R6P18 automatic_background_registered(result=unavailable), previous sessions registered. No per-session final signed host bundle identifier was included in the anonymized report; this is a falsifiable conditional compatibility adjustment rather than proof of the cause.",
+      "evidence": [
+        "R6P18 current 05:56:00.380Z background registration unavailable; earlier archived session registration succeeded.",
+        "Source ScarletSigningReadinessPanel.swift explicitly recognizes exactly base and .P8EZT3U5N4 suffix observed variants, while prior BG task IDs were statically base-only."
+      ],
+      "novelty": {
+        "prior_excluded_ids": [
+          "L055",
+          "L056",
+          "L057"
+        ],
+        "causal_difference": "R6P18 latest iPhone session has automatic_background_registered(unavailable), while earlier sessions had registered, during a signed installation with missing SideStore App Group. The user has two previously observed exact signer Bundle ID variants: base and suffix-duplicated. The existing BGTaskScheduler identifier was hard-coded to the base variant and plist listed only that. R6P20 makes both refresh/pairing task IDs derive from the actual installed approved Bundle ID and whitelists the two explicit variants in generated Info.plist, leaving the base output exactly unchanged; this only addresses one concrete possible identifier mismatch, not missing system entitlement or iOS scheduling policy.",
+        "falsifiable_prediction": "If the installed exact Bundle ID has the observed P8EZT3U5N4 duplicate suffix, the app requests that suffixed BGTask identifier and Info.plist permits it. If base bundle, current identifier is unchanged. If BG registration still reports unavailable, investigate the signed installed Info.plist, app permissions, other registrations, and iOS policy rather than claiming this change corrected the BG service.",
+        "new_device_evidence": {
+          "source_commit": "476892cec6cf68a234963d86aa48ab619313e3e4",
+          "event": "refresh/automatic_background_registered",
+          "observed_value": "Current launch 05:56:00.380Z result unavailable, while archived sessions e.g. 05:55Z result registered; runtime approval of exact host Bundle ID variant unknown."
+        },
+        "why_prior_fix_failed": "Earlier setup declared just hard-coded base BG task identifiers and registered them regardless of the actual allowed signed host bundle variant. Existing project supports an exact observed suffix-duplicated signed identity but BG registration ignored it. This change is bounded to only those two permitted variants, does not grant Apple capabilities, and is falsifiable by on-device registration after signing."
+      },
+      "source_revisions": [
+        {
+          "sha": "33be7861153445789fee3538710808b816fc4a7e",
+          "url": "https://github.com/fx564286/sidestore-auto-refresh/commit/33be7861153445789fee3538710808b816fc4a7e",
+          "title": "fix(r6p20): scope BG refresh request to exact signed host bundle variant"
+        },
+        {
+          "sha": "273d2c46b93525284d4026bbfe53ee1258db413c",
+          "url": "https://github.com/fx564286/sidestore-auto-refresh/commit/273d2c46b93525284d4026bbfe53ee1258db413c",
+          "title": "fix(r6p20): scope BG pairing request to exact signed host bundle variant"
+        },
+        {
+          "sha": "d7bcc97a9b23b0e81b81609e4561b196d3f0f05b",
+          "url": "https://github.com/fx564286/sidestore-auto-refresh/commit/d7bcc97a9b23b0e81b81609e4561b196d3f0f05b",
+          "title": "fix(r6p20): permit exact existing two signer bundle variants in BG task plist"
+        },
+        {
+          "sha": "9d100cec68600f04089286fd4248c39c53a608d7",
+          "url": "https://github.com/fx564286/sidestore-auto-refresh/commit/9d100cec68600f04089286fd4248c39c53a608d7",
+          "title": "build(r6p20): unique native IPA and release for auth session and BG fixes"
+        },
+        {
+          "sha": "6ad8b4a7446460de3b9eeda3d89d3a88e35c5cd9",
+          "url": "https://github.com/fx564286/sidestore-auto-refresh/commit/6ad8b4a7446460de3b9eeda3d89d3a88e35c5cd9",
+          "title": "audit(r6p20): document precise new failure mechanisms and safe device success gates"
+        }
+      ],
+      "code_locations": [
+        {
+          "commit": "33be7861153445789fee3538710808b816fc4a7e",
+          "file": "rebuild/HostApp/ScarletAutomaticRenewal.swift",
+          "function": "ScarletAutomaticRenewal.swift",
+          "location": "@@ -125,7 +125,18 @@ enum ScarletRefreshFailureDiagnosis {",
+          "before": [
+            "@MainActor",
+            "final class ScarletAutomaticRenewal {",
+            "    static let shared = ScarletAutomaticRenewal()",
+            "    static let identifier = \"com.kdt.livecontainer.P8EZT3U5N4.refresh\"",
+            "    private let attemptKey = \"Scarlet.Refresh.LastAttemptAt\"",
+            "    private let outcomeKey = \"Scarlet.Refresh.LastAttemptOutcome\"",
+            "    private let sourceKey = \"Scarlet.Refresh.LastAttemptSource\""
+          ],
+          "after": [
+            "@MainActor",
+            "final class ScarletAutomaticRenewal {",
+            "    static let shared = ScarletAutomaticRenewal()",
+            "    // R6P20: some signers keep the user's observed suffix-duplicated",
+            "    // Bundle ID. Register the BG task for the *actual signed host ID*,",
+            "    // not a hard-coded sibling which iOS may refuse. Both exact variants",
+            "    // are present in the generated Info.plist allow-list.",
+            "    static var identifier: String {",
+            "        let original = \"com.kdt.livecontainer.P8EZT3U5N4\"",
+            "        let actual = Bundle.main.bundleIdentifier ?? original",
+            "        guard actual == original || actual == original + \".P8EZT3U5N4\" else {",
+            "            return original + \".refresh\" // original safe registration fallback",
+            "        }",
+            "        return actual + \".refresh\"",
+            "    }",
+            "    private let attemptKey = \"Scarlet.Refresh.LastAttemptAt\"",
+            "    private let outcomeKey = \"Scarlet.Refresh.LastAttemptOutcome\"",
+            "    private let sourceKey = \"Scarlet.Refresh.LastAttemptSource\""
+          ]
+        },
+        {
+          "commit": "273d2c46b93525284d4026bbfe53ee1258db413c",
+          "file": "rebuild/HostApp/ScarletNativeDevicePairing.swift",
+          "function": "ScarletNativeDevicePairing.swift",
+          "location": "@@ -13,7 +13,14 @@ import SideStoreSupport",
+          "before": [
+            "@MainActor",
+            "final class ScarletDevicePairingModel: NSObject, ObservableObject, @preconcurrency NetServiceDelegate {",
+            "    static let shared = ScarletDevicePairingModel()",
+            "    static let taskIdentifier = \"com.kdt.livecontainer.P8EZT3U5N4.pairing\"",
+            "",
+            "    @Published private(set) var phase = \"확인 중\"",
+            "    @Published private(set) var pin: String?"
+          ],
+          "after": [
+            "@MainActor",
+            "final class ScarletDevicePairingModel: NSObject, ObservableObject, @preconcurrency NetServiceDelegate {",
+            "    static let shared = ScarletDevicePairingModel()",
+            "    static var taskIdentifier: String {",
+            "        let original = \"com.kdt.livecontainer.P8EZT3U5N4\"",
+            "        let actual = Bundle.main.bundleIdentifier ?? original",
+            "        guard actual == original || actual == original + \".P8EZT3U5N4\" else {",
+            "            return original + \".pairing\"",
+            "        }",
+            "        return actual + \".pairing\"",
+            "    }",
+            "",
+            "    @Published private(set) var phase = \"확인 중\"",
+            "    @Published private(set) var pin: String?"
+          ]
+        },
+        {
+          "commit": "d7bcc97a9b23b0e81b81609e4561b196d3f0f05b",
+          "file": "rebuild/integration/apply_scarlet_host.py",
+          "function": "apply_scarlet_host.py",
+          "location": "@@ -1906,6 +1906,14 @@ def main():",
+          "before": [
+            "    if identifier not in identifiers: identifiers.append(identifier)",
+            "    pairingTaskID=\"com.kdt.livecontainer.P8EZT3U5N4.pairing\"",
+            "    if pairingTaskID not in identifiers: identifiers.append(pairingTaskID)",
+            "    info[\"BGTaskSchedulerPermittedIdentifiers\"]=identifiers",
+            "    info[\"NSLocalNetworkUsageDescription\"]=(",
+            "        \"Scarlet Crystal은 iOS 27에서 기기 페어링을 생성하고 \""
+          ],
+          "after": [
+            "    if identifier not in identifiers: identifiers.append(identifier)",
+            "    pairingTaskID=\"com.kdt.livecontainer.P8EZT3U5N4.pairing\"",
+            "    if pairingTaskID not in identifiers: identifiers.append(pairingTaskID)",
+            "    # The user's signing tool has also produced an observed app bundle ID",
+            "    # with one appended team suffix; iOS BG task identifiers are scoped to",
+            "    # that installed app. Declare BOTH exact permitted variants without",
+            "    # changing the app identity or creating new Apple entitlement rights.",
+            "    observedBundle=\"com.kdt.livecontainer.P8EZT3U5N4.P8EZT3U5N4\"",
+            "    for suffix in (\"refresh\", \"pairing\"):",
+            "        allowedID=f\"{observedBundle}.{suffix}\"",
+            "        if allowedID not in identifiers: identifiers.append(allowedID)",
+            "    info[\"BGTaskSchedulerPermittedIdentifiers\"]=identifiers",
+            "    info[\"NSLocalNetworkUsageDescription\"]=(",
+            "        \"Scarlet Crystal은 iOS 27에서 기기 페어링을 생성하고 \""
+          ]
+        },
+        {
+          "commit": "9d100cec68600f04089286fd4248c39c53a608d7",
+          "file": ".github/workflows/scarlet-paired-engines-build.yml",
+          "function": "scarlet-paired-engines-build.yml",
+          "location": "@@ -3,7 +3,7 @@ name: Scarlet paired LiveContainer and SideStore iOS build",
+          "before": [
+            "on:",
+            "  workflow_dispatch:",
+            "  push:",
+            "    branches: [rebuild/scarlet-from-zero-20261106, fix/scarlet-auth-status-rootcause-20261109, fix/scarlet-pr48-guest-overlay-no-resize-20261109, fix/scarlet-pr48-airpods-glass-guest-switch-v3-20261109, fix/scarlet-pr48-draggable-guest-tab-v4-20261109, fix/scarlet-pr48-v5-glass-drag-cert-recovery-20261109, fix/scarlet-pr48-v6-unified-cert-glass-20261109, fix/scarlet-pr48-v7-cert-jitless-unify-panel-rim-20261109, fix/scarlet-pr48-v8-flicker-certificate-menu-20261109, fix/scarlet-pr48-v9-single-glass-rim-20261109, fix/scarlet-pr48-v10-fixed-tab-cert-and-session-20261109, fix/scarlet-pr48-v11-module-settings-appid-20261109, fix/scarlet-pr48-v12-live-sessions-source-auto-refresh-20261109, fix/scarlet-pr48-v13-compact-settings-current-app-20261109, fix/scarlet-pr48-v14-guest-history-native-scenes-three-ids-20261109, fix/scarlet-pr48-v15-source-disclosure-icons-guest-handoff-20261109, fix/scarlet-pr48-v16-guest-switcher-icons-readback-20261110, fix/scarlet-v17-cold-switch-rotation-20261110, fix/scarlet-v18-refresh-diagnostics-native-glass-20261110, fix/scarlet-v19-active-session-switcher-20261110, fix/scarlet-v20-guest-switcher-trace-20261110, fix/scarlet-v21-hook-telemetry-persistence-20261110, fix/scarlet-v22-runtime-guest-identity-20261110, fix/scarlet-v23-session-only-switcher-20261110, fix/scarlet-v24-refresh-lifecycle-switch-receipt-20261110, fix/scarlet-v25-single-panel-outside-dismiss-20261110, fix/scarlet-v26-liquidglass-button-to-fixed-panel-morph-20261110, fix/scarlet-v27-sidestore-direct-native-refresh-20261110, fix/scarlet-v28-minimuxer-readiness-recovery-20261110, fix/scarlet-v29-inapp-rppairing-20261110, fix/scarlet-v30-restore-sidestore-active-team-20261110, fix/scarlet-v31-pairing-persistence-sheet-purple-20261110, fix/scarlet-v32-korean-copy-20261110, fix/scarlet-v33-log-rootcause-20261110, fix/scarlet-v34-iphone-virtual-resident-20261110, fix/scarlet-v35-restore-original-fullscreen-20261110, fix/scarlet-v36-remove-legacy-ui-20261110, fix/scarlet-v37-session-refresh-20261110, fix/scarlet-v38-current-launch-logs-20261110, fix/scarlet-v39-log-truth-20261110, fix/scarlet-v40-clean-work-session-20261110, fix/scarlet-v42-v40-safe-diagnostics-20261110, fix/scarlet-v43-install-rootcause-20261110, fix/scarlet-v44-rppairing-postsign-install-20261111, fix/scarlet-v45-single-viewport-liveprocess-20261111, fix/scarlet-v46-guard-provisional-guest-geometry-20261111, fix/scarlet-v47-resident-inplace-guest-switch-20261111, fix/scarlet-v48-guest-runtime-recovery-20261111, fix/scarlet-v48-restored-20261111, fix/scarlet-v48-r2-unified-switcher-20261111, fix/scarlet-v48-r3-original-pan-diagnostics-20261111, fix/scarlet-v48-r4-native-outside-remote-insets-20261111, fix/scarlet-v48-r5-attached-insets-shield-20261111, fix/scarlet-v48-r5-crash-recovery-20261111, fix/scarlet-v48-r5-recovery-r2-host-owner-20261111, fix/scarlet-v48-r5-recovery-r3-scene-authority-20261111, fix/scarlet-v48-r5-recovery-r4-native-ready-20261111, fix/scarlet-v48-r5-recovery-r5-compat-foreground-20261111, fix/scarlet-v48-r6-island-outside-audio-20261111, fix/scarlet-v48-r6p1-audio-home-focus-20261111, fix/scarlet-v48-r6p2-blocked-history-20261111, fix/scarlet-v48-r6p3-home-audio-gate-20261111, fix/scarlet-v48-r6p4-guest-audio-ack-20261112, fix/scarlet-v48-r6p7-launch-policy-rootcause-20261112, fix/scarlet-v48-r6p8-policy-field-relay-20261112, fix/scarlet-v48-r6p9-deferred-scene-boot-20261112, fix/scarlet-v48-r6p10-persistent-remediation-ledger-20261112, fix/scarlet-v48-r6p11-resident-guest-sdk-contract-20261112, fix/scarlet-v48-r6p12-instant-recent-switcher-20261112, fix/scarlet-v48-r6p14-switcher-reset-on-navigation-20261112, fix/scarlet-v48-r6p15-guest-root-island-pairing-recovery-20261112, fix/scarlet-v48-r6p16-audit-coverage-20261112, fix/scarlet-v48-r6p17-resident-optin-defaults-20261112, fix/scarlet-v48-r6p18-guest-content-geometry-20261112, fix/scarlet-v48-r6p19-entitlement-failclosed-network-recovery-20261112]",
+            "    paths:",
+            "      - \".github/workflows/scarlet-paired-engines-build.yml\"",
+            "      - \"rebuild/integration/**\""
+          ],
+          "after": [
+            "on:",
+            "  workflow_dispatch:",
+            "  push:",
+            "    branches: [rebuild/scarlet-from-zero-20261106, fix/scarlet-auth-status-rootcause-20261109, fix/scarlet-pr48-guest-overlay-no-resize-20261109, fix/scarlet-pr48-airpods-glass-guest-switch-v3-20261109, fix/scarlet-pr48-draggable-guest-tab-v4-20261109, fix/scarlet-pr48-v5-glass-drag-cert-recovery-20261109, fix/scarlet-pr48-v6-unified-cert-glass-20261109, fix/scarlet-pr48-v7-cert-jitless-unify-panel-rim-20261109, fix/scarlet-pr48-v8-flicker-certificate-menu-20261109, fix/scarlet-pr48-v9-single-glass-rim-20261109, fix/scarlet-pr48-v10-fixed-tab-cert-and-session-20261109, fix/scarlet-pr48-v11-module-settings-appid-20261109, fix/scarlet-pr48-v12-live-sessions-source-auto-refresh-20261109, fix/scarlet-pr48-v13-compact-settings-current-app-20261109, fix/scarlet-pr48-v14-guest-history-native-scenes-three-ids-20261109, fix/scarlet-pr48-v15-source-disclosure-icons-guest-handoff-20261109, fix/scarlet-pr48-v16-guest-switcher-icons-readback-20261110, fix/scarlet-v17-cold-switch-rotation-20261110, fix/scarlet-v18-refresh-diagnostics-native-glass-20261110, fix/scarlet-v19-active-session-switcher-20261110, fix/scarlet-v20-guest-switcher-trace-20261110, fix/scarlet-v21-hook-telemetry-persistence-20261110, fix/scarlet-v22-runtime-guest-identity-20261110, fix/scarlet-v23-session-only-switcher-20261110, fix/scarlet-v24-refresh-lifecycle-switch-receipt-20261110, fix/scarlet-v25-single-panel-outside-dismiss-20261110, fix/scarlet-v26-liquidglass-button-to-fixed-panel-morph-20261110, fix/scarlet-v27-sidestore-direct-native-refresh-20261110, fix/scarlet-v28-minimuxer-readiness-recovery-20261110, fix/scarlet-v29-inapp-rppairing-20261110, fix/scarlet-v30-restore-sidestore-active-team-20261110, fix/scarlet-v31-pairing-persistence-sheet-purple-20261110, fix/scarlet-v32-korean-copy-20261110, fix/scarlet-v33-log-rootcause-20261110, fix/scarlet-v34-iphone-virtual-resident-20261110, fix/scarlet-v35-restore-original-fullscreen-20261110, fix/scarlet-v36-remove-legacy-ui-20261110, fix/scarlet-v37-session-refresh-20261110, fix/scarlet-v38-current-launch-logs-20261110, fix/scarlet-v39-log-truth-20261110, fix/scarlet-v40-clean-work-session-20261110, fix/scarlet-v42-v40-safe-diagnostics-20261110, fix/scarlet-v43-install-rootcause-20261110, fix/scarlet-v44-rppairing-postsign-install-20261111, fix/scarlet-v45-single-viewport-liveprocess-20261111, fix/scarlet-v46-guard-provisional-guest-geometry-20261111, fix/scarlet-v47-resident-inplace-guest-switch-20261111, fix/scarlet-v48-guest-runtime-recovery-20261111, fix/scarlet-v48-restored-20261111, fix/scarlet-v48-r2-unified-switcher-20261111, fix/scarlet-v48-r3-original-pan-diagnostics-20261111, fix/scarlet-v48-r4-native-outside-remote-insets-20261111, fix/scarlet-v48-r5-attached-insets-shield-20261111, fix/scarlet-v48-r5-crash-recovery-20261111, fix/scarlet-v48-r5-recovery-r2-host-owner-20261111, fix/scarlet-v48-r5-recovery-r3-scene-authority-20261111, fix/scarlet-v48-r5-recovery-r4-native-ready-20261111, fix/scarlet-v48-r5-recovery-r5-compat-foreground-20261111, fix/scarlet-v48-r6-island-outside-audio-20261111, fix/scarlet-v48-r6p1-audio-home-focus-20261111, fix/scarlet-v48-r6p2-blocked-history-20261111, fix/scarlet-v48-r6p3-home-audio-gate-20261111, fix/scarlet-v48-r6p4-guest-audio-ack-20261112, fix/scarlet-v48-r6p7-launch-policy-rootcause-20261112, fix/scarlet-v48-r6p8-policy-field-relay-20261112, fix/scarlet-v48-r6p9-deferred-scene-boot-20261112, fix/scarlet-v48-r6p10-persistent-remediation-ledger-20261112, fix/scarlet-v48-r6p11-resident-guest-sdk-contract-20261112, fix/scarlet-v48-r6p12-instant-recent-switcher-20261112, fix/scarlet-v48-r6p14-switcher-reset-on-navigation-20261112, fix/scarlet-v48-r6p15-guest-root-island-pairing-recovery-20261112, fix/scarlet-v48-r6p16-audit-coverage-20261112, fix/scarlet-v48-r6p17-resident-optin-defaults-20261112, fix/scarlet-v48-r6p18-guest-content-geometry-20261112, fix/scarlet-v48-r6p19-entitlement-failclosed-network-recovery-20261112, fix/scarlet-v48-r6p20-auth-session-bg-id-20261112]",
+            "    paths:",
+            "      - \".github/workflows/scarlet-paired-engines-build.yml\"",
+            "      - \"rebuild/integration/**\""
+          ]
+        },
+        {
+          "commit": "9d100cec68600f04089286fd4248c39c53a608d7",
+          "file": ".github/workflows/scarlet-paired-engines-build.yml",
+          "function": "scarlet-paired-engines-build.yml",
+          "location": "@@ -305,7 +305,7 @@ jobs:",
+          "before": [
+            "  # A Release asset in this public repo has a stable public download URL.",
+            "  publish-unsigned-github-release:",
+            "    needs: [package-paired]",
+            "    if: github.event_name == 'push' && (github.ref == 'refs/heads/rebuild/scarlet-from-zero-20261106' || github.ref == 'refs/heads/fix/scarlet-v31-pairing-persistence-sheet-purple-20261110' || github.ref == 'refs/heads/fix/scarlet-v32-korean-copy-20261110' || github.ref == 'refs/heads/fix/scarlet-v33-log-rootcause-20261110' || github.ref == 'refs/heads/fix/scarlet-v34-iphone-virtual-resident-20261110' || github.ref == 'refs/heads/fix/scarlet-v35-restore-original-fullscreen-20261110' || github.ref == 'refs/heads/fix/scarlet-v36-remove-legacy-ui-20261110' || github.ref == 'refs/heads/fix/scarlet-v37-session-refresh-20261110' || github.ref == 'refs/heads/fix/scarlet-v38-current-launch-logs-20261110' || github.ref == 'refs/heads/fix/scarlet-v39-log-truth-20261110' || github.ref == 'refs/heads/fix/scarlet-v40-clean-work-session-20261110' || github.ref == 'refs/heads/fix/scarlet-v42-v40-safe-diagnostics-20261110' || github.ref == 'refs/heads/fix/scarlet-v43-install-rootcause-20261110' || github.ref == 'refs/heads/fix/scarlet-v44-rppairing-postsign-install-20261111' || github.ref == 'refs/heads/fix/scarlet-v45-single-viewport-liveprocess-20261111' || github.ref == 'refs/heads/fix/scarlet-v46-guard-provisional-guest-geometry-20261111' || github.ref == 'refs/heads/fix/scarlet-v47-resident-inplace-guest-switch-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-guest-runtime-recovery-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-restored-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r2-unified-switcher-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r3-original-pan-diagnostics-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r4-native-outside-remote-insets-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r5-attached-insets-shield-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r5-crash-recovery-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r5-recovery-r2-host-owner-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r5-recovery-r3-scene-authority-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r5-recovery-r4-native-ready-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r5-recovery-r5-compat-foreground-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r6-island-outside-audio-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r6p1-audio-home-focus-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r6p2-blocked-history-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r6p3-home-audio-gate-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r6p4-guest-audio-ack-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p7-launch-policy-rootcause-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p8-policy-field-relay-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p9-deferred-scene-boot-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p10-persistent-remediation-ledger-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p11-resident-guest-sdk-contract-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p12-instant-recent-switcher-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p14-switcher-reset-on-navigation-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p15-guest-root-island-pairing-recovery-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p16-audit-coverage-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p17-resident-optin-defaults-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p18-guest-content-geometry-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p19-entitlement-failclosed-network-recovery-20261112')",
+            "    runs-on: ubuntu-24.04",
+            "    timeout-minutes: 10",
+            "    permissions:"
+          ],
+          "after": [
+            "  # A Release asset in this public repo has a stable public download URL.",
+            "  publish-unsigned-github-release:",
+            "    needs: [package-paired]",
+            "    if: github.event_name == 'push' && (github.ref == 'refs/heads/rebuild/scarlet-from-zero-20261106' || github.ref == 'refs/heads/fix/scarlet-v31-pairing-persistence-sheet-purple-20261110' || github.ref == 'refs/heads/fix/scarlet-v32-korean-copy-20261110' || github.ref == 'refs/heads/fix/scarlet-v33-log-rootcause-20261110' || github.ref == 'refs/heads/fix/scarlet-v34-iphone-virtual-resident-20261110' || github.ref == 'refs/heads/fix/scarlet-v35-restore-original-fullscreen-20261110' || github.ref == 'refs/heads/fix/scarlet-v36-remove-legacy-ui-20261110' || github.ref == 'refs/heads/fix/scarlet-v37-session-refresh-20261110' || github.ref == 'refs/heads/fix/scarlet-v38-current-launch-logs-20261110' || github.ref == 'refs/heads/fix/scarlet-v39-log-truth-20261110' || github.ref == 'refs/heads/fix/scarlet-v40-clean-work-session-20261110' || github.ref == 'refs/heads/fix/scarlet-v42-v40-safe-diagnostics-20261110' || github.ref == 'refs/heads/fix/scarlet-v43-install-rootcause-20261110' || github.ref == 'refs/heads/fix/scarlet-v44-rppairing-postsign-install-20261111' || github.ref == 'refs/heads/fix/scarlet-v45-single-viewport-liveprocess-20261111' || github.ref == 'refs/heads/fix/scarlet-v46-guard-provisional-guest-geometry-20261111' || github.ref == 'refs/heads/fix/scarlet-v47-resident-inplace-guest-switch-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-guest-runtime-recovery-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-restored-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r2-unified-switcher-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r3-original-pan-diagnostics-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r4-native-outside-remote-insets-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r5-attached-insets-shield-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r5-crash-recovery-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r5-recovery-r2-host-owner-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r5-recovery-r3-scene-authority-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r5-recovery-r4-native-ready-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r5-recovery-r5-compat-foreground-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r6-island-outside-audio-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r6p1-audio-home-focus-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r6p2-blocked-history-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r6p3-home-audio-gate-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r6p4-guest-audio-ack-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p7-launch-policy-rootcause-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p8-policy-field-relay-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p9-deferred-scene-boot-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p10-persistent-remediation-ledger-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p11-resident-guest-sdk-contract-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p12-instant-recent-switcher-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p14-switcher-reset-on-navigation-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p15-guest-root-island-pairing-recovery-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p16-audit-coverage-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p17-resident-optin-defaults-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p18-guest-content-geometry-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p19-entitlement-failclosed-network-recovery-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p20-auth-session-bg-id-20261112')",
+            "    runs-on: ubuntu-24.04",
+            "    timeout-minutes: 10",
+            "    permissions:"
+          ]
+        },
+        {
+          "commit": "9d100cec68600f04089286fd4248c39c53a608d7",
+          "file": ".github/workflows/scarlet-paired-engines-build.yml",
+          "function": "scarlet-paired-engines-build.yml",
+          "location": "@@ -334,7 +334,9 @@ jobs:",
+          "before": [
+            "              assert any(p.endswith(\"LiveProcess.appex/Info.plist\") for p in paths), \"Missing LiveProcess\"",
+            "          print(\"[PASS] Public IPA ZIP structure; Apple signature not verified\")",
+            "          PY",
+            "          if [ \"$GITHUB_REF\" = \"refs/heads/fix/scarlet-v48-r6p19-entitlement-failclosed-network-recovery-20261112\" ]; then",
+            "            asset=\"Scarlet-Crystal-V48-R6P19-SIGNING-NETWORK-UNSIGNED.ipa\"",
+            "          elif [ \"$GITHUB_REF\" = \"refs/heads/fix/scarlet-v48-r6p18-guest-content-geometry-20261112\" ]; then",
+            "            asset=\"Scarlet-Crystal-V48-R6P18-CONTENT-GEOMETRY-UNSIGNED.ipa\""
+          ],
+          "after": [
+            "              assert any(p.endswith(\"LiveProcess.appex/Info.plist\") for p in paths), \"Missing LiveProcess\"",
+            "          print(\"[PASS] Public IPA ZIP structure; Apple signature not verified\")",
+            "          PY",
+            "          if [ \"$GITHUB_REF\" = \"refs/heads/fix/scarlet-v48-r6p20-auth-session-bg-id-20261112\" ]; then",
+            "            asset=\"Scarlet-Crystal-V48-R6P20-AUTH-BG-UNSIGNED.ipa\"",
+            "          elif [ \"$GITHUB_REF\" = \"refs/heads/fix/scarlet-v48-r6p19-entitlement-failclosed-network-recovery-20261112\" ]; then",
+            "            asset=\"Scarlet-Crystal-V48-R6P19-SIGNING-NETWORK-UNSIGNED.ipa\"",
+            "          elif [ \"$GITHUB_REF\" = \"refs/heads/fix/scarlet-v48-r6p18-guest-content-geometry-20261112\" ]; then",
+            "            asset=\"Scarlet-Crystal-V48-R6P18-CONTENT-GEOMETRY-UNSIGNED.ipa\""
+          ]
+        },
+        {
+          "commit": "9d100cec68600f04089286fd4248c39c53a608d7",
+          "file": ".github/workflows/scarlet-paired-engines-build.yml",
+          "function": "scarlet-paired-engines-build.yml",
+          "location": "@@ -446,7 +448,10 @@ jobs:",
+          "before": [
+            "          GH_TOKEN: ${{ github.token }}",
+            "        run: |",
+            "          set -Eeuo pipefail",
+            "          if [ \"$GITHUB_REF\" = \"refs/heads/fix/scarlet-v48-r6p19-entitlement-failclosed-network-recovery-20261112\" ]; then",
+            "            tag=scarlet-v48-r6p19-signing-network-unsigned-20261112",
+            "            asset=Scarlet-Crystal-V48-R6P19-SIGNING-NETWORK-UNSIGNED.ipa",
+            "          elif [ \"$GITHUB_REF\" = \"refs/heads/fix/scarlet-v48-r6p18-guest-content-geometry-20261112\" ]; then"
+          ],
+          "after": [
+            "          GH_TOKEN: ${{ github.token }}",
+            "        run: |",
+            "          set -Eeuo pipefail",
+            "          if [ \"$GITHUB_REF\" = \"refs/heads/fix/scarlet-v48-r6p20-auth-session-bg-id-20261112\" ]; then",
+            "            tag=scarlet-v48-r6p20-auth-bg-unsigned-20261112",
+            "            asset=Scarlet-Crystal-V48-R6P20-AUTH-BG-UNSIGNED.ipa",
+            "          elif [ \"$GITHUB_REF\" = \"refs/heads/fix/scarlet-v48-r6p19-entitlement-failclosed-network-recovery-20261112\" ]; then",
+            "            tag=scarlet-v48-r6p19-signing-network-unsigned-20261112",
+            "            asset=Scarlet-Crystal-V48-R6P19-SIGNING-NETWORK-UNSIGNED.ipa",
+            "          elif [ \"$GITHUB_REF\" = \"refs/heads/fix/scarlet-v48-r6p18-guest-content-geometry-20261112\" ]; then"
+          ]
+        },
+        {
+          "commit": "6ad8b4a7446460de3b9eeda3d89d3a88e35c5cd9",
+          "file": "rebuild/diagnostics/SCARLET_LOG_ONLY_HANDOFF_PROMPT.md",
+          "function": "SCARLET_LOG_ONLY_HANDOFF_PROMPT.md",
+          "location": "@@ -261,3 +261,32 @@ L051=R6P15 저장된 RSD 연결의 제한적 재검사다. 과거 항목에 `dev",
+          "before": [
+            "- 기존 L055, L056은 그대로 보존. Xcode 실컴파일 증거가 신규이므로",
+            "  L057에 신규 커밋과 정확한 diff를 별도 남긴다. 최종 CI 통과와 기기에서",
+            "  실제 네트워크 성공은 여전히 독립적으로 확인해야 한다."
+          ],
+          "after": [
+            "- 기존 L055, L056은 그대로 보존. Xcode 실컴파일 증거가 신규이므로",
+            "  L057에 신규 커밋과 정확한 diff를 별도 남긴다. 최종 CI 통과와 기기에서",
+            "  실제 네트워크 성공은 여전히 독립적으로 확인해야 한다.",
+            "",
+            "## 11. R6P20: 인증 세션 재사용·백그라운드 signed Bundle ID 경로",
+            "",
+            "- R6P18 2026-11-12T05:56:43Z `-3402` 팀 복원 실패. 고정 SideStore",
+            "  `AuthManager.signIn`은 `(account, ALTAppleAPISession)`을 반환하지만",
+            "  그 결과를 `AuthManager.shared.session`에 저장하지 않는다.",
+            "  그 직후 호출한 `DeveloperPortalProxy.fetchTeams(for:)`는",
+            "  `AuthManager.getAuthenticatedSession()`이 캐시가 없으면 새로운",
+            "  `AnisetteProvider.fetch()`를 실행하는 별도 네트워크 경로를 탄다.",
+            "  R6P20은 이미 2FA 성공 및 Keychain readback 통과된 **동일 세션만**",
+            "  기존 SideStore 메모리 캐시에 저장한 뒤 팀 복원을 실행한다.",
+            "  타인 계정/다른 팀 자동 전환·인증서 폐기·OTP 저장 없음. 새 실기기",
+            "  로그에 `-3402`가 다시 남으면 이 가설은 해소책이 아니므로",
+            "  포털/DB 단계별 실패를 분석해야 한다. App Group 권한 부재를",
+            "  해결하는 수정이 아님.",
+            "- R6P18 현 세션 `automatic_background_registered(unavailable)` vs",
+            "  여러 옛 세션 `registered`. 별도의 부호는 기존 서명기가 사용자의",
+            "  Bundle ID에 `.P8EZT3U5N4`을 덧붙이는 변형을 만들 수 있다는 것.",
+            "  원래 BGTaskScheduler identifier는 기본 번들에 고정돼 있었다.",
+            "  R6P20은 **이미 승인된 두 가지 ID에 한해서만** 실제",
+            "  `Bundle.main.bundleIdentifier`에 `.refresh`/`.pairing`을 붙이며",
+            "  같은 두 variant를 `BGTaskSchedulerPermittedIdentifiers`에 추가한다.",
+            "  서명 App Group, BG 실행 권한, 새 App ID, iOS 스케줄은 변경하지",
+            "  않는다. 다음 실행에서도 `unavailable`이면 실제 signed Info.plist와",
+            "  OS 제약을 확인하고 같은 ID 변경은 재시도하지 않는다.",
+            "- 원인별 신규 코드 기록은 L058(인증 Apple session 사용)과",
+            "  L059(BGTask Bundle ID 선택)로 분리한다. R6P18 하위 콘텐츠",
+            "  지오메트리 `guest_content_geometry_probe`는 다시 실행 성공한",
+            "  게스트에서만 판단한다."
+          ]
+        }
+      ],
+      "repeat_policy": "If BG register still unavailable, inspect installed signed Info.plist and app permissions before considering iOS scheduling restrictions. Do not add arbitrary bundle variations, request unsupported BG tasks, or fake background scheduling success.",
+      "success_gate": "Compiled IPA has two exact permitted BG identifier variants. On iPhone, host BG registration returns registered with matching actual signed bundle; background refresh installation_verified must be independently checked."
     }
   ],
   "gate": {
