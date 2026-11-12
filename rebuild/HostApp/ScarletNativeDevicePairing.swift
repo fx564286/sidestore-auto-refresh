@@ -13,7 +13,14 @@ import SideStoreSupport
 @MainActor
 final class ScarletDevicePairingModel: NSObject, ObservableObject, @preconcurrency NetServiceDelegate {
     static let shared = ScarletDevicePairingModel()
-    static let taskIdentifier = "com.kdt.livecontainer.P8EZT3U5N4.pairing"
+    static var taskIdentifier: String {
+        let original = "com.kdt.livecontainer.P8EZT3U5N4"
+        let actual = Bundle.main.bundleIdentifier ?? original
+        guard actual == original || actual == original + ".P8EZT3U5N4" else {
+            return original + ".pairing"
+        }
+        return actual + ".pairing"
+    }
 
     @Published private(set) var phase = "확인 중"
     @Published private(set) var pin: String?
