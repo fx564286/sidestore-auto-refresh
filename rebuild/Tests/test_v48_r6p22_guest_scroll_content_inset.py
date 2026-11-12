@@ -18,9 +18,9 @@ class GuardedGuestScrollContentInset(unittest.TestCase):
         self.assertIn("if(before >= target - 2)", GUARD)
         self.assertIn("guest_root_already_safe", GUARD)
         self.assertIn("ScarletIslandScheduleContentProbe(window, root, target);", GUARD)
-        self.assertIn("ScarletIslandScheduleScrollContentRepair(window, root, target);", GUARD)
+        self.assertNotIn("ScarletIslandScheduleScrollContentRepair(window, root, target);", GUARD)
         self.assertIn("root.additionalSafeAreaInsets = extra;", GUARD)
-        self.assertEqual(GUARD.count("ScarletIslandScheduleScrollContentRepair(window, root, target);"),1)
+        self.assertEqual(GUARD.count("ScarletIslandScheduleScrollContentRepair(window, root, target);"),0)
 
     def test_no_global_app_window_or_status_bar_mutation(self):
         fix = GUARD.split("// R6P22: unlike the L050 root correction",1)[1].split("// R6P28: unique visible control owner",1)[0]

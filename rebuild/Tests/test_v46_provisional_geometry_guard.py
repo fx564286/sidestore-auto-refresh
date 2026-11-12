@@ -12,14 +12,14 @@ class V46FullscreenGuard(unittest.TestCase):
         layout = S[start:end]
         guard = layout.index('abs(expected.width - actual.width) < 2')
         rejected_return = layout.index('return\n        }', guard)
-        resize = layout.index('vc.view.frame = slot')
+        resize = layout.index('updateNativeChromeSlots(scene)')
         self.assertLess(guard, rejected_return)
         self.assertLess(rejected_return, resize)
         self.assertIn('lastRejectedBounds != actual', layout)
         self.assertIn('fullscreen_scene_geometry_applied', layout)
-        self.assertIn('settings.setFrame(slot)', layout)
-        self.assertIn('abs(chromeTop - lastChromeTop)', layout)
-        self.assertIn('settings.setInterfaceOrientation(orientation)', layout)
+        self.assertIn('settings.setFrame(rect)', S)
+        self.assertIn('native_adaptive_chrome_viewport', layout)
+        self.assertIn('settings.setInterfaceOrientation(orientation)', S)
 
     def test_no_guest_view_or_original_design_removed(self):
         self.assertIn('controllers[slot.id] = vc', S)

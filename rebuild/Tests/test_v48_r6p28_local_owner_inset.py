@@ -60,7 +60,7 @@ class LocalOwnerInsets(unittest.TestCase):
                           'bundleIdentifier','UIImagePNGRepresentation',
                           'accessibilityLabel'):
             self.assertNotIn(forbidden,fix)
-        self.assertIn('ScarletIslandScheduleScrollContentRepair(window, root, target);',G)
+        self.assertNotIn('ScarletIslandScheduleScrollContentRepair(window, root, target);',G)
         # R6P30 signed-device regression: mutating P28 path quarantined.
         self.assertNotIn('ScarletIslandScheduleVisibleLocalOwnerRepair(window, root, target);',G)
         self.assertIn('guest_local_owner_quarantined',G)

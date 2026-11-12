@@ -66,7 +66,7 @@ class ResidualUIKitAutomaticInsets(unittest.TestCase):
             self.assertNotIn(unsafe, section)
 
     def test_root_and_p28_path_preserved_and_receipt_relayed(self):
-        self.assertIn("ScarletIslandScheduleScrollContentRepair(window, root, target);", G)
+        self.assertNotIn("ScarletIslandScheduleScrollContentRepair(window, root, target);", G)
         # R6P30: the P28 mutator is preserved for audit, but not scheduled.
         self.assertNotIn("ScarletIslandScheduleVisibleLocalOwnerRepair(window, root, target);", G)
         self.assertIn("guest_local_owner_quarantined", G)

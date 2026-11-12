@@ -11,6 +11,7 @@
 
 static __weak UIWindow *scarletIslandLastWindow;
 static char scarletIslandRootAddedInsetKey;
+static char scarletIslandConfirmedChromeWindowKey;
 static char scarletIslandContentProbeKey;
 static char scarletIslandScrollScheduleKey;
 static char scarletIslandScrollInsetKey;
@@ -840,9 +841,8 @@ static void ScarletIslandObserveDeepHeaderLayoutOwner(
     fields[@"header_constraints_capped"]=@(capped);
     fields[@"header_constraints"]=rows;
     ScarletIslandPublish(fields);
-    ScarletIslandTryMeasuredHeaderConstraintBridge(
-        window, root, header, parent, safeTop, sample,
-        beforeControls, beforeImages, firstWeak, secondWeak);
+    // Signed P39 proved this three-anchor mutation was overwritten.
+    // P41 keeps the P38 owner observer but does not invoke P39 treatment.
 }
 // R6P38_LAYOUT_OWNER_END
 
@@ -1309,11 +1309,37 @@ static void ScarletIslandInspect(UIWindow *window, NSUInteger attempt) {
     CGFloat chrome = [NSUserDefaults.lcSharedDefaults
         doubleForKey:@"Scarlet.Guest.TransparentChromeTop.V1"];
     CGFloat screen = CGRectGetHeight(UIScreen.mainScreen.bounds);
-    if(isfinite(chrome) && chrome >= 20 && chrome <= 130 &&
-       isfinite(screen) && screen >= 500 &&
-       fabs(CGRectGetHeight(window.bounds) + chrome - screen) < 4) {
-        ScarletIslandReceipt(@"guest_transparent_chrome_slot_unpadded",
-                             chrome, before, before);
+    NSArray *activePIDs = [NSUserDefaults.lcSharedDefaults
+        arrayForKey:@"Scarlet.Guest.TransparentChromeActivePIDs.V1"];
+    BOOL nativeOwner = [activePIDs containsObject:@(getpid())];
+    BOOL frameConfirmed = nativeOwner && isfinite(chrome) &&
+        chrome >= 20 && chrome <= 130 && isfinite(screen) &&
+        screen >= 500 &&
+        fabs(CGRectGetHeight(window.bounds) + chrome - screen) < 4;
+    if(frameConfirmed)
+        objc_setAssociatedObject(window,
+            &scarletIslandConfirmedChromeWindowKey, @YES,
+            OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+    BOOL confirmedEarlier = [objc_getAssociatedObject(window,
+        &scarletIslandConfirmedChromeWindowKey) boolValue];
+    if(nativeOwner && (frameConfirmed || confirmedEarlier)) {
+        // P40 PID2454: native 894+62=956 was confirmed before background,
+        // yet a transient native bounds read caused root +62 on reactivation.
+        // The same UIWindow stays owned by the selected PID.
+        NSNumber *own = objc_getAssociatedObject(root,
+            &scarletIslandRootAddedInsetKey);
+        CGFloat delta = MAX(0, own.doubleValue);
+        if(delta > 0) {
+            UIEdgeInsets extra=root.additionalSafeAreaInsets;
+            extra.top=MAX(0,extra.top-delta);
+            root.additionalSafeAreaInsets=extra;
+            objc_setAssociatedObject(root, &scarletIslandRootAddedInsetKey,
+                @0, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+        }
+        ScarletIslandReceipt(frameConfirmed ?
+            @"guest_transparent_chrome_slot_unpadded" :
+            @"guest_transparent_chrome_slot_preserved",
+            chrome,before,content.safeAreaInsets.top);
         return;
     }
     if(!isfinite(target) || target < 20 || target > 130) {
@@ -1345,7 +1371,8 @@ static void ScarletIslandInspect(UIWindow *window, NSUInteger attempt) {
         ScarletIslandScheduleContentProbe(window, root, target);
         // R6P22: one separate, bounded descendant-scroll remedy. Never add
         // another inset to this already-correct guest root or its UIWindow.
-        ScarletIslandScheduleScrollContentRepair(window, root, target);
+        // P41: P22 contentInset mutator is quarantined. The bounded
+        // 650ms/2600ms read-only geometry probe now owns eligibility.
         // R6P30 iPhone evidence cc5bafc85b66 PID1059: L071's manual
         // local-inset write read back 3->12 immediately but was reset to
         // 3pt after layout; owner frame jumped y50->23 and remaining unsafe

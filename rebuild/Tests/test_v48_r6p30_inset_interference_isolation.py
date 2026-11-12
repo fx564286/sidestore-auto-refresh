@@ -66,7 +66,7 @@ class DeviceInformedInterferenceIsolation(unittest.TestCase):
     def test_only_existing_p28_call_removed(self):
         # R6P22 remains independently gated, guest root and safe area are
         # untouched, and the P29 candidate retains strict safeguards.
-        self.assertIn("ScarletIslandScheduleScrollContentRepair(window, root, target);", G)
+        self.assertNotIn("ScarletIslandScheduleScrollContentRepair(window, root, target);", G)
         self.assertIn("ScarletIslandScheduleContentProbe(window, root, target);", G)
         self.assertIn("for(NSNumber *delay in @[@650, @2600])", G)
         self.assertIn("after >= expectedTop - 3 && after <= expectedTop + 12", G)
