@@ -99,7 +99,11 @@ final class ScarletDiagnosticRecorder: @unchecked Sendable {
         "candidate_with_controls", "candidate_frame_matched",
         "candidate_safe_matched", "candidate_inset_matched",
         "candidate_content_matched", "candidate_state_matched",
-        "candidate_disabled_scroll", "owner_gate_pass"
+        "candidate_disabled_scroll", "owner_gate_pass",
+        "anchor_initial_inset_pt", "anchor_initial_offset_y",
+        "anchor_observed_inset_pt", "anchor_observed_offset_y",
+        "anchor_final_offset_y", "anchor_attempts",
+        "owner_bounds_y", "scene_activation_state"
     ]
 
     private init() {

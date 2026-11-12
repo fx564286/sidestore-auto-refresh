@@ -902,6 +902,27 @@ private final class ScarletGuestIslandReceiptObserver {
                     fields: ["process_pid": String(pid), "safe_top_pt": String(target)])
                 continue
             }
+            if result == "guest_always_anchor_readback" {
+                var fields: [String: String] = [
+                    "process_pid": String(pid), "safe_top_pt": String(target)
+                ]
+                for key in ["anchor_initial_inset_pt", "anchor_initial_offset_y",
+                    "anchor_observed_inset_pt", "anchor_observed_offset_y",
+                    "anchor_final_offset_y", "anchor_attempts",
+                    "owner_bounds_y", "scene_activation_state"] {
+                    if let number = row[key] as? NSNumber {
+                        fields[key] = number.stringValue
+                    }
+                }
+                if let reason = row["reason"] as? String,
+                   ["late_anchor_attempted", "initial_anchor_attempted",
+                    "anchor_not_attempted"].contains(reason) {
+                    fields["reason"] = reason
+                }
+                ScarletDiagnosticRecorder.shared.record(
+                    "layout", "guest_always_anchor_readback", fields: fields)
+                continue
+            }
             if ["guest_always_owner_retry_scheduled",
                 "guest_always_owner_retry_exhausted",
                 "guest_always_trial_staged", "guest_always_trial_reverted",

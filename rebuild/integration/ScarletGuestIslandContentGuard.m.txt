@@ -917,6 +917,22 @@ static void ScarletIslandResidualAutoReceipt(
     });
 }
 
+// R6P33_ANCHOR_DECISION_BEGIN
+// Shared with the executable C regression test. A late inset is a new
+// readiness transition, not permission to retry a guest-rejected offset.
+static int ScarletIslandShouldAnchorAfterInset(
+    double initialInset, double observedInset, double target,
+    double originalY, double currentY, int attempted, int stationary) {
+    return !attempted && stationary &&
+        isfinite(initialInset) && isfinite(observedInset) &&
+        isfinite(target) && isfinite(originalY) && isfinite(currentY) &&
+        target >= 20 && target <= 130 &&
+        !(initialInset >= target - 3 && initialInset <= target + 12) &&
+        observedInset >= target - 3 && observedInset <= target + 12 &&
+        fabs(originalY) <= 2 && fabs(currentY - originalY) <= 2;
+}
+// R6P33_ANCHOR_DECISION_END
+
 static void ScarletIslandTryResidualAutomaticInset(
     UIWindow *window, UIViewController *root, CGFloat expectedTop,
     BOOL always, BOOL finalPass) {
@@ -1074,16 +1090,20 @@ static void ScarletIslandTryResidualAutomaticInset(
         : UIScrollViewContentInsetAdjustmentAutomatic;
     [selected setNeedsLayout];
     [selected layoutIfNeeded];
+    CGFloat initialAdjustmentTop = selected.adjustedContentInset.top;
+    BOOL initialAnchorAttempted = NO;
     if(always && isfinite(selected.adjustedContentInset.top) &&
        selected.adjustedContentInset.top >= expectedTop - 3 &&
        selected.adjustedContentInset.top <= expectedTop + 12) {
         // The guest's owner begins at Y0 and was contentOffset0. Under
         // UIKit-adjusted top inset, anchor content at the new safe top.
+        initialAnchorAttempted = YES;
         CGPoint anchored = selected.contentOffset;
         anchored.y = -selected.adjustedContentInset.top;
         selected.contentOffset = anchored;
         [selected layoutIfNeeded];
     }
+    CGFloat initialAnchorOffset = selected.contentOffset.y;
     dispatch_after(dispatch_time(DISPATCH_TIME_NOW,
         (int64_t)180 * NSEC_PER_MSEC), dispatch_get_main_queue(), ^{
         UIScrollView *owner = weakOwner;
@@ -1101,6 +1121,53 @@ static void ScarletIslandTryResidualAutomaticInset(
             }
             return;
         }
+        // R6P33: P32 read back adjustedInset=62 but controls3->3.
+        // The synchronous check above can observe 0 and skip the only
+        // anchor. When the SAME owner's inset first becomes valid, consume
+        // that pending anchor once, only while its guest-owned offset and
+        // adjustment policy remain untouched. Never retry a rejected write.
+        CGFloat observedInset = owner.adjustedContentInset.top;
+        CGFloat observedOffset = owner.contentOffset.y;
+        BOOL anchoredLate = always && ScarletIslandShouldAnchorAfterInset(
+            initialAdjustmentTop, observedInset, expectedTop,
+            originalOffset.y, observedOffset, initialAnchorAttempted,
+            !owner.dragging && !owner.tracking && !owner.decelerating) &&
+            owner.contentInsetAdjustmentBehavior ==
+                UIScrollViewContentInsetAdjustmentAlways &&
+            fabs(owner.contentInset.top) <= 1 &&
+            fabs(owner.contentOffset.x - originalOffset.x) <= 2 &&
+            fabs(liveRoot.view.safeAreaInsets.top - expectedTop) <= 2 &&
+            liveWindow.windowScene.activationState ==
+                UISceneActivationStateForegroundActive;
+        if(anchoredLate) {
+            CGPoint anchored = owner.contentOffset;
+            anchored.y = -observedInset;
+            owner.contentOffset = anchored;
+            [owner setNeedsLayout];
+            [owner layoutIfNeeded];
+        }
+        if(always) {
+            // Capture BEFORE rollback, so a guest-reset offset cannot be
+            // mistaken for a successful -adjustedInset anchor.
+            NSString *anchorResult = anchoredLate ? @"late_anchor_attempted"
+                : (initialAnchorAttempted ? @"initial_anchor_attempted"
+                                         : @"anchor_not_attempted");
+            ScarletIslandPublish(@{
+                @"receipt":NSUUID.UUID.UUIDString, @"pid":@(getpid()),
+                @"epoch":@([[NSDate date] timeIntervalSince1970]),
+                @"result":@"guest_always_anchor_readback",
+                @"reason":anchorResult,
+                @"target":@((int)lround(expectedTop)),
+                @"anchor_initial_inset_pt":@((int)lround(initialAdjustmentTop)),
+                @"anchor_initial_offset_y":@((int)lround(initialAnchorOffset)),
+                @"anchor_observed_inset_pt":@((int)lround(observedInset)),
+                @"anchor_observed_offset_y":@((int)lround(observedOffset)),
+                @"anchor_final_offset_y":@((int)lround(owner.contentOffset.y)),
+                @"anchor_attempts":@((int)initialAnchorAttempted + (int)anchoredLate),
+                @"owner_bounds_y":@((int)lround(owner.bounds.origin.y)),
+                @"scene_activation_state":@(liveWindow.windowScene.activationState)
+            });
+        }
         ScarletIslandViewMetrics resultMetrics = {0};
         NSMutableDictionary *remainingGroups = [NSMutableDictionary dictionary];
         ScarletIslandWalkViews(liveRoot.view, liveWindow, expectedTop, 0,
@@ -1112,6 +1179,7 @@ static void ScarletIslandTryResidualAutomaticInset(
         BOOL proved = isfinite(after) &&
             after >= expectedTop - 3 && after <= expectedTop + 12 &&
             remaining < selectedControls &&
+            (!always || fabs(owner.contentOffset.y + after) <= 3) &&
             !owner.dragging && !owner.tracking && !owner.decelerating;
         if(!proved) {
             owner.contentInsetAdjustmentBehavior =
