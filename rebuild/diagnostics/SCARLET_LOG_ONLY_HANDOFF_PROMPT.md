@@ -163,3 +163,37 @@ L051=R6P15 저장된 RSD 연결의 제한적 재검사다. 과거 항목에 `dev
 - 별도로 `appmanager_error_code_3`, 소스 IPA 다운로드의 `NSURLErrorDomain -999`,
   갱신의 `installation_verified=false`는 이번 상단 문제와 독립된 미해결 결함이다.
   R6P17 수정에 설치 성공/페어링 성공을 귀속시키지 않는다.
+
+## 9. R6P17 실기기 반증과 R6P18 하위 콘텐츠 좌표 진단
+
+- 사용자 제출 R6P17 보고서: `SourceCommit=9ea728fa80fd`, 세션
+  `f7e99195`, iOS 27.2/24B119, 2026-11-12 05:30:00 UTC.
+- PID `4585`, `4593`에 `guest_root_guard_armed`가 각각 1회, 이어
+  `guest_root_already_safe`가 합계 7회 발생했다. 양쪽 모두
+  `target=62`, `before=62`, `after=62`; **루트 Safe Area는 이미 정상이었다.**
+  `guest_root_corrected`는 0회. 이 결과는 R6P17 원본 LC Defaults 플래그
+  수정으로 보정기가 활성화됐다는 것을 증명하지만 상단 버튼 시각·터치
+  해결을 증명하지 않는다. 기존 `additionalSafeAreaInsets`를 다시 더하거나
+  FBScene/윈도 프레임을 조정하는 반복 수정은 금지한다.
+- 첫 게스트 뒤 두 번째 실행 `recent_session_registered(count=2)`와
+  `switch_panel_navigation_reset(go_home/enqueue_guest)` 관찰. 상태 유지.
+- 별개의 소스 다운로드 실패 `NSURLErrorDomain -1005`(연결 손실).
+  이 오류는 P16의 `-999`(취소)와 다르며, 자동갱신도 여전히
+  `installation_verified=false`다. 상단 레이아웃과 별도 추적한다.
+- 새 인과 가설: **루트 Safe Area의 62pt는 실제 하위 컨트롤이 62pt
+  아래에 배치됐다는 증거가 아니다.** 원본 UIKit에서도 각 UIView의
+  제약 조건과 개별 Safe Area 반영 여부는 다르다. 따라서 R6P18은
+  게스트 프로세스 내부의 현재 UIKit UIWindow에서 실제 하위 UIView 중
+  버튼/조작 요소 후보와 UIScrollView의 윈도 좌표를 **읽기 전용**으로
+  측정한다. 첫 안정 레이아웃 후 650ms/2600ms 두 번, 최대 640뷰·깊이 9로
+  제한. 어떤 화면 크기, 인셋, UI 프레임도 변경하지 않는다.
+- 기대 이벤트 `guest_content_geometry_probe`: 프로세스 PID, 샘플,
+  `root_guide_y`, `root_frame_y`, `root_safe_top_pt`, 화면 상단
+  `top_controls`, `unsafe_controls`, `first_unsafe_control_y`,
+  `scroll_top_without_inset`, `scan_capped`. 이름/문구/화면 캡처/게스트 ID
+  수집은 금지한다. `unsafe_controls>0`이면 안전 영역을 실제 침범한
+  컨트롤 후보의 경로를 추가 검증한다. **0이어도** SwiftUI 가상 요소나
+  탐색 한계로 빠졌을 수 있으므로 시각 해결로 판정할 수 없다.
+- R6P18은 화면 수정본이 아니라 **새 위치 계층의 원인 검증 빌드**다.
+  실제 해결은 로그가 보여준 하위 콘텐츠 타입과 윈도 좌표에 대응하는
+  독립적인 수정 및 실기기 사진/터치 검증을 거친 뒤 판정한다.
