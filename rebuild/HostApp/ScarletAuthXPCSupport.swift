@@ -249,10 +249,64 @@ public enum ScarletNativeRefreshInspector {
 // Original SideStore AppManager performs signing + installation inside the
 // embedded LiveProcess, not inside the LiveContainer host's AppIntent proxy.
 // Never turn a returning operation into an unverified installation success.
-@available(iOS 17.0, *)
-public struct ScarletNativeRefreshFailure: Error, Sendable {
+// R6P34_NATIVE_EVIDENCE_BEGIN
+public struct ScarletNativeRefreshEvidence: Codable, Sendable {
+    public let v: Int
     public let reason: String
-    public init(reason: String) { self.reason = reason }
+    public let stage: String
+    public let domain: String
+    public let code: Int
+    public let kind: String
+    public let underlyingDomain: String
+    public let underlyingCode: Int
+    public let underlyingKind: String
+    public let depth: Int
+
+    public static func decode(_ wire: String) -> ScarletNativeRefreshEvidence? {
+        let prefix = "scarlet_native_failure:"
+        guard wire.hasPrefix(prefix), wire.utf8.count <= 1024,
+              let data = String(wire.dropFirst(prefix.count)).data(using: .utf8),
+              let value = try? JSONDecoder().decode(Self.self, from: data) else { return nil }
+        let domains: Set<String> = ["operation", "url", "cocoa", "posix", "osstatus",
+            "altserver", "altsign", "appleapi", "other", "none"]
+        let kinds: Set<String> = ["unknown_result", "invalid_app", "invalid_response",
+            "missing_app_bundle", "missing_info_plist", "missing_update", "forbidden",
+            "pledge_inactive", "no_sources", "cache_clear", "open_app_failed",
+            "sidejit", "classified_operation", "other", "none"]
+        guard value.v == 1, value.reason.utf8.count <= 80,
+              ["database", "team", "transport", "refresh"].contains(value.stage),
+              domains.contains(value.domain), domains.contains(value.underlyingDomain),
+              kinds.contains(value.kind), kinds.contains(value.underlyingKind),
+              (-2_147_483_648...2_147_483_647).contains(value.code),
+              (-2_147_483_648...2_147_483_647).contains(value.underlyingCode),
+              (0...4).contains(value.depth) else { return nil }
+        return value
+    }
+
+    public var diagnosticFields: [String: String] {
+        ["native_error_stage": stage, "native_error_domain": domain,
+         "native_error_code": String(code), "native_error_kind": kind,
+         "native_underlying_domain": underlyingDomain,
+         "native_underlying_code": String(underlyingCode),
+         "native_underlying_kind": underlyingKind, "native_error_depth": String(depth)]
+    }
+}
+// R6P34_NATIVE_EVIDENCE_END
+
+@available(iOS 17.0, *)
+public struct ScarletNativeRefreshFailure: Error, Sendable, CustomNSError {
+    public let reason: String
+    public let nativeEvidence: ScarletNativeRefreshEvidence?
+    public init(reason: String, nativeEvidence: ScarletNativeRefreshEvidence? = nil) {
+        self.reason = reason
+        self.nativeEvidence = nativeEvidence
+    }
+    public static var errorDomain: String { "SideStoreSupport.ScarletNativeRefreshFailure" }
+    public var errorCode: Int { 1 }
+    public var errorUserInfo: [String: Any] {
+        guard let evidence = nativeEvidence else { return [:] }
+        return ["ScarletNativeRefreshEvidence": evidence.diagnosticFields]
+    }
 }
 
 @available(iOS 17.0, *)
@@ -321,15 +375,18 @@ public enum ScarletNativeRefreshExecutor {
             "native_unknown_database_stage", "native_unknown_team_stage",
             "native_unknown_transport_stage", "native_unknown_appmanager_stage"
         ]
-        let status = allowed.contains(rawReason)
-            ? rawReason : "sidestore_native_operation_failed"
+        let nativeEvidence = returned ? nil : ScarletNativeRefreshEvidence.decode(rawReason)
+        let candidateReason = nativeEvidence?.reason ?? rawReason
+        let status = allowed.contains(candidateReason)
+            ? candidateReason : "sidestore_native_operation_failed"
         guard returned && (
             status == "native_operation_returned_unverified" ||
             status == "native_operation_returned_unverified_transport_recovered" ||
             status == "native_profile_date_advanced_install_unverified" ||
             status == "native_refresh_record_updated_install_unverified"
         ) else {
-            throw ScarletNativeRefreshFailure(reason: status)
+            throw ScarletNativeRefreshFailure(reason: status,
+                nativeEvidence: allowed.contains(candidateReason) ? nativeEvidence : nil)
         }
         return status
     }
