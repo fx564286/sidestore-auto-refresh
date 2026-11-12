@@ -1,9 +1,9 @@
 {
   "schema": 2,
   "scope": "Scarlet Crystal guest top-screen overlap, touch access, rotation, remote guest render and related resident regressions",
-  "updated_utc": "2026-11-12T08:36:36.953266+00:00",
-  "current_baseline": "R6P23 installed SourceCommit 97c4e885bb6b2a30ccd0dcea7fedfa68fb86a351 iOS27.2 08:18 UTC; R6P24 f884ca13 source-only keyboard focus and native refresh stage relay; no iPhone pass.",
-  "current_issue_status": "UNRESOLVED: guest PID6821 8 unsafe top controls y3 and 7 images y13; nested/scroll selector eligible0; dynamic island visual fix unverified. Keyboard carries across guest apps per user report, R6P24 process-local resign code awaits real keyboardDidHide device proof. Audio PID6807 pause and PID6821 resume succeeded at AVAudioSession but no acoustic test. Manual refresh generic code1; host stage allowlist fixed source only; installation_verified=false.",
+  "updated_utc": "2026-11-12T08:55:06+00:00",
+  "current_baseline": "R6P24 device SourceCommit 4b81e33eff8443c799c2ba037cb6d7883c046ec2 iOS27.2 08:54 UTC; R6P25 clip-chain visibility probe source committed; native Xcode CI/iPhone display not yet verified.",
+  "current_issue_status": "UNRESOLVED: PID7232 root safe_top=62 but unsafe_controls=8 at y=3 and unsafe_image_nodes=7 at y=13 under nested scroll; raw frames alone do not prove pixels are visible. L068 adds read-only ancestor clip-intersection receipts. Keyboard 'resign_requested' without 'keyboard_hidden'; audio pause/resume guest ack OK, acoustic separation unverified. Manual refresh native_unknown_appmanager_stage (code1); source download -1005 despite 2 retries. installation_verified=false.",
   "confidence_note": "Past-chat-only historical versions were reported in earlier conversations; not all have a GitHub revision or device verification. An implementation, a CI success, a telemetry event, and a real device visual fix are distinct.",
   "privacy": "No credentials, Apple ID, OTP, UDID, guest names or device identifiers are stored.",
   "entries": [
@@ -10189,6 +10189,490 @@
             "        \"guestKeyboardHandoff\": keyboard_handoff,",
             "        \"guestLaunchPolicyDifferential\": guest_launch_policy,"
           ]
+        }
+      ]
+    },
+    {
+      "id": "L068",
+      "date": "2026-11-12",
+      "version": "new-v48-r6p25-visible-ancestor-clipping-proof",
+      "problem": "guest_top",
+      "mechanism": "ancestor_clip_chain_visibility_classification",
+      "hypothesis": "R6P24 second guest PID7232 showed eight unsafe window-space buttons at y3 and seven image nodes at y13, all under scroll ancestors. An offscreen descendant clipped by its parent may have the same raw Y as a drawn island-overlapped control. Existing scan and scroll selector cannot differentiate these mechanisms.",
+      "novelty": {
+        "prior_excluded_ids": [
+          "L054",
+          "L061",
+          "L063",
+          "L064"
+        ],
+        "causal_difference": "The older raw UIKit geometry probe and scroll eligibility classifier count node positions regardless of ancestor clipping. This change intersects node geometry with each clipping ancestor and the UIWindow to separate actually visible unsafe subregions from offscreen layout, without additional safe-area or scroll-inset writes.",
+        "falsifiable_prediction": "For each sampled guest, visible_unsafe_controls + clipped_unsafe_controls must equal unsafe_controls; the analogous image counters must also sum. If visible counts are zero then raw y3 is a clipping artifact; nonzero counts justify a targeted ownership investigation.",
+        "new_device_evidence": {
+          "source_commit": "4b81e33eff8443c799c2ba037cb6d7883c046ec2",
+          "event": "guest_content_geometry_probe",
+          "observed_value": "PID7232 unsafe_controls=8 unsafe_controls_in_scroll=8 unsafe_image_nodes=7 y3/y13 depth_capped=true and guest_scroll_target_classifier eligible=0"
+        },
+        "why_prior_fix_failed": "L063 wrote a guarded descendant scroll inset but L064's native classifier found no eligible candidate. The new evidence cannot justify repeating that inset with weaker predicates, so a read-only clipping distinction is needed first."
+      },
+      "action": "Add ScarletIslandVisibleFrameInWindow read-only per-control/image UIWindow and clipsToBounds/UIScrollView intersections; count and relay visible versus clipped unsafe nodes. Preserve existing raw counters and all resident/guest geometry, scroll contentInsets, tab, audio/keyboard and certificates. Add regression test with clipped/offscreen and exposed samples. The workflow branch whitelist and distinct unsigned IPA release name were updated and recorded at exact patch hunks.",
+      "observation": "R6P24 current device SourceCommit 4b81e33eff84 session 6433892e: PID7232 first unsafe control y3, 8 unsafe scroll-descendant controls and 7 unsafe images; root guide y62; classifier seen5 nested4 existingInset2 eligible0. Source revisions committed, static and native Xcode/iPhone visual verification pending.",
+      "status": "source_committed_ci_pending",
+      "device_verification": "not_installed_or_device_tested_after_r6p25",
+      "rollback_commit": "4b81e33eff8443c799c2ba037cb6d7883c046ec2",
+      "repeat_policy": "Do not change root insets, scroll contentInsets or UI scale on the strength of raw unsafe Y. Require R6P25 visible and clipped receipt plus concrete per-owner evidence before another visual correction.",
+      "source_verification": "git_patch_observed",
+      "source_revisions": [
+        {
+          "sha": "c287ac19b577e82a8629f77be450f2279aea5673",
+          "url": "https://github.com/fx564286/sidestore-auto-refresh/commit/c287ac19b577e82a8629f77be450f2279aea5673",
+          "title": "diag(r6p25): distinguish actually visible island overlap from scroll-clipped descendants"
+        },
+        {
+          "sha": "5425cfbdf829bf4f4a36f84a980ab92a588fbbd7",
+          "url": "https://github.com/fx564286/sidestore-auto-refresh/commit/5425cfbdf829bf4f4a36f84a980ab92a588fbbd7",
+          "title": "diag(r6p25): relay clip-chain visibility receipts from guest to host"
+        },
+        {
+          "sha": "d6c20bb052c95f5c9b5f8775024c2b5564a24641",
+          "url": "https://github.com/fx564286/sidestore-auto-refresh/commit/d6c20bb052c95f5c9b5f8775024c2b5564a24641",
+          "title": "test(r6p25): guard clip-chain geometry and unchanged resident behavior"
+        },
+        {
+          "sha": "7b04cc18b43186d553ed023ce7ec0b76c2efe5ca",
+          "url": "https://github.com/fx564286/sidestore-auto-refresh/commit/7b04cc18b43186d553ed023ce7ec0b76c2efe5ca",
+          "title": "ci(r6p25): exercise paired Xcode archive and publish distinct unsigned visibility build"
+        }
+      ],
+      "code_locations": [
+        {
+          "commit": "c287ac19b577e82a8629f77be450f2279aea5673",
+          "file": "rebuild/integration/ScarletGuestIslandContentGuard.m.txt",
+          "location": "@@ -59,6 +59,8 @@ typedef struct {",
+          "before": [
+            "    NSUInteger controls;",
+            "    NSUInteger topControls;",
+            "    NSUInteger unsafeControls;",
+            "    NSUInteger unsafeControlsInScroll;",
+            "    NSUInteger unsafeControlsOutsideScroll;",
+            "    NSUInteger unsafeControlsUnderZeroInsetChildOwner;"
+          ],
+          "after": [
+            "    NSUInteger controls;",
+            "    NSUInteger topControls;",
+            "    NSUInteger unsafeControls;",
+            "    NSUInteger visibleUnsafeControls;",
+            "    NSUInteger clippedUnsafeControls;",
+            "    NSUInteger unsafeControlsInScroll;",
+            "    NSUInteger unsafeControlsOutsideScroll;",
+            "    NSUInteger unsafeControlsUnderZeroInsetChildOwner;"
+          ]
+        },
+        {
+          "commit": "c287ac19b577e82a8629f77be450f2279aea5673",
+          "file": "rebuild/integration/ScarletGuestIslandContentGuard.m.txt",
+          "location": "@@ -67,6 +69,8 @@ typedef struct {",
+          "before": [
+            "    NSUInteger unsafeTextNodes;",
+            "    NSUInteger topImageNodes;",
+            "    NSUInteger unsafeImageNodes;",
+            "    NSUInteger unsafeImageNodesInScroll;",
+            "    NSUInteger unsafeImageNodesOutsideScroll;",
+            "    NSUInteger maxDepthSeen;"
+          ],
+          "after": [
+            "    NSUInteger unsafeTextNodes;",
+            "    NSUInteger topImageNodes;",
+            "    NSUInteger unsafeImageNodes;",
+            "    NSUInteger visibleUnsafeImageNodes;",
+            "    NSUInteger clippedUnsafeImageNodes;",
+            "    NSUInteger unsafeImageNodesInScroll;",
+            "    NSUInteger unsafeImageNodesOutsideScroll;",
+            "    NSUInteger maxDepthSeen;"
+          ]
+        },
+        {
+          "commit": "c287ac19b577e82a8629f77be450f2279aea5673",
+          "file": "rebuild/integration/ScarletGuestIslandContentGuard.m.txt",
+          "location": "@@ -102,6 +106,26 @@ static void ScarletIslandMeasureUnsafeOwner(",
+          "before": [
+            "    }",
+            "}",
+            "",
+            "static void ScarletIslandWalkViews(UIView *view, UIWindow *window,",
+            "                                   CGFloat safeY, NSUInteger depth,",
+            "                                   ScarletIslandViewMetrics *metrics) {"
+          ],
+          "after": [
+            "    }",
+            "}",
+            "",
+            "// R6P25: a subview with window-space y<62 can be entirely clipped by an",
+            "// ancestor UIScrollView. Distinguish *visible* unsafe content from offscreen",
+            "// layout geometry before any new per-scroll repair is considered. READ ONLY.",
+            "static CGRect ScarletIslandVisibleFrameInWindow(UIView *node, UIWindow *window) {",
+            "    CGRect visible = [node convertRect:node.bounds toView:window];",
+            "    if(CGRectIsNull(visible) || CGRectIsEmpty(visible)) return CGRectNull;",
+            "    visible = CGRectIntersection(visible, window.bounds);",
+            "    NSUInteger hops = 0;",
+            "    for(UIView *parent=node.superview; parent && hops++ < 64;",
+            "        parent=parent.superview) {",
+            "        if(parent.clipsToBounds || [parent isKindOfClass:UIScrollView.class]) {",
+            "            CGRect clip = [parent convertRect:parent.bounds toView:window];",
+            "            visible = CGRectIntersection(visible, clip);",
+            "            if(CGRectIsNull(visible) || CGRectIsEmpty(visible)) return CGRectNull;",
+            "        }",
+            "        if(parent == window) break;",
+            "    }",
+            "    return hops >= 64 ? CGRectNull : visible;",
+            "}",
+            "",
+            "static void ScarletIslandWalkViews(UIView *view, UIWindow *window,",
+            "                                   CGFloat safeY, NSUInteger depth,",
+            "                                   ScarletIslandViewMetrics *metrics) {"
+          ]
+        },
+        {
+          "commit": "c287ac19b577e82a8629f77be450f2279aea5673",
+          "file": "rebuild/integration/ScarletGuestIslandContentGuard.m.txt",
+          "location": "@@ -141,6 +165,12 @@ static void ScarletIslandWalkViews(UIView *view, UIWindow *window,",
+          "before": [
+            "                        metrics->firstTopControlY, (NSInteger)lround(top));",
+            "                    if(top < safeY - 2 && bottom > 5) {",
+            "                        metrics->unsafeControls++;",
+            "                        BOOL scrollAncestor = NO, childZero = NO;",
+            "                        ScarletIslandMeasureUnsafeOwner(",
+            "                            view, window.rootViewController.view,"
+          ],
+          "after": [
+            "                        metrics->firstTopControlY, (NSInteger)lround(top));",
+            "                    if(top < safeY - 2 && bottom > 5) {",
+            "                        metrics->unsafeControls++;",
+            "                        CGRect shown = ScarletIslandVisibleFrameInWindow(view, window);",
+            "                        if(!CGRectIsNull(shown) && !CGRectIsEmpty(shown) &&",
+            "                           CGRectGetMinY(shown) < safeY - 2 &&",
+            "                           CGRectGetMaxY(shown) > 5)",
+            "                            metrics->visibleUnsafeControls++;",
+            "                        else metrics->clippedUnsafeControls++;",
+            "                        BOOL scrollAncestor = NO, childZero = NO;",
+            "                        ScarletIslandMeasureUnsafeOwner(",
+            "                            view, window.rootViewController.view,"
+          ]
+        },
+        {
+          "commit": "c287ac19b577e82a8629f77be450f2279aea5673",
+          "file": "rebuild/integration/ScarletGuestIslandContentGuard.m.txt",
+          "location": "@@ -177,6 +207,12 @@ static void ScarletIslandWalkViews(UIView *view, UIWindow *window,",
+          "before": [
+            "                metrics->topImageNodes++;",
+            "                if(top < safeY - 2 && bottom > 5) {",
+            "                    metrics->unsafeImageNodes++;",
+            "                    BOOL scrollAncestor = NO, childZero = NO;",
+            "                    ScarletIslandMeasureUnsafeOwner(",
+            "                        view, window.rootViewController.view,"
+          ],
+          "after": [
+            "                metrics->topImageNodes++;",
+            "                if(top < safeY - 2 && bottom > 5) {",
+            "                    metrics->unsafeImageNodes++;",
+            "                    CGRect shown = ScarletIslandVisibleFrameInWindow(view, window);",
+            "                    if(!CGRectIsNull(shown) && !CGRectIsEmpty(shown) &&",
+            "                       CGRectGetMinY(shown) < safeY - 2 &&",
+            "                       CGRectGetMaxY(shown) > 5)",
+            "                        metrics->visibleUnsafeImageNodes++;",
+            "                    else metrics->clippedUnsafeImageNodes++;",
+            "                    BOOL scrollAncestor = NO, childZero = NO;",
+            "                    ScarletIslandMeasureUnsafeOwner(",
+            "                        view, window.rootViewController.view,"
+          ]
+        },
+        {
+          "commit": "c287ac19b577e82a8629f77be450f2279aea5673",
+          "file": "rebuild/integration/ScarletGuestIslandContentGuard.m.txt",
+          "location": "@@ -244,6 +280,8 @@ static void ScarletIslandContentProbe(UIWindow *window,",
+          "before": [
+            "        @\"candidate_controls\":@(metrics.controls),",
+            "        @\"top_controls\":@(metrics.topControls),",
+            "        @\"unsafe_controls\":@(metrics.unsafeControls),",
+            "        @\"unsafe_controls_in_scroll\":@(metrics.unsafeControlsInScroll),",
+            "        @\"unsafe_controls_outside_scroll\":@(metrics.unsafeControlsOutsideScroll),",
+            "        @\"unsafe_controls_under_zero_inset_child_owner\":"
+          ],
+          "after": [
+            "        @\"candidate_controls\":@(metrics.controls),",
+            "        @\"top_controls\":@(metrics.topControls),",
+            "        @\"unsafe_controls\":@(metrics.unsafeControls),",
+            "        @\"visible_unsafe_controls\":@(metrics.visibleUnsafeControls),",
+            "        @\"clipped_unsafe_controls\":@(metrics.clippedUnsafeControls),",
+            "        @\"unsafe_controls_in_scroll\":@(metrics.unsafeControlsInScroll),",
+            "        @\"unsafe_controls_outside_scroll\":@(metrics.unsafeControlsOutsideScroll),",
+            "        @\"unsafe_controls_under_zero_inset_child_owner\":"
+          ]
+        },
+        {
+          "commit": "c287ac19b577e82a8629f77be450f2279aea5673",
+          "file": "rebuild/integration/ScarletGuestIslandContentGuard.m.txt",
+          "location": "@@ -257,6 +295,8 @@ static void ScarletIslandContentProbe(UIWindow *window,",
+          "before": [
+            "        @\"first_unsafe_text_y\":@(metrics.firstUnsafeTextY == NSIntegerMax ? -999 : metrics.firstUnsafeTextY),",
+            "        @\"top_image_nodes\":@(metrics.topImageNodes),",
+            "        @\"unsafe_image_nodes\":@(metrics.unsafeImageNodes),",
+            "        @\"unsafe_image_nodes_in_scroll\":@(metrics.unsafeImageNodesInScroll),",
+            "        @\"unsafe_image_nodes_outside_scroll\":@(metrics.unsafeImageNodesOutsideScroll),",
+            "        @\"first_unsafe_image_y\":@(metrics.firstUnsafeImageY == NSIntegerMax ? -999 : metrics.firstUnsafeImageY),"
+          ],
+          "after": [
+            "        @\"first_unsafe_text_y\":@(metrics.firstUnsafeTextY == NSIntegerMax ? -999 : metrics.firstUnsafeTextY),",
+            "        @\"top_image_nodes\":@(metrics.topImageNodes),",
+            "        @\"unsafe_image_nodes\":@(metrics.unsafeImageNodes),",
+            "        @\"visible_unsafe_images\":@(metrics.visibleUnsafeImageNodes),",
+            "        @\"clipped_unsafe_images\":@(metrics.clippedUnsafeImageNodes),",
+            "        @\"unsafe_image_nodes_in_scroll\":@(metrics.unsafeImageNodesInScroll),",
+            "        @\"unsafe_image_nodes_outside_scroll\":@(metrics.unsafeImageNodesOutsideScroll),",
+            "        @\"first_unsafe_image_y\":@(metrics.firstUnsafeImageY == NSIntegerMax ? -999 : metrics.firstUnsafeImageY),"
+          ]
+        },
+        {
+          "commit": "5425cfbdf829bf4f4a36f84a980ab92a588fbbd7",
+          "file": "rebuild/HostApp/ScarletFullscreenSceneStack.swift",
+          "location": "@@ -789,14 +789,16 @@ private final class ScarletGuestIslandReceiptObserver {",
+          "before": [
+            "                ]",
+            "                let numericFields = [\"sample_index\", \"root_frame_y\", \"root_guide_y\",",
+            "                    \"visited\", \"candidate_controls\", \"top_controls\",",
+            "                    \"unsafe_controls\", \"unsafe_controls_in_scroll\",",
+            "                    \"unsafe_controls_outside_scroll\",",
+            "                    \"unsafe_controls_under_zero_inset_child_owner\",",
+            "                    \"first_top_control_y\",",
+            "                    \"first_unsafe_control_y\", \"scroll_top_without_inset\",",
+            "                    \"scroll_first_y\", \"top_text_nodes\", \"unsafe_text_nodes\",",
+            "                    \"first_unsafe_text_y\", \"top_image_nodes\",",
+            "                    \"unsafe_image_nodes\", \"unsafe_image_nodes_in_scroll\",",
+            "                    \"unsafe_image_nodes_outside_scroll\", \"first_unsafe_image_y\",",
+            "                    \"max_depth_seen\"]",
+            "                for field in numericFields {"
+          ],
+          "after": [
+            "                ]",
+            "                let numericFields = [\"sample_index\", \"root_frame_y\", \"root_guide_y\",",
+            "                    \"visited\", \"candidate_controls\", \"top_controls\",",
+            "                    \"unsafe_controls\", \"visible_unsafe_controls\",",
+            "                    \"clipped_unsafe_controls\", \"unsafe_controls_in_scroll\",",
+            "                    \"unsafe_controls_outside_scroll\",",
+            "                    \"unsafe_controls_under_zero_inset_child_owner\",",
+            "                    \"first_top_control_y\",",
+            "                    \"first_unsafe_control_y\", \"scroll_top_without_inset\",",
+            "                    \"scroll_first_y\", \"top_text_nodes\", \"unsafe_text_nodes\",",
+            "                    \"first_unsafe_text_y\", \"top_image_nodes\",",
+            "                    \"unsafe_image_nodes\", \"visible_unsafe_images\",",
+            "                    \"clipped_unsafe_images\", \"unsafe_image_nodes_in_scroll\",",
+            "                    \"unsafe_image_nodes_outside_scroll\", \"first_unsafe_image_y\",",
+            "                    \"max_depth_seen\"]",
+            "                for field in numericFields {"
+          ]
+        },
+        {
+          "commit": "d6c20bb052c95f5c9b5f8775024c2b5564a24641",
+          "file": "rebuild/Tests/test_v48_r6p25_guest_occlusion_visibility.py",
+          "location": "@@ -0,0 +1,78 @@",
+          "before": [],
+          "after": [
+            "\"\"\"R6P25: window-space unsafe y alone does not prove a drawn island overlap.",
+            "",
+            "The clip-chain probe is read-only; app scale, scroll content offset, root inset,",
+            "keyboard and AVAudioSession behavior are intentionally unchanged.",
+            "\"\"\"",
+            "from pathlib import Path",
+            "import unittest",
+            "",
+            "ROOT = Path(__file__).resolve().parents[1]",
+            "GUEST = (ROOT / \"integration/ScarletGuestIslandContentGuard.m.txt\").read_text()",
+            "HOST = (ROOT / \"HostApp/ScarletFullscreenSceneStack.swift\").read_text()",
+            "",
+            "",
+            "def clipped_intersection(rect, clips):",
+            "    \"\"\"Reference geometry contract: x1,y1,x2,y2; non-positive area is hidden.\"\"\"",
+            "    x1, y1, x2, y2 = rect",
+            "    for a1, b1, a2, b2 in clips:",
+            "        x1, y1, x2, y2 = max(x1, a1), max(y1, b1), min(x2, a2), min(y2, b2)",
+            "        if x2 <= x1 or y2 <= y1:",
+            "            return None",
+            "    return x1, y1, x2, y2",
+            "",
+            "",
+            "def visible_below_safe_top(original, clips, safe_top=62):",
+            "    frame = clipped_intersection(original, clips)",
+            "    return frame is not None and frame[1] < safe_top - 2 and frame[3] > 5",
+            "",
+            "",
+            "class R6P25Visibility(unittest.TestCase):",
+            "    def test_clip_chain_separates_offscreen_from_visible_geometry(self):",
+            "        # Raw y=3 is a false island overlap when ancestor clips at y=100.",
+            "        self.assertFalse(visible_below_safe_top((2, 3, 45, 48),",
+            "                                                [(0, 100, 440, 900)]))",
+            "        # The same raw y=3 is a genuine visible unsafe region when clipped",
+            "        # parent starts at y=0 and content remains visible under 62pt.",
+            "        self.assertTrue(visible_below_safe_top((2, 3, 45, 48),",
+            "                                               [(0, 0, 440, 900)]))",
+            "        # Partial clip to y=70 eliminates visible content under the island.",
+            "        self.assertFalse(visible_below_safe_top((2, 3, 45, 100),",
+            "                                                [(0, 70, 440, 900)]))",
+            "",
+            "    def test_actual_guest_probe_intersects_each_clipping_ancestor(self):",
+            "        fn = GUEST.split('static CGRect ScarletIslandVisibleFrameInWindow(', 1)[1]",
+            "        fn = fn.split('static void ScarletIslandWalkViews(', 1)[0]",
+            "        for token in ('CGRectIntersection(visible, window.bounds)',",
+            "                      'parent.clipsToBounds',",
+            "                      '[parent isKindOfClass:UIScrollView.class]',",
+            "                      'CGRectIntersection(visible, clip)',",
+            "                      'CGRectIsNull(visible)', 'CGRectIsEmpty(visible)'):",
+            "            self.assertIn(token, fn)",
+            "        self.assertNotIn('contentInset =', fn)",
+            "        self.assertNotIn('additionalSafeAreaInsets =', fn)",
+            "        self.assertNotIn('scaleRatio', fn)",
+            "",
+            "    def test_visible_and_clipped_counts_relayed(self):",
+            "        for field in ('visible_unsafe_controls', 'clipped_unsafe_controls',",
+            "                      'visible_unsafe_images', 'clipped_unsafe_images'):",
+            "            self.assertIn('@\"' + field + '\"', GUEST)",
+            "            self.assertIn('\"' + field + '\"', HOST)",
+            "        for counter in ('visibleUnsafeControls', 'clippedUnsafeControls',",
+            "                        'visibleUnsafeImageNodes', 'clippedUnsafeImageNodes'):",
+            "            self.assertIn('metrics->' + counter + '++', GUEST)",
+            "        self.assertIn('metrics->unsafeControls++', GUEST)",
+            "        self.assertIn('metrics->unsafeImageNodes++', GUEST)",
+            "        self.assertIn('guest_content_geometry_probe', HOST)",
+            "",
+            "    def test_no_global_gui_or_audio_keyboard_rewrite(self):",
+            "        helper = GUEST.split('static CGRect ScarletIslandVisibleFrameInWindow(', 1)[1]",
+            "        helper = helper.split('static void ScarletIslandWalkViews(', 1)[0]",
+            "        for forbidden in ('UIApplication.sharedApplication', 'endEditing',",
+            "                          'setActive:', 'setCategory:', 'scroll.contentOffset',",
+            "                          'window.frame ='):",
+            "            self.assertNotIn(forbidden, helper)",
+            "        self.assertIn('vc.scaleRatio = 1', HOST)",
+            "",
+            "",
+            "if __name__ == \"__main__\":",
+            "    unittest.main()"
+          ]
+        },
+        {
+          "commit": "7b04cc18b43186d553ed023ce7ec0b76c2efe5ca",
+          "file": ".github/workflows/scarlet-paired-engines-build.yml",
+          "location": "@@ -3,7 +3,7 @@ name: Scarlet paired LiveContainer and SideStore iOS build",
+          "before": [
+            "on:",
+            "  workflow_dispatch:",
+            "  push:",
+            "    branches: [rebuild/scarlet-from-zero-20261106, fix/scarlet-auth-status-rootcause-20261109, fix/scarlet-pr48-guest-overlay-no-resize-20261109, fix/scarlet-pr48-airpods-glass-guest-switch-v3-20261109, fix/scarlet-pr48-draggable-guest-tab-v4-20261109, fix/scarlet-pr48-v5-glass-drag-cert-recovery-20261109, fix/scarlet-pr48-v6-unified-cert-glass-20261109, fix/scarlet-pr48-v7-cert-jitless-unify-panel-rim-20261109, fix/scarlet-pr48-v8-flicker-certificate-menu-20261109, fix/scarlet-pr48-v9-single-glass-rim-20261109, fix/scarlet-pr48-v10-fixed-tab-cert-and-session-20261109, fix/scarlet-pr48-v11-module-settings-appid-20261109, fix/scarlet-pr48-v12-live-sessions-source-auto-refresh-20261109, fix/scarlet-pr48-v13-compact-settings-current-app-20261109, fix/scarlet-pr48-v14-guest-history-native-scenes-three-ids-20261109, fix/scarlet-pr48-v15-source-disclosure-icons-guest-handoff-20261109, fix/scarlet-pr48-v16-guest-switcher-icons-readback-20261110, fix/scarlet-v17-cold-switch-rotation-20261110, fix/scarlet-v18-refresh-diagnostics-native-glass-20261110, fix/scarlet-v19-active-session-switcher-20261110, fix/scarlet-v20-guest-switcher-trace-20261110, fix/scarlet-v21-hook-telemetry-persistence-20261110, fix/scarlet-v22-runtime-guest-identity-20261110, fix/scarlet-v23-session-only-switcher-20261110, fix/scarlet-v24-refresh-lifecycle-switch-receipt-20261110, fix/scarlet-v25-single-panel-outside-dismiss-20261110, fix/scarlet-v26-liquidglass-button-to-fixed-panel-morph-20261110, fix/scarlet-v27-sidestore-direct-native-refresh-20261110, fix/scarlet-v28-minimuxer-readiness-recovery-20261110, fix/scarlet-v29-inapp-rppairing-20261110, fix/scarlet-v30-restore-sidestore-active-team-20261110, fix/scarlet-v31-pairing-persistence-sheet-purple-20261110, fix/scarlet-v32-korean-copy-20261110, fix/scarlet-v33-log-rootcause-20261110, fix/scarlet-v34-iphone-virtual-resident-20261110, fix/scarlet-v35-restore-original-fullscreen-20261110, fix/scarlet-v36-remove-legacy-ui-20261110, fix/scarlet-v37-session-refresh-20261110, fix/scarlet-v38-current-launch-logs-20261110, fix/scarlet-v39-log-truth-20261110, fix/scarlet-v40-clean-work-session-20261110, fix/scarlet-v42-v40-safe-diagnostics-20261110, fix/scarlet-v43-install-rootcause-20261110, fix/scarlet-v44-rppairing-postsign-install-20261111, fix/scarlet-v45-single-viewport-liveprocess-20261111, fix/scarlet-v46-guard-provisional-guest-geometry-20261111, fix/scarlet-v47-resident-inplace-guest-switch-20261111, fix/scarlet-v48-guest-runtime-recovery-20261111, fix/scarlet-v48-restored-20261111, fix/scarlet-v48-r2-unified-switcher-20261111, fix/scarlet-v48-r3-original-pan-diagnostics-20261111, fix/scarlet-v48-r4-native-outside-remote-insets-20261111, fix/scarlet-v48-r5-attached-insets-shield-20261111, fix/scarlet-v48-r5-crash-recovery-20261111, fix/scarlet-v48-r5-recovery-r2-host-owner-20261111, fix/scarlet-v48-r5-recovery-r3-scene-authority-20261111, fix/scarlet-v48-r5-recovery-r4-native-ready-20261111, fix/scarlet-v48-r5-recovery-r5-compat-foreground-20261111, fix/scarlet-v48-r6-island-outside-audio-20261111, fix/scarlet-v48-r6p1-audio-home-focus-20261111, fix/scarlet-v48-r6p2-blocked-history-20261111, fix/scarlet-v48-r6p3-home-audio-gate-20261111, fix/scarlet-v48-r6p4-guest-audio-ack-20261112, fix/scarlet-v48-r6p7-launch-policy-rootcause-20261112, fix/scarlet-v48-r6p8-policy-field-relay-20261112, fix/scarlet-v48-r6p9-deferred-scene-boot-20261112, fix/scarlet-v48-r6p10-persistent-remediation-ledger-20261112, fix/scarlet-v48-r6p11-resident-guest-sdk-contract-20261112, fix/scarlet-v48-r6p12-instant-recent-switcher-20261112, fix/scarlet-v48-r6p14-switcher-reset-on-navigation-20261112, fix/scarlet-v48-r6p15-guest-root-island-pairing-recovery-20261112, fix/scarlet-v48-r6p16-audit-coverage-20261112, fix/scarlet-v48-r6p17-resident-optin-defaults-20261112, fix/scarlet-v48-r6p18-guest-content-geometry-20261112, fix/scarlet-v48-r6p19-entitlement-failclosed-network-recovery-20261112, fix/scarlet-v48-r6p20-auth-session-bg-id-20261112, fix/scarlet-v48-r6p21-depth-probe-cert-recheck-20261112, fix/scarlet-v48-r6p22-guest-scroll-content-inset-20261112, fix/scarlet-v48-r6p23-guest-owner-refresh-stage-20261112, fix/scarlet-v48-r6p24-keyboard-stage-relay-20261112]",
+            "    paths:",
+            "      - \".github/workflows/scarlet-paired-engines-build.yml\"",
+            "      - \"rebuild/integration/**\""
+          ],
+          "after": [
+            "on:",
+            "  workflow_dispatch:",
+            "  push:",
+            "    branches: [rebuild/scarlet-from-zero-20261106, fix/scarlet-auth-status-rootcause-20261109, fix/scarlet-pr48-guest-overlay-no-resize-20261109, fix/scarlet-pr48-airpods-glass-guest-switch-v3-20261109, fix/scarlet-pr48-draggable-guest-tab-v4-20261109, fix/scarlet-pr48-v5-glass-drag-cert-recovery-20261109, fix/scarlet-pr48-v6-unified-cert-glass-20261109, fix/scarlet-pr48-v7-cert-jitless-unify-panel-rim-20261109, fix/scarlet-pr48-v8-flicker-certificate-menu-20261109, fix/scarlet-pr48-v9-single-glass-rim-20261109, fix/scarlet-pr48-v10-fixed-tab-cert-and-session-20261109, fix/scarlet-pr48-v11-module-settings-appid-20261109, fix/scarlet-pr48-v12-live-sessions-source-auto-refresh-20261109, fix/scarlet-pr48-v13-compact-settings-current-app-20261109, fix/scarlet-pr48-v14-guest-history-native-scenes-three-ids-20261109, fix/scarlet-pr48-v15-source-disclosure-icons-guest-handoff-20261109, fix/scarlet-pr48-v16-guest-switcher-icons-readback-20261110, fix/scarlet-v17-cold-switch-rotation-20261110, fix/scarlet-v18-refresh-diagnostics-native-glass-20261110, fix/scarlet-v19-active-session-switcher-20261110, fix/scarlet-v20-guest-switcher-trace-20261110, fix/scarlet-v21-hook-telemetry-persistence-20261110, fix/scarlet-v22-runtime-guest-identity-20261110, fix/scarlet-v23-session-only-switcher-20261110, fix/scarlet-v24-refresh-lifecycle-switch-receipt-20261110, fix/scarlet-v25-single-panel-outside-dismiss-20261110, fix/scarlet-v26-liquidglass-button-to-fixed-panel-morph-20261110, fix/scarlet-v27-sidestore-direct-native-refresh-20261110, fix/scarlet-v28-minimuxer-readiness-recovery-20261110, fix/scarlet-v29-inapp-rppairing-20261110, fix/scarlet-v30-restore-sidestore-active-team-20261110, fix/scarlet-v31-pairing-persistence-sheet-purple-20261110, fix/scarlet-v32-korean-copy-20261110, fix/scarlet-v33-log-rootcause-20261110, fix/scarlet-v34-iphone-virtual-resident-20261110, fix/scarlet-v35-restore-original-fullscreen-20261110, fix/scarlet-v36-remove-legacy-ui-20261110, fix/scarlet-v37-session-refresh-20261110, fix/scarlet-v38-current-launch-logs-20261110, fix/scarlet-v39-log-truth-20261110, fix/scarlet-v40-clean-work-session-20261110, fix/scarlet-v42-v40-safe-diagnostics-20261110, fix/scarlet-v43-install-rootcause-20261110, fix/scarlet-v44-rppairing-postsign-install-20261111, fix/scarlet-v45-single-viewport-liveprocess-20261111, fix/scarlet-v46-guard-provisional-guest-geometry-20261111, fix/scarlet-v47-resident-inplace-guest-switch-20261111, fix/scarlet-v48-guest-runtime-recovery-20261111, fix/scarlet-v48-restored-20261111, fix/scarlet-v48-r2-unified-switcher-20261111, fix/scarlet-v48-r3-original-pan-diagnostics-20261111, fix/scarlet-v48-r4-native-outside-remote-insets-20261111, fix/scarlet-v48-r5-attached-insets-shield-20261111, fix/scarlet-v48-r5-crash-recovery-20261111, fix/scarlet-v48-r5-recovery-r2-host-owner-20261111, fix/scarlet-v48-r5-recovery-r3-scene-authority-20261111, fix/scarlet-v48-r5-recovery-r4-native-ready-20261111, fix/scarlet-v48-r5-recovery-r5-compat-foreground-20261111, fix/scarlet-v48-r6-island-outside-audio-20261111, fix/scarlet-v48-r6p1-audio-home-focus-20261111, fix/scarlet-v48-r6p2-blocked-history-20261111, fix/scarlet-v48-r6p3-home-audio-gate-20261111, fix/scarlet-v48-r6p4-guest-audio-ack-20261112, fix/scarlet-v48-r6p7-launch-policy-rootcause-20261112, fix/scarlet-v48-r6p8-policy-field-relay-20261112, fix/scarlet-v48-r6p9-deferred-scene-boot-20261112, fix/scarlet-v48-r6p10-persistent-remediation-ledger-20261112, fix/scarlet-v48-r6p11-resident-guest-sdk-contract-20261112, fix/scarlet-v48-r6p12-instant-recent-switcher-20261112, fix/scarlet-v48-r6p14-switcher-reset-on-navigation-20261112, fix/scarlet-v48-r6p15-guest-root-island-pairing-recovery-20261112, fix/scarlet-v48-r6p16-audit-coverage-20261112, fix/scarlet-v48-r6p17-resident-optin-defaults-20261112, fix/scarlet-v48-r6p18-guest-content-geometry-20261112, fix/scarlet-v48-r6p19-entitlement-failclosed-network-recovery-20261112, fix/scarlet-v48-r6p20-auth-session-bg-id-20261112, fix/scarlet-v48-r6p21-depth-probe-cert-recheck-20261112, fix/scarlet-v48-r6p22-guest-scroll-content-inset-20261112, fix/scarlet-v48-r6p23-guest-owner-refresh-stage-20261112, fix/scarlet-v48-r6p24-keyboard-stage-relay-20261112, fix/scarlet-v48-r6p25-visibility-occlusion-20261112]",
+            "    paths:",
+            "      - \".github/workflows/scarlet-paired-engines-build.yml\"",
+            "      - \"rebuild/integration/**\""
+          ]
+        },
+        {
+          "commit": "7b04cc18b43186d553ed023ce7ec0b76c2efe5ca",
+          "file": ".github/workflows/scarlet-paired-engines-build.yml",
+          "location": "@@ -305,7 +305,7 @@ jobs:",
+          "before": [
+            "  # A Release asset in this public repo has a stable public download URL.",
+            "  publish-unsigned-github-release:",
+            "    needs: [package-paired]",
+            "    if: github.event_name == 'push' && (github.ref == 'refs/heads/rebuild/scarlet-from-zero-20261106' || github.ref == 'refs/heads/fix/scarlet-v31-pairing-persistence-sheet-purple-20261110' || github.ref == 'refs/heads/fix/scarlet-v32-korean-copy-20261110' || github.ref == 'refs/heads/fix/scarlet-v33-log-rootcause-20261110' || github.ref == 'refs/heads/fix/scarlet-v34-iphone-virtual-resident-20261110' || github.ref == 'refs/heads/fix/scarlet-v35-restore-original-fullscreen-20261110' || github.ref == 'refs/heads/fix/scarlet-v36-remove-legacy-ui-20261110' || github.ref == 'refs/heads/fix/scarlet-v37-session-refresh-20261110' || github.ref == 'refs/heads/fix/scarlet-v38-current-launch-logs-20261110' || github.ref == 'refs/heads/fix/scarlet-v39-log-truth-20261110' || github.ref == 'refs/heads/fix/scarlet-v40-clean-work-session-20261110' || github.ref == 'refs/heads/fix/scarlet-v42-v40-safe-diagnostics-20261110' || github.ref == 'refs/heads/fix/scarlet-v43-install-rootcause-20261110' || github.ref == 'refs/heads/fix/scarlet-v44-rppairing-postsign-install-20261111' || github.ref == 'refs/heads/fix/scarlet-v45-single-viewport-liveprocess-20261111' || github.ref == 'refs/heads/fix/scarlet-v46-guard-provisional-guest-geometry-20261111' || github.ref == 'refs/heads/fix/scarlet-v47-resident-inplace-guest-switch-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-guest-runtime-recovery-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-restored-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r2-unified-switcher-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r3-original-pan-diagnostics-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r4-native-outside-remote-insets-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r5-attached-insets-shield-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r5-crash-recovery-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r5-recovery-r2-host-owner-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r5-recovery-r3-scene-authority-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r5-recovery-r4-native-ready-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r5-recovery-r5-compat-foreground-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r6-island-outside-audio-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r6p1-audio-home-focus-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r6p2-blocked-history-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r6p3-home-audio-gate-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r6p4-guest-audio-ack-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p7-launch-policy-rootcause-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p8-policy-field-relay-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p9-deferred-scene-boot-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p10-persistent-remediation-ledger-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p11-resident-guest-sdk-contract-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p12-instant-recent-switcher-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p14-switcher-reset-on-navigation-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p15-guest-root-island-pairing-recovery-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p16-audit-coverage-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p17-resident-optin-defaults-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p18-guest-content-geometry-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p19-entitlement-failclosed-network-recovery-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p20-auth-session-bg-id-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p21-depth-probe-cert-recheck-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p22-guest-scroll-content-inset-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p23-guest-owner-refresh-stage-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p24-keyboard-stage-relay-20261112')",
+            "    runs-on: ubuntu-24.04",
+            "    timeout-minutes: 10",
+            "    permissions:"
+          ],
+          "after": [
+            "  # A Release asset in this public repo has a stable public download URL.",
+            "  publish-unsigned-github-release:",
+            "    needs: [package-paired]",
+            "    if: github.event_name == 'push' && (github.ref == 'refs/heads/rebuild/scarlet-from-zero-20261106' || github.ref == 'refs/heads/fix/scarlet-v31-pairing-persistence-sheet-purple-20261110' || github.ref == 'refs/heads/fix/scarlet-v32-korean-copy-20261110' || github.ref == 'refs/heads/fix/scarlet-v33-log-rootcause-20261110' || github.ref == 'refs/heads/fix/scarlet-v34-iphone-virtual-resident-20261110' || github.ref == 'refs/heads/fix/scarlet-v35-restore-original-fullscreen-20261110' || github.ref == 'refs/heads/fix/scarlet-v36-remove-legacy-ui-20261110' || github.ref == 'refs/heads/fix/scarlet-v37-session-refresh-20261110' || github.ref == 'refs/heads/fix/scarlet-v38-current-launch-logs-20261110' || github.ref == 'refs/heads/fix/scarlet-v39-log-truth-20261110' || github.ref == 'refs/heads/fix/scarlet-v40-clean-work-session-20261110' || github.ref == 'refs/heads/fix/scarlet-v42-v40-safe-diagnostics-20261110' || github.ref == 'refs/heads/fix/scarlet-v43-install-rootcause-20261110' || github.ref == 'refs/heads/fix/scarlet-v44-rppairing-postsign-install-20261111' || github.ref == 'refs/heads/fix/scarlet-v45-single-viewport-liveprocess-20261111' || github.ref == 'refs/heads/fix/scarlet-v46-guard-provisional-guest-geometry-20261111' || github.ref == 'refs/heads/fix/scarlet-v47-resident-inplace-guest-switch-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-guest-runtime-recovery-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-restored-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r2-unified-switcher-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r3-original-pan-diagnostics-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r4-native-outside-remote-insets-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r5-attached-insets-shield-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r5-crash-recovery-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r5-recovery-r2-host-owner-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r5-recovery-r3-scene-authority-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r5-recovery-r4-native-ready-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r5-recovery-r5-compat-foreground-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r6-island-outside-audio-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r6p1-audio-home-focus-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r6p2-blocked-history-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r6p3-home-audio-gate-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r6p4-guest-audio-ack-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p7-launch-policy-rootcause-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p8-policy-field-relay-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p9-deferred-scene-boot-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p10-persistent-remediation-ledger-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p11-resident-guest-sdk-contract-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p12-instant-recent-switcher-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p14-switcher-reset-on-navigation-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p15-guest-root-island-pairing-recovery-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p16-audit-coverage-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p17-resident-optin-defaults-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p18-guest-content-geometry-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p19-entitlement-failclosed-network-recovery-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p20-auth-session-bg-id-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p21-depth-probe-cert-recheck-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p22-guest-scroll-content-inset-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p23-guest-owner-refresh-stage-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p24-keyboard-stage-relay-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p25-visibility-occlusion-20261112')",
+            "    runs-on: ubuntu-24.04",
+            "    timeout-minutes: 10",
+            "    permissions:"
+          ]
+        },
+        {
+          "commit": "7b04cc18b43186d553ed023ce7ec0b76c2efe5ca",
+          "file": ".github/workflows/scarlet-paired-engines-build.yml",
+          "location": "@@ -334,7 +334,9 @@ jobs:",
+          "before": [
+            "              assert any(p.endswith(\"LiveProcess.appex/Info.plist\") for p in paths), \"Missing LiveProcess\"",
+            "          print(\"[PASS] Public IPA ZIP structure; Apple signature not verified\")",
+            "          PY",
+            "          if [ \"$GITHUB_REF\" = \"refs/heads/fix/scarlet-v48-r6p24-keyboard-stage-relay-20261112\" ]; then",
+            "            asset=\"Scarlet-Crystal-V48-R6P24-KEYBOARD-STAGE-UNSIGNED.ipa\"",
+            "          elif [ \"$GITHUB_REF\" = \"refs/heads/fix/scarlet-v48-r6p23-guest-owner-refresh-stage-20261112\" ]; then",
+            "            asset=\"Scarlet-Crystal-V48-R6P23-OWNER-STAGE-UNSIGNED.ipa\""
+          ],
+          "after": [
+            "              assert any(p.endswith(\"LiveProcess.appex/Info.plist\") for p in paths), \"Missing LiveProcess\"",
+            "          print(\"[PASS] Public IPA ZIP structure; Apple signature not verified\")",
+            "          PY",
+            "          if [ \"$GITHUB_REF\" = \"refs/heads/fix/scarlet-v48-r6p25-visibility-occlusion-20261112\" ]; then",
+            "            asset=\"Scarlet-Crystal-V48-R6P25-VISIBILITY-UNSIGNED.ipa\"",
+            "          elif [ \"$GITHUB_REF\" = \"refs/heads/fix/scarlet-v48-r6p24-keyboard-stage-relay-20261112\" ]; then",
+            "            asset=\"Scarlet-Crystal-V48-R6P24-KEYBOARD-STAGE-UNSIGNED.ipa\"",
+            "          elif [ \"$GITHUB_REF\" = \"refs/heads/fix/scarlet-v48-r6p23-guest-owner-refresh-stage-20261112\" ]; then",
+            "            asset=\"Scarlet-Crystal-V48-R6P23-OWNER-STAGE-UNSIGNED.ipa\""
+          ]
+        },
+        {
+          "commit": "7b04cc18b43186d553ed023ce7ec0b76c2efe5ca",
+          "file": ".github/workflows/scarlet-paired-engines-build.yml",
+          "location": "@@ -456,7 +458,10 @@ jobs:",
+          "before": [
+            "          GH_TOKEN: ${{ github.token }}",
+            "        run: |",
+            "          set -Eeuo pipefail",
+            "          if [ \"$GITHUB_REF\" = \"refs/heads/fix/scarlet-v48-r6p24-keyboard-stage-relay-20261112\" ]; then",
+            "            tag=scarlet-v48-r6p24-keyboard-stage-unsigned-20261112",
+            "            asset=Scarlet-Crystal-V48-R6P24-KEYBOARD-STAGE-UNSIGNED.ipa",
+            "          elif [ \"$GITHUB_REF\" = \"refs/heads/fix/scarlet-v48-r6p23-guest-owner-refresh-stage-20261112\" ]; then"
+          ],
+          "after": [
+            "          GH_TOKEN: ${{ github.token }}",
+            "        run: |",
+            "          set -Eeuo pipefail",
+            "          if [ \"$GITHUB_REF\" = \"refs/heads/fix/scarlet-v48-r6p25-visibility-occlusion-20261112\" ]; then",
+            "            tag=scarlet-v48-r6p25-visibility-unsigned-20261112",
+            "            asset=Scarlet-Crystal-V48-R6P25-VISIBILITY-UNSIGNED.ipa",
+            "          elif [ \"$GITHUB_REF\" = \"refs/heads/fix/scarlet-v48-r6p24-keyboard-stage-relay-20261112\" ]; then",
+            "            tag=scarlet-v48-r6p24-keyboard-stage-unsigned-20261112",
+            "            asset=Scarlet-Crystal-V48-R6P24-KEYBOARD-STAGE-UNSIGNED.ipa",
+            "          elif [ \"$GITHUB_REF\" = \"refs/heads/fix/scarlet-v48-r6p23-guest-owner-refresh-stage-20261112\" ]; then"
+          ]
+        }
+      ],
+      "generated_runtime_targets": [
+        {
+          "source_template": "rebuild/integration/ScarletGuestIslandContentGuard.m.txt",
+          "generated_file": "LiveContainer/Tweaks/ScarletGuestIslandContentGuard.m",
+          "source_generation_script": "rebuild/integration/apply_scarlet_host.py",
+          "function": "add_scarlet_guest_island_content_guard",
+          "before": [
+            "static void ScarletIslandWalkViews(UIView *view, UIWindow *window,"
+          ],
+          "after": [
+            "static CGRect ScarletIslandVisibleFrameInWindow(UIView *node, UIWindow *window) {",
+            "    CGRect visible = [node convertRect:node.bounds toView:window];",
+            "    visible = CGRectIntersection(visible, window.bounds);",
+            "    // intersect each clipping ancestor, then return the visible frame",
+            "}",
+            "static void ScarletIslandWalkViews(UIView *view, UIWindow *window,"
+          ],
+          "note": "The tracked .m.txt template is copied into the pinned upstream LiveContainer/Tweaks during CI; generated file is NOT directly Git tracked."
         }
       ]
     }

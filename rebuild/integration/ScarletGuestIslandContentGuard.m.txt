@@ -59,6 +59,8 @@ typedef struct {
     NSUInteger controls;
     NSUInteger topControls;
     NSUInteger unsafeControls;
+    NSUInteger visibleUnsafeControls;
+    NSUInteger clippedUnsafeControls;
     NSUInteger unsafeControlsInScroll;
     NSUInteger unsafeControlsOutsideScroll;
     NSUInteger unsafeControlsUnderZeroInsetChildOwner;
@@ -67,6 +69,8 @@ typedef struct {
     NSUInteger unsafeTextNodes;
     NSUInteger topImageNodes;
     NSUInteger unsafeImageNodes;
+    NSUInteger visibleUnsafeImageNodes;
+    NSUInteger clippedUnsafeImageNodes;
     NSUInteger unsafeImageNodesInScroll;
     NSUInteger unsafeImageNodesOutsideScroll;
     NSUInteger maxDepthSeen;
@@ -100,6 +104,26 @@ static void ScarletIslandMeasureUnsafeOwner(
         }
         if(ancestor == root) break;
     }
+}
+
+// R6P25: a subview with window-space y<62 can be entirely clipped by an
+// ancestor UIScrollView. Distinguish *visible* unsafe content from offscreen
+// layout geometry before any new per-scroll repair is considered. READ ONLY.
+static CGRect ScarletIslandVisibleFrameInWindow(UIView *node, UIWindow *window) {
+    CGRect visible = [node convertRect:node.bounds toView:window];
+    if(CGRectIsNull(visible) || CGRectIsEmpty(visible)) return CGRectNull;
+    visible = CGRectIntersection(visible, window.bounds);
+    NSUInteger hops = 0;
+    for(UIView *parent=node.superview; parent && hops++ < 64;
+        parent=parent.superview) {
+        if(parent.clipsToBounds || [parent isKindOfClass:UIScrollView.class]) {
+            CGRect clip = [parent convertRect:parent.bounds toView:window];
+            visible = CGRectIntersection(visible, clip);
+            if(CGRectIsNull(visible) || CGRectIsEmpty(visible)) return CGRectNull;
+        }
+        if(parent == window) break;
+    }
+    return hops >= 64 ? CGRectNull : visible;
 }
 
 static void ScarletIslandWalkViews(UIView *view, UIWindow *window,
@@ -141,6 +165,12 @@ static void ScarletIslandWalkViews(UIView *view, UIWindow *window,
                         metrics->firstTopControlY, (NSInteger)lround(top));
                     if(top < safeY - 2 && bottom > 5) {
                         metrics->unsafeControls++;
+                        CGRect shown = ScarletIslandVisibleFrameInWindow(view, window);
+                        if(!CGRectIsNull(shown) && !CGRectIsEmpty(shown) &&
+                           CGRectGetMinY(shown) < safeY - 2 &&
+                           CGRectGetMaxY(shown) > 5)
+                            metrics->visibleUnsafeControls++;
+                        else metrics->clippedUnsafeControls++;
                         BOOL scrollAncestor = NO, childZero = NO;
                         ScarletIslandMeasureUnsafeOwner(
                             view, window.rootViewController.view,
@@ -177,6 +207,12 @@ static void ScarletIslandWalkViews(UIView *view, UIWindow *window,
                 metrics->topImageNodes++;
                 if(top < safeY - 2 && bottom > 5) {
                     metrics->unsafeImageNodes++;
+                    CGRect shown = ScarletIslandVisibleFrameInWindow(view, window);
+                    if(!CGRectIsNull(shown) && !CGRectIsEmpty(shown) &&
+                       CGRectGetMinY(shown) < safeY - 2 &&
+                       CGRectGetMaxY(shown) > 5)
+                        metrics->visibleUnsafeImageNodes++;
+                    else metrics->clippedUnsafeImageNodes++;
                     BOOL scrollAncestor = NO, childZero = NO;
                     ScarletIslandMeasureUnsafeOwner(
                         view, window.rootViewController.view,
@@ -244,6 +280,8 @@ static void ScarletIslandContentProbe(UIWindow *window,
         @"candidate_controls":@(metrics.controls),
         @"top_controls":@(metrics.topControls),
         @"unsafe_controls":@(metrics.unsafeControls),
+        @"visible_unsafe_controls":@(metrics.visibleUnsafeControls),
+        @"clipped_unsafe_controls":@(metrics.clippedUnsafeControls),
         @"unsafe_controls_in_scroll":@(metrics.unsafeControlsInScroll),
         @"unsafe_controls_outside_scroll":@(metrics.unsafeControlsOutsideScroll),
         @"unsafe_controls_under_zero_inset_child_owner":
@@ -257,6 +295,8 @@ static void ScarletIslandContentProbe(UIWindow *window,
         @"first_unsafe_text_y":@(metrics.firstUnsafeTextY == NSIntegerMax ? -999 : metrics.firstUnsafeTextY),
         @"top_image_nodes":@(metrics.topImageNodes),
         @"unsafe_image_nodes":@(metrics.unsafeImageNodes),
+        @"visible_unsafe_images":@(metrics.visibleUnsafeImageNodes),
+        @"clipped_unsafe_images":@(metrics.clippedUnsafeImageNodes),
         @"unsafe_image_nodes_in_scroll":@(metrics.unsafeImageNodesInScroll),
         @"unsafe_image_nodes_outside_scroll":@(metrics.unsafeImageNodesOutsideScroll),
         @"first_unsafe_image_y":@(metrics.firstUnsafeImageY == NSIntegerMax ? -999 : metrics.firstUnsafeImageY),
