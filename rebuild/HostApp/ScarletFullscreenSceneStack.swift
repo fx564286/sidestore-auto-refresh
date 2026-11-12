@@ -96,6 +96,18 @@ final class ScarletFullscreenSceneStack: NSObject, ObservableObject,
         app.uiSelectedContainer != nil
     }
 
+    // Reset both native hit-testing and retained SwiftUI expansion BEFORE
+    // hiding the overlay or selecting a different guest.
+    private func collapseSwitcherForNavigation(_ reason: String) {
+        guard let overlayWindow else { return }
+        overlayWindow.dismissState?.requestClose()
+        overlayWindow.isExpanded = false
+        viewport?.setResidentOutsideDismissEnabled(false)
+        ScarletDiagnosticRecorder.shared.record(
+            "guest", "switch_panel_navigation_reset",
+            fields: ["reason": reason, "overlay_expanded": "false"])
+    }
+
     func enqueueSignedGuest(_ app: LCAppModel) throws {
         guard let folder = app.appInfo.relativeBundlePath,
               folder.hasSuffix(".app"), !folder.contains("/"),
@@ -132,6 +144,7 @@ final class ScarletFullscreenSceneStack: NSObject, ObservableObject,
         if let old = slots.firstIndex(where: { $0.id == folder }) {
             slots.remove(at: old)
         }
+        collapseSwitcherForNavigation("enqueue_guest")
         slots.append(Slot(id: folder, dataUUID: uuid,
                           title: app.displayName,
                           bundleID: app.bundleIdentifier,
@@ -295,6 +308,7 @@ final class ScarletFullscreenSceneStack: NSObject, ObservableObject,
         // its remote guest. Explicit user activation must reveal the viewport
         // BEFORE select() is allowed to resume this exact guest's audio.
         let wasVisible = isVisible
+        collapseSwitcherForNavigation("activate_guest")
         isVisible = true
         guard viewport?.select(folder: folder) == true else {
             isVisible = wasVisible
@@ -331,6 +345,8 @@ final class ScarletFullscreenSceneStack: NSObject, ObservableObject,
     }
 
     func goHome() {
+        // A hidden UIWindow is not equivalent to a closed SwiftUI card.
+        collapseSwitcherForNavigation("go_home")
         // No close, terminate, detach, scene destruction or relaunch.
         // Keep each remote scene in the original full-screen viewport.
         isVisible = false
