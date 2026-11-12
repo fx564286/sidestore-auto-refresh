@@ -1198,6 +1198,45 @@ final class ScarletFullscreenSceneViewport: UIViewController {
     private var lastHostingOwnerProbes: [ObjectIdentifier: String] = [:]
     private var audioScopedPID: Int32 = 0
     private var hiddenAudioReconcileReported = false
+    // R6P40: the original LC title-bar *layout role*, without its buttons.
+    // The host keeps the full screen; the remote scene is naturally resized
+    // into the unobstructed content slot, with 1:1 scale (never cropped).
+    private let transparentChrome = UIView(frame: .zero)
+    private var lastChromeTop: CGFloat = -1
+
+    private func chromeTop(in scene: UIWindowScene) -> CGFloat {
+        guard scene.interfaceOrientation.isPortrait else { return 0 }
+        let top = resolvedHostInsets(scene).top
+        return top >= 20 && top <= 130 ? top : 0
+    }
+
+    private func contentSlot(in scene: UIWindowScene) -> CGRect {
+        let full = view.bounds
+        let top = chromeTop(in: scene)
+        return CGRect(x: full.minX, y: full.minY + top,
+                      width: full.width, height: full.height - top)
+    }
+
+    private func publishChromeGeometry(_ scene: UIWindowScene, top: CGFloat,
+                                      slot: CGRect) {
+        // Guest process may skip its own additive top inset only if its
+        // UIWindow confirms its exact screen-height-minus-top shape.
+        LCUtils.appGroupUserDefault.set(Double(top),
+            forKey: "Scarlet.Guest.TransparentChromeTop.V1")
+        ScarletDiagnosticRecorder.shared.record(
+            "layout", "resident_transparent_chrome_slot",
+            fields: ["result": top > 0 ? "native_unscaled_content_slot"
+                                         : "full_viewport_fallback",
+                     "slot_top_pt": String(Int(top)),
+                     "slot_height_pt": String(Int(slot.height)),
+                     "host_width_pt": String(Int(view.bounds.width)),
+                     "host_height_pt": String(Int(view.bounds.height)),
+                     "scale_milli": "1000",
+                     "chrome_touches": "false",
+                     "orientation": scene.interfaceOrientation.isPortrait
+                         ? "portrait" : "landscape"])
+    }
+
 
     func setResidentOutsideDismissEnabled(_ enabled: Bool) {
         guard let tap = outsideDismissGesture else { return }
@@ -1293,6 +1332,20 @@ final class ScarletFullscreenSceneViewport: UIViewController {
                              "safe_top_pt": String(Int(safe.top)),
                              "guest_safe_top_pt": String(Int(controller.view.safeAreaInsets.top)),
                              "host_owner_top_pt": String(Int(owner?.doubleValue ?? -1))])
+                if controller.scarletNativeTransparentChromeSlot {
+                    // Read back both rectangles. Requesting FBScene geometry
+                    // is not proof it became the actual guest content frame.
+                    ScarletDiagnosticRecorder.shared.record(
+                        "layout", "guest_chrome_native_frame_readback",
+                        fields: ["result": owner == nil
+                                     ? "hosting_pending" : "hosting_attached",
+                                 "host_safe_top_pt": String(Int(safe.top)),
+                                 "slot_y_pt": String(Int(controller.view.frame.minY)),
+                                 "slot_height_pt": String(Int(controller.view.bounds.height)),
+                                 "remote_content_height_pt": String(Int(controller.contentView?.bounds.height ?? -1)),
+                                 "guest_root_safe_top_pt": String(Int(controller.view.safeAreaInsets.top)),
+                                 "hosting_safe_top_pt": String(Int(owner?.doubleValue ?? -1))])
+                }
             }
             // The R2 device trace had a 62pt owner readback but guest UI
             // still overlapped the island. Remove repeated ancestor writes:
@@ -1370,6 +1423,11 @@ final class ScarletFullscreenSceneViewport: UIViewController {
         super.viewDidLoad()
         view.backgroundColor = .black
         view.clipsToBounds = false
+        transparentChrome.backgroundColor = .clear
+        transparentChrome.isUserInteractionEnabled = false
+        transparentChrome.isAccessibilityElement = false
+        transparentChrome.autoresizingMask = [.flexibleWidth]
+        view.insertSubview(transparentChrome, at: 0)
         let outside = UITapGestureRecognizer(target: self,
             action: #selector(didTapResidentBackground(_:)))
         outside.isEnabled = false
@@ -1420,17 +1478,26 @@ final class ScarletFullscreenSceneViewport: UIViewController {
             return
         }
         lastRejectedBounds = nil
-        if actual != lastBounds {
+        // R6P40: original LiveContainer placed the guest *below* a native
+        // title-bar area. Keep host/full UIWindow unchanged, replace that bar
+        // with an inert transparent view, and give the remote FBScene its real
+        // remaining geometry so it lays out naturally (no clipping/zoom).
+        let chromeTop = chromeTop(in: scene)
+        let slot = contentSlot(in: scene)
+        transparentChrome.frame = CGRect(x: 0, y: 0,
+                                         width: actual.width, height: chromeTop)
+        transparentChrome.isHidden = chromeTop < 1
+        if actual != lastBounds || abs(chromeTop - lastChromeTop) > 0.5 {
             lastBounds = actual
-            // The same unscaled viewport is applied to all resident scenes.
-            // No virtual-window geometry, letterboxing or transform is used.
-            let full = view.bounds
+            lastChromeTop = chromeTop
+            publishChromeGeometry(scene, top: chromeTop, slot: slot)
             let orientation = scene.interfaceOrientation
             for vc in controllers.values {
-                vc.view.frame = full
+                vc.scarletNativeTransparentChromeSlot = chromeTop > 0
+                vc.view.frame = slot
                 vc.updateSettings { settings in
                     guard let settings else { return }
-                    settings.setFrame(full)
+                    settings.setFrame(slot)
                     settings.setInterfaceOrientation(orientation)
                 }
             }
@@ -1438,7 +1505,9 @@ final class ScarletFullscreenSceneViewport: UIViewController {
                 "layout", "fullscreen_scene_geometry_applied",
                 fields: ["width_pt": String(Int(actual.width)),
                          "height_pt": String(Int(actual.height)),
-                         "reason": "verified_fullscreen_viewport"])
+                         "reason": chromeTop > 0
+                             ? "transparent_chrome_native_scene_slot"
+                             : "verified_fullscreen_viewport"])
         }
         reconcile()
         synchronizeAttachedGuestSafeAreas(scene)
@@ -1609,8 +1678,9 @@ final class ScarletFullscreenSceneViewport: UIViewController {
                 continue
             }
             vc.scarletNativeFullscreenSlot = true
+            vc.scarletNativeTransparentChromeSlot = chromeTop(in: scene) > 0
             vc.scaleRatio = 1
-            vc.view.frame = view.bounds
+            vc.view.frame = contentSlot(in: scene)
             vc.view.autoresizingMask =
                 [.flexibleWidth, .flexibleHeight]
             // Do not show an uninitialized LiveProcess surface (black flash).

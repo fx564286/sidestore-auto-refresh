@@ -943,6 +943,7 @@ def add_v45_fullscreen_scene_slot(engine: Path) -> dict:
     assert h.count(old) == 1, "V45 upstream AppScene header changed"
     h = h.replace(old, old +
         "@property(nonatomic) BOOL scarletNativeFullscreenSlot;\n"
+        "@property(nonatomic) BOOL scarletNativeTransparentChromeSlot;\n"
         "- (nullable NSNumber *)scarletApplyHostingContentSafeArea:(UIEdgeInsets)desired;\n"
         "- (BOOL)scarletRemoteContentReady;\n"
         "- (BOOL)scarletEnsureRemoteForeground;\n", 1)
@@ -1076,6 +1077,7 @@ static UIEdgeInsets ScarletPilotHostInsets(UIWindowScene *scene,
             // indicator only through the safe area; a nonzero periphery here
             // re-applies the island inset to an already full-bleed frame.
             settings.peripheryInsets = UIEdgeInsetsZero;
+            if(self.scarletNativeTransparentChromeSlot) safe.top = 0;
             settings.safeAreaInsetsPortrait = safe;
             if(@available(iOS 19.0, *)) {
                 settings.safeAreaEdgeInsets = safe;
@@ -1097,6 +1099,10 @@ static UIEdgeInsets ScarletPilotHostInsets(UIWindowScene *scene,
             objc_setAssociatedObject(scene,
                 (const void *)sel_registerName("scarletNativeFullscreenSlot"),
                 @YES, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+            objc_setAssociatedObject(scene,
+                (const void *)sel_registerName("scarletNativeTransparentChromeSlot"),
+                @(self.scarletNativeTransparentChromeSlot),
+                OBJC_ASSOCIATION_RETAIN_NONATOMIC);
             UIEdgeInsets first = ScarletPilotHostInsets(
                 self.view.window.windowScene, self.view.safeAreaInsets);
             BOOL recovered = NO;
@@ -1206,6 +1212,13 @@ static UIEdgeInsets ScarletPilotHostInsets(UIWindowScene *scene,
             BOOL recovered = NO;
             safe = SCGeometryResolve(self, safe, settings.interfaceOrientation,
                                      &recovered);
+            // Native viewport begins at the host's safe Y, so forwarding
+            // that same top inset again would double-shift the guest.
+            BOOL chrome = [objc_getAssociatedObject(self,
+                (const void *)sel_registerName("scarletNativeTransparentChromeSlot"))
+                boolValue];
+            if(chrome && UIInterfaceOrientationIsPortrait(settings.interfaceOrientation))
+                safe.top = 0;
             // V48-R6: keep the guest scene full-bleed and send Dynamic
             // Island/home-indicator guidance only through the scene's safe
             // area. peripheryInsets=safe double-applied the host inset and

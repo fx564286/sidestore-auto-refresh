@@ -1302,6 +1302,20 @@ static void ScarletIslandInspect(UIWindow *window, NSUInteger attempt) {
     CGFloat target = MAX(sceneTop, hostTop);
     [content layoutIfNeeded];
     CGFloat before = content.safeAreaInsets.top;
+    // R6P40: original-LC-style transparent host chrome reserves the actual
+    // 62pt BEFORE remote FBScene content. This is NOT a separate guest inset.
+    // Never guess from a process-global flag alone: require the guest's own
+    // UIWindow to have the expected native screen-height-minus-slot height.
+    CGFloat chrome = [NSUserDefaults.lcSharedDefaults
+        doubleForKey:@"Scarlet.Guest.TransparentChromeTop.V1"];
+    CGFloat screen = CGRectGetHeight(UIScreen.mainScreen.bounds);
+    if(isfinite(chrome) && chrome >= 20 && chrome <= 130 &&
+       isfinite(screen) && screen >= 500 &&
+       fabs(CGRectGetHeight(window.bounds) + chrome - screen) < 4) {
+        ScarletIslandReceipt(@"guest_transparent_chrome_slot_unpadded",
+                             chrome, before, before);
+        return;
+    }
     if(!isfinite(target) || target < 20 || target > 130) {
         ScarletIslandReceipt(@"target_unavailable", 0, before, before);
         return;
