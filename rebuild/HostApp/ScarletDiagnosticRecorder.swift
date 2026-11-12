@@ -98,7 +98,8 @@ final class ScarletDiagnosticRecorder: @unchecked Sendable {
         "owner_auto_before_pt", "owner_auto_after_pt",
         "candidate_with_controls", "candidate_frame_matched",
         "candidate_safe_matched", "candidate_inset_matched",
-        "candidate_content_matched", "candidate_state_matched"
+        "candidate_content_matched", "candidate_state_matched",
+        "candidate_disabled_scroll", "owner_gate_pass"
     ]
 
     private init() {
