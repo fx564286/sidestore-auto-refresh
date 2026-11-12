@@ -23,6 +23,7 @@ static char scarletIslandAlwaysScheduleKey;
 static char scarletIslandAlwaysAppliedKey;
 static char scarletIslandDeepHeaderAnchorAttemptedKey;
 static char scarletIslandHeaderOwnerProbeKey;
+static char scarletIslandHeaderConstraintTrialKey;
 
 // All guest receipts share one anonymous App Group relay. This carries only
 // bounded numbers and a PID; no labels, view names, app identifiers or images.
@@ -656,6 +657,13 @@ static NSInteger ScarletIslandHeaderItemKind(
     return [item isKindOfClass:UILayoutGuide.class] ? 8 : 7;
 }
 
+// R6P39: explicit measured parent-safe top-anchor test; original P37 frame
+// trial remains inert. No extension, scroll, UIWindow, or root geometry writes.
+static void ScarletIslandTryMeasuredHeaderConstraintBridge(
+    UIWindow *window, UIView *root, UIView *header, UIView *parent,
+    CGFloat safeTop, NSUInteger sample, NSUInteger beforeControls,
+    NSUInteger beforeImages, UIView *firstNode, UIView *secondNode);
+
 static void ScarletIslandObserveDeepHeaderLayoutOwner(
     UIWindow *window, UIView *root, CGFloat safeTop, NSUInteger sample,
     NSDictionary<NSValue *, NSDictionary *> *groups,
@@ -832,6 +840,9 @@ static void ScarletIslandObserveDeepHeaderLayoutOwner(
     fields[@"header_constraints_capped"]=@(capped);
     fields[@"header_constraints"]=rows;
     ScarletIslandPublish(fields);
+    ScarletIslandTryMeasuredHeaderConstraintBridge(
+        window, root, header, parent, safeTop, sample,
+        beforeControls, beforeImages, firstWeak, secondWeak);
 }
 // R6P38_LAYOUT_OWNER_END
 
@@ -2131,6 +2142,175 @@ static void ScarletIslandScheduleNonverticalAlwaysInset(
             weakWindow, weakRoot, expectedTop, YES, NO);
     });
 }
+
+
+// R6P39_CONSTRAINT_BRIDGE_BEGIN
+// Signed P38 session 4e059ca3 (PID1631) measured one 50pt child Y0,
+// parent.safeAreaLayoutGuide Y62, four relevant vertical constraints:
+// own height=50, own guide positions and generated autoresize height=50,
+// but NO explicit constraint attaching the child top to the parent's guide.
+// Unlike P37's overwritten one-shot frame, this uses three owned Auto Layout
+// constraints, retaining all existing guest/root/scroll sizes. It is a
+// strictly unique, reversible experiment, NOT device-proven visual success.
+static void ScarletIslandTryMeasuredHeaderConstraintBridge(
+    UIWindow *window, UIView *root, UIView *header, UIView *parent,
+    CGFloat safeTop, NSUInteger sample, NSUInteger beforeControls,
+    NSUInteger beforeImages, UIView *firstNode, UIView *secondNode) {
+    if(sample!=2600 || !window || !root || !header || !parent ||
+       !firstNode || !secondNode || beforeControls<2 ||
+       objc_getAssociatedObject(root,&scarletIslandHeaderConstraintTrialKey))
+        return;
+    if(header.superview!=parent || header.window!=window ||
+       ![header isDescendantOfView:root] ||
+       !ScarletIslandDeepHeaderOwnerReady(header,parent,root,window,
+                                         safeTop,0) ||
+       !header.translatesAutoresizingMaskIntoConstraints ||
+       header.autoresizingMask!=UIViewAutoresizingNone ||
+       header.hasAmbiguousLayout ||
+       !parent.autoresizesSubviews ||
+       !CGAffineTransformIsIdentity(parent.transform) ||
+       ![header.nextResponder isKindOfClass:UIViewController.class] ||
+       ![parent.nextResponder isKindOfClass:UIViewController.class])
+        return;
+    UIViewController *child=(UIViewController *)header.nextResponder;
+    UIViewController *owner=(UIViewController *)parent.nextResponder;
+    if(child.parentViewController!=owner) return;
+    // Never activate alongside an existing positional relationship. A
+    // generated NSAutoresizingMask height is the only permitted parent
+    // constraint on this measured header, and will be removed by turning
+    // off translation. The header already owns an explicit 50pt height.
+    Class mask=NSClassFromString(@"NSAutoresizingMaskLayoutConstraint");
+    BOOL hasOwnHeight=NO;
+    for(NSLayoutConstraint *constraint in header.constraints) {
+        if(constraint.active && constraint.firstItem==header &&
+           constraint.secondItem==nil &&
+           constraint.firstAttribute==NSLayoutAttributeHeight &&
+           constraint.relation==NSLayoutRelationEqual &&
+           fabs(constraint.constant-CGRectGetHeight(header.bounds))<1)
+            hasOwnHeight=YES;
+    }
+    if(!hasOwnHeight) return;
+    for(NSLayoutConstraint *constraint in parent.constraints) {
+        if(!constraint.active || (mask && [constraint isKindOfClass:mask]))
+            continue;
+        UIView *one=ScarletIslandConstraintItemView(constraint.firstItem);
+        UIView *two=ScarletIslandConstraintItemView(constraint.secondItem);
+        if(one==header || two==header) return;
+    }
+    CGRect original=header.frame;
+    CGRect hostBounds=window.bounds;
+    CGFloat parentSafeY=CGRectGetMinY(parent.safeAreaLayoutGuide.layoutFrame);
+    if(!isfinite(parentSafeY) || !isfinite(original.origin.x) ||
+       !isfinite(original.size.width) ||
+       fabs(parentSafeY-original.origin.y-safeTop)>5 ||
+       fabs(original.size.height-50)>4 ||
+       fabs(original.size.width-CGRectGetWidth(parent.bounds))>4)
+        return;
+    objc_setAssociatedObject(root,&scarletIslandHeaderConstraintTrialKey,
+                             @YES,OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+    __weak UIView *weakHeader=header,*weakParent=parent,*weakRoot=root;
+    __weak UIView *weakFirst=firstNode,*weakSecond=secondNode;
+    __weak UIWindow *weakWindow=window;
+    // Set only the child header's Auto Layout ownership. Do not set a frame,
+    // trigger a forced layout pass or change a global/inset/offset/scale.
+    header.translatesAutoresizingMaskIntoConstraints=NO;
+    NSArray<NSLayoutConstraint *> *owned=@[
+        [header.topAnchor constraintEqualToAnchor:parent.safeAreaLayoutGuide.topAnchor],
+        [header.leadingAnchor constraintEqualToAnchor:parent.leadingAnchor
+                                           constant:original.origin.x],
+        [header.widthAnchor constraintEqualToConstant:original.size.width]
+    ];
+    [NSLayoutConstraint activateConstraints:owned];
+    ScarletIslandDeepHeaderTrialReceipt(
+        @"guest_header_constraint_bridge_staged", @"parent_safe_guide_constraint",
+        safeTop, original.origin.y, parentSafeY,
+        beforeControls, beforeControls, beforeImages, NO);
+
+    // Revert only our constraints and original translation flag; any frame
+    // reset is rollback of a failed experiment, never the treatment.
+    void (^undo)(UIView *)=^(UIView *h) {
+        [NSLayoutConstraint deactivateConstraints:owned];
+        if(h && h.superview==weakParent) {
+            h.translatesAutoresizingMaskIntoConstraints=YES;
+            if(fabs(h.frame.origin.y-parentSafeY)<=3)
+                h.frame=original; // Restore original frame after failed trial only.
+        }
+    };
+    // Main queue readbacks only after UIKit naturally resolves its layout.
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW,
+        (int64_t)240*NSEC_PER_MSEC),dispatch_get_main_queue(), ^{
+        UIView *h=weakHeader,*p=weakParent,*rt=weakRoot;
+        UIWindow *w=weakWindow;
+        BOOL attached=ScarletIslandDeepHeaderOwnerReady(
+            h,p,rt,w,safeTop,safeTop);
+        BOOL sameSize=w &&
+            fabs(CGRectGetWidth(w.bounds)-CGRectGetWidth(hostBounds))<2 &&
+            fabs(CGRectGetHeight(w.bounds)-CGRectGetHeight(hostBounds))<2 &&
+            h && fabs(CGRectGetWidth(h.bounds)-original.size.width)<2 &&
+            fabs(CGRectGetHeight(h.bounds)-original.size.height)<2;
+        NSUInteger images=beforeImages;
+        NSUInteger controls=(attached && sameSize) ?
+            ScarletIslandDeepHeaderCountUnsafe(rt,w,safeTop,&images) :
+            beforeControls;
+        CGRect a=weakFirst && w ?
+            ScarletIslandVisibleFrameInWindow(weakFirst,w):CGRectNull;
+        CGRect b=weakSecond && w ?
+            ScarletIslandVisibleFrameInWindow(weakSecond,w):CGRectNull;
+        BOOL pass=attached && sameSize &&
+            !CGRectIsNull(a) && !CGRectIsNull(b) &&
+            !CGRectIsEmpty(a) && !CGRectIsEmpty(b) &&
+            CGRectGetMinY(a)>=safeTop-2 &&
+            CGRectGetMinY(b)>=safeTop-2 &&
+            controls+2<=beforeControls &&
+            images<=beforeImages+1;
+        if(!pass) {
+            undo(h);
+            ScarletIslandDeepHeaderTrialReceipt(
+                @"guest_header_constraint_bridge_reverted",
+                attached ? @"no_immediate_reduction" : @"native_layout_overrode",
+                safeTop,original.origin.y,h ? h.frame.origin.y:-999,
+                beforeControls,controls,images,NO);
+            return;
+        }
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW,
+            (int64_t)1200*NSEC_PER_MSEC),dispatch_get_main_queue(), ^{
+            UIView *late=weakHeader,*lp=weakParent,*lr=weakRoot;
+            UIWindow *lw=weakWindow;
+            BOOL stable=ScarletIslandDeepHeaderOwnerReady(
+                late,lp,lr,lw,safeTop,safeTop);
+            BOOL same=lw &&
+                fabs(CGRectGetWidth(lw.bounds)-CGRectGetWidth(hostBounds))<2 &&
+                fabs(CGRectGetHeight(lw.bounds)-CGRectGetHeight(hostBounds))<2 &&
+                late && fabs(CGRectGetWidth(late.bounds)-original.size.width)<2 &&
+                fabs(CGRectGetHeight(late.bounds)-original.size.height)<2;
+            NSUInteger lateImages=beforeImages;
+            NSUInteger lateControls=(stable && same) ?
+                ScarletIslandDeepHeaderCountUnsafe(lr,lw,safeTop,&lateImages):
+                beforeControls;
+            CGRect one=weakFirst && lw ?
+                ScarletIslandVisibleFrameInWindow(weakFirst,lw):CGRectNull;
+            CGRect two=weakSecond && lw ?
+                ScarletIslandVisibleFrameInWindow(weakSecond,lw):CGRectNull;
+            BOOL retained=stable && same &&
+                !CGRectIsNull(one) && !CGRectIsNull(two) &&
+                !CGRectIsEmpty(one) && !CGRectIsEmpty(two) &&
+                CGRectGetMinY(one)>=safeTop-2 &&
+                CGRectGetMinY(two)>=safeTop-2 &&
+                lateControls+2<=beforeControls &&
+                lateImages<=beforeImages+1;
+            if(!retained) undo(late);
+            ScarletIslandDeepHeaderTrialReceipt(
+                retained ? @"guest_header_constraint_bridge_retained"
+                         : @"guest_header_constraint_bridge_reverted",
+                retained ? @"late_native_anchor_confirmed"
+                         : @"late_layout_not_persistent",
+                safeTop,original.origin.y,
+                late ? late.frame.origin.y:-999,
+                beforeControls,lateControls,lateImages,retained);
+        });
+    });
+}
+// R6P39_CONSTRAINT_BRIDGE_END
 
 void initScarletGuestIslandContentGuard(void) {
     // The resident opt-in bit is supplied before LC guest bootstrap; all
