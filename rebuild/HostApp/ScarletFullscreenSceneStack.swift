@@ -800,7 +800,15 @@ private final class ScarletGuestIslandReceiptObserver {
                     "unsafe_image_nodes", "visible_unsafe_images",
                     "clipped_unsafe_images", "unsafe_image_nodes_in_scroll",
                     "unsafe_image_nodes_outside_scroll", "first_unsafe_image_y",
-                    "max_depth_seen"]
+                    "max_depth_seen",
+                    // R6P27: anonymized closest-scroll *visible* content owner.
+                    "owner_groups", "owner_dominant_controls",
+                    "owner_dominant_images", "owner_tie", "owner_frame_y",
+                    "owner_frame_width_pct", "owner_frame_height_pct",
+                    "owner_adjusted_inset_top", "owner_content_inset_top",
+                    "owner_offset_y", "owner_adjustment_behavior",
+                    "owner_nested_scrolls", "owner_scroll_enabled",
+                    "owner_content_height_pct", "owner_safe_top"]
                 for field in numericFields {
                     if let number = row[field] as? NSNumber {
                         fields[field] = number.stringValue
