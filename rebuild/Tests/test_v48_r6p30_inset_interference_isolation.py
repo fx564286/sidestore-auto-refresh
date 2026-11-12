@@ -21,14 +21,14 @@ class DeviceInformedInterferenceIsolation(unittest.TestCase):
         self.assertIn("static void ScarletIslandScheduleVisibleLocalOwnerRepair(", G)
         self.assertIn("guest_local_owner_inset_applied", G)
         self.assertNotIn("ScarletIslandScheduleVisibleLocalOwnerRepair(window, root, target);", G)
-        self.assertIn("guest_local_owner_r6p28_quarantined", G)
+        self.assertIn("guest_local_owner_quarantined", G)
         self.assertIn("&scarletIslandP28QuarantineReceiptKey", G)
-        self.assertIn("ScarletIslandReceipt(@\"guest_local_owner_r6p28_quarantined\"", G)
+        self.assertIn("ScarletIslandReceipt(@\"guest_local_owner_quarantined\"", G)
 
     def test_new_strategy_remains_available_without_second_manual_inset(self):
-        self.assertIn("ScarletIslandScheduleResidualAutomaticInset(window, root, target);", G)
+        self.assertIn("ScarletIslandScheduleNonverticalAlwaysInset(window, root, target);", G)
         self.assertEqual(
-            G.count("ScarletIslandScheduleResidualAutomaticInset(window, root, target);"), 1)
+            G.count("ScarletIslandScheduleNonverticalAlwaysInset(window, root, target);"), 1)
         safe = G.split("// R6P29: R6P28 actual signed iPhone", 1)[1].split(
             "void initScarletGuestIslandContentGuard", 1)[0]
         self.assertIn("UIScrollViewContentInsetAdjustmentAutomatic", safe)
