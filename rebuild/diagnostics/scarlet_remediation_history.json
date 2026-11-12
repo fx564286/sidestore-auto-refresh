@@ -1,8 +1,8 @@
 {
   "schema": 2,
   "scope": "Scarlet Crystal guest top-screen overlap, touch access, rotation, remote guest render and related resident regressions",
-  "updated_utc": "2026-11-12T03:45:58+00:00",
-  "current_baseline": "R6P15 includes resident guest-own UIKit root safe-area conditional correction, per-root one-time mutation and bounded layout settling, plus SideStore saved RP transport re-probe. 496 local tests pass; native CI and real iPhone visual and connectivity confirmation remain open.",
+  "updated_utc": "2026-11-12T03:53:24+00:00",
+  "current_baseline": "R6P15 native LiveContainer build PASS; SideStore compile availability failure identified and source patched (Task.sleep nanoseconds); 496 source tests pass. New complete paired CI and iPhone evidence pending.",
   "current_issue_status": "UNRESOLVED: guest app top bars/controls can overlap Dynamic Island (Instagram verified by user, others possible).",
   "confidence_note": "Past-chat-only historical versions were reported in earlier conversations; not all have a GitHub revision or device verification. An implementation, a CI success, a telemetry event, and a real device visual fix are distinct.",
   "privacy": "No credentials, Apple ID, OTP, UDID, guest names or device identifiers are stored.",
@@ -4367,7 +4367,7 @@
       "mechanism": "guest_process_own_root_content_safearea_after_window_attachment",
       "hypothesis": "R6P13 iPhone report showed 62pt normal host window and remote hosting-owner top yet visual island collision continued. Host FBScene metrics do not establish the UIKit safe-area inset consumed by the guest app own root VC, launched inside LiveProcess after host UI initialization. Test the root only after a real guest UIWindow becomes visible or key; never hook all UIKit methods.",
       "action": "Preserve R6P14 switcher/navigation behavior and display scale. Publish anonymous normal UIWindow portrait safe-top in LC App Group only when 20..130pt; inject separate opt-in LiveProcess tweak with UIKit UIWindow lifecycle notification observers (not global swizzling). Compare the guest root UIView.safeAreaInsets.top to max of guest statusBarFrame and verified host top; set only the missing delta via UIViewController.additionalSafeAreaInsets after the guest root has a window. Skip landscape, wrong/not-attached windows, already safe roots, bad/missing target and non-resident processes. Publish PID-scoped anonymous root before/after receipts back to host logs. Add five source/generator tests and independent R6P15 unsigned IPA branch. Pre-build safety hardening: wait for two bounded UIKit layout samples before first correction; associate one owned extra-top delta per guest root to prohibit double padding on UIWindow visible+key notifications. If system safe top resolves later, trim only our additional excess, without altering any app-added original insets.",
-      "observation": "Only prior iPhone SourceCommit e6afe296a535 is observed: normal UIWindow safeTop=62, temporary host viewport top 0, remote owner readback=62, yet guest top bars were reported obscured. New guest-root before/after values have not yet been measured on a real iPhone. 496 local Python regression tests, generator test, YAML parser and git diff --check passed. Native Xcode integration, iPhone optical and touch proof pending. Follow-up guest root race hardening and extended 496/496 source suite pass; these are source verifications, not iPhone visual success.",
+      "observation": "Only prior iPhone SourceCommit e6afe296a535 is observed: normal UIWindow safeTop=62, temporary host viewport top 0, remote owner readback=62, yet guest top bars were reported obscured. New guest-root before/after values have not yet been measured on a real iPhone. 496 local Python regression tests, generator test, YAML parser and git diff --check passed. Native Xcode integration, iPhone optical and touch proof pending. Follow-up guest root race hardening and extended 496/496 source suite pass; these are source verifications, not iPhone visual success. Xcode 27.2 LiveContainer native-engine build succeeded in workflow run 43150404935. iPhone visual correction is still unverified.",
       "evidence": [
         "2026-11-12 iPhone report session 7b3e207c: safearea 62->0->62 and owner -1->62 for two guest launches.",
         "User reports Instagram and potentially other guest apps with island-obscured top controls despite previous 62pt host readbacks.",
@@ -5360,8 +5360,8 @@
       "problem": "pairing_transport",
       "mechanism": "bounded_live_rsd_reprobe_without_pairing_reissuance",
       "hypothesis": "Same iPhone session initially emitted pairing_restored at 02:50:18.955Z, then pairing_state_unverified reason=pairing_saved_transport_unavailable at 02:50:46.969Z, after switching guests. Original SideStore saved RP identity validated, but live RSD reconnection during inspect failed.",
-      "action": "Inside the existing SideStore-owned ScarletGuestRefreshAgent.inspectDevicePairing reuse original typed ScarletGuestDeviceTransport.ensureReady(), which restarts Minimuxer/RSD with the saved RP file and verifies live UDID. After an initial failure, allow one bounded 1100ms stabilization pause then one independent actual transport probe. If both fail, retain pairing_saved_transport_unavailable and do not present verified or erase/reissue any record.",
-      "observation": "No new iPhone live transport receipt yet. 496 Python contract tests pass; source inspection confirms no saved record mutation in inspection and no success without ensureReady(). Xcode compilation pending.",
+      "action": "Inside the existing SideStore-owned ScarletGuestRefreshAgent.inspectDevicePairing reuse original typed ScarletGuestDeviceTransport.ensureReady(), which restarts Minimuxer/RSD with the saved RP file and verifies live UDID. After an initial failure, allow one bounded 1100ms stabilization pause then one independent actual transport probe. If both fail, retain pairing_saved_transport_unavailable and do not present verified or erase/reissue any record. Corrected the first native build rejection: do not call iOS16+ Task.sleep(for:), use nanoseconds variant accepted by deployment target.",
+      "observation": "No new iPhone live transport receipt yet. 496 Python contract tests pass; source inspection confirms no saved record mutation in inspection and no success without ensureReady(). Xcode compilation pending. Xcode 27.2 run 43150404935: LiveContainer successful; SideStore failed with two Task.sleep(for:) iOS16+ availability errors at injected AuthManager.swift:1263. Replaced with deployment-compatible Task.sleep(nanoseconds: 1_100_000_000); 496 Python tests pass. New SideStore native compile remains pending.",
       "evidence": [
         "iPhone current session pairing_restored reason pairing_saved_and_transport_ready at 02:50:18.955Z.",
         "Same session pairing_state_unverified reason pairing_saved_transport_unavailable at 02:50:46.969Z.",
@@ -5417,6 +5417,52 @@
             "        }",
             "    }"
           ]
+        },
+        {
+          "commit": "1beeea5eece8d766fd70540877675882f0e78c08",
+          "file": "rebuild/integration/ScarletGuestRefreshAgent.swift.txt",
+          "location": "@@ -366,7 +366,7 @@",
+          "before": [
+            "            } catch {",
+            "                // Wait only for a transient launch/foreground handoff; do not",
+            "                // spin when VPN is disabled or a device is unreachable.",
+            "                try? await Task.sleep(for: .milliseconds(1100))",
+            "                do {",
+            "                    _ = try await ScarletGuestDeviceTransport.ensureReady()",
+            "                    reply(true, \"pairing_saved_and_transport_ready\")"
+          ],
+          "after": [
+            "            } catch {",
+            "                // Wait only for a transient launch/foreground handoff; do not",
+            "                // spin when VPN is disabled or a device is unreachable.",
+            "                try? await Task.sleep(nanoseconds: 1_100_000_000)",
+            "                do {",
+            "                    _ = try await ScarletGuestDeviceTransport.ensureReady()",
+            "                    reply(true, \"pairing_saved_and_transport_ready\")"
+          ]
+        },
+        {
+          "commit": "8615b6432f8c3d3e00e83470349164096a039fc1",
+          "file": "rebuild/Tests/test_v48_r6p15_guest_root_pairing_recovery.py",
+          "location": "@@ -77,7 +77,7 @@",
+          "before": [
+            "        part = WORKER.split(\"@objc static func inspectDevicePairing(\", 1)[1].split(",
+            "            \"// V29: in-app iOS 27 RPPairing\", 1)[0]",
+            "        self.assertEqual(part.count(\"try await ScarletGuestDeviceTransport.ensureReady()\"), 2)",
+            "        self.assertIn(\"Task.sleep(for: .milliseconds(1100))\", part)",
+            "        self.assertIn('reply(false, \"pairing_saved_transport_unavailable\")', part)",
+            "        self.assertIn('reply(true, \"pairing_saved_and_transport_ready\")', part)",
+            "        self.assertNotIn(\"savePairingFile(\", part)"
+          ],
+          "after": [
+            "        part = WORKER.split(\"@objc static func inspectDevicePairing(\", 1)[1].split(",
+            "            \"// V29: in-app iOS 27 RPPairing\", 1)[0]",
+            "        self.assertEqual(part.count(\"try await ScarletGuestDeviceTransport.ensureReady()\"), 2)",
+            "        self.assertIn(\"Task.sleep(nanoseconds: 1_100_000_000)\", part)",
+            "        self.assertIn('reply(false, \"pairing_saved_transport_unavailable\")', part)",
+            "        self.assertIn('reply(true, \"pairing_saved_and_transport_ready\")', part)",
+            "        self.assertNotIn(\"savePairingFile(\", part)"
+          ]
         }
       ],
       "source_revisions": [
@@ -5424,6 +5470,16 @@
           "sha": "e28d53daf0486b4ae9bf4b87452d431121acbe5a",
           "url": "https://github.com/fx564286/sidestore-auto-refresh/commit/e28d53daf0486b4ae9bf4b87452d431121acbe5a",
           "title": "bounded RSD live-transport reconnection using saved RP record"
+        },
+        {
+          "sha": "1beeea5eece8d766fd70540877675882f0e78c08",
+          "url": "https://github.com/fx564286/sidestore-auto-refresh/commit/1beeea5eece8d766fd70540877675882f0e78c08",
+          "title": "iOS-deployment-compatible RP retry sleep"
+        },
+        {
+          "sha": "8615b6432f8c3d3e00e83470349164096a039fc1",
+          "url": "https://github.com/fx564286/sidestore-auto-refresh/commit/8615b6432f8c3d3e00e83470349164096a039fc1",
+          "title": "test deployment-compatible RP retry sleep"
         }
       ],
       "novelty": {
@@ -5466,7 +5522,7 @@
             "            } catch {",
             "                // Wait only for a transient launch/foreground handoff; do not",
             "                // spin when VPN is disabled or a device is unreachable.",
-            "                try? await Task.sleep(for: .milliseconds(1100))",
+            "                try? await Task.sleep(nanoseconds: 1_100_000_000)",
             "                do {",
             "                    _ = try await ScarletGuestDeviceTransport.ensureReady()",
             "                    reply(true, \"pairing_saved_and_transport_ready\")",
