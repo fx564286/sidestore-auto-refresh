@@ -21,6 +21,7 @@ static char scarletIslandResidualAutoAppliedKey;
 static char scarletIslandP28QuarantineReceiptKey;
 static char scarletIslandAlwaysScheduleKey;
 static char scarletIslandAlwaysAppliedKey;
+static char scarletIslandDeepHeaderAnchorAttemptedKey;
 
 // All guest receipts share one anonymous App Group relay. This carries only
 // bounded numbers and a PID; no labels, view names, app identifiers or images.
@@ -622,6 +623,15 @@ static void ScarletIslandProbeUnsafeAncestorChain(
     });
 }
 
+// R6P37: distinct child-controller safe-guide alignment proof. The P36
+// measured 50pt header controller begins at window Y0 and contains
+// controls at Y3/13 despite parent safe guide at Y62. Never resize the
+// UIWindow, root UIViewController, scroll content or app screen.
+static void ScarletIslandTryDeepHeaderSafeGuideAnchor(
+    UIWindow *window, UIView *root, CGFloat safeTop, NSUInteger sample,
+    NSDictionary<NSValue *, NSDictionary *> *groups,
+    NSUInteger beforeControls, NSUInteger beforeImages);
+
 static void ScarletIslandContentProbe(UIWindow *window,
                                       UIViewController *expectedRoot,
                                       CGFloat expectedTop,
@@ -691,6 +701,238 @@ static void ScarletIslandContentProbe(UIWindow *window,
     ScarletIslandProbeConstraints(window, rootView, expectedTop, sample, ownerGroups);
     ScarletIslandProbeUnsafeAncestorChain(
         window, rootView, expectedTop, sample, ownerGroups);
+    ScarletIslandTryDeepHeaderSafeGuideAnchor(
+        window, rootView, expectedTop, sample, ownerGroups,
+        metrics.visibleUnsafeControls, metrics.visibleUnsafeImageNodes);
+}
+
+// R6P37 distinct measured *short child-controller header* mechanism.
+// Signed P36 PID3731: header UIViewController.view Y0 height50,
+// safeTop62, guideY50, owning full-height parent guideY62, controls
+// at Y3,3,13. Previous global frame/scroll inset adjustments are NOT reused.
+// Only one unique 34..72pt child controller view with >=2 severe children
+// may be shifted to its parent's native safe guide. Never change sizes,
+// root/window frames, contentInsets, contentOffsets or other guest views.
+// One immediate and one later readback must both show fewer unsafe controls
+// and the selected actual controls below the safe line, or revert.
+static void ScarletIslandDeepHeaderTrialReceipt(
+    NSString *result, NSString *reason, CGFloat safeTop,
+    CGFloat beforeY, CGFloat afterY, NSUInteger beforeControls,
+    NSUInteger afterControls, NSUInteger afterImages, BOOL verified) {
+    ScarletIslandPublish(@{
+        @"receipt":NSUUID.UUID.UUIDString,
+        @"pid":@(getpid()), @"epoch":@([[NSDate date] timeIntervalSince1970]),
+        @"result":result ?: @"guest_header_trial_unknown",
+        @"reason":reason ?: @"unknown",
+        @"target":@(ScarletIslandMetric(safeTop)),
+        @"header_before_y":@(ScarletIslandMetric(beforeY)),
+        @"header_after_y":@(ScarletIslandMetric(afterY)),
+        @"header_controls_before":@(beforeControls),
+        @"header_controls_after":@(afterControls),
+        @"header_images_after":@(afterImages),
+        @"header_gate_pass":@(verified)
+    });
+}
+
+static NSUInteger ScarletIslandDeepHeaderCountUnsafe(
+    UIView *root, UIWindow *window, CGFloat safeTop,
+    NSUInteger *images) {
+    ScarletIslandViewMetrics state={0};
+    state.firstTopControlY=NSIntegerMax;
+    state.firstUnsafeControlY=NSIntegerMax;
+    state.firstUnsafeTextY=NSIntegerMax;
+    state.firstUnsafeImageY=NSIntegerMax;
+    state.firstTopScrollY=NSIntegerMax;
+    NSMutableDictionary *owners=[NSMutableDictionary dictionary];
+    ScarletIslandWalkViews(root, window, safeTop, 0, &state, owners);
+    if(images) *images=state.visibleUnsafeImageNodes;
+    return state.visibleUnsafeControls;
+}
+
+static BOOL ScarletIslandDeepHeaderOwnerReady(
+    UIView *header, UIView *parent, UIView *root, UIWindow *window,
+    CGFloat safeTop, CGFloat expectedY) {
+    if(!header || !parent || !root || !window ||
+       header.window!=window || parent.window!=window ||
+       ![header isDescendantOfView:root] || header.superview!=parent ||
+       window.hidden || window.windowLevel!=UIWindowLevelNormal ||
+       window.rootViewController.view!=root ||
+       window.windowScene.activationState!=UISceneActivationStateForegroundActive ||
+       !UIInterfaceOrientationIsPortrait(window.windowScene.interfaceOrientation) ||
+       fabs(root.safeAreaInsets.top-safeTop)>2)
+        return NO;
+    CGRect rect=[header convertRect:header.bounds toView:window];
+    CGRect parentGuide=[parent convertRect:
+        parent.safeAreaLayoutGuide.layoutFrame toView:window];
+    return isfinite(CGRectGetMinY(rect)) && isfinite(CGRectGetMinY(parentGuide)) &&
+        fabs(CGRectGetMinY(rect)-expectedY)<=3 &&
+        fabs(CGRectGetMinY(parentGuide)-safeTop)<=3 &&
+        fabs(CGRectGetHeight(header.bounds)-CGRectGetHeight(header.frame))<=1;
+}
+
+static void ScarletIslandTryDeepHeaderSafeGuideAnchor(
+    UIWindow *window, UIView *root, CGFloat safeTop, NSUInteger sample,
+    NSDictionary<NSValue *, NSDictionary *> *groups,
+    NSUInteger beforeControls, NSUInteger beforeImages) {
+    if(sample!=2600 || !window || !root || safeTop<40 ||
+       safeTop>130 || beforeControls<2 ||
+       objc_getAssociatedObject(root,&scarletIslandDeepHeaderAnchorAttemptedKey))
+        return;
+    UIView *header=nil, *parent=nil;
+    NSUInteger severe=0;
+    BOOL conflicting=NO;
+    __weak UIView *firstWeak=nil, *secondWeak=nil;
+    for(NSValue *key in groups) {
+        UIScrollView *scroll=[key nonretainedObjectValue];
+        if(!scroll || scroll.window!=window) continue;
+        CGRect scrollRect=[scroll convertRect:scroll.bounds toView:window];
+        if(fabs(CGRectGetMinY(scrollRect))>3 ||
+           CGRectGetHeight(scrollRect)<CGRectGetHeight(window.bounds)*0.85)
+            continue;
+        for(UIView *node in groups[key][@"control_nodes"]) {
+            if(!node || node.window!=window) continue;
+            CGRect shown=ScarletIslandVisibleFrameInWindow(node,window);
+            if(CGRectIsNull(shown) || CGRectIsEmpty(shown) ||
+               CGRectGetMinY(shown)>=safeTop-20 ||
+               CGRectGetMaxY(shown)<=5) continue;
+            UIView *candidate=nil, *candidateParent=nil;
+            NSUInteger depth=0;
+            for(UIView *cursor=node; cursor && cursor!=root && depth++<24;
+                cursor=cursor.superview) {
+                UIResponder *responder=cursor.nextResponder;
+                if(![responder isKindOfClass:UIViewController.class] ||
+                   ((UIViewController *)responder).view!=cursor)
+                    continue;
+                UIView *p=cursor.superview;
+                if(!p || p.window!=window ||
+                   CGRectGetHeight(cursor.bounds)<34 ||
+                   CGRectGetHeight(cursor.bounds)>72 ||
+                   CGRectGetHeight(p.bounds)<CGRectGetHeight(window.bounds)*0.85 ||
+                   fabs(CGRectGetMinY([cursor convertRect:cursor.bounds
+                       toView:window]))>3 ||
+                   fabs(CGRectGetMinY([p convertRect:
+                       p.safeAreaLayoutGuide.layoutFrame toView:window])-safeTop)>3 ||
+                   cursor.safeAreaInsets.top<safeTop-2 ||
+                   !cursor.translatesAutoresizingMaskIntoConstraints ||
+                   !CGAffineTransformIsIdentity(cursor.transform))
+                    continue;
+                CGRect guide=[cursor convertRect:
+                    cursor.safeAreaLayoutGuide.layoutFrame toView:window];
+                CGRect frame=[cursor convertRect:cursor.bounds toView:window];
+                if(fabs(CGRectGetMinY(guide)-CGRectGetMaxY(frame))>3)
+                    continue; // Safe guide is collapsed by 50pt header.
+                candidate=cursor; candidateParent=p;
+                break;
+            }
+            if(!candidate) continue;
+            if(header && header!=candidate) { conflicting=YES; break; }
+            header=candidate; parent=candidateParent;
+            severe++;
+            if(severe==1) firstWeak=node;
+            if(severe==2) secondWeak=node;
+        }
+        if(conflicting) break;
+    }
+    if(!header || !parent || conflicting || severe<2 ||
+       !firstWeak || !secondWeak)
+        return;
+    CGRect original=header.frame;
+    CGRect winBounds=window.bounds;
+    CGPoint parentTarget=[parent convertPoint:CGPointMake(0,safeTop)
+        fromView:window];
+    CGFloat targetY=parentTarget.y;
+    if(!isfinite(targetY) ||
+       targetY-original.origin.y<safeTop-5 ||
+       targetY-original.origin.y>safeTop+5 ||
+       !ScarletIslandDeepHeaderOwnerReady(header,parent,root,window,
+                                        safeTop,0))
+        return;
+    objc_setAssociatedObject(root,&scarletIslandDeepHeaderAnchorAttemptedKey,
+                             @YES,OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+    __weak UIView *weakHeader=header, *weakParent=parent, *weakRoot=root;
+    __weak UIWindow *weakWindow=window;
+    CGRect moved=original;
+    moved.origin.y=targetY; // ONLY the 50pt child header view's origin.
+    header.frame=moved; // Preserve original x, width, height and touch geometry.
+    ScarletIslandDeepHeaderTrialReceipt(
+        @"guest_short_header_trial_staged", @"parent_safe_guide_anchor",
+        safeTop, original.origin.y, targetY, beforeControls,
+        beforeControls, beforeImages, NO);
+    // No re-entrant layout setter: verify after UIKit settles naturally.
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW,
+        (int64_t)180*NSEC_PER_MSEC),dispatch_get_main_queue(), ^{
+        UIView *h=weakHeader, *p=weakParent, *rt=weakRoot;
+        UIWindow *w=weakWindow;
+        BOOL attached=ScarletIslandDeepHeaderOwnerReady(
+            h,p,rt,w,safeTop,safeTop);
+        BOOL originalSize=w &&
+            fabs(CGRectGetWidth(w.bounds)-CGRectGetWidth(winBounds))<2 &&
+            fabs(CGRectGetHeight(w.bounds)-CGRectGetHeight(winBounds))<2;
+        NSUInteger images=beforeImages;
+        NSUInteger controls=(attached && originalSize) ?
+            ScarletIslandDeepHeaderCountUnsafe(rt,w,safeTop,&images) :
+            beforeControls;
+        CGRect first=firstWeak && w ?
+            ScarletIslandVisibleFrameInWindow(firstWeak,w) : CGRectNull;
+        CGRect second=secondWeak && w ?
+            ScarletIslandVisibleFrameInWindow(secondWeak,w) : CGRectNull;
+        BOOL improved=attached && originalSize &&
+            !CGRectIsNull(first) && !CGRectIsNull(second) &&
+            !CGRectIsEmpty(first) && !CGRectIsEmpty(second) &&
+            CGRectGetMinY(first)>=safeTop-2 &&
+            CGRectGetMinY(second)>=safeTop-2 &&
+            controls+2<=beforeControls &&
+            images<=beforeImages+1;
+        if(!improved) {
+            if(h && p && w && h.superview==p &&
+               fabs(h.frame.origin.y-targetY)<=3)
+                h.frame=original;
+            ScarletIslandDeepHeaderTrialReceipt(
+                @"guest_short_header_trial_reverted",
+                attached ? @"no_immediate_reduction" : @"native_layout_overrode",
+                safeTop, original.origin.y,
+                h ? h.frame.origin.y : -999, beforeControls,
+                controls, images, NO);
+            return;
+        }
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW,
+            (int64_t)1100*NSEC_PER_MSEC),dispatch_get_main_queue(), ^{
+            UIView *lateHeader=weakHeader,*lateParent=weakParent,*lateRoot=weakRoot;
+            UIWindow *lateWindow=weakWindow;
+            BOOL stable=ScarletIslandDeepHeaderOwnerReady(
+                lateHeader,lateParent,lateRoot,lateWindow,safeTop,safeTop);
+            BOOL windowSame=lateWindow &&
+                fabs(CGRectGetWidth(lateWindow.bounds)-CGRectGetWidth(winBounds))<2 &&
+                fabs(CGRectGetHeight(lateWindow.bounds)-CGRectGetHeight(winBounds))<2;
+            NSUInteger lateImages=beforeImages;
+            NSUInteger lateControls=(stable && windowSame) ?
+                ScarletIslandDeepHeaderCountUnsafe(
+                    lateRoot,lateWindow,safeTop,&lateImages) : beforeControls;
+            CGRect one=firstWeak && lateWindow ?
+                ScarletIslandVisibleFrameInWindow(firstWeak,lateWindow) : CGRectNull;
+            CGRect two=secondWeak && lateWindow ?
+                ScarletIslandVisibleFrameInWindow(secondWeak,lateWindow) : CGRectNull;
+            BOOL retained=stable && windowSame &&
+                !CGRectIsNull(one) && !CGRectIsNull(two) &&
+                !CGRectIsEmpty(one) && !CGRectIsEmpty(two) &&
+                CGRectGetMinY(one)>=safeTop-2 &&
+                CGRectGetMinY(two)>=safeTop-2 &&
+                lateControls+2<=beforeControls &&
+                lateImages<=beforeImages+1;
+            if(!retained && lateHeader && lateParent && lateWindow &&
+               lateHeader.superview==lateParent &&
+               fabs(lateHeader.frame.origin.y-targetY)<=3)
+                lateHeader.frame=original;
+            ScarletIslandDeepHeaderTrialReceipt(
+                retained ? @"guest_short_header_trial_retained"
+                         : @"guest_short_header_trial_reverted",
+                retained ? @"late_safe_guide_confirmed"
+                         : @"late_layout_not_persistent",
+                safeTop, original.origin.y,
+                lateHeader ? lateHeader.frame.origin.y : -999,
+                beforeControls, lateControls, lateImages, retained);
+        });
+    });
 }
 
 // R6P36: P35 iPhone PID3252 receives a valid root-safe62 receipt but
