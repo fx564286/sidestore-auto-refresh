@@ -931,6 +931,10 @@ static void ScarletIslandTryResidualAutomaticInset(
 
     UIScrollView *selected = nil;
     NSUInteger selectedControls = 0;
+    // R6P30: when P29 skips, preserve exactly which geometry or native
+    // scroll-state predicates excluded the remaining visible owners.
+    NSUInteger withControls = 0, frameMatched = 0, safeMatched = 0;
+    NSUInteger insetMatched = 0, contentMatched = 0, stateMatched = 0;
     CGFloat winW = CGRectGetWidth(window.bounds);
     CGFloat winH = CGRectGetHeight(window.bounds);
     for(NSValue *key in groups) {
@@ -944,6 +948,30 @@ static void ScarletIslandTryResidualAutomaticInset(
         CGFloat offset = candidate.contentOffset.y;
         CGFloat contentRatio = candidate.contentSize.height /
             MAX(1, candidate.bounds.size.height);
+        BOOL matchedFrame = fabs(CGRectGetMinY(rect)) <= 3 &&
+            CGRectGetWidth(rect) >= winW * 0.97 &&
+            CGRectGetWidth(rect) <= winW * 1.10 &&
+            CGRectGetHeight(rect) >= winH * 0.85 &&
+            CGRectGetHeight(rect) <= winH * 1.12;
+        BOOL matchedSafe = fabs(localSafe - expectedTop) <= 2;
+        BOOL matchedInset = fabs(adjusted) <= 1 &&
+            fabs(explicitInset) <= 1;
+        BOOL matchedContent = contentRatio >= 0.85 &&
+            contentRatio <= 1.12;
+        BOOL matchedState = fabs(offset) <= 2 &&
+            candidate.scrollEnabled &&
+            candidate.contentInsetAdjustmentBehavior ==
+                UIScrollViewContentInsetAdjustmentNever &&
+            !candidate.dragging && !candidate.tracking &&
+            !candidate.decelerating;
+        if(n >= 2) {
+            withControls++;
+            if(matchedFrame) frameMatched++;
+            if(matchedSafe) safeMatched++;
+            if(matchedInset) insetMatched++;
+            if(matchedContent) contentMatched++;
+            if(matchedState) stateMatched++;
+        }
         BOOL exactResidualOwner = n >= 2 &&
             !objc_getAssociatedObject(candidate, &scarletIslandLocalOwnerAppliedKey) &&
             !objc_getAssociatedObject(candidate, &scarletIslandResidualAutoAppliedKey) &&
@@ -972,6 +1000,18 @@ static void ScarletIslandTryResidualAutomaticInset(
         selectedControls = n;
     }
     if(!selected) {
+        ScarletIslandPublish(@{
+            @"receipt":NSUUID.UUID.UUIDString, @"pid":@(getpid()),
+            @"epoch":@([[NSDate date] timeIntervalSince1970]),
+            @"result":@"guest_residual_auto_classifier",
+            @"owner_groups":@(groups.count),
+            @"candidate_with_controls":@(withControls),
+            @"candidate_frame_matched":@(frameMatched),
+            @"candidate_safe_matched":@(safeMatched),
+            @"candidate_inset_matched":@(insetMatched),
+            @"candidate_content_matched":@(contentMatched),
+            @"candidate_state_matched":@(stateMatched)
+        });
         ScarletIslandResidualAutoReceipt(
             @"guest_residual_auto_skipped", @"no_matching_fullscreen_owner",
             expectedTop, 0, 0, 0, metrics.visibleUnsafeControls);
