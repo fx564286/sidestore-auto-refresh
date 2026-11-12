@@ -59,11 +59,16 @@ typedef struct {
     NSUInteger controls;
     NSUInteger topControls;
     NSUInteger unsafeControls;
+    NSUInteger unsafeControlsInScroll;
+    NSUInteger unsafeControlsOutsideScroll;
+    NSUInteger unsafeControlsUnderZeroInsetChildOwner;
     NSUInteger topScrollWithoutInset;
     NSUInteger topTextNodes;
     NSUInteger unsafeTextNodes;
     NSUInteger topImageNodes;
     NSUInteger unsafeImageNodes;
+    NSUInteger unsafeImageNodesInScroll;
+    NSUInteger unsafeImageNodesOutsideScroll;
     NSUInteger maxDepthSeen;
     BOOL depthCapped;
     BOOL countCapped;
@@ -74,6 +79,28 @@ typedef struct {
     NSInteger firstUnsafeControlY;
     BOOL capped;
 } ScarletIslandViewMetrics;
+
+// R6P23: inspect ancestry, not another root Safe Area / scroll inset.
+// A correct 62pt root can host top controls owned by an independent
+// nested UIViewController, or by a scroll view that R6P22 intentionally
+// refused to modify. Names, classes, URLs and labels are never serialized.
+static void ScarletIslandMeasureUnsafeOwner(
+    UIView *node, UIView *root, BOOL *hasScroll, BOOL *zeroInsetChildOwner) {
+    *hasScroll = NO;
+    *zeroInsetChildOwner = NO;
+    NSUInteger budget = 48;
+    for(UIView *ancestor = node; ancestor && budget--; ancestor = ancestor.superview) {
+        if([ancestor isKindOfClass:UIScrollView.class]) *hasScroll = YES;
+        UIResponder *responder = ancestor.nextResponder;
+        if([responder isKindOfClass:UIViewController.class]) {
+            UIViewController *owner = (UIViewController *)responder;
+            if(owner.view != root && owner.isViewLoaded &&
+               owner.view.safeAreaInsets.top < 2)
+                *zeroInsetChildOwner = YES;
+        }
+        if(ancestor == root) break;
+    }
+}
 
 static void ScarletIslandWalkViews(UIView *view, UIWindow *window,
                                    CGFloat safeY, NSUInteger depth,
@@ -114,6 +141,14 @@ static void ScarletIslandWalkViews(UIView *view, UIWindow *window,
                         metrics->firstTopControlY, (NSInteger)lround(top));
                     if(top < safeY - 2 && bottom > 5) {
                         metrics->unsafeControls++;
+                        BOOL scrollAncestor = NO, childZero = NO;
+                        ScarletIslandMeasureUnsafeOwner(
+                            view, window.rootViewController.view,
+                            &scrollAncestor, &childZero);
+                        if(scrollAncestor) metrics->unsafeControlsInScroll++;
+                        else metrics->unsafeControlsOutsideScroll++;
+                        if(childZero)
+                            metrics->unsafeControlsUnderZeroInsetChildOwner++;
                         metrics->firstUnsafeControlY = MIN(
                             metrics->firstUnsafeControlY, (NSInteger)lround(top));
                     }
@@ -142,6 +177,12 @@ static void ScarletIslandWalkViews(UIView *view, UIWindow *window,
                 metrics->topImageNodes++;
                 if(top < safeY - 2 && bottom > 5) {
                     metrics->unsafeImageNodes++;
+                    BOOL scrollAncestor = NO, childZero = NO;
+                    ScarletIslandMeasureUnsafeOwner(
+                        view, window.rootViewController.view,
+                        &scrollAncestor, &childZero);
+                    if(scrollAncestor) metrics->unsafeImageNodesInScroll++;
+                    else metrics->unsafeImageNodesOutsideScroll++;
                     metrics->firstUnsafeImageY = MIN(
                         metrics->firstUnsafeImageY, (NSInteger)lround(top));
                 }
@@ -203,6 +244,10 @@ static void ScarletIslandContentProbe(UIWindow *window,
         @"candidate_controls":@(metrics.controls),
         @"top_controls":@(metrics.topControls),
         @"unsafe_controls":@(metrics.unsafeControls),
+        @"unsafe_controls_in_scroll":@(metrics.unsafeControlsInScroll),
+        @"unsafe_controls_outside_scroll":@(metrics.unsafeControlsOutsideScroll),
+        @"unsafe_controls_under_zero_inset_child_owner":
+            @(metrics.unsafeControlsUnderZeroInsetChildOwner),
         @"first_top_control_y":@(metrics.firstTopControlY == NSIntegerMax ? -999 : metrics.firstTopControlY),
         @"first_unsafe_control_y":@(metrics.firstUnsafeControlY == NSIntegerMax ? -999 : metrics.firstUnsafeControlY),
         @"scroll_top_without_inset":@(metrics.topScrollWithoutInset),
@@ -212,6 +257,8 @@ static void ScarletIslandContentProbe(UIWindow *window,
         @"first_unsafe_text_y":@(metrics.firstUnsafeTextY == NSIntegerMax ? -999 : metrics.firstUnsafeTextY),
         @"top_image_nodes":@(metrics.topImageNodes),
         @"unsafe_image_nodes":@(metrics.unsafeImageNodes),
+        @"unsafe_image_nodes_in_scroll":@(metrics.unsafeImageNodesInScroll),
+        @"unsafe_image_nodes_outside_scroll":@(metrics.unsafeImageNodesOutsideScroll),
         @"first_unsafe_image_y":@(metrics.firstUnsafeImageY == NSIntegerMax ? -999 : metrics.firstUnsafeImageY),
         @"max_depth_seen":@(metrics.maxDepthSeen),
         @"depth_capped":@(metrics.depthCapped),
@@ -356,10 +403,18 @@ static BOOL ScarletIslandHasUnsafeScrollControl(
     return NO;
 }
 
+// R6P23 classifier: each exclusion counter is a real predicate readback.
+// Counters overlap by design; no scroll receives an inset from this probe.
+typedef struct {
+    NSUInteger seen, nested, notTopFullWidth, notVertical,
+        existingInset, notAtTop, busy, missingUnsafeDescendant, eligible;
+} ScarletIslandScrollClass;
+
 static void ScarletIslandCollectUnsafeScrolls(
     UIView *view, UIView *root, UIWindow *window, CGFloat safeY,
     NSUInteger depth, NSUInteger *budget,
-    NSMutableArray<UIScrollView *> *candidates) {
+    NSMutableArray<UIScrollView *> *candidates,
+    ScarletIslandScrollClass *classification) {
     if(!view || !*budget || depth > 32 ||
        view.hidden || view.alpha < 0.05 || view.window != window)
         return;
@@ -375,25 +430,39 @@ static void ScarletIslandCollectUnsafeScrolls(
             }
         CGRect frame = [scroll convertRect:scroll.bounds toView:window];
         CGFloat top = CGRectGetMinY(frame);
-        if(!nested && !objc_getAssociatedObject(
-               scroll, &scarletIslandScrollInsetKey) &&
-           isfinite(top) && top >= -5 && top <= 12 &&
-           CGRectGetWidth(frame) >= CGRectGetWidth(window.bounds) * 0.7 &&
-           CGRectGetHeight(frame) >= CGRectGetHeight(window.bounds) * 0.4 &&
-           scroll.scrollEnabled && !scroll.dragging &&
-           !scroll.tracking && !scroll.decelerating &&
-           scroll.adjustedContentInset.top < 2 &&
-           scroll.contentSize.height > scroll.bounds.size.height + 12 &&
-           scroll.contentOffset.y >= -2 && scroll.contentOffset.y <= 8) {
-            NSUInteger childBudget = 900;
-            if(ScarletIslandHasUnsafeScrollControl(scroll, window, safeY,
-                                                    0, &childBudget))
-                [candidates addObject:scroll];
+        classification->seen++;
+        BOOL topFullWidth = isfinite(top) && top >= -5 && top <= 12 &&
+            CGRectGetWidth(frame) >= CGRectGetWidth(window.bounds) * 0.7 &&
+            CGRectGetHeight(frame) >= CGRectGetHeight(window.bounds) * 0.4;
+        BOOL vertical = scroll.scrollEnabled &&
+            scroll.contentSize.height > scroll.bounds.size.height + 12;
+        BOOL unmodified = !objc_getAssociatedObject(
+            scroll, &scarletIslandScrollInsetKey) &&
+            scroll.adjustedContentInset.top < 2;
+        BOOL noGesture = !scroll.dragging && !scroll.tracking &&
+            !scroll.decelerating;
+        BOOL nearTop = scroll.contentOffset.y >= -2 &&
+            scroll.contentOffset.y <= 8;
+        NSUInteger childBudget = 900;
+        BOOL unsafe = ScarletIslandHasUnsafeScrollControl(
+            scroll, window, safeY, 0, &childBudget);
+        if(nested) classification->nested++;
+        if(!topFullWidth) classification->notTopFullWidth++;
+        if(!vertical) classification->notVertical++;
+        if(!unmodified) classification->existingInset++;
+        if(!nearTop) classification->notAtTop++;
+        if(!noGesture) classification->busy++;
+        if(!unsafe) classification->missingUnsafeDescendant++;
+        if(!nested && topFullWidth && vertical && unmodified &&
+           nearTop && noGesture && unsafe) {
+            classification->eligible++;
+            [candidates addObject:scroll];
         }
     }
     for(UIView *child in view.subviews)
         ScarletIslandCollectUnsafeScrolls(
-            child, root, window, safeY, depth + 1, budget, candidates);
+            child, root, window, safeY, depth + 1, budget,
+            candidates, classification);
 }
 
 static void ScarletIslandRepairTopScrollableContent(
@@ -407,9 +476,29 @@ static void ScarletIslandRepairTopScrollableContent(
        expectedTop < 20 || expectedTop > 130)
         return;
     NSMutableArray<UIScrollView *> *candidates = [NSMutableArray array];
+    ScarletIslandScrollClass classification = {0};
     NSUInteger budget = 1200;
     ScarletIslandCollectUnsafeScrolls(rootView, rootView, window,
-                                      expectedTop, 0, &budget, candidates);
+                                      expectedTop, 0, &budget, candidates,
+                                      &classification);
+    // Distinguish R6P22 '0 eligible' from 'multiple eligible', and expose
+    // exactly why. The bounded probe never serializes any guest identity.
+    ScarletIslandPublish(@{
+        @"receipt":NSUUID.UUID.UUIDString,
+        @"pid":@(getpid()), @"epoch":@([[NSDate date] timeIntervalSince1970]),
+        @"result":@"guest_scroll_target_classifier",
+        @"target":@((int)lround(expectedTop)),
+        @"seen":@(classification.seen),
+        @"nested":@(classification.nested),
+        @"not_top_full_width":@(classification.notTopFullWidth),
+        @"not_vertical":@(classification.notVertical),
+        @"existing_inset":@(classification.existingInset),
+        @"not_at_top":@(classification.notAtTop),
+        @"busy":@(classification.busy),
+        @"missing_unsafe_descendant":@(classification.missingUnsafeDescendant),
+        @"eligible":@(classification.eligible),
+        @"scan_budget_exhausted":@(budget == 0)
+    });
     if(candidates.count != 1) {
         ScarletIslandReceipt(@"guest_scroll_no_unique_unsafe_target",
                              expectedTop, candidates.count, candidates.count);
