@@ -26,9 +26,9 @@ class DeviceInformedInterferenceIsolation(unittest.TestCase):
         self.assertIn("ScarletIslandReceipt(@\"guest_local_owner_quarantined\"", G)
 
     def test_new_strategy_remains_available_without_second_manual_inset(self):
-        self.assertIn("ScarletIslandScheduleNonverticalAlwaysInset(window, root, target);", G)
+        self.assertNotIn("ScarletIslandScheduleNonverticalAlwaysInset(window, root, target);", G)
         self.assertEqual(
-            G.count("ScarletIslandScheduleNonverticalAlwaysInset(window, root, target);"), 1)
+            G.count("ScarletIslandScheduleNonverticalAlwaysInset(window, root, target);"), 0)
         safe = G.split("// R6P29: R6P28 actual signed iPhone", 1)[1].split(
             "void initScarletGuestIslandContentGuard", 1)[0]
         self.assertIn("UIScrollViewContentInsetAdjustmentAutomatic", safe)

@@ -25,8 +25,8 @@ class R6P24(unittest.TestCase):
             self.assertIn('"'+code+'"',allow)
             self.assertIn('"'+code+'"',NATIVE)
             self.assertIn('case "'+code+'"',GUIDANCE)
-        self.assertIn('allowed.contains(rawReason)',XPC)
-        self.assertIn('ScarletNativeRefreshFailure(reason: status)',XPC)
+        self.assertIn('allowed.contains(candidateReason)',XPC)
+        self.assertIn('ScarletNativeRefreshFailure(reason: status,',XPC)
 
     def test_outgoing_process_keyboard_closed_before_remote_view_hides(self):
         select=HOST.split('    func select(folder: String) -> Bool {',1)[1].split('    func reconcile() {',1)[0]
