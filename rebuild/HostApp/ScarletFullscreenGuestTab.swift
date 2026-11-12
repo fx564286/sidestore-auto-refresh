@@ -195,6 +195,7 @@ struct ScarletFullscreenGuestFloatingTab: View {
     }
 
     private func closePanel() {
+        guard isOpen else { return }
         showingInstallChoices = false
         ScarletGuestSessionLedger.traceSwitcher("panel_closed")
         transitionVersion += 1
@@ -235,12 +236,16 @@ struct ScarletFullscreenGuestFloatingTab: View {
         if switcherHaptics {
             UIImpactFeedbackGenerator(style: .medium).impactOccurred()
         }
+        // Close the live overlay BEFORE the host selects another guest scene.
+        // Closing afterwards can target a hidden/reused hosting view and leave
+        // the previous expanded card visible over the next guest.
+        closePanel()
         if onSwitch(target) {
             // A cold target restarts through LC; it is not a preserved RAM scene.
             ScarletGuestSessionLedger.traceSwitcher("switch_submitted")
-            closePanel()
         } else {
             ScarletGuestSessionLedger.traceSwitcher("switch_submit_failed")
+            openPanel()
             feedback = "앱 전환 요청이 실패했습니다. 앱 목록에서 서명·실행 상태를 확인하세요."
             if switcherHaptics {
                 UINotificationFeedbackGenerator().notificationOccurred(.error)
@@ -399,6 +404,8 @@ struct ScarletFullscreenGuestFloatingTab: View {
                     }
                     ScarletDiagnosticRecorder.shared.record(
                         "guest", "fullscreen_tab_exit_requested")
+                    // Reset SwiftUI @State before host navigation hides UIWindow.
+                    closePanel()
                     onExit()
                 } label: {
                     Label("앱 목록", systemImage: "rectangle.portrait.and.arrow.right")
