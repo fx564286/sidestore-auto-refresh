@@ -54,7 +54,9 @@ class V26MatchedGlassGeometry(unittest.TestCase):
         self.assertIn('.animation(morphAnimation, value: isOpen)',UI)
         self.assertIn('Image(systemName: "square.stack.3d.up.fill")',UI)
         self.assertNotIn('Image(systemName: isOpen ? "xmark"',UI)
-        self.assertIn('.transition(.opacity)', UI)
+        # R6P12: no second fade after the glass starts to unfold.
+        self.assertNotIn('.transition(.opacity)', UI)
+        self.assertIn('.transaction { $0.disablesAnimations = true }', UI)
 
     def test_outside_tap_reverses_without_mask_or_guest_tap_leak(self):
         self.assertIn('Color.clear',UI)
