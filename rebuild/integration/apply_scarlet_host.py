@@ -1906,6 +1906,14 @@ def main():
     if identifier not in identifiers: identifiers.append(identifier)
     pairingTaskID="com.kdt.livecontainer.P8EZT3U5N4.pairing"
     if pairingTaskID not in identifiers: identifiers.append(pairingTaskID)
+    # The user's signing tool has also produced an observed app bundle ID
+    # with one appended team suffix; iOS BG task identifiers are scoped to
+    # that installed app. Declare BOTH exact permitted variants without
+    # changing the app identity or creating new Apple entitlement rights.
+    observedBundle="com.kdt.livecontainer.P8EZT3U5N4.P8EZT3U5N4"
+    for suffix in ("refresh", "pairing"):
+        allowedID=f"{observedBundle}.{suffix}"
+        if allowedID not in identifiers: identifiers.append(allowedID)
     info["BGTaskSchedulerPermittedIdentifiers"]=identifiers
     info["NSLocalNetworkUsageDescription"]=(
         "Scarlet Crystal은 iOS 27에서 기기 페어링을 생성하고 "
