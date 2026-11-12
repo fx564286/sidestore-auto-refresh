@@ -779,6 +779,35 @@ private final class ScarletGuestIslandReceiptObserver {
             let target = (row["target"] as? NSNumber)?.intValue ?? -1
             let before = (row["before"] as? NSNumber)?.intValue ?? -1
             let after = (row["after"] as? NSNumber)?.intValue ?? -1
+            if ["guest_short_header_trial_staged",
+                "guest_short_header_trial_reverted",
+                "guest_short_header_trial_retained"].contains(result) {
+                // R6P37: this is a single specific child controller's
+                // Y-only safe-guide experiment. Never log app/view identity.
+                var fields: [String: String] = [
+                    "process_pid": String(pid),
+                    "safe_top_pt": String(target),
+                    "result": result
+                ]
+                for key in ["header_before_y", "header_after_y",
+                    "header_controls_before", "header_controls_after",
+                    "header_images_after", "header_gate_pass"] {
+                    if let value = row[key] as? NSNumber {
+                        fields[key] = value.stringValue
+                    }
+                }
+                if let reason = row["reason"] as? String,
+                   ["parent_safe_guide_anchor", "no_immediate_reduction",
+                    "native_layout_overrode", "late_safe_guide_confirmed",
+                    "late_layout_not_persistent"].contains(reason) {
+                    fields["reason"] = reason
+                }
+                ScarletDiagnosticRecorder.shared.record(
+                    "layout", "guest_short_header_trial_receipt",
+                    status: result == "guest_short_header_trial_retained"
+                        ? "success" : "info", fields: fields)
+                continue
+            }
             if result == "guest_geometry_probe_status" {
                 // R6P36: a missing guest snapshot is an observable fact;
                 // preserve only closed failure reasons and anonymous flags.
