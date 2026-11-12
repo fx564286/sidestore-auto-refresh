@@ -14,6 +14,8 @@ static char scarletIslandRootAddedInsetKey;
 static char scarletIslandContentProbeKey;
 static char scarletIslandScrollScheduleKey;
 static char scarletIslandScrollInsetKey;
+static char scarletIslandLocalOwnerScheduleKey;
+static char scarletIslandLocalOwnerAppliedKey;
 
 // All guest receipts share one anonymous App Group relay. This carries only
 // bounded numbers and a PID; no labels, view names, app identifiers or images.
@@ -432,6 +434,8 @@ static void ScarletIslandScheduleContentProbe(UIWindow *window,
 
 static void ScarletIslandScheduleScrollContentRepair(
     UIWindow *window, UIViewController *root, CGFloat expectedTop);
+static void ScarletIslandScheduleVisibleLocalOwnerRepair(
+    UIWindow *window, UIViewController *root, CGFloat expectedTop);
 
 static void ScarletIslandInspect(UIWindow *window, NSUInteger attempt) {
     if(!window || window.hidden || window.windowLevel != UIWindowLevelNormal ||
@@ -494,6 +498,9 @@ static void ScarletIslandInspect(UIWindow *window, NSUInteger attempt) {
         // R6P22: one separate, bounded descendant-scroll remedy. Never add
         // another inset to this already-correct guest root or its UIWindow.
         ScarletIslandScheduleScrollContentRepair(window, root, target);
+        // R6P28: separate nested-owner repair, based on R6P27 real device
+        // readback (local owner safeTop12, .never, adjusted inset3).
+        ScarletIslandScheduleVisibleLocalOwnerRepair(window, root, target);
         return;
     }
     if(ourDelta > 0) {
@@ -685,6 +692,176 @@ static void ScarletIslandScheduleScrollContentRepair(
     dispatch_after(dispatch_time(DISPATCH_TIME_NOW,
         (int64_t)900 * NSEC_PER_MSEC), dispatch_get_main_queue(), ^{
         ScarletIslandRepairTopScrollableContent(
+            weakWindow, weakRoot, expectedTop);
+    });
+}
+
+// R6P28: unique visible control owner in the original guest's nested scroll
+// hierarchy. L063's global vertical/full-height scroll gate could not select
+// any of five scrollers, despite 8 visible controls at Y3 and root safeTop62.
+// R6P27 iPhone: dominant short header scroll starts at window Y50, owns 5
+// visible unsafe controls and 5 images, local safeTop12 but top inset3,
+// contentOffset -3 and adjustmentBehavior NEVER. Only add the verified LOCAL
+// missing 9pt to this one native owner. Never resize/translate the guest,
+// alter an app's adjustment behavior, or change other/parent scrollers.
+static void ScarletIslandLocalOwnerReceipt(
+    NSString *result, NSString *reason, CGFloat target,
+    CGFloat before, CGFloat after, UIScrollView *owner, UIWindow *window,
+    NSUInteger groupCount, NSUInteger controls, NSUInteger images) {
+    CGRect frame = owner
+        ? [owner convertRect:owner.bounds toView:window] : CGRectNull;
+    ScarletIslandPublish(@{
+        @"receipt":NSUUID.UUID.UUIDString,
+        @"pid":@(getpid()),
+        @"epoch":@([[NSDate date] timeIntervalSince1970]),
+        @"result":result ?: @"guest_local_owner_inset_skipped",
+        @"reason":reason ?: @"none",
+        @"target":@((int)lround(target)),
+        @"before":@((int)lround(before)),
+        @"after":@((int)lround(after)),
+        @"owner_groups":@(groupCount),
+        @"owner_dominant_controls":@(controls),
+        @"owner_dominant_images":@(images),
+        @"owner_frame_y":@(owner ? (int)lround(CGRectGetMinY(frame)) : -999),
+        @"owner_safe_top":@(owner
+            ? (int)lround(owner.safeAreaInsets.top) : -999)
+    });
+}
+
+static void ScarletIslandRepairVisibleLocalScrollOwner(
+    UIWindow *window, UIViewController *root, CGFloat expectedTop) {
+    if(!window || window.hidden || window.rootViewController != root ||
+       !window.windowScene ||
+       !UIInterfaceOrientationIsPortrait(window.windowScene.interfaceOrientation))
+        return;
+    UIView *rootView = root.isViewLoaded ? root.view : nil;
+    if(!rootView || rootView.window != window || expectedTop < 20 ||
+       expectedTop > 130 ||
+       fabs(rootView.safeAreaInsets.top - expectedTop) > 2)
+        return;
+
+    // Reuse the existing R6P27 actual-visibility classifier, including the
+    // complete ancestor clipping chain, not the old raw window-space Y.
+    ScarletIslandViewMetrics metrics = {0};
+    NSMutableDictionary *groups = [NSMutableDictionary dictionary];
+    ScarletIslandWalkViews(rootView, window, expectedTop, 0,
+                           &metrics, groups);
+    if(metrics.visibleUnsafeControls < 2 || groups.count == 0) return;
+
+    UIScrollView *owner = nil;
+    NSUInteger bestScore = 0, selectedControls = 0, selectedImages = 0;
+    BOOL ambiguous = NO;
+    for(NSValue *key in groups) {
+        UIScrollView *candidate = (UIScrollView *)[key nonretainedObjectValue];
+        if(!candidate || candidate.window != window) continue;
+        NSDictionary *count = groups[key];
+        NSUInteger controls = [count[@"controls"] unsignedIntegerValue];
+        NSUInteger images = [count[@"images"] unsignedIntegerValue];
+        NSUInteger score = controls * 2 + images;
+        if(score > bestScore) {
+            owner = candidate;
+            bestScore = score;
+            selectedControls = controls;
+            selectedImages = images;
+            ambiguous = NO;
+        } else if(score > 0 && score == bestScore) {
+            ambiguous = YES;
+        }
+    }
+    if(!owner || selectedControls < 2 || ambiguous) {
+        ScarletIslandLocalOwnerReceipt(
+            @"guest_local_owner_inset_skipped", @"ambiguous_visible_owner",
+            expectedTop, 0, 0, owner, window, groups.count,
+            selectedControls, selectedImages);
+        return;
+    }
+    // Never overwrite an existing R6P22 inset or run twice on the same view.
+    if(objc_getAssociatedObject(owner, &scarletIslandScrollInsetKey) ||
+       objc_getAssociatedObject(owner, &scarletIslandLocalOwnerAppliedKey))
+        return;
+
+    CGRect frame = [owner convertRect:owner.bounds toView:window];
+    CGFloat y = CGRectGetMinY(frame);
+    CGFloat width = CGRectGetWidth(frame);
+    CGFloat height = CGRectGetHeight(frame);
+    CGFloat windowWidth = CGRectGetWidth(window.bounds);
+    CGFloat windowHeight = CGRectGetHeight(window.bounds);
+    CGFloat localSafeTop = owner.safeAreaInsets.top;
+    CGFloat before = owner.adjustedContentInset.top;
+    CGFloat deficit = ceil(localSafeTop - before);
+    // An observed local safe-area gap, NOT another root 62pt inset. Require
+    // a short full-width owner crossing the actual guest safe-top, at rest,
+    // with UIKit automatic inset adjustment explicitly disabled. A deliberate
+    // edge-to-edge view without visible unsafe descendants is never touched.
+    BOOL trust = isfinite(y) && isfinite(width) && isfinite(height) &&
+        isfinite(localSafeTop) && isfinite(before) &&
+        y >= 0 && y < expectedTop - 2 &&
+        CGRectGetMaxY(frame) > expectedTop + 2 &&
+        width >= windowWidth * 0.90 &&
+        height >= windowHeight * 0.05 &&
+        height <= windowHeight * 0.30 &&
+        fabs(y + localSafeTop - expectedTop) <= 3 &&
+        deficit >= 4 && deficit <= 24 &&
+        before >= 0 && before <= 20 &&
+        UIScrollViewContentInsetAdjustmentNever ==
+            owner.contentInsetAdjustmentBehavior &&
+        owner.scrollEnabled &&
+        owner.contentSize.height <= owner.bounds.size.height + 24 &&
+        !owner.dragging && !owner.tracking && !owner.decelerating &&
+        fabs(owner.contentOffset.y + before) <= 2;
+    if(!trust) {
+        ScarletIslandLocalOwnerReceipt(
+            @"guest_local_owner_inset_skipped", @"owner_guard_not_satisfied",
+            localSafeTop, before, before, owner, window, groups.count,
+            selectedControls, selectedImages);
+        return;
+    }
+
+    // Single bounded local write. Preserve existing 3pt, add at most 24pt;
+    // keep a top-anchored scroll at the new negative inset offset.
+    UIEdgeInsets original = owner.contentInset;
+    CGPoint originalOffset = owner.contentOffset;
+    UIEdgeInsets inset = original;
+    inset.top += deficit;
+    owner.contentInset = inset;
+    CGPoint offset = owner.contentOffset;
+    offset.y = -owner.adjustedContentInset.top;
+    owner.contentOffset = offset;
+    CGFloat after = owner.adjustedContentInset.top;
+    if(!isfinite(after) || after < localSafeTop - 2 ||
+       after > localSafeTop + 3) {
+        // If UIKit refused/recomputed the requested inset, restore exactly
+        // the original guest-owned values rather than leaving two offsets.
+        owner.contentInset = original;
+        owner.contentOffset = originalOffset;
+        ScarletIslandLocalOwnerReceipt(
+            @"guest_local_owner_inset_skipped", @"write_readback_rollback",
+            localSafeTop, before, owner.adjustedContentInset.top,
+            owner, window, groups.count, selectedControls, selectedImages);
+        return;
+    }
+    objc_setAssociatedObject(owner, &scarletIslandLocalOwnerAppliedKey,
+                             @(deficit), OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+    ScarletIslandLocalOwnerReceipt(
+        @"guest_local_owner_inset_applied", @"local_safe_gap_closed",
+        localSafeTop, before, after, owner, window, groups.count,
+        selectedControls, selectedImages);
+}
+
+static void ScarletIslandScheduleVisibleLocalOwnerRepair(
+    UIWindow *window, UIViewController *root, CGFloat expectedTop) {
+    if(objc_getAssociatedObject(root, &scarletIslandLocalOwnerScheduleKey))
+        return;
+    objc_setAssociatedObject(root, &scarletIslandLocalOwnerScheduleKey,
+                             @YES, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+    __weak UIWindow *weakWindow = window;
+    __weak UIViewController *weakRoot = root;
+    // 650ms: untouched actual visibility. 900ms: old L063 guard.
+    // 1100ms: this owner-specific repair only if the old guard did nothing.
+    // 2600ms: existing diagnostic readback measures the remaining overlap.
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW,
+        (int64_t)1100 * NSEC_PER_MSEC), dispatch_get_main_queue(), ^{
+        ScarletIslandRepairVisibleLocalScrollOwner(
             weakWindow, weakRoot, expectedTop);
     });
 }
