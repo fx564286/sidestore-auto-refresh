@@ -825,7 +825,10 @@ private final class ScarletGuestIslandReceiptObserver {
             }
             if ["guest_short_header_trial_staged",
                 "guest_short_header_trial_reverted",
-                "guest_short_header_trial_retained"].contains(result) {
+                "guest_short_header_trial_retained",
+                "guest_header_constraint_bridge_staged",
+                "guest_header_constraint_bridge_reverted",
+                "guest_header_constraint_bridge_retained"].contains(result) {
                 // R6P37: this is a single specific child controller's
                 // Y-only safe-guide experiment. Never log app/view identity.
                 var fields: [String: String] = [
@@ -843,12 +846,19 @@ private final class ScarletGuestIslandReceiptObserver {
                 if let reason = row["reason"] as? String,
                    ["parent_safe_guide_anchor", "no_immediate_reduction",
                     "native_layout_overrode", "late_safe_guide_confirmed",
-                    "late_layout_not_persistent"].contains(reason) {
+                    "late_layout_not_persistent",
+                    "parent_safe_guide_constraint",
+                    "late_native_anchor_confirmed"].contains(reason) {
                     fields["reason"] = reason
                 }
+                let isConstraintBridge = result.hasPrefix(
+                    "guest_header_constraint_bridge_")
                 ScarletDiagnosticRecorder.shared.record(
-                    "layout", "guest_short_header_trial_receipt",
-                    status: result == "guest_short_header_trial_retained"
+                    "layout", isConstraintBridge
+                        ? "guest_header_constraint_bridge_receipt"
+                        : "guest_short_header_trial_receipt",
+                    status: ["guest_short_header_trial_retained",
+                             "guest_header_constraint_bridge_retained"].contains(result)
                         ? "success" : "info", fields: fields)
                 continue
             }
