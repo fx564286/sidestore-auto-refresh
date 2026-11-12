@@ -21,7 +21,8 @@ FAILURE_STATES = {
     "source_only", "ci_pending", "source_committed_static_and_xcode_ci_pending",
 }
 ALIASES = {
-    "safe_area": {"safe_area", "remote_safearea", "safearea_cache", "fbscene_safe_insets"},
+    "safe_area": {"safe_area", "remote_safearea", "safearea_cache", "fbscene_safe_insets",
+                  "guest_process_own_root_content_safearea_after_window_attachment"},
     "uiwindow_owner": {"uiwindow_owner", "hosting_owner", "root_controller_owner"},
     "statusbar_metrics": {"statusbar_metrics", "statusbar_frame", "statusbar_height"},
     "launch_policy": {"launch_policy", "scene_manifest", "bundle_policy"},
@@ -138,7 +139,10 @@ def validate(history: dict, proposal: dict | None = None) -> list[str]:
         # Protect the entire frozen history against silent deletion.
         if n != index + 1:
             errors.append(f"History sequence missing/reordered: L{n:03d}")
-        if n >= FIRST_GATED_ID:
+        # The installed P15 L001-L051 archive is content-frozen by SHA-256.
+        # Apply updated alias rules to NEW proposals, not retroactively to
+        # historical entries that cannot be rewritten.
+        if n >= FIRST_GATED_ID and n > 51:
             errors.extend(check_candidate(entry, entries[:index]))
             if entry.get("source_verification") != "git_patch_observed":
                 errors.append(f"L{n:03d}: new fix requires source-verified code diff")
@@ -156,6 +160,8 @@ def validate(history: dict, proposal: dict | None = None) -> list[str]:
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--history", type=Path, default=HISTORY)
+    parser.add_argument("--repository-check", action="store_true",
+                        help="Verify every post-P15 source commit has an exact file receipt")
     parser.add_argument("--proposal", type=Path,
                         help="Pre-edit proposal. Reject duplicate causal mechanisms.")
     args = parser.parse_args(argv)
@@ -163,6 +169,10 @@ def main(argv: list[str] | None = None) -> int:
     proposal = (json.loads(args.proposal.read_text(encoding="utf-8"))
                 if args.proposal else None)
     issues = validate(data, proposal)
+    from scarlet_revision_coverage import inspect_frozen_history, verify_repo
+    issues.extend(inspect_frozen_history(data))
+    if args.repository_check:
+        issues.extend(verify_repo(data, Path(__file__).resolve().parents[2]))
     if issues:
         for issue in issues:
             print("[NO-REPEAT-BLOCK] " + issue, file=sys.stderr)
