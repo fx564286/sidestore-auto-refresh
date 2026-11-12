@@ -66,7 +66,13 @@ final class ScarletDiagnosticRecorder: @unchecked Sendable {
         // R6P11: anonymous guest Mach-O SDK contract, no identifier/path.
         "sdk_major", "sdk_minor", "sdk_source",
         // Guest-owned UIKit readback only; no names, screenshots or bundle IDs.
-        "guest_root_top_pt", "guest_root_after_pt"
+        "guest_root_top_pt", "guest_root_after_pt",
+        // R6P18: anonymous, bounded guest descendant geometry only; all
+        // strings and identifiers remain excluded by the recorder whitelist.
+        "root_safe_top_pt", "root_frame_y", "root_guide_y", "visited",
+        "candidate_controls", "top_controls", "unsafe_controls",
+        "first_top_control_y", "first_unsafe_control_y",
+        "scroll_top_without_inset", "scan_capped"
     ]
 
     private init() {
