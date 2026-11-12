@@ -11,11 +11,13 @@
 
 static __weak UIWindow *scarletIslandLastWindow;
 static char scarletIslandRootAddedInsetKey;
+static char scarletIslandContentProbeKey;
 
-static void ScarletIslandReceipt(NSString *result, CGFloat required,
-                                 CGFloat before, CGFloat after) {
+// All guest receipts share one anonymous App Group relay. This carries only
+// bounded numbers and a PID; no labels, view names, app identifiers or images.
+static void ScarletIslandPublish(NSDictionary *row) {
     NSUserDefaults *store = NSUserDefaults.lcSharedDefaults;
-    if(!store) return;
+    if(!store || !row) return;
     NSString *key = @"Scarlet.Guest.IslandRootReceipt.V1";
     NSData *raw = [store dataForKey:key];
     NSMutableArray *items = [NSMutableArray array];
@@ -24,13 +26,7 @@ static void ScarletIslandReceipt(NSString *result, CGFloat required,
             options:NSJSONReadingMutableContainers error:NULL];
         if([decoded isKindOfClass:NSArray.class]) [items addObjectsFromArray:decoded];
     }
-    [items addObject:@{@"receipt":NSUUID.UUID.UUIDString,
-                      @"pid":@(getpid()),
-                      @"epoch":@([[NSDate date] timeIntervalSince1970]),
-                      @"result":result ?: @"unknown",
-                      @"target":@((int)round(required)),
-                      @"before":@((int)round(before)),
-                      @"after":@((int)round(after))}];
+    [items addObject:row];
     if(items.count > 18)
         [items removeObjectsInRange:NSMakeRange(0, items.count - 18)];
     NSData *bytes = [NSJSONSerialization dataWithJSONObject:items
@@ -42,6 +38,138 @@ static void ScarletIslandReceipt(NSString *result, CGFloat required,
     CFNotificationCenterPostNotification(
         CFNotificationCenterGetDarwinNotifyCenter(),
         (__bridge CFStringRef)name, NULL, NULL, true);
+}
+
+static void ScarletIslandReceipt(NSString *result, CGFloat required,
+                                 CGFloat before, CGFloat after) {
+    ScarletIslandPublish(@{@"receipt":NSUUID.UUID.UUIDString,
+        @"pid":@(getpid()), @"epoch":@([[NSDate date] timeIntervalSince1970]),
+        @"result":result ?: @"unknown", @"target":@((int)round(required)),
+        @"before":@((int)round(before)), @"after":@((int)round(after))});
+}
+
+// R6P18: root Safe Area was already 62pt on both iPhone LiveProcesses.
+// Measure actual descendant interactive geometry, never reposition it.
+// Only UIKit UIView descendants are enumerable; SwiftUI virtual elements
+// can be invisible to this scanner. Zero candidates never proves no overlap.
+typedef struct {
+    NSUInteger visited;
+    NSUInteger controls;
+    NSUInteger topControls;
+    NSUInteger unsafeControls;
+    NSUInteger topScrollWithoutInset;
+    NSInteger firstTopControlY;
+    NSInteger firstUnsafeControlY;
+    BOOL capped;
+} ScarletIslandViewMetrics;
+
+static void ScarletIslandWalkViews(UIView *view, UIWindow *window,
+                                   CGFloat safeY, NSUInteger depth,
+                                   ScarletIslandViewMetrics *metrics) {
+    if(metrics->visited >= 640 || depth > 9) {
+        metrics->capped = YES;
+        return;
+    }
+    if(!view || view.hidden || view.alpha < 0.05 || view.window != window)
+        return;
+    metrics->visited++;
+    if(depth > 0) {
+        CGRect frame = [view convertRect:view.bounds toView:window];
+        CGFloat top = CGRectGetMinY(frame);
+        CGFloat bottom = CGRectGetMaxY(frame);
+        CGFloat height = CGRectGetHeight(frame);
+        if(isfinite(top) && isfinite(bottom) && isfinite(height) &&
+           height > 2 && height <= 160 && bottom > 0 &&
+           top < CGRectGetHeight(window.bounds)) {
+            BOOL clickable = [view isKindOfClass:UIControl.class] ||
+                (view.isAccessibilityElement &&
+                 (view.accessibilityTraits & UIAccessibilityTraitButton) != 0);
+            if(clickable) {
+                metrics->controls++;
+                if(top < safeY + 160) {
+                    metrics->topControls++;
+                    metrics->firstTopControlY = MIN(
+                        metrics->firstTopControlY, (NSInteger)lround(top));
+                    if(top < safeY - 2 && bottom > 5) {
+                        metrics->unsafeControls++;
+                        metrics->firstUnsafeControlY = MIN(
+                            metrics->firstUnsafeControlY, (NSInteger)lround(top));
+                    }
+                }
+            }
+        }
+        if([view isKindOfClass:UIScrollView.class]) {
+            UIScrollView *scroll = (UIScrollView *)view;
+            if(isfinite(top) && isfinite(bottom) && top < safeY &&
+               bottom > safeY && scroll.adjustedContentInset.top < 2)
+                metrics->topScrollWithoutInset++;
+        }
+    }
+    for(UIView *child in view.subviews) {
+        if(metrics->visited >= 640) {
+            metrics->capped = YES;
+            break;
+        }
+        ScarletIslandWalkViews(child, window, safeY, depth + 1, metrics);
+    }
+}
+
+static void ScarletIslandContentProbe(UIWindow *window,
+                                      UIViewController *expectedRoot,
+                                      CGFloat expectedTop,
+                                      NSUInteger sample) {
+    if(!window || window.hidden || window.rootViewController != expectedRoot ||
+       !UIInterfaceOrientationIsPortrait(window.windowScene.interfaceOrientation))
+        return;
+    UIView *rootView = expectedRoot.isViewLoaded ? expectedRoot.view : nil;
+    if(!rootView || rootView.window != window) return;
+    CGFloat top = rootView.safeAreaInsets.top;
+    if(!isfinite(top) || top < 20 || !isfinite(expectedTop)) return;
+    CGRect rootFrame = [rootView convertRect:rootView.bounds toView:window];
+    CGRect guideFrame = [rootView convertRect:
+        rootView.safeAreaLayoutGuide.layoutFrame toView:window];
+    if(!isfinite(CGRectGetMinY(rootFrame)) ||
+       !isfinite(CGRectGetMinY(guideFrame))) return;
+    ScarletIslandViewMetrics metrics = {0};
+    metrics.firstTopControlY = NSIntegerMax;
+    metrics.firstUnsafeControlY = NSIntegerMax;
+    ScarletIslandWalkViews(rootView, window, expectedTop, 0, &metrics);
+    ScarletIslandPublish(@{
+        @"receipt":NSUUID.UUID.UUIDString,
+        @"pid":@(getpid()), @"epoch":@([[NSDate date] timeIntervalSince1970]),
+        @"result":@"guest_content_geometry_probe",
+        @"target":@((int)lround(expectedTop)),
+        @"before":@((int)lround(top)), @"after":@((int)lround(top)),
+        @"sample_index":@(sample),
+        @"root_frame_y":@((int)lround(CGRectGetMinY(rootFrame))),
+        @"root_guide_y":@((int)lround(CGRectGetMinY(guideFrame))),
+        @"visited":@(metrics.visited),
+        @"candidate_controls":@(metrics.controls),
+        @"top_controls":@(metrics.topControls),
+        @"unsafe_controls":@(metrics.unsafeControls),
+        @"first_top_control_y":@(metrics.firstTopControlY == NSIntegerMax ? -999 : metrics.firstTopControlY),
+        @"first_unsafe_control_y":@(metrics.firstUnsafeControlY == NSIntegerMax ? -999 : metrics.firstUnsafeControlY),
+        @"scroll_top_without_inset":@(metrics.topScrollWithoutInset),
+        @"scan_capped":@(metrics.capped)
+    });
+}
+
+static void ScarletIslandScheduleContentProbe(UIWindow *window,
+                                               UIViewController *root,
+                                               CGFloat expectedTop) {
+    if(objc_getAssociatedObject(root, &scarletIslandContentProbeKey)) return;
+    objc_setAssociatedObject(root, &scarletIslandContentProbeKey,
+        @YES, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+    __weak UIWindow *weakWindow = window;
+    __weak UIViewController *weakRoot = root;
+    // Two bounded nonmutating reads after UIKit/SwiftUI have settled.
+    for(NSNumber *delay in @[@650, @2600]) {
+        NSUInteger sample = delay.unsignedIntegerValue;
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW,
+            (int64_t)sample * NSEC_PER_MSEC), dispatch_get_main_queue(), ^{
+            ScarletIslandContentProbe(weakWindow, weakRoot, expectedTop, sample);
+        });
+    }
 }
 
 static void ScarletIslandInspect(UIWindow *window, NSUInteger attempt) {
@@ -101,6 +229,7 @@ static void ScarletIslandInspect(UIWindow *window, NSUInteger attempt) {
     }
     if(before >= target - 2) {
         ScarletIslandReceipt(@"guest_root_already_safe", target, before, before);
+        ScarletIslandScheduleContentProbe(window, root, target);
         return;
     }
     if(ourDelta > 0) {
