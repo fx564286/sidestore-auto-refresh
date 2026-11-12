@@ -100,7 +100,7 @@ final class ScarletFullscreenSceneStack: NSObject, ObservableObject,
     // hiding the overlay or selecting a different guest.
     private func collapseSwitcherForNavigation(_ reason: String) {
         guard let overlayWindow else { return }
-        overlayWindow.dismissState?.requestClose()
+        overlayWindow.dismissState?.requestImmediateClose()
         overlayWindow.isExpanded = false
         viewport?.setResidentOutsideDismissEnabled(false)
         ScarletDiagnosticRecorder.shared.record(
