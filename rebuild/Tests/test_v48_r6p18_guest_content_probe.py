@@ -22,8 +22,8 @@ class GuestDescendantObservationContracts(unittest.TestCase):
         self.assertIn('window.rootViewController != expectedRoot', GUEST)
 
     def test_sampling_is_bounded_nonmutating_and_window_coordinate_based(self):
-        self.assertIn('metrics->visited >= 640',GUEST)
-        self.assertIn('depth > 9',GUEST)
+        self.assertIn('metrics->visited >= 1200',GUEST)
+        self.assertIn('depth > 24',GUEST)
         self.assertIn('convertRect:view.bounds toView:window',GUEST)
         self.assertIn('rootView.safeAreaLayoutGuide.layoutFrame',GUEST)
         self.assertIn('CGRectGetMinY(guideFrame)',GUEST)
