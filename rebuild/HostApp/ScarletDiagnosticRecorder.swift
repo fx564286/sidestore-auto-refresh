@@ -186,6 +186,20 @@ final class ScarletDiagnosticRecorder: @unchecked Sendable {
         return all.suffix(maxLines).joined(separator: "\n")
     }
 
+    // Build-time embedded, version-pinned, immutable remediation log.
+    // The current-run JSONL remains small and privacy filtered. Only the
+    // explicit user-shared report includes historical code diffs/prompt.
+    // CI replaces both markers with base64 of repo-tracked audited sources.
+    private static let remediationHistoryBlob = "__SCARLET_REMEDIATION_HISTORY_B64__"
+    private static let handoffPromptBlob = "__SCARLET_HANDOFF_PROMPT_B64__"
+    private static func decodedAudit(_ base64: String) -> String {
+        guard let data = Data(base64Encoded: base64),
+              let text = String(data: data, encoding: .utf8) else {
+            return "EMBEDDED_AUDIT_UNAVAILABLE: missing or invalid archive payload."
+        }
+        return text
+    }
+
     func makeShareFile(includeHistory: Bool = false) -> URL? {
         lock.lock()
         defer { lock.unlock() }
@@ -215,6 +229,14 @@ final class ScarletDiagnosticRecorder: @unchecked Sendable {
                 body += chunk
             }
         }
+        // R6P10: full immutable fix history, including where/how each line
+        // was changed. This survives log rotation and app restarts because
+        // it is bundled into the signed binary; not the rolling JSONL.
+        body += "\n===== REMEDIATION HISTORY · FILE/FUNCTION/BEFORE/AFTER DIFF =====\n"
+        body += Self.decodedAudit(Self.remediationHistoryBlob)
+        body += "\n===== NO-REPEAT POLICY & AI HANDOFF PROMPT =====\n"
+        body += Self.decodedAudit(Self.handoffPromptBlob)
+        body += "\n===== END OF EMBEDDED AUDIT =====\n"
         do {
             try body.write(to: file, atomically: true, encoding: .utf8)
             return file

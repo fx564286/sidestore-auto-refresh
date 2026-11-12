@@ -1,0 +1,2634 @@
+{
+  "schema": 2,
+  "scope": "Scarlet Crystal guest top-screen overlap, touch access, rotation, remote guest render and related resident regressions",
+  "updated_utc": "2026-11-12T00:10:00Z",
+  "current_baseline": "R6P9 f29ddd833305; R6P10 history export implementation underway",
+  "current_issue_status": "UNRESOLVED: Dynamic Island clipping/touch failure not proven fixed",
+  "confidence_note": "Past-chat-only historical versions were reported in earlier conversations; not all have a GitHub revision or device verification. An implementation, a CI success, a telemetry event, and a real device visual fix are distinct.",
+  "privacy": "No credentials, Apple ID, OTP, UDID, guest names or device identifiers are stored.",
+  "entries": [
+    {
+      "id": "L001",
+      "date": "2026-10-17",
+      "version": "old-v36",
+      "problem": "guest_top",
+      "mechanism": "window_chrome",
+      "action": "원본 LC 제목줄 숨기기와 전체화면 확대",
+      "observation": "상단 Safe Area/터치 좌표 불일치가 지속",
+      "evidence": "past_chat",
+      "status": "device_unresolved",
+      "repeat_policy": "no_repeat_without_new_device_evidence",
+      "code_locations": [],
+      "source_verification": "source_unavailable",
+      "missing_source_reason": "이전 프로젝트 저장소/원본 커밋이 현재 확인되지 않아 파일·함수·변경 전후를 임의 기입할 수 없음."
+    },
+    {
+      "id": "L002",
+      "date": "2026-10-17",
+      "version": "old-v37",
+      "problem": "guest_top",
+      "mechanism": "overlay_chrome",
+      "action": "창 관리 버튼·Dock 경로 분리",
+      "observation": "중복 버튼·조작 문제, 상단 겹침 해결 근거 없음",
+      "evidence": "past_chat",
+      "status": "unverified",
+      "repeat_policy": "no_repeat_without_new_device_evidence",
+      "code_locations": [],
+      "source_verification": "source_unavailable",
+      "missing_source_reason": "이전 프로젝트 저장소/원본 커밋이 현재 확인되지 않아 파일·함수·변경 전후를 임의 기입할 수 없음."
+    },
+    {
+      "id": "L003",
+      "date": "2026-10-17",
+      "version": "old-v38",
+      "problem": "guest_top",
+      "mechanism": "safe_area",
+      "action": "updateMaximizedSafeAreaWithSettings()에서 상단 여백 재계산",
+      "observation": "수정 시도, 기기 정상화 미확인",
+      "evidence": "past_chat",
+      "status": "device_unresolved",
+      "repeat_policy": "no_repeat_without_new_device_evidence",
+      "code_locations": [],
+      "source_verification": "source_unavailable",
+      "missing_source_reason": "이전 프로젝트 저장소/원본 커밋이 현재 확인되지 않아 파일·함수·변경 전후를 임의 기입할 수 없음."
+    },
+    {
+      "id": "L004",
+      "date": "2026-10-17",
+      "version": "old-v39-v41",
+      "problem": "guest_top",
+      "mechanism": "overlay_chrome",
+      "action": "Dock 중복 최소화, 복귀 버튼·창 위치 보정",
+      "observation": "창 UI 정리, 상단 터치 해결 미확인",
+      "evidence": "past_chat",
+      "status": "unverified",
+      "repeat_policy": "no_repeat_without_new_device_evidence",
+      "code_locations": [],
+      "source_verification": "source_unavailable",
+      "missing_source_reason": "이전 프로젝트 저장소/원본 커밋이 현재 확인되지 않아 파일·함수·변경 전후를 임의 기입할 수 없음."
+    },
+    {
+      "id": "L005",
+      "date": "2026-10-20",
+      "version": "old-3.8.192",
+      "problem": "rotation_top",
+      "mechanism": "frame_transform",
+      "action": "세로/가로 게스트 프레임·Safe Area·터치 좌표 동시 보정",
+      "observation": "사용자 재현에서 계속 잘림/상단 겹침",
+      "evidence": "past_chat",
+      "status": "device_unresolved",
+      "repeat_policy": "no_repeat_without_new_device_evidence",
+      "code_locations": [],
+      "source_verification": "source_unavailable",
+      "missing_source_reason": "이전 프로젝트 저장소/원본 커밋이 현재 확인되지 않아 파일·함수·변경 전후를 임의 기입할 수 없음."
+    },
+    {
+      "id": "L006",
+      "date": "2026-10-22",
+      "version": "old-v72-v73",
+      "problem": "guest_top",
+      "mechanism": "overlay_chrome",
+      "action": "Dock·동적 섬 통합 제거, 44pt 드래그 블러 컨트롤",
+      "observation": "레이아웃/터치 원인 분리 실패",
+      "evidence": "past_chat",
+      "status": "unverified",
+      "repeat_policy": "no_repeat_without_new_device_evidence",
+      "code_locations": [],
+      "source_verification": "source_unavailable",
+      "missing_source_reason": "이전 프로젝트 저장소/원본 커밋이 현재 확인되지 않아 파일·함수·변경 전후를 임의 기입할 수 없음."
+    },
+    {
+      "id": "L007",
+      "date": "2026-10-28",
+      "version": "old-v140",
+      "problem": "guest_top",
+      "mechanism": "overlay_hit_test",
+      "action": "Liquid Glass 확대 및 UIWindow 외부 터치 닫기",
+      "observation": "빈 영역 탭 닫기 기능 회귀, 상단 문제 지속",
+      "evidence": "past_chat",
+      "status": "device_unresolved",
+      "repeat_policy": "no_repeat_without_new_device_evidence",
+      "code_locations": [],
+      "source_verification": "source_unavailable",
+      "missing_source_reason": "이전 프로젝트 저장소/원본 커밋이 현재 확인되지 않아 파일·함수·변경 전후를 임의 기입할 수 없음."
+    },
+    {
+      "id": "L008",
+      "date": "2026-10-28",
+      "version": "old-v141-v142",
+      "problem": "guest_top",
+      "mechanism": "uiwindow_owner",
+      "action": "Safe Area 하위뷰 대신 UIKit 전체화면 루트·UIWindow 계층에 직접 게스트 연결",
+      "observation": "소스 테스트 통과, 실제 상단 문제 해결 미입증",
+      "evidence": "past_chat",
+      "status": "source_only",
+      "repeat_policy": "no_repeat_without_new_device_evidence",
+      "code_locations": [],
+      "source_verification": "source_unavailable",
+      "missing_source_reason": "이전 프로젝트 저장소/원본 커밋이 현재 확인되지 않아 파일·함수·변경 전후를 임의 기입할 수 없음."
+    },
+    {
+      "id": "L009",
+      "date": "2026-10-28",
+      "version": "old-v143-v146",
+      "problem": "rotation_top",
+      "mechanism": "overlay_hit_test",
+      "action": "30pt 잔여 창 조각, 외부 터치, 유리 버튼 계층 보정",
+      "observation": "창 UI 개선은 별도이며 상단 문제 해결 미확인",
+      "evidence": "past_chat",
+      "status": "unverified",
+      "repeat_policy": "no_repeat_without_new_device_evidence",
+      "code_locations": [],
+      "source_verification": "source_unavailable",
+      "missing_source_reason": "이전 프로젝트 저장소/원본 커밋이 현재 확인되지 않아 파일·함수·변경 전후를 임의 기입할 수 없음."
+    },
+    {
+      "id": "L010",
+      "date": "2026-10-28",
+      "version": "old-v151-v152",
+      "problem": "rotation_top",
+      "mechanism": "frame_transform",
+      "action": "앱별 예외 제거·공통 크기/회전/터치 좌표 적용",
+      "observation": "소스 테스트 통과, 앱별 불일치 실제 해결 근거 없음",
+      "evidence": "past_chat",
+      "status": "source_only",
+      "repeat_policy": "no_repeat_without_new_device_evidence",
+      "code_locations": [],
+      "source_verification": "source_unavailable",
+      "missing_source_reason": "이전 프로젝트 저장소/원본 커밋이 현재 확인되지 않아 파일·함수·변경 전후를 임의 기입할 수 없음."
+    },
+    {
+      "id": "L011",
+      "date": "2026-10-28",
+      "version": "old-v153",
+      "problem": "rotation_top",
+      "mechanism": "overlay_hit_test",
+      "action": "패널 잘림·롱터치·우측 버튼 보정",
+      "observation": "IPA 생성, 화면/터치 미검증",
+      "evidence": "past_chat",
+      "status": "ci_only",
+      "repeat_policy": "no_repeat_without_new_device_evidence",
+      "code_locations": [],
+      "source_verification": "source_unavailable",
+      "missing_source_reason": "이전 프로젝트 저장소/원본 커밋이 현재 확인되지 않아 파일·함수·변경 전후를 임의 기입할 수 없음."
+    },
+    {
+      "id": "L012",
+      "date": "2026-11-01",
+      "version": "old-v167",
+      "problem": "guest_boot",
+      "mechanism": "guest_boot",
+      "action": "원격 페어링 연결·게스트 기동 기반 복구",
+      "observation": "사용자 실행 실패 보고",
+      "evidence": "past_chat",
+      "status": "device_unresolved",
+      "repeat_policy": "no_repeat_without_new_device_evidence",
+      "code_locations": [],
+      "source_verification": "source_unavailable",
+      "missing_source_reason": "이전 프로젝트 저장소/원본 커밋이 현재 확인되지 않아 파일·함수·변경 전후를 임의 기입할 수 없음."
+    },
+    {
+      "id": "L013",
+      "date": "2026-11-02",
+      "version": "old-v169",
+      "problem": "rotation_top",
+      "mechanism": "layout_timing",
+      "action": "0.10/0.28/0.55/0.95초 타이머 재배치 대신 UIKit 레이아웃 이벤트 갱신",
+      "observation": "재계산 시점 변경, 기기 상단 겹침 해결 미확인",
+      "evidence": "past_chat",
+      "status": "unverified",
+      "repeat_policy": "no_repeat_without_new_device_evidence",
+      "code_locations": [],
+      "source_verification": "source_unavailable",
+      "missing_source_reason": "이전 프로젝트 저장소/원본 커밋이 현재 확인되지 않아 파일·함수·변경 전후를 임의 기입할 수 없음."
+    },
+    {
+      "id": "L014",
+      "date": "2026-11-02",
+      "version": "old-v171-v175",
+      "problem": "rotation_top",
+      "mechanism": "layout_timing",
+      "action": "회전/영상 복귀·updateVerticalConstraints 갱신 순서 조정",
+      "observation": "V172 사용자 재발 보고, 후속 실기기 해결 근거 없음",
+      "evidence": "past_chat",
+      "status": "device_unresolved",
+      "repeat_policy": "no_repeat_without_new_device_evidence",
+      "code_locations": [],
+      "source_verification": "source_unavailable",
+      "missing_source_reason": "이전 프로젝트 저장소/원본 커밋이 현재 확인되지 않아 파일·함수·변경 전후를 임의 기입할 수 없음."
+    },
+    {
+      "id": "L015",
+      "date": "2026-11-03",
+      "version": "old-v179-v181",
+      "problem": "guest_top",
+      "mechanism": "upstream_comparison",
+      "action": "최신 LC·SideStore 재통합 및 기존 회전/창 보정 재이식",
+      "observation": "기능 누락 발생, 상단 터치 해결 미확인",
+      "evidence": "past_chat",
+      "status": "unverified",
+      "repeat_policy": "no_repeat_without_new_device_evidence",
+      "code_locations": [],
+      "source_verification": "source_unavailable",
+      "missing_source_reason": "이전 프로젝트 저장소/원본 커밋이 현재 확인되지 않아 파일·함수·변경 전후를 임의 기입할 수 없음."
+    },
+    {
+      "id": "L016",
+      "date": "2026-11-09",
+      "version": "new-pr48",
+      "problem": "guest_top",
+      "mechanism": "overlay_chrome",
+      "action": "게스트 전체화면 유지·독립 플로팅 탭 추가(크기 조절 없음)",
+      "observation": "설치/표시·터치 회귀가 이어짐",
+      "evidence": "ec6930c47",
+      "status": "device_unresolved",
+      "repeat_policy": "no_repeat_without_new_device_evidence",
+      "code_locations": [
+        {
+          "commit": "ec6930c47258e4c1e89cb8b25965afde0ab569a5",
+          "file": "rebuild/HostApp/ScarletFullscreenGuestTab.swift",
+          "location": "@@ -0,0 +1,170 @@",
+          "before": [],
+          "after": [
+            "// Scarlet PR48: a guest-only controller overlay. Do NOT alter the host shell,",
+            "// LCAppModel.runApp() or the guest's bounds, orientation and UI hierarchy.",
+            "// PR48 can run exactly one foreground guest process at a time; the panel must",
+            "// not mislabel unlaunched apps as concurrently running.",
+            "import Foundation",
+            "import SwiftUI"
+          ]
+        },
+        {
+          "commit": "ec6930c47258e4c1e89cb8b25965afde0ab569a5",
+          "file": "rebuild/integration/apply_scarlet_host.py",
+          "location": "@@ -747,6 +747,7 @@ def main():",
+          "before": [],
+          "after": [
+            "        root/\"rebuild/HostApp/ScarletFullscreenGuestTab.swift\":\"ScarletFullscreenGuestTab.swift\","
+          ]
+        },
+        {
+          "commit": "ec6930c47258e4c1e89cb8b25965afde0ab569a5",
+          "file": "rebuild/integration/apply_scarlet_host.py",
+          "location": "@@ -829,6 +830,36 @@ def main():",
+          "before": [],
+          "after": [
+            "    # Overlay only: the PR48 default runApp() relaunches an entire guest",
+            "    # process and does NOT create a MultitaskAppWindow. Inject the floating",
+            "    # control via existing guest UIKit hook after its UIApplication is active.",
+            "    # Avoid touching guest bounds, transforms, orientation policies, host tabs.",
+            "    guest_hook_file = engine/\"TweakLoader/UIKit+GuestHooks.m\"",
+            "    assert guest_hook_file.is_file(), \"Pinned LC guest UIKit hook missing\""
+          ]
+        }
+      ],
+      "source_revisions": [
+        {
+          "sha": "ec6930c47258e4c1e89cb8b25965afde0ab569a5",
+          "url": "https://github.com/fx564286/sidestore-auto-refresh/commit/ec6930c47258e4c1e89cb8b25965afde0ab569a5",
+          "title": "feat(scarlet): guest-only floating Liquid Glass tab without resizing PR48"
+        }
+      ],
+      "source_verification": "git_patch_observed"
+    },
+    {
+      "id": "L017",
+      "date": "2026-11-09",
+      "version": "new-v2-v4",
+      "problem": "overlay",
+      "mechanism": "uiwindow_owner",
+      "action": "게스트 UIWindow에 별도 탭 마운트·공식 글래스 패널·드래그/패스스루",
+      "observation": "표시·회전·터치 문제 계속",
+      "evidence": "ee5a61e86",
+      "status": "device_unresolved",
+      "repeat_policy": "no_repeat_without_new_device_evidence",
+      "code_locations": [
+        {
+          "commit": "ee5a61e86bf0886729e7ed7b3295bdc37e5e2529",
+          "file": "rebuild/HostApp/ScarletFullscreenGuestTab.swift",
+          "location": "@@ -75,96 +75,119 @@ struct ScarletFullscreenGuestFloatingTab: View {",
+          "before": [
+            "    private static weak var installedRoot: UIViewController?",
+            "    private static var hosting: UIHostingController<ScarletFullscreenGuestFloatingTab>?",
+            "    private static var wrapper: UIView?",
+            "    private static var widthConstraint: NSLayoutConstraint?",
+            "    private static var heightConstraint: NSLayoutConstraint?",
+            "    private static var expanded = false"
+          ],
+          "after": [
+            "// The normal full-screen guest runs a completely separate UIApplicationMain",
+            "// path, so do not attach to the guest's root controller or alter its size.",
+            "// A small non-key UIWindow drawn above it stays visible even when the guest",
+            "// replaces its own root controller (e.g. after login).",
+            "    private static var floatingWindow: UIWindow?",
+            "    private static weak var guestWindow: UIWindow?"
+          ]
+        },
+        {
+          "commit": "ee5a61e86bf0886729e7ed7b3295bdc37e5e2529",
+          "file": "rebuild/integration/apply_scarlet_host.py",
+          "location": "@@ -841,22 +841,45 @@ def main():",
+          "before": [
+            "        '#import \"Localization.h\"\\n#import <objc/message.h>\\n')",
+            "    guest_hook_source = guest_hook_source.replace(guest_hook_anchor,",
+            "        \"    // PR48 independent floating guest tab; no virtual windows.\\n\"",
+            "        \"        [[NSNotificationCenter defaultCenter] addObserverForName:UIApplicationDidBecomeActiveNotification\\n\"",
+            "        \"          object:nil queue:NSOperationQueue.mainQueue usingBlock:^(NSNotification *note) {\\n\"",
+            "        \"        }];\\n\""
+          ],
+          "after": [
+            "        '#import \"Localization.h\"\\n#import <objc/message.h>\\n#import <dlfcn.h>\\n')",
+            "    guest_hook_source = guest_hook_source.replace(",
+            "        guest_hook_anchor,",
+            "        \"    // The full-screen LC guest skips LiveContainerSwiftUI's main().\\n\"",
+            "        \"    // Its classes are in a separate dylib, not in the main executable.\\n\"",
+            "        \"    // Explicitly load the exact built-in framework before NSClassFromString.\\n\""
+          ]
+        }
+      ],
+      "source_revisions": [
+        {
+          "sha": "ee5a61e86bf0886729e7ed7b3295bdc37e5e2529",
+          "url": "https://github.com/fx564286/sidestore-auto-refresh/commit/ee5a61e86bf0886729e7ed7b3295bdc37e5e2529",
+          "title": "fix(scarlet): load floating tab framework in guest and mount independent overlay window"
+        }
+      ],
+      "source_verification": "git_patch_observed"
+    },
+    {
+      "id": "L018",
+      "date": "2026-11-09",
+      "version": "new-v5-v10",
+      "problem": "overlay",
+      "mechanism": "overlay_hit_test",
+      "action": "안정화 Pan·원형 위치고정·가로세로 회전 중 탭 복구·링 겹침 제거",
+      "observation": "상단 게스트 컨트롤 가림 문제 별도 미해결",
+      "evidence": "9e003e6f4",
+      "status": "unverified",
+      "repeat_policy": "no_repeat_without_new_device_evidence",
+      "code_locations": [
+        {
+          "commit": "9e003e6f46eef8f5ade52734603db3ceb5b20a46",
+          "file": "rebuild/HostApp/ScarletSigningReadinessPanel.swift",
+          "location": "@@ -90,6 +90,7 @@ struct ScarletSigningReadinessPanel: View {",
+          "before": [],
+          "after": [
+            "    @State private var lastRefreshFailureReason: String?"
+          ]
+        },
+        {
+          "commit": "9e003e6f46eef8f5ade52734603db3ceb5b20a46",
+          "file": "rebuild/HostApp/ScarletSigningReadinessPanel.swift",
+          "location": "@@ -108,6 +109,8 @@ struct ScarletSigningReadinessPanel: View {",
+          "before": [],
+          "after": [
+            "        lastRefreshFailureReason = UserDefaults.standard.string(",
+            "            forKey: \"Scarlet.Refresh.LastFailureReason\")"
+          ]
+        },
+        {
+          "commit": "9e003e6f46eef8f5ade52734603db3ceb5b20a46",
+          "file": "rebuild/HostApp/ScarletSigningReadinessPanel.swift",
+          "location": "@@ -129,6 +132,8 @@ struct ScarletSigningReadinessPanel: View {",
+          "before": [],
+          "after": [
+            "        UserDefaults.standard.removeObject(forKey: \"Scarlet.Refresh.LastFailureReason\")",
+            "        lastRefreshFailureReason = nil"
+          ]
+        }
+      ],
+      "source_revisions": [
+        {
+          "sha": "9e003e6f46eef8f5ade52734603db3ceb5b20a46",
+          "url": "https://github.com/fx564286/sidestore-auto-refresh/commit/9e003e6f46eef8f5ade52734603db3ceb5b20a46",
+          "title": "fix(scarlet): display specific native SideStore renewal failure without blaming healthy P12"
+        }
+      ],
+      "source_verification": "git_patch_observed"
+    },
+    {
+      "id": "L019",
+      "date": "2026-11-09",
+      "version": "new-v14-v17",
+      "problem": "guest_switch",
+      "mechanism": "uiwindow_owner",
+      "action": "A/B 세션 리스트·아이콘·회전 재앵커·실제 키 UIWindow 탭 부착",
+      "observation": "전환 UI 일부 개선, 상단 문제 해결 근거 없음",
+      "evidence": "08b010bb5",
+      "status": "unverified",
+      "repeat_policy": "no_repeat_without_new_device_evidence",
+      "code_locations": [
+        {
+          "commit": "08b010bb59166c88a5f1b544486764aa551be2d3",
+          "file": "rebuild/HostApp/ScarletFullscreenGuestTab.swift",
+          "location": "@@ -474,7 +474,15 @@ final class ScarletFullscreenGuestTabInstaller: NSObject {",
+          "before": [
+            "        guard let guestWindow, let floatingWindow else { return }"
+          ],
+          "after": [
+            "        guard let floatingWindow else { return }",
+            "        // Rotation can replace the guest's key UIWindow. Reacquire the",
+            "        // current real owner instead of tracking a stale weak window pointer.",
+            "        if let key = floatingWindow.windowScene?.windows.first(where: {",
+            "            $0 !== floatingWindow && $0.isKeyWindow",
+            "        }) {"
+          ]
+        },
+        {
+          "commit": "08b010bb59166c88a5f1b544486764aa551be2d3",
+          "file": "rebuild/HostApp/ScarletFullscreenGuestTab.swift",
+          "location": "@@ -541,7 +549,9 @@ final class ScarletFullscreenGuestTabInstaller: NSObject {",
+          "before": [
+            "        guard let floatingWindow, let guestWindow else { return }"
+          ],
+          "after": [
+            "        guard let floatingWindow else { return }",
+            "        placeFloatingWindow()",
+            "        guard let guestWindow else { return }"
+          ]
+        }
+      ],
+      "source_revisions": [
+        {
+          "sha": "08b010bb59166c88a5f1b544486764aa551be2d3",
+          "url": "https://github.com/fx564286/sidestore-auto-refresh/commit/08b010bb59166c88a5f1b544486764aa551be2d3",
+          "title": "fix(scarlet): reattach floating tab to actual guest key UIWindow after scene rotation"
+        }
+      ],
+      "source_verification": "git_patch_observed"
+    },
+    {
+      "id": "L020",
+      "date": "2026-11-10",
+      "version": "new-v21-v26",
+      "problem": "overlay",
+      "mechanism": "overlay_hit_test",
+      "action": "게스트 윈도우 fallback/외부 배경탭 닫기/한 개 UIGlassEffect 모핑",
+      "observation": "오버레이 동작 개선, 상단 타이틀/터치 해결 미확인",
+      "evidence": "d165077b4",
+      "status": "unverified",
+      "repeat_policy": "no_repeat_without_new_device_evidence",
+      "code_locations": [
+        {
+          "commit": "d165077b4d74b726fe4a2ba684e1111d3086a3f2",
+          "file": "rebuild/HostApp/ScarletFullscreenGuestTab.swift",
+          "location": "@@ -838,10 +838,20 @@ final class ScarletFullscreenGuestTabInstaller: NSObject {",
+          "before": [
+            "              let original = scene.windows.first(where: { $0.isKeyWindow }),",
+            "              original.rootViewController?.viewIfLoaded?.window != nil else {"
+          ],
+          "after": [
+            "              // Some full-screen LC guest scenes never expose a key window",
+            "              // after an app-to-app handoff. Recover only the visible normal",
+            "              // level root guest window, not an alert/keyboard/our overlay.",
+            "              let original = scene.windows.first(where: { window in",
+            "                    window !== floatingWindow && window.isKeyWindow &&",
+            "                    window.rootViewController?.viewIfLoaded?.window != nil"
+          ]
+        },
+        {
+          "commit": "d165077b4d74b726fe4a2ba684e1111d3086a3f2",
+          "file": "rebuild/HostApp/ScarletFullscreenGuestTab.swift",
+          "location": "@@ -927,6 +937,9 @@ final class ScarletFullscreenGuestTabInstaller: NSObject {",
+          "before": [],
+          "after": [
+            "        if lastFailure == \"window_not_ready\" {",
+            "            ScarletGuestSessionLedger.traceSwitcher(\"mount_window_recovered\")",
+            "        }"
+          ]
+        }
+      ],
+      "source_revisions": [
+        {
+          "sha": "d165077b4d74b726fe4a2ba684e1111d3086a3f2",
+          "url": "https://github.com/fx564286/sidestore-auto-refresh/commit/d165077b4d74b726fe4a2ba684e1111d3086a3f2",
+          "title": "fix(scarlet): mount the guest switcher on the actual visible normal UIWindow after handoff"
+        }
+      ],
+      "source_verification": "git_patch_observed"
+    },
+    {
+      "id": "L021",
+      "date": "2026-11-10",
+      "version": "new-v34",
+      "problem": "guest_top",
+      "mechanism": "virtual_window",
+      "action": "iPhone LiveProcess 가상 창·최대화로 원격 게스트 구성",
+      "observation": "게스트 크기/상단 잘림 회귀로 부적절",
+      "evidence": "13fcbf04d",
+      "status": "device_unresolved",
+      "repeat_policy": "no_repeat_without_new_device_evidence",
+      "code_locations": [
+        {
+          "commit": "13fcbf04d993279911cdf026da78e179538b33cf",
+          "file": "rebuild/HostApp/ScarletFullscreenGuestTab.swift",
+          "location": "@@ -785,7 +785,9 @@ final class ScarletFullscreenGuestTabInstaller: NSObject {",
+          "before": [
+            "                    activeSceneIDs.contains($0) && MultitaskManager.isUsing(container: $0)"
+          ],
+          "after": [
+            "                    (activeSceneIDs.contains($0) &&",
+            "                     MultitaskManager.isUsing(container: $0)) ||",
+            "                    ScarletGuestLiveBridge.isHostKnownLive($0)"
+          ]
+        },
+        {
+          "commit": "13fcbf04d993279911cdf026da78e179538b33cf",
+          "file": "rebuild/HostApp/ScarletFullscreenGuestTab.swift",
+          "location": "@@ -858,14 +860,19 @@ final class ScarletFullscreenGuestTabInstaller: NSObject {",
+          "before": [
+            "        if latest.canSwitch, let container = latest.containerID,",
+            "           MultitaskManager.isUsing(container: container),",
+            "           (MultitaskWindowManager.openExistingAppWindow(dataUUID: container) ||",
+            "            MultitaskDockManager.shared.bringMultitaskViewToFront(uuid: container)) {",
+            "            ScarletDiagnosticRecorder.shared.record(",
+            "                \"guest\", \"switch_existing_multitask_session\","
+          ],
+          "after": [
+            "        if latest.canSwitch, let container = latest.containerID {",
+            "            if MultitaskManager.isUsing(container: container) &&",
+            "               (MultitaskWindowManager.openExistingAppWindow(dataUUID: container) ||",
+            "                MultitaskDockManager.shared.bringMultitaskViewToFront(uuid: container)) {",
+            "                ScarletDiagnosticRecorder.shared.record(",
+            "                    \"guest\", \"switch_existing_multitask_session\","
+          ]
+        },
+        {
+          "commit": "13fcbf04d993279911cdf026da78e179538b33cf",
+          "file": "rebuild/HostApp/ScarletGuestSessionLedger.swift",
+          "location": "@@ -3,6 +3,7 @@",
+          "before": [],
+          "after": [
+            "import CoreFoundation"
+          ]
+        },
+        {
+          "commit": "13fcbf04d993279911cdf026da78e179538b33cf",
+          "file": "rebuild/HostApp/ScarletGuestSessionLedger.swift",
+          "location": "@@ -86,6 +87,7 @@ enum ScarletGuestSessionLedger {",
+          "before": [],
+          "after": [
+            "        \"switch_host_live_requested\","
+          ]
+        },
+        {
+          "commit": "13fcbf04d993279911cdf026da78e179538b33cf",
+          "file": "rebuild/HostApp/ScarletGuestSessionLedger.swift",
+          "location": "@@ -238,3 +240,94 @@ enum ScarletGuestSessionLedger {",
+          "before": [],
+          "after": [
+            "// V34: LiveContainer's original virtual-window manager exists ONLY in the",
+            "// Scarlet host process. The guest overlay runs in a different LiveProcess",
+            "// extension, so MultitaskManager.isUsing() there cannot find host windows.",
+            "// Share opaque container IDs via the pre-existing App Group, and send only",
+            "// a constant Darwin notification. Never transfer guest app names or content.",
+            "@available(iOS 17.0, *)"
+          ]
+        },
+        {
+          "commit": "13fcbf04d993279911cdf026da78e179538b33cf",
+          "file": "rebuild/HostApp/ScarletIntegratedHostView.swift",
+          "location": "@@ -417,28 +417,77 @@ struct ScarletIntegratedHostView: View {",
+          "before": [
+            "                // Native scene path, where genuinely supported, retains each",
+            "                // guest's RAM without changing the guest UIWindow geometry.",
+            "                // On devices lacking multi-scene support retain the original",
+            "                // full-screen LC bootstrap; never force a resized virtual dock.",
+            "                   UIApplication.shared.supportsMultipleScenes,",
+            "                   app.appInfo.defaultClassicMode == 0 {"
+          ],
+          "after": [
+            "                // iPhone supports LC's *virtual* LiveProcess windows even",
+            "                // though UIKit's native supportsMultipleScenes is false.",
+            "                // V33 checked only native scenes and always replaced the",
+            "                // current guest process, destroying RAM continuity.",
+            "                let virtualOnPhone = UIDevice.current.userInterfaceIdiom == .phone",
+            "                let nativeScenesAvailable ="
+          ]
+        },
+        {
+          "commit": "13fcbf04d993279911cdf026da78e179538b33cf",
+          "file": "rebuild/HostApp/ScarletIntegratedHostView.swift",
+          "location": "@@ -957,6 +1006,7 @@ struct ScarletIntegratedHostView: View {",
+          "before": [],
+          "after": [
+            "            ScarletGuestLiveBridge.installHostReceiver()"
+          ]
+        }
+      ],
+      "source_revisions": [
+        {
+          "sha": "13fcbf04d993279911cdf026da78e179538b33cf",
+          "url": "https://github.com/fx564286/sidestore-auto-refresh/commit/13fcbf04d993279911cdf026da78e179538b33cf",
+          "title": "feat(scarlet v34): iPhone LiveProcess virtual windows, maximize guest scenes and resume resident A/B from switcher"
+        }
+      ],
+      "source_verification": "git_patch_observed"
+    },
+    {
+      "id": "L022",
+      "date": "2026-11-10",
+      "version": "new-v35",
+      "problem": "guest_top",
+      "mechanism": "upstream_comparison",
+      "action": "가상 창 금지·원본 LC 전체화면 크기로 롤백",
+      "observation": "기존 크기 복구, 상단 터치 원인 해결 미증명",
+      "evidence": "46284c0b2",
+      "status": "rollback",
+      "repeat_policy": "no_repeat_without_new_device_evidence",
+      "code_locations": [
+        {
+          "commit": "46284c0b2a1afbcbc3c1ee9dfecb7ec00d094ed1",
+          "file": "rebuild/HostApp/ScarletFullscreenGuestTab.swift",
+          "location": "@@ -785,9 +785,7 @@ final class ScarletFullscreenGuestTabInstaller: NSObject {",
+          "before": [
+            "                    (activeSceneIDs.contains($0) &&",
+            "                     MultitaskManager.isUsing(container: $0)) ||",
+            "                    ScarletGuestLiveBridge.isHostKnownLive($0)"
+          ],
+          "after": [
+            "                    activeSceneIDs.contains($0) && MultitaskManager.isUsing(container: $0)"
+          ]
+        },
+        {
+          "commit": "46284c0b2a1afbcbc3c1ee9dfecb7ec00d094ed1",
+          "file": "rebuild/HostApp/ScarletFullscreenGuestTab.swift",
+          "location": "@@ -860,19 +858,14 @@ final class ScarletFullscreenGuestTabInstaller: NSObject {",
+          "before": [
+            "        if latest.canSwitch, let container = latest.containerID {",
+            "            if MultitaskManager.isUsing(container: container) &&",
+            "               (MultitaskWindowManager.openExistingAppWindow(dataUUID: container) ||",
+            "                MultitaskDockManager.shared.bringMultitaskViewToFront(uuid: container)) {",
+            "                ScarletDiagnosticRecorder.shared.record(",
+            "                    \"guest\", \"switch_existing_multitask_session\","
+          ],
+          "after": [
+            "        if latest.canSwitch, let container = latest.containerID,",
+            "           MultitaskManager.isUsing(container: container),",
+            "           (MultitaskWindowManager.openExistingAppWindow(dataUUID: container) ||",
+            "            MultitaskDockManager.shared.bringMultitaskViewToFront(uuid: container)) {",
+            "            ScarletDiagnosticRecorder.shared.record(",
+            "                \"guest\", \"switch_existing_multitask_session\","
+          ]
+        },
+        {
+          "commit": "46284c0b2a1afbcbc3c1ee9dfecb7ec00d094ed1",
+          "file": "rebuild/HostApp/ScarletGuestSessionLedger.swift",
+          "location": "@@ -3,7 +3,6 @@",
+          "before": [
+            "import CoreFoundation"
+          ],
+          "after": []
+        },
+        {
+          "commit": "46284c0b2a1afbcbc3c1ee9dfecb7ec00d094ed1",
+          "file": "rebuild/HostApp/ScarletGuestSessionLedger.swift",
+          "location": "@@ -87,7 +86,6 @@ enum ScarletGuestSessionLedger {",
+          "before": [
+            "        \"switch_host_live_requested\","
+          ],
+          "after": []
+        },
+        {
+          "commit": "46284c0b2a1afbcbc3c1ee9dfecb7ec00d094ed1",
+          "file": "rebuild/HostApp/ScarletGuestSessionLedger.swift",
+          "location": "@@ -240,94 +238,3 @@ enum ScarletGuestSessionLedger {",
+          "before": [
+            "// V34: LiveContainer's original virtual-window manager exists ONLY in the",
+            "// Scarlet host process. The guest overlay runs in a different LiveProcess",
+            "// extension, so MultitaskManager.isUsing() there cannot find host windows.",
+            "// Share opaque container IDs via the pre-existing App Group, and send only",
+            "// a constant Darwin notification. Never transfer guest app names or content.",
+            "@available(iOS 17.0, *)"
+          ],
+          "after": []
+        },
+        {
+          "commit": "46284c0b2a1afbcbc3c1ee9dfecb7ec00d094ed1",
+          "file": "rebuild/HostApp/ScarletIntegratedHostView.swift",
+          "location": "@@ -417,87 +417,46 @@ struct ScarletIntegratedHostView: View {",
+          "before": [
+            "                // iPhone supports LC's *virtual* LiveProcess windows even",
+            "                // though UIKit's native supportsMultipleScenes is false.",
+            "                // V33 checked only native scenes and always replaced the",
+            "                // current guest process, destroying RAM continuity.",
+            "                let virtualOnPhone = UIDevice.current.userInterfaceIdiom == .phone",
+            "                let nativeScenesAvailable ="
+          ],
+          "after": [
+            "                // Native scene path, where genuinely supported, retains each",
+            "                // guest's RAM without changing the guest UIWindow geometry.",
+            "                // On devices lacking multi-scene support retain the original",
+            "                // full-screen LC bootstrap; never force a resized virtual dock.",
+            "                   UIDevice.current.userInterfaceIdiom == .pad,",
+            "                   UIApplication.shared.supportsMultipleScenes,"
+          ]
+        },
+        {
+          "commit": "46284c0b2a1afbcbc3c1ee9dfecb7ec00d094ed1",
+          "file": "rebuild/HostApp/ScarletIntegratedHostView.swift",
+          "location": "@@ -1006,7 +965,18 @@ struct ScarletIntegratedHostView: View {",
+          "before": [
+            "            ScarletGuestLiveBridge.installHostReceiver()"
+          ],
+          "after": [
+            "            // Disable the V34 maximized virtual-window experiment on iPhone.",
+            "            // Only presentation preferences are touched; never guest data,",
+            "            // certificates, pairing or installed application bundles.",
+            "            if UIDevice.current.userInterfaceIdiom == .phone {",
+            "                UserDefaults.standard.set(false, forKey: \"LCLaunchInMultitaskMode\")",
+            "                UserDefaults.standard.set(false, forKey: \"LCLaunchMultitaskMaximized\")"
+          ]
+        }
+      ],
+      "source_revisions": [
+        {
+          "sha": "46284c0b2a1afbcbc3c1ee9dfecb7ec00d094ed1",
+          "url": "https://github.com/fx564286/sidestore-auto-refresh/commit/46284c0b2a1afbcbc3c1ee9dfecb7ec00d094ed1",
+          "title": "fix(scarlet v35): ban iPhone virtual windows, restore original full-screen guest geometry"
+        }
+      ],
+      "source_verification": "git_patch_observed"
+    },
+    {
+      "id": "L023",
+      "date": "2026-11-10",
+      "version": "new-v36",
+      "problem": "guest_top",
+      "mechanism": "window_chrome",
+      "action": "원본 LC 장식/Dock 렌더러 소스 제거",
+      "observation": "호스트 창 장식 제거, 게스트 상단 문제 계속",
+      "evidence": "f5de15cc5",
+      "status": "device_unresolved",
+      "repeat_policy": "no_repeat_without_new_device_evidence",
+      "code_locations": [
+        {
+          "commit": "f5de15cc5f17d9a36d2a2969ee6b61c721add530",
+          "file": "rebuild/HostApp/ScarletFullscreenGuestTab.swift",
+          "location": "@@ -859,9 +859,9 @@ final class ScarletFullscreenGuestTabInstaller: NSObject {",
+          "before": [
+            "           (MultitaskWindowManager.openExistingAppWindow(dataUUID: container) ||",
+            "            MultitaskDockManager.shared.bringMultitaskViewToFront(uuid: container)) {"
+          ],
+          "after": [
+            "           UIDevice.current.userInterfaceIdiom == .pad,",
+            "           MultitaskWindowManager.openExistingAppWindow(dataUUID: container) {"
+          ]
+        },
+        {
+          "commit": "f5de15cc5f17d9a36d2a2969ee6b61c721add530",
+          "file": "rebuild/HostApp/ScarletGuestSwitcherOverlay.swift",
+          "location": "@@ -38,10 +38,6 @@ enum ScarletGuestSceneRegistry {",
+          "before": [
+            "        for app in MultitaskDockManager.shared.apps {",
+            "            guard let view = app.view, view.window != nil, !view.isHidden else { continue }",
+            "            found[app.appUUID] = ScarletGuestTarget(id: app.appUUID, title: app.appName)",
+            "        }"
+          ],
+          "after": []
+        },
+        {
+          "commit": "f5de15cc5f17d9a36d2a2969ee6b61c721add530",
+          "file": "rebuild/HostApp/ScarletGuestSwitcherOverlay.swift",
+          "location": "@@ -56,10 +52,6 @@ enum ScarletGuestSceneRegistry {",
+          "before": [
+            "        } else if let dock = MultitaskDockManager.shared.apps.first(where: {",
+            "            $0.appUUID == dataUUID",
+            "        }), let view = dock.view, view.window != nil && !view.isHidden {",
+            "            eligible = view"
+          ],
+          "after": []
+        },
+        {
+          "commit": "f5de15cc5f17d9a36d2a2969ee6b61c721add530",
+          "file": "rebuild/HostApp/ScarletGuestSwitcherOverlay.swift",
+          "location": "@@ -85,10 +77,8 @@ enum ScarletGuestSceneRegistry {",
+          "before": [
+            "        if MultitaskDockManager.shared.bringMultitaskViewToFront(uuid: dataUUID) {",
+            "            return true",
+            "        }",
+            "        return MultitaskWindowManager.openExistingAppWindow(dataUUID: dataUUID)"
+          ],
+          "after": [
+            "        return UIDevice.current.userInterfaceIdiom == .pad &&",
+            "            MultitaskWindowManager.openExistingAppWindow(dataUUID: dataUUID)"
+          ]
+        },
+        {
+          "commit": "f5de15cc5f17d9a36d2a2969ee6b61c721add530",
+          "file": "rebuild/HostApp/ScarletIntegratedHostView.swift",
+          "location": "@@ -997,13 +997,11 @@ struct ScarletIntegratedHostView: View {",
+          "before": [
+            "            DispatchQueue.main.async {",
+            "                MultitaskDockManager.shared.scarletEnsureWindowHost()",
+            "                let mounted = MultitaskDockManager.shared.windowHostingView.superview != nil",
+            "                NSLog(\"[SCARLET_BOOT] phase=home-visible dock-root-attached=%d\", mounted ? 1 : 0)",
+            "                ScarletDiagnosticRecorder.shared.record(\"boot\", \"dock_attachment\",",
+            "                    fields: [\"window_attached\": mounted ? \"true\" : \"false\"])"
+          ],
+          "after": [
+            "            // V36: legacy LC dock renderer is absent from the binary.",
+            "            NSLog(\"[SCARLET_BOOT] phase=home-visible legacy-dock-source-removed=1\")",
+            "            ScarletDiagnosticRecorder.shared.record(",
+            "                \"boot\", \"legacy_dock_source_removed\",",
+            "                status: \"success\", fields: [\"owner\": \"scarlet_guest_switcher\"])"
+          ]
+        }
+      ],
+      "source_revisions": [
+        {
+          "sha": "f5de15cc5f17d9a36d2a2969ee6b61c721add530",
+          "url": "https://github.com/fx564286/sidestore-auto-refresh/commit/f5de15cc5f17d9a36d2a2969ee6b61c721add530",
+          "title": "fix(scarlet v36): remove legacy LiveContainer dock renderer and decorated window chrome at source"
+        }
+      ],
+      "source_verification": "git_patch_observed"
+    },
+    {
+      "id": "L024",
+      "date": "2026-11-10",
+      "version": "new-v45",
+      "problem": "guest_boot",
+      "mechanism": "scene_owner",
+      "action": "1:1 원격 LiveProcess/상주 AppSceneViewController 스택 도입",
+      "observation": "A/B 메모리 유지 기반 구현, 검은 첫 화면/상단 문제 존재",
+      "evidence": "1c20f05db",
+      "status": "device_unresolved",
+      "repeat_policy": "no_repeat_without_new_device_evidence",
+      "code_locations": [
+        {
+          "commit": "1c20f05dbf58d28c2493d958d4734bf74e6cba77",
+          "file": "rebuild/HostApp/ScarletFullscreenSceneStack.swift",
+          "location": "@@ -0,0 +1,355 @@",
+          "before": [],
+          "after": [
+            "// Scarlet V45 experimental single-viewport LiveProcess compositor.",
+            "// This is NOT a virtual UIWindow, not a decorated LC scene, not a scene",
+            "// session, and does not mutate the full-screen guest's display scale.",
+            "// Keep it mounted while Scarlet's Home UI is visible so live process view",
+            "// controllers are not torn down by dismissing a sheet.",
+            "import Foundation"
+          ]
+        },
+        {
+          "commit": "1c20f05dbf58d28c2493d958d4734bf74e6cba77",
+          "file": "rebuild/HostApp/ScarletIntegratedHostView.swift",
+          "location": "@@ -68,6 +68,11 @@ struct ScarletIntegratedHostView: View {",
+          "before": [],
+          "after": [
+            "    // V45 new architecture: one stable original-size viewport for multiple",
+            "    // resident LiveProcess scenes; disabled unless enabled in Settings.",
+            "    @StateObject private var fullscreenStack = ScarletFullscreenSceneStack()",
+            "    @AppStorage(\"Scarlet.Feature.FullscreenResidentPilot.V45\")",
+            "    private var experimentalFullscreenResident = false"
+          ]
+        },
+        {
+          "commit": "1c20f05dbf58d28c2493d958d4734bf74e6cba77",
+          "file": "rebuild/HostApp/ScarletIntegratedHostView.swift",
+          "location": "@@ -436,6 +441,28 @@ struct ScarletIntegratedHostView: View {",
+          "before": [],
+          "after": [
+            "                // Third path (V45 opt-in): each guest is one original LC",
+            "                // LiveProcess hosted inside ONE real full-screen viewport.",
+            "                // No UIWindow.resize, native window decorations, virtual",
+            "                // multitask app windows, zoom or process-killing cold swap.",
+            "                if experimentalFullscreenResident,",
+            "                   UIDevice.current.userInterfaceIdiom == .phone,"
+          ]
+        },
+        {
+          "commit": "1c20f05dbf58d28c2493d958d4734bf74e6cba77",
+          "file": "rebuild/HostApp/ScarletIntegratedHostView.swift",
+          "location": "@@ -1010,6 +1037,19 @@ struct ScarletIntegratedHostView: View {",
+          "before": [],
+          "after": [
+            "                        .safeAreaInset(edge: .top) {",
+            "                            Toggle(isOn: $experimentalFullscreenResident) {",
+            "                                VStack(alignment: .leading, spacing: 2) {",
+            "                                    Text(\"실험적 전체화면 RAM 유지\")",
+            "                                        .font(.subheadline.weight(.medium))",
+            "                                    Text(\"창 크기를 바꾸지 않는 LiveProcess 장면 전환 · 기기 검증 전\")"
+          ]
+        },
+        {
+          "commit": "1c20f05dbf58d28c2493d958d4734bf74e6cba77",
+          "file": "rebuild/integration/apply_scarlet_host.py",
+          "location": "@@ -931,6 +931,37 @@ def remove_upstream_legacy_window_ui(engine: Path) -> dict:",
+          "before": [],
+          "after": [
+            "def add_v45_fullscreen_scene_slot(engine: Path) -> dict:",
+            "    \"\"\"Create a single full-screen remote-scene viewport, never a fake LC window.",
+            "    Only Scarlet-tagged AppSceneViewController instances use this non-scaling",
+            "    geometry path; all pinned normal LC scene behavior remains unchanged.",
+            "    \"\"\"",
+            "    header = engine/\"MultitaskSupport/AppSceneViewController.h\""
+          ]
+        },
+        {
+          "commit": "1c20f05dbf58d28c2493d958d4734bf74e6cba77",
+          "file": "rebuild/integration/apply_scarlet_host.py",
+          "location": "@@ -965,6 +996,7 @@ def main():",
+          "before": [],
+          "after": [
+            "        root/\"rebuild/HostApp/ScarletFullscreenSceneStack.swift\":\"ScarletFullscreenSceneStack.swift\","
+          ]
+        },
+        {
+          "commit": "1c20f05dbf58d28c2493d958d4734bf74e6cba77",
+          "file": "rebuild/integration/apply_scarlet_host.py",
+          "location": "@@ -1185,6 +1217,7 @@ def main():",
+          "before": [],
+          "after": [
+            "    fullscreen_slot = add_v45_fullscreen_scene_slot(engine)"
+          ]
+        }
+      ],
+      "source_revisions": [
+        {
+          "sha": "1c20f05dbf58d28c2493d958d4734bf74e6cba77",
+          "url": "https://github.com/fx564286/sidestore-auto-refresh/commit/1c20f05dbf58d28c2493d958d4734bf74e6cba77",
+          "title": "feat(v45): experimental unscaled single-fullscreen LiveProcess scene stack, keep V40 fallback"
+        }
+      ],
+      "source_verification": "git_patch_observed"
+    },
+    {
+      "id": "L025",
+      "date": "2026-11-10",
+      "version": "new-v46",
+      "problem": "rotation_top",
+      "mechanism": "frame_transform",
+      "action": "가로·세로 회전 직후 임시 viewport 크기를 확인한 뒤 프레임 적용",
+      "observation": "프레임 손상 방지 소스 수정, 상단 가림 해결 미검증",
+      "evidence": "fb0ace726",
+      "status": "unverified",
+      "repeat_policy": "no_repeat_without_new_device_evidence",
+      "code_locations": [
+        {
+          "commit": "fb0ace72630d80e7c3b5bcb97dd3eefbed97c58a",
+          "file": "rebuild/HostApp/ScarletFullscreenSceneStack.swift",
+          "location": "@@ -239,6 +239,7 @@ final class ScarletFullscreenSceneViewport: UIViewController {",
+          "before": [],
+          "after": [
+            "    private var lastRejectedBounds: CGSize?"
+          ]
+        },
+        {
+          "commit": "fb0ace72630d80e7c3b5bcb97dd3eefbed97c58a",
+          "file": "rebuild/HostApp/ScarletFullscreenSceneStack.swift",
+          "location": "@@ -259,30 +260,49 @@ final class ScarletFullscreenSceneViewport: UIViewController {",
+          "before": [
+            "        if view.bounds.size != lastBounds {",
+            "            lastBounds = view.bounds.size",
+            "            for vc in controllers.values {",
+            "                vc.view.frame = view.bounds",
+            "            }",
+            "        }"
+          ],
+          "after": [
+            "        guard let scene = view.window?.windowScene else { return }",
+            "        // Check real UIWindowScene size *before* touching any child scene.",
+            "        // During rotation, SwiftUI may first deliver a cropped safe-area frame.",
+            "        // V45 accidentally applied this provisional frame to every guest,",
+            "        // then rejected it: the rejection happened after the damage.",
+            "        let expected = scene.coordinateSpace.bounds.size"
+          ]
+        }
+      ],
+      "source_revisions": [
+        {
+          "sha": "fb0ace72630d80e7c3b5bcb97dd3eefbed97c58a",
+          "url": "https://github.com/fx564286/sidestore-auto-refresh/commit/fb0ace72630d80e7c3b5bcb97dd3eefbed97c58a",
+          "title": "fix(v46): validate fullscreen viewport before applying rotation geometry to resident guest scenes"
+        }
+      ],
+      "source_verification": "git_patch_observed"
+    },
+    {
+      "id": "L026",
+      "date": "2026-11-10",
+      "version": "new-v47-v48",
+      "problem": "guest_boot",
+      "mechanism": "scene_owner",
+      "action": "같은 viewport 직접 전환·PID 재사용·사망 Scene 복구·상단 상태 영역 복구",
+      "observation": "전환 기능 일부 진전, 화면 가림·검은 화면 남음",
+      "evidence": "74c237d6c",
+      "status": "device_unresolved",
+      "repeat_policy": "no_repeat_without_new_device_evidence",
+      "code_locations": [
+        {
+          "commit": "96efdb75ecc0574e312f6fddc1f384d82d324c96",
+          "file": "rebuild/integration/apply_scarlet_host.py",
+          "location": "@@ -946,10 +946,10 @@ def add_v45_fullscreen_scene_slot(engine: Path) -> dict:",
+          "before": [
+            "    old = \"        settings.statusBarDisabled = !self.isNativeWindow;\"",
+            "    assert a.count(old) == 1",
+            "    a = a.replace(old,",
+            "        \"        settings.statusBarDisabled = !self.isNativeWindow && !self.scarletNativeFullscreenSlot;\", 1)"
+          ],
+          "after": [
+            "    # Preserve the EXACT upstream full-screen status bar contract. V45's",
+            "    # pilot override could make the guest's remote scene draw a second",
+            "    # status-bar/safe-area policy over Scarlet's real host status bar.",
+            "    assert a.count(\"        settings.statusBarDisabled = !self.isNativeWindow;\") == 1"
+          ]
+        }
+      ],
+      "source_revisions": [
+        {
+          "sha": "74c237d6ca39f38deb679d02a3b76b45ecb067ae",
+          "url": "https://github.com/fx564286/sidestore-auto-refresh/commit/74c237d6ca39f38deb679d02a3b76b45ecb067ae",
+          "title": "fix(v48): keep live guest PID, recover exited scenes, lock runtime mode and restore native status area"
+        },
+        {
+          "sha": "96efdb75ecc0574e312f6fddc1f384d82d324c96",
+          "url": "https://github.com/fx564286/sidestore-auto-refresh/commit/96efdb75ecc0574e312f6fddc1f384d82d324c96",
+          "title": "fix(v48): keep live guest PID, recover exited scenes, lock runtime mode and restore native status area"
+        }
+      ],
+      "source_verification": "git_patch_observed"
+    },
+    {
+      "id": "L027",
+      "date": "2026-11-11",
+      "version": "new-v48-r2-r3",
+      "problem": "overlay",
+      "mechanism": "overlay_hit_test",
+      "action": "클래식/상주 공통 탭, 원본 V48 Pan 복원·드래그 상태기계 고정",
+      "observation": "원본 제스처 보존, 상단 터치 해결 근거 없음",
+      "evidence": "ce412f2b6",
+      "status": "unverified",
+      "repeat_policy": "no_repeat_without_new_device_evidence",
+      "code_locations": [
+        {
+          "commit": "ce412f2b63d7139606b638c91bd1fccb11983641",
+          "file": "rebuild/HostApp/ScarletDiagnosticRecorder.swift",
+          "location": "@@ -17,8 +17,10 @@ final class ScarletDiagnosticRecorder: @unchecked Sendable {",
+          "before": [
+            "    private let maxFileBytes = 1_500_000",
+            "    private let retainedFiles = 4"
+          ],
+          "after": [
+            "    // Full, device-local diagnostic history for the experimental compositor.",
+            "    // Bounded to 8 x 4 MiB, never exported to a network service automatically.",
+            "    private let maxFileBytes = 4_000_000",
+            "    private let retainedFiles = 8"
+          ]
+        },
+        {
+          "commit": "ce412f2b63d7139606b638c91bd1fccb11983641",
+          "file": "rebuild/HostApp/ScarletDiagnosticRecorder.swift",
+          "location": "@@ -34,7 +36,18 @@ final class ScarletDiagnosticRecorder: @unchecked Sendable {",
+          "before": [
+            "        \"process_pid\", \"memory\", \"stage\", \"worker_stage\""
+          ],
+          "after": [
+            "        \"process_pid\", \"memory\", \"stage\", \"worker_stage\",",
+            "        // New V48-R3 diagnostic fields: numbers, bools and fixed enum states.",
+            "        \"old_mode\", \"new_mode\", \"live_session\", \"gesture_phase\",",
+            "        \"button_x_pt\", \"button_y_pt\", \"finger_x_pt\", \"finger_y_pt\",",
+            "        \"drag_dx_pt\", \"drag_dy_pt\", \"window_count\", \"host_key\",",
+            "        \"host_visible\", \"overlay_visible\", \"overlay_expanded\", \"safe_left_pt\","
+          ]
+        },
+        {
+          "commit": "ce412f2b63d7139606b638c91bd1fccb11983641",
+          "file": "rebuild/HostApp/ScarletFullscreenGuestTab.swift",
+          "location": "@@ -22,126 +22,29 @@ struct ScarletGuestSwitchTarget: Identifiable {",
+          "before": [
+            "// Shared by BOTH LC guest-bootstrap and experimental LiveProcess runtimes.",
+            "// The parent execution engine differs; the switcher presentation, gesture,",
+            "// normalized drag storage and hit testing have ONE native implementation.",
+            "@MainActor",
+            "final class ScarletGuestTouchPassthroughWindow: UIWindow, UIGestureRecognizerDelegate {",
+            "    static let positionXKey = \"ScarletGuestRoundTabCenterXFractionV1\""
+          ],
+          "after": [
+            "// A separate non-key UIWindow can still swallow touches in transparent",
+            "// corners. Only the visible round button or the expanded card is interactive;",
+            "// all other touches fall through to the full-screen guest.",
+            "final class ScarletGuestTouchPassthroughWindow: UIWindow {",
+            "    // A stable full-scene non-key window avoids clipping the 62pt glass",
+            "    // circle inside a 72pt moving UIWindow. All taps outside the exact"
+          ]
+        },
+        {
+          "commit": "ce412f2b63d7139606b638c91bd1fccb11983641",
+          "file": "rebuild/HostApp/ScarletFullscreenGuestTab.swift",
+          "location": "@@ -160,6 +63,7 @@ struct ScarletFullscreenGuestFloatingTab: View {",
+          "before": [],
+          "after": [
+            "    @State private var showingInstallChoices = false"
+          ]
+        },
+        {
+          "commit": "ce412f2b63d7139606b638c91bd1fccb11983641",
+          "file": "rebuild/HostApp/ScarletFullscreenGuestTab.swift",
+          "location": "@@ -183,11 +87,17 @@ struct ScarletFullscreenGuestFloatingTab: View {",
+          "before": [
+            "        apps.filter { !$0.isCurrent }"
+          ],
+          "after": [
+            "        let launched = apps.filter { !$0.isCurrent }",
+            "        return launched.filter { $0.reason != \"inplace_first_launch\" }",
+            "    }",
+            "    private var installChoices: [ScarletGuestSwitchTarget] {",
+            "        apps.filter { $0.reason == \"inplace_first_launch\" }",
+            "        showingInstallChoices = false"
+          ]
+        },
+        {
+          "commit": "ce412f2b63d7139606b638c91bd1fccb11983641",
+          "file": "rebuild/HostApp/ScarletFullscreenSceneStack.swift",
+          "location": "@@ -137,24 +137,29 @@ final class ScarletFullscreenSceneStack: NSObject, ObservableObject,",
+          "before": [
+            "        guard let scene = viewport?.view.window?.windowScene else { return }",
+            "            let center = CGPoint(x: scene.coordinateSpace.bounds.midX,",
+            "                                 y: scene.coordinateSpace.bounds.midY)",
+            "            let window = ScarletGuestSwitcherWindowFactory.make(",
+            "                scene: scene,",
+            "                center: center,"
+          ],
+          "after": [
+            "        guard let scene = viewport?.view.window?.windowScene else {",
+            "            ScarletDiagnosticRecorder.shared.record(",
+            "                \"guest\", \"resident_overlay_no_window_scene\",",
+            "                status: \"warning\", fields: [\"window_attached\": \"false\"])",
+            "            return",
+            "        }"
+          ]
+        },
+        {
+          "commit": "ce412f2b63d7139606b638c91bd1fccb11983641",
+          "file": "rebuild/HostApp/ScarletFullscreenSceneStack.swift",
+          "location": "@@ -163,6 +168,17 @@ final class ScarletFullscreenSceneStack: NSObject, ObservableObject,",
+          "before": [],
+          "after": [
+            "        if let w = overlayWindow {",
+            "            ScarletDiagnosticRecorder.shared.record(",
+            "                \"guest\", \"resident_overlay_visible\",",
+            "                fields: [\"window_attached\": w.windowScene != nil ? \"true\" : \"false\",",
+            "                         \"overlay_visible\": w.isHidden ? \"false\" : \"true\",",
+            "                         \"button_x_pt\": String(Int(w.buttonCenter.x)),"
+          ]
+        },
+        {
+          "commit": "ce412f2b63d7139606b638c91bd1fccb11983641",
+          "file": "rebuild/HostApp/ScarletFullscreenSceneStack.swift",
+          "location": "@@ -273,7 +289,15 @@ final class ScarletFullscreenSceneStack: NSObject, ObservableObject,",
+          "before": [
+            "                     \"memory\": \"retained_until_pid_exits\"])"
+          ],
+          "after": [
+            "                     \"memory\": \"retained_until_pid_exits\",",
+            "                     \"overlay_visible\": overlayWindow?.isHidden == false ? \"true\" : \"false\",",
+            "                     \"live_session\": hasResidentSession ? \"true\" : \"false\"])",
+            "        ScarletDiagnosticRecorder.shared.record(",
+            "            \"guest\", \"resident_home_visibility_probe\",",
+            "            fields: [\"host_visible\": \"true\","
+          ]
+        }
+      ],
+      "source_revisions": [
+        {
+          "sha": "ce412f2b63d7139606b638c91bd1fccb11983641",
+          "url": "https://github.com/fx564286/sidestore-auto-refresh/commit/ce412f2b63d7139606b638c91bd1fccb11983641",
+          "title": "fix(v48-r3): restore byte-identical V48 Pan and drag state machine in both modes, allow pilot OFF immediately, add detailed local privacy-safe gesture and Dynamic Island diagnostics"
+        }
+      ],
+      "source_verification": "git_patch_observed"
+    },
+    {
+      "id": "L028",
+      "date": "2026-11-11",
+      "version": "new-v48-r4",
+      "problem": "guest_top",
+      "mechanism": "safe_area",
+      "action": "원격 Scene Safe Area 갱신·원본 Pan 유지·외부 터치 native 전달",
+      "observation": "호스트 Safe Area 62pt 기록에도 겹침 지속",
+      "evidence": "4267141ba",
+      "status": "device_unresolved",
+      "repeat_policy": "no_repeat_without_new_device_evidence",
+      "code_locations": [
+        {
+          "commit": "4267141baa82ebbcf81bba272c9326730c06ce52",
+          "file": "rebuild/HostApp/ScarletFullscreenGuestTab.swift",
+          "location": "@@ -26,7 +26,9 @@ struct ScarletGuestSwitchTarget: Identifiable {",
+          "before": [
+            "final class ScarletGuestTouchPassthroughWindow: UIWindow {"
+          ],
+          "after": [
+            "final class ScarletGuestTouchPassthroughWindow: UIWindow, UIGestureRecognizerDelegate {",
+            "    static let outsideDismiss = Notification.Name(\"ScarletGuestSwitcherNativeOutsideDismiss\")",
+            "    private var nativeOutsideTap: UITapGestureRecognizer?"
+          ]
+        },
+        {
+          "commit": "4267141baa82ebbcf81bba272c9326730c06ce52",
+          "file": "rebuild/HostApp/ScarletFullscreenGuestTab.swift",
+          "location": "@@ -35,6 +37,57 @@ final class ScarletGuestTouchPassthroughWindow: UIWindow {",
+          "before": [],
+          "after": [
+            "    // A transparent UIHostingController cannot reliably consume Color.clear",
+            "    // taps on iOS 27. Route outside touches at UIWindow level instead of",
+            "    // relying on SwiftUI's clear backdrop (which sometimes returns no hit).",
+            "    // Installed once for both original LC and resident LiveProcess switchers.",
+            "    func enableNativeOutsideDismiss() {",
+            "        guard nativeOutsideTap == nil else { return }"
+          ]
+        },
+        {
+          "commit": "4267141baa82ebbcf81bba272c9326730c06ce52",
+          "file": "rebuild/HostApp/ScarletFullscreenGuestTab.swift",
+          "location": "@@ -445,6 +498,13 @@ struct ScarletFullscreenGuestFloatingTab: View {",
+          "before": [],
+          "after": [
+            "        .onReceive(NotificationCenter.default.publisher(",
+            "            for: ScarletGuestTouchPassthroughWindow.outsideDismiss)) { note in",
+            "            guard isOpen, let origin = note.object as? ScarletGuestTouchPassthroughWindow,",
+            "                  origin.isExpanded, origin.isHidden == false else { return }",
+            "            ScarletGuestSessionLedger.traceSwitcher(\"panel_dismissed_outside_native\")",
+            "            closePanel()  // Existing V48 closePanel owns button geometry."
+          ]
+        },
+        {
+          "commit": "4267141baa82ebbcf81bba272c9326730c06ce52",
+          "file": "rebuild/HostApp/ScarletIntegratedHostView.swift",
+          "location": "@@ -1148,6 +1148,20 @@ struct ScarletIntegratedHostView: View {",
+          "before": [],
+          "after": [
+            "        .onReceive(NotificationCenter.default.publisher(",
+            "            for: Notification.Name(\"ScarletPilotRemoteSafeAreaChanged\"))) { note in",
+            "            let stage = note.userInfo?[\"stage\"] as? String ?? \"unknown\"",
+            "            let top = (note.userInfo?[\"top\"] as? NSNumber)?.intValue ?? -1",
+            "            let bottom = (note.userInfo?[\"bottom\"] as? NSNumber)?.intValue ?? -1",
+            "            ScarletDiagnosticRecorder.shared.record("
+          ]
+        },
+        {
+          "commit": "4267141baa82ebbcf81bba272c9326730c06ce52",
+          "file": "rebuild/integration/apply_scarlet_host.py",
+          "location": "@@ -946,10 +946,135 @@ def add_v45_fullscreen_scene_slot(engine: Path) -> dict:",
+          "before": [
+            "    # Preserve the EXACT upstream full-screen status bar contract. V45's",
+            "    # pilot override could make the guest's remote scene draw a second",
+            "    # status-bar/safe-area policy over Scarlet's real host status bar."
+          ],
+          "after": [
+            "    # V48-R4: iOS 27 uses _UISceneHostingController. The V48 delegate",
+            "    # updates only a temporary settings COPY and its FBScene remote guest",
+            "    # still receives zero safe insets while statusBarDisabled is YES.",
+            "    # This patch is limited to scarletNativeFullscreenSlot. The original LC",
+            "    # scene path remains untouched, including classic guest launch geometry.",
+            "    a = a.replace(\"        settings.statusBarDisabled = !self.isNativeWindow;\","
+          ]
+        },
+        {
+          "commit": "4267141baa82ebbcf81bba272c9326730c06ce52",
+          "file": "rebuild/integration/apply_scarlet_host.py",
+          "location": "@@ -959,7 +1084,8 @@ def add_v45_fullscreen_scene_slot(engine: Path) -> dict:",
+          "before": [
+            "            \"guestFrameScale\": 1, \"optIn\": True, \"sceneTagOnly\": True}"
+          ],
+          "after": [
+            "            \"guestFrameScale\": 1, \"optIn\": True, \"sceneTagOnly\": True,",
+            "            \"pilotRemoteSafeArea\": \"scene_tagged_initial_and_FBScene_update\"}"
+          ]
+        }
+      ],
+      "source_revisions": [
+        {
+          "sha": "4267141baa82ebbcf81bba272c9326730c06ce52",
+          "url": "https://github.com/fx564286/sidestore-auto-refresh/commit/4267141baa82ebbcf81bba272c9326730c06ce52",
+          "title": "fix(v48-r4): route switcher outside taps natively and correct tagged iOS27 guest remote safe-area scene updates without changing original V48 Pan"
+        }
+      ],
+      "source_verification": "git_patch_observed"
+    },
+    {
+      "id": "L029",
+      "date": "2026-11-11",
+      "version": "new-v48-r5",
+      "problem": "guest_top",
+      "mechanism": "overlay_hit_test",
+      "action": "실제 Scene 부착 후 게스트 Safe Area 재적용·UIControl 외부 hit shield",
+      "observation": "실기기 상단 터치 해결 미확인",
+      "evidence": "443e7d084",
+      "status": "device_unresolved",
+      "repeat_policy": "no_repeat_without_new_device_evidence",
+      "code_locations": [
+        {
+          "commit": "443e7d084d61db99c6dafd28cc1214c413285f1a",
+          "file": "rebuild/HostApp/ScarletFullscreenGuestTab.swift",
+          "location": "@@ -22,82 +22,74 @@ struct ScarletGuestSwitchTarget: Identifiable {",
+          "before": [
+            "// A separate non-key UIWindow can still swallow touches in transparent",
+            "// corners. Only the visible round button or the expanded card is interactive;",
+            "// all other touches fall through to the full-screen guest.",
+            "final class ScarletGuestTouchPassthroughWindow: UIWindow, UIGestureRecognizerDelegate {",
+            "    static let outsideDismiss = Notification.Name(\"ScarletGuestSwitcherNativeOutsideDismiss\")",
+            "    private var nativeOutsideTap: UITapGestureRecognizer?"
+          ],
+          "after": [
+            "// V48-R5: Direct UIKit touch layer; V48 Pan remains unchanged.",
+            "// UIWindow hitTest -> self had no reliable close action in R4.",
+            "// A real UIControl in front of the hosting view owns outside-panel hits.",
+            "@MainActor",
+            "final class ScarletSwitcherDismissState: ObservableObject {",
+            "    @Published private(set) var closeGeneration: UInt64 = 0"
+          ]
+        },
+        {
+          "commit": "443e7d084d61db99c6dafd28cc1214c413285f1a",
+          "file": "rebuild/HostApp/ScarletFullscreenGuestTab.swift",
+          "location": "@@ -113,6 +105,7 @@ struct ScarletFullscreenGuestFloatingTab: View {",
+          "before": [],
+          "after": [
+            "    @ObservedObject var dismissState: ScarletSwitcherDismissState"
+          ]
+        },
+        {
+          "commit": "443e7d084d61db99c6dafd28cc1214c413285f1a",
+          "file": "rebuild/HostApp/ScarletFullscreenGuestTab.swift",
+          "location": "@@ -498,12 +491,13 @@ struct ScarletFullscreenGuestFloatingTab: View {",
+          "before": [
+            "        .onReceive(NotificationCenter.default.publisher(",
+            "            for: ScarletGuestTouchPassthroughWindow.outsideDismiss)) { note in",
+            "            guard isOpen, let origin = note.object as? ScarletGuestTouchPassthroughWindow,",
+            "                  origin.isExpanded, origin.isHidden == false else { return }",
+            "            closePanel()  // Existing V48 closePanel owns button geometry."
+          ],
+          "after": [
+            "        .onChange(of: dismissState.closeGeneration) { _, _ in",
+            "            guard isOpen else { return }",
+            "            ScarletDiagnosticRecorder.shared.record(",
+            "                \"guest\", \"outside_shield_close_handled\",",
+            "                fields: [\"result\": \"existing_V48_closePanel_called\"])",
+            "            closePanel() // Original V48 closePanel and button remain."
+          ]
+        },
+        {
+          "commit": "443e7d084d61db99c6dafd28cc1214c413285f1a",
+          "file": "rebuild/HostApp/ScarletFullscreenSceneStack.swift",
+          "location": "@@ -454,6 +454,71 @@ final class ScarletFullscreenSceneViewport: UIViewController {",
+          "before": [],
+          "after": [
+            "    private var appliedRemoteInsets: [ObjectIdentifier: UIEdgeInsets] = [:]",
+            "    // V48-R5: iOS 27 finishes attaching the remote _UISceneHostingController",
+            "    // AFTER appSceneVCWillActivateScene. The previous initial/FBScene hooks",
+            "    // alone did not synchronize a safe inset once the real UIWindow existed.",
+            "    // Keep the guest's full original pixel viewport and update its safe",
+            "    // CONTENT REGION; no frame transform, inset overlay or guest resizing."
+          ]
+        },
+        {
+          "commit": "443e7d084d61db99c6dafd28cc1214c413285f1a",
+          "file": "rebuild/HostApp/ScarletFullscreenSceneStack.swift",
+          "location": "@@ -555,6 +620,7 @@ final class ScarletFullscreenSceneViewport: UIViewController {",
+          "before": [],
+          "after": [
+            "        synchronizeAttachedGuestSafeAreas(scene)"
+          ]
+        },
+        {
+          "commit": "443e7d084d61db99c6dafd28cc1214c413285f1a",
+          "file": "rebuild/HostApp/ScarletFullscreenSceneStack.swift",
+          "location": "@@ -579,6 +645,7 @@ final class ScarletFullscreenSceneViewport: UIViewController {",
+          "before": [],
+          "after": [
+            "        appliedRemoteInsets.removeValue(forKey: ObjectIdentifier(old))"
+          ]
+        }
+      ],
+      "source_revisions": [
+        {
+          "sha": "443e7d084d61db99c6dafd28cc1214c413285f1a",
+          "url": "https://github.com/fx564286/sidestore-auto-refresh/commit/443e7d084d61db99c6dafd28cc1214c413285f1a",
+          "title": "fix(v48-r5): native UIControl outside hit shield with direct reactive dismissal; reapply guest safe area after real scene attachment while keeping V48 Pan"
+        }
+      ],
+      "source_verification": "git_patch_observed"
+    },
+    {
+      "id": "L030",
+      "date": "2026-11-11",
+      "version": "new-v48-r5-recovery",
+      "problem": "guest_boot",
+      "mechanism": "guest_uikit_hook",
+      "action": "SIGSEGV 위험 게스트 전역 후크 복귀·안정 R5 경로 사용",
+      "observation": "게스트 크래시 경로 완화, 상단 겹침 별도 지속",
+      "evidence": "3576a393a",
+      "status": "rollback",
+      "repeat_policy": "no_repeat_without_new_device_evidence",
+      "code_locations": [
+        {
+          "commit": "3576a393aa6fa234c522f2fce1b8bf5cba06928b",
+          "file": "rebuild/HostApp/ScarletFullscreenSceneStack.swift",
+          "location": "@@ -25,6 +25,8 @@ final class ScarletFullscreenSceneStack: NSObject, ObservableObject,",
+          "before": [],
+          "after": [
+            "    // R5 recovery: observation only, no guest UIKit method interception.",
+            "    private var guestProcessStartTimes: [ObjectIdentifier: Date] = [:]"
+          ]
+        },
+        {
+          "commit": "3576a393aa6fa234c522f2fce1b8bf5cba06928b",
+          "file": "rebuild/HostApp/ScarletFullscreenSceneStack.swift",
+          "location": "@@ -338,6 +340,7 @@ final class ScarletFullscreenSceneStack: NSObject, ObservableObject,",
+          "before": [],
+          "after": [
+            "        guestProcessStartTimes[ObjectIdentifier(vc)] = Date()"
+          ]
+        },
+        {
+          "commit": "3576a393aa6fa234c522f2fce1b8bf5cba06928b",
+          "file": "rebuild/HostApp/ScarletFullscreenSceneStack.swift",
+          "location": "@@ -355,6 +358,11 @@ final class ScarletFullscreenSceneStack: NSObject, ObservableObject,",
+          "before": [],
+          "after": [
+            "        let pid = vc.pid",
+            "        let lifetime = guestProcessStartTimes.removeValue(forKey: ObjectIdentifier(vc))",
+            "        let durationMs = lifetime.map {",
+            "            String(max(0, Int(Date().timeIntervalSince($0) * 1000)))",
+            "        } ?? \"unknown\""
+          ]
+        }
+      ],
+      "source_revisions": [
+        {
+          "sha": "3576a393aa6fa234c522f2fce1b8bf5cba06928b",
+          "url": "https://github.com/fx564286/sidestore-auto-refresh/commit/3576a393aa6fa234c522f2fce1b8bf5cba06928b",
+          "title": "fix(v48-r5-recovery): revert crash-prone R5V guest process hooks to stable R5, preserve original drag, record only host-observed guest exit lifetime"
+        }
+      ],
+      "source_verification": "git_patch_observed"
+    },
+    {
+      "id": "L031",
+      "date": "2026-11-11",
+      "version": "new-v48-r5-r2",
+      "problem": "guest_top",
+      "mechanism": "uiwindow_owner",
+      "action": "호스트 Scene 조상에서 오버레이 터치 수신·중첩 UIKit owner Safe Area 재적용",
+      "observation": "기존 UIKit owner 변형, 상단 가림 해결 미검증",
+      "evidence": "a67ad3eaa",
+      "status": "device_unresolved",
+      "repeat_policy": "no_repeat_without_new_device_evidence",
+      "code_locations": [
+        {
+          "commit": "a67ad3eaa1e54f74eb659c2386e3128385b1c8ee",
+          "file": "rebuild/HostApp/ScarletDiagnosticRecorder.swift",
+          "location": "@@ -47,7 +47,8 @@ final class ScarletDiagnosticRecorder: @unchecked Sendable {",
+          "before": [
+            "        \"native_drag_gesture_state\", \"original_pan_used\", \"controller_present\""
+          ],
+          "after": [
+            "        \"native_drag_gesture_state\", \"original_pan_used\", \"controller_present\",",
+            "        \"host_owner_top_pt\""
+          ]
+        },
+        {
+          "commit": "a67ad3eaa1e54f74eb659c2386e3128385b1c8ee",
+          "file": "rebuild/HostApp/ScarletFullscreenGuestTab.swift",
+          "location": "@@ -51,8 +51,14 @@ final class ScarletGuestTouchPassthroughWindow: UIWindow {",
+          "before": [],
+          "after": [
+            "            expandedChanged?(isExpanded)",
+            "    // Resident viewport: use a parent-view gesture instead of a separate",
+            "    // non-key UIWindow touch target. Classic R5 remains byte-for-byte in",
+            "    // the existing shield and Pan handlers.",
+            "    var residentHostOwnsOutsideTaps = false",
+            "    var expandedChanged: ((Bool) -> Void)?"
+          ]
+        },
+        {
+          "commit": "a67ad3eaa1e54f74eb659c2386e3128385b1c8ee",
+          "file": "rebuild/HostApp/ScarletFullscreenGuestTab.swift",
+          "location": "@@ -88,7 +94,14 @@ final class ScarletGuestTouchPassthroughWindow: UIWindow {",
+          "before": [
+            "        if isExpanded { return super.point(inside: point, with: event) }"
+          ],
+          "after": [
+            "        if isExpanded {",
+            "            if residentHostOwnsOutsideTaps {",
+            "                // UIKit sends the touch to the host root instead, whose",
+            "                // existing resident VC ancestors own the recognizer.",
+            "                return panelRect.insetBy(dx: -3, dy: -3).contains(point)",
+            "            }"
+          ]
+        },
+        {
+          "commit": "a67ad3eaa1e54f74eb659c2386e3128385b1c8ee",
+          "file": "rebuild/HostApp/ScarletFullscreenGuestTab.swift",
+          "location": "@@ -1294,6 +1307,7 @@ extension ScarletFullscreenGuestTabInstaller {",
+          "before": [],
+          "after": [
+            "        overlay.residentHostOwnsOutsideTaps = true"
+          ]
+        },
+        {
+          "commit": "a67ad3eaa1e54f74eb659c2386e3128385b1c8ee",
+          "file": "rebuild/HostApp/ScarletFullscreenSceneStack.swift",
+          "location": "@@ -28,6 +28,13 @@ final class ScarletFullscreenSceneStack: NSObject, ObservableObject,",
+          "before": [],
+          "after": [
+            "    // A resident overlay can be non-key and lose background hit ownership.",
+            "    // Gesture is attached to the actual parent viewport, not a guest process.",
+            "    var activeOutsideOverlay: ScarletGuestTouchPassthroughWindow? {",
+            "        guard isVisible, let overlayWindow, !overlayWindow.isHidden,",
+            "              overlayWindow.isExpanded else { return nil }",
+            "        return overlayWindow"
+          ]
+        },
+        {
+          "commit": "a67ad3eaa1e54f74eb659c2386e3128385b1c8ee",
+          "file": "rebuild/HostApp/ScarletFullscreenSceneStack.swift",
+          "location": "@@ -146,6 +153,7 @@ final class ScarletFullscreenSceneStack: NSObject, ObservableObject,",
+          "before": [],
+          "after": [
+            "            viewport?.setResidentOutsideDismissEnabled(false)"
+          ]
+        },
+        {
+          "commit": "a67ad3eaa1e54f74eb659c2386e3128385b1c8ee",
+          "file": "rebuild/HostApp/ScarletFullscreenSceneStack.swift",
+          "location": "@@ -166,6 +174,9 @@ final class ScarletFullscreenSceneStack: NSObject, ObservableObject,",
+          "before": [],
+          "after": [
+            "            window.expandedChanged = { [weak self] expanded in",
+            "                self?.viewport?.setResidentOutsideDismissEnabled(expanded)",
+            "            }"
+          ]
+        }
+      ],
+      "source_revisions": [
+        {
+          "sha": "a67ad3eaa1e54f74eb659c2386e3128385b1c8ee",
+          "url": "https://github.com/fx564286/sidestore-auto-refresh/commit/a67ad3eaa1e54f74eb659c2386e3128385b1c8ee",
+          "title": "fix(v48-r5-recovery-r2): route outside switcher taps through host scene ancestor and apply safe-area on actual nested UIKit scene owner without guest global hooks"
+        }
+      ],
+      "source_verification": "git_patch_observed"
+    },
+    {
+      "id": "L032",
+      "date": "2026-11-11",
+      "version": "new-v48-r5-r3",
+      "problem": "guest_top",
+      "mechanism": "safe_area",
+      "action": "FBScene별 62pt inset 캐시, inactive 0pt 순간값 거부·조상 여백 중복 제거",
+      "observation": "62→0→62 로그로 관찰되나 실제 상단 가림 계속",
+      "evidence": "13786ab74",
+      "status": "device_unresolved",
+      "repeat_policy": "no_repeat_without_new_device_evidence",
+      "code_locations": [
+        {
+          "commit": "13786ab74fbf65bc258b5d734c0e42bb7cee250f",
+          "file": "rebuild/HostApp/ScarletFullscreenSceneStack.swift",
+          "location": "@@ -444,8 +444,8 @@ final class ScarletFullscreenSceneStack: NSObject, ObservableObject,",
+          "before": [
+            "            settings.peripheryInsets = safe",
+            "            settings.safeAreaInsetsPortrait = safe"
+          ],
+          "after": [
+            "            // The FBScene authority owns all safe-area settings; this",
+            "            // delegate owns only full-resolution frame and orientation."
+          ]
+        },
+        {
+          "commit": "13786ab74fbf65bc258b5d734c0e42bb7cee250f",
+          "file": "rebuild/HostApp/ScarletFullscreenSceneStack.swift",
+          "location": "@@ -478,7 +478,9 @@ final class ScarletFullscreenSceneViewport: UIViewController {",
+          "before": [
+            "    private var appliedRemoteInsets: [ObjectIdentifier: UIEdgeInsets] = [:]"
+          ],
+          "after": [
+            "    // R3: geometry has exactly one writer: FBScene authority in UIKitHooks.m.",
+            "    // Swift only observes the hosting owner's UIKit readback.",
+            "    private var observedRemoteInsets: [ObjectIdentifier: UIEdgeInsets] = [:]"
+          ]
+        },
+        {
+          "commit": "13786ab74fbf65bc258b5d734c0e42bb7cee250f",
+          "file": "rebuild/HostApp/ScarletFullscreenSceneStack.swift",
+          "location": "@@ -555,37 +557,18 @@ final class ScarletFullscreenSceneViewport: UIViewController {",
+          "before": [
+            "            if let previous = appliedRemoteInsets[key],",
+            "            // additionalSafeAreaInsets affects content in the hosting",
+            "            // controller, not UIView.frame or the guest display scale.",
+            "            // Record first to avoid a reentrant layout pass retransmitting",
+            "            // the same scene settings before the UIKit callback returns.",
+            "            appliedRemoteInsets[key] = safe"
+          ],
+          "after": [
+            "            // The R2 device trace had a 62pt owner readback but guest UI",
+            "            // still overlapped the island. Remove repeated ancestor writes:",
+            "            // they can race asynchronous FBScene update callbacks.",
+            "            if let previous = observedRemoteInsets[key],",
+            "            observedRemoteInsets[key] = safe",
+            "                \"layout\", \"guest_geometry_authority_observed\","
+          ]
+        },
+        {
+          "commit": "13786ab74fbf65bc258b5d734c0e42bb7cee250f",
+          "file": "rebuild/integration/apply_scarlet_host.py",
+          "location": "@@ -955,9 +955,69 @@ def add_v45_fullscreen_scene_slot(engine: Path) -> dict:",
+          "before": [
+            "                  '#import \"UIKitPrivate+MultitaskSupport.h\"\\n#import <objc/runtime.h>', 1)"
+          ],
+          "after": [
+            "    # Pilot-only, host-process geometry authority. No guest-app UIKit swizzle",
+            "    # and no extra window/presentation layer. Per FBScene instance cache keeps",
+            "    # the last validated portrait geometry across inactive UIKit transitions.",
+            "    authority_header = r\"\"\"#pragma once",
+            "#import <UIKit/UIKit.h>",
+            "#import <objc/runtime.h>"
+          ]
+        },
+        {
+          "commit": "13786ab74fbf65bc258b5d734c0e42bb7cee250f",
+          "file": "rebuild/integration/apply_scarlet_host.py",
+          "location": "@@ -1000,6 +1060,8 @@ def add_v45_fullscreen_scene_slot(engine: Path) -> dict:",
+          "before": [],
+          "after": [
+            "            // Initial settings can be populated before a scene exists;",
+            "            // remote FBScene authority validates and caches at attachment."
+          ]
+        },
+        {
+          "commit": "13786ab74fbf65bc258b5d734c0e42bb7cee250f",
+          "file": "rebuild/integration/apply_scarlet_host.py",
+          "location": "@@ -1017,35 +1079,29 @@ def add_v45_fullscreen_scene_slot(engine: Path) -> dict:",
+          "before": [
+            "            // This association is stored on the ACTUAL remote FBScene,",
+            "            // so UIKitHooks can recognize it without guest names or IDs.",
+            "    UIEdgeInsets observed = owner.view.safeAreaInsets;",
+            "    UIEdgeInsets previous = owner.additionalSafeAreaInsets;",
+            "    // Subtract previously applied compensation to avoid cumulative growth",
+            "    // when iOS reports a new inset in the next asynchronous layout pass."
+          ],
+          "after": [
+            "            // Associated only with this remote guest scene; other guests and",
+            "            // classic LiveContainer never share a geometry authority.",
+            "            UIEdgeInsets first = ScarletPilotHostInsets(",
+            "                self.view.window.windowScene, self.view.safeAreaInsets);",
+            "            BOOL recovered = NO;",
+            "            (void)SCGeometryResolve(scene, first, UIInterfaceOrientationPortrait,"
+          ]
+        }
+      ],
+      "source_revisions": [
+        {
+          "sha": "13786ab74fbf65bc258b5d734c0e42bb7cee250f",
+          "url": "https://github.com/fx564286/sidestore-auto-refresh/commit/13786ab74fbf65bc258b5d734c0e42bb7cee250f",
+          "title": "fix(v48-r5-recovery-r3): custom per-FBScene geometry authority retains last valid portrait island inset through inactive 0pt updates, removes competing ancestor safe-area writes; preserve V48 gesture and guest runtime"
+        }
+      ],
+      "source_verification": "git_patch_observed"
+    },
+    {
+      "id": "L033",
+      "date": "2026-11-11",
+      "version": "new-v48-r5-r4",
+      "problem": "guest_boot",
+      "mechanism": "render_readiness",
+      "action": "원격 콘텐츠 attach·호스트 UIWindow 준비 뒤 첫 화면 reveal, foreground one-shot",
+      "observation": "PID 선행 검은 화면 일부 방어, 완전한 상단 해결 증거 없음",
+      "evidence": "7dcbbccdc",
+      "status": "device_unresolved",
+      "repeat_policy": "no_repeat_without_new_device_evidence",
+      "code_locations": [
+        {
+          "commit": "7dcbbccdc296787d246da58cbbf464b6f31f5a4e",
+          "file": "rebuild/HostApp/ScarletFullscreenSceneStack.swift",
+          "location": "@@ -27,6 +27,9 @@ final class ScarletFullscreenSceneStack: NSObject, ObservableObject,",
+          "before": [],
+          "after": [
+            "    private var pendingReveal: Set<String> = []",
+            "    private var remoteAttachSeen: Set<String> = []",
+            "    private var firstRevealCompleted: Set<String> = []"
+          ]
+        },
+        {
+          "commit": "7dcbbccdc296787d246da58cbbf464b6f31f5a4e",
+          "file": "rebuild/HostApp/ScarletFullscreenSceneStack.swift",
+          "location": "@@ -130,6 +133,9 @@ final class ScarletFullscreenSceneStack: NSObject, ObservableObject,",
+          "before": [],
+          "after": [
+            "        pendingReveal.remove(folder)",
+            "        remoteAttachSeen.remove(folder)",
+            "        firstRevealCompleted.remove(folder)"
+          ]
+        },
+        {
+          "commit": "7dcbbccdc296787d246da58cbbf464b6f31f5a4e",
+          "file": "rebuild/HostApp/ScarletFullscreenSceneStack.swift",
+          "location": "@@ -314,27 +320,49 @@ final class ScarletFullscreenSceneStack: NSObject, ObservableObject,",
+          "before": [
+            "    // A PID can be reported before the remote UIKit surface is interactive.",
+            "    // Retry only a bounded number of times while leaving the old scene visible.",
+            "    private func revealStartedScene(_ folder: String, attemptsRemaining: Int = 8) {",
+            "        guard activeID == folder else { return }",
+            "        if viewport?.select(folder: folder) == true {",
+            "            ScarletDiagnosticRecorder.shared.record("
+          ],
+          "after": [
+            "    // PID readiness and remote UIKit presentation readiness are different.",
+            "    // An actual iPhone can leave a black remote surface until the user goes",
+            "    // Home and back, because first handoff occurs before UIKit content attach.",
+            "    private func revealStartedScene(_ folder: String,",
+            "                                    attemptsRemaining: Int = 60,",
+            "                                    isRetry: Bool = false) {"
+          ]
+        },
+        {
+          "commit": "7dcbbccdc296787d246da58cbbf464b6f31f5a4e",
+          "file": "rebuild/integration/apply_scarlet_host.py",
+          "location": "@@ -943,8 +943,17 @@ def add_v45_fullscreen_scene_slot(engine: Path) -> dict:",
+          "before": [
+            "        \"- (nullable NSNumber *)scarletApplyHostingContentSafeArea:(UIEdgeInsets)desired;\\n\", 1)"
+          ],
+          "after": [
+            "        \"- (nullable NSNumber *)scarletApplyHostingContentSafeArea:(UIEdgeInsets)desired;\\n\"",
+            "        \"- (BOOL)scarletRemoteContentReady;\\n\"",
+            "        \"- (BOOL)scarletEnsureRemoteForeground;\\n\", 1)",
+            "    protocol_header = engine/\"MultitaskSupport/AppSceneViewController.h\"",
+            "    protocol_src = protocol_header.read_text()",
+            "    marker = '- (void)appSceneVCWillActivateScene:(AppSceneViewController *)vc;'"
+          ]
+        },
+        {
+          "commit": "7dcbbccdc296787d246da58cbbf464b6f31f5a4e",
+          "file": "rebuild/integration/apply_scarlet_host.py",
+          "location": "@@ -1104,10 +1113,51 @@ def add_v45_fullscreen_scene_slot(engine: Path) -> dict:",
+          "before": [],
+          "after": [
+            "\"\"\"",
+            "    helper += r\"\"\"",
+            "// Pilot-only two-phase native render handshake. PID is not proof that the",
+            "// remote FBScene hosting view exists. Nothing is injected in the guest.",
+            "- (BOOL)scarletRemoteContentReady {",
+            "    if(!self.scarletNativeFullscreenSlot || !self.isAppRunning ||"
+          ]
+        }
+      ],
+      "source_revisions": [
+        {
+          "sha": "7dcbbccdc296787d246da58cbbf464b6f31f5a4e",
+          "url": "https://github.com/fx564286/sidestore-auto-refresh/commit/7dcbbccdc296787d246da58cbbf464b6f31f5a4e",
+          "title": "fix(v48-r5-recovery-r4): wait for native remote UIKit content and host UIWindow before first reveal, one-shot foreground activation after attachment, retain per-scene safe geometry and V48 switcher"
+        }
+      ],
+      "source_verification": "git_patch_observed"
+    },
+    {
+      "id": "L034",
+      "date": "2026-11-11",
+      "version": "new-v48-r5-r5",
+      "problem": "guest_boot",
+      "mechanism": "render_readiness",
+      "action": "4초 이내 사망 LiveProcess 안전 복구·기존 Scene foreground 재확인",
+      "observation": "시작 실패 대응, 실제 상단 터치 미해결",
+      "evidence": "bf4d9eeab",
+      "status": "unverified",
+      "repeat_policy": "no_repeat_without_new_device_evidence",
+      "code_locations": [
+        {
+          "commit": "bf4d9eeabff3b0e2999d17703ba540c88526e9da",
+          "file": "rebuild/HostApp/ScarletDiagnosticRecorder.swift",
+          "location": "@@ -48,7 +48,8 @@ final class ScarletDiagnosticRecorder: @unchecked Sendable {",
+          "before": [
+            "        \"host_owner_top_pt\""
+          ],
+          "after": [
+            "        \"host_owner_top_pt\", \"error_domain\", \"error_code\", \"fast_exit\",",
+            "        \"mode\""
+          ]
+        },
+        {
+          "commit": "bf4d9eeabff3b0e2999d17703ba540c88526e9da",
+          "file": "rebuild/HostApp/ScarletFullscreenSceneStack.swift",
+          "location": "@@ -30,6 +30,10 @@ final class ScarletFullscreenSceneStack: NSObject, ObservableObject,",
+          "before": [],
+          "after": [
+            "    // Compatibility fallback is once per guest per host session. It can",
+            "    // never displace another live resident guest or revoke a certificate.",
+            "    private var classicFallbackAttempted: Set<String> = []",
+            "    private var pendingClassicFallback: Set<String> = []"
+          ]
+        },
+        {
+          "commit": "bf4d9eeabff3b0e2999d17703ba540c88526e9da",
+          "file": "rebuild/HostApp/ScarletFullscreenSceneStack.swift",
+          "location": "@@ -300,6 +304,20 @@ final class ScarletFullscreenSceneStack: NSObject, ObservableObject,",
+          "before": [],
+          "after": [
+            "    func restoreForegroundOnHostActive() {",
+            "        guard isVisible, let activeID,",
+            "              viewport?.isAlive(folder: activeID) == true else { return }",
+            "        let refreshed = viewport?.refreshExistingRemoteScene(folder: activeID) == true",
+            "        ScarletDiagnosticRecorder.shared.record(",
+            "            \"guest\", \"fullscreen_scene_host_active_refresh\","
+          ]
+        },
+        {
+          "commit": "bf4d9eeabff3b0e2999d17703ba540c88526e9da",
+          "file": "rebuild/HostApp/ScarletFullscreenSceneStack.swift",
+          "location": "@@ -320,6 +338,67 @@ final class ScarletFullscreenSceneStack: NSObject, ObservableObject,",
+          "before": [],
+          "after": [
+            "    // Some closed-source guests cannot start in a LiveProcess extension.",
+            "    // If a new extension terminates immediately, perform one ORIGINAL LC",
+            "    // launch attempt using the exact same installed .app and data container.",
+            "    // Only safe when no other live resident guest will lose its work state.",
+            "    private func recoverFastFailedGuest(_ folder: String, dataUUID: String,",
+            "                                        reason: String) {"
+          ]
+        }
+      ],
+      "source_revisions": [
+        {
+          "sha": "bf4d9eeabff3b0e2999d17703ba540c88526e9da",
+          "url": "https://github.com/fx564286/sidestore-auto-refresh/commit/bf4d9eeabff3b0e2999d17703ba540c88526e9da",
+          "title": "fix(v48-r5-recovery-r5): recover fast LiveProcess guest failures via one-shot original LC only when no resident guest; reassert foreground for existing scene on host active without guest restart, add crash code diagnostics"
+        }
+      ],
+      "source_verification": "git_patch_observed"
+    },
+    {
+      "id": "L035",
+      "date": "2026-11-11",
+      "version": "new-v48-r6",
+      "problem": "guest_top",
+      "mechanism": "safe_area",
+      "action": "peripheryInsets 제거, 62pt 안전 영역만 remote FBScene에 전달·외부 탭 닫기",
+      "observation": "상단 가림 해결 확인 없음",
+      "evidence": "5f34369c7",
+      "status": "device_unresolved",
+      "repeat_policy": "no_repeat_without_new_device_evidence",
+      "code_locations": [
+        {
+          "commit": "5f34369c748e0f4cc5666bb782ca9873b774fd93",
+          "file": "rebuild/HostApp/ScarletFullscreenGuestTab.swift",
+          "location": "@@ -49,6 +49,7 @@ final class ScarletGuestTouchPassthroughWindow: UIWindow {",
+          "before": [],
+          "after": [
+            "                shield.frame = bounds"
+          ]
+        },
+        {
+          "commit": "5f34369c748e0f4cc5666bb782ca9873b774fd93",
+          "file": "rebuild/HostApp/ScarletFullscreenGuestTab.swift",
+          "location": "@@ -65,6 +66,13 @@ final class ScarletGuestTouchPassthroughWindow: UIWindow {",
+          "before": [],
+          "after": [
+            "    override func layoutSubviews() {",
+            "        super.layoutSubviews()",
+            "        // The shield is the modal outside-tap owner in resident mode. Keep it",
+            "        // exactly coextensive with the overlay window after rotation/resize.",
+            "        outsideShield?.frame = bounds",
+            "    }"
+          ]
+        },
+        {
+          "commit": "5f34369c748e0f4cc5666bb782ca9873b774fd93",
+          "file": "rebuild/HostApp/ScarletFullscreenGuestTab.swift",
+          "location": "@@ -95,11 +103,14 @@ final class ScarletGuestTouchPassthroughWindow: UIWindow {",
+          "before": [
+            "            if residentHostOwnsOutsideTaps {",
+            "                // UIKit sends the touch to the host root instead, whose",
+            "                // existing resident VC ancestors own the recognizer.",
+            "                return panelRect.insetBy(dx: -3, dy: -3).contains(point)",
+            "            }"
+          ],
+          "after": [
+            "            // V48-R6: a LiveProcess guest surface consumes touches in its own",
+            "            // process, so an ancestor UITapGestureRecognizer on the host",
+            "            // viewport never sees a tap that lands outside the panel. Keep",
+            "            // this non-key overlay window hit-testable for its full bounds;",
+            "            // ScarletSwitcherOutsideShield (a real UIControl above the",
+            "            // hosting view) owns outside hits and calls requestClose()."
+          ]
+        },
+        {
+          "commit": "5f34369c748e0f4cc5666bb782ca9873b774fd93",
+          "file": "rebuild/HostApp/ScarletFullscreenSceneStack.swift",
+          "location": "@@ -630,6 +630,7 @@ final class ScarletFullscreenSceneViewport: UIViewController {",
+          "before": [],
+          "after": [
+            "    private var audioScopedPID: Int32 = 0"
+          ]
+        },
+        {
+          "commit": "5f34369c748e0f4cc5666bb782ca9873b774fd93",
+          "file": "rebuild/HostApp/ScarletFullscreenSceneStack.swift",
+          "location": "@@ -665,9 +666,19 @@ final class ScarletFullscreenSceneViewport: UIViewController {",
+          "before": [],
+          "after": [
+            "        // V48-R6: creating the switcher overlay UIWindow transiently makes",
+            "        // `windows.first(normal)`/`view.safeAreaInsets` report a 0pt top.",
+            "        // Device log: 62 -> 0 -> 62 within 0.5ms, flagged as",
+            "        // island_overlap_suspected. A 0pt top applied to the guest puts its",
+            "        // top bar under Dynamic Island, so resolve against the window that",
+            "        // actually contains this viewport and never downgrade a positive top."
+          ]
+        },
+        {
+          "commit": "5f34369c748e0f4cc5666bb782ca9873b774fd93",
+          "file": "rebuild/HostApp/ScarletFullscreenSceneStack.swift",
+          "location": "@@ -676,9 +687,9 @@ final class ScarletFullscreenSceneViewport: UIViewController {",
+          "before": [
+            "        let safe = resolvedHostInsets(scene)",
+            "        guard safe.top > 0 || safe.bottom > 0 ||",
+            "              safe.left > 0 || safe.right > 0 else {"
+          ],
+          "after": [
+            "        let hostSafe = resolvedHostInsets(scene)",
+            "        guard hostSafe.top > 0 || hostSafe.bottom > 0 ||",
+            "              hostSafe.left > 0 || hostSafe.right > 0 else {"
+          ]
+        },
+        {
+          "commit": "5f34369c748e0f4cc5666bb782ca9873b774fd93",
+          "file": "rebuild/integration/apply_scarlet_host.py",
+          "location": "@@ -1071,7 +1071,11 @@ def add_v45_fullscreen_scene_slot(engine: Path) -> dict:",
+          "before": [
+            "            settings.peripheryInsets = safe;"
+          ],
+          "after": [
+            "            // V48-R6: the resident guest scene fills the host window, so it",
+            "            // has no periphery of its own. Express Dynamic Island and home",
+            "            // indicator only through the safe area; a nonzero periphery here",
+            "            // re-applies the island inset to an already full-bleed frame.",
+            "            settings.peripheryInsets = UIEdgeInsetsZero;"
+          ]
+        },
+        {
+          "commit": "5f34369c748e0f4cc5666bb782ca9873b774fd93",
+          "file": "rebuild/integration/apply_scarlet_host.py",
+          "location": "@@ -1202,7 +1206,11 @@ def add_v45_fullscreen_scene_slot(engine: Path) -> dict:",
+          "before": [
+            "            settings.peripheryInsets = safe;"
+          ],
+          "after": [
+            "            // V48-R6: keep the guest scene full-bleed and send Dynamic",
+            "            // Island/home-indicator guidance only through the scene's safe",
+            "            // area. peripheryInsets=safe double-applied the host inset and",
+            "            // could shift guest content back under the island.",
+            "            settings.peripheryInsets = UIEdgeInsetsZero;"
+          ]
+        },
+        {
+          "commit": "5f34369c748e0f4cc5666bb782ca9873b774fd93",
+          "file": "rebuild/integration/apply_scarlet_host.py",
+          "location": "@@ -1234,6 +1242,133 @@ def add_v45_fullscreen_scene_slot(engine: Path) -> dict:",
+          "before": [],
+          "after": [
+            "def add_scarlet_guest_audio_isolation(engine: Path) -> dict:",
+            "    \"\"\"V48-R6: keep only the active LiveProcess guest's audio session alive.",
+            "    Every guest is a separate LiveProcess extension process, so the host's",
+            "    AVAudioSession cannot silence another guest. The host posts a Darwin",
+            "    notification scoped to the exact guest PID; the injected TweakLoader hook",
+            "    in that process posts the standard interruption/resign-active lifecycle"
+          ]
+        }
+      ],
+      "source_revisions": [
+        {
+          "sha": "5f34369c748e0f4cc5666bb782ca9873b774fd93",
+          "url": "https://github.com/fx564286/sidestore-auto-refresh/commit/5f34369c748e0f4cc5666bb782ca9873b774fd93",
+          "title": "fix(v48-r6): close resident switcher on outside tap, keep island inset in safe area only, scope guest audio to the visible process"
+        }
+      ],
+      "source_verification": "git_patch_observed"
+    },
+    {
+      "id": "L036",
+      "date": "2026-11-11",
+      "version": "new-r6p1-r6p3",
+      "problem": "audio",
+      "mechanism": "audio_focus",
+      "action": "홈 이동 시 숨은 게스트 오디오 pause·재개/누적 목록 복구",
+      "observation": "오디오 재활성화 소스 가드 추가, 상단 문제와 별개",
+      "evidence": "40c236e27",
+      "status": "source_only",
+      "repeat_policy": "reference_only",
+      "code_locations": [
+        {
+          "commit": "40c236e273e65776f38ef219b59f8df551364760",
+          "file": "rebuild/HostApp/ScarletFullscreenSceneStack.swift",
+          "location": "@@ -283,17 +283,29 @@ final class ScarletFullscreenSceneStack: NSObject, ObservableObject,",
+          "before": [
+            "              slot.pid > 0, viewport?.isAlive(folder: folder) == true,",
+            "              viewport?.select(folder: folder) == true else {",
+            "        activeID = folder"
+          ],
+          "after": [
+            "              slot.pid > 0, viewport?.isAlive(folder: folder) == true else {",
+            "        // A hidden compositor is intentionally prevented from foregrounding",
+            "        // its remote guest. Explicit user activation must reveal the viewport",
+            "        // BEFORE select() is allowed to resume this exact guest's audio.",
+            "        let wasVisible = isVisible",
+            "        guard viewport?.select(folder: folder) == true else {"
+          ]
+        },
+        {
+          "commit": "40c236e273e65776f38ef219b59f8df551364760",
+          "file": "rebuild/HostApp/ScarletFullscreenSceneStack.swift",
+          "location": "@@ -635,6 +647,7 @@ final class ScarletFullscreenSceneViewport: UIViewController {",
+          "before": [],
+          "after": [
+            "    private var hiddenAudioReconcileReported = false"
+          ]
+        },
+        {
+          "commit": "40c236e273e65776f38ef219b59f8df551364760",
+          "file": "rebuild/HostApp/ScarletFullscreenSceneStack.swift",
+          "location": "@@ -939,6 +952,11 @@ final class ScarletFullscreenSceneViewport: UIViewController {",
+          "before": [],
+          "after": [
+            "        // R6P3: SwiftUI can call reconcile() after goHome() has paused every",
+            "        // retained LiveProcess. Never let a hidden guest receive resume or",
+            "        // foreground notifications merely because its view is still mounted.",
+            "        // Only explicit in-app activation makes stack.isVisible true.",
+            "        guard stack?.isVisible == true else { return false }"
+          ]
+        }
+      ],
+      "source_revisions": [
+        {
+          "sha": "40c236e273e65776f38ef219b59f8df551364760",
+          "url": "https://github.com/fx564286/sidestore-auto-refresh/commit/40c236e273e65776f38ef219b59f8df551364760",
+          "title": "fix(r6p3): block hidden guest foreground and audio resume during Home reconcile"
+        }
+      ],
+      "source_verification": "git_patch_observed"
+    },
+    {
+      "id": "L037",
+      "date": "2026-11-11",
+      "version": "new-r6p4",
+      "problem": "audio",
+      "mechanism": "audio_focus",
+      "action": "게스트 자체 AVAudioSession pause 응답 Darwin 알림 브릿지·실패 재시도",
+      "observation": "iPhone 로그에서 두 PID pause ok 확인, 물리 음향은 미측정",
+      "evidence": "341ef98d0",
+      "status": "device_partial_pass",
+      "repeat_policy": "reference_only",
+      "code_locations": [
+        {
+          "commit": "c8379afab982031c8f817726d4ac654c66093f3b",
+          "file": "rebuild/integration/apply_scarlet_host.py",
+          "location": "@@ -1272,13 +1272,49 @@ def add_scarlet_guest_audio_isolation(engine: Path) -> dict:",
+          "before": [
+            "    if(scarletGuestAudioPaused == !active) return;",
+            "    scarletGuestAudioPaused = !active;",
+            "        [session setActive:YES error:&error];"
+          ],
+          "after": [
+            "// Darwin notifications do not carry a cross-process userInfo dictionary.",
+            "// The receipt name encodes only action, result, and this LiveProcess PID.",
+            "// A receipt reports AVAudioSession setActive's return value; it is NOT",
+            "// an acoustic microphone measurement nor proof that every media API stopped.",
+            "static void ScarletGuestAudioReceipt(BOOL active, BOOL success) {",
+            "    NSString *name = [NSString stringWithFormat:"
+          ]
+        },
+        {
+          "commit": "c8379afab982031c8f817726d4ac654c66093f3b",
+          "file": "rebuild/integration/apply_scarlet_host.py",
+          "location": "@@ -1289,21 +1325,25 @@ def add_scarlet_guest_audio_isolation(engine: Path) -> dict:",
+          "before": [
+            "        [[NSNotificationCenter defaultCenter]",
+            "            postNotificationName:AVAudioSessionInterruptionNotification",
+            "            object:session",
+            "            userInfo:@{AVAudioSessionInterruptionTypeKey:",
+            "                           @(AVAudioSessionInterruptionTypeBegan)}];",
+            "        [[NSNotificationCenter defaultCenter]"
+          ],
+          "after": [
+            "        ScarletGuestAudioReceipt(YES, result);",
+            "        NSLog(@\"[SCARLET_AUDIO] guest pid=%d resume result=%d code=%ld\",",
+            "              getpid(), result ? 1 : 0, (long)error.code);",
+            "        if(!scarletGuestAudioPaused) {",
+            "            scarletGuestAudioPaused = YES;",
+            "            [[NSNotificationCenter defaultCenter]"
+          ]
+        },
+        {
+          "commit": "a04ff2f142ea1a134571590f8314e902eac6ea9b",
+          "file": "rebuild/HostApp/ScarletFullscreenSceneStack.swift",
+          "location": "@@ -633,6 +633,51 @@ final class ScarletFullscreenSceneStack: NSObject, ObservableObject,",
+          "before": [],
+          "after": [
+            "// Guest-side AVAudioSession receipts are scoped to the exact LiveProcess",
+            "// PID, just like the original pause/resume commands. A singleton keeps",
+            "// observation valid across SwiftUI viewport reparenting without attaching",
+            "// a new App ID, window, or signing entitlement.",
+            "@available(iOS 17.0, *)",
+            "@MainActor"
+          ]
+        },
+        {
+          "commit": "a04ff2f142ea1a134571590f8314e902eac6ea9b",
+          "file": "rebuild/HostApp/ScarletFullscreenSceneStack.swift",
+          "location": "@@ -931,6 +976,8 @@ final class ScarletFullscreenSceneViewport: UIViewController {",
+          "before": [],
+          "after": [
+            "        // Subscribe before dispatch: the guest may acknowledge immediately.",
+            "        ScarletGuestAudioReceiptObserver.shared.observe(pid: pid)"
+          ]
+        }
+      ],
+      "source_revisions": [
+        {
+          "sha": "c8379afab982031c8f817726d4ac654c66093f3b",
+          "url": "https://github.com/fx564286/sidestore-auto-refresh/commit/c8379afab982031c8f817726d4ac654c66093f3b",
+          "title": "fix(r6p4): report guest-side audio receipts and retry failed AVAudioSession pause"
+        },
+        {
+          "sha": "a04ff2f142ea1a134571590f8314e902eac6ea9b",
+          "url": "https://github.com/fx564286/sidestore-auto-refresh/commit/a04ff2f142ea1a134571590f8314e902eac6ea9b",
+          "title": "feat(r6p4): record real per-process audio deactivation acknowledgments in host logs"
+        }
+      ],
+      "source_verification": "git_patch_observed"
+    },
+    {
+      "id": "L038",
+      "date": "2026-11-12",
+      "version": "new-r6p5",
+      "problem": "guest_top",
+      "mechanism": "statusbar_metrics",
+      "action": "원격 FBScene statusBarHeight/statusBarAvoidanceFrame 입력 시도",
+      "observation": "실기기 화면 해결 근거 없음, 현재 R6P9에는 미포함",
+      "evidence": "2be5c03ff",
+      "status": "diagnostic_only",
+      "repeat_policy": "no_repeat_without_new_device_evidence",
+      "code_locations": [
+        {
+          "commit": "2be5c03ff198cc53265bc985af98a5b2fd43395c",
+          "file": "rebuild/integration/apply_scarlet_host.py",
+          "location": "@@ -1021,6 +1021,26 @@ def add_v45_fullscreen_scene_slot(engine: Path) -> dict:",
+          "before": [],
+          "after": [
+            "// Pilot-only actual status bar frame. Safe-area readback at 62pt alone",
+            "// does not imply the remote UIKit scene has status-bar avoidance metadata.",
+            "static inline CGRect ScarletPilotHostStatusBarFrame(UIWindowScene *scene) {",
+            "    UIWindowScene *hostScene = scene;",
+            "    if(!hostScene) {",
+            "        for(UIScene *candidate in UIApplication.sharedApplication.connectedScenes) {"
+          ]
+        },
+        {
+          "commit": "2be5c03ff198cc53265bc985af98a5b2fd43395c",
+          "file": "rebuild/integration/apply_scarlet_host.py",
+          "location": "@@ -1059,26 +1079,7 @@ def add_v45_fullscreen_scene_slot(engine: Path) -> dict:",
+          "before": [
+            "// Pilot-only actual status bar frame. Safe-area readback at 62pt alone",
+            "// does not imply the remote UIKit scene has status-bar avoidance metadata.",
+            "static CGRect ScarletPilotHostStatusBarFrame(UIWindowScene *scene) {",
+            "    UIWindowScene *hostScene = scene;",
+            "    if(!hostScene) {",
+            "        for(UIScene *candidate in UIApplication.sharedApplication.connectedScenes) {"
+          ],
+          "after": []
+        }
+      ],
+      "source_revisions": [
+        {
+          "sha": "2be5c03ff198cc53265bc985af98a5b2fd43395c",
+          "url": "https://github.com/fx564286/sidestore-auto-refresh/commit/2be5c03ff198cc53265bc985af98a5b2fd43395c",
+          "title": "fix(r6p5): share statusbar resolver across AppSceneViewController and UIKitHooks translation units"
+        }
+      ],
+      "source_verification": "git_patch_observed"
+    },
+    {
+      "id": "L039",
+      "date": "2026-11-12",
+      "version": "new-r6p6",
+      "problem": "guest_top",
+      "mechanism": "guest_uikit_geometry",
+      "action": "게스트 UIWindow/root 컨트롤 안전영역·상단 컨트롤 위치 수치 수집",
+      "observation": "원래 UIKit 위치 검사 계열 재실험, 문제 해결 아닌 진단",
+      "evidence": "c7beff3cb",
+      "status": "diagnostic_only",
+      "repeat_policy": "no_repeat_without_new_device_evidence",
+      "code_locations": [
+        {
+          "commit": "1d8c641b1c938330d0e7d06837ca8e3b9931ef1d",
+          "file": "rebuild/integration/apply_scarlet_host.py",
+          "location": "@@ -1617,12 +1617,111 @@ def main():",
+          "before": [
+            "        hook_probe_anchor, hook_probe_helper + hook_probe_anchor)"
+          ],
+          "after": [
+            "    # R6P6 is deliberately NOT another host/FBScene safe-area correction.",
+            "    # Observe the actual guest UIKit window and its root hierarchy in the",
+            "    # LiveProcess. Only numbers, event stage and process PID cross App Group.",
+            "    # We do not reposition a single guest view, scale the scene, swizzle",
+            "    # UIWindow geometry, or require a new application entitlement.",
+            "    guest_layout_probe = r'''"
+          ]
+        },
+        {
+          "commit": "6611a55a1c2c29c431741973f663c1b42070410a",
+          "file": "rebuild/HostApp/ScarletGuestSessionLedger.swift",
+          "location": "@@ -257,6 +257,62 @@ enum ScarletGuestSessionLedger {",
+          "before": [],
+          "after": [
+            "    // R6P6: compare actual guest-process UIKit geometry with the host's",
+            "    // FBScene readback. Guest writes only numeric positions and a stage;",
+            "    // there are no app names, user text, view class names or screenshots.",
+            "    // Import on diagnostic viewer open, not by repeatedly polling guest UI.",
+            "    private static let guestGeometryKey = \"Scarlet.Guest.WindowGeometry.V1\"",
+            "    private static let guestGeometryCursorKey = \"Scarlet.Guest.WindowGeometryCursor.V1\""
+          ]
+        }
+      ],
+      "source_revisions": [
+        {
+          "sha": "c7beff3cb53a6a46b5d4520796a7744068c5a80c",
+          "url": "https://github.com/fx564286/sidestore-auto-refresh/commit/c7beff3cb53a6a46b5d4520796a7744068c5a80c",
+          "title": "ci(r6p6): validate and publish isolated guest UIKit geometry diagnostic IPA"
+        },
+        {
+          "sha": "1d8c641b1c938330d0e7d06837ca8e3b9931ef1d",
+          "url": "https://github.com/fx564286/sidestore-auto-refresh/commit/1d8c641b1c938330d0e7d06837ca8e3b9931ef1d",
+          "title": "diag(r6p6): capture guest UIWindow/root view geometry inside LiveProcess instead of rewriting host safe area"
+        },
+        {
+          "sha": "6611a55a1c2c29c431741973f663c1b42070410a",
+          "url": "https://github.com/fx564286/sidestore-auto-refresh/commit/6611a55a1c2c29c431741973f663c1b42070410a",
+          "title": "diag(r6p6): replay anonymous guest UIWindow and root view coordinates in host diagnostic journal"
+        }
+      ],
+      "source_verification": "git_patch_observed"
+    },
+    {
+      "id": "L040",
+      "date": "2026-11-12",
+      "version": "new-r6p7",
+      "problem": "guest_top",
+      "mechanism": "launch_policy",
+      "action": "LCBootstrap NSBundle/CFBundle 교체 전후 Info.plist 상태바/Scene 비교",
+      "observation": "8개 이벤트는 기록되나 값이 필터에 누락",
+      "evidence": "2d16d43dd",
+      "status": "diagnostic_failure",
+      "repeat_policy": "no_repeat_without_new_device_evidence",
+      "code_locations": [
+        {
+          "commit": "1bd32e44b462c4a81e69d1aae8b4dff52454e3bc",
+          "file": "rebuild/integration/apply_scarlet_host.py",
+          "location": "@@ -1242,6 +1242,113 @@ def add_v45_fullscreen_scene_slot(engine: Path) -> dict:",
+          "before": [],
+          "after": [
+            "def add_scarlet_guest_launch_policy_probe(engine: Path) -> dict:",
+            "    \"\"\"R6P7: inspect the launch-time *bundle policy*, not Safe Area/UIWindow.",
+            "    UIKit may cache app-level status bar and scene declarations at startup.",
+            "    LiveContainer substitutes its main NSBundle and CFBundle before calling",
+            "    the guest's main(); compare the original LiveProcess extension's declared",
+            "    policy with the guest bundle and the effective post-substitution main bundle."
+          ]
+        },
+        {
+          "commit": "1bd32e44b462c4a81e69d1aae8b4dff52454e3bc",
+          "file": "rebuild/integration/apply_scarlet_host.py",
+          "location": "@@ -1673,6 +1780,7 @@ def main():",
+          "before": [],
+          "after": [
+            "    guest_launch_policy = add_scarlet_guest_launch_policy_probe(engine)"
+          ]
+        },
+        {
+          "commit": "1bd32e44b462c4a81e69d1aae8b4dff52454e3bc",
+          "file": "rebuild/integration/apply_scarlet_host.py",
+          "location": "@@ -1689,6 +1797,7 @@ def main():",
+          "before": [],
+          "after": [
+            "        \"guestLaunchPolicyDifferential\": guest_launch_policy,"
+          ]
+        }
+      ],
+      "source_revisions": [
+        {
+          "sha": "1bd32e44b462c4a81e69d1aae8b4dff52454e3bc",
+          "url": "https://github.com/fx564286/sidestore-auto-refresh/commit/1bd32e44b462c4a81e69d1aae8b4dff52454e3bc",
+          "title": "diag(r6p7): audit guest launch Info.plist policy before and after NSBundle/CFBundle substitution"
+        }
+      ],
+      "source_verification": "git_patch_observed"
+    },
+    {
+      "id": "L041",
+      "date": "2026-11-12",
+      "version": "new-r6p8",
+      "problem": "guest_top",
+      "mechanism": "launch_policy",
+      "action": "16개 정책 필드 허용 목록 등록·16/16 진단 수신/저장 카운트",
+      "observation": "실기기 1036/1046: 실제 번들 정책은 게스트 선언과 일치. 상단 문제 원인 아님",
+      "evidence": "440953bed",
+      "status": "device_diagnostic_pass",
+      "repeat_policy": "no_repeat_without_new_device_evidence",
+      "code_locations": [
+        {
+          "commit": "16f616c379cce318a402b5dbac23dc982ca53f69",
+          "file": "rebuild/HostApp/ScarletDiagnosticRecorder.swift",
+          "location": "@@ -49,7 +49,20 @@ final class ScarletDiagnosticRecorder: @unchecked Sendable {",
+          "before": [
+            "        \"mode\""
+          ],
+          "after": [
+            "        \"mode\",",
+            "        // R6P8: R6P7 guest bootloader correctly collected these 0/1/-1",
+            "        // launch-policy counts, but the recorder silently dropped them.",
+            "        // Only anonymous bounded BOOL/array-count fields are permitted.",
+            "        \"policy_only\",",
+            "        \"host_status_hidden\", \"guest_status_hidden\","
+          ]
+        },
+        {
+          "commit": "00d3c940f633d3e0a1f32b53ceb1c0e43243f65b",
+          "file": "rebuild/HostApp/ScarletGuestSessionLedger.swift",
+          "location": "@@ -305,8 +305,17 @@ enum ScarletGuestSessionLedger {",
+          "before": [],
+          "after": [
+            "                let received = allowed.reduce(0) { count, key in",
+            "                    count + ((row[key] as? NSNumber) == nil ? 0 : 1)",
+            "                }",
+            "                let persisted = allowed.reduce(0) { count, key in",
+            "                    count + (fields[key] == nil ? 0 : 1)",
+            "                }"
+          ]
+        }
+      ],
+      "source_revisions": [
+        {
+          "sha": "16f616c379cce318a402b5dbac23dc982ca53f69",
+          "url": "https://github.com/fx564286/sidestore-auto-refresh/commit/16f616c379cce318a402b5dbac23dc982ca53f69",
+          "title": "fix(r6p8): retain numeric guest launch-policy fields previously discarded by log allowlist"
+        },
+        {
+          "sha": "00d3c940f633d3e0a1f32b53ceb1c0e43243f65b",
+          "url": "https://github.com/fx564286/sidestore-auto-refresh/commit/00d3c940f633d3e0a1f32b53ceb1c0e43243f65b",
+          "title": "diag(r6p8): count collected policy fields and warn when guest raw payload is incomplete"
+        }
+      ],
+      "source_verification": "git_patch_observed"
+    },
+    {
+      "id": "L042",
+      "date": "2026-11-12",
+      "version": "new-r6p8",
+      "problem": "guest_top",
+      "mechanism": "scene_manifest",
+      "action": "게스트별 UIApplicationSceneManifest 존재 여부 및 supported orientation 비교",
+      "observation": "PID1036 manifest 있음 3방향, PID1046 manifest 없음 1방향; 상단 잘림과의 인과성 미입증",
+      "evidence": "440953bed",
+      "status": "diagnostic_only",
+      "repeat_policy": "no_repeat_without_new_device_evidence",
+      "code_locations": [],
+      "source_verification": "source_unavailable",
+      "missing_source_reason": "확실한 원본 코드 diff 확보되지 않음. 새 구현으로 오인하여 재시도 금지."
+    },
+    {
+      "id": "L043",
+      "date": "2026-11-12",
+      "version": "new-r6p9",
+      "problem": "guest_boot",
+      "mechanism": "startup_order",
+      "action": "상주형 AppScene VC가 UIWindowScene·parent에 붙은 뒤 XPC beginExtensionRequest 호출하도록 실행 순서 변경",
+      "observation": "실기기 PID1120/1130 시작/컨텐츠 attach 성공, 초기 hosting owner -1 및 62→0→62 여전히 관찰. 화면 겹침 해결 미확인",
+      "evidence": "f29ddd833",
+      "status": "device_partial_pass",
+      "repeat_policy": "no_repeat_without_new_device_evidence",
+      "code_locations": [
+        {
+          "commit": "31a807fc3d02b5db8807135bda00c09914df6a67",
+          "file": "rebuild/integration/apply_scarlet_host.py",
+          "location": "@@ -1243,6 +1243,108 @@ def add_v45_fullscreen_scene_slot(engine: Path) -> dict:",
+          "before": [],
+          "after": [
+            "def add_r6p9_deferred_liveprocess_boot(engine: Path) -> dict:",
+            "    \"\"\"Start resident LiveProcess requests only after owning host window attach.",
+            "    LiveContainer's AppSceneViewController constructor calls",
+            "    beginExtensionRequestWithInputItems: *before* the caller can addChild,",
+            "    mount the remote controller, set scarletNativeFullscreenSlot, or attach",
+            "    it to the foreground UIWindowScene. The device log accordingly reports"
+          ]
+        },
+        {
+          "commit": "31a807fc3d02b5db8807135bda00c09914df6a67",
+          "file": "rebuild/integration/apply_scarlet_host.py",
+          "location": "@@ -1779,6 +1881,7 @@ def main():",
+          "before": [],
+          "after": [
+            "    deferred_scene_boot = add_r6p9_deferred_liveprocess_boot(engine)"
+          ]
+        },
+        {
+          "commit": "31a807fc3d02b5db8807135bda00c09914df6a67",
+          "file": "rebuild/integration/apply_scarlet_host.py",
+          "location": "@@ -1796,6 +1899,7 @@ def main():",
+          "before": [],
+          "after": [
+            "        \"deferredRemoteLaunchUntilHosted\": deferred_scene_boot,"
+          ]
+        },
+        {
+          "commit": "321dc9151264fbba3dc37c3e6183ceee9e14353b",
+          "file": "rebuild/HostApp/ScarletFullscreenSceneStack.swift",
+          "location": "@@ -1053,9 +1053,14 @@ final class ScarletFullscreenSceneViewport: UIViewController {",
+          "before": [
+            "                delegate: stack) else {"
+          ],
+          "after": [
+            "            // R6P9: original LC init() starts NSExtension XPC before this",
+            "            // child belongs to any UIWindow. The device observed initial",
+            "            // host owner unavailable, then 62pt after remote attachment.",
+            "            // Request an *unstarted* VC; this is resident-only and does not",
+            "            // affect original/classic LiveContainer or signed guest bundles.",
+            "                delegate: stack, scarletDeferExtensionRequest: true) else {"
+          ]
+        },
+        {
+          "commit": "321dc9151264fbba3dc37c3e6183ceee9e14353b",
+          "file": "rebuild/HostApp/ScarletFullscreenSceneStack.swift",
+          "location": "@@ -1075,6 +1080,20 @@ final class ScarletFullscreenSceneViewport: UIViewController {",
+          "before": [],
+          "after": [
+            "        // The actual host/window/parent relation now exists. Start each",
+            "        // resident extension at most once only AFTER attaching its VC.",
+            "        // Reconcile is already called on viewDidAppear, verified full-screen",
+            "        // layout and SwiftUI updates; no polling timer, fixed status-bar",
+            "        // offsets, or process recycling.",
+            "        for (folder, vc) in controllers"
+          ]
+        }
+      ],
+      "source_revisions": [
+        {
+          "sha": "31a807fc3d02b5db8807135bda00c09914df6a67",
+          "url": "https://github.com/fx564286/sidestore-auto-refresh/commit/31a807fc3d02b5db8807135bda00c09914df6a67",
+          "title": "fix(r6p9): defer resident LiveProcess XPC startup until AppScene VC attaches to real host UIWindowScene"
+        },
+        {
+          "sha": "321dc9151264fbba3dc37c3e6183ceee9e14353b",
+          "url": "https://github.com/fx564286/sidestore-auto-refresh/commit/321dc9151264fbba3dc37c3e6183ceee9e14353b",
+          "title": "fix(r6p9): construct resident AppScene without XPC; start only after parent UIWindowScene attachment"
+        }
+      ],
+      "source_verification": "git_patch_observed"
+    },
+    {
+      "id": "L044",
+      "date": "2026-11-12",
+      "version": "new-r6p9",
+      "problem": "guest_top",
+      "mechanism": "observability",
+      "action": "R6P9 실기기 로그에서 현재 상태/원격 owner/정책/홈 오디오 확인",
+      "observation": "두 게스트 pause ok, host owner -1→62, Safe Area 순간 0 반복. 동작 정상=상단 터치 해결 아님",
+      "evidence": "f29ddd833",
+      "status": "device_unresolved",
+      "repeat_policy": "no_repeat_without_new_device_evidence",
+      "code_locations": [],
+      "source_verification": "source_unavailable",
+      "missing_source_reason": "확실한 원본 코드 diff 확보되지 않음. 새 구현으로 오인하여 재시도 금지."
+    },
+    {
+      "id": "L045",
+      "date": "2026-11-12",
+      "version": "new-r6p10",
+      "problem": "diagnostics",
+      "mechanism": "remediation_audit",
+      "action": "Host DiagnosticRecorder.makeShareFile에 변조 방지 형식의 전체 remediation JSON과 AI handoff prompt 섹션을 추가; apply_scarlet_host.py가 CI archive 시 Git 추적 JSON/MD를 base64로 삽입하고 원본 diff 유효성 확인",
+      "observation": "소스 변경·GitHub diff는 확인. CI·IPA·실기기 진단 보고서 내 실제 표시 및 중복 방지 효과는 아직 검증 필요",
+      "evidence": "pending",
+      "status": "ci_pending",
+      "repeat_policy": "동일 진단 JSON·기존 프로젝트 코드 위치 검증을 하지 않고 단순 로그 UI 문구만 추가하는 변경 금지",
+      "code_locations": [
+        {
+          "commit": "356c5b7b4104bac35112c97bb100fd1ccfb314bf",
+          "file": "rebuild/HostApp/ScarletDiagnosticRecorder.swift",
+          "location": "@@ -186,6 +186,20 @@ final class ScarletDiagnosticRecorder: @unchecked Sendable {",
+          "before": [],
+          "after": [
+            "    // Build-time embedded, version-pinned, immutable remediation log.",
+            "    // The current-run JSONL remains small and privacy filtered. Only the",
+            "    // explicit user-shared report includes historical code diffs/prompt.",
+            "    // CI replaces both markers with base64 of repo-tracked audited sources.",
+            "    private static let remediationHistoryBlob = \"__SCARLET_REMEDIATION_HISTORY_B64__\"",
+            "    private static let handoffPromptBlob = \"__SCARLET_HANDOFF_PROMPT_B64__\"",
+            "    private static func decodedAudit(_ base64: String) -> String {",
+            "        guard let data = Data(base64Encoded: base64),",
+            "              let text = String(data: data, encoding: .utf8) else {",
+            "            return \"EMBEDDED_AUDIT_UNAVAILABLE: missing or invalid archive payload.\""
+          ]
+        },
+        {
+          "commit": "356c5b7b4104bac35112c97bb100fd1ccfb314bf",
+          "file": "rebuild/HostApp/ScarletDiagnosticRecorder.swift",
+          "location": "@@ -215,6 +229,14 @@ final class ScarletDiagnosticRecorder: @unchecked Sendable {",
+          "before": [],
+          "after": [
+            "        // R6P10: full immutable fix history, including where/how each line",
+            "        // was changed. This survives log rotation and app restarts because",
+            "        // it is bundled into the signed binary; not the rolling JSONL.",
+            "        body += \"\\n===== REMEDIATION HISTORY · FILE/FUNCTION/BEFORE/AFTER DIFF =====\\n\"",
+            "        body += Self.decodedAudit(Self.remediationHistoryBlob)",
+            "        body += \"\\n===== NO-REPEAT POLICY & AI HANDOFF PROMPT =====\\n\"",
+            "        body += Self.decodedAudit(Self.handoffPromptBlob)",
+            "        body += \"\\n===== END OF EMBEDDED AUDIT =====\\n\""
+          ]
+        },
+        {
+          "commit": "3fa96d8bb762c148b4dff60f1acd3bb36db33e11",
+          "file": "rebuild/integration/apply_scarlet_host.py",
+          "location": "@@ -1711,6 +1711,35 @@ def main():",
+          "before": [],
+          "after": [
+            "    # R6P10: a one-file user diagnostic report must contain all earlier",
+            "    # interventions with file/function, original and replacement source code,",
+            "    # verification grade, and the complete AI no-repeat instructions.",
+            "    # Embed the repo-reviewed JSON/prompt at archive time, not by trying to",
+            "    # recover old JSONL files (rotated) or fetching external URLs on iPhone.",
+            "    history_path = root/\"rebuild/diagnostics/scarlet_remediation_history.json\"",
+            "    handoff_path = root/\"rebuild/diagnostics/SCARLET_LOG_ONLY_HANDOFF_PROMPT.md\"",
+            "    audit = json.loads(history_path.read_text(encoding=\"utf-8\"))",
+            "    assert audit[\"schema\"] >= 2 and len(audit[\"entries\"]) >= 45, \"Repair ledger unexpectedly truncated\"",
+            "    ids = [e[\"id\"] for e in audit[\"entries\"]]"
+          ]
+        }
+      ],
+      "source_verification": "git_patch_observed",
+      "missing_source_reason": "확실한 원본 코드 diff 확보되지 않음. 새 구현으로 오인하여 재시도 금지.",
+      "source_revisions": [
+        {
+          "sha": "356c5b7b4104bac35112c97bb100fd1ccfb314bf",
+          "url": "https://github.com/fx564286/sidestore-auto-refresh/commit/356c5b7b4104bac35112c97bb100fd1ccfb314bf",
+          "title": "feat(r6p10): embed full code-level repair history and AI handoff prompt in every exported diagnostic report"
+        },
+        {
+          "sha": "3fa96d8bb762c148b4dff60f1acd3bb36db33e11",
+          "url": "https://github.com/fx564286/sidestore-auto-refresh/commit/3fa96d8bb762c148b4dff60f1acd3bb36db33e11",
+          "title": "build(r6p10): fail closed unless exact code diff ledger and handoff prompt embed into host archive"
+        }
+      ],
+      "hypothesis": "다음 대화가 이전 기술·메커니즘을 다시 제안하는 원인은 현재 iPhone 로그에 과거 수정의 실제 소스 diff와 실패 근거가 포함되지 않기 때문",
+      "device_verification": "not_installed_or_tested",
+      "rollback_commit": "f29ddd833305e0f2fc020912605a787efbb5b773"
+    }
+  ],
+  "gate": {
+    "do_not_retry_mechanisms": [
+      "safe_area",
+      "uiwindow_owner",
+      "overlay_hit_test",
+      "frame_transform",
+      "layout_timing",
+      "upstream_comparison",
+      "guest_uikit_geometry",
+      "statusbar_metrics",
+      "launch_policy",
+      "startup_order"
+    ],
+    "allow_repeat_only_if": "Previously untested concrete causal variant supported by new device evidence, with an explicit prediction, reversible one-variable test, different implementation, and documented decision.",
+    "new_attempt_required_fields": [
+      "id",
+      "date",
+      "version",
+      "problem",
+      "mechanism",
+      "action",
+      "observation",
+      "evidence",
+      "status",
+      "repeat_policy"
+    ],
+    "success_definition": "iPhone visual screenshot/recording confirms correct top controls and direct touch in portrait, landscape and home-reentry for more than one guest; CI passing alone is not success."
+  },
+  "required_fields_for_new_attempt": [
+    "id",
+    "date",
+    "version",
+    "problem",
+    "mechanism",
+    "action",
+    "hypothesis",
+    "code_locations",
+    "source_revisions",
+    "source_verification",
+    "observation",
+    "device_verification",
+    "status",
+    "repeat_policy",
+    "rollback_commit"
+  ],
+  "fields_guide": {
+    "code_locations": "Each code location MUST contain actual repo-relative file, exact unified-diff @@ function/line context, and before/after changed source. Empty only when source_unavailable, never fill by inference.",
+    "source_revisions": "Original actual source-modifying commit, not just the subsequent CI release commit.",
+    "device_verification": "Explicit visual+touch proof from real iPhone; Xcode archive and successful telemetry aren't equivalent."
+  }
+}
