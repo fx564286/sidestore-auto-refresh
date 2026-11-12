@@ -127,12 +127,18 @@ static void ScarletIslandInspect(UIWindow *window, NSUInteger attempt) {
 void initScarletGuestIslandContentGuard(void) {
     // The resident opt-in bit is supplied before LC guest bootstrap; all
     // classic LC, embedded SideStore, and unrelated extensions remain inert.
+    // R6P17: LiveProcessMain saved this opt-in in the ORIGINAL LC defaults.
+    // NUDGuestHooksInit swaps standardUserDefaults to the guest's own domain
+    // before this initializer runs. Never gate on that replaced instance.
     if(!NSUserDefaults.isLiveProcess ||
-       ![NSUserDefaults.standardUserDefaults
+       ![NSUserDefaults.lcUserDefaults
            boolForKey:@"Scarlet.ResidentSDKContract.V1"])
         return;
     static dispatch_once_t once;
     dispatch_once(&once, ^{
+        // The very first independent guest-process receipt proves the guard
+        // was actually armed; host geometry alone cannot prove this.
+        ScarletIslandReceipt(@"guest_root_guard_armed", 0, 0, 0);
         NSNotificationCenter *center = NSNotificationCenter.defaultCenter;
         [center addObserverForName:UIWindowDidBecomeVisibleNotification
             object:nil queue:NSOperationQueue.mainQueue
