@@ -158,6 +158,14 @@ final class ScarletGuestSignInAgent: NSObject {
                     finish(id, code: -3401, domain: "scarlet.auth.keychain_roundtrip_failed")
                     return
                 }
+                // R6P20: original AuthManager.signIn returns a verified
+                // ALTAppleAPISession but does NOT populate `self.session`.
+                // DeveloperPortalProxy.fetchTeams -> getAuthenticatedSession
+                // otherwise starts a second Anisette fetch immediately after
+                // successful 2FA. Reuse only this already authenticated,
+                // Keychain-readback-verified session in the SAME process.
+                // Never cache the password, OTP, or raw identity in logs.
+                AuthManager.shared.session = session
                 // Non-secret successful Anisette route for token restoration.
                 // Only commit the chosen route after a verified Keychain save.
                 UserDefaults.standard.set(profile,
