@@ -884,7 +884,8 @@ private final class ScarletGuestIslandReceiptObserver {
                 for key in ["owner_groups", "candidate_with_controls",
                     "candidate_frame_matched", "candidate_safe_matched",
                     "candidate_inset_matched", "candidate_content_matched",
-                    "candidate_state_matched"] {
+                    "candidate_state_matched", "candidate_disabled_scroll",
+                    "owner_gate_pass"] {
                     if let number = row[key] as? NSNumber {
                         fields[key] = number.stringValue
                     }
@@ -901,7 +902,9 @@ private final class ScarletGuestIslandReceiptObserver {
                     fields: ["process_pid": String(pid), "safe_top_pt": String(target)])
                 continue
             }
-            if ["guest_always_trial_staged", "guest_always_trial_reverted",
+            if ["guest_always_owner_retry_scheduled",
+                "guest_always_owner_retry_exhausted",
+                "guest_always_trial_staged", "guest_always_trial_reverted",
                 "guest_always_trial_retained"].contains(result) {
                 // R6P31: nonvertical UIKit ALWAYS trial; only late retention
                 // is a stable code-path confirmation, never visual/touch proof.
@@ -917,7 +920,9 @@ private final class ScarletGuestIslandReceiptObserver {
                     }
                 }
                 if let reason = row["reason"] as? String,
-                   ["native_inset_tentative", "no_immediate_geometry_improvement",
+                   ["owner_metrics_not_stable",
+                    "strict_owner_unavailable_after_retry",
+                    "native_inset_tentative", "no_immediate_geometry_improvement",
                     "late_geometry_not_persistent",
                     "late_native_inset_confirmed"].contains(reason) {
                     fields["reason"] = reason
