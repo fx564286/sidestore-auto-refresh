@@ -1814,6 +1814,32 @@ void initScarletGuestAudioIsolation(void) {
     }
 
 
+
+def add_scarlet_guest_keyboard_handoff(engine: Path) -> dict:
+    """R6P24: outgoing remote guest resigns its own editor before a switch."""
+    source=Path(__file__).with_name("ScarletGuestKeyboardHandoff.m.txt")
+    target=engine/"LiveContainer/Tweaks/ScarletGuestKeyboardHandoff.m"
+    assert source.is_file() and target.parent.is_dir()
+    target.write_bytes(source.read_bytes())
+    header=engine/"LiveContainer/Tweaks/Tweaks.h"
+    body=header.read_text()
+    anchor="void initScarletGuestIslandContentGuard(void);\n"
+    assert body.count(anchor)==1
+    header.write_text(body.replace(anchor,
+        anchor+"void initScarletGuestKeyboardHandoff(void);\n",1))
+    bootstrap=engine/"LiveContainer/LCBootstrap.m"
+    body=bootstrap.read_text()
+    anchor="        initScarletGuestIslandContentGuard();\n"
+    assert body.count(anchor)==1
+    bootstrap.write_text(body.replace(anchor,
+        anchor+"        initScarletGuestKeyboardHandoff();\n",1))
+    return {
+        "residentOnly": True, "outgoingGuestOnly": True,
+        "firstResponderRelease": True, "keyboardDidHideObserved": True,
+        "guestProcessKeptAlive": True, "source":str(target.relative_to(engine)),
+        "sha256":file_sha(target),
+    }
+
 def add_scarlet_guest_island_content_guard(engine: Path) -> dict:
     # R6P15: only at the guest's own UIKit root, not host FBScene geometry.
     target = engine / "LiveContainer/Tweaks/ScarletGuestIslandContentGuard.m"
@@ -2134,6 +2160,7 @@ static void ScarletGuestHookTrace(NSString *event) {
     resident_sdk_contract = add_r6p11_guest_sdk_contract(engine)
     guest_audio = add_scarlet_guest_audio_isolation(engine)
     island_content = add_scarlet_guest_island_content_guard(engine)
+    keyboard_handoff = add_scarlet_guest_keyboard_handoff(engine)
     guest_launch_policy = add_scarlet_guest_launch_policy_probe(engine)
     guest_signing=instrument_original_guest_signing(engine)
     guest_manager=hide_embedded_sidestore_guest_navigation(engine)
@@ -2153,6 +2180,7 @@ static void ScarletGuestHookTrace(NSString *event) {
         "deferredRemoteLaunchUntilHosted": deferred_scene_boot,
         "residentGuestSDKContract": resident_sdk_contract,
         "guestAudioIsolation": guest_audio,
+        "guestKeyboardHandoff": keyboard_handoff,
         "guestLaunchPolicyDifferential": guest_launch_policy,
         "dockAttachDeferredToWindowVisibility":False,
         "hostEntry":"ScarletIntegratedHostView",

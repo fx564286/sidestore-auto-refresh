@@ -1,0 +1,107 @@
+// SCARLET_GUEST_KEYBOARD_HANDOFF_V1
+// Only installed in the opt-in resident LiveProcess guest. The outgoing
+// guest must resign its own UIKit first responder; host endEditing cannot
+// reach a remote input field owned by a separate app-extension process.
+#import <Foundation/Foundation.h>
+#import <UIKit/UIKit.h>
+#import <CoreFoundation/CoreFoundation.h>
+#import <unistd.h>
+#import "utils.h"
+
+static __weak UIWindow *scarletGuestKeyboardOwnerWindow;
+static int scarletGuestKeyboardToken;
+static BOOL scarletGuestKeyboardWasShown = NO;
+
+static void ScarletGuestKeyboardAck(NSString *outcome) {
+    NSString *name = [NSString stringWithFormat:
+        @"com.scarlet.guest.keyboard.ack.%@.%d", outcome, getpid()];
+    CFNotificationCenterPostNotification(
+        CFNotificationCenterGetDarwinNotifyCenter(),
+        (__bridge CFStringRef)name, NULL, NULL, true);
+}
+
+static void ScarletGuestKeyboardRememberWindow(NSNotification *event) {
+    UIWindow *window = [event.object isKindOfClass:UIWindow.class]
+        ? (UIWindow *)event.object : nil;
+    // Do not accidentally grab keyboard/overlay windows. Each guest has
+    // its own normal-level UIWindow; do not use UIApplication.shared.
+    if(window && !window.hidden && window.windowScene &&
+       window.windowLevel == UIWindowLevelNormal &&
+       window.rootViewController && CGRectGetWidth(window.bounds) >= 250)
+        scarletGuestKeyboardOwnerWindow = window;
+}
+
+static void ScarletGuestKeyboardReleaseFocus(void) {
+    UIWindow *window = scarletGuestKeyboardOwnerWindow;
+    if(!window || window.hidden || !window.windowScene ||
+       window.windowLevel != UIWindowLevelNormal ||
+       !window.rootViewController) {
+        ScarletGuestKeyboardAck(@"no_owned_window");
+        return;
+    }
+    // Force the outgoing guest's editor (UITextField/TextView/SwiftUI
+    // bridge) to relinquish focus. Never clear text, discard views,
+    // reset the keyboard type, or mutate the incoming guest.
+    BOOL returned = [window endEditing:YES];
+    ScarletGuestKeyboardAck(returned ? @"resign_requested" : @"no_active_responder");
+}
+
+static void ScarletGuestKeyboardDismissCallback(
+    CFNotificationCenterRef center, void *observer, CFNotificationName name,
+    const void *object, CFDictionaryRef userInfo) {
+    dispatch_async(dispatch_get_main_queue(), ^{
+        ScarletGuestKeyboardReleaseFocus();
+    });
+}
+
+void initScarletGuestKeyboardHandoff(void) {
+    // Match the existing resident-only safe-area opt-in. Normal LiveContainer
+    // and SideStore extensions must retain their own default keyboard.
+    if(!NSUserDefaults.isLiveProcess ||
+       ![NSUserDefaults.lcUserDefaults
+          boolForKey:@"Scarlet.ResidentSDKContract.V1"])
+        return;
+    static dispatch_once_t once;
+    dispatch_once(&once, ^{
+        int pid=getpid();
+        NSString *name=[NSString stringWithFormat:
+            @"com.scarlet.guest.keyboard.dismiss.%d", pid];
+        CFNotificationCenterAddObserver(
+            CFNotificationCenterGetDarwinNotifyCenter(),
+            &scarletGuestKeyboardToken,
+            ScarletGuestKeyboardDismissCallback,
+            (__bridge CFStringRef)name, NULL,
+            CFNotificationSuspensionBehaviorDeliverImmediately);
+        NSNotificationCenter *center = NSNotificationCenter.defaultCenter;
+        for(NSNotificationName notification in @[
+                UIWindowDidBecomeVisibleNotification,
+                UIWindowDidBecomeKeyNotification]) {
+            [center addObserverForName:notification object:nil
+                queue:NSOperationQueue.mainQueue
+                usingBlock:^(NSNotification *event) {
+                    ScarletGuestKeyboardRememberWindow(event);
+                }];
+        }
+        [center addObserverForName:UIKeyboardDidShowNotification
+            object:nil queue:NSOperationQueue.mainQueue
+            usingBlock:^(__unused NSNotification *event) {
+                scarletGuestKeyboardWasShown=YES;
+            }];
+        [center addObserverForName:UIKeyboardDidHideNotification
+            object:nil queue:NSOperationQueue.mainQueue
+            usingBlock:^(__unused NSNotification *event) {
+                if(scarletGuestKeyboardWasShown) {
+                    scarletGuestKeyboardWasShown=NO;
+                    ScarletGuestKeyboardAck(@"keyboard_hidden");
+                }
+            }];
+        // The existing audio scope also posts this standard lifecycle name.
+        // If a PID-scoped command is lost, the guest still resigns on pause.
+        [center addObserverForName:
+            @"UIApplicationWillResignActiveNotification"
+            object:nil queue:NSOperationQueue.mainQueue
+            usingBlock:^(__unused NSNotification *event) {
+                ScarletGuestKeyboardReleaseFocus();
+            }];
+    });
+}

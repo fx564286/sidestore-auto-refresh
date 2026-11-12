@@ -315,7 +315,11 @@ public enum ScarletNativeRefreshExecutor {
             "certificate_revoked", "profile_missing", "app_group_missing",
             "device_operation_timed_out", "sidestore_invalid_configuration",
             "sidestore_team_mismatch", "sidestore_team_recovery_failed",
-            "native_worker_creation_failed"
+            "native_worker_creation_failed",
+            // R6P24: R6P23's four static native stage receipts must survive
+            // this independent host XPC allowlist. Do not pass raw errors.
+            "native_unknown_database_stage", "native_unknown_team_stage",
+            "native_unknown_transport_stage", "native_unknown_appmanager_stage"
         ]
         let status = allowed.contains(rawReason)
             ? rawReason : "sidestore_native_operation_failed"

@@ -695,6 +695,45 @@ private final class ScarletGuestAudioReceiptObserver {
     }
 }
 
+// R6P24: prove that the *outgoing* resident guest, not the new guest or
+// the host, received the keyboard focus-release request. These are request
+// and keyboard-hide event receipts, not proof of a visually closed keyboard.
+@available(iOS 17.0, *)
+@MainActor
+private final class ScarletGuestKeyboardReceiptObserver {
+    static let shared = ScarletGuestKeyboardReceiptObserver()
+    private var observedPIDs: Set<Int32> = []
+
+    func observe(pid: Int32) {
+        guard pid > 0, observedPIDs.insert(pid).inserted else { return }
+        let center = CFNotificationCenterGetDarwinNotifyCenter()
+        for outcome in ["resign_requested", "no_active_responder",
+                        "no_owned_window", "keyboard_hidden"] {
+            let name = "com.scarlet.guest.keyboard.ack.\(outcome).\(pid)"
+            CFNotificationCenterAddObserver(
+                center, Unmanaged.passUnretained(self).toOpaque(),
+                { _, _, event, _, _ in
+                    guard let event else { return }
+                    let parts=String(describing:event.rawValue)
+                        .components(separatedBy: ".")
+                    guard parts.count == 7,
+                          parts[0] == "com", parts[1] == "scarlet",
+                          parts[2] == "guest", parts[3] == "keyboard",
+                          parts[4] == "ack",
+                          Int32(parts[6]) != nil else { return }
+                    DispatchQueue.main.async {
+                        ScarletDiagnosticRecorder.shared.record(
+                            "guest", "guest_keyboard_device_receipt",
+                            status: "info",
+                            fields: ["result": parts[5], "process_pid": parts[6],
+                                     "scope": "outgoing_guest_first_responder"])
+                    }
+                },
+                name as CFString, nil, .deliverImmediately)
+        }
+    }
+}
+
 // R6P15: guest-only safe-area correction evidence. The guest writes an
 // anonymous bounded readback into the existing LC App Group and posts a
 // PID-scoped Darwin notification. A host hosting-owner 62pt readback alone
@@ -1135,11 +1174,28 @@ final class ScarletFullscreenSceneViewport: UIViewController {
                      "result": "posted_not_device_verified"])
     }
 
+    /// R6P24: each LiveProcess owns its own UIKit first responder. Request
+    /// keyboard dismissal for the outgoing PID before showing the next one.
+    /// Do not use host.view.endEditing(), which cannot reach guest UIKit.
+    private func dismissGuestKeyboard(pid: Int32) {
+        guard pid > 0 else { return }
+        ScarletGuestKeyboardReceiptObserver.shared.observe(pid: pid)
+        let name = "com.scarlet.guest.keyboard.dismiss.\(pid)"
+        CFNotificationCenterPostNotification(
+            CFNotificationCenterGetDarwinNotifyCenter(),
+            CFNotificationName(name as CFString), nil, nil, true)
+        ScarletDiagnosticRecorder.shared.record(
+            "guest", "guest_keyboard_dismiss_requested",
+            fields: ["process_pid": String(pid),
+                     "scope": "outgoing_guest", "result": "posted_not_verified"])
+    }
+
     // R6.1: an audio-scoped PID can no longer stay selected when the host
     // Home UI is visible. Clearing it also guarantees a resume signal when
     // the SAME retained guest returns (without requiring PID recreation).
     func pauseAllResidentAudioOnHome() {
         for vc in controllers.values where vc.pid > 0 && vc.isAppRunning {
+            dismissGuestKeyboard(pid: vc.pid)
             postGuestAudioScope("pause", pid: vc.pid)
         }
         audioScopedPID = 0
@@ -1154,6 +1210,14 @@ final class ScarletFullscreenSceneViewport: UIViewController {
         guard let target = controllers[folder],
               target.isAppRunning,
               target.scarletRemoteContentReady() else { return false }
+        if audioScopedPID != target.pid {
+            // Send on the outgoing LiveProcess before its surface is hidden.
+            // This cannot erase input data or steal the new app's focus.
+            for (key, vc) in controllers where key != folder &&
+                    vc.pid > 0 && vc.isAppRunning {
+                dismissGuestKeyboard(pid: vc.pid)
+            }
+        }
         for (key, vc) in controllers {
             // A hidden scene stays ATTACHED and its NSExtension request
             // continues. No app process kills or UIKit view detachment.
