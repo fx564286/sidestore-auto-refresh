@@ -60,6 +60,7 @@ class NoRepeatContract(unittest.TestCase):
         self.assertLess(export.index("Self.remediationDecisionIndex()"),
                         export.index("for index in indices"))
         self.assertIn("entries.suffix(18)", source)
+        self.assertIn('"elapsed_ms"', source)  # R6P12 measurement cannot be privacy-filtered away.
         self.assertIn('body += Self.decodedAudit(Self.remediationHistoryBlob)', source)
         self.assertIn('body += Self.decodedAudit(Self.handoffPromptBlob)', source)
 
