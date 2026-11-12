@@ -51,6 +51,23 @@ class ResidentSDKContract(unittest.TestCase):
         self.assertIn('resident_sdk_contract = add_r6p11_guest_sdk_contract(engine)', INTEGRATION)
         self.assertIn('"residentGuestSDKContract": resident_sdk_contract', INTEGRATION)
 
+    def test_dyld_unknown_os_signature_does_not_abort_guest(self):
+        for guard in (
+            'if(!baseAddr) return false;',
+            'if(adrpExtraOffset == -1) return false;',
+            'if(!gdyldPtr) return false;',
+            'if(!*(void**)gdyldPtr) return false;',
+            'if(!offset) return false;',
+            'if(!versionMapPtr) return false;',
+            'if(!size) return false;',
+        ):
+            self.assertIn(guard, CUT)
+        self.assertIn('BOOL firstHook = performHookDyldApi', CUT)
+        self.assertIn('BOOL secondHook = firstHook && performHookDyldApi', CUT)
+        self.assertIn('jitless_hook_dlopen', CUT)
+        self.assertIn('dyld_version_map_unavailable', CUT)
+        self.assertIn('jitlessHookPreservedWhenSDKUnrecognized', CUT)
+
     def test_anonymous_guest_receipt_is_recorded_and_exported(self):
         self.assertIn('"Scarlet.Guest.SDKContract.V1"', CUT)
         self.assertIn('ScarletRecordGuestSDKContract(effectiveSDK, sdkOrigin)', CUT)
