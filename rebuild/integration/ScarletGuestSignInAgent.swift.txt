@@ -3,6 +3,17 @@
 // It runs in SideStore's LiveProcess context, never inside the Scarlet UI.
 // NotificationCenter messages stay inside the guest process; XPC is the only
 // host/guest boundary. Never log Apple IDs, passwords, OTPs or auth tokens.
+// Pinned SideStore AuthManager declares its session PRIVATE. This source is
+// appended inside AuthManager.swift by apply_scarlet_host.py. Swift permits
+// a same-file extension OF AuthManager to access that private member, but
+// a separate ScarletGuestSignInAgent class cannot. Keep the bridge
+// fileprivate, never change upstream session visibility or sign-in policy.
+extension AuthManager {
+    fileprivate func scarletCacheVerifiedAuthSession(_ verified: ALTAppleAPISession) {
+        session = verified
+    }
+}
+
 @objc(ScarletGuestSignInAgent)
 final class ScarletGuestSignInAgent: NSObject {
     @MainActor private static var activeRequest: String?
@@ -165,7 +176,7 @@ final class ScarletGuestSignInAgent: NSObject {
                 // successful 2FA. Reuse only this already authenticated,
                 // Keychain-readback-verified session in the SAME process.
                 // Never cache the password, OTP, or raw identity in logs.
-                AuthManager.shared.session = session
+                AuthManager.shared.scarletCacheVerifiedAuthSession(session)
                 // Non-secret successful Anisette route for token restoration.
                 // Only commit the chosen route after a verified Keychain save.
                 UserDefaults.standard.set(profile,
