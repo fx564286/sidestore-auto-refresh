@@ -86,7 +86,14 @@ final class ScarletDiagnosticRecorder: @unchecked Sendable {
         "unsafe_image_nodes_in_scroll", "unsafe_image_nodes_outside_scroll",
         "seen", "nested", "not_top_full_width", "not_vertical",
         "existing_inset", "not_at_top", "busy",
-        "missing_unsafe_descendant", "eligible", "scan_budget_exhausted"
+        "missing_unsafe_descendant", "eligible", "scan_budget_exhausted",
+        // R6P27: bounded ownership metrics; no UIView names or identifiers.
+        "owner_groups", "owner_dominant_controls", "owner_dominant_images",
+        "owner_tie", "owner_frame_y", "owner_frame_width_pct",
+        "owner_frame_height_pct", "owner_adjusted_inset_top",
+        "owner_content_inset_top", "owner_offset_y",
+        "owner_adjustment_behavior", "owner_nested_scrolls",
+        "owner_scroll_enabled", "owner_content_height_pct", "owner_safe_top"
     ]
 
     private init() {
