@@ -501,6 +501,7 @@ final class ScarletFullscreenSceneStack: NSObject, ObservableObject,
             return
         }
         slots[index].pid = vc.pid
+        ScarletGuestIslandReceiptObserver.shared.observe(pid: vc.pid)
         guestProcessStartTimes[ObjectIdentifier(vc)] = Date()
         // Keep prior scene visible until this exact remote process reports
         // readiness; never flash an uninitialized black child scene.
@@ -694,6 +695,66 @@ private final class ScarletGuestAudioReceiptObserver {
     }
 }
 
+// R6P15: guest-only safe-area correction evidence. The guest writes an
+// anonymous bounded readback into the existing LC App Group and posts a
+// PID-scoped Darwin notification. A host hosting-owner 62pt readback alone
+// is not proof that the guest UIKit root received a safe content region.
+@available(iOS 17.0, *)
+@MainActor
+private final class ScarletGuestIslandReceiptObserver {
+    static let shared = ScarletGuestIslandReceiptObserver()
+    private var subscribed: Set<Int32> = []
+    private var seen: Set<String> = []
+
+    func observe(pid: Int32) {
+        guard pid > 0 else { return }
+        if subscribed.insert(pid).inserted {
+            let event = "com.scarlet.guest.island.ack.\(pid)"
+            CFNotificationCenterAddObserver(
+                CFNotificationCenterGetDarwinNotifyCenter(),
+                Unmanaged.passUnretained(self).toOpaque(),
+                { _, _, _, _, _ in
+                    DispatchQueue.main.async {
+                        ScarletGuestIslandReceiptObserver.shared.readBack()
+                    }
+                }, event as CFString, nil, .deliverImmediately)
+        }
+        readBack() // Reconcile a receipt sent before the listener attached.
+    }
+
+    private func readBack() {
+        guard let bytes = LCUtils.appGroupUserDefault.data(
+                forKey: "Scarlet.Guest.IslandRootReceipt.V1"),
+              let rows = try? JSONSerialization.jsonObject(with: bytes)
+                  as? [[String: Any]] else { return }
+        for row in rows {
+            guard let token = row["receipt"] as? String,
+                  !seen.contains(token),
+                  let pid = (row["pid"] as? NSNumber)?.int32Value,
+                  subscribed.contains(pid),
+                  let epoch = (row["epoch"] as? NSNumber)?.doubleValue,
+                  Date().timeIntervalSince1970 - epoch >= 0,
+                  Date().timeIntervalSince1970 - epoch < 180,
+                  let result = row["result"] as? String else { continue }
+            seen.insert(token)
+            let target = (row["target"] as? NSNumber)?.intValue ?? -1
+            let before = (row["before"] as? NSNumber)?.intValue ?? -1
+            let after = (row["after"] as? NSNumber)?.intValue ?? -1
+            ScarletDiagnosticRecorder.shared.record(
+                "layout", "guest_root_safearea_receipt",
+                status: result == "guest_root_corrected" ? "success"
+                    : (result == "guest_root_update_unconfirmed"
+                        ? "warning" : "info"),
+                fields: ["result": result,
+                         "process_pid": String(pid),
+                         "safe_top_pt": String(target),
+                         "guest_root_top_pt": String(before),
+                         "guest_root_after_pt": String(after)])
+        }
+        if seen.count > 128 { seen.removeAll() }
+    }
+}
+
 @available(iOS 17.0, *)
 @MainActor
 final class ScarletFullscreenSceneViewport: UIViewController {
@@ -832,6 +893,18 @@ final class ScarletFullscreenSceneViewport: UIViewController {
             $0.windowLevel == .normal && !$0.isHidden
         })
         let n = normal?.safeAreaInsets ?? .zero
+        // R6P15: the host alone knows the normal-window island inset before
+        // remote LiveProcess UIKit starts. Share only this anonymous geometry
+        // as a fallback for the guest's OWN root-controller safe-area check.
+        // Never publish the transient viewport zero or an overlay window.
+        if s?.interfaceOrientation.isPortrait == true,
+           n.top >= 20, n.top <= 130 {
+            let key = "Scarlet.Guest.PortraitSafeTop.V1"
+            let previous = LCUtils.appGroupUserDefault.double(forKey: key)
+            if abs(previous - Double(n.top)) >= 1 {
+                LCUtils.appGroupUserDefault.set(Double(n.top), forKey: key)
+            }
+        }
         let signature = [Int(actual.top),Int(actual.bottom),Int(host.top),
                          Int(host.bottom),Int(n.top),Int(n.bottom),
                          Int(view.bounds.width),Int(view.bounds.height)].map(String.init).joined(separator: ":")
