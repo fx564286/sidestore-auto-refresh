@@ -126,7 +126,13 @@ final class ScarletDiagnosticRecorder: @unchecked Sendable {
         "ancestor_translates", "ancestor_is_controller_root",
         "ancestor_controller_safe_top", "ancestor_is_scroll",
         "ancestor_is_control", "ancestor_clips", "ancestor_has_transform",
-        "ancestor_is_owner", "ancestor_is_root"
+        "ancestor_is_owner", "ancestor_is_root",
+        // R6P36: bounded reasons for missing time-scoped guest readbacks.
+        "probe_window_present", "probe_window_visible",
+        "probe_window_normal", "probe_scene_present",
+        "probe_scene_state", "probe_portrait", "probe_root_present",
+        "probe_root_match", "probe_root_attached",
+        "probe_root_safe_top", "probe_replacement"
     ]
 
     private init() {

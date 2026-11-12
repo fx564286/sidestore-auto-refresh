@@ -779,6 +779,33 @@ private final class ScarletGuestIslandReceiptObserver {
             let target = (row["target"] as? NSNumber)?.intValue ?? -1
             let before = (row["before"] as? NSNumber)?.intValue ?? -1
             let after = (row["after"] as? NSNumber)?.intValue ?? -1
+            if result == "guest_geometry_probe_status" {
+                // R6P36: a missing guest snapshot is an observable fact;
+                // preserve only closed failure reasons and anonymous flags.
+                var fields: [String: String] = [
+                    "process_pid": String(pid),
+                    "safe_top_pt": String(target)
+                ]
+                if let reason = row["reason"] as? String,
+                   ["scheduled", "window_released", "root_replaced",
+                    "root_stale", "window_ineligible", "scene_ineligible",
+                    "root_detached", "safe_unready", "frame_invalid"].contains(reason) {
+                    fields["reason"] = reason
+                }
+                for key in ["sample_index", "probe_window_present",
+                    "probe_window_visible", "probe_window_normal",
+                    "probe_scene_present", "probe_scene_state",
+                    "probe_portrait", "probe_root_present",
+                    "probe_root_match", "probe_root_attached",
+                    "probe_root_safe_top", "probe_replacement"] {
+                    if let v = row[key] as? NSNumber {
+                        fields[key] = v.stringValue
+                    }
+                }
+                ScarletDiagnosticRecorder.shared.record(
+                    "layout", "guest_geometry_probe_status", fields: fields)
+                continue
+            }
             if result == "guest_ancestor_layout_probe" {
                 // R6P35: only numeric geometry of at most two severely
                 // unsafe UIKit controls and their bounded ancestor chains.

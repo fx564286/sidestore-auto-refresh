@@ -693,6 +693,36 @@ static void ScarletIslandContentProbe(UIWindow *window,
         window, rootView, expectedTop, sample, ownerGroups);
 }
 
+// R6P36: P35 iPhone PID3252 receives a valid root-safe62 receipt but
+// emits no 650/2600 geometry packet, while PID3244 does. The original
+// scheduled reader silently returns on a lost/replaced/hidden root.
+// Record exact exclusion reason. Read a *replacement* attached root once
+// at the already scheduled 2600ms sample; never alter UIKit geometry.
+static void ScarletIslandProbeStatus(NSString *reason, UIWindow *window,
+    UIViewController *root, CGFloat expectedTop, NSUInteger sample,
+    BOOL replacement) {
+    UIWindowScene *scene=window.windowScene;
+    UIView *view=(root && root.isViewLoaded) ? root.view : nil;
+    CGFloat safe=view ? view.safeAreaInsets.top : -999;
+    ScarletIslandPublish(@{
+        @"receipt":NSUUID.UUID.UUIDString, @"pid":@(getpid()),
+        @"epoch":@([[NSDate date] timeIntervalSince1970]),
+        @"result":@"guest_geometry_probe_status",
+        @"reason":reason ?: @"unknown", @"target":@(ScarletIslandMetric(expectedTop)),
+        @"sample_index":@(sample),
+        @"probe_window_present":@(window != nil),
+        @"probe_window_visible":@(window && !window.hidden),
+        @"probe_window_normal":@(window && window.windowLevel==UIWindowLevelNormal),
+        @"probe_scene_present":@(scene != nil),
+        @"probe_scene_state":@(scene ? scene.activationState : -1),
+        @"probe_portrait":@(scene && UIInterfaceOrientationIsPortrait(scene.interfaceOrientation)),
+        @"probe_root_present":@(root != nil),
+        @"probe_root_match":@(window && root && window.rootViewController==root),
+        @"probe_root_attached":@(window && view && view.window==window),
+        @"probe_root_safe_top":@(ScarletIslandMetric(safe)),
+        @"probe_replacement":@(replacement)
+    });
+}
 static void ScarletIslandScheduleContentProbe(UIWindow *window,
                                                UIViewController *root,
                                                CGFloat expectedTop) {
@@ -701,12 +731,68 @@ static void ScarletIslandScheduleContentProbe(UIWindow *window,
         @YES, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
     __weak UIWindow *weakWindow = window;
     __weak UIViewController *weakRoot = root;
-    // Two bounded nonmutating reads after UIKit/SwiftUI have settled.
+    ScarletIslandProbeStatus(@"scheduled", window, root, expectedTop, 0, NO);
+    // Preserve existing P35 650/2600ms read times: this is NOT a timer
+    // retry nor another contentInset/frame/safe-area adjustment.
     for(NSNumber *delay in @[@650, @2600]) {
         NSUInteger sample = delay.unsignedIntegerValue;
         dispatch_after(dispatch_time(DISPATCH_TIME_NOW,
             (int64_t)sample * NSEC_PER_MSEC), dispatch_get_main_queue(), ^{
-            ScarletIslandContentProbe(weakWindow, weakRoot, expectedTop, sample);
+            UIWindow *liveWindow=weakWindow;
+            UIViewController *liveRoot=weakRoot;
+            if(!liveWindow) {
+                ScarletIslandProbeStatus(@"window_released", nil, liveRoot,
+                    expectedTop, sample, NO);
+                return;
+            }
+            BOOL replacement=NO;
+            if(!liveRoot || liveWindow.rootViewController != liveRoot) {
+                // At the single late measurement only, follow the actual
+                // attached root rather than silently dropping the packet.
+                if(sample==2600 && liveWindow.rootViewController) {
+                    liveRoot=liveWindow.rootViewController;
+                    replacement=YES;
+                    ScarletIslandProbeStatus(@"root_replaced", liveWindow,
+                        liveRoot, expectedTop, sample, YES);
+                } else {
+                    ScarletIslandProbeStatus(@"root_stale", liveWindow,
+                        liveRoot, expectedTop, sample, NO);
+                    return;
+                }
+            }
+            if(liveWindow.hidden || liveWindow.windowLevel!=UIWindowLevelNormal) {
+                ScarletIslandProbeStatus(@"window_ineligible", liveWindow,
+                    liveRoot, expectedTop, sample, replacement);
+                return;
+            }
+            UIWindowScene *scene=liveWindow.windowScene;
+            if(!scene || !UIInterfaceOrientationIsPortrait(scene.interfaceOrientation)) {
+                ScarletIslandProbeStatus(@"scene_ineligible", liveWindow,
+                    liveRoot, expectedTop, sample, replacement);
+                return;
+            }
+            UIView *view=liveRoot.isViewLoaded ? liveRoot.view : nil;
+            if(!view || view.window!=liveWindow) {
+                ScarletIslandProbeStatus(@"root_detached", liveWindow,
+                    liveRoot, expectedTop, sample, replacement);
+                return;
+            }
+            CGFloat top=view.safeAreaInsets.top;
+            if(!isfinite(top) || top<20 || !isfinite(expectedTop)) {
+                ScarletIslandProbeStatus(@"safe_unready", liveWindow,
+                    liveRoot, expectedTop, sample, replacement);
+                return;
+            }
+            CGRect frame=[view convertRect:view.bounds toView:liveWindow];
+            CGRect guide=[view convertRect:
+                view.safeAreaLayoutGuide.layoutFrame toView:liveWindow];
+            if(!isfinite(CGRectGetMinY(frame)) ||
+               !isfinite(CGRectGetMinY(guide))) {
+                ScarletIslandProbeStatus(@"frame_invalid", liveWindow,
+                    liveRoot, expectedTop, sample, replacement);
+                return;
+            }
+            ScarletIslandContentProbe(liveWindow, liveRoot, expectedTop, sample);
         });
     }
 }

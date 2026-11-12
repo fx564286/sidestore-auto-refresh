@@ -18,7 +18,11 @@ class GuestDescendantObservationContracts(unittest.TestCase):
         self.assertIn('if(before >= target - 2)', GUEST)
         self.assertIn('for(NSNumber *delay in @[@650, @2600])', GUEST)
         self.assertIn('objc_getAssociatedObject(root, &scarletIslandContentProbeKey)', GUEST)
-        self.assertIn('ScarletIslandContentProbe(weakWindow, weakRoot, expectedTop, sample)', GUEST)
+        # R6P36: read an attached root after eligibility validation; the
+        # former weak-root-only call silently dropped real P35 guest snapshots.
+        self.assertIn('ScarletIslandContentProbe(liveWindow, liveRoot, expectedTop, sample)', GUEST)
+        self.assertIn('ScarletIslandProbeStatus(@"scheduled"', GUEST)
+        self.assertIn('if(sample==2600 && liveWindow.rootViewController)', GUEST)
         self.assertIn('window.rootViewController != expectedRoot', GUEST)
 
     def test_sampling_is_bounded_nonmutating_and_window_coordinate_based(self):
