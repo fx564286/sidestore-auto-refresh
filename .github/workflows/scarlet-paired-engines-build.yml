@@ -34,6 +34,9 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p report
+          # Fail closed before any native engine integration or archive.
+          python3 rebuild/diagnostics/scarlet_no_repeat_gate.py \
+            | tee report/scarlet-no-repeat-gate.log
           python3 -m unittest discover -s rebuild/Tests -p 'test_*.py' \
             > report/scarlet-regression-tests.log 2>&1 || {
               tail -90 report/scarlet-regression-tests.log
