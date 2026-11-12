@@ -15832,7 +15832,7 @@
       "version": "new-v48-r6p36-missing-guest-probe-readback",
       "problem": "guest_top_geometry_not_observed",
       "mechanism": "explain_silent_guest_snapshot_gate_and_read_current_attached_root_at_existing_late_sample",
-      "action": "Signed P35 second guest root-safe62 produced no 650/2600ms guest_content_geometry_probe and therefore no deep ancestor proof, while the first guest yielded both. Instrument existing once-per-root content probe scheduling with a bounded anonymous 'guest_geometry_probe_status(scheduled)' receipt, then report which exact guard prevents snapshots (weak window released, weak root stale/replaced, window hidden/non-normal, scene absent/nonportrait, root view detached, root safe area unready, invalid frame). Record only PID, sample index, root/scene presence and bounded numeric flags. At *original* 2600ms read ONLY, if weak root has been replaced, evaluate the currently attached root of the SAME original live normal UIWindow with all existing portrait/scene/safe/window gates before performing the unchanged P35 content/ancestor geometry probes. At 650ms a root change is logged and skipped. No extra timer, observer loop, app-specific exception, frame/window/root resize, contentInset, contentOffset, SafeArea mutator or screen mask. Relay closed reason strings and numeric state to host JSONL via current P35 anonymous bridge and recorder, update historical P18 test to validate the attached-root call, add 6 new regressions, distinct Xcode paired CI/unsigned IPA and full commit diffs.",
+      "action": "Signed P35 second guest root-safe62 produced no 650/2600ms guest_content_geometry_probe and therefore no deep ancestor proof, while the first guest yielded both. Instrument existing once-per-root content probe scheduling with a bounded anonymous 'guest_geometry_probe_status(scheduled)' receipt, then report which exact guard prevents snapshots (weak window released, weak root stale/replaced, window hidden/non-normal, scene absent/nonportrait, root view detached, root safe area unready, invalid frame). Record only PID, sample index, root/scene presence and bounded numeric flags. At *original* 2600ms read ONLY, if weak root has been replaced, evaluate the currently attached root of the SAME original live normal UIWindow with all existing portrait/scene/safe/window gates before performing the unchanged P35 content/ancestor geometry probes. At 650ms a root change is logged and skipped. No extra timer, observer loop, app-specific exception, frame/window/root resize, contentInset, contentOffset, SafeArea mutator or screen mask. Relay closed reason strings and numeric state to host JSONL via current P35 anonymous bridge and recorder, update historical P18 test to validate the attached-root call, add 6 new regressions, distinct Xcode paired CI/unsigned IPA and full commit diffs. After local source diff review, normalize the new receipt's NSUUID constructor to the exact established Objective-C `NSUUID.UUID.UUIDString` style rather than the accidentally duplicated `.UUID` token; preserve this compile-focused correction in the same audited revision.",
       "hypothesis": "In P35 real iPhone PID3252, the guest root-safe receipt confirms the guard executed, and host foreground remained live >30s, yet neither scheduled geometry sample is present. The existing dispatch_after kept only weak UIWindow/root and its ScarletIslandContentProbe had multiple silent early-return gates; an original root replacement/detachment or scene change can cause both observations to vanish without logging. This is a measurable instrumentation gap, not proof that the guest has no overlap. Make all guard exits observable; using the currently attached root on the already-scheduled late sample can recover geometry when the original view controller changed. If no scheduled receipt appears, the root-scheduling callback itself or shared bridge must be investigated instead of retrying inset policies.",
       "observation": "P35 SourceCommit75455528540a at 2026-11-12T14:06:59Z session3d8246a5 current-run 234 events: guest PID3244 root-safe62, 650ms candidate_controls22/visible_unsafe_controls0, 2600ms candidate_controls13/visible_unsafe_controls0/images1 outside scroll, no severe control so ancestor probe absent. Guest PID3252 root receipt 'guest_root_already_safe' and quarantine events with SafeArea62, no guest_content_geometry_probe or guest_ancestor_layout_probe. Real cause of missing callback not observable; late 2600ms root-current fallback and explicit skip receipts needed. Auth initially restored then became unavailable on foreground, manual_blocked auth_unavailable, 2FA stored_session_verified and host_session_restored later; subsequent provider unchanged and SideStore signing ready; no manual native refresh operation or error executed. Recent guest register 1->2 and rendered count2; audio and keyboard process ACK not functional proof.",
       "status": "source_committed_ci_pending",
@@ -16217,6 +16217,18 @@
             "        self.assertIn('ScarletIslandProbeStatus(@\"scheduled\"', GUEST)",
             "        self.assertIn('if(sample==2600 && liveWindow.rootViewController)', GUEST)"
           ]
+        },
+        {
+          "commit": "d46ab24f4329cfc4e80676cb6aadc1d55a63be9a",
+          "file": "rebuild/integration/ScarletGuestIslandContentGuard.m.txt",
+          "location": "@@ -705,7 +705,7 @@ static void ScarletIslandProbeStatus(NSString *reason, UIWindow *window,",
+          "function": "static void ScarletIslandProbeStatus(NSString *reason, UIWindow *window,",
+          "before": [
+            "        @\"receipt\":NSUUID.UUID.UUID.UUIDString, @\"pid\":@(getpid()),"
+          ],
+          "after": [
+            "        @\"receipt\":NSUUID.UUID.UUIDString, @\"pid\":@(getpid()),"
+          ]
         }
       ],
       "source_revisions": [
@@ -16249,6 +16261,11 @@
           "sha": "5561a74b43aefd36666bc01a7a58062b394a3380",
           "url": "https://github.com/fx564286/sidestore-auto-refresh/commit/5561a74b43aefd36666bc01a7a58062b394a3380",
           "title": "test(r6p36): update P18 old weak-root assertion to checked attached-root readback retaining bounded sampling"
+        },
+        {
+          "sha": "d46ab24f4329cfc4e80676cb6aadc1d55a63be9a",
+          "url": "https://github.com/fx564286/sidestore-auto-refresh/commit/d46ab24f4329cfc4e80676cb6aadc1d55a63be9a",
+          "title": "fix(r6p36): use existing proven NSUUID receipt constructor syntax for native Objective-C build"
         }
       ],
       "generated_runtime_targets": [
