@@ -740,6 +740,30 @@ private final class ScarletGuestIslandReceiptObserver {
             let target = (row["target"] as? NSNumber)?.intValue ?? -1
             let before = (row["before"] as? NSNumber)?.intValue ?? -1
             let after = (row["after"] as? NSNumber)?.intValue ?? -1
+            if result == "guest_content_geometry_probe" {
+                // Anonymous window-space measurements only. No view names,
+                // text, guest IDs, screenshots, labels or private class names.
+                var fields: [String: String] = [
+                    "process_pid": String(pid),
+                    "safe_top_pt": String(target),
+                    "root_safe_top_pt": String(before)
+                ]
+                let numericFields = ["sample_index", "root_frame_y", "root_guide_y",
+                    "visited", "candidate_controls", "top_controls",
+                    "unsafe_controls", "first_top_control_y",
+                    "first_unsafe_control_y", "scroll_top_without_inset"]
+                for field in numericFields {
+                    if let number = row[field] as? NSNumber {
+                        fields[field] = number.stringValue
+                    }
+                }
+                if let capped = row["scan_capped"] as? NSNumber {
+                    fields["scan_capped"] = capped.boolValue ? "true" : "false"
+                }
+                ScarletDiagnosticRecorder.shared.record(
+                    "layout", "guest_content_geometry_probe", fields: fields)
+                continue
+            }
             ScarletDiagnosticRecorder.shared.record(
                 "layout", "guest_root_safearea_receipt",
                 status: result == "guest_root_corrected" ? "success"
