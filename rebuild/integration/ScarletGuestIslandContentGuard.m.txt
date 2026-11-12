@@ -705,7 +705,7 @@ static void ScarletIslandProbeStatus(NSString *reason, UIWindow *window,
     UIView *view=(root && root.isViewLoaded) ? root.view : nil;
     CGFloat safe=view ? view.safeAreaInsets.top : -999;
     ScarletIslandPublish(@{
-        @"receipt":NSUUID.UUID.UUID.UUIDString, @"pid":@(getpid()),
+        @"receipt":NSUUID.UUID.UUIDString, @"pid":@(getpid()),
         @"epoch":@([[NSDate date] timeIntervalSince1970]),
         @"result":@"guest_geometry_probe_status",
         @"reason":reason ?: @"unknown", @"target":@(ScarletIslandMetric(expectedTop)),
