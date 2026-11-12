@@ -1,8 +1,8 @@
 {
   "schema": 2,
   "scope": "Scarlet Crystal guest top-screen overlap, touch access, rotation, remote guest render and related resident regressions",
-  "updated_utc": "2026-11-12T02:21:00Z",
-  "current_baseline": "Installed iPhone report SourceCommit=f11ce35c2e7b: R6P12 switcher recent-row mount observed 5/16ms, first paint unverified; top bar island overlap unresolved; two guest SDK requests user_override. R6P13 no-repeat CI gate and front summary added, Xcode final validation pending.",
+  "updated_utc": "2026-11-12T03:02:00Z",
+  "current_baseline": "R6P14 committed source branch: panel reset before guest selection and Home; new 491/491 source tests passed in Linux; iOS CI and iPhone visual test pending. R6P12/R6P13 frozen assets remain unchanged.",
   "current_issue_status": "UNRESOLVED: guest app top bars/controls can overlap Dynamic Island (Instagram verified by user, others possible).",
   "confidence_note": "Past-chat-only historical versions were reported in earlier conversations; not all have a GitHub revision or device verification. An implementation, a CI success, a telemetry event, and a real device visual fix are distinct.",
   "privacy": "No credentials, Apple ID, OTP, UDID, guest names or device identifiers are stored.",
@@ -3659,6 +3659,300 @@
       "rollback_commit": "f11ce35c2e7bc53ef21db3e260c9c1a0ab469eba",
       "success_gate": "CI tests including deliberate repeated-fix probes pass, Xcode build succeeds, resulting iPhone-exported report starts with decision index including latest entries and retains all full before/after source changes; actual Dynamic Island issue remains separately unresolved.",
       "privacy": "No per-guest or personal identifiers; only historical metadata, sanitized source diffs, generic status fields."
+    },
+    {
+      "id": "L049",
+      "date": "2026-11-12",
+      "version": "new-v48-r6p14-switcher-navigation-reset",
+      "problem": "guest_switcher_navigation_stale_expansion",
+      "mechanism": "switcher_lifecycle_reset_before_navigation",
+      "hypothesis": "The user identified that the expanded switcher remains visible after moving to another app. iPhone e6afe296a535 report registers second guest at 02:50:27.044 UTC, while a switch_panel_dismissed is not logged until 02:50:34.391; count 2 exists before this. Source inspection shows switchTo calls onSwitch before closePanel and the resident goHome only hides UIWindow without consuming @State isOpen. The UI state can survive the retained overlay and reappear during guest activation.",
+      "action": "In ScarletFullscreenGuestFloatingTab switchTo, closePanel synchronously before onSwitch, and reopen with failure feedback only if synchronous request fails; for the app-list Exit action, closePanel before calling onExit. Make closePanel idempotent. In ScarletFullscreenSceneStack collapse the retained overlay with dismissState.requestClose plus immediate native isExpanded=false at goHome, activate and enqueueSignedGuest. Neither guest viewport geometry nor glass morph timing, sessions, certificates or signed assets are changed. Add a source-level navigation lifecycle regression test.",
+      "observation": "Existing device report SourceCommit=e6afe296a535 has second guest registration at 02:50:27.044 and delayed switch_panel_dismissed at 02:50:34.391; it does not contain the new r6p14 reset event, and the original telemetry cannot prove exact pixels/visibility. Local Python regression suite passed 491 tests including five new navigation tests; git diff --check passed. iOS device and Xcode pipeline not yet verified.",
+      "evidence": [
+        "User attached Scarlet Crystal report (2026-11-12T02:50:48Z) SourceCommit=e6afe296a535, session 7b3e207c, seq76 count2 and seq139 dismiss.",
+        "Before code: rebuild/HostApp/ScarletFullscreenGuestTab.swift switchTo onSwitch then closePanel; Exit invokes onExit without closePanel.",
+        "Before code: rebuild/HostApp/ScarletFullscreenSceneStack.swift goHome hides overlay UIWindow without resetting SwiftUI state.",
+        "491 Python tests PASS in isolated Linux clone based on 666fa02a1c8f8b9dac5f3c29e34876aa8bff9267."
+      ],
+      "status": "source_committed_ci_pending",
+      "source_verification": "git_patch_observed",
+      "code_locations": [
+        {
+          "commit": "a05afd62aeb58e37b9dbb4bde19a3706a7c67f7b",
+          "file": "rebuild/HostApp/ScarletFullscreenGuestTab.swift",
+          "location": "@@ -195,6 +195,7 @@",
+          "before": [
+            "    }",
+            "",
+            "    private func closePanel() {",
+            "        showingInstallChoices = false",
+            "        ScarletGuestSessionLedger.traceSwitcher(\"panel_closed\")",
+            "        transitionVersion += 1"
+          ],
+          "after": [
+            "    }",
+            "",
+            "    private func closePanel() {",
+            "        guard isOpen else { return }",
+            "        showingInstallChoices = false",
+            "        ScarletGuestSessionLedger.traceSwitcher(\"panel_closed\")",
+            "        transitionVersion += 1"
+          ]
+        },
+        {
+          "commit": "a05afd62aeb58e37b9dbb4bde19a3706a7c67f7b",
+          "file": "rebuild/HostApp/ScarletFullscreenGuestTab.swift",
+          "location": "@@ -235,12 +236,16 @@",
+          "before": [
+            "        if switcherHaptics {",
+            "            UIImpactFeedbackGenerator(style: .medium).impactOccurred()",
+            "        }",
+            "        if onSwitch(target) {",
+            "            // A cold target restarts through LC; it is not a preserved RAM scene.",
+            "            ScarletGuestSessionLedger.traceSwitcher(\"switch_submitted\")",
+            "            closePanel()",
+            "        } else {",
+            "            ScarletGuestSessionLedger.traceSwitcher(\"switch_submit_failed\")",
+            "            feedback = \"앱 전환 요청이 실패했습니다. 앱 목록에서 서명·실행 상태를 확인하세요.\"",
+            "            if switcherHaptics {",
+            "                UINotificationFeedbackGenerator().notificationOccurred(.error)"
+          ],
+          "after": [
+            "        if switcherHaptics {",
+            "            UIImpactFeedbackGenerator(style: .medium).impactOccurred()",
+            "        }",
+            "        // Close the live overlay BEFORE the host selects another guest scene.",
+            "        // Closing afterwards can target a hidden/reused hosting view and leave",
+            "        // the previous expanded card visible over the next guest.",
+            "        closePanel()",
+            "        if onSwitch(target) {",
+            "            // A cold target restarts through LC; it is not a preserved RAM scene.",
+            "            ScarletGuestSessionLedger.traceSwitcher(\"switch_submitted\")",
+            "        } else {",
+            "            ScarletGuestSessionLedger.traceSwitcher(\"switch_submit_failed\")",
+            "            openPanel()",
+            "            feedback = \"앱 전환 요청이 실패했습니다. 앱 목록에서 서명·실행 상태를 확인하세요.\"",
+            "            if switcherHaptics {",
+            "                UINotificationFeedbackGenerator().notificationOccurred(.error)"
+          ]
+        },
+        {
+          "commit": "a05afd62aeb58e37b9dbb4bde19a3706a7c67f7b",
+          "file": "rebuild/HostApp/ScarletFullscreenGuestTab.swift",
+          "location": "@@ -399,6 +404,8 @@",
+          "before": [
+            "                    }",
+            "                    ScarletDiagnosticRecorder.shared.record(",
+            "                        \"guest\", \"fullscreen_tab_exit_requested\")",
+            "                    onExit()",
+            "                } label: {",
+            "                    Label(\"앱 목록\", systemImage: \"rectangle.portrait.and.arrow.right\")"
+          ],
+          "after": [
+            "                    }",
+            "                    ScarletDiagnosticRecorder.shared.record(",
+            "                        \"guest\", \"fullscreen_tab_exit_requested\")",
+            "                    // Reset SwiftUI @State before host navigation hides UIWindow.",
+            "                    closePanel()",
+            "                    onExit()",
+            "                } label: {",
+            "                    Label(\"앱 목록\", systemImage: \"rectangle.portrait.and.arrow.right\")"
+          ]
+        },
+        {
+          "commit": "6e777d2758a6aa1ca9c17d001550889b703c3298",
+          "file": "rebuild/HostApp/ScarletFullscreenSceneStack.swift",
+          "location": "@@ -96,6 +96,18 @@",
+          "before": [
+            "        app.uiSelectedContainer != nil",
+            "    }",
+            "",
+            "    func enqueueSignedGuest(_ app: LCAppModel) throws {",
+            "        guard let folder = app.appInfo.relativeBundlePath,",
+            "              folder.hasSuffix(\".app\"), !folder.contains(\"/\"),"
+          ],
+          "after": [
+            "        app.uiSelectedContainer != nil",
+            "    }",
+            "",
+            "    // Reset both native hit-testing and retained SwiftUI expansion BEFORE",
+            "    // hiding the overlay or selecting a different guest.",
+            "    private func collapseSwitcherForNavigation(_ reason: String) {",
+            "        guard let overlayWindow else { return }",
+            "        overlayWindow.dismissState?.requestClose()",
+            "        overlayWindow.isExpanded = false",
+            "        viewport?.setResidentOutsideDismissEnabled(false)",
+            "        ScarletDiagnosticRecorder.shared.record(",
+            "            \"guest\", \"switch_panel_navigation_reset\",",
+            "            fields: [\"reason\": reason, \"overlay_expanded\": \"false\"])",
+            "    }",
+            "",
+            "    func enqueueSignedGuest(_ app: LCAppModel) throws {",
+            "        guard let folder = app.appInfo.relativeBundlePath,",
+            "              folder.hasSuffix(\".app\"), !folder.contains(\"/\"),"
+          ]
+        },
+        {
+          "commit": "6e777d2758a6aa1ca9c17d001550889b703c3298",
+          "file": "rebuild/HostApp/ScarletFullscreenSceneStack.swift",
+          "location": "@@ -132,6 +144,7 @@",
+          "before": [
+            "        if let old = slots.firstIndex(where: { $0.id == folder }) {",
+            "            slots.remove(at: old)",
+            "        }",
+            "        slots.append(Slot(id: folder, dataUUID: uuid,",
+            "                          title: app.displayName,",
+            "                          bundleID: app.bundleIdentifier,"
+          ],
+          "after": [
+            "        if let old = slots.firstIndex(where: { $0.id == folder }) {",
+            "            slots.remove(at: old)",
+            "        }",
+            "        collapseSwitcherForNavigation(\"enqueue_guest\")",
+            "        slots.append(Slot(id: folder, dataUUID: uuid,",
+            "                          title: app.displayName,",
+            "                          bundleID: app.bundleIdentifier,"
+          ]
+        },
+        {
+          "commit": "6e777d2758a6aa1ca9c17d001550889b703c3298",
+          "file": "rebuild/HostApp/ScarletFullscreenSceneStack.swift",
+          "location": "@@ -295,6 +308,7 @@",
+          "before": [
+            "        // its remote guest. Explicit user activation must reveal the viewport",
+            "        // BEFORE select() is allowed to resume this exact guest's audio.",
+            "        let wasVisible = isVisible",
+            "        isVisible = true",
+            "        guard viewport?.select(folder: folder) == true else {",
+            "            isVisible = wasVisible"
+          ],
+          "after": [
+            "        // its remote guest. Explicit user activation must reveal the viewport",
+            "        // BEFORE select() is allowed to resume this exact guest's audio.",
+            "        let wasVisible = isVisible",
+            "        collapseSwitcherForNavigation(\"activate_guest\")",
+            "        isVisible = true",
+            "        guard viewport?.select(folder: folder) == true else {",
+            "            isVisible = wasVisible"
+          ]
+        },
+        {
+          "commit": "6e777d2758a6aa1ca9c17d001550889b703c3298",
+          "file": "rebuild/HostApp/ScarletFullscreenSceneStack.swift",
+          "location": "@@ -331,6 +345,8 @@",
+          "before": [
+            "    }",
+            "",
+            "    func goHome() {",
+            "        // No close, terminate, detach, scene destruction or relaunch.",
+            "        // Keep each remote scene in the original full-screen viewport.",
+            "        isVisible = false"
+          ],
+          "after": [
+            "    }",
+            "",
+            "    func goHome() {",
+            "        // A hidden UIWindow is not equivalent to a closed SwiftUI card.",
+            "        collapseSwitcherForNavigation(\"go_home\")",
+            "        // No close, terminate, detach, scene destruction or relaunch.",
+            "        // Keep each remote scene in the original full-screen viewport.",
+            "        isVisible = false"
+          ]
+        },
+        {
+          "commit": "a1fe7f6f422e5cd82bb4c2e7819cdc85a417d7ce",
+          "file": "rebuild/Tests/test_v48_r6p14_switcher_navigation_reset.py",
+          "location": "@@ -0,0 +1,46 @@",
+          "before": [],
+          "after": [
+            "\"\"\"R6P14: close switcher before navigation; do not carry expansion across guests.\"\"\"",
+            "from pathlib import Path",
+            "import unittest",
+            "",
+            "ROOT = Path(__file__).resolve().parents[1]",
+            "TAB = (ROOT / \"HostApp/ScarletFullscreenGuestTab.swift\").read_text()",
+            "STACK = (ROOT / \"HostApp/ScarletFullscreenSceneStack.swift\").read_text()",
+            "",
+            "",
+            "class SwitcherNavigationReset(unittest.TestCase):",
+            "    def test_switch_closes_before_scene_selection_and_reopens_on_rejection(self):",
+            "        body = TAB.split(\"    private func switchTo(\", 1)[1].split(",
+            "            \"    // Native optical surface\", 1)[0]",
+            "        self.assertIn(\"closePanel()\\n        if onSwitch(target)\", body)",
+            "        self.assertIn(\"openPanel()\\n            feedback =\", body)",
+            "",
+            "    def test_home_button_closes_panel_before_invoking_exit(self):",
+            "        body = TAB.split('Label(\"앱 목록\"', 1)[0].rsplit(",
+            "            '\"fullscreen_tab_exit_requested\")', 1)[1]",
+            "        self.assertIn(\"closePanel()\\n                    onExit()\", body)",
+            "",
+            "    def test_close_is_idempotent_and_native_hit_testing_resets_immediately(self):",
+            "        body = TAB.split(\"    private func closePanel() {\", 1)[1].split(",
+            "            \"    private func switchTo(\", 1)[0]",
+            "        self.assertIn(\"guard isOpen else { return }\", body)",
+            "        self.assertLess(body.index(\"onPanel(false, apps.count)\"),",
+            "                        body.index(\"withAnimation(morphAnimation) { isOpen = false }\"))",
+            "",
+            "    def test_external_navigation_resets_retained_switcher_state(self):",
+            "        method = STACK.split(\"private func collapseSwitcherForNavigation(\", 1)[1].split(",
+            "            \"    func enqueueSignedGuest(\", 1)[0]",
+            "        self.assertIn(\"overlayWindow.dismissState?.requestClose()\", method)",
+            "        self.assertIn(\"overlayWindow.isExpanded = false\", method)",
+            "        self.assertIn('\"switch_panel_navigation_reset\"', method)",
+            "        for transition in (\"go_home\", \"activate_guest\", \"enqueue_guest\"):",
+            "            self.assertIn(f'collapseSwitcherForNavigation(\"{transition}\")', STACK)",
+            "",
+            "    def test_glass_morph_geometry_and_live_guest_retention_unchanged(self):",
+            "        self.assertIn(\"Animation.spring(response: 0.45, dampingFraction: 0.88)\", TAB)",
+            "        self.assertIn(\"glassPlate(radius: isOpen ? 28 : 31)\", TAB)",
+            "        self.assertIn(\"viewport?.pauseAllResidentAudioOnHome()\", STACK)",
+            "        self.assertIn('\"retained_until_pid_exits\"', STACK)",
+            "",
+            "",
+            "if __name__ == \"__main__\":",
+            "    unittest.main()"
+          ]
+        }
+      ],
+      "source_revisions": [
+        {
+          "sha": "a05afd62aeb58e37b9dbb4bde19a3706a7c67f7b",
+          "url": "https://github.com/fx564286/sidestore-auto-refresh/commit/a05afd62aeb58e37b9dbb4bde19a3706a7c67f7b",
+          "title": "fix(r6p14): collapse switcher before guest selection and home exit"
+        },
+        {
+          "sha": "6e777d2758a6aa1ca9c17d001550889b703c3298",
+          "url": "https://github.com/fx564286/sidestore-auto-refresh/commit/6e777d2758a6aa1ca9c17d001550889b703c3298",
+          "title": "fix(r6p14): reset retained panel lifecycle on home, activate and enqueue"
+        },
+        {
+          "sha": "a1fe7f6f422e5cd82bb4c2e7819cdc85a417d7ce",
+          "url": "https://github.com/fx564286/sidestore-auto-refresh/commit/a1fe7f6f422e5cd82bb4c2e7819cdc85a417d7ce",
+          "title": "test(r6p14): prevent expanded panel carryover on guest navigation"
+        }
+      ],
+      "novelty": {
+        "causal_difference": "L047 targeted delayed mount/opacity of recent rows; R6P14 targets the independent navigation state machine where the host hides a retained UIWindow while @State isOpen remains expanded or close happens after onSwitch. It closes before navigation, not by waiting for a render/mount tick.",
+        "falsifiable_prediction": "In an installed R6P14 iPhone report, tapping B or leaving A for Home emits switch_panel_dismissed or switch_panel_navigation_reset before the next guest activation / fullscreen_scene_home; reopening B shows the collapsed round button first, then current A/B rows on tap.",
+        "prior_excluded_ids": [
+          "L047",
+          "L048",
+          "L025"
+        ],
+        "new_device_evidence": {
+          "source_commit": "e6afe296a5355dec9361aac6d9d822ca0d8a74c2",
+          "event": "recent_session_registered and switch_panel_dismissed",
+          "observed_value": "count 2 at 02:50:27.044 vs first later explicit dismiss at 02:50:34.391 UTC"
+        },
+        "why_prior_fix_failed": "L047 eagerly mounted recent app rows but did not modify the switchTo/onExit ordering or retained SceneStack UIWindow visibility transitions."
+      },
+      "repeat_policy": "If R6P14 still expands after navigation, inspect ordering of switch_panel_navigation_reset, switch_panel_dismissed and resulting rendered state; do not reapply the same lifecycle calls or repeat L047 row-mount edits.",
+      "device_verification": "not_installed_or_iphone_visual_verified_after_r6p14",
+      "rollback_commit": "666fa02a1c8f8b9dac5f3c29e34876aa8bff9267",
+      "generated_runtime_targets": [],
+      "success_gate": "Source gate and all 491 static tests pass, Xcode 27.2 build yields unique unsigned R6P14 IPA and nonoverwritten prior releases; on iPhone A expanded -> B selected and A expanded -> Home -> B launched both immediately restore collapsed button; new panel opens with A/B rows first frame and no fullscreen size/orientation regression.",
+      "privacy": "Anonymous transition reasons and counts only; no guest names or identifiers exported."
     }
   ],
   "gate": {
