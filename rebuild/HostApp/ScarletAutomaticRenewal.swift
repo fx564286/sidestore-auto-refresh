@@ -125,7 +125,18 @@ enum ScarletRefreshFailureDiagnosis {
 @MainActor
 final class ScarletAutomaticRenewal {
     static let shared = ScarletAutomaticRenewal()
-    static let identifier = "com.kdt.livecontainer.P8EZT3U5N4.refresh"
+    // R6P20: some signers keep the user's observed suffix-duplicated
+    // Bundle ID. Register the BG task for the *actual signed host ID*,
+    // not a hard-coded sibling which iOS may refuse. Both exact variants
+    // are present in the generated Info.plist allow-list.
+    static var identifier: String {
+        let original = "com.kdt.livecontainer.P8EZT3U5N4"
+        let actual = Bundle.main.bundleIdentifier ?? original
+        guard actual == original || actual == original + ".P8EZT3U5N4" else {
+            return original + ".refresh" // original safe registration fallback
+        }
+        return actual + ".refresh"
+    }
     private let attemptKey = "Scarlet.Refresh.LastAttemptAt"
     private let outcomeKey = "Scarlet.Refresh.LastAttemptOutcome"
     private let sourceKey = "Scarlet.Refresh.LastAttemptSource"
