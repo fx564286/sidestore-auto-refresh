@@ -1,8 +1,8 @@
 {
   "schema": 2,
   "scope": "Scarlet Crystal guest top-screen overlap, touch access, rotation, remote guest render and related resident regressions",
-  "updated_utc": "2026-11-12T01:10:00Z",
-  "current_baseline": "R6P10 858214ab66e5 device exported full history; R6P11 SDK compatibility experiment awaits CI and iPhone visual validation",
+  "updated_utc": "2026-11-12T01:45:00Z",
+  "current_baseline": "R6P11 device SourceCommit=687fb754e837; R6P12 immediate switcher-row rendering patch committed and iPhone/CI validation pending",
   "current_issue_status": "UNRESOLVED: guest app top bars/controls can overlap Dynamic Island (Instagram verified by user, others possible).",
   "confidence_note": "Past-chat-only historical versions were reported in earlier conversations; not all have a GitHub revision or device verification. An implementation, a CI success, a telemetry event, and a real device visual fix are distinct.",
   "privacy": "No credentials, Apple ID, OTP, UDID, guest names or device identifiers are stored.",
@@ -2887,6 +2887,167 @@
           "effect": "Prevent known unsupported dyld symbol/version map from aborting guest or skipping normal jitless dlopen when SDK compatibility attempt unavailable."
         }
       ]
+    },
+    {
+      "id": "L047",
+      "date": "2026-11-12",
+      "version": "new-v48-r6p12",
+      "problem": "guest_switcher_recent_rows_late",
+      "mechanism": "eager_switcher_row_mount_without_secondary_content_fade",
+      "hypothesis": "R6P11 device launch evidence registers A and B in 11-49ms; switch_panel_opened to appPanelContent.onAppear is 9-21ms. But the code deliberately inserts .transition(.opacity) on the Vstack and defers recently launched rows with LazyVStack. An early panel-level onAppear is not a proof that recent rows are painted at that time. Those independent view-level effects can produce a late-looking arrival while the separate 0.45s glass morph is unfolding. This is a different mechanism from previously retried guest Safe Area, UIKit, FBScene and XPC timing approaches.",
+      "action": "In ScarletFullscreenGuestFloatingTab.openPanel() measure synchronous target resolution in monotonic milliseconds before the opening morph; replace recent guest LazyVStack with eager VStack and anonymous rows-mounted observation; replace the nested content .transition(.opacity) with .transition(.identity) plus a content-only transaction disabling animation. Keep the original root-level glassPlate spring, fixed panel center, button pan, app session ledger, overlays, audio, orientation, App Group and bundle IDs unchanged. Update V26 fade expectation and add new R6P12 regression test.",
+      "observation": "Before patch, iPhone diagnostic SourceCommit=687fb754e837 session=05701f45 shows first recent_session_registered 01:42:18.855 (49ms after launch_requested), second 01:42:32.674 (11ms). First switch_panel_opened 01:42:24.872 to switch_panel_content_rendered 01:42:24.893 (21ms); with two apps 01:42:41.914 to 01:42:41.930 (16ms). These events record panel-level appearance, not actual rasterization of every row. User reported that newly running apps appear late in the multitasking switcher. Postpatch UI/paint latency not yet observed.",
+      "evidence": "device_log_before_patch_and_github_source_diff",
+      "status": "source_committed_static_and_xcode_ci_pending",
+      "repeat_policy": "Do not reintroduce a second content opacity transition or lazy row rendering without new actual device evidence. Do not alter original V48 pan geometry, native glass morph or restore old Safe Area/Scene modifications; any repeated attempt requires new independent measured failure.",
+      "source_verification": "git_patch_observed",
+      "code_locations": [
+        {
+          "commit": "4fe7507dc900d3314a25c84cace5f427f2113ce6",
+          "file": "rebuild/HostApp/ScarletFullscreenGuestTab.swift",
+          "location": "@@ -166,7 +166,15 @@ struct ScarletFullscreenGuestFloatingTab: View {",
+          "before": [],
+          "after": [
+            "        // Measure synchronous target resolution separately from the glass",
+            "        // animation. A mounted panel is not proof its rows were painted.",
+            "        let reloadStarted = ProcessInfo.processInfo.systemUptime",
+            "        ScarletDiagnosticRecorder.shared.record(",
+            "            \"guest\", \"switch_panel_sources_ready\",",
+            "            fields: [\"count\": String(apps.count),",
+            "                     \"elapsed_ms\": String(Int((ProcessInfo.processInfo.systemUptime -",
+            "                                               reloadStarted) * 1_000))])"
+          ]
+        },
+        {
+          "commit": "4fe7507dc900d3314a25c84cace5f427f2113ce6",
+          "file": "rebuild/HostApp/ScarletFullscreenGuestTab.swift",
+          "location": "@@ -346,12 +354,20 @@ struct ScarletFullscreenGuestFloatingTab: View {",
+          "before": [
+            "                        LazyVStack(alignment: .leading, spacing: 12) {"
+          ],
+          "after": [
+            "                        // Recent live sessions are already materialized.",
+            "                        // Eagerly mount these few rows on first expansion;",
+            "                        // LazyVStack can postpone row creation until layout.",
+            "                        VStack(alignment: .leading, spacing: 12) {",
+            "                        .onAppear {",
+            "                            ScarletDiagnosticRecorder.shared.record(",
+            "                                \"guest\", \"switch_panel_recent_rows_mounted\",",
+            "                                fields: [\"count\": String(otherApps.count)])",
+            "                        }"
+          ]
+        },
+        {
+          "commit": "4fe7507dc900d3314a25c84cace5f427f2113ce6",
+          "file": "rebuild/HostApp/ScarletFullscreenGuestTab.swift",
+          "location": "@@ -395,10 +411,11 @@ struct ScarletFullscreenGuestFloatingTab: View {",
+          "before": [
+            "            // The content fades in AFTER the glass begins unfolding;",
+            "            // moving a fully rendered list across the guest looked like",
+            "            // a second panel and obscured the destination.",
+            "            .transition(.opacity)"
+          ],
+          "after": [
+            "            // Show the fixed-center card and its recent-app rows on the",
+            "            // first expansion frame. Animate only the separate glass plate;",
+            "            // fading the content made already-running apps appear late.",
+            "            .transition(.identity)",
+            "            .transaction { $0.disablesAnimations = true }"
+          ]
+        },
+        {
+          "commit": "cac455c8ba256e1ce9e6564aaf777cc706cffa3c",
+          "file": "rebuild/Tests/test_v26_liquidglass_fixed_center_morph.py",
+          "location": "@@ -54,7 +54,9 @@ def test_animation_runs_both_directions_without_bounce_or_duplicate_x(self):",
+          "before": [
+            "        self.assertIn('.transition(.opacity)', UI)"
+          ],
+          "after": [
+            "        # R6P12: no second fade after the glass starts to unfold.",
+            "        self.assertNotIn('.transition(.opacity)', UI)",
+            "        self.assertIn('.transaction { $0.disablesAnimations = true }', UI)"
+          ]
+        },
+        {
+          "commit": "76e89d98aefe6d96645c4900b7ee9dd5e69c773b",
+          "file": "rebuild/Tests/test_v48_r6p12_switcher_instant_rows.py",
+          "location": "@@ -0,0 +1,49 @@",
+          "before": [],
+          "after": [
+            "\"\"\"R6P12: previously launched guest rows must not visually trail glass expansion.",
+            "",
+            "Source-level regression only. Device first-frame paint/latency needs visual",
+            "capture; SwiftUI onAppear proves mounting, not completed display.",
+            "\"\"\"",
+            "from pathlib import Path",
+            "import unittest",
+            "",
+            "ROOT = Path(__file__).resolve().parents[1]",
+            "TAB = (ROOT / \"HostApp/ScarletFullscreenGuestTab.swift\").read_text()",
+            "STACK = (ROOT / \"HostApp/ScarletFullscreenSceneStack.swift\").read_text()",
+            "",
+            "",
+            "class ImmediateRecentRowsContract(unittest.TestCase):",
+            "    def test_recent_sessions_are_ready_before_panel_animation(self):",
+            "        opened = TAB.split(\"    private func openPanel() {\", 1)[1].split(",
+            "            \"    private func closePanel() {\", 1)[0]",
+            "        self.assertLess(opened.index(\"apps = reloadApps()\"),",
+            "                        opened.index(\"withAnimation(morphAnimation) { isOpen = true }\"))",
+            "        self.assertIn('\"switch_panel_sources_ready\"', opened)",
+            "        self.assertIn('\"elapsed_ms\"', opened)",
+            "        self.assertIn('onPanel(true, apps.count)', opened)",
+            "",
+            "    def test_eager_rows_without_second_fade(self):",
+            "        content = TAB.split(\"    private var appPanelContent: some View {\", 1)[1].split(",
+            "            \"    private var appPanel: some View\", 1)[0]",
+            "        self.assertIn(\"VStack(alignment: .leading, spacing: 12)\", content)",
+            "        self.assertNotIn(\"LazyVStack(\", content)",
+            "        self.assertIn(\"ForEach(otherApps) { entry in otherAppRow(entry) }\", content)",
+            "        self.assertIn('\"switch_panel_recent_rows_mounted\"', content)",
+            "        self.assertIn(\".transition(.identity)\", content)",
+            "        self.assertIn(\".transaction { $0.disablesAnimations = true }\", content)",
+            "        self.assertNotIn(\".transition(.opacity)\", content)",
+            "        self.assertNotIn(\"DispatchQueue.main.asyncAfter\", content)",
+            "",
+            "    def test_native_glass_and_guest_viewport_unchanged(self):",
+            "        # The fixed destination and original glass morph remain intact.",
+            "        self.assertIn(\"glassPlate(radius: isOpen ? 28 : 31)\", TAB)",
+            "        self.assertIn(\"Animation.spring(response: 0.45, dampingFraction: 0.88)\", TAB)",
+            "        self.assertIn(\"withAnimation(morphAnimation) { isOpen = true }\", TAB)",
+            "        self.assertIn(\".position(x: geometry.size.width / 2,\", TAB)",
+            "        self.assertIn(\"ScarletGuestRoundTabCenterXFractionV1\", TAB)",
+            "        self.assertIn(\"slots.map { slot in\", STACK)",
+            "        self.assertIn(\"return targets\", STACK)",
+            "        self.assertIn(\"ScarletFullscreenGuestTabInstaller.makeResidentSwitcherWindow\", STACK)",
+            "",
+            "",
+            "if __name__ == \"__main__\":",
+            "    unittest.main()"
+          ]
+        }
+      ],
+      "source_revisions": [
+        {
+          "sha": "4fe7507dc900d3314a25c84cace5f427f2113ce6",
+          "url": "https://github.com/fx564286/sidestore-auto-refresh/commit/4fe7507dc900d3314a25c84cace5f427f2113ce6",
+          "title": "fix(r6p12): mount recent switcher rows immediately without content fade"
+        },
+        {
+          "sha": "cac455c8ba256e1ce9e6564aaf777cc706cffa3c",
+          "url": "https://github.com/fx564286/sidestore-auto-refresh/commit/cac455c8ba256e1ce9e6564aaf777cc706cffa3c",
+          "title": "test(r6p12): preserve glass morph while prohibiting delayed card fade"
+        },
+        {
+          "sha": "76e89d98aefe6d96645c4900b7ee9dd5e69c773b",
+          "url": "https://github.com/fx564286/sidestore-auto-refresh/commit/76e89d98aefe6d96645c4900b7ee9dd5e69c773b",
+          "title": "test(r6p12): guard eager recent rows and immediate visual content"
+        }
+      ],
+      "generated_runtime_targets": [],
+      "device_verification": "not_installed_or_tested_after_patch",
+      "rollback_commit": "687fb754e8370b68b5af11aa5b235dcd8103c349",
+      "success_gate": "On-device iOS 27.2 test with guest A then B: opening already-resident switcher shows A/B icons and rows immediately with no secondary fade while one native glass surface still morphs. Record source resolution and row-mount events, use video/frame capture to establish first-paint timing, and confirm switch-to-A/B retains PID/session. This entry is not proof of visual success.",
+      "privacy": "Anonymous event name, count and elapsed_ms only; no bundle identifiers, app names, credentials or UDID."
     }
   ],
   "gate": {
