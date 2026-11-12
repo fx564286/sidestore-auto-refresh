@@ -15,12 +15,13 @@ class DownloadEntitlementRegression(unittest.TestCase):
         self.assertIn('attempt == 1 ? 400 : 1000',body)
         self.assertIn('try Task.checkCancellation()',body)
         self.assertIn('guest_download_connection_retry',body)
-        self.assertNotIn('NSURLErrorCancelled',body)
+        self.assertIn('ns.code != NSURLErrorCancelled',body)
 
     def test_resume_data_used_without_fake_download_success(self):
         body=HOST.split('private func downloadSourceWithConnectionRecovery(',1)[1].split('// Source install routes',1)[0]
         self.assertIn('session.download(resumeFrom: resumeData)',body)
-        self.assertIn('ns.code == NSURLErrorCannotResume',body)
+        self.assertNotIn('ns.code == NSURLErrorCannotResume',body)
+        self.assertIn('ns.code != NSURLErrorCancelled',body)
         self.assertIn('session.download(from: url)',body)
         self.assertIn('NSURLSessionDownloadTaskResumeData',body)
         self.assertIn('throw error',body)
