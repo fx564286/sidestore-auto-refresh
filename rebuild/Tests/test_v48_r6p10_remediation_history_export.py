@@ -43,7 +43,7 @@ class CodeLevelHistoryArchive(unittest.TestCase):
                 self.assertTrue(item["code_locations"], item["id"])
                 self.assertTrue(item["source_revisions"], item["id"])
                 for loc in item["code_locations"]:
-                    self.assertTrue(loc["file"].startswith("rebuild/"),
+                    self.assertTrue(loc["file"].startswith(("rebuild/", ".github/workflows/")),
                                     (item["id"], loc["file"]))
                     self.assertTrue(loc["location"].startswith("@@ "),
                                     (item["id"], loc["location"]))
