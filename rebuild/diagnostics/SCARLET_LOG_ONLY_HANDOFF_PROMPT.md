@@ -197,3 +197,47 @@ L051=R6P15 저장된 RSD 연결의 제한적 재검사다. 과거 항목에 `dev
 - R6P18은 화면 수정본이 아니라 **새 위치 계층의 원인 검증 빌드**다.
   실제 해결은 로그가 보여준 하위 콘텐츠 타입과 윈도 좌표에 대응하는
   독립적인 수정 및 실기기 사진/터치 검증을 거친 뒤 판정한다.
+
+## 10. R6P18 동일 SourceCommit 내부 권한 변화 및 R6P19 독립 조치
+
+- 2026-11-12 05:57:04 UTC 제출된 `CURRENT LAUNCH` 및 `ARCHIVED LAUNCHES`
+  로그 2개 모두 상단 `SourceCommit=476892cec6cf`다. 그러나 이 헤더는
+  **현재 설치 빌드**를 뜻하며, archived JSONL 각 세션의 build SHA를
+  소급해서 증명하는 값이 아니다. R6P18의 guest geometry 이벤트가
+  archived 옛 세션에서 누락됐다고 곧바로 P18 진단 실패로 볼 수 없다.
+- UTC 05:55 `session.1.jsonl`: 서명 사전검사 `entitled_app_group=true`,
+  `group_accessible=true`, `certificate_present=true`, `team_match=match`.
+  UTC 05:56 `session.0.jsonl`은 `entitled_app_group=false`,
+  `group_accessible=false`, `certificate_present=false`, `password_present=false`,
+  `signed_host_identity=match`, 이어 `sidestore_app_group_not_entitled`와
+  JIT-less 실행 차단. 소스 커밋이 동일하므로 코드를 바꾼 사실 자체는
+  원인이 아님. 단, 정확한 설치/재서명 변경은 signed IPA의
+  entitlement/profile readback 전까지 원인 확정 금지. 기존 Keychain,
+  게스트 데이터, Apple 인증서를 삭제·폐기하지 않는다.
+- 필요한 Apple 실제 권한:
+  `com.apple.security.application-groups`에
+  `group.com.SideStore.SideStore.P8EZT3U5N4`, 서명 팀 `P8EZT3U5N4`,
+  앱 ID `com.kdt.livecontainer.P8EZT3U5N4` 및 기존 확장 구성.
+  IPA 릴리스는 UNSIGNED이며 이 앱 코드만으로 권한을 만들지 못한다.
+  `rebuild/scripts/audit_signed_ipa_entitlements.py --signed-ipa ...`는
+  macOS에서 Apple codesign + embedded.mobileprovision을 모두 검사한다.
+- UTC 05:56:39 2FA는 제출됐으나 `-3402 / sidestore_team_recovery_failed`,
+  이후 게스트 `jitless_signing_certificate_missing`; **로그인 성공·팀
+  복원 성공이라고 보고하지 않는다**. App Group 권한 없는 상태에서
+  인증서 선택이나 Apple 로그인 재시도를 정답으로 안내하면 안 된다.
+  R6P19는 앱 내 차단 사유를 실제 signed entitlement 누락으로
+  구분해 알려준다. 재서명 자체는 구현하지 않았으므로 차단이 남는다.
+- 여러 이전 세션 및 현 세션에서 HTTPS 소스 다운로드가
+  `NSURLErrorDomain -1005`로 반복 실패한다. R6P19는
+  **그 에러만** 최대 2회 재시도하며, resumeData가 있으면 이어받기;
+  복구 불가 코드에 한하여 새 다운로드로 후퇴. 시도 횟수·방식만
+  로그에 남기고 URL/게스트 이름/파일명은 남기지 않는다. 서버가
+  지속해서 끊으면 그대로 실패하므로 네트워크 성공은 기기 로그
+  `guest_download_completed`로 따로 검증해야 한다.
+- UTC 05:54:29에 이전 세션의 게스트 PID `4788`은
+  `fullscreen_scene_process_exited(fast_exit=true,duration_ms=107)`;
+  iOS crash `.ips`가 없어 원인 규명 불가. 이 건을 권한 문제나
+  Safe Area 문제와 혼동하지 않는다.
+- R6P18의 `guest_content_geometry_probe`는 **현 세션에는 게스트가
+  실행되지 않았으므로 평가 불가**. 권한 정상인 Apple 서명 빌드로
+  실행 성공한 뒤 실제 PID별 측정 여부를 다시 확인한다.
