@@ -2,8 +2,8 @@
   "schema": 2,
   "scope": "Scarlet Crystal guest top-screen overlap, touch access, rotation, remote guest render and related resident regressions",
   "updated_utc": "2026-11-12T06:56:00+00:00",
-  "current_baseline": "R6P21 installed SourceCommit fffd38ee27d4895c6b8f705ee860d38902934e38; 2026-11-12 07:30:44 UTC current session99b3825e; root safe62 yet PID6059 unsafe controls8/images7 and scroll top inset missing3. R6P22 L063 guarded descendant scroll content-inset source commit recorded; iPhone build and visual/touch checks pending.",
-  "current_issue_status": "UNRESOLVED ISLAND: PID6059 still has unsafe interactive top descendants after normal root 62; R6P22 one eligible unsafe scroll content-inset path is coded, but must be confirmed by native archive and fresh device sample. Source download -1005 after two retries, profile installation_verified=false; no claim of resolution.",
+  "current_baseline": "R6P22 installed SourceCommit22355c4b112ea733358acffd2861424437fa8889; iOS27.2 current session 89e04011 2026-11-12 07:55:05Z: guest PID6447 62pt root, unsafeControls8/images7 and 3 top scrolls, R6P22 correction had 0 eligible scrolls. R6P23 L064 source-only owner/exclusion instrumentation and L065 native refresh failure-stage classification; no device pass yet.",
+  "current_issue_status": "UNRESOLVED: Dynamic Island guest PID6447 controls y3 (8), images y13 (7), scrollers without inset 3; zero R6P22 eligible targets. IPA source -1005 after two retries. Manual refresh SideStoreSupport native code1 generic after pairing read timeout; pairing later restored; installation_verified=false. R6P23 followup diagnostic branches must not be reported as physical UI or signing fixes.",
   "confidence_note": "Past-chat-only historical versions were reported in earlier conversations; not all have a GitHub revision or device verification. An implementation, a CI success, a telemetry event, and a real device visual fix are distinct.",
   "privacy": "No credentials, Apple ID, OTP, UDID, guest names or device identifiers are stored.",
   "entries": [
@@ -9309,6 +9309,305 @@
         }
       ],
       "repeat_policy": "Do not repeat L050 root additionalSafeAreaInsets, L054/L061 depth-only probing, or R6P22 one-shot unsafe-scroll contentInset. If the 900ms guest receipt reports no unique eligible scroll or the 2600ms unsafe controls persist, isolate the actual unsafe UIControl/UIImageView ancestor owner (including non-scroll SwiftUI hosting) instead of increasing top inset or adding another timer. Device visual/touch pass is mandatory; CI-only pass is not a repair."
+    },
+    {
+      "id": "L064",
+      "date": "2026-11-12",
+      "version": "new-v48-r6p23-unsafe-owner-scroll-exclusion-readback",
+      "problem": "guest_top",
+      "mechanism": "unsafe_descendant_owner_and_scroll_predicate_classification",
+      "hypothesis": "After R6P22 full iOS compile, the actual PID6447 iPhone still showed unsafe controls8 and scroll top without inset3 while root safe62 and the R6P22 correction reported zero uniquely eligible scrolls. The old classifier did not identify whether those controls are children of those scrollers, a separately owned child UIViewController, or an ineligible nonvertical/nested scroll. Applying another top inset or increasing root Safe Area would repeat proven failed mechanisms.",
+      "action": "In the existing guest-only read-only 650/2600ms scan, count unsafe UIControls and UIImageViews under/outside UIScrollView ancestors and controls under a zero-safe-area child UIViewController without accessing names; retain bounded node traversal and 62pt root. At the existing 900ms guarded R6P22 correction decision, record why each scroll was excluded (nested, geometry, vertical overflow, existing inset, offset, busy, lacks unsafe descendant) and eligible count/budget. Relay only anonymous numbers to Swift host logging; preserve all screen, button, multitap and root correction behavior. Add regression contract and native build target.",
+      "observation": "iOS 27.2 R6P22 SourceCommit22355c4b112e, 2026-11-12 07:55:05 UTC session89e04011: PID6438 root62 unsafe controls0, scan not capped; PID6447 root62, controls y3 count8, images y13 count7, three zero-top-inset scrollers, scan depth capped at24; corrective receipt guest_scroll_no_unique_unsafe_target returned 0 candidates. New R6P23 telemetry source only until device readback.",
+      "evidence": [
+        "R6P22 guest PID6438 seq83 and seq91: safe top62, unsafe_controls0, unsafe_image_nodes1, scroll_top_without_inset0, visited467, scan_capped false; no correction target.",
+        "R6P22 guest PID6447 seq144 and seq169: root safe62, 8 unsafe controls at y3, 7 unsafe images at y13, three zero-inset scrollers, depth_capped=true, visited176/183.",
+        "R6P22 PID6447 seq145 reports guest_scroll_no_unique_unsafe_target with guest_root_after_pt0 representing candidates.count=0; not a successful correction."
+      ],
+      "status": "source_committed_ci_pending",
+      "source_verification": "git_patch_observed",
+      "device_verification": "not_installed_or_device_tested_after_r6p23",
+      "rollback_commit": "22355c4b112ea733358acffd2861424437fa8889",
+      "repeat_policy": "Do not repeat L050 root additionalSafeAreaInsets, L054/L061 depth-cap increase, or L063 strict scroll contentInset selector. If unsafe controls are outside all scrollers, investigate child-controller safe-area ownership; if inside but excluded, use the reported exclusion classification and a device screenshot/touch test before changing the corresponding predicate. Never assume fewer nodes or an uncapped scan means no visual overlap.",
+      "privacy": "Only bounded counts, boolean caps and anonymous PID in current process shared diagnostics. No guest/app name, class name, screenshot, pixels, IP, URL, credential or pairing bytes.",
+      "novelty": {
+        "prior_excluded_ids": [
+          "L003",
+          "L028",
+          "L031",
+          "L032",
+          "L035",
+          "L050",
+          "L054",
+          "L061",
+          "L063"
+        ],
+        "causal_difference": "L063 added a conservative one-time scroll content inset for exactly one eligible top full-width vertical scroll; R6P22 device proves its selector matched 0 even though 3 scrollers lacked top inset and 8 controls occupy the unsafe region. The new read-only R6P23 code attributes unsafe controls and image nodes to scroll ancestry vs independent child UIViewController ownership and captures each failed predicate, rather than performing any new geometry mutation. It directly addresses an observable cause of the failed L063 selection.",
+        "falsifiable_prediction": "In new R6P23 device log PID with eight unsafe controls and three top scrollers, guest_content_geometry_probe reports unsafe_controls_in_scroll+unsafe_controls_outside_scroll=unsafe_controls (within visited bounds); guest_scroll_target_classifier reports seen>=3, eligible=0 and nonzero classification reason(s). If controls are outside scrollers, a future owner-targeted fix is indicated; if inside, use the exact failed predicate before touching contentInset.",
+        "new_device_evidence": {
+          "source_commit": "22355c4b112ea733358acffd2861424437fa8889",
+          "event": "layout/guest_scroll_no_unique_unsafe_target + guest_content_geometry_probe",
+          "observed_value": "2026-11-12T07:55:46Z PID6447 root safe62, unsafe controls8 y3, unsafe images7 y13, zero-top-inset scrollers3, R6P22 eligible targets0; unchanged at 2600ms."
+        },
+        "why_prior_fix_failed": "The L063 selector rejects scrolls unless they are unnested, top-anchored, almost screen width, vertically scrollable, unmodified, idle, at start offset and contain unsafe controls. The device log only reported three scrollers missing an adjusted top inset; it lacked ancestry and per-condition rejections, so no permissible one-target correction could occur. R6P23 observes that missing decision evidence without repeating root or scroll correction."
+      },
+      "source_revisions": [
+        {
+          "sha": "155e80b28c0e1f937d5e0eaefb9db54f14516340",
+          "url": "https://github.com/fx564286/sidestore-auto-refresh/commit/155e80b28c0e1f937d5e0eaefb9db54f14516340",
+          "title": "read-only guest owner attribution and per-scroll exclusion counters"
+        },
+        {
+          "sha": "18fbd961d548e2fddbab1a346e78996b4a461893",
+          "url": "https://github.com/fx564286/sidestore-auto-refresh/commit/18fbd961d548e2fddbab1a346e78996b4a461893",
+          "title": "relay guest owner and scroll exclusion counter receipts"
+        },
+        {
+          "sha": "0a92af9113348f455cc43e3ec8d17924391af38a",
+          "url": "https://github.com/fx564286/sidestore-auto-refresh/commit/0a92af9113348f455cc43e3ec8d17924391af38a",
+          "title": "allowlist only anonymous owner/classifier numbers"
+        },
+        {
+          "sha": "8c528475a192011564b464655e7873665f440674",
+          "url": "https://github.com/fx564286/sidestore-auto-refresh/commit/8c528475a192011564b464655e7873665f440674",
+          "title": "test owner attribution and refresh stage safety"
+        },
+        {
+          "sha": "a44a2bc51dd39d4f23eaa7e36e67af952bff2c24",
+          "url": "https://github.com/fx564286/sidestore-auto-refresh/commit/a44a2bc51dd39d4f23eaa7e36e67af952bff2c24",
+          "title": "build and distribute unique R6P23 unsigned IPA"
+        }
+      ],
+      "code_locations": [
+        {
+          "commit": "155e80b28c0e1f937d5e0eaefb9db54f14516340",
+          "file": "rebuild/integration/ScarletGuestIslandContentGuard.m.txt",
+          "function": "ScarletIslandMeasureUnsafeOwner",
+          "location": "@@ -75,6 +80,28 @@ typedef struct {",
+          "before": [
+            "static void ScarletIslandWalkViews(UIView *view, UIWindow *window,"
+          ],
+          "after": [
+            "static void ScarletIslandMeasureUnsafeOwner(",
+            "    UIView *node, UIView *root, BOOL *hasScroll, BOOL *zeroInsetChildOwner) {",
+            "    // bounded ancestor walk categorizes scroll and child-controller ownership",
+            "}",
+            "static void ScarletIslandWalkViews(UIView *view, UIWindow *window,"
+          ]
+        },
+        {
+          "commit": "155e80b28c0e1f937d5e0eaefb9db54f14516340",
+          "file": "rebuild/integration/ScarletGuestIslandContentGuard.m.txt",
+          "function": "ScarletIslandCollectUnsafeScrolls",
+          "location": "@@ -375,25 +430,39 @@ static void ScarletIslandCollectUnsafeScrolls(",
+          "before": [
+            "        if(!nested && !objc_getAssociatedObject(",
+            "               scroll, &scarletIslandScrollInsetKey) &&",
+            "           isfinite(top) && top >= -5 && top <= 12 &&"
+          ],
+          "after": [
+            "        classification->seen++;",
+            "        BOOL topFullWidth = isfinite(top) && top >= -5 && top <= 12 &&",
+            "            CGRectGetWidth(frame) >= CGRectGetWidth(window.bounds) * 0.7 &&",
+            "            CGRectGetHeight(frame) >= CGRectGetHeight(window.bounds) * 0.4;",
+            "        BOOL vertical = scroll.scrollEnabled &&",
+            "            scroll.contentSize.height > scroll.bounds.size.height + 12;"
+          ]
+        },
+        {
+          "commit": "18fbd961d548e2fddbab1a346e78996b4a461893",
+          "file": "rebuild/HostApp/ScarletFullscreenSceneStack.swift",
+          "function": "ScarletGuestIslandReceiptObserver.readBack",
+          "location": "@@ -770,6 +774,30 @@ private final class ScarletGuestIslandReceiptObserver {",
+          "before": [
+            "            ScarletDiagnosticRecorder.shared.record(",
+            "                \"layout\", \"guest_root_safearea_receipt\","
+          ],
+          "after": [
+            "            if result == \"guest_scroll_target_classifier\" {",
+            "                // record only anonymous exclusion counts",
+            "                ScarletDiagnosticRecorder.shared.record(",
+            "                    \"layout\", \"guest_scroll_target_classifier\", fields: fields)",
+            "                continue",
+            "            }",
+            "            ScarletDiagnosticRecorder.shared.record(",
+            "                \"layout\", \"guest_root_safearea_receipt\","
+          ]
+        },
+        {
+          "commit": "0a92af9113348f455cc43e3ec8d17924391af38a",
+          "file": "rebuild/HostApp/ScarletDiagnosticRecorder.swift",
+          "function": "allowedFields",
+          "location": "@@ -75,7 +75,14 @@ final class ScarletDiagnosticRecorder: @unchecked Sendable {",
+          "before": [
+            "        \"max_depth_seen\", \"depth_capped\", \"count_capped\""
+          ],
+          "after": [
+            "        \"max_depth_seen\", \"depth_capped\", \"count_capped\",",
+            "        \"unsafe_controls_in_scroll\", \"unsafe_controls_outside_scroll\",",
+            "        \"unsafe_controls_under_zero_inset_child_owner\","
+          ]
+        },
+        {
+          "commit": "8c528475a192011564b464655e7873665f440674",
+          "file": "rebuild/Tests/test_v48_r6p23_guest_owner_refresh_stage.py",
+          "function": "R6P23",
+          "location": "@@ -0,0 +1,76 @@",
+          "before": [],
+          "after": [
+            "class R6P23(unittest.TestCase):",
+            "    def test_safe_root_unchanged_and_guarded_scroll_fix_preserved(self):",
+            "    def test_unsafe_ancestry_is_distinguishable_without_guest_names(self):",
+            "    def test_exact_scroll_exclusion_reasons_not_another_inset_guess(self):"
+          ]
+        },
+        {
+          "commit": "a44a2bc51dd39d4f23eaa7e36e67af952bff2c24",
+          "file": ".github/workflows/scarlet-paired-engines-build.yml",
+          "function": "publish-unsigned-github-release",
+          "location": "@@ -334,7 +334,9 @@ jobs:",
+          "before": [
+            "          if [ \"$GITHUB_REF\" = \"refs/heads/fix/scarlet-v48-r6p22-guest-scroll-content-inset-20261112\" ]; then"
+          ],
+          "after": [
+            "          if [ \"$GITHUB_REF\" = \"refs/heads/fix/scarlet-v48-r6p23-guest-owner-refresh-stage-20261112\" ]; then",
+            "            asset=\"Scarlet-Crystal-V48-R6P23-OWNER-STAGE-UNSIGNED.ipa\""
+          ]
+        }
+      ]
+    },
+    {
+      "id": "L065",
+      "date": "2026-11-12",
+      "version": "new-v48-r6p23-native-refresh-origin-stage-error",
+      "problem": "sidestore_refresh_internal_stage_unknown",
+      "mechanism": "native_refresh_generic_code1_phase_specific_categorical_exception_receipt",
+      "hypothesis": "The native SideStore operation returned a generic sidestore_native_operation_failed code1 in the same real iPhone run as a transient pairing-state read timeout and later recovered pairing. Without a precise stage, it is impossible to tell whether AppManager, team authentication, pairing or database failed. Repeating saved-RSD retries (L051) would be unsupported.",
+      "action": "In original embedded SideStore native refresh worker, retain typed OperationError and existing safe reasons exactly. For otherwise unclassified failures, attach one of four static stage codes (database, active team, pairing transport, original AppManager) to the existing response. Map these precise reason codes to user guidance without exposing error.localizedDescription, certificates, pairing files or account data. Do not alter signing behavior, retries, refresh semantics, installed profile readback or pairing state. Add tests and R6P23 native build.",
+      "observation": "R6P22 current launch SourceCommit22355c4b112e seq35 pairing_state_unverified reason=pairing_state_read_timeout; seq36 manual_request_failed reason=sidestore_native_operation_failed and seq37 native error code1. Later seq45 pairing_restored; preflight certificate and SideStore readiness were true, so cause must be read from native worker stage rather than inferred as pairing failure. R6P23 modified source only until runtime verification.",
+      "evidence": [
+        "R6P22 07:55:26.570Z pairing_state_read_timeout warning while native refresh request was active.",
+        "R6P22 07:55:30.365Z manual_request_failed sidestore_native_operation_failed, underlying domain SideStoreSupport.ScarletNativeRefreshFailure code1.",
+        "R6P22 07:55:36.904Z pairing_restored pairing_saved_and_transport_ready. Native signing count1 reason ready; no proof of actual profile install."
+      ],
+      "status": "source_committed_ci_pending",
+      "source_verification": "git_patch_observed",
+      "device_verification": "not_installed_or_device_tested_after_r6p23",
+      "rollback_commit": "22355c4b112ea733358acffd2861424437fa8889",
+      "repeat_policy": "Do not treat code1 as a certificate mismatch or automatically reissue/revoke existing certificates; do not rerun L051 transport recovery blindly. Once R6P23 stage-specific code is logged, investigate that exact upstream failure path and verify installed profile metadata after native operation. Always keep installation_verified=false unless proven.",
+      "privacy": "Only static stage category strings, no Apple email/password, error.localizedDescription text, PIN, UDID, RSD pairing bytes, certificate paths or device identity.",
+      "novelty": {
+        "prior_excluded_ids": [
+          "L051",
+          "L055",
+          "L058",
+          "L059",
+          "L060",
+          "L062"
+        ],
+        "causal_difference": "Earlier L051 attempted an RSD transport reprobe, L058 repaired auth-session restoration and L062 ensured signing readiness reinspection. The current device's manual refresh failure remains an undifferentiated code1, while a transient pairing read timeout later recovers. R6P23 classifies the *actual native worker exception stage* while preserving specific typed upstream errors and original AppManager execution. This is observability at the failure origin, not another transport retry or signing change.",
+        "falsifiable_prediction": "R6P23 next failing manual refresh will include reason native_unknown_database_stage, native_unknown_team_stage, native_unknown_transport_stage or native_unknown_appmanager_stage for an otherwise unmapped SideStore error, or preserve one of the existing typed categories. Stage code will distinguish whether pairing restoration and the failed refresh are causally related. No code path may claim installation verified based solely on one returned profile date.",
+        "new_device_evidence": {
+          "source_commit": "22355c4b112ea733358acffd2861424437fa8889",
+          "event": "pairing/pairing_state_unverified + refresh/manual_request_failed + pairing/pairing_restored",
+          "observed_value": "2026-11-12 07:55:26-36 UTC pairing_state_read_timeout, native refresh generic SideStoreSupport.ScarletNativeRefreshFailure code1, later pairing_saved_and_transport_ready; exact worker stage not logged."
+        },
+        "why_prior_fix_failed": "The existing safeFailureReason maps all unknown original SideStore operation failures to sidestore_native_operation_failed. The host receives that only after native worker returns, and a separate pairing timeout event cannot distinguish the failure stage. Stage-bound code1 must originate in native worker to avoid another speculative RSD retry."
+      },
+      "source_revisions": [
+        {
+          "sha": "35fe16d48e9f93404617aa1acbdfd29c94558dc6",
+          "url": "https://github.com/fx564286/sidestore-auto-refresh/commit/35fe16d48e9f93404617aa1acbdfd29c94558dc6",
+          "title": "bound unknown native refresh errors to exact phase"
+        },
+        {
+          "sha": "8e5c92ef7606c5aabeab5c603677db4e0e479c6a",
+          "url": "https://github.com/fx564286/sidestore-auto-refresh/commit/8e5c92ef7606c5aabeab5c603677db4e0e479c6a",
+          "title": "add stage-specific non-sensitive failure guidance"
+        },
+        {
+          "sha": "8c528475a192011564b464655e7873665f440674",
+          "url": "https://github.com/fx564286/sidestore-auto-refresh/commit/8c528475a192011564b464655e7873665f440674",
+          "title": "regression tests for owner telemetry and native error phase"
+        },
+        {
+          "sha": "a44a2bc51dd39d4f23eaa7e36e67af952bff2c24",
+          "url": "https://github.com/fx564286/sidestore-auto-refresh/commit/a44a2bc51dd39d4f23eaa7e36e67af952bff2c24",
+          "title": "R6P23 pinned Xcode iOS native integration and tagged unsigned distribution"
+        }
+      ],
+      "code_locations": [
+        {
+          "commit": "35fe16d48e9f93404617aa1acbdfd29c94558dc6",
+          "file": "rebuild/integration/ScarletGuestRefreshAgent.swift.txt",
+          "function": "ScarletGuestRefreshAgent.stagedFailureReason",
+          "location": "@@ -223,6 +223,21 @@ extension ScarletGuestRefreshAgent {",
+          "before": [
+            "    @objc static func perform(_ reply: @escaping (Bool, String) -> Void) {"
+          ],
+          "after": [
+            "    private static func stagedFailureReason(_ error: Error, stage: String) -> String {",
+            "        let reason = safeFailureReason(error)",
+            "        guard reason == \"sidestore_native_operation_failed\" else { return reason }",
+            "        switch stage {",
+            "        case \"database\": return \"native_unknown_database_stage\"",
+            "        case \"team\": return \"native_unknown_team_stage\"",
+            "        case \"transport\": return \"native_unknown_transport_stage\"",
+            "        case \"refresh\": return \"native_unknown_appmanager_stage\"",
+            "        default: return reason",
+            "        }",
+            "    }",
+            "    @objc static func perform(_ reply: @escaping (Bool, String) -> Void) {"
+          ]
+        },
+        {
+          "commit": "8e5c92ef7606c5aabeab5c603677db4e0e479c6a",
+          "file": "rebuild/HostApp/ScarletAutomaticRenewal.swift",
+          "function": "ScarletRefreshFailureDiagnosis.nativeGuidance",
+          "location": "@@ -94,6 +94,14 @@ enum ScarletRefreshFailureDiagnosis {",
+          "before": [
+            "        case \"sidestore_native_operation_failed\":",
+            "            return \"SideStore 원본 AppManager 갱신 작업이 실패했습니다. 갱신 결과 로그를 확인하세요.\""
+          ],
+          "after": [
+            "        case \"native_unknown_database_stage\":",
+            "            return \"원본 SideStore 관리 앱 데이터베이스 준비 도중 원인이 분류되지 않은 오류가 발생했습니다.\"",
+            "        case \"native_unknown_team_stage\":",
+            "            return \"SideStore의 기존 개발팀 확인 단계에서 분류되지 않은 오류가 발생했습니다. 계정·인증서를 변경하지 않았습니다.\"",
+            "        case \"native_unknown_transport_stage\":",
+            "            return \"SideStore 기기 전송 연결 준비 단계에서 분류되지 않은 오류가 발생했습니다. 기존 페어링은 유지됩니다.\"",
+            "        case \"native_unknown_appmanager_stage\":",
+            "            return \"원본 SideStore AppManager 갱신·설치 단계에서 분류되지 않은 오류가 발생했습니다. 재서명이나 설치 성공은 확인되지 않았습니다.\""
+          ]
+        },
+        {
+          "commit": "8c528475a192011564b464655e7873665f440674",
+          "file": "rebuild/Tests/test_v48_r6p23_guest_owner_refresh_stage.py",
+          "function": "R6P23",
+          "location": "@@ -0,0 +1,76 @@",
+          "before": [],
+          "after": [
+            "class R6P23(unittest.TestCase):",
+            "    def test_original_sidestore_unknown_failure_stage_only(self):",
+            "    def test_existing_pairing_data_signing_and_install_preflight_untouched(self):"
+          ]
+        },
+        {
+          "commit": "a44a2bc51dd39d4f23eaa7e36e67af952bff2c24",
+          "file": ".github/workflows/scarlet-paired-engines-build.yml",
+          "function": "publish-unsigned-github-release",
+          "location": "@@ -452,7 +454,10 @@ jobs:",
+          "before": [
+            "          if [ \"$GITHUB_REF\" = \"refs/heads/fix/scarlet-v48-r6p22-guest-scroll-content-inset-20261112\" ]; then",
+            "            tag=scarlet-v48-r6p22-scroll-content-unsigned-20261112"
+          ],
+          "after": [
+            "          if [ \"$GITHUB_REF\" = \"refs/heads/fix/scarlet-v48-r6p23-guest-owner-refresh-stage-20261112\" ]; then",
+            "            tag=scarlet-v48-r6p23-owner-stage-unsigned-20261112",
+            "            asset=Scarlet-Crystal-V48-R6P23-OWNER-STAGE-UNSIGNED.ipa"
+          ]
+        }
+      ]
     }
   ],
   "gate": {
