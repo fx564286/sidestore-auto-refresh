@@ -517,6 +517,111 @@ static void ScarletIslandProbeConstraints(
     });
 }
 
+// R6P35: P34 signed iPhone PID2894 found 3 severely unsafe header
+// controls at window Y3/13 even though the root and their owner both
+// report top safe62. P34's eight-hop ancestor constraint inspection
+// was capped for precisely those 3 controls (inspected2/capped1).
+// Do NOT infer an unconstrained/manual layout from that incomplete scan.
+// Trace up to 24 real ancestor hops through the owner to the root, and
+// capture only nonidentifying numeric layout facts. READ ONLY.
+static void ScarletIslandProbeUnsafeAncestorChain(
+    UIWindow *window, UIView *root, CGFloat safeTop, NSUInteger sample,
+    NSDictionary<NSValue *, NSDictionary *> *groups) {
+    if(sample != 2600 || !window || !root || safeTop < 20) return;
+    NSMutableArray *rows = [NSMutableArray array];
+    NSUInteger selected = 0, foundOwner = 0, foundRoot = 0;
+    BOOL capped = NO;
+    for(NSValue *key in groups) {
+        UIScrollView *owner = [key nonretainedObjectValue];
+        if(!owner || owner.window != window) continue;
+        for(UIView *node in groups[key][@"control_nodes"]) {
+            if(selected >= 2) break;
+            if(node.window != window || ![node isDescendantOfView:owner])
+                continue;
+            CGRect shown = ScarletIslandVisibleFrameInWindow(node, window);
+            if(CGRectIsNull(shown) || CGRectIsEmpty(shown) ||
+               CGRectGetMinY(shown) >= safeTop - 20 ||
+               CGRectGetMaxY(shown) <= 5) continue;
+            selected++;
+            BOOL ownerReached = NO, rootReached = NO;
+            NSUInteger hops = 0;
+            NSInteger nodeSlot = ScarletIslandAnonymousSlot(node);
+            NSInteger ownerSlot = ScarletIslandAnonymousSlot(owner);
+            for(UIView *cursor=node; cursor && hops < 24;
+                cursor=cursor.superview, hops++) {
+                if(rows.count >= 48) { capped = YES; break; }
+                if(cursor.window != window) break;
+                CGRect rect = [cursor convertRect:cursor.bounds toView:window];
+                CGRect guide = [cursor convertRect:
+                    cursor.safeAreaLayoutGuide.layoutFrame toView:window];
+                CGFloat parentY = cursor.superview ?
+                    CGRectGetMinY([cursor.superview convertRect:
+                        cursor.superview.bounds toView:window]) : -999;
+                NSUInteger vertical = 0;
+                for(NSLayoutConstraint *constraint in cursor.constraints) {
+                    if(constraint.active &&
+                       (ScarletIslandVerticalPosition(constraint.firstAttribute) ||
+                        ScarletIslandVerticalPosition(constraint.secondAttribute)))
+                        vertical++;
+                }
+                BOOL controllerRoot = NO;
+                NSInteger controllerSafe = -999;
+                UIResponder *responder = cursor.nextResponder;
+                if([responder isKindOfClass:UIViewController.class]) {
+                    UIViewController *vc = (UIViewController *)responder;
+                    if(vc.isViewLoaded && vc.view == cursor) {
+                        controllerRoot = YES;
+                        controllerSafe = ScarletIslandMetric(vc.view.safeAreaInsets.top);
+                    }
+                }
+                if(cursor == owner) ownerReached = YES;
+                if(cursor == root) rootReached = YES;
+                [rows addObject:@{
+                    @"node_slot":@(nodeSlot), @"scroll_slot":@(ownerSlot),
+                    @"ancestor_slot":@(ScarletIslandAnonymousSlot(cursor)),
+                    @"ancestor_depth":@(hops),
+                    @"ancestor_window_y":@(ScarletIslandMetric(CGRectGetMinY(rect))),
+                    @"ancestor_parent_window_y":@(ScarletIslandMetric(parentY)),
+                    @"ancestor_local_y":@(ScarletIslandMetric(CGRectGetMinY(cursor.frame))),
+                    @"ancestor_guide_y":@(ScarletIslandMetric(CGRectGetMinY(guide))),
+                    @"ancestor_safe_top":@(ScarletIslandMetric(cursor.safeAreaInsets.top)),
+                    @"ancestor_bounds_y":@(ScarletIslandMetric(CGRectGetMinY(cursor.bounds))),
+                    @"ancestor_height":@(ScarletIslandMetric(CGRectGetHeight(rect))),
+                    @"ancestor_vertical_constraints":@(vertical),
+                    @"ancestor_autoresize_mask":@((NSUInteger)cursor.autoresizingMask),
+                    @"ancestor_translates":@(cursor.translatesAutoresizingMaskIntoConstraints),
+                    @"ancestor_is_controller_root":@(controllerRoot),
+                    @"ancestor_controller_safe_top":@(controllerSafe),
+                    @"ancestor_is_scroll":@([cursor isKindOfClass:UIScrollView.class]),
+                    @"ancestor_is_control":@([cursor isKindOfClass:UIControl.class]),
+                    @"ancestor_clips":@(cursor.clipsToBounds),
+                    @"ancestor_has_transform":@(!CGAffineTransformIsIdentity(cursor.transform)),
+                    @"ancestor_is_owner":@(cursor == owner),
+                    @"ancestor_is_root":@(cursor == root)
+                }];
+                if(cursor == root) break;
+            }
+            foundOwner += ownerReached;
+            foundRoot += rootReached;
+            if(!rootReached) capped = YES;
+        }
+        if(selected >= 2) break;
+    }
+    if(rows.count == 0) return;
+    ScarletIslandPublish(@{
+        @"receipt":NSUUID.UUID.UUIDString, @"pid":@(getpid()),
+        @"epoch":@([[NSDate date] timeIntervalSince1970]),
+        @"result":@"guest_ancestor_layout_probe",
+        @"target":@(ScarletIslandMetric(safeTop)),
+        @"sample_index":@(sample),
+        @"selected_nodes":@(selected),
+        @"owner_reached_nodes":@(foundOwner),
+        @"root_reached_nodes":@(foundRoot),
+        @"ancestor_rows_capped":@(capped),
+        @"nodes":rows
+    });
+}
+
 static void ScarletIslandContentProbe(UIWindow *window,
                                       UIViewController *expectedRoot,
                                       CGFloat expectedTop,
@@ -584,6 +689,8 @@ static void ScarletIslandContentProbe(UIWindow *window,
         ScarletIslandVisibleOwnerMetrics(ownerGroups, window)];
     ScarletIslandPublish(fields);
     ScarletIslandProbeConstraints(window, rootView, expectedTop, sample, ownerGroups);
+    ScarletIslandProbeUnsafeAncestorChain(
+        window, rootView, expectedTop, sample, ownerGroups);
 }
 
 static void ScarletIslandScheduleContentProbe(UIWindow *window,
