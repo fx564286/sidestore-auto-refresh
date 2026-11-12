@@ -26,7 +26,7 @@ final class ScarletDiagnosticRecorder: @unchecked Sendable {
     var currentProcessStartDate: Date { launchedAt }
     private static let allowedFields: Set<String> = [
         "action", "tab", "result", "reason", "status", "state", "code",
-        "domain", "count", "duration_ms", "width_pt", "height_pt",
+        "domain", "count", "duration_ms", "elapsed_ms", "width_pt", "height_pt",
         "safe_top_pt", "safe_bottom_pt", "orientation", "engine",
         "available", "stage", "guest_ref", "window_attached",
         "scene", "os_major", "os_minor", "physical_memory_mb",
