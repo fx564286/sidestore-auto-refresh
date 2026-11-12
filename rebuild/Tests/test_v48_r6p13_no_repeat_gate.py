@@ -64,6 +64,19 @@ class NoRepeatContract(unittest.TestCase):
         self.assertIn('body += Self.decodedAudit(Self.remediationHistoryBlob)', source)
         self.assertIn('body += Self.decodedAudit(Self.handoffPromptBlob)', source)
 
+    def test_old_guest_boot_startup_order_blocks_renamed_guest_top_retry(self):
+        p = proposed("xpc_boot_order")
+        p["novelty"]["prior_excluded_ids"] = ["L043"]
+        errs = check_candidate(p, HISTORY["entries"])
+        self.assertTrue(any("BLOCK repeated mechanism startup_order" in s
+                            for s in errs), errs)
+
+    def test_empty_change_plan_cannot_bypass_history_precheck(self):
+        p = proposed()
+        p["code_locations"] = []
+        errs = check_candidate(p, HISTORY["entries"])
+        self.assertTrue(any("proposed file/diff" in s for s in errs), errs)
+
     def test_novelty_must_be_explained_not_empty(self):
         p = proposed()
         p["novelty"] = {}
