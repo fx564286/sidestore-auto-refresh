@@ -53,6 +53,16 @@ class NoRepeatContract(unittest.TestCase):
         errs = check_candidate(p, HISTORY["entries"])
         self.assertTrue(any("duplicate source change" in s for s in errs), errs)
 
+    def test_export_index_precedes_verbose_jsonl(self):
+        source = (ROOT / "HostApp/ScarletDiagnosticRecorder.swift").read_text()
+        export = source.split("    func makeShareFile(includeHistory:", 1)[1]
+        self.assertIn("NO-REPEAT DECISION INDEX", export)
+        self.assertLess(export.index("Self.remediationDecisionIndex()"),
+                        export.index("for index in indices"))
+        self.assertIn("entries.suffix(18)", source)
+        self.assertIn('body += Self.decodedAudit(Self.remediationHistoryBlob)', source)
+        self.assertIn('body += Self.decodedAudit(Self.handoffPromptBlob)', source)
+
     def test_novelty_must_be_explained_not_empty(self):
         p = proposed()
         p["novelty"] = {}
