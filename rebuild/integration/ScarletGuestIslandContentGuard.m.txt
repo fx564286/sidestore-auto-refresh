@@ -19,6 +19,8 @@ static char scarletIslandLocalOwnerAppliedKey;
 static char scarletIslandResidualAutoScheduleKey;
 static char scarletIslandResidualAutoAppliedKey;
 static char scarletIslandP28QuarantineReceiptKey;
+static char scarletIslandAlwaysScheduleKey;
+static char scarletIslandAlwaysAppliedKey;
 
 // All guest receipts share one anonymous App Group relay. This carries only
 // bounded numbers and a PID; no labels, view names, app identifiers or images.
@@ -441,6 +443,8 @@ static void ScarletIslandScheduleVisibleLocalOwnerRepair(
     UIWindow *window, UIViewController *root, CGFloat expectedTop);
 static void ScarletIslandScheduleResidualAutomaticInset(
     UIWindow *window, UIViewController *root, CGFloat expectedTop);
+static void ScarletIslandScheduleNonverticalAlwaysInset(
+    UIWindow *window, UIViewController *root, CGFloat expectedTop);
 
 static void ScarletIslandInspect(UIWindow *window, NSUInteger attempt) {
     if(!window || window.hidden || window.windowLevel != UIWindowLevelNormal ||
@@ -513,12 +517,15 @@ static void ScarletIslandInspect(UIWindow *window, NSUInteger attempt) {
         if(!objc_getAssociatedObject(root, &scarletIslandP28QuarantineReceiptKey)) {
             objc_setAssociatedObject(root, &scarletIslandP28QuarantineReceiptKey,
                 @YES, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
-            ScarletIslandReceipt(@"guest_local_owner_r6p28_quarantined",
+            ScarletIslandReceipt(@"guest_local_owner_quarantined",
                                  target, 0, 0);
         }
         // R6P29: one independent UIKit automatic-inset experiment for a
         // different, full-viewport residual owner AFTER the R6P28 local fix.
-        ScarletIslandScheduleResidualAutomaticInset(window, root, target);
+        // R6P31: verified P30 iPhone P29 .automatic trial read back 0pt;
+        // use the distinct ALWAYS policy for non-vertical content, with
+        // immediate AND late content visibility checks and safe rollback.
+        ScarletIslandScheduleNonverticalAlwaysInset(window, root, target);
         return;
     }
     if(ourDelta > 0) {
@@ -911,7 +918,7 @@ static void ScarletIslandResidualAutoReceipt(
 }
 
 static void ScarletIslandTryResidualAutomaticInset(
-    UIWindow *window, UIViewController *root, CGFloat expectedTop) {
+    UIWindow *window, UIViewController *root, CGFloat expectedTop, BOOL always) {
     if(!window || window.hidden || window.rootViewController != root ||
        !window.windowScene ||
        !UIInterfaceOrientationIsPortrait(window.windowScene.interfaceOrientation))
@@ -975,6 +982,7 @@ static void ScarletIslandTryResidualAutomaticInset(
         BOOL exactResidualOwner = n >= 2 &&
             !objc_getAssociatedObject(candidate, &scarletIslandLocalOwnerAppliedKey) &&
             !objc_getAssociatedObject(candidate, &scarletIslandResidualAutoAppliedKey) &&
+            !objc_getAssociatedObject(candidate, &scarletIslandAlwaysAppliedKey) &&
             fabs(CGRectGetMinY(rect)) <= 3 &&
             CGRectGetWidth(rect) >= winW * 0.97 &&
             CGRectGetWidth(rect) <= winW * 1.10 &&
@@ -1024,10 +1032,24 @@ static void ScarletIslandTryResidualAutomaticInset(
     __weak UIWindow *weakWindow = window;
     __weak UIViewController *weakRoot = root;
     __weak UIScrollView *weakOwner = selected;
-    selected.contentInsetAdjustmentBehavior =
-        UIScrollViewContentInsetAdjustmentAutomatic;
+    // P30 iPhone proved `.automatic` is a no-op on this nonvertical owner.
+    // Apple's `.always` includes safe-area insets even without scrollable
+    // content; no manual contentInset/root/window/frame/scale modification.
+    selected.contentInsetAdjustmentBehavior = always
+        ? UIScrollViewContentInsetAdjustmentAlways
+        : UIScrollViewContentInsetAdjustmentAutomatic;
     [selected setNeedsLayout];
     [selected layoutIfNeeded];
+    if(always && isfinite(selected.adjustedContentInset.top) &&
+       selected.adjustedContentInset.top >= expectedTop - 3 &&
+       selected.adjustedContentInset.top <= expectedTop + 12) {
+        // The guest's owner begins at Y0 and was contentOffset0. Under
+        // UIKit-adjusted top inset, anchor content at the new safe top.
+        CGPoint anchored = selected.contentOffset;
+        anchored.y = -selected.adjustedContentInset.top;
+        selected.contentOffset = anchored;
+        [selected layoutIfNeeded];
+    }
     dispatch_after(dispatch_time(DISPATCH_TIME_NOW,
         (int64_t)180 * NSEC_PER_MSEC), dispatch_get_main_queue(), ^{
         UIScrollView *owner = weakOwner;
@@ -1064,8 +1086,82 @@ static void ScarletIslandTryResidualAutomaticInset(
             [owner setNeedsLayout];
             [owner layoutIfNeeded];
             ScarletIslandResidualAutoReceipt(
-                @"guest_residual_auto_reverted", @"no_measured_overlap_reduction",
+                always ? @"guest_always_trial_reverted"
+                       : @"guest_residual_auto_reverted",
+                always ? @"no_immediate_geometry_improvement"
+                       : @"no_measured_overlap_reduction",
                 expectedTop, before, after, selectedControls, remaining);
+            return;
+        }
+        if(always) {
+            // A one-frame success is insufficient: L071's manual value was
+            // overwritten by guest relayout after it initially read back.
+            // Recheck beyond the existing 2600ms root geometry sample.
+            ScarletIslandResidualAutoReceipt(
+                @"guest_always_trial_staged", @"native_inset_tentative",
+                expectedTop, before, after, selectedControls, remaining);
+            __weak UIScrollView *stageOwner = owner;
+            __weak UIWindow *stageWindow = liveWindow;
+            __weak UIViewController *stageRoot = liveRoot;
+            dispatch_after(dispatch_time(DISPATCH_TIME_NOW,
+                (int64_t)1100 * NSEC_PER_MSEC),
+                dispatch_get_main_queue(), ^{
+                UIScrollView *stableOwner = stageOwner;
+                UIWindow *stableWindow = stageWindow;
+                UIViewController *stableRoot = stageRoot;
+                BOOL attached = stableOwner && stableWindow && stableRoot &&
+                    stableOwner.window == stableWindow &&
+                    stableWindow.rootViewController == stableRoot &&
+                    stableWindow.windowScene &&
+                    UIInterfaceOrientationIsPortrait(
+                        stableWindow.windowScene.interfaceOrientation) &&
+                    fabs(stableRoot.view.safeAreaInsets.top - expectedTop) <= 2;
+                NSUInteger lateControls = selectedControls;
+                CGFloat lateInset = 0;
+                if(attached) {
+                    ScarletIslandViewMetrics lateMetrics = {0};
+                    NSMutableDictionary *lateGroups =
+                        [NSMutableDictionary dictionary];
+                    ScarletIslandWalkViews(stableRoot.view, stableWindow,
+                                           expectedTop, 0, &lateMetrics,
+                                           lateGroups);
+                    NSNumber *count = lateGroups[
+                        [NSValue valueWithNonretainedObject:stableOwner]][@"controls"];
+                    lateControls = count.unsignedIntegerValue;
+                    lateInset = stableOwner.adjustedContentInset.top;
+                }
+                BOOL persisted = attached && isfinite(lateInset) &&
+                    lateInset >= expectedTop - 3 &&
+                    lateInset <= expectedTop + 12 &&
+                    lateControls < selectedControls &&
+                    stableOwner.contentInsetAdjustmentBehavior ==
+                        UIScrollViewContentInsetAdjustmentAlways &&
+                    fabs(stableOwner.contentOffset.y + lateInset) <= 3 &&
+                    !stableOwner.dragging && !stableOwner.tracking &&
+                    !stableOwner.decelerating;
+                if(!persisted) {
+                    if(stableOwner) {
+                        stableOwner.contentInsetAdjustmentBehavior =
+                            UIScrollViewContentInsetAdjustmentNever;
+                        stableOwner.contentOffset = originalOffset;
+                        [stableOwner setNeedsLayout];
+                        [stableOwner layoutIfNeeded];
+                    }
+                    ScarletIslandResidualAutoReceipt(
+                        @"guest_always_trial_reverted",
+                        @"late_geometry_not_persistent",
+                        expectedTop, before, lateInset,
+                        selectedControls, lateControls);
+                    return;
+                }
+                objc_setAssociatedObject(stableOwner,
+                    &scarletIslandAlwaysAppliedKey, @YES,
+                    OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+                ScarletIslandResidualAutoReceipt(
+                    @"guest_always_trial_retained", @"late_native_inset_confirmed",
+                    expectedTop, before, lateInset,
+                    selectedControls, lateControls);
+            });
             return;
         }
         objc_setAssociatedObject(owner, &scarletIslandResidualAutoAppliedKey,
@@ -1090,7 +1186,27 @@ static void ScarletIslandScheduleResidualAutomaticInset(
     dispatch_after(dispatch_time(DISPATCH_TIME_NOW,
         (int64_t)1850 * NSEC_PER_MSEC), dispatch_get_main_queue(), ^{
         ScarletIslandTryResidualAutomaticInset(
-            weakWindow, weakRoot, expectedTop);
+            weakWindow, weakRoot, expectedTop, NO);
+    });
+}
+
+// R6P31: UIKit ALWAYS, not P29 AUTOMATIC. The iPhone P30 payload proves
+// P29 accepted a unique fullscreen nonvertical owner (3 controls), but
+// UIKit AUTOMATIC stayed at 0pt and no content moved. Apple's ALWAYS policy
+// unconditionally includes safe-area insets. Every mutation is reversible,
+// and any failure at either 180ms or ~3130ms restores the guest's own state.
+static void ScarletIslandScheduleNonverticalAlwaysInset(
+    UIWindow *window, UIViewController *root, CGFloat expectedTop) {
+    if(objc_getAssociatedObject(root, &scarletIslandAlwaysScheduleKey))
+        return;
+    objc_setAssociatedObject(root, &scarletIslandAlwaysScheduleKey,
+                             @YES, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+    __weak UIWindow *weakWindow = window;
+    __weak UIViewController *weakRoot = root;
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW,
+        (int64_t)1850 * NSEC_PER_MSEC), dispatch_get_main_queue(), ^{
+        ScarletIslandTryResidualAutomaticInset(
+            weakWindow, weakRoot, expectedTop, YES);
     });
 }
 

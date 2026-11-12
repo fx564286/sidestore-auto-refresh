@@ -69,9 +69,9 @@ class ResidualUIKitAutomaticInsets(unittest.TestCase):
         self.assertIn("ScarletIslandScheduleScrollContentRepair(window, root, target);", G)
         # R6P30: the P28 mutator is preserved for audit, but not scheduled.
         self.assertNotIn("ScarletIslandScheduleVisibleLocalOwnerRepair(window, root, target);", G)
-        self.assertIn("guest_local_owner_r6p28_quarantined", G)
-        self.assertIn("ScarletIslandScheduleResidualAutomaticInset(window, root, target);", G)
-        self.assertEqual(G.count("ScarletIslandScheduleResidualAutomaticInset(window, root, target);"), 1)
+        self.assertIn("guest_local_owner_quarantined", G)
+        self.assertIn("ScarletIslandScheduleNonverticalAlwaysInset(window, root, target);", G)
+        self.assertEqual(G.count("ScarletIslandScheduleNonverticalAlwaysInset(window, root, target);"), 1)
         self.assertIn('for(NSNumber *delay in @[@650, @2600])', G)
         for needle in (
             "guest_residual_auto_inset_receipt", "guest_residual_auto_retained",

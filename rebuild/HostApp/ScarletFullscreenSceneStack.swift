@@ -893,6 +893,41 @@ private final class ScarletGuestIslandReceiptObserver {
                     "layout", "guest_residual_auto_classifier", fields: fields)
                 continue
             }
+            if result == "guest_local_owner_quarantined" {
+                // P30 quarantine receipt used to be [REDACTED]: its old
+                // string included digits and exceeded the recorder threshold.
+                ScarletDiagnosticRecorder.shared.record(
+                    "layout", "guest_local_owner_quarantined",
+                    fields: ["process_pid": String(pid), "safe_top_pt": String(target)])
+                continue
+            }
+            if ["guest_always_trial_staged", "guest_always_trial_reverted",
+                "guest_always_trial_retained"].contains(result) {
+                // R6P31: nonvertical UIKit ALWAYS trial; only late retention
+                // is a stable code-path confirmation, never visual/touch proof.
+                var fields: [String: String] = [
+                    "process_pid": String(pid), "result": result,
+                    "safe_top_pt": String(target),
+                    "owner_auto_before_pt": String(before),
+                    "owner_auto_after_pt": String(after)
+                ]
+                for key in ["owner_dominant_controls", "visible_unsafe_controls"] {
+                    if let number = row[key] as? NSNumber {
+                        fields[key] = number.stringValue
+                    }
+                }
+                if let reason = row["reason"] as? String,
+                   ["native_inset_tentative", "no_immediate_geometry_improvement",
+                    "late_geometry_not_persistent",
+                    "late_native_inset_confirmed"].contains(reason) {
+                    fields["reason"] = reason
+                }
+                ScarletDiagnosticRecorder.shared.record(
+                    "layout", "guest_always_inset_receipt",
+                    status: result == "guest_always_trial_retained"
+                        ? "success" : "info", fields: fields)
+                continue
+            }
             if ["guest_residual_auto_skipped",
                 "guest_residual_auto_reverted",
                 "guest_residual_auto_retained"].contains(result) {
