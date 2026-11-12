@@ -241,3 +241,23 @@ L051=R6P15 저장된 RSD 연결의 제한적 재검사다. 과거 항목에 `dev
 - R6P18의 `guest_content_geometry_probe`는 **현 세션에는 게스트가
   실행되지 않았으므로 평가 불가**. 권한 정상인 Apple 서명 빌드로
   실행 성공한 뒤 실제 PID별 측정 여부를 다시 확인한다.
+
+### 10-A. R6P19 Xcode 27.2 실컴파일 차단 원인 및 원인 한정 보정
+
+- 최초 R6P19 GitHub Actions run `43166177133`, LiveContainer job
+  `131008464808`: Xcode 27.2 native archive **exit 65**.
+  다운로드한 실제 원본 `livecontainer-build.log`:
+  `ScarletIntegratedHostView.swift:919:42: error: cannot find
+  'NSURLErrorCannotResume' in scope`. 이 에러 상수는
+  pinned Foundation SDK에서 사용할 수 없다. 테스트 519건 PASS는
+  Swift 네이티브 컴파일 증거가 아니라는 차이를 명시한다.
+- 실제 코드 위치: `downloadSourceWithConnectionRecovery`,
+  `session.download(resumeFrom:)` catch 블록. 존재하지 않는
+  `NSURLErrorCannotResume` 비교를 제거하고 **실제 NSError domain이
+  NSURLErrorDomain인 경우 중 사용자가 취소한 `NSURLErrorCancelled`는 제외**.
+  재개 시도에서 오류가 발생해도 이미 검증된 동일 HTTPS URL을 딱 한 번
+  새로 다운로드하며, SSL 검사/IPA ZIP 서명·내용 검증은 변경하지 않는다.
+  일반 -1005 재시도 역시 기존 3시도 상한 안에서만 동작한다.
+- 기존 L055, L056은 그대로 보존. Xcode 실컴파일 증거가 신규이므로
+  L057에 신규 커밋과 정확한 diff를 별도 남긴다. 최종 CI 통과와 기기에서
+  실제 네트워크 성공은 여전히 독립적으로 확인해야 한다.
