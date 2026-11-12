@@ -41,6 +41,8 @@ class ShortNestedHeaderNativeSafeGuide(unittest.TestCase):
         self.assertIn("sample, ownerGroups,",G)
         self.assertIn("metrics.visibleUnsafeControls, metrics.visibleUnsafeImageNodes",G)
         self.assertIn("root.safeAreaInsets.top-safeTop",SECTION)
+        # Exclude explanatory comments from executable mutation checks.
+        executable = "\n".join(line.split("//", 1)[0] for line in SECTION.splitlines())
         for forbidden in (
             "window.frame=", "window.bounds=", "root.frame=",
             "root.additionalSafeAreaInsets=", "contentInset=", "contentOffset=",
@@ -49,7 +51,7 @@ class ShortNestedHeaderNativeSafeGuide(unittest.TestCase):
             "setNeedsStatusBarAppearanceUpdate", "UIView animateWithDuration",
             "NSStringFromClass", "accessibilityLabel", "bundleIdentifier"
         ):
-            self.assertNotIn(forbidden,SECTION)
+            self.assertNotIn(forbidden,executable)
 
     def test_immediate_and_late_readback_must_both_improve_actual_controls(self):
         for token in (
