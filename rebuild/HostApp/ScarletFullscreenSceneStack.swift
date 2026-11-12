@@ -751,14 +751,20 @@ private final class ScarletGuestIslandReceiptObserver {
                 let numericFields = ["sample_index", "root_frame_y", "root_guide_y",
                     "visited", "candidate_controls", "top_controls",
                     "unsafe_controls", "first_top_control_y",
-                    "first_unsafe_control_y", "scroll_top_without_inset"]
+                    "first_unsafe_control_y", "scroll_top_without_inset",
+                    "scroll_first_y", "top_text_nodes", "unsafe_text_nodes",
+                    "first_unsafe_text_y", "top_image_nodes",
+                    "unsafe_image_nodes", "first_unsafe_image_y",
+                    "max_depth_seen"]
                 for field in numericFields {
                     if let number = row[field] as? NSNumber {
                         fields[field] = number.stringValue
                     }
                 }
-                if let capped = row["scan_capped"] as? NSNumber {
-                    fields["scan_capped"] = capped.boolValue ? "true" : "false"
+                for flag in ["scan_capped", "depth_capped", "count_capped"] {
+                    if let value = row[flag] as? NSNumber {
+                        fields[flag] = value.boolValue ? "true" : "false"
+                    }
                 }
                 ScarletDiagnosticRecorder.shared.record(
                     "layout", "guest_content_geometry_probe", fields: fields)
