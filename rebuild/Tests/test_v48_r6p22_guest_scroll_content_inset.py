@@ -23,7 +23,7 @@ class GuardedGuestScrollContentInset(unittest.TestCase):
         self.assertEqual(GUARD.count("ScarletIslandScheduleScrollContentRepair(window, root, target);"),1)
 
     def test_no_global_app_window_or_status_bar_mutation(self):
-        fix = GUARD.split("// R6P22: unlike the L050 root correction",1)[1].split("void initScarletGuestIslandContentGuard",1)[0]
+        fix = GUARD.split("// R6P22: unlike the L050 root correction",1)[1].split("// R6P28: unique visible control owner",1)[0]
         for forbidden in ("window.frame =", "root.additionalSafeAreaInsets =",
                           "window.rootViewController =", "setStatusBarHidden",
                           "method_exchangeImplementations", "NSStringFromClass",
@@ -35,7 +35,7 @@ class GuardedGuestScrollContentInset(unittest.TestCase):
         self.assertIn("rootView.safeAreaInsets.top < expectedTop - 2",fix)
 
     def test_single_full_width_vertical_unsafe_scroll_only(self):
-        fix = GUARD.split("// R6P22: unlike the L050 root correction",1)[1].split("void initScarletGuestIslandContentGuard",1)[0]
+        fix = GUARD.split("// R6P22: unlike the L050 root correction",1)[1].split("// R6P28: unique visible control owner",1)[0]
         for required in ("candidates.count != 1", "CGFloat deficit = ceil(",
                          "CGRectGetWidth(window.bounds) * 0.7",
                          "CGRectGetHeight(window.bounds) * 0.4",
@@ -49,7 +49,7 @@ class GuardedGuestScrollContentInset(unittest.TestCase):
             self.assertIn(required,fix)
 
     def test_content_inset_owned_once_and_snapshot_precedes_it(self):
-        fix=GUARD.split("// R6P22: unlike the L050 root correction",1)[1].split("void initScarletGuestIslandContentGuard",1)[0]
+        fix=GUARD.split("// R6P22: unlike the L050 root correction",1)[1].split("// R6P28: unique visible control owner",1)[0]
         self.assertIn("objc_getAssociatedObject(",fix)
         self.assertIn("&scarletIslandScrollInsetKey",fix)
         self.assertIn("objc_setAssociatedObject(scroll, &scarletIslandScrollInsetKey",fix)
