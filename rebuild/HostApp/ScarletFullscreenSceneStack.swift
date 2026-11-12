@@ -789,14 +789,16 @@ private final class ScarletGuestIslandReceiptObserver {
                 ]
                 let numericFields = ["sample_index", "root_frame_y", "root_guide_y",
                     "visited", "candidate_controls", "top_controls",
-                    "unsafe_controls", "unsafe_controls_in_scroll",
+                    "unsafe_controls", "visible_unsafe_controls",
+                    "clipped_unsafe_controls", "unsafe_controls_in_scroll",
                     "unsafe_controls_outside_scroll",
                     "unsafe_controls_under_zero_inset_child_owner",
                     "first_top_control_y",
                     "first_unsafe_control_y", "scroll_top_without_inset",
                     "scroll_first_y", "top_text_nodes", "unsafe_text_nodes",
                     "first_unsafe_text_y", "top_image_nodes",
-                    "unsafe_image_nodes", "unsafe_image_nodes_in_scroll",
+                    "unsafe_image_nodes", "visible_unsafe_images",
+                    "clipped_unsafe_images", "unsafe_image_nodes_in_scroll",
                     "unsafe_image_nodes_outside_scroll", "first_unsafe_image_y",
                     "max_depth_seen"]
                 for field in numericFields {
