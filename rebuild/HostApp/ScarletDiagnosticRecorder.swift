@@ -132,7 +132,10 @@ final class ScarletDiagnosticRecorder: @unchecked Sendable {
         "probe_window_normal", "probe_scene_present",
         "probe_scene_state", "probe_portrait", "probe_root_present",
         "probe_root_match", "probe_root_attached",
-        "probe_root_safe_top", "probe_replacement"
+        "probe_root_safe_top", "probe_replacement",
+        // R6P37: anonymous proof of only the 50pt nested header owner.
+        "header_before_y", "header_after_y", "header_controls_before",
+        "header_controls_after", "header_images_after", "header_gate_pass"
     ]
 
     private init() {
