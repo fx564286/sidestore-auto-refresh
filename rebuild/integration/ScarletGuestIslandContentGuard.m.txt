@@ -58,6 +58,16 @@ typedef struct {
     NSUInteger topControls;
     NSUInteger unsafeControls;
     NSUInteger topScrollWithoutInset;
+    NSUInteger topTextNodes;
+    NSUInteger unsafeTextNodes;
+    NSUInteger topImageNodes;
+    NSUInteger unsafeImageNodes;
+    NSUInteger maxDepthSeen;
+    BOOL depthCapped;
+    BOOL countCapped;
+    NSInteger firstUnsafeTextY;
+    NSInteger firstUnsafeImageY;
+    NSInteger firstTopScrollY;
     NSInteger firstTopControlY;
     NSInteger firstUnsafeControlY;
     BOOL capped;
@@ -66,13 +76,23 @@ typedef struct {
 static void ScarletIslandWalkViews(UIView *view, UIWindow *window,
                                    CGFloat safeY, NSUInteger depth,
                                    ScarletIslandViewMetrics *metrics) {
-    if(metrics->visited >= 640 || depth > 9) {
+    if(!view || view.hidden || view.alpha < 0.05 || view.window != window)
+        return;
+    // R6P21: the R6P20 device shows depth=9 truncation after only 15/46
+    // visible nodes. This remains a bounded READ-ONLY scan, but distinguishes
+    // depth from breadth and includes deeply nested UIKit/SwiftUI host views.
+    if(metrics->visited >= 1200) {
+        metrics->countCapped = YES;
         metrics->capped = YES;
         return;
     }
-    if(!view || view.hidden || view.alpha < 0.05 || view.window != window)
+    if(depth > 24) {
+        metrics->depthCapped = YES;
+        metrics->capped = YES;
         return;
+    }
     metrics->visited++;
+    metrics->maxDepthSeen = MAX(metrics->maxDepthSeen, depth);
     if(depth > 0) {
         CGRect frame = [view convertRect:view.bounds toView:window];
         CGFloat top = CGRectGetMinY(frame);
@@ -98,16 +118,47 @@ static void ScarletIslandWalkViews(UIView *view, UIWindow *window,
                 }
             }
         }
+        // Text and imagery may be the actual visual navigation bar in
+        // SwiftUI-bridged guests, without ever subclassing UIControl.
+        // Never inspect/record labels, image bytes or accessibility content.
+        if(isfinite(top) && isfinite(bottom) && isfinite(height) &&
+           height > 2 && height <= 160 && bottom > 0 &&
+           top < safeY + 160) {
+            BOOL textNode = [view isKindOfClass:UILabel.class] ||
+                [view isKindOfClass:UITextField.class] ||
+                [view isKindOfClass:UITextView.class];
+            BOOL imageNode = [view isKindOfClass:UIImageView.class];
+            if(textNode) {
+                metrics->topTextNodes++;
+                if(top < safeY - 2 && bottom > 5) {
+                    metrics->unsafeTextNodes++;
+                    metrics->firstUnsafeTextY = MIN(
+                        metrics->firstUnsafeTextY, (NSInteger)lround(top));
+                }
+            }
+            if(imageNode) {
+                metrics->topImageNodes++;
+                if(top < safeY - 2 && bottom > 5) {
+                    metrics->unsafeImageNodes++;
+                    metrics->firstUnsafeImageY = MIN(
+                        metrics->firstUnsafeImageY, (NSInteger)lround(top));
+                }
+            }
+        }
         if([view isKindOfClass:UIScrollView.class]) {
             UIScrollView *scroll = (UIScrollView *)view;
             if(isfinite(top) && isfinite(bottom) && top < safeY &&
-               bottom > safeY && scroll.adjustedContentInset.top < 2)
+               bottom > safeY && scroll.adjustedContentInset.top < 2) {
                 metrics->topScrollWithoutInset++;
+                metrics->firstTopScrollY = MIN(
+                    metrics->firstTopScrollY, (NSInteger)lround(top));
+            }
         }
     }
     for(UIView *child in view.subviews) {
-        if(metrics->visited >= 640) {
+        if(metrics->visited >= 1200) {
             metrics->capped = YES;
+            metrics->countCapped = YES;
             break;
         }
         ScarletIslandWalkViews(child, window, safeY, depth + 1, metrics);
@@ -133,6 +184,9 @@ static void ScarletIslandContentProbe(UIWindow *window,
     ScarletIslandViewMetrics metrics = {0};
     metrics.firstTopControlY = NSIntegerMax;
     metrics.firstUnsafeControlY = NSIntegerMax;
+    metrics.firstUnsafeTextY = NSIntegerMax;
+    metrics.firstUnsafeImageY = NSIntegerMax;
+    metrics.firstTopScrollY = NSIntegerMax;
     ScarletIslandWalkViews(rootView, window, expectedTop, 0, &metrics);
     ScarletIslandPublish(@{
         @"receipt":NSUUID.UUID.UUIDString,
@@ -150,6 +204,16 @@ static void ScarletIslandContentProbe(UIWindow *window,
         @"first_top_control_y":@(metrics.firstTopControlY == NSIntegerMax ? -999 : metrics.firstTopControlY),
         @"first_unsafe_control_y":@(metrics.firstUnsafeControlY == NSIntegerMax ? -999 : metrics.firstUnsafeControlY),
         @"scroll_top_without_inset":@(metrics.topScrollWithoutInset),
+        @"scroll_first_y":@(metrics.firstTopScrollY == NSIntegerMax ? -999 : metrics.firstTopScrollY),
+        @"top_text_nodes":@(metrics.topTextNodes),
+        @"unsafe_text_nodes":@(metrics.unsafeTextNodes),
+        @"first_unsafe_text_y":@(metrics.firstUnsafeTextY == NSIntegerMax ? -999 : metrics.firstUnsafeTextY),
+        @"top_image_nodes":@(metrics.topImageNodes),
+        @"unsafe_image_nodes":@(metrics.unsafeImageNodes),
+        @"first_unsafe_image_y":@(metrics.firstUnsafeImageY == NSIntegerMax ? -999 : metrics.firstUnsafeImageY),
+        @"max_depth_seen":@(metrics.maxDepthSeen),
+        @"depth_capped":@(metrics.depthCapped),
+        @"count_capped":@(metrics.countCapped),
         @"scan_capped":@(metrics.capped)
     });
 }
