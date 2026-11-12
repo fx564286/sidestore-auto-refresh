@@ -126,9 +126,98 @@ static CGRect ScarletIslandVisibleFrameInWindow(UIView *node, UIWindow *window) 
     return hops >= 64 ? CGRectNull : visible;
 }
 
+// R6P27: attribute *visible* unsafe nodes to their closest real scroll
+// ancestor, rather than selecting a global scroll by width/verticality.
+// This is a read-only ownership probe. Never record view or app identities.
+static void ScarletIslandRecordVisibleScrollOwner(
+    UIView *node, UIView *root, NSMutableDictionary *owners, BOOL image) {
+    UIScrollView *owner = nil;
+    NSUInteger hops = 0;
+    for(UIView *parent = node.superview; parent && hops++ < 64;
+        parent = parent.superview) {
+        if([parent isKindOfClass:UIScrollView.class]) {
+            owner = (UIScrollView *)parent;
+            break;
+        }
+        if(parent == root) break;
+    }
+    if(!owner) return;
+    NSValue *key = [NSValue valueWithNonretainedObject:owner];
+    NSMutableDictionary *counts = owners[key];
+    if(!counts) {
+        if(owners.count >= 16) return;
+        counts = [@{@"controls":@0, @"images":@0} mutableCopy];
+        owners[key] = counts;
+    }
+    NSString *field = image ? @"images" : @"controls";
+    counts[field] = @([counts[field] unsignedIntegerValue] + 1);
+}
+
+static NSDictionary *ScarletIslandVisibleOwnerMetrics(
+    NSDictionary<NSValue *, NSDictionary *> *owners, UIWindow *window) {
+    UIScrollView *dominant = nil;
+    NSUInteger best = 0, tied = 0, controls = 0, images = 0;
+    for(NSValue *key in owners) {
+        UIScrollView *scroll = (UIScrollView *)[key nonretainedObjectValue];
+        if(!scroll || scroll.window != window) continue;
+        NSDictionary *counts = owners[key];
+        NSUInteger c = [counts[@"controls"] unsignedIntegerValue];
+        NSUInteger i = [counts[@"images"] unsignedIntegerValue];
+        NSUInteger score = c * 2 + i;
+        if(score > best) {
+            best = score;
+            dominant = scroll;
+            tied = 0;
+            controls = c;
+            images = i;
+        } else if(score && score == best) {
+            tied++;
+        }
+    }
+    if(!dominant) {
+        return @{@"owner_groups":@(owners.count), @"owner_dominant_controls":@0,
+            @"owner_dominant_images":@0, @"owner_tie":@0,
+            @"owner_frame_y":@(-999), @"owner_frame_width_pct":@(-999),
+            @"owner_frame_height_pct":@(-999),
+            @"owner_adjusted_inset_top":@(-999),
+            @"owner_content_inset_top":@(-999), @"owner_offset_y":@(-999),
+            @"owner_adjustment_behavior":@(-999),
+            @"owner_nested_scrolls":@(-999),
+            @"owner_scroll_enabled":@(-999),
+            @"owner_content_height_pct":@(-999),
+            @"owner_safe_top":@(-999)};
+    }
+    NSUInteger nested = 0, budget = 48;
+    for(UIView *parent = dominant.superview; parent && budget--;
+        parent = parent.superview)
+        if([parent isKindOfClass:UIScrollView.class]) nested++;
+    CGRect frame = [dominant convertRect:dominant.bounds toView:window];
+    CGFloat winW = MAX(1, CGRectGetWidth(window.bounds));
+    CGFloat winH = MAX(1, CGRectGetHeight(window.bounds));
+    CGFloat contentH = MAX(1, CGRectGetHeight(dominant.bounds));
+    return @{
+        @"owner_groups":@(owners.count),
+        @"owner_dominant_controls":@(controls),
+        @"owner_dominant_images":@(images),
+        @"owner_tie":@(tied > 0),
+        @"owner_frame_y":@((int)lround(CGRectGetMinY(frame))),
+        @"owner_frame_width_pct":@((int)lround(100 * CGRectGetWidth(frame)/winW)),
+        @"owner_frame_height_pct":@((int)lround(100 * CGRectGetHeight(frame)/winH)),
+        @"owner_adjusted_inset_top":@((int)lround(dominant.adjustedContentInset.top)),
+        @"owner_content_inset_top":@((int)lround(dominant.contentInset.top)),
+        @"owner_offset_y":@((int)lround(dominant.contentOffset.y)),
+        @"owner_adjustment_behavior":@(dominant.contentInsetAdjustmentBehavior),
+        @"owner_nested_scrolls":@(nested),
+        @"owner_scroll_enabled":@(dominant.scrollEnabled),
+        @"owner_content_height_pct":@((int)lround(100 * dominant.contentSize.height/contentH)),
+        @"owner_safe_top":@((int)lround(dominant.safeAreaInsets.top))
+    };
+}
+
 static void ScarletIslandWalkViews(UIView *view, UIWindow *window,
                                    CGFloat safeY, NSUInteger depth,
-                                   ScarletIslandViewMetrics *metrics) {
+                                   ScarletIslandViewMetrics *metrics,
+                                   NSMutableDictionary *ownerGroups) {
     if(!view || view.hidden || view.alpha < 0.05 || view.window != window)
         return;
     // R6P21: the R6P20 device shows depth=9 truncation after only 15/46
@@ -169,7 +258,12 @@ static void ScarletIslandWalkViews(UIView *view, UIWindow *window,
                         if(!CGRectIsNull(shown) && !CGRectIsEmpty(shown) &&
                            CGRectGetMinY(shown) < safeY - 2 &&
                            CGRectGetMaxY(shown) > 5)
+                            {
                             metrics->visibleUnsafeControls++;
+                            ScarletIslandRecordVisibleScrollOwner(
+                                view, window.rootViewController.view,
+                                ownerGroups, NO);
+                        }
                         else metrics->clippedUnsafeControls++;
                         BOOL scrollAncestor = NO, childZero = NO;
                         ScarletIslandMeasureUnsafeOwner(
@@ -211,7 +305,12 @@ static void ScarletIslandWalkViews(UIView *view, UIWindow *window,
                     if(!CGRectIsNull(shown) && !CGRectIsEmpty(shown) &&
                        CGRectGetMinY(shown) < safeY - 2 &&
                        CGRectGetMaxY(shown) > 5)
+                        {
                         metrics->visibleUnsafeImageNodes++;
+                        ScarletIslandRecordVisibleScrollOwner(
+                            view, window.rootViewController.view,
+                            ownerGroups, YES);
+                    }
                     else metrics->clippedUnsafeImageNodes++;
                     BOOL scrollAncestor = NO, childZero = NO;
                     ScarletIslandMeasureUnsafeOwner(
@@ -240,7 +339,8 @@ static void ScarletIslandWalkViews(UIView *view, UIWindow *window,
             metrics->countCapped = YES;
             break;
         }
-        ScarletIslandWalkViews(child, window, safeY, depth + 1, metrics);
+        ScarletIslandWalkViews(child, window, safeY, depth + 1,
+                              metrics, ownerGroups);
     }
 }
 
@@ -266,8 +366,10 @@ static void ScarletIslandContentProbe(UIWindow *window,
     metrics.firstUnsafeTextY = NSIntegerMax;
     metrics.firstUnsafeImageY = NSIntegerMax;
     metrics.firstTopScrollY = NSIntegerMax;
-    ScarletIslandWalkViews(rootView, window, expectedTop, 0, &metrics);
-    ScarletIslandPublish(@{
+    NSMutableDictionary *ownerGroups = [NSMutableDictionary dictionary];
+    ScarletIslandWalkViews(rootView, window, expectedTop, 0,
+                           &metrics, ownerGroups);
+    NSMutableDictionary *fields = [@{
         @"receipt":NSUUID.UUID.UUIDString,
         @"pid":@(getpid()), @"epoch":@([[NSDate date] timeIntervalSince1970]),
         @"result":@"guest_content_geometry_probe",
@@ -304,7 +406,10 @@ static void ScarletIslandContentProbe(UIWindow *window,
         @"depth_capped":@(metrics.depthCapped),
         @"count_capped":@(metrics.countCapped),
         @"scan_capped":@(metrics.capped)
-    });
+    } mutableCopy];
+    [fields addEntriesFromDictionary:
+        ScarletIslandVisibleOwnerMetrics(ownerGroups, window)];
+    ScarletIslandPublish(fields);
 }
 
 static void ScarletIslandScheduleContentProbe(UIWindow *window,
