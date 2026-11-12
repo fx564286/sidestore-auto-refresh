@@ -1477,10 +1477,59 @@ static void ScarletRecordGuestSDKContract(uint32_t sdk, NSString *origin) {
                   hookDlopen, effectiveSDK);"""
     original = original.replace(dyld_before, dyld_after, 1)
     boot.write_text(original)
+
+    # The pinned LC SDK spoof machinery contains assert() on dyld symbol
+    # format/signature. It used to be an optional user action, but an
+    # automatic resident experiment must never SIGABRT when OS 27 dyld differs.
+    # Fail closed on an unknown signature and continue other guest boot hooks.
+    dyld = engine / "LiveContainer/Tweaks/Dyld.m"
+    dyld_text = dyld.read_text()
+    changes = (
+        ("    assert(baseAddr != 0);", "    if(!baseAddr) return false;"),
+        ("        assert(adrpExtraOffset != -1);",
+         "        if(adrpExtraOffset == -1) return false;"),
+        ("    assert(gdyldPtr != 0);", "    if(!gdyldPtr) return false;"),
+        ("    assert(*(void**)gdyldPtr != 0);",
+         "    if(!*(void**)gdyldPtr) return false;"),
+        ("        assert((*ldrInstPtr2 & 0xBFC00000) == 0xB9400000);",
+         "        if((*ldrInstPtr2 & 0xBFC00000) != 0xB9400000) return false;"),
+        ("        assert(offset);", "        if(!offset) return false;"),
+        ("    assert(versionMapPtr);", "    if(!versionMapPtr) return false;"),
+        ("    assert(versionMapPtr[0] == 0x07db0901 && versionMapPtr[2] == 0x00050000);",
+         "    if(versionMapPtr[0] != 0x07db0901 || versionMapPtr[2] != 0x00050000) return false;"),
+        ("    assert(size);", "    if(!size) return false;"),
+    )
+    for old, new in changes:
+        assert dyld_text.count(old) == 1, "Pinned dyld SDK guard changed: " + old
+        dyld_text = dyld_text.replace(old, new, 1)
+    # Old initGuestSDKVersionInfo failures aborted the rest of DyldHooksInit
+    # including jitless_hook_dlopen. Preserve original fallback/launch.
+    old = """        if(!initGuestSDKVersionInfo() ||
+           !performHookDyldApi("dyld_program_sdk_at_least", 1, (void**)&orig_dyld_program_sdk_at_least, hook_dyld_program_sdk_at_least) ||
+           !performHookDyldApi("dyld_get_program_sdk_version", 0, (void**)&orig_dyld_get_program_sdk_version, hook_dyld_get_program_sdk_version)) {
+            return;
+        }"""
+    assert dyld_text.count(old) == 1, "Pinned SDK dyld hook gating changed"
+    new = """        // Unknown dyld layout is not a guest-process fatal error.
+        // Preserve the original jitless dlopen hook in all cases.
+        if(initGuestSDKVersionInfo()) {
+            BOOL firstHook = performHookDyldApi("dyld_program_sdk_at_least", 1,
+                (void**)&orig_dyld_program_sdk_at_least, hook_dyld_program_sdk_at_least);
+            BOOL secondHook = firstHook && performHookDyldApi("dyld_get_program_sdk_version", 0,
+                (void**)&orig_dyld_get_program_sdk_version, hook_dyld_get_program_sdk_version);
+            if(!secondHook) NSLog(@"[SCARLET_SDK_CONTRACT] dyld_hook_unavailable");
+        } else {
+            NSLog(@"[SCARLET_SDK_CONTRACT] dyld_version_map_unavailable");
+        }"""
+    dyld_text = dyld_text.replace(old, new, 1)
+    dyld.write_text(dyld_text)
+
     return {
         "residentOnly": True, "noPerAppExceptions": True,
         "guestMachOReadOnly": True, "explicitSpoofUnchanged": True,
         "unchangedGuestGeometry": True,
+        "dyldMissingSignatureFailClosed": True,
+        "jitlessHookPreservedWhenSDKUnrecognized": True,
         "startupLimitation": "UIKit already loaded by NSExtensionMain; test on device"
     }
 
