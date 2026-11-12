@@ -134,3 +134,32 @@ L051=R6P15 저장된 RSD 연결의 제한적 재검사다. 과거 항목에 `dev
 6. 새 수정에 대한 표준 수용 조건은 **이력 등록+동일 SHA/파일 대조 통과+테스트+네이티브
    빌드+실기기 확인**이며, 단계별 상태를 따로 기입한다. `source_committed_ci_pending`을
    해결 완료라고 바꿔서는 안 된다.
+
+## 8. R6P17: P15 보정기 비활성화의 독립 원인 — 원본 LC UserDefaults와 게스트 전용 UserDefaults
+
+- 2026-11-12 05:04:21 UTC R6P16 실기기 로그 `SourceCommit=c17b16519c2b`는
+  52건 L001~L052의 전체 내역, 게스트 2개 실행과 패널 즉시 접기를 확인하지만,
+  `guest_root_safearea_receipt`를 **한 번도** 포함하지 않는다. 따라서 Safe Area가
+  62pt라는 호스트 기록을 R6P15의 실제 게스트 루트 보정 성공으로 해석할 수 없다.
+- 고정된 upstream LiveContainer 커밋 `9108ae624ea001f7d7696d48407f890b48fa2653`의
+  `LiveProcess/main.m`에서 `NSUserDefaults.standardUserDefaults`(초기 원본 LC 저장소)에
+  `Scarlet.ResidentSDKContract.V1`을 기록한다. 그런데 그 뒤 `LCBootstrap.m`의
+  `NUDGuestHooksInit()`가 `Tweaks/NSUserDefaults.m`에서
+  `NSUserDefaults.standardUserDefaults = newStandardUserDefaults;`로 **게스트 저장소 교체**를 수행한다.
+  R6P15 `ScarletGuestIslandContentGuard.m`은 교체된 `standardUserDefaults`를 읽어
+  원본 LC가 기록한 플래그를 찾지 못하면 조용히 종료할 수 있다. 이 메커니즘은 이전
+  Safe Area/FBScene/호스트 프레임 수정과 무관한 **시작 조건·저장소 동일성** 결함이다.
+- R6P17은 이미 보존된 `NSUserDefaults.lcUserDefaults`를 조회하도록
+  **읽는 객체만** 교체한다. 나머지 화면 배율, 상단 여백 공식, root.additionalSafeAreaInsets,
+  다이나믹 아일랜드 회피값, 버튼, 멀티탭, 페어링, 인증서는 변경하지 않는다.
+- 보정기 시작 성공 시 `guest_root_safearea_receipt(result=guest_root_guard_armed)`가
+  게스트 프로세스 PID별로 우선 기록되어야 한다. 이후 `guest_root_already_safe`,
+  `guest_root_corrected`, `guest_root_update_unconfirmed` 등으로 구체적 결과를 분리한다.
+  시작 이벤트만으로 화면 겹침이 해결됐다고 판정할 수는 없다.
+- 새 로그에서 `guest_root_guard_armed` 없이 SDK 선택 로그만 반복된다면
+  P17도 실패 상태로 보고 주입·빌드 연계 또는 알림 수신 경로를 별개로 조사한다.
+  `guard_armed`가 발생하지만 상단이 여전히 가려지면 Safe Area 값을 더 더하는
+  대신 실제 화면 콘텐츠와 Safe Area 무시 여부를 검증한다. 다른 앱도 동일 기준으로 검사한다.
+- 별도로 `appmanager_error_code_3`, 소스 IPA 다운로드의 `NSURLErrorDomain -999`,
+  갱신의 `installation_verified=false`는 이번 상단 문제와 독립된 미해결 결함이다.
+  R6P17 수정에 설치 성공/페어링 성공을 귀속시키지 않는다.
