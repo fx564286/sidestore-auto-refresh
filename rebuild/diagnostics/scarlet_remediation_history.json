@@ -1,8 +1,8 @@
 {
   "schema": 2,
   "scope": "Scarlet Crystal guest top-screen overlap, touch access, rotation, remote guest render and related resident regressions",
-  "updated_utc": "2026-11-12T06:05:00+00:00",
-  "current_baseline": "R6P18 SourceCommit 476892cec6cf: iPhone current 05:56Z app was signed WITHOUT expected SideStore App Group and could not run guest; immediately prior 05:55Z archived session had group access true. R6P19 has 519 local source regression tests, adds bounded retry of repeated source -1005 and truthful App Group signing instructions; it DOES NOT restore signed entitlement or claim Dynamic Island fixed.",
+  "updated_utc": "2026-11-12T06:28:00+00:00",
+  "current_baseline": "R6P18 dual diagnostic exports: current session failed guest launch because installed SideStore App Group was absent, while prior archive had it; repeatedly -1005 source download and 2FA team -3402, 107ms short LiveProcess exit, install -3 opaque, refresh not verified. R6P19 L055/56 source fixes only; initial native Xcode 27.2 failed missing NSURL constant; L057 commits exact SDK fix; rerun pending.",
   "current_issue_status": "BLOCKED BY INSTALLED SIGNING ENTITLEMENT: R6P18 current signed app group inaccessible (no guest), headless SideStore team recovery -3402 and source download -1005. R6P19 adds bounded -1005 retry and accurate signing diagnosis but cannot issue Apple profile/group. R6P18 geometry probe remains untested on current signed app.",
   "confidence_note": "Past-chat-only historical versions were reported in earlier conversations; not all have a GitHub revision or device verification. An implementation, a CI success, a telemetry event, and a real device visual fix are distinct.",
   "privacy": "No credentials, Apple ID, OTP, UDID, guest names or device identifiers are stored.",
@@ -7653,6 +7653,188 @@
       ],
       "repeat_policy": "Do not change entitlement gate or attempt to fake group UserDefaults; audit actual codesign and Apple mobileprovision of locally signed IPA and diagnose specific external signing path if group is still missing. Avoid forced app uninstall/keychain revoke.",
       "success_gate": "R6P19 correctly identifies signed App Group failure and no longer calls certificate re-import a solution. Restoration requires signed IPA entitlement/profile audit and on-device readback true plus a launched guest; R6P19 release itself is unsigned and cannot fulfill that requirement."
+    },
+    {
+      "id": "L057",
+      "date": "2026-11-12",
+      "version": "new-v48-r6p19-native-ios27-foundation-error-code-fix",
+      "problem": "native_xcode_build",
+      "mechanism": "xcode27_2_missing_nsurl_cannot_resume_symbol",
+      "hypothesis": "Source-typed tests passed but actual pinned Xcode 27.2 SDK does not define NSURLErrorCannotResume. A Swift compiler failure must be repaired without changing transport retry policy.",
+      "action": "Replace nonexistent NSURLErrorCannotResume with NSError domain check and NSURLErrorCancelled exclusion; if a resumed download fails within NSURLErrorDomain for non-cancellation, attempt a clean download from the same validated HTTPS URI, still within existing bounded retry call. Update 519-test contract, record exact Xcode failure and source commit diffs.",
+      "observation": "Initial R6P19 real GitHub Actions 43166177133 livecontainer job 131008464808 failed native archive with exit 65; downloaded original job log 1,237,546 bytes shows ScarletIntegratedHostView.swift line 919 compiler diagnostic. Fix source committed; new native build and unsigned IPA unverified pending.",
+      "evidence": [
+        "GitHub Actions native Xcode 27.2 archive 43166177133, job 131008464808: ScarletIntegratedHostView.swift:919:42: error: cannot find NSURLErrorCannotResume in scope",
+        "Actual failed LiveContainer job produced diagnostic artifact ID 13919514716 with livecontainer-build.log; no release produced at this initial SHA."
+      ],
+      "novelty": {
+        "prior_excluded_ids": [
+          "L055",
+          "L056"
+        ],
+        "causal_difference": "The first real Xcode 27.2 native archive of R6P19 failed exit 65 at newly authored line 919 due to a non-existent Foundation constant NSURLErrorCannotResume; this was not a runtime or transport issue and tests cannot expose SDK symbol absence. The correction removes that unavailable symbol and handles only actual NSError NSURLErrorDomain, excluding cancellation, without enlarging the at-most-three attempts. This cannot be confused with earlier -1005 recovery or host signing fixes.",
+        "falsifiable_prediction": "Subsequent real Xcode 27.2 compilation does not contain `cannot find NSURLErrorCannotResume in scope`; the guest source downloader still excludes cancellation, uses HTTPS only and no more than three attempts, and native IPA packaging passes. New compile failures are recorded individually with exact Xcode log line and different correction.",
+        "new_device_evidence": {
+          "source_commit": "a361731d828a27902354abc4c17ae193687bb7a9",
+          "event": "GitHub Actions run 43166177133 LiveContainer Xcode 27.2 exit 65",
+          "observed_value": "compiler error: ScarletIntegratedHostView.swift:919:42 cannot find NSURLErrorCannotResume in scope"
+        },
+        "why_prior_fix_failed": "L055 only implemented the intended bounded network recovery; its tests validated string contracts, not SDK availability. New full iOS archive uncovered that the proposed generic constant did not exist, so the correction uses the actual Foundation cancellation constant and safe NSError namespace, not a repeat of connection-loss retry."
+      },
+      "status": "source_committed_ci_pending",
+      "source_verification": "git_patch_observed",
+      "device_verification": "not_applied_to_iphone",
+      "code_locations": [
+        {
+          "commit": "d86d16eb5e891dfc0a27088479f6b247cda03290",
+          "file": "rebuild/HostApp/ScarletIntegratedHostView.swift",
+          "function": "ScarletIntegratedHostView.swift",
+          "location": "@@ -900,8 +900,9 @@ struct ScarletIntegratedHostView: View {",
+          "before": [
+            "    // current iPhone sessions, regardless of guest engine or root geometry.",
+            "    // Retry ONLY transient network-connection-loss (not HTTP 403/404,",
+            "    // untrusted URL, cancellation, IPA validation or other failures).",
+            "    // Use server-provided resume bytes if available and fall back safely",
+            "    // to one fresh attempt only when iOS declares that resume is invalid.",
+            "    private func downloadSourceWithConnectionRecovery(",
+            "        from url: URL, using session: URLSession",
+            "    ) async throws -> (URL, URLResponse) {"
+          ],
+          "after": [
+            "    // current iPhone sessions, regardless of guest engine or root geometry.",
+            "    // Retry ONLY transient network-connection-loss (not HTTP 403/404,",
+            "    // untrusted URL, cancellation, IPA validation or other failures).",
+            "    // Use server-provided resume bytes if available. If that single resume",
+            "    // fails (except cancellation), make one ordinary HTTPS attempt; all",
+            "    // retries remain bounded and never weaken ATS or ZIP validation.",
+            "    private func downloadSourceWithConnectionRecovery(",
+            "        from url: URL, using session: URLSession",
+            "    ) async throws -> (URL, URLResponse) {"
+          ]
+        },
+        {
+          "commit": "d86d16eb5e891dfc0a27088479f6b247cda03290",
+          "file": "rebuild/HostApp/ScarletIntegratedHostView.swift",
+          "function": "ScarletIntegratedHostView.swift",
+          "location": "@@ -915,8 +916,12 @@ struct ScarletIntegratedHostView: View {",
+          "before": [
+            "                    } catch {",
+            "                        try Task.checkCancellation()",
+            "                        let ns = error as NSError",
+            "                        guard ns.domain == NSURLErrorDomain &&",
+            "                              ns.code == NSURLErrorCannotResume else {",
+            "                            throw error",
+            "                        }",
+            "                        ScarletDiagnosticRecorder.shared.record("
+          ],
+          "after": [
+            "                    } catch {",
+            "                        try Task.checkCancellation()",
+            "                        let ns = error as NSError",
+            "                        // `NSURLErrorCannotResume` does NOT exist in the",
+            "                        // pinned Xcode 27.2 Foundation SDK. Fall back only",
+            "                        // after an actual URL-loading error; a user cancel",
+            "                        // never restarts a download.",
+            "                        guard ns.domain == NSURLErrorDomain &&",
+            "                              ns.code != NSURLErrorCancelled else {",
+            "                            throw error",
+            "                        }",
+            "                        ScarletDiagnosticRecorder.shared.record("
+          ]
+        },
+        {
+          "commit": "37da73b10abc5f0cf68f92179db283ad1977dc0f",
+          "file": "rebuild/Tests/test_v48_r6p19_download_entitlement.py",
+          "function": "test_v48_r6p19_download_entitlement.py",
+          "location": "@@ -15,12 +15,13 @@ class DownloadEntitlementRegression(unittest.TestCase):",
+          "before": [
+            "        self.assertIn('attempt == 1 ? 400 : 1000',body)",
+            "        self.assertIn('try Task.checkCancellation()',body)",
+            "        self.assertIn('guest_download_connection_retry',body)",
+            "        self.assertNotIn('NSURLErrorCancelled',body)",
+            "",
+            "    def test_resume_data_used_without_fake_download_success(self):",
+            "        body=HOST.split('private func downloadSourceWithConnectionRecovery(',1)[1].split('// Source install routes',1)[0]",
+            "        self.assertIn('session.download(resumeFrom: resumeData)',body)",
+            "        self.assertIn('ns.code == NSURLErrorCannotResume',body)",
+            "        self.assertIn('session.download(from: url)',body)",
+            "        self.assertIn('NSURLSessionDownloadTaskResumeData',body)",
+            "        self.assertIn('throw error',body)"
+          ],
+          "after": [
+            "        self.assertIn('attempt == 1 ? 400 : 1000',body)",
+            "        self.assertIn('try Task.checkCancellation()',body)",
+            "        self.assertIn('guest_download_connection_retry',body)",
+            "        self.assertIn('ns.code != NSURLErrorCancelled',body)",
+            "",
+            "    def test_resume_data_used_without_fake_download_success(self):",
+            "        body=HOST.split('private func downloadSourceWithConnectionRecovery(',1)[1].split('// Source install routes',1)[0]",
+            "        self.assertIn('session.download(resumeFrom: resumeData)',body)",
+            "        self.assertNotIn('ns.code == NSURLErrorCannotResume',body)",
+            "        self.assertIn('ns.code != NSURLErrorCancelled',body)",
+            "        self.assertIn('session.download(from: url)',body)",
+            "        self.assertIn('NSURLSessionDownloadTaskResumeData',body)",
+            "        self.assertIn('throw error',body)"
+          ]
+        },
+        {
+          "commit": "8f8661f7da810856b926bc326d1908a2732c50d2",
+          "file": "rebuild/diagnostics/SCARLET_LOG_ONLY_HANDOFF_PROMPT.md",
+          "function": "SCARLET_LOG_ONLY_HANDOFF_PROMPT.md",
+          "location": "@@ -241,3 +241,23 @@ L051=R6P15 저장된 RSD 연결의 제한적 재검사다. 과거 항목에 `dev",
+          "before": [
+            "- R6P18의 `guest_content_geometry_probe`는 **현 세션에는 게스트가",
+            "  실행되지 않았으므로 평가 불가**. 권한 정상인 Apple 서명 빌드로",
+            "  실행 성공한 뒤 실제 PID별 측정 여부를 다시 확인한다."
+          ],
+          "after": [
+            "- R6P18의 `guest_content_geometry_probe`는 **현 세션에는 게스트가",
+            "  실행되지 않았으므로 평가 불가**. 권한 정상인 Apple 서명 빌드로",
+            "  실행 성공한 뒤 실제 PID별 측정 여부를 다시 확인한다.",
+            "",
+            "### 10-A. R6P19 Xcode 27.2 실컴파일 차단 원인 및 원인 한정 보정",
+            "",
+            "- 최초 R6P19 GitHub Actions run `43166177133`, LiveContainer job",
+            "  `131008464808`: Xcode 27.2 native archive **exit 65**.",
+            "  다운로드한 실제 원본 `livecontainer-build.log`:",
+            "  `ScarletIntegratedHostView.swift:919:42: error: cannot find",
+            "  'NSURLErrorCannotResume' in scope`. 이 에러 상수는",
+            "  pinned Foundation SDK에서 사용할 수 없다. 테스트 519건 PASS는",
+            "  Swift 네이티브 컴파일 증거가 아니라는 차이를 명시한다.",
+            "- 실제 코드 위치: `downloadSourceWithConnectionRecovery`,",
+            "  `session.download(resumeFrom:)` catch 블록. 존재하지 않는",
+            "  `NSURLErrorCannotResume` 비교를 제거하고 **실제 NSError domain이",
+            "  NSURLErrorDomain인 경우 중 사용자가 취소한 `NSURLErrorCancelled`는 제외**.",
+            "  재개 시도에서 오류가 발생해도 이미 검증된 동일 HTTPS URL을 딱 한 번",
+            "  새로 다운로드하며, SSL 검사/IPA ZIP 서명·내용 검증은 변경하지 않는다.",
+            "  일반 -1005 재시도 역시 기존 3시도 상한 안에서만 동작한다.",
+            "- 기존 L055, L056은 그대로 보존. Xcode 실컴파일 증거가 신규이므로",
+            "  L057에 신규 커밋과 정확한 diff를 별도 남긴다. 최종 CI 통과와 기기에서",
+            "  실제 네트워크 성공은 여전히 독립적으로 확인해야 한다."
+          ]
+        }
+      ],
+      "source_revisions": [
+        {
+          "sha": "d86d16eb5e891dfc0a27088479f6b247cda03290",
+          "url": "https://github.com/fx564286/sidestore-auto-refresh/commit/d86d16eb5e891dfc0a27088479f6b247cda03290",
+          "title": "fix(r6p19): replace unavailable Xcode NSURL resume error constant with cancellation-safe fallback"
+        },
+        {
+          "sha": "37da73b10abc5f0cf68f92179db283ad1977dc0f",
+          "url": "https://github.com/fx564286/sidestore-auto-refresh/commit/37da73b10abc5f0cf68f92179db283ad1977dc0f",
+          "title": "test(r6p19): assert real SDK-supported cancellation guard after failed resume"
+        },
+        {
+          "sha": "8f8661f7da810856b926bc326d1908a2732c50d2",
+          "url": "https://github.com/fx564286/sidestore-auto-refresh/commit/8f8661f7da810856b926bc326d1908a2732c50d2",
+          "title": "audit(r6p19): record Xcode 27.2 missing NSURLErrorCannotResume compile failure and bounded correction"
+        }
+      ],
+      "rollback_commit": "a361731d828a27902354abc4c17ae193687bb7a9",
+      "repeat_policy": "Do not reintroduce non-existent NSURLSession error constants; use the exact native compiler log and follow up on separate/new failures only. Avoid changing safe area, signing, or unrelated UI.",
+      "success_gate": "Actual native Xcode 27.2 archive completes, combined release IPA contains source retry path. Device network success and App Group signing remain separate tests.",
+      "privacy": "No URL, Apple ID, OTP, team secrets, passwords, IPA paths, guest names, or provisioning data logged."
     }
   ],
   "gate": {
