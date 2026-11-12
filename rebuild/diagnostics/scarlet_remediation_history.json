@@ -2895,8 +2895,8 @@
       "problem": "guest_switcher_recent_rows_late",
       "mechanism": "eager_switcher_row_mount_without_secondary_content_fade",
       "hypothesis": "R6P11 device launch evidence registers A and B in 11-49ms; switch_panel_opened to appPanelContent.onAppear is 9-21ms. But the code deliberately inserts .transition(.opacity) on the Vstack and defers recently launched rows with LazyVStack. An early panel-level onAppear is not a proof that recent rows are painted at that time. Those independent view-level effects can produce a late-looking arrival while the separate 0.45s glass morph is unfolding. This is a different mechanism from previously retried guest Safe Area, UIKit, FBScene and XPC timing approaches.",
-      "action": "In ScarletFullscreenGuestFloatingTab.openPanel() measure synchronous target resolution in monotonic milliseconds before the opening morph; replace recent guest LazyVStack with eager VStack and anonymous rows-mounted observation; replace the nested content .transition(.opacity) with .transition(.identity) plus a content-only transaction disabling animation. Keep the original root-level glassPlate spring, fixed panel center, button pan, app session ledger, overlays, audio, orientation, App Group and bundle IDs unchanged. Update V26 fade expectation and add new R6P12 regression test. GitHub Actions push allowlist accepts the new R6P12 branch; release asset and tag are unique to R6P12, preserving prior R6P11 release assets.",
-      "observation": "Before patch, iPhone diagnostic SourceCommit=687fb754e837 session=05701f45 shows first recent_session_registered 01:42:18.855 (49ms after launch_requested), second 01:42:32.674 (11ms). First switch_panel_opened 01:42:24.872 to switch_panel_content_rendered 01:42:24.893 (21ms); with two apps 01:42:41.914 to 01:42:41.930 (16ms). These events record panel-level appearance, not actual rasterization of every row. User reported that newly running apps appear late in the multitasking switcher. Postpatch UI/paint latency not yet observed.",
+      "action": "In ScarletFullscreenGuestFloatingTab.openPanel() measure synchronous target resolution in monotonic milliseconds before the opening morph; replace recent guest LazyVStack with eager VStack and anonymous rows-mounted observation; replace the nested content .transition(.opacity) with .transition(.identity) plus a content-only transaction disabling animation. Keep the original root-level glassPlate spring, fixed panel center, button pan, app session ledger, overlays, audio, orientation, App Group and bundle IDs unchanged. Update V26 fade expectation and add new R6P12 regression test. GitHub Actions push allowlist accepts the new R6P12 branch; release asset and tag are unique to R6P12, preserving prior R6P11 release assets. Keep exact workflow diff in audit; narrowly extend the existing audit contract to accept .github/workflows/ as an additional source root (without accepting arbitrary paths).",
+      "observation": "Before patch, iPhone diagnostic SourceCommit=687fb754e837 session=05701f45 shows first recent_session_registered 01:42:18.855 (49ms after launch_requested), second 01:42:32.674 (11ms). First switch_panel_opened 01:42:24.872 to switch_panel_content_rendered 01:42:24.893 (21ms); with two apps 01:42:41.914 to 01:42:41.930 (16ms). These events record panel-level appearance, not actual rasterization of every row. User reported that newly running apps appear late in the multitasking switcher. Postpatch UI/paint latency not yet observed. First R6P12 GitHub Actions run 43137491227 failed static suite: 477 tests, 1 failure. Existing R6P10 ledger validator required every git-patched file to start with rebuild/, rejecting legitimate .github/workflows/scarlet-paired-engines-build.yml recorded under L047. Test contract was extended narrowly to also allow .github/workflows/ while preserving exact hunk/commit checks. Subsequent CI result pending.",
       "evidence": "device_log_before_patch_and_github_source_diff",
       "status": "source_committed_static_and_xcode_ci_pending",
       "repeat_policy": "Do not reintroduce a second content opacity transition or lazy row rendering without new actual device evidence. Do not alter original V48 pan geometry, native glass morph or restore old Safe Area/Scene modifications; any repeated attempt requires new independent measured failure.",
@@ -3073,6 +3073,17 @@
             "            asset=Scarlet-Crystal-V48-R6P12-INSTANT-RECENT-SWITCHER-UNSIGNED.ipa",
             "          elif [ \"$GITHUB_REF\" = \"refs/heads/fix/scarlet-v48-r6p11-resident-guest-sdk-contract-20261112\" ]; then"
           ]
+        },
+        {
+          "commit": "52907ebf7edc664b6ac4b1f8d99c2dfcb504dcda",
+          "file": "rebuild/Tests/test_v48_r6p10_remediation_history_export.py",
+          "location": "@@ -43,7 +43,7 @@ def test_verified_entries_have_real_before_and_after_source_diff(self):",
+          "before": [
+            "                    self.assertTrue(loc[\"file\"].startswith(\"rebuild/\"),"
+          ],
+          "after": [
+            "                    self.assertTrue(loc[\"file\"].startswith((\"rebuild/\", \".github/workflows/\")),"
+          ]
         }
       ],
       "source_revisions": [
@@ -3095,6 +3106,11 @@
           "sha": "9299f039119eecb109a9fd0aeffae9f441d75c60",
           "url": "https://github.com/fx564286/sidestore-auto-refresh/commit/9299f039119eecb109a9fd0aeffae9f441d75c60",
           "title": "ci(r6p12): build and publish unique unsigned switcher IPA without overwriting R6P11"
+        },
+        {
+          "sha": "52907ebf7edc664b6ac4b1f8d99c2dfcb504dcda",
+          "url": "https://github.com/fx564286/sidestore-auto-refresh/commit/52907ebf7edc664b6ac4b1f8d99c2dfcb504dcda",
+          "title": "test(r6p12): accept audited GitHub Actions workflow edits with exact hunk provenance"
         }
       ],
       "generated_runtime_targets": [],
