@@ -64,7 +64,9 @@ final class ScarletDiagnosticRecorder: @unchecked Sendable {
         "guest_orientations", "actual_orientations",
         "policy_fields_received", "policy_fields_persisted",
         // R6P11: anonymous guest Mach-O SDK contract, no identifier/path.
-        "sdk_major", "sdk_minor", "sdk_source"
+        "sdk_major", "sdk_minor", "sdk_source",
+        // Guest-owned UIKit readback only; no names, screenshots or bundle IDs.
+        "guest_root_top_pt", "guest_root_after_pt"
     ]
 
     private init() {
