@@ -114,7 +114,19 @@ final class ScarletDiagnosticRecorder: @unchecked Sendable {
                     "constraint_first_constant", "constraint_first_priority", "constraint_scan_capped",
                     "probe_nodes_capped", "native_error_stage", "native_error_domain",
                     "native_error_code", "native_error_kind", "native_underlying_domain",
-                    "native_underlying_code", "native_underlying_kind", "native_error_depth"
+                    "native_underlying_code", "native_underlying_kind", "native_error_depth",
+        // R6P35: exact per-ancestor coordinate lineage of severely unsafe
+        // controls, no classes/names/labels or arbitrary strings.
+        "selected_nodes", "owner_reached_nodes", "root_reached_nodes",
+        "ancestor_rows_capped", "ancestor_slot", "ancestor_depth",
+        "ancestor_window_y", "ancestor_parent_window_y",
+        "ancestor_local_y", "ancestor_guide_y", "ancestor_safe_top",
+        "ancestor_bounds_y", "ancestor_height",
+        "ancestor_vertical_constraints", "ancestor_autoresize_mask",
+        "ancestor_translates", "ancestor_is_controller_root",
+        "ancestor_controller_safe_top", "ancestor_is_scroll",
+        "ancestor_is_control", "ancestor_clips", "ancestor_has_transform",
+        "ancestor_is_owner", "ancestor_is_root"
     ]
 
     private init() {

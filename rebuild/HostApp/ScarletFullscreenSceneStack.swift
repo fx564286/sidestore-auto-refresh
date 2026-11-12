@@ -779,6 +779,47 @@ private final class ScarletGuestIslandReceiptObserver {
             let target = (row["target"] as? NSNumber)?.intValue ?? -1
             let before = (row["before"] as? NSNumber)?.intValue ?? -1
             let after = (row["after"] as? NSNumber)?.intValue ?? -1
+            if result == "guest_ancestor_layout_probe" {
+                // R6P35: only numeric geometry of at most two severely
+                // unsafe UIKit controls and their bounded ancestor chains.
+                // No class names, text, identifiers or app content.
+                if let nodes = row["nodes"] as? [[String: Any]] {
+                    for node in nodes.prefix(48) {
+                        var fields: [String: String] = [
+                            "process_pid": String(pid),
+                            "safe_top_pt": String(target)
+                        ]
+                        for key in ["sample_index", "selected_nodes",
+                            "owner_reached_nodes", "root_reached_nodes",
+                            "ancestor_rows_capped"] {
+                            if let v = row[key] as? NSNumber {
+                                fields[key] = v.stringValue
+                            }
+                        }
+                        for key in [
+                            "node_slot", "scroll_slot", "ancestor_slot",
+                            "ancestor_depth", "ancestor_window_y",
+                            "ancestor_parent_window_y", "ancestor_local_y",
+                            "ancestor_guide_y", "ancestor_safe_top",
+                            "ancestor_bounds_y", "ancestor_height",
+                            "ancestor_vertical_constraints", "ancestor_autoresize_mask",
+                            "ancestor_translates", "ancestor_is_controller_root",
+                            "ancestor_controller_safe_top", "ancestor_is_scroll",
+                            "ancestor_is_control", "ancestor_clips",
+                            "ancestor_has_transform", "ancestor_is_owner",
+                            "ancestor_is_root"
+                        ] {
+                            if let v = node[key] as? NSNumber {
+                                fields[key] = v.stringValue
+                            }
+                        }
+                        ScarletDiagnosticRecorder.shared.record(
+                            "layout", "guest_ancestor_layout_probe",
+                            fields: fields)
+                    }
+                }
+                continue
+            }
             if result == "guest_constraint_owner_probe" {
                 if let nodes = row["nodes"] as? [[String: Any]] {
                     for node in nodes.prefix(12) {
