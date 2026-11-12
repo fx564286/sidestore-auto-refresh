@@ -12,15 +12,23 @@ class RealSignInSessionAndSignedIdentifierTests(unittest.TestCase):
     def test_verified_apple_session_reused_after_2fa_before_team_portal(self):
         self.assertIn('let (_, session) = try await AuthManager.shared.signIn(',AUTH)
         verified=AUTH.index('guard persistedState() else {',AUTH.index('@objc(begin:)'))
-        cached=AUTH.index('AuthManager.shared.session = session',verified)
+        cached=AUTH.index('AuthManager.shared.scarletCacheVerifiedAuthSession(session)',verified)
         active=AUTH.index('let teamState = await ensureActiveTeamForRefresh()',cached)
         self.assertLess(verified,cached)
         self.assertLess(cached,active)
         self.assertIn('finish(id, code: -3401',AUTH[verified:cached])
         self.assertIn('finish(id, code: -3402',AUTH[active:])
+    def test_authmanager_private_session_is_only_written_in_its_same_file_extension(self):
+        self.assertIn('extension AuthManager {', AUTH)
+        self.assertIn('fileprivate func scarletCacheVerifiedAuthSession(',AUTH)
+        self.assertIn('session = verified',AUTH)
+        self.assertNotIn('AuthManager.shared.session = session',AUTH)
+        self.assertLess(AUTH.index('extension AuthManager {'),
+                        AUTH.index('@objc(ScarletGuestSignInAgent)'))
+
     def test_engine_get_authenticated_session_may_need_anisette_without_cache(self):
         self.assertIn('DeveloperPortalProxy.shared.fetchTeams(',AUTH)
-        self.assertIn('AuthManager.shared.session = session',AUTH)
+        self.assertIn('AuthManager.shared.scarletCacheVerifiedAuthSession(session)',AUTH)
         self.assertNotIn('AuthManager.shared.signOut()',AUTH)
         self.assertNotIn('clearActiveCertificate()',AUTH)
     def test_bg_task_id_tracks_exact_installed_signed_bundle(self):
