@@ -18,6 +18,7 @@ static char scarletIslandLocalOwnerScheduleKey;
 static char scarletIslandLocalOwnerAppliedKey;
 static char scarletIslandResidualAutoScheduleKey;
 static char scarletIslandResidualAutoAppliedKey;
+static char scarletIslandP28QuarantineReceiptKey;
 
 // All guest receipts share one anonymous App Group relay. This carries only
 // bounded numbers and a PID; no labels, view names, app identifiers or images.
@@ -502,9 +503,19 @@ static void ScarletIslandInspect(UIWindow *window, NSUInteger attempt) {
         // R6P22: one separate, bounded descendant-scroll remedy. Never add
         // another inset to this already-correct guest root or its UIWindow.
         ScarletIslandScheduleScrollContentRepair(window, root, target);
-        // R6P28: separate nested-owner repair, based on R6P27 real device
-        // readback (local owner safeTop12, .never, adjusted inset3).
-        ScarletIslandScheduleVisibleLocalOwnerRepair(window, root, target);
+        // R6P30 iPhone evidence cc5bafc85b66 PID1059: L071's manual
+        // local-inset write read back 3->12 immediately but was reset to
+        // 3pt after layout; owner frame jumped y50->23 and remaining unsafe
+        // controls grew 8->9 and images 6->8. QUARANTINE the P28 mutator,
+        // do not keep re-applying it during the next guest session. L072's
+        // separately guarded automatic owner trial remains eligible.
+        // Keep L071 implementation in immutable source history for audit.
+        if(!objc_getAssociatedObject(root, &scarletIslandP28QuarantineReceiptKey)) {
+            objc_setAssociatedObject(root, &scarletIslandP28QuarantineReceiptKey,
+                @YES, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+            ScarletIslandReceipt(@"guest_local_owner_r6p28_quarantined",
+                                 target, 0, 0);
+        }
         // R6P29: one independent UIKit automatic-inset experiment for a
         // different, full-viewport residual owner AFTER the R6P28 local fix.
         ScarletIslandScheduleResidualAutomaticInset(window, root, target);
