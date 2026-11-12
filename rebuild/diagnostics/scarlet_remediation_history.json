@@ -9307,7 +9307,8 @@
           ],
           "note": "The Git-tracked .m.txt is copied by integration into the pinned upstream engine during CI. This generated engine file is not separately tracked by the repository."
         }
-      ]
+      ],
+      "repeat_policy": "Do not repeat L050 root additionalSafeAreaInsets, L054/L061 depth-only probing, or R6P22 one-shot unsafe-scroll contentInset. If the 900ms guest receipt reports no unique eligible scroll or the 2600ms unsafe controls persist, isolate the actual unsafe UIControl/UIImageView ancestor owner (including non-scroll SwiftUI hosting) instead of increasing top inset or adding another timer. Device visual/touch pass is mandatory; CI-only pass is not a repair."
     }
   ],
   "gate": {
