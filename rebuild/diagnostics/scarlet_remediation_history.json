@@ -1,9 +1,9 @@
 {
   "schema": 2,
   "scope": "Scarlet Crystal guest top-screen overlap, touch access, rotation, remote guest render and related resident regressions",
-  "updated_utc": "2026-11-12T10:52:47+00:00",
-  "current_baseline": "R6P28 signed iPhone SourceCommit=f00c0d4d1f204fada5eea2956e610d0db3603216, session cf56cc4d at 2026-11-12 10:51-10:52 UTC. PID698 initially 8 visible unsafe controls/6 images. R6P28 local owner adjustment executed (top 3->12pt) but 2600ms retained 3 visible unsafe controls/2 images on different full-viewport nearest scroll owner (y0, 103% width, 100% height, local safeTop62, adjusted inset0, behavior2=.never, content height100%). PID707 0 controls but 1 unsafe image outside scroll; scan caps differ. R6P29 is a new bounded source experiment, NOT device-proven.",
-  "current_issue_status": "UNRESOLVED: R6P28 owner-local inset applied on real device, but residual top controls/images remain in a separate full-size owner. R6P29 uses UIKit auto-adjustment only when that residual owner matches strict iPhone geometry, with measured visible-overlap improvement required or immediate rollback; native compile/CI and user visual/touch verification pending. A->B count 2 and home collapse observed. Keyboard resign_requested not equivalent to keyboard hidden. Audio pause ACK not acoustic proof. SideStore manual refresh still native_unknown_appmanager_stage with code1; cert recheck ready; automatic schedule does not prove installation.",
+  "updated_utc": "2026-11-12T11:22:45+00:00",
+  "current_baseline": "R6P29 signed real iPhone SourceCommit cc5bafc85b6648ef50859dc5419cb8b6f6d175ca session92959d1f PID1059 at 2026-11-12 11:20-11:22 UTC: P28 local inset3->12 immediate but overwritten back to3 by 2600ms, header frame y50->23 and local safe12->39, visible unsafe controls8->9 and images6->8. P29 independent residual .automatic correction SKIPPED reason no_matching_fullscreen_owner (0 adjusted inset before/after). PID1052 has 0 unsafe controls but one unsafe image outside scroll. R6P30 explicitly quarantines unstable P28 mutator while retaining bounded P29 candidate, adds per-gate classification; pending next signed iPhone.",
+  "current_issue_status": "UNRESOLVED: Real-device R6P29 audit invalidated P28 immediate success. Local manual inset set to12 but app relayout returns to3 and shifts header y50->23; 8->9 unsafe controls and6->8 unsafe images. P29 automatic test never executed (no fullscreen owner). R6P30 removes the call to the regression-causing L071 mutator and separately probes P29 owner exclusion predicates; no success claim until signed iPhone readback shows actual visual/touch improvement without resizing. A->B list count2 and glass rendered2. Keyboard resign_requested not proof keyboard hidden, audio Darwin ACK not acoustic isolation, manual SideStore refresh native_unknown_appmanager_stage code1, BGTask schedule is not verified installation.",
   "confidence_note": "Past-chat-only historical versions were reported in earlier conversations; not all have a GitHub revision or device verification. An implementation, a CI success, a telemetry event, and a real device visual fix are distinct.",
   "privacy": "No credentials, Apple ID, OTP, UDID, guest names or device identifiers are stored.",
   "entries": [
@@ -11397,16 +11397,16 @@
         }
       },
       "action": "Keep original root/window/scale/gesture/keyboard/audio/signing code intact. In the already-safe guest-root branch, schedule a separate 1100ms nearest actual visible owner repair after the old 900ms guard. Reuse R6P27 clipped-visibility scan to select exactly one dominant nested scroll owner and refuse ties. Require at least two visible unsafe controls; local safe top y+safe==root top, full width >90%, short height 5-30%, original explicit contentInsetAdjustmentBehavior=never, content height no more than viewport+24, no touch/drag/deceleration, offset anchored at negative old inset, local deficit 4..24. Only then add the local measured deficit (observed 12-3=9) to that scroll.contentInset.top and adjust only its contentOffset.y to -adjusted inset; verify readback and roll back both original values on failure. Mark owner one-shot. Native PID-specific receipt logs owner groups, counts, frame y, local safe top, before/after, bounded categorical reason; 650/2600ms geometry probes remain to detect visible overlap. Add 4 regression tests and independent R6P28 Xcode CI unsigned IPA release.",
-      "observation": "R6P27 iPhone SourceCommit 03fd7765bf70 iOS27.2 24B119, session e046b11b, PID8274 650ms and 2600ms: root safeTop62; visible_unsafe_controls8 images7, clipped0, owner_groups2, dominant controls5/images5, frameY50, width100pct, height13pct, ownerSafe12, adjustedTop3, contentTop3, offsetY-3, adjustmentBehavior2(.never), nested4, owner_tie0. Old target classifier seen5 nested4 existingInset2 notVertical4 eligible0. R6P28 source: 560 local regressions PASS; Xcode/iPhone after R6P28 pending. R6P28 signed-device follow-up SourceCommit f00c0d4d1f20 (cf56cc4d) PID698: at 650ms unsafe_controls8, visible8, unsafe_images6. R6P28 guest_local_owner_inset_applied reason=local_safe_gap_closed, selected header at y50, before3->after12pt. At 2600ms still unsafe_controls3, visible3, unsafe_images2, all controls/images inside scroll; distinct full-viewport owner y0, safeTop62, inset0, behavior2. PID707 no unsafe controls; one unsafe image outside scroll. Visual/touch pass not supplied.",
+      "observation": "R6P27 iPhone SourceCommit 03fd7765bf70 iOS27.2 24B119, session e046b11b, PID8274 650ms and 2600ms: root safeTop62; visible_unsafe_controls8 images7, clipped0, owner_groups2, dominant controls5/images5, frameY50, width100pct, height13pct, ownerSafe12, adjustedTop3, contentTop3, offsetY-3, adjustmentBehavior2(.never), nested4, owner_tie0. Old target classifier seen5 nested4 existingInset2 notVertical4 eligible0. R6P28 source: 560 local regressions PASS; Xcode/iPhone after R6P28 pending. R6P28 signed-device follow-up SourceCommit f00c0d4d1f20 (cf56cc4d) PID698: at 650ms unsafe_controls8, visible8, unsafe_images6. R6P28 guest_local_owner_inset_applied reason=local_safe_gap_closed, selected header at y50, before3->after12pt. At 2600ms still unsafe_controls3, visible3, unsafe_images2, all controls/images inside scroll; distinct full-viewport owner y0, safeTop62, inset0, behavior2. PID707 no unsafe controls; one unsafe image outside scroll. Visual/touch pass not supplied. Later R6P29 signed iPhone (SourceCommit cc5bafc85b66) confirms regression: owner y50->23, local safe12->39, adjusted/content inset after layout3pt, unsafe controls8->9, images6->8. The previous 'local_safe_gap_closed' immediate receipt is NOT lasting UI fix.",
       "evidence": [
         "R6P27 device actual current-session log 2026-11-12 10:20:37.567Z guest_content_geometry_probe PID8274 sample650 and 10:20:39.502Z sample2600 identical dominant owner topology.",
         "R6P27 guest_scroll_target_classifier at 10:20:37.809Z: seen5, eligible0, existing_inset2, nested4, not_vertical4; prior L063 never selected this real unsafe owner.",
         "R6P27 source commit 03fd7765bf70 completed GitHub Actions run 43196882969 with conclusion success; this verifies package build for R6P27 only.",
         "New R6P28 local test suite: Ran 560 tests OK; no full Xcode/iPhone post-patch device evidence yet."
       ],
-      "status": "device_partial_pass",
+      "status": "device_regression",
       "source_verification": "git_patch_observed",
-      "device_verification": "Signed iPhone source f00c0d4d1f20: code path executed on PID698 with local inset3->12pt, but residual 3 visible unsafe controls and 2 images at 2600ms, so device_visual_and_touch_pass is NOT achieved.",
+      "device_verification": "Signed iPhone R6P29 SourceCommit cc5bafc85b66: R6P28 local write was observed (3->12pt) but later adjusted inset returned to3pt, owner frame y50->23, unsafe control count8->9 and unsafe images6->8. Mark regression; R6P30 disables this mutator.",
       "rollback_commit": "03fd7765bf70b5a86131a33bdc42e7fa6bdab856",
       "repeat_policy": "R6P28 is NOT L063 global vertical-scroll top-inset repair and must not be repeated by renaming or changing timers. Before claiming success require native R6P28 guest_local_owner_inset_receipt with result applied (before3->after12 if topology unchanged) and 650/2600ms visible_unsafe_controls/images values decline; device visual/touch still required. If event skipped, respect exact reason; if remaining overlap is owned by the second nearest scroll group, inspect that owner separately before any new write. Never shift whole window/root or touch other apps without proven owner and minimal local deficit.",
       "privacy": "One anonymous best owner, bounded integers and static categorical status; no installed guest identity, text, URL, screenshots, credentials or certificates.",
@@ -11855,10 +11855,10 @@
       "mechanism": "uikit_automatic_adjustment_for_nonvertical_residual_owner",
       "action": "Based on R6P28 device readback, perform a single bounded UIKit-managed contentInsetAdjustmentBehavior NEVER->AUTOMATIC trial only on a different full-viewport, nonvertical residual nearest scroll owner with >=2 visible unsafe controls and exact root/local safeTop and no existing inset, at 1850ms after the prior 1100ms nested-header repair. Do not write contentInset, root Safe Area, UIWindow, frame, scale or guest layout constraints. At 2030ms remeasure the SAME owner; retain only if UIKit supplies top inset approximately equal to verified 62pt AND that owner's visible unsafe controls decrease. Otherwise restore original .never behavior and scroll offset. Send anonymous outcome and readbacks through the guest bridge and whitelist. Preserve P28 regression scope and add 3 new static tests plus separate unsigned R6P29 CI artifact. CI first-pass isolated R6P22 legacy regression failed because the L063-only no-override assertion accidentally scanned newer R6P29 source; corrected the test scope to stop at the R6P28 section, preserving original behavior assertion.",
       "hypothesis": "In R6P28 the short y50 header-owner repair succeeded (3->12pt) yet exactly three visible unsafe controls remained in another y0 full-viewport scroll owner whose local Safe Area already equals 62pt, adjustedInset0, adjustmentBehavior .never, and nonvertical contentHeight100%. L063's manually inserted contentInset guarded on long vertical scrolling could not target this nonvertical viewport; L071 repaired only short nested header. An independent UIKit automatic-inset policy may restore correct scrolling content geometry while respecting the OS safe area instead of repeating manual inset additions.",
-      "observation": "R6P28 signed-device f00c0d4d1f204fada5eea2956e610d0db3603216 session cf56cc4d iOS27.2 24B119 PID698 650ms: visible unsafe controls8/images6, 2600ms after owner local 3->12pt: controls3/images2, now owner groups1 with frame y0, width103%, height100%, safe top62, adjusted/content inset0, contentHeight100%, adjustmentBehavior2 (.never), scroll enabled. PID707 0 unsafe controls. No R6P29 installed result yet. Initial R6P29 CI run 43206333259: source-history audit PASS and 562/563 Python tests including new P29 tests passed; one legacy R6P22 scope failure, fixed in commit 3d22b3e5. Native Xcode archive not yet reached.",
-      "status": "source_committed_ci_pending",
+      "observation": "R6P28 signed-device f00c0d4d1f204fada5eea2956e610d0db3603216 session cf56cc4d iOS27.2 24B119 PID698 650ms: visible unsafe controls8/images6, 2600ms after owner local 3->12pt: controls3/images2, now owner groups1 with frame y0, width103%, height100%, safe top62, adjusted/content inset0, contentHeight100%, adjustmentBehavior2 (.never), scroll enabled. PID707 0 unsafe controls. No R6P29 installed result yet. Initial R6P29 CI run 43206333259: source-history audit PASS and 562/563 Python tests including new P29 tests passed; one legacy R6P22 scope failure, fixed in commit 3d22b3e5. Native Xcode archive not yet reached. R6P29 iPhone cc5bafc85b66 session92959d1f PID1059 new correction skipped no_matching_fullscreen_owner, before 650ms 8 visible unsafe controls and6 images, after 2600ms 9 visible unsafe controls and8 images. R6P28 header before y50 safeTop12 adjustedInset3; immediate local inset3->12; 2600ms y23 safeTop39 adjustedInset3, demonstrates overwritten guest-owned inset/geometry drift and invalidates any claim of stable fix.",
+      "status": "device_diagnostic_only_unresolved",
       "source_verification": "git_patch_observed",
-      "device_verification": "not_installed_or_device_tested_after_r6p29",
+      "device_verification": "Signed iPhone 2026-11-12 11:20-11:22Z SourceCommit cc5bafc85b6648ef50859dc5419cb8b6f6d175ca: PID1059 R6P29 guest_residual_auto_skipped reason no_matching_fullscreen_owner. Never performed .automatic test. P28 local inset3->12 receipt but 2600ms inset3, header y50->23, visible unsafe controls 8->9 and images6->8. No visual/touch proof.",
       "rollback_commit": "f00c0d4d1f204fada5eea2956e610d0db3603216",
       "repeat_policy": "L063 manually adds scroll.contentInset on one tall vertical global scroller; L071 directly adds one short nested header owner's measured local 9pt delta. R6P29 only switches UIKit's adjustment policy on a different full-viewport nonvertical owner with 0 current inset, and requires both measured OS inset and reduced visible overlap, otherwise immediate rollback. Do NOT repeat manual root/scroll inset repairs or claim success from event alone. Recheck portrait/landscape, visual/touch, A/B stability and UI size on signed iPhone; if unavailable, stop rather than weakening guards.",
       "novelty": {
@@ -12406,6 +12406,403 @@
           "note": "CI copies tracked Objective-C source template into pinned upstream LiveContainer/Tweaks; generated file not a separately tracked Git patch."
         }
       ]
+    },
+    {
+      "id": "L073",
+      "date": "2026-11-12",
+      "version": "new-v48-r6p30-inset-interference-isolation",
+      "problem": "guest_top",
+      "mechanism": "quarantine_overwritten_manual_owner_inset_and_trace_actual_candidate_exclusions",
+      "action": "Remove only the R6P28 call that mutates a guest-owned nested scroll (3->12pt) after iPhone shows it is overwritten and triggers spatial regression; preserve the immutable L071 source for audit. Once per guest-root report explicit guest_local_owner_r6p28_quarantined receipt. Retain L063 non-interfering original classifier and independent L072 guarded UIKit automatic owner experiment. When L072 cannot find exact owner, emit anonymized non-identifying gate histogram: owner groups with >=2 visible unsafe controls, frame match, safeArea match, inset match, contentHeight match and motion/adjustment state match. Relay to host JSONL and recorder allowlist. Adjust tests expecting unsafe P28 call; add dedicated regression suite and distinct CI IPA.",
+      "hypothesis": "The P28 manual contentInset is on a guest-owned scroll and is overwritten by guest layout after a receipt declared immediate success, while the scroll owner shifts frame by -27pt and local safe area changes +27pt (y50->23, safeTop12->39, rootSafe62 unchanged). Thus it is unwise to treat the changed adjustedInset value at 1100ms as durable, and its perturbation likely interferes with L072's independent full-viewport owner selection. Quarantine the manual mutation to observe the native hierarchy without self-generated drift, and make L072 exclusions discriminable rather than blindly loosening selectors.",
+      "observation": "Signed iPhone OS27.2 SourceCommit cc5bafc85b66 session92959d1f PID1059 first 650ms 8 visible unsafe controls,6 images, root62, short header y50 safe12 inset3. R6P28 immediate guest_local_owner_inset_applied before3->after12; at 1850ms P29 guest_residual_auto_skipped no_matching_fullscreen_owner, visible controls6; by 2600ms header y23 safe39 inset3, unsafe visible controls9/images8. Previous SourceCommit f00c0d4 PID698 by 2600ms residual3 controls/images2; not repeatable. PID1052 unsafe controls0 one image outside scroll at2600ms. Real improvement unproven.",
+      "status": "source_committed_ci_pending",
+      "source_verification": "git_patch_observed",
+      "device_verification": "R6P29 source tested and regressed; R6P30 revision not yet signed/on-device",
+      "rollback_commit": "cc5bafc85b6648ef50859dc5419cb8b6f6d175ca",
+      "novelty": {
+        "prior_excluded_ids": [
+          "L050",
+          "L061",
+          "L063",
+          "L068",
+          "L070",
+          "L071",
+          "L072"
+        ],
+        "causal_difference": "Previous L071 directly wrote additional top contentInset on a short y50 nested header and recorded temporary 3->12 success, but the next real iPhone execution proves the guest overwrote it to 3 and shifted owner y50->23 with more unsafe controls. L072's .automatic attempt never activated because its fullscreen owner gate failed on that perturbed scene. L073 makes no new manual inset write: it QUARANTINES the unstable L071 call and instruments exclusion counts for the already existing distinct UIKit-managed candidate to discriminate alternatives.",
+        "falsifiable_prediction": "On next signed iPhone boot R6P30, guest_local_owner_r6p28_quarantined appears once, guest_local_owner_inset_applied never appears, and P29 owner classifier or retained/reverted outcome is emitted. Before/after controls do not increase due to local 3->12 overwrite. If y50->23 and control increase persists, P28 interference hypothesis is false and the exact per-gate candidate counts guide a genuinely distinct remedy.",
+        "new_device_evidence": {
+          "source_commit": "cc5bafc85b6648ef50859dc5419cb8b6f6d175ca",
+          "event": "guest_content_geometry_probe + guest_local_owner_inset_receipt + guest_residual_auto_inset_receipt",
+          "observed_value": "PID1059 650ms owner y50 safe12 adjusted3 controls8 images6; R6P28 immediate3->12; P29 no_matching_fullscreen_owner; 2600ms owner y23 safe39 adjusted3 controls9 images8 root62. R6P28 mutation not persistent; P29 correction never executed."
+        }
+      },
+      "code_locations": [
+        {
+          "commit": "c9c1961d5563fac22383f85556e7a4140453a04c",
+          "file": "rebuild/integration/ScarletGuestIslandContentGuard.m.txt",
+          "function": "static char scarletIslandLocalOwnerScheduleKey;",
+          "location": "@@ -18,6 +18,7 @@ static char scarletIslandLocalOwnerScheduleKey;",
+          "before": [],
+          "after": [
+            "static char scarletIslandP28QuarantineReceiptKey;"
+          ]
+        },
+        {
+          "commit": "c9c1961d5563fac22383f85556e7a4140453a04c",
+          "file": "rebuild/integration/ScarletGuestIslandContentGuard.m.txt",
+          "function": "static void ScarletIslandInspect(UIWindow *window, NSUInteger attempt) {",
+          "location": "@@ -502,9 +503,19 @@ static void ScarletIslandInspect(UIWindow *window, NSUInteger attempt) {",
+          "before": [
+            "        // R6P28: separate nested-owner repair, based on R6P27 real device",
+            "        // readback (local owner safeTop12, .never, adjusted inset3).",
+            "        ScarletIslandScheduleVisibleLocalOwnerRepair(window, root, target);"
+          ],
+          "after": [
+            "        // R6P30 iPhone evidence cc5bafc85b66 PID1059: L071's manual",
+            "        // local-inset write read back 3->12 immediately but was reset to",
+            "        // 3pt after layout; owner frame jumped y50->23 and remaining unsafe",
+            "        // controls grew 8->9 and images 6->8. QUARANTINE the P28 mutator,",
+            "        // do not keep re-applying it during the next guest session. L072's",
+            "        // separately guarded automatic owner trial remains eligible.",
+            "        // Keep L071 implementation in immutable source history for audit.",
+            "        if(!objc_getAssociatedObject(root, &scarletIslandP28QuarantineReceiptKey)) {",
+            "            objc_setAssociatedObject(root, &scarletIslandP28QuarantineReceiptKey,",
+            "                @YES, OBJC_ASSOCIATION_RETAIN_NONATOMIC);",
+            "            ScarletIslandReceipt(@\"guest_local_owner_r6p28_quarantined\",",
+            "                                 target, 0, 0);",
+            "        }"
+          ]
+        },
+        {
+          "commit": "d1898455827a81ebbfafd6abbee04f0890037600",
+          "file": "rebuild/integration/ScarletGuestIslandContentGuard.m.txt",
+          "function": "static void ScarletIslandTryResidualAutomaticInset(",
+          "location": "@@ -931,6 +931,10 @@ static void ScarletIslandTryResidualAutomaticInset(",
+          "before": [],
+          "after": [
+            "    // R6P30: when P29 skips, preserve exactly which geometry or native",
+            "    // scroll-state predicates excluded the remaining visible owners.",
+            "    NSUInteger withControls = 0, frameMatched = 0, safeMatched = 0;",
+            "    NSUInteger insetMatched = 0, contentMatched = 0, stateMatched = 0;"
+          ]
+        },
+        {
+          "commit": "d1898455827a81ebbfafd6abbee04f0890037600",
+          "file": "rebuild/integration/ScarletGuestIslandContentGuard.m.txt",
+          "function": "static void ScarletIslandTryResidualAutomaticInset(",
+          "location": "@@ -944,6 +948,30 @@ static void ScarletIslandTryResidualAutomaticInset(",
+          "before": [],
+          "after": [
+            "        BOOL matchedFrame = fabs(CGRectGetMinY(rect)) <= 3 &&",
+            "            CGRectGetWidth(rect) >= winW * 0.97 &&",
+            "            CGRectGetWidth(rect) <= winW * 1.10 &&",
+            "            CGRectGetHeight(rect) >= winH * 0.85 &&",
+            "            CGRectGetHeight(rect) <= winH * 1.12;",
+            "        BOOL matchedSafe = fabs(localSafe - expectedTop) <= 2;",
+            "        BOOL matchedInset = fabs(adjusted) <= 1 &&",
+            "            fabs(explicitInset) <= 1;",
+            "        BOOL matchedContent = contentRatio >= 0.85 &&",
+            "            contentRatio <= 1.12;",
+            "        BOOL matchedState = fabs(offset) <= 2 &&",
+            "            candidate.scrollEnabled &&",
+            "            candidate.contentInsetAdjustmentBehavior ==",
+            "                UIScrollViewContentInsetAdjustmentNever &&",
+            "            !candidate.dragging && !candidate.tracking &&",
+            "            !candidate.decelerating;",
+            "        if(n >= 2) {",
+            "            withControls++;",
+            "            if(matchedFrame) frameMatched++;",
+            "            if(matchedSafe) safeMatched++;",
+            "            if(matchedInset) insetMatched++;",
+            "            if(matchedContent) contentMatched++;",
+            "            if(matchedState) stateMatched++;",
+            "        }"
+          ]
+        },
+        {
+          "commit": "d1898455827a81ebbfafd6abbee04f0890037600",
+          "file": "rebuild/integration/ScarletGuestIslandContentGuard.m.txt",
+          "function": "static void ScarletIslandTryResidualAutomaticInset(",
+          "location": "@@ -972,6 +1000,18 @@ static void ScarletIslandTryResidualAutomaticInset(",
+          "before": [],
+          "after": [
+            "        ScarletIslandPublish(@{",
+            "            @\"receipt\":NSUUID.UUID.UUIDString, @\"pid\":@(getpid()),",
+            "            @\"epoch\":@([[NSDate date] timeIntervalSince1970]),",
+            "            @\"result\":@\"guest_residual_auto_classifier\",",
+            "            @\"owner_groups\":@(groups.count),",
+            "            @\"candidate_with_controls\":@(withControls),",
+            "            @\"candidate_frame_matched\":@(frameMatched),",
+            "            @\"candidate_safe_matched\":@(safeMatched),",
+            "            @\"candidate_inset_matched\":@(insetMatched),",
+            "            @\"candidate_content_matched\":@(contentMatched),",
+            "            @\"candidate_state_matched\":@(stateMatched)",
+            "        });"
+          ]
+        },
+        {
+          "commit": "36585883c08494950f44fae03dc0429289a08b75",
+          "file": "rebuild/HostApp/ScarletFullscreenSceneStack.swift",
+          "function": "private final class ScarletGuestIslandReceiptObserver {",
+          "location": "@@ -877,6 +877,22 @@ private final class ScarletGuestIslandReceiptObserver {",
+          "before": [],
+          "after": [
+            "            if result == \"guest_residual_auto_classifier\" {",
+            "                // R6P30: anonymous counts for P29 owner-gate exclusion,",
+            "                // no guest/app identities or view class names.",
+            "                var fields: [String: String] = [\"process_pid\": String(pid)]",
+            "                for key in [\"owner_groups\", \"candidate_with_controls\",",
+            "                    \"candidate_frame_matched\", \"candidate_safe_matched\",",
+            "                    \"candidate_inset_matched\", \"candidate_content_matched\",",
+            "                    \"candidate_state_matched\"] {",
+            "                    if let number = row[key] as? NSNumber {",
+            "                        fields[key] = number.stringValue",
+            "                    }",
+            "                }",
+            "                ScarletDiagnosticRecorder.shared.record(",
+            "                    \"layout\", \"guest_residual_auto_classifier\", fields: fields)",
+            "                continue",
+            "            }"
+          ]
+        },
+        {
+          "commit": "d4075f60090787ae76cfc42a60c79c128f1faf5f",
+          "file": "rebuild/HostApp/ScarletDiagnosticRecorder.swift",
+          "function": "final class ScarletDiagnosticRecorder: @unchecked Sendable {",
+          "location": "@@ -95,7 +95,10 @@ final class ScarletDiagnosticRecorder: @unchecked Sendable {",
+          "before": [
+            "        \"owner_auto_before_pt\", \"owner_auto_after_pt\""
+          ],
+          "after": [
+            "        \"owner_auto_before_pt\", \"owner_auto_after_pt\",",
+            "        \"candidate_with_controls\", \"candidate_frame_matched\",",
+            "        \"candidate_safe_matched\", \"candidate_inset_matched\",",
+            "        \"candidate_content_matched\", \"candidate_state_matched\""
+          ]
+        },
+        {
+          "commit": "3134a731eeda9d15788ff1e9c7b4665b9c44215a",
+          "file": "rebuild/Tests/test_v48_r6p28_local_owner_inset.py",
+          "function": "def test_no_global_ui_mutation_and_original_guard_retained(self):",
+          "location": "@@ -61,8 +61,9 @@ def test_no_global_ui_mutation_and_original_guard_retained(self):",
+          "before": [
+            "        self.assertIn('ScarletIslandScheduleVisibleLocalOwnerRepair(window, root, target);',G)",
+            "        self.assertEqual(G.count('ScarletIslandScheduleVisibleLocalOwnerRepair(window, root, target);'),1)"
+          ],
+          "after": [
+            "        # R6P30 signed-device regression: mutating P28 path quarantined.",
+            "        self.assertNotIn('ScarletIslandScheduleVisibleLocalOwnerRepair(window, root, target);',G)",
+            "        self.assertIn('guest_local_owner_r6p28_quarantined',G)"
+          ]
+        },
+        {
+          "commit": "94f6b0efe2b1958150e809548a0815dff94256e0",
+          "file": "rebuild/Tests/test_v48_r6p29_residual_auto_inset.py",
+          "function": "def test_one_owner_only_and_always_bounded_reversible_trial(self):",
+          "location": "@@ -67,7 +67,9 @@ def test_one_owner_only_and_always_bounded_reversible_trial(self):",
+          "before": [
+            "        self.assertIn(\"ScarletIslandScheduleVisibleLocalOwnerRepair(window, root, target);\", G)"
+          ],
+          "after": [
+            "        # R6P30: the P28 mutator is preserved for audit, but not scheduled.",
+            "        self.assertNotIn(\"ScarletIslandScheduleVisibleLocalOwnerRepair(window, root, target);\", G)",
+            "        self.assertIn(\"guest_local_owner_r6p28_quarantined\", G)"
+          ]
+        },
+        {
+          "commit": "eea29609e7113499e7d31d6bb2788df0978b3fad",
+          "file": "rebuild/Tests/test_v48_r6p30_inset_interference_isolation.py",
+          "function": "file_hunk",
+          "location": "@@ -0,0 +1,77 @@",
+          "before": [],
+          "after": [
+            "\"\"\"R6P30: signed-device causality guard after P29 failure.",
+            "",
+            "iPhone P29 cc5bafc85b66 session 92959d1f PID1059: L071 writes local",
+            "inset 3->12 then the app's later layout reports 3, shifts header y50->23,",
+            "and visible unsafe controls increase 8->9/images 6->8. L072's trial",
+            "never matched, reason no_matching_fullscreen_owner. The new action is",
+            "an explicit quarantine of L071, not another manual inset adjustment.",
+            "\"\"\"",
+            "from pathlib import Path",
+            "import unittest",
+            "",
+            "ROOT = Path(__file__).resolve().parents[1]",
+            "G = (ROOT / \"integration/ScarletGuestIslandContentGuard.m.txt\").read_text()",
+            "H = (ROOT / \"HostApp/ScarletFullscreenSceneStack.swift\").read_text()",
+            "R = (ROOT / \"HostApp/ScarletDiagnosticRecorder.swift\").read_text()",
+            "",
+            "",
+            "class DeviceInformedInterferenceIsolation(unittest.TestCase):",
+            "    def test_old_manual_inset_is_retained_for_audit_but_not_called(self):",
+            "        self.assertIn(\"static void ScarletIslandRepairVisibleLocalScrollOwner(\", G)",
+            "        self.assertIn(\"static void ScarletIslandScheduleVisibleLocalOwnerRepair(\", G)",
+            "        self.assertIn(\"guest_local_owner_inset_applied\", G)",
+            "        self.assertNotIn(\"ScarletIslandScheduleVisibleLocalOwnerRepair(window, root, target);\", G)",
+            "        self.assertIn(\"guest_local_owner_r6p28_quarantined\", G)",
+            "        self.assertIn(\"&scarletIslandP28QuarantineReceiptKey\", G)",
+            "        self.assertIn(\"ScarletIslandReceipt(@\\\"guest_local_owner_r6p28_quarantined\\\"\", G)",
+            "",
+            "    def test_new_strategy_remains_available_without_second_manual_inset(self):",
+            "        self.assertIn(\"ScarletIslandScheduleResidualAutomaticInset(window, root, target);\", G)",
+            "        self.assertEqual(",
+            "            G.count(\"ScarletIslandScheduleResidualAutomaticInset(window, root, target);\"), 1)",
+            "        safe = G.split(\"// R6P29: R6P28 actual signed iPhone\", 1)[1].split(",
+            "            \"void initScarletGuestIslandContentGuard\", 1)[0]",
+            "        self.assertIn(\"UIScrollViewContentInsetAdjustmentAutomatic\", safe)",
+            "        self.assertIn(\"guest_residual_auto_reverted\", safe)",
+            "        self.assertNotIn(\"inset.top += deficit\", safe)",
+            "        self.assertNotIn(\"root.additionalSafeAreaInsets =\", safe)",
+            "        self.assertNotIn(\"window.frame =\", safe)",
+            "        self.assertNotIn(\"method_exchangeImplementations\", safe)",
+            "",
+            "    def test_skip_has_a_bounded_mechanism_specific_predicate_census(self):",
+            "        section = G.split(\"static void ScarletIslandTryResidualAutomaticInset(\", 1)[1].split(",
+            "            \"static void ScarletIslandScheduleResidualAutomaticInset(\", 1)[0]",
+            "        for token in (",
+            "            \"guest_residual_auto_classifier\", \"candidate_with_controls\",",
+            "            \"candidate_frame_matched\", \"candidate_safe_matched\",",
+            "            \"candidate_inset_matched\", \"candidate_content_matched\",",
+            "            \"candidate_state_matched\", \"no_matching_fullscreen_owner\",",
+            "            \"owner_groups\"",
+            "        ):",
+            "            self.assertIn(token, section)",
+            "        for token in (",
+            "            \"guest_residual_auto_classifier\", \"candidate_with_controls\",",
+            "            \"candidate_frame_matched\", \"candidate_safe_matched\",",
+            "            \"candidate_inset_matched\", \"candidate_content_matched\",",
+            "            \"candidate_state_matched\"",
+            "        ):",
+            "            self.assertIn(token, H)",
+            "        for token in (",
+            "            '\"candidate_with_controls\"', '\"candidate_frame_matched\"',",
+            "            '\"candidate_safe_matched\"', '\"candidate_inset_matched\"',",
+            "            '\"candidate_content_matched\"', '\"candidate_state_matched\"'",
+            "        ):",
+            "            self.assertIn(token, R)",
+            "",
+            "    def test_only_existing_p28_call_removed(self):",
+            "        # R6P22 remains independently gated, guest root and safe area are",
+            "        # untouched, and the P29 candidate retains strict safeguards.",
+            "        self.assertIn(\"ScarletIslandScheduleScrollContentRepair(window, root, target);\", G)",
+            "        self.assertIn(\"ScarletIslandScheduleContentProbe(window, root, target);\", G)",
+            "        self.assertIn(\"for(NSNumber *delay in @[@650, @2600])\", G)",
+            "        self.assertIn(\"after >= expectedTop - 3 && after <= expectedTop + 12\", G)",
+            "        self.assertIn(\"remaining < selectedControls\", G)",
+            "",
+            "",
+            "if __name__ == \"__main__\":",
+            "    unittest.main()"
+          ]
+        },
+        {
+          "commit": "6f8ca0571d240f42e67a708924b387c3bcd0f91c",
+          "file": ".github/workflows/scarlet-paired-engines-build.yml",
+          "function": "name: Scarlet paired LiveContainer and SideStore iOS build",
+          "location": "@@ -3,7 +3,7 @@ name: Scarlet paired LiveContainer and SideStore iOS build",
+          "before": [
+            "    branches: [rebuild/scarlet-from-zero-20261106, fix/scarlet-auth-status-rootcause-20261109, fix/scarlet-pr48-guest-overlay-no-resize-20261109, fix/scarlet-pr48-airpods-glass-guest-switch-v3-20261109, fix/scarlet-pr48-draggable-guest-tab-v4-20261109, fix/scarlet-pr48-v5-glass-drag-cert-recovery-20261109, fix/scarlet-pr48-v6-unified-cert-glass-20261109, fix/scarlet-pr48-v7-cert-jitless-unify-panel-rim-20261109, fix/scarlet-pr48-v8-flicker-certificate-menu-20261109, fix/scarlet-pr48-v9-single-glass-rim-20261109, fix/scarlet-pr48-v10-fixed-tab-cert-and-session-20261109, fix/scarlet-pr48-v11-module-settings-appid-20261109, fix/scarlet-pr48-v12-live-sessions-source-auto-refresh-20261109, fix/scarlet-pr48-v13-compact-settings-current-app-20261109, fix/scarlet-pr48-v14-guest-history-native-scenes-three-ids-20261109, fix/scarlet-pr48-v15-source-disclosure-icons-guest-handoff-20261109, fix/scarlet-pr48-v16-guest-switcher-icons-readback-20261110, fix/scarlet-v17-cold-switch-rotation-20261110, fix/scarlet-v18-refresh-diagnostics-native-glass-20261110, fix/scarlet-v19-active-session-switcher-20261110, fix/scarlet-v20-guest-switcher-trace-20261110, fix/scarlet-v21-hook-telemetry-persistence-20261110, fix/scarlet-v22-runtime-guest-identity-20261110, fix/scarlet-v23-session-only-switcher-20261110, fix/scarlet-v24-refresh-lifecycle-switch-receipt-20261110, fix/scarlet-v25-single-panel-outside-dismiss-20261110, fix/scarlet-v26-liquidglass-button-to-fixed-panel-morph-20261110, fix/scarlet-v27-sidestore-direct-native-refresh-20261110, fix/scarlet-v28-minimuxer-readiness-recovery-20261110, fix/scarlet-v29-inapp-rppairing-20261110, fix/scarlet-v30-restore-sidestore-active-team-20261110, fix/scarlet-v31-pairing-persistence-sheet-purple-20261110, fix/scarlet-v32-korean-copy-20261110, fix/scarlet-v33-log-rootcause-20261110, fix/scarlet-v34-iphone-virtual-resident-20261110, fix/scarlet-v35-restore-original-fullscreen-20261110, fix/scarlet-v36-remove-legacy-ui-20261110, fix/scarlet-v37-session-refresh-20261110, fix/scarlet-v38-current-launch-logs-20261110, fix/scarlet-v39-log-truth-20261110, fix/scarlet-v40-clean-work-session-20261110, fix/scarlet-v42-v40-safe-diagnostics-20261110, fix/scarlet-v43-install-rootcause-20261110, fix/scarlet-v44-rppairing-postsign-install-20261111, fix/scarlet-v45-single-viewport-liveprocess-20261111, fix/scarlet-v46-guard-provisional-guest-geometry-20261111, fix/scarlet-v47-resident-inplace-guest-switch-20261111, fix/scarlet-v48-guest-runtime-recovery-20261111, fix/scarlet-v48-restored-20261111, fix/scarlet-v48-r2-unified-switcher-20261111, fix/scarlet-v48-r3-original-pan-diagnostics-20261111, fix/scarlet-v48-r4-native-outside-remote-insets-20261111, fix/scarlet-v48-r5-attached-insets-shield-20261111, fix/scarlet-v48-r5-crash-recovery-20261111, fix/scarlet-v48-r5-recovery-r2-host-owner-20261111, fix/scarlet-v48-r5-recovery-r3-scene-authority-20261111, fix/scarlet-v48-r5-recovery-r4-native-ready-20261111, fix/scarlet-v48-r5-recovery-r5-compat-foreground-20261111, fix/scarlet-v48-r6-island-outside-audio-20261111, fix/scarlet-v48-r6p1-audio-home-focus-20261111, fix/scarlet-v48-r6p2-blocked-history-20261111, fix/scarlet-v48-r6p3-home-audio-gate-20261111, fix/scarlet-v48-r6p4-guest-audio-ack-20261112, fix/scarlet-v48-r6p7-launch-policy-rootcause-20261112, fix/scarlet-v48-r6p8-policy-field-relay-20261112, fix/scarlet-v48-r6p9-deferred-scene-boot-20261112, fix/scarlet-v48-r6p10-persistent-remediation-ledger-20261112, fix/scarlet-v48-r6p11-resident-guest-sdk-contract-20261112, fix/scarlet-v48-r6p12-instant-recent-switcher-20261112, fix/scarlet-v48-r6p14-switcher-reset-on-navigation-20261112, fix/scarlet-v48-r6p15-guest-root-island-pairing-recovery-20261112, fix/scarlet-v48-r6p16-audit-coverage-20261112, fix/scarlet-v48-r6p17-resident-optin-defaults-20261112, fix/scarlet-v48-r6p18-guest-content-geometry-20261112, fix/scarlet-v48-r6p19-entitlement-failclosed-network-recovery-20261112, fix/scarlet-v48-r6p20-auth-session-bg-id-20261112, fix/scarlet-v48-r6p21-depth-probe-cert-recheck-20261112, fix/scarlet-v48-r6p22-guest-scroll-content-inset-20261112, fix/scarlet-v48-r6p23-guest-owner-refresh-stage-20261112, fix/scarlet-v48-r6p24-keyboard-stage-relay-20261112, fix/scarlet-v48-r6p25-visibility-occlusion-20261112, fix/scarlet-v48-r6p26-recorder-field-contract-20261112, fix/scarlet-v48-r6p27-visible-scroll-owner-20261112, fix/scarlet-v48-r6p28-guest-local-scroll-inset-20261112, fix/scarlet-v48-r6p29-residual-auto-inset-20261112]"
+          ],
+          "after": [
+            "    branches: [rebuild/scarlet-from-zero-20261106, fix/scarlet-auth-status-rootcause-20261109, fix/scarlet-pr48-guest-overlay-no-resize-20261109, fix/scarlet-pr48-airpods-glass-guest-switch-v3-20261109, fix/scarlet-pr48-draggable-guest-tab-v4-20261109, fix/scarlet-pr48-v5-glass-drag-cert-recovery-20261109, fix/scarlet-pr48-v6-unified-cert-glass-20261109, fix/scarlet-pr48-v7-cert-jitless-unify-panel-rim-20261109, fix/scarlet-pr48-v8-flicker-certificate-menu-20261109, fix/scarlet-pr48-v9-single-glass-rim-20261109, fix/scarlet-pr48-v10-fixed-tab-cert-and-session-20261109, fix/scarlet-pr48-v11-module-settings-appid-20261109, fix/scarlet-pr48-v12-live-sessions-source-auto-refresh-20261109, fix/scarlet-pr48-v13-compact-settings-current-app-20261109, fix/scarlet-pr48-v14-guest-history-native-scenes-three-ids-20261109, fix/scarlet-pr48-v15-source-disclosure-icons-guest-handoff-20261109, fix/scarlet-pr48-v16-guest-switcher-icons-readback-20261110, fix/scarlet-v17-cold-switch-rotation-20261110, fix/scarlet-v18-refresh-diagnostics-native-glass-20261110, fix/scarlet-v19-active-session-switcher-20261110, fix/scarlet-v20-guest-switcher-trace-20261110, fix/scarlet-v21-hook-telemetry-persistence-20261110, fix/scarlet-v22-runtime-guest-identity-20261110, fix/scarlet-v23-session-only-switcher-20261110, fix/scarlet-v24-refresh-lifecycle-switch-receipt-20261110, fix/scarlet-v25-single-panel-outside-dismiss-20261110, fix/scarlet-v26-liquidglass-button-to-fixed-panel-morph-20261110, fix/scarlet-v27-sidestore-direct-native-refresh-20261110, fix/scarlet-v28-minimuxer-readiness-recovery-20261110, fix/scarlet-v29-inapp-rppairing-20261110, fix/scarlet-v30-restore-sidestore-active-team-20261110, fix/scarlet-v31-pairing-persistence-sheet-purple-20261110, fix/scarlet-v32-korean-copy-20261110, fix/scarlet-v33-log-rootcause-20261110, fix/scarlet-v34-iphone-virtual-resident-20261110, fix/scarlet-v35-restore-original-fullscreen-20261110, fix/scarlet-v36-remove-legacy-ui-20261110, fix/scarlet-v37-session-refresh-20261110, fix/scarlet-v38-current-launch-logs-20261110, fix/scarlet-v39-log-truth-20261110, fix/scarlet-v40-clean-work-session-20261110, fix/scarlet-v42-v40-safe-diagnostics-20261110, fix/scarlet-v43-install-rootcause-20261110, fix/scarlet-v44-rppairing-postsign-install-20261111, fix/scarlet-v45-single-viewport-liveprocess-20261111, fix/scarlet-v46-guard-provisional-guest-geometry-20261111, fix/scarlet-v47-resident-inplace-guest-switch-20261111, fix/scarlet-v48-guest-runtime-recovery-20261111, fix/scarlet-v48-restored-20261111, fix/scarlet-v48-r2-unified-switcher-20261111, fix/scarlet-v48-r3-original-pan-diagnostics-20261111, fix/scarlet-v48-r4-native-outside-remote-insets-20261111, fix/scarlet-v48-r5-attached-insets-shield-20261111, fix/scarlet-v48-r5-crash-recovery-20261111, fix/scarlet-v48-r5-recovery-r2-host-owner-20261111, fix/scarlet-v48-r5-recovery-r3-scene-authority-20261111, fix/scarlet-v48-r5-recovery-r4-native-ready-20261111, fix/scarlet-v48-r5-recovery-r5-compat-foreground-20261111, fix/scarlet-v48-r6-island-outside-audio-20261111, fix/scarlet-v48-r6p1-audio-home-focus-20261111, fix/scarlet-v48-r6p2-blocked-history-20261111, fix/scarlet-v48-r6p3-home-audio-gate-20261111, fix/scarlet-v48-r6p4-guest-audio-ack-20261112, fix/scarlet-v48-r6p7-launch-policy-rootcause-20261112, fix/scarlet-v48-r6p8-policy-field-relay-20261112, fix/scarlet-v48-r6p9-deferred-scene-boot-20261112, fix/scarlet-v48-r6p10-persistent-remediation-ledger-20261112, fix/scarlet-v48-r6p11-resident-guest-sdk-contract-20261112, fix/scarlet-v48-r6p12-instant-recent-switcher-20261112, fix/scarlet-v48-r6p14-switcher-reset-on-navigation-20261112, fix/scarlet-v48-r6p15-guest-root-island-pairing-recovery-20261112, fix/scarlet-v48-r6p16-audit-coverage-20261112, fix/scarlet-v48-r6p17-resident-optin-defaults-20261112, fix/scarlet-v48-r6p18-guest-content-geometry-20261112, fix/scarlet-v48-r6p19-entitlement-failclosed-network-recovery-20261112, fix/scarlet-v48-r6p20-auth-session-bg-id-20261112, fix/scarlet-v48-r6p21-depth-probe-cert-recheck-20261112, fix/scarlet-v48-r6p22-guest-scroll-content-inset-20261112, fix/scarlet-v48-r6p23-guest-owner-refresh-stage-20261112, fix/scarlet-v48-r6p24-keyboard-stage-relay-20261112, fix/scarlet-v48-r6p25-visibility-occlusion-20261112, fix/scarlet-v48-r6p26-recorder-field-contract-20261112, fix/scarlet-v48-r6p27-visible-scroll-owner-20261112, fix/scarlet-v48-r6p28-guest-local-scroll-inset-20261112, fix/scarlet-v48-r6p29-residual-auto-inset-20261112, fix/scarlet-v48-r6p30-inset-interference-isolation-20261112]"
+          ]
+        },
+        {
+          "commit": "6f8ca0571d240f42e67a708924b387c3bcd0f91c",
+          "file": ".github/workflows/scarlet-paired-engines-build.yml",
+          "function": "jobs:",
+          "location": "@@ -305,7 +305,7 @@ jobs:",
+          "before": [
+            "    if: github.event_name == 'push' && (github.ref == 'refs/heads/rebuild/scarlet-from-zero-20261106' || github.ref == 'refs/heads/fix/scarlet-v31-pairing-persistence-sheet-purple-20261110' || github.ref == 'refs/heads/fix/scarlet-v32-korean-copy-20261110' || github.ref == 'refs/heads/fix/scarlet-v33-log-rootcause-20261110' || github.ref == 'refs/heads/fix/scarlet-v34-iphone-virtual-resident-20261110' || github.ref == 'refs/heads/fix/scarlet-v35-restore-original-fullscreen-20261110' || github.ref == 'refs/heads/fix/scarlet-v36-remove-legacy-ui-20261110' || github.ref == 'refs/heads/fix/scarlet-v37-session-refresh-20261110' || github.ref == 'refs/heads/fix/scarlet-v38-current-launch-logs-20261110' || github.ref == 'refs/heads/fix/scarlet-v39-log-truth-20261110' || github.ref == 'refs/heads/fix/scarlet-v40-clean-work-session-20261110' || github.ref == 'refs/heads/fix/scarlet-v42-v40-safe-diagnostics-20261110' || github.ref == 'refs/heads/fix/scarlet-v43-install-rootcause-20261110' || github.ref == 'refs/heads/fix/scarlet-v44-rppairing-postsign-install-20261111' || github.ref == 'refs/heads/fix/scarlet-v45-single-viewport-liveprocess-20261111' || github.ref == 'refs/heads/fix/scarlet-v46-guard-provisional-guest-geometry-20261111' || github.ref == 'refs/heads/fix/scarlet-v47-resident-inplace-guest-switch-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-guest-runtime-recovery-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-restored-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r2-unified-switcher-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r3-original-pan-diagnostics-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r4-native-outside-remote-insets-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r5-attached-insets-shield-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r5-crash-recovery-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r5-recovery-r2-host-owner-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r5-recovery-r3-scene-authority-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r5-recovery-r4-native-ready-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r5-recovery-r5-compat-foreground-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r6-island-outside-audio-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r6p1-audio-home-focus-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r6p2-blocked-history-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r6p3-home-audio-gate-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r6p4-guest-audio-ack-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p7-launch-policy-rootcause-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p8-policy-field-relay-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p9-deferred-scene-boot-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p10-persistent-remediation-ledger-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p11-resident-guest-sdk-contract-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p12-instant-recent-switcher-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p14-switcher-reset-on-navigation-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p15-guest-root-island-pairing-recovery-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p16-audit-coverage-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p17-resident-optin-defaults-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p18-guest-content-geometry-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p19-entitlement-failclosed-network-recovery-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p20-auth-session-bg-id-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p21-depth-probe-cert-recheck-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p22-guest-scroll-content-inset-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p23-guest-owner-refresh-stage-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p24-keyboard-stage-relay-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p25-visibility-occlusion-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p26-recorder-field-contract-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p27-visible-scroll-owner-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p28-guest-local-scroll-inset-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p29-residual-auto-inset-20261112')"
+          ],
+          "after": [
+            "    if: github.event_name == 'push' && (github.ref == 'refs/heads/rebuild/scarlet-from-zero-20261106' || github.ref == 'refs/heads/fix/scarlet-v31-pairing-persistence-sheet-purple-20261110' || github.ref == 'refs/heads/fix/scarlet-v32-korean-copy-20261110' || github.ref == 'refs/heads/fix/scarlet-v33-log-rootcause-20261110' || github.ref == 'refs/heads/fix/scarlet-v34-iphone-virtual-resident-20261110' || github.ref == 'refs/heads/fix/scarlet-v35-restore-original-fullscreen-20261110' || github.ref == 'refs/heads/fix/scarlet-v36-remove-legacy-ui-20261110' || github.ref == 'refs/heads/fix/scarlet-v37-session-refresh-20261110' || github.ref == 'refs/heads/fix/scarlet-v38-current-launch-logs-20261110' || github.ref == 'refs/heads/fix/scarlet-v39-log-truth-20261110' || github.ref == 'refs/heads/fix/scarlet-v40-clean-work-session-20261110' || github.ref == 'refs/heads/fix/scarlet-v42-v40-safe-diagnostics-20261110' || github.ref == 'refs/heads/fix/scarlet-v43-install-rootcause-20261110' || github.ref == 'refs/heads/fix/scarlet-v44-rppairing-postsign-install-20261111' || github.ref == 'refs/heads/fix/scarlet-v45-single-viewport-liveprocess-20261111' || github.ref == 'refs/heads/fix/scarlet-v46-guard-provisional-guest-geometry-20261111' || github.ref == 'refs/heads/fix/scarlet-v47-resident-inplace-guest-switch-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-guest-runtime-recovery-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-restored-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r2-unified-switcher-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r3-original-pan-diagnostics-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r4-native-outside-remote-insets-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r5-attached-insets-shield-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r5-crash-recovery-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r5-recovery-r2-host-owner-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r5-recovery-r3-scene-authority-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r5-recovery-r4-native-ready-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r5-recovery-r5-compat-foreground-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r6-island-outside-audio-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r6p1-audio-home-focus-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r6p2-blocked-history-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r6p3-home-audio-gate-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r6p4-guest-audio-ack-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p7-launch-policy-rootcause-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p8-policy-field-relay-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p9-deferred-scene-boot-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p10-persistent-remediation-ledger-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p11-resident-guest-sdk-contract-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p12-instant-recent-switcher-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p14-switcher-reset-on-navigation-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p15-guest-root-island-pairing-recovery-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p16-audit-coverage-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p17-resident-optin-defaults-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p18-guest-content-geometry-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p19-entitlement-failclosed-network-recovery-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p20-auth-session-bg-id-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p21-depth-probe-cert-recheck-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p22-guest-scroll-content-inset-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p23-guest-owner-refresh-stage-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p24-keyboard-stage-relay-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p25-visibility-occlusion-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p26-recorder-field-contract-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p27-visible-scroll-owner-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p28-guest-local-scroll-inset-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p29-residual-auto-inset-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p30-inset-interference-isolation-20261112')"
+          ]
+        },
+        {
+          "commit": "6f8ca0571d240f42e67a708924b387c3bcd0f91c",
+          "file": ".github/workflows/scarlet-paired-engines-build.yml",
+          "function": "jobs:",
+          "location": "@@ -334,7 +334,9 @@ jobs:",
+          "before": [
+            "          if [ \"$GITHUB_REF\" = \"refs/heads/fix/scarlet-v48-r6p29-residual-auto-inset-20261112\" ]; then"
+          ],
+          "after": [
+            "          if [ \"$GITHUB_REF\" = \"refs/heads/fix/scarlet-v48-r6p30-inset-interference-isolation-20261112\" ]; then",
+            "            asset=\"Scarlet-Crystal-V48-R6P30-NO-P28-INSET-UNSIGNED.ipa\"",
+            "          elif [ \"$GITHUB_REF\" = \"refs/heads/fix/scarlet-v48-r6p29-residual-auto-inset-20261112\" ]; then"
+          ]
+        },
+        {
+          "commit": "6f8ca0571d240f42e67a708924b387c3bcd0f91c",
+          "file": ".github/workflows/scarlet-paired-engines-build.yml",
+          "function": "jobs:",
+          "location": "@@ -466,7 +468,10 @@ jobs:",
+          "before": [
+            "          if [ \"$GITHUB_REF\" = \"refs/heads/fix/scarlet-v48-r6p29-residual-auto-inset-20261112\" ]; then"
+          ],
+          "after": [
+            "          if [ \"$GITHUB_REF\" = \"refs/heads/fix/scarlet-v48-r6p30-inset-interference-isolation-20261112\" ]; then",
+            "            tag=scarlet-v48-r6p30-inset-isolation-unsigned-20261112",
+            "            asset=Scarlet-Crystal-V48-R6P30-NO-P28-INSET-UNSIGNED.ipa",
+            "          elif [ \"$GITHUB_REF\" = \"refs/heads/fix/scarlet-v48-r6p29-residual-auto-inset-20261112\" ]; then"
+          ]
+        }
+      ],
+      "source_revisions": [
+        {
+          "sha": "c9c1961d5563fac22383f85556e7a4140453a04c",
+          "url": "https://github.com/fx564286/sidestore-auto-refresh/commit/c9c1961d5563fac22383f85556e7a4140453a04c",
+          "title": "fix(r6p30): quarantine overwritten P28 manual scroll inset proven to worsen iPhone geometry"
+        },
+        {
+          "sha": "d1898455827a81ebbfafd6abbee04f0890037600",
+          "url": "https://github.com/fx564286/sidestore-auto-refresh/commit/d1898455827a81ebbfafd6abbee04f0890037600",
+          "title": "diag(r6p30): count independent P29 owner-gate exclusions after P28 mutation quarantine"
+        },
+        {
+          "sha": "36585883c08494950f44fae03dc0429289a08b75",
+          "url": "https://github.com/fx564286/sidestore-auto-refresh/commit/36585883c08494950f44fae03dc0429289a08b75",
+          "title": "diag(r6p30): relay anonymous P29 owner-predicate exclusion counts"
+        },
+        {
+          "sha": "d4075f60090787ae76cfc42a60c79c128f1faf5f",
+          "url": "https://github.com/fx564286/sidestore-auto-refresh/commit/d4075f60090787ae76cfc42a60c79c128f1faf5f",
+          "title": "diag(r6p30): whitelist bounded numeric owner-gate census in iPhone JSONL"
+        },
+        {
+          "sha": "3134a731eeda9d15788ff1e9c7b4665b9c44215a",
+          "url": "https://github.com/fx564286/sidestore-auto-refresh/commit/3134a731eeda9d15788ff1e9c7b4665b9c44215a",
+          "title": "test(r6p30): expect P28 regressing manual inset to be quarantined; keep historical source tests"
+        },
+        {
+          "sha": "94f6b0efe2b1958150e809548a0815dff94256e0",
+          "url": "https://github.com/fx564286/sidestore-auto-refresh/commit/94f6b0efe2b1958150e809548a0815dff94256e0",
+          "title": "test(r6p30): expect P28 regressing manual inset to be quarantined; keep historical source tests"
+        },
+        {
+          "sha": "eea29609e7113499e7d31d6bb2788df0978b3fad",
+          "url": "https://github.com/fx564286/sidestore-auto-refresh/commit/eea29609e7113499e7d31d6bb2788df0978b3fad",
+          "title": "test(r6p30): assert known device regression cannot invoke P28 manual inset; require classifier relay"
+        },
+        {
+          "sha": "6f8ca0571d240f42e67a708924b387c3bcd0f91c",
+          "url": "https://github.com/fx564286/sidestore-auto-refresh/commit/6f8ca0571d240f42e67a708924b387c3bcd0f91c",
+          "title": "ci(r6p30): add isolated native test and versioned unsigned IPA build without modifying prior releases"
+        }
+      ],
+      "generated_runtime_targets": [
+        {
+          "source_template": "rebuild/integration/ScarletGuestIslandContentGuard.m.txt",
+          "generated_file": "LiveContainer/Tweaks/ScarletGuestIslandContentGuard.m",
+          "source_generation_script": "rebuild/integration/apply_scarlet_host.py",
+          "function": "add_scarlet_guest_island_content_guard",
+          "note": "R6P30 only suppresses one host->guest mutator call and adds one read-only classifier; no source-graph, view sizing, or display scale change."
+        }
+      ],
+      "repeat_policy": "Signed P29 cc5bafc85b66 proves R6P28 direct short-owner inset is overwritten by guest layout, shifts owner y50->23 and increases visible unsafe controls8->9/images6->8. Keep the old mutator quarantined; do not reapply root/window/frame/scale/manual content inset changes. Retain existing L072 .automatic trial only on strict native candidate; record actual exclusion predicates instead of relaxing guards. Require stable signed-iPhone 2600ms visual/touch evidence before claiming a fix."
     }
   ],
   "gate": {

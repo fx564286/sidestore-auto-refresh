@@ -877,6 +877,22 @@ private final class ScarletGuestIslandReceiptObserver {
                         ? "success" : "info", fields: fields)
                 continue
             }
+            if result == "guest_residual_auto_classifier" {
+                // R6P30: anonymous counts for P29 owner-gate exclusion,
+                // no guest/app identities or view class names.
+                var fields: [String: String] = ["process_pid": String(pid)]
+                for key in ["owner_groups", "candidate_with_controls",
+                    "candidate_frame_matched", "candidate_safe_matched",
+                    "candidate_inset_matched", "candidate_content_matched",
+                    "candidate_state_matched"] {
+                    if let number = row[key] as? NSNumber {
+                        fields[key] = number.stringValue
+                    }
+                }
+                ScarletDiagnosticRecorder.shared.record(
+                    "layout", "guest_residual_auto_classifier", fields: fields)
+                continue
+            }
             if ["guest_residual_auto_skipped",
                 "guest_residual_auto_reverted",
                 "guest_residual_auto_retained"].contains(result) {

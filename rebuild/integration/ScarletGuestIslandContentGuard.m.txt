@@ -18,6 +18,7 @@ static char scarletIslandLocalOwnerScheduleKey;
 static char scarletIslandLocalOwnerAppliedKey;
 static char scarletIslandResidualAutoScheduleKey;
 static char scarletIslandResidualAutoAppliedKey;
+static char scarletIslandP28QuarantineReceiptKey;
 
 // All guest receipts share one anonymous App Group relay. This carries only
 // bounded numbers and a PID; no labels, view names, app identifiers or images.
@@ -502,9 +503,19 @@ static void ScarletIslandInspect(UIWindow *window, NSUInteger attempt) {
         // R6P22: one separate, bounded descendant-scroll remedy. Never add
         // another inset to this already-correct guest root or its UIWindow.
         ScarletIslandScheduleScrollContentRepair(window, root, target);
-        // R6P28: separate nested-owner repair, based on R6P27 real device
-        // readback (local owner safeTop12, .never, adjusted inset3).
-        ScarletIslandScheduleVisibleLocalOwnerRepair(window, root, target);
+        // R6P30 iPhone evidence cc5bafc85b66 PID1059: L071's manual
+        // local-inset write read back 3->12 immediately but was reset to
+        // 3pt after layout; owner frame jumped y50->23 and remaining unsafe
+        // controls grew 8->9 and images 6->8. QUARANTINE the P28 mutator,
+        // do not keep re-applying it during the next guest session. L072's
+        // separately guarded automatic owner trial remains eligible.
+        // Keep L071 implementation in immutable source history for audit.
+        if(!objc_getAssociatedObject(root, &scarletIslandP28QuarantineReceiptKey)) {
+            objc_setAssociatedObject(root, &scarletIslandP28QuarantineReceiptKey,
+                @YES, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+            ScarletIslandReceipt(@"guest_local_owner_r6p28_quarantined",
+                                 target, 0, 0);
+        }
         // R6P29: one independent UIKit automatic-inset experiment for a
         // different, full-viewport residual owner AFTER the R6P28 local fix.
         ScarletIslandScheduleResidualAutomaticInset(window, root, target);
@@ -920,6 +931,10 @@ static void ScarletIslandTryResidualAutomaticInset(
 
     UIScrollView *selected = nil;
     NSUInteger selectedControls = 0;
+    // R6P30: when P29 skips, preserve exactly which geometry or native
+    // scroll-state predicates excluded the remaining visible owners.
+    NSUInteger withControls = 0, frameMatched = 0, safeMatched = 0;
+    NSUInteger insetMatched = 0, contentMatched = 0, stateMatched = 0;
     CGFloat winW = CGRectGetWidth(window.bounds);
     CGFloat winH = CGRectGetHeight(window.bounds);
     for(NSValue *key in groups) {
@@ -933,6 +948,30 @@ static void ScarletIslandTryResidualAutomaticInset(
         CGFloat offset = candidate.contentOffset.y;
         CGFloat contentRatio = candidate.contentSize.height /
             MAX(1, candidate.bounds.size.height);
+        BOOL matchedFrame = fabs(CGRectGetMinY(rect)) <= 3 &&
+            CGRectGetWidth(rect) >= winW * 0.97 &&
+            CGRectGetWidth(rect) <= winW * 1.10 &&
+            CGRectGetHeight(rect) >= winH * 0.85 &&
+            CGRectGetHeight(rect) <= winH * 1.12;
+        BOOL matchedSafe = fabs(localSafe - expectedTop) <= 2;
+        BOOL matchedInset = fabs(adjusted) <= 1 &&
+            fabs(explicitInset) <= 1;
+        BOOL matchedContent = contentRatio >= 0.85 &&
+            contentRatio <= 1.12;
+        BOOL matchedState = fabs(offset) <= 2 &&
+            candidate.scrollEnabled &&
+            candidate.contentInsetAdjustmentBehavior ==
+                UIScrollViewContentInsetAdjustmentNever &&
+            !candidate.dragging && !candidate.tracking &&
+            !candidate.decelerating;
+        if(n >= 2) {
+            withControls++;
+            if(matchedFrame) frameMatched++;
+            if(matchedSafe) safeMatched++;
+            if(matchedInset) insetMatched++;
+            if(matchedContent) contentMatched++;
+            if(matchedState) stateMatched++;
+        }
         BOOL exactResidualOwner = n >= 2 &&
             !objc_getAssociatedObject(candidate, &scarletIslandLocalOwnerAppliedKey) &&
             !objc_getAssociatedObject(candidate, &scarletIslandResidualAutoAppliedKey) &&
@@ -961,6 +1000,18 @@ static void ScarletIslandTryResidualAutomaticInset(
         selectedControls = n;
     }
     if(!selected) {
+        ScarletIslandPublish(@{
+            @"receipt":NSUUID.UUID.UUIDString, @"pid":@(getpid()),
+            @"epoch":@([[NSDate date] timeIntervalSince1970]),
+            @"result":@"guest_residual_auto_classifier",
+            @"owner_groups":@(groups.count),
+            @"candidate_with_controls":@(withControls),
+            @"candidate_frame_matched":@(frameMatched),
+            @"candidate_safe_matched":@(safeMatched),
+            @"candidate_inset_matched":@(insetMatched),
+            @"candidate_content_matched":@(contentMatched),
+            @"candidate_state_matched":@(stateMatched)
+        });
         ScarletIslandResidualAutoReceipt(
             @"guest_residual_auto_skipped", @"no_matching_fullscreen_owner",
             expectedTop, 0, 0, 0, metrics.visibleUnsafeControls);

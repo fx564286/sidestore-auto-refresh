@@ -61,8 +61,9 @@ class LocalOwnerInsets(unittest.TestCase):
                           'accessibilityLabel'):
             self.assertNotIn(forbidden,fix)
         self.assertIn('ScarletIslandScheduleScrollContentRepair(window, root, target);',G)
-        self.assertIn('ScarletIslandScheduleVisibleLocalOwnerRepair(window, root, target);',G)
-        self.assertEqual(G.count('ScarletIslandScheduleVisibleLocalOwnerRepair(window, root, target);'),1)
+        # R6P30 signed-device regression: mutating P28 path quarantined.
+        self.assertNotIn('ScarletIslandScheduleVisibleLocalOwnerRepair(window, root, target);',G)
+        self.assertIn('guest_local_owner_r6p28_quarantined',G)
         self.assertIn('for(NSNumber *delay in @[@650, @2600])',G)
 
     def test_receipt_survives_to_final_jsonl(self):

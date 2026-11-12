@@ -95,7 +95,10 @@ final class ScarletDiagnosticRecorder: @unchecked Sendable {
         "owner_adjustment_behavior", "owner_nested_scrolls",
         "owner_scroll_enabled", "owner_content_height_pct", "owner_safe_top",
         // R6P29: UIKit-automatic residual owner readback; no identifiers.
-        "owner_auto_before_pt", "owner_auto_after_pt"
+        "owner_auto_before_pt", "owner_auto_after_pt",
+        "candidate_with_controls", "candidate_frame_matched",
+        "candidate_safe_matched", "candidate_inset_matched",
+        "candidate_content_matched", "candidate_state_matched"
     ]
 
     private init() {
