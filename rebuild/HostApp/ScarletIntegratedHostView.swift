@@ -418,11 +418,21 @@ struct ScarletIntegratedHostView: View {
                    (LCUtils.certificateData() == nil ||
                     LCSharedUtils.certificatePassword() == nil) {
                     signingRecoveryNeeded = true
+                    let signature = ScarletSigningReadiness.inspect()
+                    // The installed Apple signature must grant the group.
+                    // No repeated Apple login, Keychain rewrite or P12 picker
+                    // can restore an entitlement missing from that signature.
+                    let groupBlocked = !signature.sideStoreAppGroupEntitled ||
+                        !signature.sideStoreAppGroupAccessible
                     ScarletDiagnosticRecorder.shared.record(
                         "guest", "launch_blocked", status: "blocked",
-                        fields: ["reason": "jitless_signing_certificate_missing",
+                        fields: ["reason": groupBlocked ?
+                                    signature.safeBlockCategory :
+                                    "jitless_signing_certificate_missing",
                                  "guest_ref": guestRef])
-                    showOriginalError = "JIT-Less 실행에 필요한 LiveContainer 서명 인증서가 없습니다. 설정의 인증서 가져오기에서 인증서를 확인하세요."
+                    showOriginalError = groupBlocked
+                        ? "설치된 앱의 Apple 서명에 SideStore App Group 권한이 없습니다. 인증서 재가져오기나 Apple 재로그인으로 복구할 수 없습니다. App Group 권한이 포함된 프로비저닝 프로파일로 현재 앱을 다시 서명해야 합니다."
+                        : "JIT-Less 실행에 필요한 LiveContainer 서명 인증서가 없습니다. 설정의 인증서 가져오기에서 인증서를 확인하세요."
                     return
                 }
                 // V14 registered AFTER await runApp, but classic
