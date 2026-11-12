@@ -847,6 +847,36 @@ private final class ScarletGuestIslandReceiptObserver {
                     "layout", "guest_scroll_target_classifier", fields: fields)
                 continue
             }
+            if result == "guest_local_owner_inset_applied" ||
+               result == "guest_local_owner_inset_skipped" {
+                // R6P28: report a scroll's *local* top inset, not the
+                // guest root's already-valid 62pt safe-area receipt.
+                var fields: [String: String] = [
+                    "process_pid": String(pid),
+                    "result": result,
+                    "safe_top_pt": String(target),
+                    "guest_root_top_pt": String(before),
+                    "guest_root_after_pt": String(after)
+                ]
+                for key in ["owner_groups", "owner_dominant_controls",
+                            "owner_dominant_images", "owner_frame_y",
+                            "owner_safe_top"] {
+                    if let number = row[key] as? NSNumber {
+                        fields[key] = number.stringValue
+                    }
+                }
+                if let reason = row["reason"] as? String,
+                   ["local_safe_gap_closed", "owner_guard_not_satisfied",
+                    "ambiguous_visible_owner",
+                    "write_readback_rollback"].contains(reason) {
+                    fields["reason"] = reason
+                }
+                ScarletDiagnosticRecorder.shared.record(
+                    "layout", "guest_local_owner_inset_receipt",
+                    status: result == "guest_local_owner_inset_applied"
+                        ? "success" : "info", fields: fields)
+                continue
+            }
             ScarletDiagnosticRecorder.shared.record(
                 "layout", "guest_root_safearea_receipt",
                 status: result == "guest_root_corrected" ? "success"
