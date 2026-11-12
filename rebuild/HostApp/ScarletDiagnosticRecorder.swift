@@ -78,6 +78,10 @@ final class ScarletDiagnosticRecorder: @unchecked Sendable {
         "max_depth_seen", "depth_capped", "count_capped",
         // R6P23: bounded read-only ancestry and scroll-selection predicates.
         "unsafe_controls_in_scroll", "unsafe_controls_outside_scroll",
+        // R6P26: R6P25 native guest/host packets contained four bounded
+        // counters, but the final recorder silently dropped all four.
+        "visible_unsafe_controls", "clipped_unsafe_controls",
+        "visible_unsafe_images", "clipped_unsafe_images",
         "unsafe_controls_under_zero_inset_child_owner",
         "unsafe_image_nodes_in_scroll", "unsafe_image_nodes_outside_scroll",
         "seen", "nested", "not_top_full_width", "not_vertical",
