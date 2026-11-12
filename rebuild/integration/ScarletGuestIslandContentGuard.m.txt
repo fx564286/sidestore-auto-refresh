@@ -706,11 +706,6 @@ static void ScarletIslandContentProbe(UIWindow *window,
         metrics.visibleUnsafeControls, metrics.visibleUnsafeImageNodes);
 }
 
-// R6P36: P35 iPhone PID3252 receives a valid root-safe62 receipt but
-// emits no 650/2600 geometry packet, while PID3244 does. The original
-// scheduled reader silently returns on a lost/replaced/hidden root.
-// Record exact exclusion reason. Read a *replacement* attached root once
-// at the already scheduled 2600ms sample; never alter UIKit geometry.
 // R6P37 distinct measured *short child-controller header* mechanism.
 // Signed P36 PID3731: header UIViewController.view Y0 height50,
 // safeTop62, guideY50, owning full-height parent guideY62, controls
@@ -940,6 +935,11 @@ static void ScarletIslandTryDeepHeaderSafeGuideAnchor(
     });
 }
 
+// R6P36: P35 iPhone PID3252 receives a valid root-safe62 receipt but
+// emits no 650/2600 geometry packet, while PID3244 does. The original
+// scheduled reader silently returns on a lost/replaced/hidden root.
+// Record exact exclusion reason. Read a *replacement* attached root once
+// at the already scheduled 2600ms sample; never alter UIKit geometry.
 static void ScarletIslandProbeStatus(NSString *reason, UIWindow *window,
     UIViewController *root, CGFloat expectedTop, NSUInteger sample,
     BOOL replacement) {
