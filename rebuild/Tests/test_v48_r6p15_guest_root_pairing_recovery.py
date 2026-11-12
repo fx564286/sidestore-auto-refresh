@@ -23,6 +23,7 @@ class GuestRootAndPairingRecovery(unittest.TestCase):
 
     def test_guest_scoped_no_hooks_no_resize_and_no_app_exceptions(self):
         self.assertIn('boolForKey:@"Scarlet.ResidentSDKContract.V1"', GUEST)
+        self.assertIn('NSUserDefaults.lcUserDefaults', GUEST)
         self.assertIn("NSUserDefaults.isLiveProcess", GUEST)
         self.assertIn("UIWindowDidBecomeVisibleNotification", GUEST)
         self.assertIn("UIWindowDidBecomeKeyNotification", GUEST)
