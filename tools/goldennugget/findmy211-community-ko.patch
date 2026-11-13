@@ -1,0 +1,382 @@
+diff --git a/Vendor/MinimuxerGateway/idevice/IdeviceGateway.swift b/Vendor/MinimuxerGateway/idevice/IdeviceGateway.swift
+--- a/Vendor/MinimuxerGateway/idevice/IdeviceGateway.swift
++++ b/Vendor/MinimuxerGateway/idevice/IdeviceGateway.swift
+@@ -3289,6 +3289,17 @@
+             delegateLog?(verdict.summaryLine)
+             self.safeFreePlist(response)
+             if let code = verdict.errorCode, code != 0 {
++                // MBErrorDomain/211 is a device-side Find My authorization gate.
++                // There is no legitimate host-side override; show the exact
++                // Settings path rather than repeating the English daemon string.
++                if code == 211 {
++                    throw IdeviceGatewayError(
++                        .serviceError,
++                        reason: "복원 차단(MBErrorDomain/211): '나의 iPhone 찾기'가 켜져 있습니다. "
++                            + "iPhone 설정 → Apple 계정(본인 이름) → 나의 찾기 → "
++                            + "나의 iPhone 찾기에서 본인 계정으로 인증하여 끈 뒤 다시 적용하세요. "
++                            + "작업이 끝나면 나의 iPhone 찾기를 다시 켜세요.")
++                }
+                 throw IdeviceGatewayError(
+                     .serviceError,
+                     reason: "Restore did not complete: the device answered with error code \(code)"
+diff --git a/Nugget/Core/TransportFailure.swift b/Nugget/Core/TransportFailure.swift
+--- a/Nugget/Core/TransportFailure.swift
++++ b/Nugget/Core/TransportFailure.swift
+@@ -374,6 +374,7 @@
+         "manifest references files not in backup",
+         "mberrordomain/205",
+         "mberrordomain/104",
++        "mberrordomain/211",
+         "invalidhostid",
+     ]
+ 
+diff --git a/Nugget/Views/ApplyConfirmSheet.swift b/Nugget/Views/ApplyConfirmSheet.swift
+--- a/Nugget/Views/ApplyConfirmSheet.swift
++++ b/Nugget/Views/ApplyConfirmSheet.swift
+@@ -14,6 +14,7 @@
+     let preview: ApplyPreview
+     let onApply: () -> Void
+     let onCancel: () -> Void
++    @State private var findMyConfirmedOff = false
+ 
+     /// The desktop's battery warning (`main_window_mixins.py:921`): warn below
+     /// 21% unless the device is charging.  Read here rather than passed in,
+@@ -31,6 +32,16 @@
+                     LabeledContent("Total size", value: Self.size(preview.totalBytes))
+                     LabeledContent("Estimated time",
+                                    value: ApplyPreview.timeEstimate(total: preview.selectedCount))
++                }
++
++                Section("복원 전 필수 확인") {
++                    NativeSafetyNote("iOS가 '나의 iPhone 찾기'를 켠 상태에서 설정 복원을 "
++                        + "거부할 수 있습니다(MBErrorDomain/211). "
++                        + "설정 → 본인 이름 → 나의 찾기 → 나의 iPhone 찾기에서 직접 끄세요. "
++                        + "앱은 이 설정을 대신 변경할 수 없습니다.")
++                    Toggle("나의 iPhone 찾기를 직접 껐습니다", isOn: $findMyConfirmedOff)
++                    NativeNote("복원이 끝나면 나의 iPhone 찾기를 다시 켜세요. "
++                        + "이 확인은 사용자의 선택이며 앱에서 실제 상태를 검증한 것은 아닙니다.")
+                 }
+ 
+                 if let line = ApplyPreview.estimatedWorkingSpaceLine() {
+@@ -103,6 +114,7 @@
+                 ToolbarItem(placement: .confirmationAction) {
+                     Button("Apply") { onApply() }
+                         .font(.headline)
++                        .disabled(!findMyConfirmedOff)
+                 }
+             }
+         }
+diff --git a/Nugget/Views/CommunityCatalogView.swift b/Nugget/Views/CommunityCatalogView.swift
+--- a/Nugget/Views/CommunityCatalogView.swift
++++ b/Nugget/Views/CommunityCatalogView.swift
+@@ -15,7 +15,7 @@
+     @State private var busy: String?
+     @State private var message = ""
+     @State private var code = ""
+-    @State private var codeName = "Shared preset"
++    @State private var codeName = "공유 프리셋"
+     @State private var showImporter = false
+     @State private var showCode = false
+     @State private var sharedCode = ""
+@@ -30,78 +30,78 @@
+     var body: some View {
+         List {
+             Section {
+-                Toggle("Compatible with this iOS", isOn: $compatibleOnly)
+-                Toggle("Favorites only", isOn: $favoritesOnly)
+-                if loading { ProgressView("Loading catalog…") }
++                Toggle("이 iOS 버전과 호환되는 항목만", isOn: $compatibleOnly)
++                Toggle("즐겨찾기만 보기", isOn: $favoritesOnly)
++                if loading { ProgressView("카탈로그 불러오는 중…") }
+                 if !message.isEmpty { Text(message).font(.footnote).textSelection(.enabled) }
+-                Link("Community repository and submissions", destination: CommunityCatalog.repositoryURL)
+-            }
+-            Section("Community Presets") {
++                Link("커뮤니티 저장소 및 템플릿 제출", destination: CommunityCatalog.repositoryURL)
++            }
++            Section("커뮤니티 프리셋") {
+                 ForEach(filtered.filter { !$0.isTemplate }, id: \.key) { entry in catalogRow(entry) }
+             }
+-            Section("Community Templates") {
++            Section("커뮤니티 템플릿") {
+                 ForEach(filtered.filter(\.isTemplate), id: \.key) { entry in catalogRow(entry) }
+             }
+-            Section("Import Share Code") {
+-                TextField("Preset name", text: $codeName)
++            Section("공유 코드 가져오기") {
++                TextField("프리셋 이름", text: $codeName)
+                 TextField("GN1.…", text: $code, axis: .vertical)
+                     .textInputAutocapitalization(.never).autocorrectionDisabled()
+-                Button("Save shared preset") {
++                Button("공유 프리셋 저장") {
+                     do {
+                         let name = try CommunityCatalog.store(PresetShareCode.decode(code), name: codeName)
+-                        message = "Saved \(name). Load it from Presets when ready."
++                        message = "\(name) 프리셋을 저장했습니다. 프리셋 화면에서 불러올 수 있습니다."
+                         code = ""; epoch += 1
+                     } catch { message = error.localizedDescription }
+                 }.disabled(code.isEmpty)
+-                Button("Import .batter or portable preset") { showImporter = true }
+-            }
+-            Section("Share a Saved Preset") {
++                Button(".batter 또는 휴대용 프리셋 가져오기") { showImporter = true }
++            }
++            Section("저장된 프리셋 공유") {
+                 ForEach(GoldenNuggetPresets.list().filter { !GoldenNuggetPresets.isInternal($0) }, id: \.self) { name in
+                     Button(name) { share(name) }
+                 }
+             }
+             if !library.templates.isEmpty {
+-                Section("Installed Template Switches") {
+-                    Button("Reset applied community preferences", role: .destructive) {
++                Section("가져온 템플릿 스위치") {
++                    Button("적용한 커뮤니티 설정 초기화", role: .destructive) {
+                         Task {
+                             busy = "reset"
+                             defer { busy = nil }
+                             do {
+                                 try await GoldenNuggetEngine.shared.resetCommunityTweaks()
+-                                message = "Community preferences reset. Reboot the device; other replaced files are listed in the run log."
++                                message = "커뮤니티 설정을 초기화했습니다. 기기를 재시동하세요. 다른 변경 파일은 실행 로그에서 확인할 수 있습니다."
+                             } catch { message = error.localizedDescription }
+                         }
+                     }.disabled(busy != nil)
+                     ForEach(library.templates) { template in
+                         DisclosureGroup {
+-                            Toggle("Include in Apply", isOn: Binding(get: { template.active }, set: { library.setActive($0, template: template.id) }))
+-                            if !template.detail.isEmpty { Text(template.detail).font(.footnote) }
++                            Toggle("적용에 포함", isOn: Binding(get: { template.active }, set: { library.setActive($0, template: template.id) }))
++                            if !template.detail.isEmpty { Text(CommunityCopyKorean.detail(templateID: template.id, fallback: template.detail)).font(.footnote) }
+                             ForEach(template.tweaks) { tweak in
+                                 VStack(alignment: .leading) {
+-                                    Toggle(tweak.label, isOn: Binding(get: { tweak.enabled }, set: {
++                                    Toggle(CommunityCopyKorean.tweakLabel(tweak.label), isOn: Binding(get: { tweak.enabled }, set: {
+                                         library.edit(template: template.id, tweak: tweak.id, enabled: $0)
+                                     })).disabled(!tweak.supports(device.current.version))
+                                     if !tweak.detail.isEmpty { Text(tweak.detail).font(.caption).foregroundStyle(.secondary) }
+                                     if let control = tweak.control { controlEditor(control, tweak: tweak, template: template) }
+-                                    DisclosureGroup("Files changed") {
++                                    DisclosureGroup("변경되는 파일") {
+                                         ForEach(Array(Set((tweak.writes + tweak.writesOff).map(\.path))).sorted(), id: \.self) {
+                                             Text($0).font(.caption.monospaced()).textSelection(.enabled)
+                                         }
+                                     }.font(.footnote)
+                                 }
+                             }
+-                            Button("Remove template", role: .destructive) {
++                            Button("템플릿 제거", role: .destructive) {
+                                 do { try library.remove(template) } catch { message = error.localizedDescription }
+                             }
+-                        } label: { VStack(alignment: .leading) { Text(template.title); Text(template.author).font(.caption).foregroundStyle(.secondary) } }
++                        } label: { VStack(alignment: .leading) { Text(CommunityCopyKorean.name(id: template.id, fallback: template.title)); Text(template.author).font(.caption).foregroundStyle(.secondary) } }
+                     }
+                 }
+             }
+             if !library.loadErrors.isEmpty {
+-                Section("Template Errors") { ForEach(library.loadErrors, id: \.self) { Text($0).font(.footnote) } }
+-            }
+-        }
+-        .navigationTitle("Community Catalog")
++                Section("템플릿 오류") { ForEach(library.loadErrors, id: \.self) { Text($0).font(.footnote) } }
++            }
++        }
++        .navigationTitle("커뮤니티 카탈로그")
+         .searchable(text: $search)
+         .toolbar { Button { Task { await refresh() } } label: { Image(systemName: "arrow.clockwise") }.disabled(loading) }
+         .task { if entries.isEmpty { await refresh() } }
+@@ -116,9 +116,9 @@
+                             Image(uiImage: image).interpolation(.none).resizable().scaledToFit().frame(maxWidth: 320).padding(24).background(.white)
+                         }
+                         Text(sharedCode).font(.caption.monospaced()).textSelection(.enabled)
+-                        ShareLink(item: sharedCode) { Label("Share code", systemImage: "square.and.arrow.up") }
++                        ShareLink(item: sharedCode) { Label("공유 코드 전송", systemImage: "square.and.arrow.up") }
+                     }.padding()
+-                }.navigationTitle("Share Preset").toolbar { Button("Done") { showCode = false } }
++                }.navigationTitle("프리셋 공유").toolbar { Button("완료") { showCode = false } }
+             }
+         }
+     }
+@@ -126,7 +126,7 @@
+     private func catalogRow(_ entry: CommunityCatalog.Entry) -> some View {
+         VStack(alignment: .leading, spacing: 7) {
+             HStack {
+-                Text(entry.name).font(.headline)
++                Text(CommunityCopyKorean.name(id: entry.id, fallback: entry.name)).font(.headline)
+                 Spacer()
+                 Button {
+                     var ids = favorites
+@@ -137,20 +137,23 @@
+             }
+             Text("\(entry.author) · \(entry.rangeLabel)").font(.caption).foregroundStyle(.secondary)
+             if entry.untested {
+-                Label("Not tested on a device", systemImage: "exclamationmark.triangle")
++                Label("실제 기기에서 테스트하지 않음", systemImage: "exclamationmark.triangle")
+                     .font(.caption).foregroundStyle(.orange)
+             }
+-            if !entry.detail.isEmpty { Text(entry.detail).font(.footnote) }
++            if !entry.detail.isEmpty { Text(CommunityCopyKorean.detail(templateID: entry.id, fallback: entry.detail)).font(.footnote) }
+             if !entry.writes.isEmpty {
+-                DisclosureGroup("Files changed") { ForEach(entry.writes, id: \.self) { Text($0).font(.caption.monospaced()) } }
++                DisclosureGroup("변경되는 파일") { ForEach(entry.writes, id: \.self) { Text($0).font(.caption.monospaced()) } }
+             }
+             let status = CommunityCatalog.status(entry)
+             Button {
+                 Task { await install(entry) }
+             } label: {
+-                Label(busy == entry.key ? "Downloading…" : (status == "Update available" ? "Update" : "Import"), systemImage: "square.and.arrow.down")
++                Label(busy == entry.key ? "다운로드 중…" : (status == "Update available" ? "업데이트" : "가져오기"), systemImage: "square.and.arrow.down")
+             }.disabled(busy != nil || !entry.supports(device.current.version) || status == "Installed")
+-            if let status { Text(status).font(.caption).foregroundStyle(.secondary) }
++            if let status {
++                Text(status == "Installed" ? "설치됨" : "업데이트 가능")
++                    .font(.caption).foregroundStyle(.secondary)
++            }
+         }.padding(.vertical, 4)
+     }
+     @ViewBuilder private func controlEditor(_ control: CommunityTemplate.Control, tweak: CommunityTemplate.Tweak,
+@@ -162,11 +165,11 @@
+             }), in: control.minimum...control.maximum, step: control.step)
+             Text(String(describing: tweak.value)).font(.caption.monospaced())
+         case "text":
+-            TextField(tweak.label, text: Binding(get: { tweak.value as? String ?? "" }, set: {
++            TextField(CommunityCopyKorean.tweakLabel(tweak.label), text: Binding(get: { tweak.value as? String ?? "" }, set: {
+                 library.edit(template: template.id, tweak: tweak.id, value: $0)
+             }))
+         default:
+-            Picker(tweak.label, selection: Binding(get: {
++            Picker(CommunityCopyKorean.tweakLabel(tweak.label), selection: Binding(get: {
+                 control.choices.firstIndex { NSDictionary(dictionary: ["v": $0.1]).isEqual(to: ["v": tweak.value]) } ?? 0
+             }, set: { library.edit(template: template.id, tweak: tweak.id, value: control.choices[$0].1) })) {
+                 ForEach(control.choices.indices, id: \.self) { Text(control.choices[$0].0).tag($0) }
+@@ -179,9 +182,10 @@
+         do {
+             let index = try await CommunityCatalog.fetch()
+             entries = index.entries
+-            message = "\(entries.count) entries. \(index.rejected) invalid entries skipped."
+-                + " \(entries.filter { CommunityCatalog.status($0) == "Update available" }.count) updates available."
+-                + (index.cached ? " Showing the offline cache." : "")
++            message = "\(entries.count)개 항목을 불러왔습니다. "
++                + "형식이 올바르지 않은 \(index.rejected)개는 제외했습니다. "
++                + "업데이트 \(entries.filter { CommunityCatalog.status($0) == "Update available" }.count)개."
++                + (index.cached ? " 오프라인 캐시를 표시 중입니다." : "")
+         } catch { message = error.localizedDescription }
+     }
+     private func install(_ entry: CommunityCatalog.Entry) async {
+@@ -193,10 +197,10 @@
+                 let data = try await CommunityCatalog.download(url, limit: 25 * 1024 * 1024)
+                 guard data.count == entry.size, CommunityCatalog.hash(data) == entry.digest else { throw CommunityError("Template checksum does not match the catalog.") }
+                 try library.install(data, id: entry.id)
+-                message = "Template installed. Review its switches before Apply."
++                message = "템플릿을 가져왔습니다. 적용하기 전에 각 스위치를 확인하세요."
+             } else {
+                 let name = try CommunityCatalog.installPreset(entry)
+-                message = "Saved \(name). Load it from Presets when ready."
++                message = "\(name) 프리셋을 저장했습니다. 프리셋 화면에서 불러오세요."
+             }
+             epoch += 1
+         } catch { message = error.localizedDescription }
+@@ -212,16 +216,16 @@
+             }
+             _ = try PresetShareCode.decode(value)
+             code = value
+-            message = "QR code read. Choose a name and save the shared preset."
++            message = "QR 코드를 읽었습니다. 이름을 지정하고 공유 프리셋을 저장하세요."
+         } else if url.pathExtension.lowercased() == "batter" {
+             let size = try url.resourceValues(forKeys: [.fileSizeKey]).fileSize ?? 0
+             guard size <= 25 * 1024 * 1024 else { throw CommunityError("Template exceeds 25 MB.") }
+             try library.install(Data(contentsOf: url), id: "local-" + UUID().uuidString.lowercased())
+-            message = "Template imported."
++            message = "템플릿을 가져왔습니다."
+         } else {
+             let result = PortablePreset.importFile(url)
+             guard result.0 else { throw CommunityError(result.1) }
+-            message = "Preset \(result.1) imported."
++            message = "\(result.1) 프리셋을 가져왔습니다."
+         }
+         epoch += 1
+     }
+@@ -241,3 +245,62 @@
+         return UIImage(cgImage: cg)
+     }
+ }
++
++
++/// Display-only Korean copy for the current verified community catalog.
++/// The server's metadata, hashes, package bytes and file paths remain intact.
++private enum CommunityCopyKorean {
++    static func name(id: String, fallback: String) -> String {
++        let known: [String: String] = [
++            "calm-glass": "차분한 글래스",
++            "clean-home-screen": "깔끔한 홈 화면",
++            "cool-nugget": "쿨 너겟",
++            "developer-toolkit": "개발자 도구 모음",
++            "fewer-distractions": "방해 요소 줄이기",
++            "liquid-glass-everywhere": "전체 리퀴드 글래스",
++            "preset-1": "프리셋 1",
++            "secret-bootloop-button": "비밀 부팅 루프 버튼(위험)",
++            "solid-glass": "단색 글래스",
++            "springboard-for-ios-27-1-duo": "iOS 27.1용 SpringBoard 설정(Duo)"
++        ]
++        return known[id] ?? fallback
++    }
++
++    static func detail(templateID id: String, fallback: String) -> String {
++        let known: [String: String] = [
++            "calm-glass": "리퀴드 글래스는 유지하면서 잠금 화면, 위젯, Dock 및 폴더의 움직이는 광택 효과를 제거합니다.",
++            "clean-home-screen": "Dock 위 검색 버튼, 아이콘 시차 효과, 시계 아이콘 초침 움직임, Dock 및 검색창 그림자를 없애 홈 화면을 단정하게 만듭니다.",
++            "cool-nugget": "쿨 너겟 프리셋",
++            "developer-toolkit": "상태 막대 빌드 번호, 터치 시각화, App Store 디버그 제스처, 메모 앱 디버그 메뉴와 액세서리 개발자 설정을 활성화합니다.",
++            "fewer-distractions": "잠금 화면 충전 상태, 상태 막대의 앱으로 돌아가기 버튼, Spotlight 웹사이트 검색 결과를 숨깁니다.",
++            "liquid-glass-everywhere": "리퀴드 글래스 효과를 활성화합니다.",
++            "preset-1": "공유된 프리셋 1",
++            "secret-bootloop-button": "성능 향상을 주장하는 고위험 프리셋입니다. 부팅 문제가 발생할 수 있으므로 파일 변경 내용을 확인하세요.",
++            "solid-glass": "Dock과 잠금 화면 시계의 리퀴드 글래스 외관을 끕니다.",
++            "springboard-for-ios-27-1-duo": "iOS 27.1(24A94401) 시뮬레이터의 dyld 공유 캐시에서 SpringBoardFoundation 기본값 바인딩 테이블을 iOS 27.0과 비교해 설정 키를 추출하고 기존 분석에서 누락된 키를 보완했습니다. 각 키는 펌웨어 내부에서 존재가 확인됐지만, 실제 iPhone에서는 아직 테스트하지 않았습니다."
++        ]
++        return known[id] ?? fallback
++    }
++
++    static func tweakLabel(_ value: String) -> String {
++        let known: [String: String] = [
++            "Show Home Screen Search Button": "홈 화면 검색 버튼 표시",
++            "Debug HUD": "디버그 HUD 표시",
++            "Visualize Touch Suppression": "터치 차단 상태 시각화",
++            "Require Fresh Touch (Cover Sheet)": "잠금 화면에서 새 터치 요구",
++            "Force All Apps to Support Limited Resizing": "모든 앱에 제한적 크기 조절 강제",
++            "Display Dim Touch Suppression (All Surfaces)": "전체 화면 밝기 감소 시 터치 차단",
++            "Fallback Display Region Blanking Renderer": "화면 영역 공백 표시 대체 렌더러",
++            "Show Hinge Angle HUD": "힌지 각도 HUD 표시",
++            "Always Send Hinge Updates": "힌지 상태 변경 상시 전송",
++            "Mock Charging State (StandBy)": "대기 모드 충전 상태 모의 표시",
++            "Ambient Overlay Interactive Dismissal": "주변 화면 오버레이 제스처로 닫기",
++            "Disable Auto Dim": "자동 밝기 감소 비활성화",
++            "Home Screen Wallpaper Dimming": "홈 화면 배경화면 밝기 감소",
++            "External Display Mirroring": "외부 디스플레이 화면 미러링",
++            "Sensitive UI": "민감한 UI 표시",
++            "Ambient Extended Idle Timer": "주변 화면 유휴 대기 시간 연장"
++        ]
++        return known[value] ?? value
++    }
++}
+diff --git a/Nugget/Views/GoldenNuggetView.swift b/Nugget/Views/GoldenNuggetView.swift
+--- a/Nugget/Views/GoldenNuggetView.swift
++++ b/Nugget/Views/GoldenNuggetView.swift
+@@ -448,7 +448,8 @@
+                                disabled: running || resetting) {
+                 showResetSheet = true
+             }
+-            NativeNote("Puts whole pages back to stock on the device. The next screen picks which ones and names the files it writes.")
++            NativeNote("기기의 선택한 설정 페이지를 기본값으로 초기화합니다. 다음 화면에서 "
++                + "초기화할 항목과 실제 변경되는 파일을 확인할 수 있습니다.")
+         }
+     }
+ 
+@@ -482,7 +483,7 @@
+                     .font(.subheadline)
+                     .foregroundStyle(.secondary)
+             }
+-            NativePrimaryButton(title: restoringMedia ? "Restoring…" : "Restore media",
++            NativePrimaryButton(title: restoringMedia ? "미디어 복원 중…" : "미디어 복원",
+                                 systemImage: "arrow.uturn.backward.circle",
+                                 running: restoringMedia,
+                                 disabled: !canRestoreMedia) {
