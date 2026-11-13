@@ -300,7 +300,16 @@ final class ScarletAutomaticRenewal {
             prefs.set(gate.safeBlockCategory, forKey: failureReasonKey)
             return false
         }
-        guard await ScarletConnectedSideSignEngine().storedAuthenticated() else {
+        let authState = await ScarletConnectedSideSignEngine().storedAuthenticationState()
+        if case .unavailable(let reason) = authState {
+            prefs.set("보류 · SideStore 로그인 상태 확인 필요", forKey: outcomeKey)
+            prefs.set("auth_state_unavailable", forKey: failureReasonKey)
+            ScarletDiagnosticRecorder.shared.record(
+                "refresh", "automatic_deferred_auth_read", status: "blocked",
+                fields: ["reason": reason, "installation_verified": "false"])
+            return false
+        }
+        guard authState.isAuthenticated else {
             prefs.set("차단 · SideStore 로그인 세션 없음", forKey: outcomeKey)
             ScarletDiagnosticRecorder.shared.record(
                 "refresh", "automatic_attempt_blocked", status: "blocked",

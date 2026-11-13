@@ -39,11 +39,91 @@ private final class ScarletBoolGate: @unchecked Sendable {
     }
 }
 
+// R6P53_STORED_AUTH_STATE_BEGIN
+// A transport failure is not a negative Keychain readback. This value never
+// substitutes for fresh authentication in signing/installation gates.
+public enum ScarletStoredAuthState: Equatable, Sendable {
+    case authenticated
+    case missing
+    case unavailable(reason: String)
+
+    public static func fromWorker(_ status: Int) -> Self {
+        switch status {
+        case 1: return .authenticated
+        case 0: return .missing
+        case 2: return .unavailable(reason: "auth_worker_missing")
+        default: return .unavailable(reason: "auth_reply_invalid")
+        }
+    }
+    public var isAuthenticated: Bool { self == .authenticated }
+    public var verifiedValue: Bool? {
+        switch self {
+        case .authenticated: return true
+        case .missing: return false
+        case .unavailable: return nil
+        }
+    }
+    public var failureReason: String {
+        switch self {
+        case .authenticated: return "none"
+        case .missing: return "auth_unavailable"
+        case .unavailable: return "auth_state_unavailable"
+        }
+    }
+}
+
+private final class ScarletStoredAuthGate: @unchecked Sendable {
+    private let lock = NSLock()
+    private var continuation: CheckedContinuation<ScarletStoredAuthState, Never>?
+    init(_ continuation: CheckedContinuation<ScarletStoredAuthState, Never>) {
+        self.continuation = continuation
+    }
+    func finish(_ value: ScarletStoredAuthState) {
+        lock.lock()
+        let c = continuation
+        continuation = nil
+        lock.unlock()
+        c?.resume(returning: value)
+    }
+}
+
+// Share only an in-flight read, never a cached positive/negative result.
+// Login completion invalidates older reads without letting their cleanup
+// remove a newer task. Late XPC/timeout callbacks are single-resume gated.
+@MainActor
+private final class ScarletStoredAuthReads {
+    private var generation: UInt64 = 0
+    private var pending: (id: UUID, task: Task<ScarletStoredAuthState, Never>)?
+    func invalidate() {
+        generation &+= 1
+        pending = nil
+    }
+    func read(_ operation: @escaping @MainActor () async -> ScarletStoredAuthState)
+        async -> ScarletStoredAuthState {
+        let startedGeneration = generation
+        let active: (id: UUID, task: Task<ScarletStoredAuthState, Never>)
+        if let pending {
+            active = pending
+        } else {
+            active = (UUID(), Task { @MainActor in await operation() })
+            pending = active
+        }
+        let result = await active.task.value
+        if pending?.id == active.id { pending = nil }
+        guard startedGeneration == generation else {
+            return .unavailable(reason: "auth_changed_during_read")
+        }
+        return result
+    }
+}
+// R6P53_STORED_AUTH_STATE_END
+
 @available(iOS 17.0, *)
 @MainActor
 public final class ScarletNativeAuthTransport {
     public static let shared = ScarletNativeAuthTransport()
     public private(set) var isReady = false
+    private let storedAuthReads = ScarletStoredAuthReads()
     private var requestID: String?
     private var completion: CheckedContinuation<Void, Error>?
     private var codeProvider: (() async throws -> String)?
@@ -64,23 +144,36 @@ public final class ScarletNativeAuthTransport {
         isReady = true
     }
 
-    // Ask the real SideStore worker to re-read its Keychain every time a
-    // host scene starts or an auth sheet is reopened. Do not cache a false
-    // "logged in" badge from a one-time XPC success notification.
+    // Compatibility for existing signing/install callers remains fail closed.
     public func storedAuthenticated() async -> Bool {
-        if !isReady {
-            do { try await prepare() }
-            catch { return false }
+        await storedAuthenticationState().isAuthenticated
+    }
+
+    public func storedAuthenticationState() async -> ScarletStoredAuthState {
+        guard requestID == nil else {
+            return .unavailable(reason: "auth_in_progress")
         }
-        guard let remote = RefreshHandler.shared.client else { return false }
-        return await withCheckedContinuation { (c: CheckedContinuation<Bool, Never>) in
-            let gate = ScarletBoolGate(c)
-            DispatchQueue.main.asyncAfter(deadline: .now() + 12) {
-                gate.finish(false)
+        return await storedAuthReads.read { [self] in
+            if !isReady {
+                do { try await prepare() }
+                catch { return .unavailable(reason: "auth_transport_unavailable") }
             }
-            remote.scarletAuthStored { stored in
-                gate.finish(stored)
+            guard let remote = RefreshHandler.shared.client else {
+                isReady = false
+                return .unavailable(reason: "auth_transport_unavailable")
             }
+            let state = await withCheckedContinuation {
+                (c: CheckedContinuation<ScarletStoredAuthState, Never>) in
+                let gate = ScarletStoredAuthGate(c)
+                DispatchQueue.main.asyncAfter(deadline: .now() + 12) {
+                    gate.finish(.unavailable(reason: "auth_state_read_timeout"))
+                }
+                remote.scarletAuthStoredState { status in
+                    gate.finish(.fromWorker(status))
+                }
+            }
+            if case .unavailable = state { isReady = false }
+            return state
         }
     }
 
@@ -88,6 +181,7 @@ public final class ScarletNativeAuthTransport {
                        anisetteProfile: String,
                        codeProvider: @escaping () async throws -> String) async throws {
         guard requestID == nil else { throw ScarletNativeAuthError.alreadyRunning }
+        storedAuthReads.invalidate()
         try await prepare()
         guard let remote = RefreshHandler.shared.client else {
             throw ScarletNativeAuthError.guestUnavailable
@@ -144,6 +238,7 @@ public final class ScarletNativeAuthTransport {
 
     private func finish(_ id: String, error: Error?) {
         guard requestID == id, let c = completion else { return }
+        storedAuthReads.invalidate()
         completion = nil
         if let error { c.resume(throwing: error) } else { c.resume() }
     }

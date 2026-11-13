@@ -1369,11 +1369,12 @@ static void ScarletIslandTryP44LocalHeaderTransform(
        CGRectGetHeight(window.bounds)<700 ||
        window.windowScene.activationState!=UISceneActivationStateForegroundActive)
         return;
-    // Exactly one short controller-owned header must account for two or
-    // more severely unsafe controls. A parent scroll container is not
-    // shifted: scrolling content remains full-size and independent.
+    // P53 signed P52 ancestry: the shared 50pt header is a plain UIView
+    // directly under a full-height controller root, not a child controller.
+    // Keep the existing pilot/readbacks; admit only that measured ownership
+    // topology or the original short child-controller topology.
     UIView *header=nil,*parent=nil,*first=nil,*second=nil;
-    NSUInteger severe=0;
+    NSUInteger severe=0,headerKind=0;
     BOOL conflict=NO;
     for(NSValue *key in groups) {
         UIScrollView *owner=[key nonretainedObjectValue];
@@ -1389,12 +1390,10 @@ static void ScarletIslandTryP44LocalHeaderTransform(
                CGRectGetMinY(shown)>=safeTop-15 ||
                CGRectGetMaxY(shown)<=5) continue;
             UIView *candidate=nil,*candidateParent=nil;
-            NSUInteger hops=0;
+            NSUInteger hops=0,candidateKind=0;
             for(UIView *cursor=node; cursor && cursor!=root && hops++<24;
                 cursor=cursor.superview) {
                 UIResponder *responder=cursor.nextResponder;
-                if(![responder isKindOfClass:UIViewController.class] ||
-                   ((UIViewController *)responder).view!=cursor) continue;
                 UIView *p=cursor.superview;
                 if(!p || p.window!=window ||
                    CGRectGetHeight(cursor.bounds)<34 ||
@@ -1405,17 +1404,28 @@ static void ScarletIslandTryP44LocalHeaderTransform(
                    !CGAffineTransformIsIdentity(cursor.transform) ||
                    !ScarletIslandDeepHeaderOwnerReady(
                        cursor,p,root,window,safeTop,0)) continue;
-                UIViewController *child=(UIViewController *)responder;
                 UIViewController *parentVC=
                     [p.nextResponder isKindOfClass:UIViewController.class]
                     ? (UIViewController *)p.nextResponder : nil;
-                if(!parentVC || child.parentViewController!=parentVC)
-                    continue;
+                if(!parentVC || parentVC.view!=p) continue;
+                BOOL childOwned=[responder isKindOfClass:UIViewController.class] &&
+                    ((UIViewController *)responder).view==cursor &&
+                    ((UIViewController *)responder).parentViewController==parentVC;
+                BOOL composite=responder==p &&
+                    ![cursor isKindOfClass:UIScrollView.class] &&
+                    ![cursor isKindOfClass:UIControl.class] &&
+                    ![cursor isKindOfClass:UINavigationBar.class] &&
+                    ![cursor isKindOfClass:UITabBar.class] &&
+                    ![cursor isKindOfClass:UIWindow.class] &&
+                    fabs(CGRectGetWidth(p.bounds)-CGRectGetWidth(window.bounds))<=4;
+                if(!childOwned && !composite) continue;
+                candidateKind=childOwned ? 1 : 2;
                 candidate=cursor;candidateParent=p;break;
             }
             if(!candidate) continue;
             if(header && header!=candidate) {conflict=YES;break;}
-            header=candidate;parent=candidateParent;
+            header=candidate;parent=candidateParent;headerKind=candidateKind;
+            if(node==first || node==second) continue;
             severe++;
             if(!first) first=node;
             else if(!second) second=node;
@@ -1454,7 +1464,9 @@ static void ScarletIslandTryP44LocalHeaderTransform(
         });
     }
     ScarletIslandDeepHeaderTrialReceipt(
-        @"guest_header_local_transform_staged", @"isolated_interactive_header",
+        @"guest_header_local_transform_staged",
+        headerKind==2 ? @"composite_header_under_controller"
+                      : @"isolated_interactive_header",
         safeTop, CGRectGetMinY(originalWindow),
         CGRectGetMinY([header convertRect:header.bounds toView:window]),
         beforeControls,beforeControls,beforeImages,NO);

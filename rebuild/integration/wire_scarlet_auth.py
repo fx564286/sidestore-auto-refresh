@@ -33,6 +33,7 @@ def patch_livecontainer(engine: Path) -> None:
         """- (void)refreshAllAppsWithIdentifier:(NSString*)identifier mangledTypeName:(NSString *)mangledTypeName;
 - (void)scarletAuthReady:(void (^)(BOOL isReady))reply;
 - (void)scarletAuthStored:(void (^)(BOOL hasStoredSession))reply;
+- (void)scarletAuthStoredState:(void (^)(NSInteger state))reply;
 - (void)scarletRefreshReadiness:(void (^)(NSInteger managedCount, BOOL hostManaged, BOOL signingReady, NSString *status))reply;
 - (void)scarletPerformNativeRefresh:(void (^)(BOOL operationReturned, NSString *status))reply;
 - (void)scarletInstallPairingRecord:(NSData*)record reply:(void (^)(BOOL verified, NSString *status))reply;
@@ -148,16 +149,20 @@ def patch_livecontainer(engine: Path) -> None:
 }
 
 - (void)scarletAuthStored:(void (^)(BOOL))reply {
-    // Read saved status in the *SideStore* process from its original Keychain.
-    // Returning cached host UI state here would falsely survive broken sign-in.
+    [self scarletAuthStoredState:^(NSInteger state) { reply(state == 1); }];
+}
+
+- (void)scarletAuthStoredState:(void (^)(NSInteger))reply {
+    // 0 = actual missing Keychain state; 1 = stored; 2 = unavailable worker.
+    // Never substitute a host badge, a ready ACK or timeout for this readback.
     Class worker = NSClassFromString(@"ScarletGuestSignInAgent");
     if (!worker || ![worker respondsToSelector:@selector(persistedState)]) {
-        reply(NO);
+        reply(2);
         return;
     }
     BOOL authenticated = ((BOOL (*)(id, SEL))objc_msgSend)(worker,
                                                          @selector(persistedState));
-    reply(authenticated);
+    reply(authenticated ? 1 : 0);
 }
 
 - (void)scarletBeginAuth:(NSString*)requestID email:(NSString*)email password:(NSString*)password profile:(NSString*)profile {

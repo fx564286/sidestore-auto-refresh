@@ -127,7 +127,7 @@ struct ScarletIntegratedHostView: View {
         authStateReadGeneration &+= 1
         let requestGeneration = authStateReadGeneration
         Task { @MainActor in
-            let stored = await ScarletConnectedSideSignEngine().storedAuthenticated()
+            let stored = await ScarletConnectedSideSignEngine().storedAuthenticationState()
             guard requestGeneration == authStateReadGeneration,
                   !showScarletAppleIDLogin else {
                 ScarletDiagnosticRecorder.shared.record(
@@ -135,10 +135,16 @@ struct ScarletIntegratedHostView: View {
                     fields: ["reason": "stale_or_login_active"])
                 return
             }
-            appleAuthVerified = stored
-            ScarletDiagnosticRecorder.shared.record(
-                "auth", stored ? "host_session_restored" : "host_session_unavailable",
-                status: stored ? "success" : "info")
+            if let verified = stored.verifiedValue {
+                appleAuthVerified = verified
+                ScarletDiagnosticRecorder.shared.record(
+                    "auth", verified ? "host_session_restored" : "host_session_unavailable",
+                    status: verified ? "success" : "info")
+            } else if case .unavailable(let reason) = stored {
+                ScarletDiagnosticRecorder.shared.record(
+                    "auth", "host_session_read_unavailable", status: "warning",
+                    fields: ["reason": reason])
+            }
         }
     }
 
