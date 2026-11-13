@@ -1,0 +1,75 @@
+diff --git a/Nugget/Views/TweakRow.swift b/Nugget/Views/TweakRow.swift
+index a618727..14063c8 100755
+--- a/Nugget/Views/TweakRow.swift
++++ b/Nugget/Views/TweakRow.swift
+@@ -60,7 +60,7 @@ struct TweakRow: View {
+                 }
+             case .text:
+                 VStack(alignment: .leading, spacing: 6) {
+-                    Text(spec.title)
++                    Text(LocalizedStringKey(spec.title))
+                     if let safetyWarning { NativeSafetyNote(safetyWarning) }
+                     TextField("(empty = clear)", text: textBinding)
+                         .textFieldStyle(.roundedBorder)
+@@ -70,7 +70,7 @@ struct TweakRow: View {
+                 }
+             case .number:
+                 VStack(alignment: .leading, spacing: 6) {
+-                    Text(spec.title)
++                    Text(LocalizedStringKey(spec.title))
+                     if let safetyWarning { NativeSafetyNote(safetyWarning) }
+                     TweakNumberField(spec: spec, selection: $selection)
+                     TweakRowCaption(id: spec.id, detail: [spec.numberHint, spec.warning].compactMap { $0 }.joined(separator: "\n"))
+@@ -78,11 +78,11 @@ struct TweakRow: View {
+             }
+             if spec.kind == .toggle, let safetyWarning { NativeSafetyNote(safetyWarning) }
+         }
+-        .alert(spec.title, isPresented: $showWarning) {
++        .alert(LocalizedStringKey(spec.title), isPresented: $showWarning) {
+             Button("Cancel", role: .cancel) {}
+             Button("Continue anyway", role: .destructive) { writeOn(true) }
+         } message: {
+-            Text(warningText)
++            Text(LocalizedStringKey(warningText))
+         }
+     }
+ 
+@@ -160,7 +160,7 @@ private struct TweakRowLabel: View {
+ 
+     var body: some View {
+         VStack(alignment: .leading, spacing: 2) {
+-            Text(title)
++            Text(LocalizedStringKey(title))
+             Text(id)
+                 .font(.caption)
+                 .foregroundStyle(.tertiary)
+diff --git a/Nugget/Views/TweaksView.swift b/Nugget/Views/TweaksView.swift
+index 29c2fb8..8b2acbc 100755
+--- a/Nugget/Views/TweaksView.swift
++++ b/Nugget/Views/TweaksView.swift
+@@ -255,6 +255,16 @@ struct TweaksView: View {
+         }
+     }
+ 
++    /// Translate only the visible header, never the registry section value.
++    private func localizedSectionTitle(_ section: TweakSection) -> String {
++        switch section {
++        case .liquidGlass: return String(localized: "Liquid Glass")
++        case .springboard: return String(localized: "SpringBoard")
++        case .internalOptions: return String(localized: "Internal Options")
++        case .daemons: return String(localized: "Daemons")
++        }
++    }
++
+     @ViewBuilder
+     private var tweakSections: some View {
+         ForEach(TweakSection.allCases.filter { $0 != .daemons }) { section in
+@@ -276,7 +286,7 @@ struct TweaksView: View {
+                     }
+                 } header: {
+                     NativeCollapsibleHeader(
+-                        title: String(localized: "\(section.rawValue) (\(on)/\(specs.count))"),
++                        title: "\(localizedSectionTitle(section)) (\(on)/\(specs.count))",
+                         collapsed: collapsed)
+                 }
+             }
