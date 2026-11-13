@@ -1208,6 +1208,51 @@ final class ScarletFullscreenSceneViewport: UIViewController {
     private let transparentChrome = UIView(frame: .zero)
     private var chromeEligiblePIDs: Set<Int32> = []
     private var lastChromeTop: CGFloat = -1
+    private var chromeAppearanceIsLight: Bool?
+    private var chromeStatusBarPreference: UIStatusBarStyle = .default
+
+    override var preferredStatusBarStyle: UIStatusBarStyle {
+        chromeStatusBarPreference
+    }
+
+    // R6P42: a UIView with .clear over a .black host produces the black
+    // 62pt status band seen on signed P40. Preserve the transparent
+    // non-touch layout, but match the guest's native light/dark scene
+    // background behind it. Do not duplicate, crop or snapshot app pixels.
+    private func applyNativeChromeAppearance(
+        for guest: AppSceneViewController, scene: UIWindowScene) {
+        let style = guest.contentView?.traitCollection.userInterfaceStyle
+            ?? guest.traitCollection.userInterfaceStyle
+        let isLight = style != .dark
+        guard chromeAppearanceIsLight != isLight else { return }
+        chromeAppearanceIsLight = isLight
+        // UIKit's system background is white in a light guest, black in
+        // dark mode; explicit resolved colors avoid inheriting a dark HOST
+        // trait for a guest which has opted into light appearance.
+        view.backgroundColor = isLight ? .white : .black
+        chromeStatusBarPreference = isLight ? .darkContent : .lightContent
+        setNeedsStatusBarAppearanceUpdate()
+        view.window?.rootViewController?.setNeedsStatusBarAppearanceUpdate()
+        ScarletDiagnosticRecorder.shared.record(
+            "layout", "guest_chrome_appearance_applied",
+            fields: ["process_pid": String(guest.pid),
+                     "result": isLight ? "light_guest_backdrop"
+                                         : "dark_guest_backdrop",
+                     "chrome_dark_status_text": isLight ? "true" : "false",
+                     "slot_top_pt": String(Int(chromeTop(in: scene)))])
+        DispatchQueue.main.async { [weak self, weak scene] in
+            guard let self, self.view.window?.windowScene === scene else {
+                return
+            }
+            let current = scene?.statusBarManager?.statusBarStyle.rawValue ?? -1
+            ScarletDiagnosticRecorder.shared.record(
+                "layout", "guest_chrome_status_style_readback",
+                fields: ["result": "uikit_status_bar_observed",
+                         "status_style_raw": String(Int(current)),
+                         "chrome_dark_status_text": self.chromeAppearanceIsLight == true
+                             ? "true" : "false"])
+        }
+    }
 
     private func chromeTop(in scene: UIWindowScene) -> CGFloat {
         guard scene.interfaceOrientation.isPortrait else { return 0 }
@@ -1264,6 +1309,10 @@ final class ScarletFullscreenSceneViewport: UIViewController {
             chromeEligiblePIDs.contains($0)
         } == true
         let top = active ? chromeTop(in: scene) : 0
+        if top > 0, let id = stack?.activeID,
+           let guest = controllers[id] {
+            applyNativeChromeAppearance(for: guest, scene: scene)
+        }
         transparentChrome.frame = CGRect(x: 0,y: 0,
                                          width: view.bounds.width,height: top)
         transparentChrome.isHidden = top < 1
@@ -1487,7 +1536,9 @@ final class ScarletFullscreenSceneViewport: UIViewController {
 
     override func viewDidLoad() {
         super.viewDidLoad()
-        view.backgroundColor = .black
+        // R6P42: never expose a forced black background through a clear
+        // chrome slot while the remote app uses a light interface.
+        view.backgroundColor = .systemBackground
         view.clipsToBounds = false
         transparentChrome.backgroundColor = .clear
         transparentChrome.isUserInteractionEnabled = false
