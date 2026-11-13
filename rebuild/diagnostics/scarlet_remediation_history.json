@@ -1,10 +1,10 @@
 {
   "schema": 2,
   "scope": "Scarlet Crystal guest top-screen overlap, touch access, rotation, remote guest render and related resident regressions",
-  "updated_utc": "2026-11-12T23:49:00Z",
-  "current_baseline": "Signed P40 session1bb75b1c PID2454 initially unpadded with 62pt native slot then old guest_root_corrected adds62 on app reactivation. PID2483 protected app was shifted by same global 62 and screenshot lower tab clipping. P41 source fcc505817cfd selectively applies native chrome only for measured risky PID, sticky same-UIWindow correction, awaits Xcode and signed-device validation.",
-  "current_issue_status": "Dynamic Island and P40 bottom-shift issue remain device-reported. P41 617/619 local source tests pass (2 Mac-dependent skipped), actual protected-app and unsafe-app UI state pending. Audio and keyboard isolation/installation renewal unverified.",
-  "confidence_note": "P40 actual iPhone logs identify double top correction; dynamic per-PID eligibility and sticky window handling are new source hypotheses requiring signed-device verification and accurate numeric logs.",
+  "updated_utc": "2026-11-13T00:03:00Z",
+  "current_baseline": "P40 signed screenshot top black 62pt due P41 host viewport black behind transparentChrome clear. P41 ca212c20 PID-adaptive native slot and sticky root; P42 source 66ce18bf6bb6 selects light/dark host backing and status icon preference only on active reserved guest, awaits Xcode and signed iPhone screenshot.",
+  "current_issue_status": "P40 black transparent top + protected app bottom shift observed; P41 implements adaptive eligible PID, P42 adds trait-matched background; actual image/status bar behavior not yet device verified. Audio and keyboard/installation refresh remain independent.",
+  "confidence_note": "P42 color-owner diagnosis is supported by UIView source and observed photo. Dynamic UIKit status bar ownership not proven on device and must be confirmed with status_style_raw and visible contrast.",
   "privacy": "No credentials, Apple ID, OTP, UDID, guest names or device identifiers are stored.",
   "entries": [
     {
@@ -19869,6 +19869,364 @@
           "source_generation_script": "rebuild/integration/apply_scarlet_host.py",
           "function": "add_scarlet_guest_island_content_guard",
           "note": "Guest eligible PID whitelist and sticky confirmed UIWindow prevent old +62 repeated root addition. Preserve read-only measured descendant scan; quarantine old scroll and header writers."
+        }
+      ]
+    },
+    {
+      "id": "L086",
+      "date": "2026-11-13",
+      "version": "new-v48-r6p42-guest-matched-transparent-chrome-backdrop-status-contrast",
+      "problem": "guest_top",
+      "mechanism": "transparent_chrome_host_backdrop_color_and_native_statusbar_style_follow_guest_trait_not_fixed_black",
+      "novelty": {
+        "prior_excluded_ids": [
+          "L001",
+          "L002",
+          "L004",
+          "L016",
+          "L021",
+          "L023",
+          "L035",
+          "L050",
+          "L083",
+          "L084",
+          "L085"
+        ],
+        "causal_difference": "P40 signed screenshot shows full-width solid black safe-status region Y0..62 immediately above otherwise light Kakao interface. This is not the P41 extra-62 layout problem: P40 P41 ScarletFullscreenSceneViewport.viewDidLoad hardcoded view.backgroundColor=.black while a clear, non-touch transparentChrome was inserted underneath remote FBScene and native guest content began at Y62. An alpha-clear view shows whatever is behind it, which was the black host; it does not extend white remote-app pixels upward. P42 changes only host-owned backdrop paint and status-bar text preference for the measured unsafe resident guest selected by P41, never modifies guest geometry, safe area, old constraints or offset. Resolve guest remote content UIView appearance trait (fallback child controller), choose light white or dark black band and matching UIKit preferredStatusBarStyle; emit actual statusBarManager readback so an unhonored preferredStatusBarStyle is not confused with device proof.",
+        "falsifiable_prediction": "On signed iPhone, P41 per-PID measured unsafe guest in native reserved62 slot with light appearance should report guest_chrome_appearance_applied result light_guest_backdrop (background white, dark status text preference), then guest_chrome_status_style_readback actual UIKit status style corresponding to dark text; visually black top strip disappears, status bar remains legible, no bottom cropping/duplicate-safe. Dark-appearance guest reports dark_guest_backdrop and should preserve white status text. Protected guest with no measured unsafe controls is not given forced reserved top by P41 and is not painted separately. If guest appearance trait is inaccurate or SwiftUI parent ignores child preferred status-bar style, the readback and screenshot distinguish those failures; no claim of complete actual color match until device test."
+      },
+      "action": "In P41 code, replace hardcoded black UIView backing of fullscreen resident viewport with UIKit systemBackground. Keep transparentChrome clear, non-touch, accessibility-inert. On each selected eligible guest in portrait with nonzero native top reserved slot, obtain guest.contentView native userInterfaceStyle (fallback guest controller trait), map light->white/darkContent status bar, dark->black/lightContent status bar, apply only when guest appearance changes, call setNeedsStatusBarAppearanceUpdate on child and root, asynchronously report native UIStatusBarManager.statusBarStyle readback and requested contrast as anonymous numeric/boolean. Add required allowlist fields. Keep all P41 PID eligibility, remote scene bounds and no-double-62 root protection, V48 switcher and audio/keyboard unchanged; ensure new P42 artifacts/tag distinct and four new regression tests.",
+      "hypothesis": "Black strip is caused by host fill color being visible through transparent top chrome, not a black foreground overlay; color must be painted at background owner of reserved native scene while preserving clear top strip and requiring text contrast. UIKit status bar appearance is controlled higher than a nested UIViewController in some SwiftUI hosting hierarchies, so readback must be checked before reporting real device success.",
+      "observation": "User-provided iPhone screenshot (P40 SourceCommit578288c271e1, host440x956) shows black top strip roughly 62pt tall while below Kakao chat-list UI is white. Current P41 source retained hardcoded .black in ScarletFullscreenSceneViewport.viewDidLoad and transparentChrome.backgroundColor=.clear. P40 resident_transparent_chrome_slot proved native content is shifted below measured safeTop62. Thus black is predictable host compositing result even when clear UIView works as written. P40 also shifted protected apps down and P41 separated that per PID; P42 does not undo or repeat that geometry fix.",
+      "evidence": [
+        "User P40 screenshot showing black status band behind time and connectivity icons and white Kakao content beginning below.",
+        "Signed P40 current run1bb75b1c host safeTop62, transparent native host slot and first guest PID2454 guest_transparent_chrome_slot_unpadded followed by unwanted root corrected 0->62 on reentry; P41 L085 handles eligibility and root geometry separately.",
+        "Exact source prior: rebuild/HostApp/ScarletFullscreenSceneStack.swift view.backgroundColor=.black, transparentChrome.backgroundColor=.clear, and active remote contentSlot starts at safeTop in P40/P41.",
+        "Local P42 regression 623 total, 621 passed and two Xcode-dependent skips; P42 native CI and signed actual screenshot/status bar readback pending."
+      ],
+      "status": "source_committed_ci_pending",
+      "source_verification": "git_patch_observed",
+      "device_verification": "Source color selection and status-bar style request verified only; P42 actual UIKit status bar appearance, remote app theme trait and visual black strip elimination NOT YET device verified.",
+      "rollback_commit": "ca212c20e7d9a35c0adf4c8f8cae01c03910bbde",
+      "repeat_policy": "Do not change guest scene height/position in L086, modify P41 eligibility or retry previous global 62pt offset. Color sampling is deliberately not screenshot or private user data; if remote appearance trait differs from actual app, record mismatch and inspect native remote style rather than hardcoding Kakao or Instagram bundle names or painting a fake overlay.",
+      "source_revisions": [
+        {
+          "sha": "66ce18bf6bb631271dea1c544f6b3e0a1e6d4584",
+          "url": "https://github.com/fx564286/sidestore-auto-refresh/commit/66ce18bf6bb631271dea1c544f6b3e0a1e6d4584",
+          "title": "fix(r6p42): match translucent native chrome backdrop and status-bar contrast to guest appearance"
+        }
+      ],
+      "code_locations": [
+        {
+          "file": ".github/workflows/scarlet-paired-engines-build.yml",
+          "function": "scarlet-paired-engines-build.yml",
+          "location": "@@ -3,7 +3,7 @@ name: Scarlet paired LiveContainer and SideStore iOS build\n",
+          "before": [
+            "on:",
+            "  workflow_dispatch:",
+            "  push:",
+            "    branches: [rebuild/scarlet-from-zero-20261106, fix/scarlet-auth-status-rootcause-20261109, fix/scarlet-pr48-guest-overlay-no-resize-20261109, fix/scarlet-pr48-airpods-glass-guest-switch-v3-20261109, fix/scarlet-pr48-draggable-guest-tab-v4-20261109, fix/scarlet-pr48-v5-glass-drag-cert-recovery-20261109, fix/scarlet-pr48-v6-unified-cert-glass-20261109, fix/scarlet-pr48-v7-cert-jitless-unify-panel-rim-20261109, fix/scarlet-pr48-v8-flicker-certificate-menu-20261109, fix/scarlet-pr48-v9-single-glass-rim-20261109, fix/scarlet-pr48-v10-fixed-tab-cert-and-session-20261109, fix/scarlet-pr48-v11-module-settings-appid-20261109, fix/scarlet-pr48-v12-live-sessions-source-auto-refresh-20261109, fix/scarlet-pr48-v13-compact-settings-current-app-20261109, fix/scarlet-pr48-v14-guest-history-native-scenes-three-ids-20261109, fix/scarlet-pr48-v15-source-disclosure-icons-guest-handoff-20261109, fix/scarlet-pr48-v16-guest-switcher-icons-readback-20261110, fix/scarlet-v17-cold-switch-rotation-20261110, fix/scarlet-v18-refresh-diagnostics-native-glass-20261110, fix/scarlet-v19-active-session-switcher-20261110, fix/scarlet-v20-guest-switcher-trace-20261110, fix/scarlet-v21-hook-telemetry-persistence-20261110, fix/scarlet-v22-runtime-guest-identity-20261110, fix/scarlet-v23-session-only-switcher-20261110, fix/scarlet-v24-refresh-lifecycle-switch-receipt-20261110, fix/scarlet-v25-single-panel-outside-dismiss-20261110, fix/scarlet-v26-liquidglass-button-to-fixed-panel-morph-20261110, fix/scarlet-v27-sidestore-direct-native-refresh-20261110, fix/scarlet-v28-minimuxer-readiness-recovery-20261110, fix/scarlet-v29-inapp-rppairing-20261110, fix/scarlet-v30-restore-sidestore-active-team-20261110, fix/scarlet-v31-pairing-persistence-sheet-purple-20261110, fix/scarlet-v32-korean-copy-20261110, fix/scarlet-v33-log-rootcause-20261110, fix/scarlet-v34-iphone-virtual-resident-20261110, fix/scarlet-v35-restore-original-fullscreen-20261110, fix/scarlet-v36-remove-legacy-ui-20261110, fix/scarlet-v37-session-refresh-20261110, fix/scarlet-v38-current-launch-logs-20261110, fix/scarlet-v39-log-truth-20261110, fix/scarlet-v40-clean-work-session-20261110, fix/scarlet-v42-v40-safe-diagnostics-20261110, fix/scarlet-v43-install-rootcause-20261110, fix/scarlet-v44-rppairing-postsign-install-20261111, fix/scarlet-v45-single-viewport-liveprocess-20261111, fix/scarlet-v46-guard-provisional-guest-geometry-20261111, fix/scarlet-v47-resident-inplace-guest-switch-20261111, fix/scarlet-v48-guest-runtime-recovery-20261111, fix/scarlet-v48-restored-20261111, fix/scarlet-v48-r2-unified-switcher-20261111, fix/scarlet-v48-r3-original-pan-diagnostics-20261111, fix/scarlet-v48-r4-native-outside-remote-insets-20261111, fix/scarlet-v48-r5-attached-insets-shield-20261111, fix/scarlet-v48-r5-crash-recovery-20261111, fix/scarlet-v48-r5-recovery-r2-host-owner-20261111, fix/scarlet-v48-r5-recovery-r3-scene-authority-20261111, fix/scarlet-v48-r5-recovery-r4-native-ready-20261111, fix/scarlet-v48-r5-recovery-r5-compat-foreground-20261111, fix/scarlet-v48-r6-island-outside-audio-20261111, fix/scarlet-v48-r6p1-audio-home-focus-20261111, fix/scarlet-v48-r6p2-blocked-history-20261111, fix/scarlet-v48-r6p3-home-audio-gate-20261111, fix/scarlet-v48-r6p4-guest-audio-ack-20261112, fix/scarlet-v48-r6p7-launch-policy-rootcause-20261112, fix/scarlet-v48-r6p8-policy-field-relay-20261112, fix/scarlet-v48-r6p9-deferred-scene-boot-20261112, fix/scarlet-v48-r6p10-persistent-remediation-ledger-20261112, fix/scarlet-v48-r6p11-resident-guest-sdk-contract-20261112, fix/scarlet-v48-r6p12-instant-recent-switcher-20261112, fix/scarlet-v48-r6p14-switcher-reset-on-navigation-20261112, fix/scarlet-v48-r6p15-guest-root-island-pairing-recovery-20261112, fix/scarlet-v48-r6p16-audit-coverage-20261112, fix/scarlet-v48-r6p17-resident-optin-defaults-20261112, fix/scarlet-v48-r6p18-guest-content-geometry-20261112, fix/scarlet-v48-r6p19-entitlement-failclosed-network-recovery-20261112, fix/scarlet-v48-r6p20-auth-session-bg-id-20261112, fix/scarlet-v48-r6p21-depth-probe-cert-recheck-20261112, fix/scarlet-v48-r6p22-guest-scroll-content-inset-20261112, fix/scarlet-v48-r6p23-guest-owner-refresh-stage-20261112, fix/scarlet-v48-r6p24-keyboard-stage-relay-20261112, fix/scarlet-v48-r6p25-visibility-occlusion-20261112, fix/scarlet-v48-r6p26-recorder-field-contract-20261112, fix/scarlet-v48-r6p27-visible-scroll-owner-20261112, fix/scarlet-v48-r6p28-guest-local-scroll-inset-20261112, fix/scarlet-v48-r6p29-residual-auto-inset-20261112, fix/scarlet-v48-r6p30-inset-interference-isolation-20261112, fix/scarlet-v48-r6p31-nonvertical-always-safearea-20261112, fix/scarlet-v48-r6p32-nonscrolling-owner-stabilization-20261112, fix/scarlet-v48-r6p33-deferred-inset-anchor-20261112, fix/scarlet-v48-r6p34-constraint-native-error-proof-20261112, fix/scarlet-v48-r6p35-ancestor-layout-owner-20261112, fix/scarlet-v48-r6p36-lost-guest-probe-readback-20261112, fix/scarlet-v48-r6p37-nested-header-safe-guide-anchor-20261112, fix/scarlet-v48-r6p38-header-layout-owner-20261113, fix/scarlet-v48-r6p39-parent-safe-guide-constraint-20261113, fix/scarlet-v48-r6p40-transparent-chrome-slot-20261113, fix/scarlet-v48-r6p41-adaptive-chrome-stickiness-20261113]",
+            "    paths:",
+            "      - \".github/workflows/scarlet-paired-engines-build.yml\"",
+            "      - \"rebuild/integration/**\""
+          ],
+          "after": [
+            "on:",
+            "  workflow_dispatch:",
+            "  push:",
+            "    branches: [rebuild/scarlet-from-zero-20261106, fix/scarlet-auth-status-rootcause-20261109, fix/scarlet-pr48-guest-overlay-no-resize-20261109, fix/scarlet-pr48-airpods-glass-guest-switch-v3-20261109, fix/scarlet-pr48-draggable-guest-tab-v4-20261109, fix/scarlet-pr48-v5-glass-drag-cert-recovery-20261109, fix/scarlet-pr48-v6-unified-cert-glass-20261109, fix/scarlet-pr48-v7-cert-jitless-unify-panel-rim-20261109, fix/scarlet-pr48-v8-flicker-certificate-menu-20261109, fix/scarlet-pr48-v9-single-glass-rim-20261109, fix/scarlet-pr48-v10-fixed-tab-cert-and-session-20261109, fix/scarlet-pr48-v11-module-settings-appid-20261109, fix/scarlet-pr48-v12-live-sessions-source-auto-refresh-20261109, fix/scarlet-pr48-v13-compact-settings-current-app-20261109, fix/scarlet-pr48-v14-guest-history-native-scenes-three-ids-20261109, fix/scarlet-pr48-v15-source-disclosure-icons-guest-handoff-20261109, fix/scarlet-pr48-v16-guest-switcher-icons-readback-20261110, fix/scarlet-v17-cold-switch-rotation-20261110, fix/scarlet-v18-refresh-diagnostics-native-glass-20261110, fix/scarlet-v19-active-session-switcher-20261110, fix/scarlet-v20-guest-switcher-trace-20261110, fix/scarlet-v21-hook-telemetry-persistence-20261110, fix/scarlet-v22-runtime-guest-identity-20261110, fix/scarlet-v23-session-only-switcher-20261110, fix/scarlet-v24-refresh-lifecycle-switch-receipt-20261110, fix/scarlet-v25-single-panel-outside-dismiss-20261110, fix/scarlet-v26-liquidglass-button-to-fixed-panel-morph-20261110, fix/scarlet-v27-sidestore-direct-native-refresh-20261110, fix/scarlet-v28-minimuxer-readiness-recovery-20261110, fix/scarlet-v29-inapp-rppairing-20261110, fix/scarlet-v30-restore-sidestore-active-team-20261110, fix/scarlet-v31-pairing-persistence-sheet-purple-20261110, fix/scarlet-v32-korean-copy-20261110, fix/scarlet-v33-log-rootcause-20261110, fix/scarlet-v34-iphone-virtual-resident-20261110, fix/scarlet-v35-restore-original-fullscreen-20261110, fix/scarlet-v36-remove-legacy-ui-20261110, fix/scarlet-v37-session-refresh-20261110, fix/scarlet-v38-current-launch-logs-20261110, fix/scarlet-v39-log-truth-20261110, fix/scarlet-v40-clean-work-session-20261110, fix/scarlet-v42-v40-safe-diagnostics-20261110, fix/scarlet-v43-install-rootcause-20261110, fix/scarlet-v44-rppairing-postsign-install-20261111, fix/scarlet-v45-single-viewport-liveprocess-20261111, fix/scarlet-v46-guard-provisional-guest-geometry-20261111, fix/scarlet-v47-resident-inplace-guest-switch-20261111, fix/scarlet-v48-guest-runtime-recovery-20261111, fix/scarlet-v48-restored-20261111, fix/scarlet-v48-r2-unified-switcher-20261111, fix/scarlet-v48-r3-original-pan-diagnostics-20261111, fix/scarlet-v48-r4-native-outside-remote-insets-20261111, fix/scarlet-v48-r5-attached-insets-shield-20261111, fix/scarlet-v48-r5-crash-recovery-20261111, fix/scarlet-v48-r5-recovery-r2-host-owner-20261111, fix/scarlet-v48-r5-recovery-r3-scene-authority-20261111, fix/scarlet-v48-r5-recovery-r4-native-ready-20261111, fix/scarlet-v48-r5-recovery-r5-compat-foreground-20261111, fix/scarlet-v48-r6-island-outside-audio-20261111, fix/scarlet-v48-r6p1-audio-home-focus-20261111, fix/scarlet-v48-r6p2-blocked-history-20261111, fix/scarlet-v48-r6p3-home-audio-gate-20261111, fix/scarlet-v48-r6p4-guest-audio-ack-20261112, fix/scarlet-v48-r6p7-launch-policy-rootcause-20261112, fix/scarlet-v48-r6p8-policy-field-relay-20261112, fix/scarlet-v48-r6p9-deferred-scene-boot-20261112, fix/scarlet-v48-r6p10-persistent-remediation-ledger-20261112, fix/scarlet-v48-r6p11-resident-guest-sdk-contract-20261112, fix/scarlet-v48-r6p12-instant-recent-switcher-20261112, fix/scarlet-v48-r6p14-switcher-reset-on-navigation-20261112, fix/scarlet-v48-r6p15-guest-root-island-pairing-recovery-20261112, fix/scarlet-v48-r6p16-audit-coverage-20261112, fix/scarlet-v48-r6p17-resident-optin-defaults-20261112, fix/scarlet-v48-r6p18-guest-content-geometry-20261112, fix/scarlet-v48-r6p19-entitlement-failclosed-network-recovery-20261112, fix/scarlet-v48-r6p20-auth-session-bg-id-20261112, fix/scarlet-v48-r6p21-depth-probe-cert-recheck-20261112, fix/scarlet-v48-r6p22-guest-scroll-content-inset-20261112, fix/scarlet-v48-r6p23-guest-owner-refresh-stage-20261112, fix/scarlet-v48-r6p24-keyboard-stage-relay-20261112, fix/scarlet-v48-r6p25-visibility-occlusion-20261112, fix/scarlet-v48-r6p26-recorder-field-contract-20261112, fix/scarlet-v48-r6p27-visible-scroll-owner-20261112, fix/scarlet-v48-r6p28-guest-local-scroll-inset-20261112, fix/scarlet-v48-r6p29-residual-auto-inset-20261112, fix/scarlet-v48-r6p30-inset-interference-isolation-20261112, fix/scarlet-v48-r6p31-nonvertical-always-safearea-20261112, fix/scarlet-v48-r6p32-nonscrolling-owner-stabilization-20261112, fix/scarlet-v48-r6p33-deferred-inset-anchor-20261112, fix/scarlet-v48-r6p34-constraint-native-error-proof-20261112, fix/scarlet-v48-r6p35-ancestor-layout-owner-20261112, fix/scarlet-v48-r6p36-lost-guest-probe-readback-20261112, fix/scarlet-v48-r6p37-nested-header-safe-guide-anchor-20261112, fix/scarlet-v48-r6p38-header-layout-owner-20261113, fix/scarlet-v48-r6p39-parent-safe-guide-constraint-20261113, fix/scarlet-v48-r6p40-transparent-chrome-slot-20261113, fix/scarlet-v48-r6p41-adaptive-chrome-stickiness-20261113, fix/scarlet-v48-r6p42-guest-matched-status-chrome-20261113]",
+            "    paths:",
+            "      - \".github/workflows/scarlet-paired-engines-build.yml\"",
+            "      - \"rebuild/integration/**\""
+          ],
+          "commit": "66ce18bf6bb631271dea1c544f6b3e0a1e6d4584"
+        },
+        {
+          "file": ".github/workflows/scarlet-paired-engines-build.yml",
+          "function": "scarlet-paired-engines-build.yml",
+          "location": "@@ -305,7 +305,7 @@ jobs:\n",
+          "before": [
+            "  # A Release asset in this public repo has a stable public download URL.",
+            "  publish-unsigned-github-release:",
+            "    needs: [package-paired]",
+            "    if: github.event_name == 'push' && (github.ref == 'refs/heads/rebuild/scarlet-from-zero-20261106' || github.ref == 'refs/heads/fix/scarlet-v31-pairing-persistence-sheet-purple-20261110' || github.ref == 'refs/heads/fix/scarlet-v32-korean-copy-20261110' || github.ref == 'refs/heads/fix/scarlet-v33-log-rootcause-20261110' || github.ref == 'refs/heads/fix/scarlet-v34-iphone-virtual-resident-20261110' || github.ref == 'refs/heads/fix/scarlet-v35-restore-original-fullscreen-20261110' || github.ref == 'refs/heads/fix/scarlet-v36-remove-legacy-ui-20261110' || github.ref == 'refs/heads/fix/scarlet-v37-session-refresh-20261110' || github.ref == 'refs/heads/fix/scarlet-v38-current-launch-logs-20261110' || github.ref == 'refs/heads/fix/scarlet-v39-log-truth-20261110' || github.ref == 'refs/heads/fix/scarlet-v40-clean-work-session-20261110' || github.ref == 'refs/heads/fix/scarlet-v42-v40-safe-diagnostics-20261110' || github.ref == 'refs/heads/fix/scarlet-v43-install-rootcause-20261110' || github.ref == 'refs/heads/fix/scarlet-v44-rppairing-postsign-install-20261111' || github.ref == 'refs/heads/fix/scarlet-v45-single-viewport-liveprocess-20261111' || github.ref == 'refs/heads/fix/scarlet-v46-guard-provisional-guest-geometry-20261111' || github.ref == 'refs/heads/fix/scarlet-v47-resident-inplace-guest-switch-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-guest-runtime-recovery-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-restored-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r2-unified-switcher-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r3-original-pan-diagnostics-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r4-native-outside-remote-insets-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r5-attached-insets-shield-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r5-crash-recovery-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r5-recovery-r2-host-owner-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r5-recovery-r3-scene-authority-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r5-recovery-r4-native-ready-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r5-recovery-r5-compat-foreground-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r6-island-outside-audio-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r6p1-audio-home-focus-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r6p2-blocked-history-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r6p3-home-audio-gate-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r6p4-guest-audio-ack-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p7-launch-policy-rootcause-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p8-policy-field-relay-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p9-deferred-scene-boot-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p10-persistent-remediation-ledger-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p11-resident-guest-sdk-contract-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p12-instant-recent-switcher-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p14-switcher-reset-on-navigation-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p15-guest-root-island-pairing-recovery-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p16-audit-coverage-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p17-resident-optin-defaults-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p18-guest-content-geometry-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p19-entitlement-failclosed-network-recovery-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p20-auth-session-bg-id-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p21-depth-probe-cert-recheck-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p22-guest-scroll-content-inset-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p23-guest-owner-refresh-stage-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p24-keyboard-stage-relay-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p25-visibility-occlusion-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p26-recorder-field-contract-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p27-visible-scroll-owner-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p28-guest-local-scroll-inset-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p29-residual-auto-inset-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p30-inset-interference-isolation-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p31-nonvertical-always-safearea-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p32-nonscrolling-owner-stabilization-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p33-deferred-inset-anchor-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p34-constraint-native-error-proof-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p35-ancestor-layout-owner-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p36-lost-guest-probe-readback-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p37-nested-header-safe-guide-anchor-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p38-header-layout-owner-20261113' || github.ref == 'refs/heads/fix/scarlet-v48-r6p39-parent-safe-guide-constraint-20261113' || github.ref == 'refs/heads/fix/scarlet-v48-r6p40-transparent-chrome-slot-20261113' || github.ref == 'refs/heads/fix/scarlet-v48-r6p41-adaptive-chrome-stickiness-20261113')",
+            "    runs-on: ubuntu-24.04",
+            "    timeout-minutes: 10",
+            "    permissions:"
+          ],
+          "after": [
+            "  # A Release asset in this public repo has a stable public download URL.",
+            "  publish-unsigned-github-release:",
+            "    needs: [package-paired]",
+            "    if: github.event_name == 'push' && (github.ref == 'refs/heads/rebuild/scarlet-from-zero-20261106' || github.ref == 'refs/heads/fix/scarlet-v31-pairing-persistence-sheet-purple-20261110' || github.ref == 'refs/heads/fix/scarlet-v32-korean-copy-20261110' || github.ref == 'refs/heads/fix/scarlet-v33-log-rootcause-20261110' || github.ref == 'refs/heads/fix/scarlet-v34-iphone-virtual-resident-20261110' || github.ref == 'refs/heads/fix/scarlet-v35-restore-original-fullscreen-20261110' || github.ref == 'refs/heads/fix/scarlet-v36-remove-legacy-ui-20261110' || github.ref == 'refs/heads/fix/scarlet-v37-session-refresh-20261110' || github.ref == 'refs/heads/fix/scarlet-v38-current-launch-logs-20261110' || github.ref == 'refs/heads/fix/scarlet-v39-log-truth-20261110' || github.ref == 'refs/heads/fix/scarlet-v40-clean-work-session-20261110' || github.ref == 'refs/heads/fix/scarlet-v42-v40-safe-diagnostics-20261110' || github.ref == 'refs/heads/fix/scarlet-v43-install-rootcause-20261110' || github.ref == 'refs/heads/fix/scarlet-v44-rppairing-postsign-install-20261111' || github.ref == 'refs/heads/fix/scarlet-v45-single-viewport-liveprocess-20261111' || github.ref == 'refs/heads/fix/scarlet-v46-guard-provisional-guest-geometry-20261111' || github.ref == 'refs/heads/fix/scarlet-v47-resident-inplace-guest-switch-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-guest-runtime-recovery-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-restored-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r2-unified-switcher-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r3-original-pan-diagnostics-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r4-native-outside-remote-insets-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r5-attached-insets-shield-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r5-crash-recovery-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r5-recovery-r2-host-owner-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r5-recovery-r3-scene-authority-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r5-recovery-r4-native-ready-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r5-recovery-r5-compat-foreground-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r6-island-outside-audio-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r6p1-audio-home-focus-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r6p2-blocked-history-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r6p3-home-audio-gate-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r6p4-guest-audio-ack-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p7-launch-policy-rootcause-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p8-policy-field-relay-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p9-deferred-scene-boot-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p10-persistent-remediation-ledger-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p11-resident-guest-sdk-contract-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p12-instant-recent-switcher-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p14-switcher-reset-on-navigation-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p15-guest-root-island-pairing-recovery-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p16-audit-coverage-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p17-resident-optin-defaults-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p18-guest-content-geometry-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p19-entitlement-failclosed-network-recovery-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p20-auth-session-bg-id-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p21-depth-probe-cert-recheck-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p22-guest-scroll-content-inset-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p23-guest-owner-refresh-stage-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p24-keyboard-stage-relay-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p25-visibility-occlusion-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p26-recorder-field-contract-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p27-visible-scroll-owner-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p28-guest-local-scroll-inset-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p29-residual-auto-inset-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p30-inset-interference-isolation-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p31-nonvertical-always-safearea-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p32-nonscrolling-owner-stabilization-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p33-deferred-inset-anchor-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p34-constraint-native-error-proof-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p35-ancestor-layout-owner-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p36-lost-guest-probe-readback-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p37-nested-header-safe-guide-anchor-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p38-header-layout-owner-20261113' || github.ref == 'refs/heads/fix/scarlet-v48-r6p39-parent-safe-guide-constraint-20261113' || github.ref == 'refs/heads/fix/scarlet-v48-r6p40-transparent-chrome-slot-20261113' || github.ref == 'refs/heads/fix/scarlet-v48-r6p41-adaptive-chrome-stickiness-20261113' || github.ref == 'refs/heads/fix/scarlet-v48-r6p42-guest-matched-status-chrome-20261113')",
+            "    runs-on: ubuntu-24.04",
+            "    timeout-minutes: 10",
+            "    permissions:"
+          ],
+          "commit": "66ce18bf6bb631271dea1c544f6b3e0a1e6d4584"
+        },
+        {
+          "file": ".github/workflows/scarlet-paired-engines-build.yml",
+          "function": "scarlet-paired-engines-build.yml",
+          "location": "@@ -334,7 +334,9 @@ jobs:\n",
+          "before": [
+            "              assert any(p.endswith(\"LiveProcess.appex/Info.plist\") for p in paths), \"Missing LiveProcess\"",
+            "          print(\"[PASS] Public IPA ZIP structure; Apple signature not verified\")",
+            "          PY",
+            "          if [ \"$GITHUB_REF\" = \"refs/heads/fix/scarlet-v48-r6p41-adaptive-chrome-stickiness-20261113\" ]; then",
+            "            asset=\"Scarlet-Crystal-V48-R6P41-ADAPTIVE-CHROME-UNSIGNED.ipa\"",
+            "          elif [ \"$GITHUB_REF\" = \"refs/heads/fix/scarlet-v48-r6p40-transparent-chrome-slot-20261113\" ]; then",
+            "            asset=\"Scarlet-Crystal-V48-R6P40-TRANSPARENT-CHROME-UNSIGNED.ipa\""
+          ],
+          "after": [
+            "              assert any(p.endswith(\"LiveProcess.appex/Info.plist\") for p in paths), \"Missing LiveProcess\"",
+            "          print(\"[PASS] Public IPA ZIP structure; Apple signature not verified\")",
+            "          PY",
+            "          if [ \"$GITHUB_REF\" = \"refs/heads/fix/scarlet-v48-r6p42-guest-matched-status-chrome-20261113\" ]; then",
+            "            asset=\"Scarlet-Crystal-V48-R6P42-MATCHED-CHROME-UNSIGNED.ipa\"",
+            "          elif [ \"$GITHUB_REF\" = \"refs/heads/fix/scarlet-v48-r6p41-adaptive-chrome-stickiness-20261113\" ]; then",
+            "            asset=\"Scarlet-Crystal-V48-R6P41-ADAPTIVE-CHROME-UNSIGNED.ipa\"",
+            "          elif [ \"$GITHUB_REF\" = \"refs/heads/fix/scarlet-v48-r6p40-transparent-chrome-slot-20261113\" ]; then",
+            "            asset=\"Scarlet-Crystal-V48-R6P40-TRANSPARENT-CHROME-UNSIGNED.ipa\""
+          ],
+          "commit": "66ce18bf6bb631271dea1c544f6b3e0a1e6d4584"
+        },
+        {
+          "file": ".github/workflows/scarlet-paired-engines-build.yml",
+          "function": "scarlet-paired-engines-build.yml",
+          "location": "@@ -490,7 +492,10 @@ jobs:\n",
+          "before": [
+            "          GH_TOKEN: ${{ github.token }}",
+            "        run: |",
+            "          set -Eeuo pipefail",
+            "          if [ \"$GITHUB_REF\" = \"refs/heads/fix/scarlet-v48-r6p41-adaptive-chrome-stickiness-20261113\" ]; then",
+            "            tag=scarlet-v48-r6p41-adaptive-chrome-unsigned-20261113",
+            "            asset=Scarlet-Crystal-V48-R6P41-ADAPTIVE-CHROME-UNSIGNED.ipa",
+            "          elif [ \"$GITHUB_REF\" = \"refs/heads/fix/scarlet-v48-r6p40-transparent-chrome-slot-20261113\" ]; then"
+          ],
+          "after": [
+            "          GH_TOKEN: ${{ github.token }}",
+            "        run: |",
+            "          set -Eeuo pipefail",
+            "          if [ \"$GITHUB_REF\" = \"refs/heads/fix/scarlet-v48-r6p42-guest-matched-status-chrome-20261113\" ]; then",
+            "            tag=scarlet-v48-r6p42-matched-chrome-unsigned-20261113",
+            "            asset=Scarlet-Crystal-V48-R6P42-MATCHED-CHROME-UNSIGNED.ipa",
+            "          elif [ \"$GITHUB_REF\" = \"refs/heads/fix/scarlet-v48-r6p41-adaptive-chrome-stickiness-20261113\" ]; then",
+            "            tag=scarlet-v48-r6p41-adaptive-chrome-unsigned-20261113",
+            "            asset=Scarlet-Crystal-V48-R6P41-ADAPTIVE-CHROME-UNSIGNED.ipa",
+            "          elif [ \"$GITHUB_REF\" = \"refs/heads/fix/scarlet-v48-r6p40-transparent-chrome-slot-20261113\" ]; then"
+          ],
+          "commit": "66ce18bf6bb631271dea1c544f6b3e0a1e6d4584"
+        },
+        {
+          "file": "rebuild/HostApp/ScarletDiagnosticRecorder.swift",
+          "function": "ScarletDiagnosticRecorder.swift",
+          "location": "@@ -72,6 +72,7 @@ final class ScarletDiagnosticRecorder: @unchecked Sendable {\n",
+          "before": [
+            "        \"slot_top_pt\", \"slot_y_pt\", \"slot_height_pt\",",
+            "        \"host_width_pt\", \"host_height_pt\", \"scale_milli\", \"chrome_touches\",",
+            "        \"remote_content_height_pt\", \"hosting_safe_top_pt\",",
+            "        \"root_safe_top_pt\", \"root_frame_y\", \"root_guide_y\", \"visited\",",
+            "        \"candidate_controls\", \"top_controls\", \"unsafe_controls\",",
+            "        \"first_top_control_y\", \"first_unsafe_control_y\","
+          ],
+          "after": [
+            "        \"slot_top_pt\", \"slot_y_pt\", \"slot_height_pt\",",
+            "        \"host_width_pt\", \"host_height_pt\", \"scale_milli\", \"chrome_touches\",",
+            "        \"remote_content_height_pt\", \"hosting_safe_top_pt\",",
+            "        \"chrome_dark_status_text\", \"status_style_raw\",",
+            "        \"root_safe_top_pt\", \"root_frame_y\", \"root_guide_y\", \"visited\",",
+            "        \"candidate_controls\", \"top_controls\", \"unsafe_controls\",",
+            "        \"first_top_control_y\", \"first_unsafe_control_y\","
+          ],
+          "commit": "66ce18bf6bb631271dea1c544f6b3e0a1e6d4584"
+        },
+        {
+          "file": "rebuild/HostApp/ScarletFullscreenSceneStack.swift",
+          "function": "ScarletFullscreenSceneStack.swift",
+          "location": "@@ -1208,6 +1208,51 @@ final class ScarletFullscreenSceneViewport: UIViewController {\n",
+          "before": [
+            "    private let transparentChrome = UIView(frame: .zero)",
+            "    private var chromeEligiblePIDs: Set<Int32> = []",
+            "    private var lastChromeTop: CGFloat = -1",
+            "",
+            "    private func chromeTop(in scene: UIWindowScene) -> CGFloat {",
+            "        guard scene.interfaceOrientation.isPortrait else { return 0 }"
+          ],
+          "after": [
+            "    private let transparentChrome = UIView(frame: .zero)",
+            "    private var chromeEligiblePIDs: Set<Int32> = []",
+            "    private var lastChromeTop: CGFloat = -1",
+            "    private var chromeAppearanceIsLight: Bool?",
+            "    private var chromeStatusBarPreference: UIStatusBarStyle = .default",
+            "",
+            "    override var preferredStatusBarStyle: UIStatusBarStyle {",
+            "        chromeStatusBarPreference",
+            "    }",
+            "",
+            "    // R6P42: a UIView with .clear over a .black host produces the black",
+            "    // 62pt status band seen on signed P40. Preserve the transparent",
+            "    // non-touch layout, but match the guest's native light/dark scene",
+            "    // background behind it. Do not duplicate, crop or snapshot app pixels.",
+            "    private func applyNativeChromeAppearance(",
+            "        for guest: AppSceneViewController, scene: UIWindowScene) {",
+            "        let style = guest.contentView?.traitCollection.userInterfaceStyle",
+            "            ?? guest.traitCollection.userInterfaceStyle",
+            "        let isLight = style != .dark",
+            "        guard chromeAppearanceIsLight != isLight else { return }",
+            "        chromeAppearanceIsLight = isLight",
+            "        // UIKit's system background is white in a light guest, black in",
+            "        // dark mode; explicit resolved colors avoid inheriting a dark HOST",
+            "        // trait for a guest which has opted into light appearance.",
+            "        view.backgroundColor = isLight ? .white : .black",
+            "        chromeStatusBarPreference = isLight ? .darkContent : .lightContent",
+            "        setNeedsStatusBarAppearanceUpdate()",
+            "        view.window?.rootViewController?.setNeedsStatusBarAppearanceUpdate()",
+            "        ScarletDiagnosticRecorder.shared.record(",
+            "            \"layout\", \"guest_chrome_appearance_applied\",",
+            "            fields: [\"process_pid\": String(guest.pid),",
+            "                     \"result\": isLight ? \"light_guest_backdrop\"",
+            "                                         : \"dark_guest_backdrop\",",
+            "                     \"chrome_dark_status_text\": isLight ? \"true\" : \"false\",",
+            "                     \"slot_top_pt\": String(Int(chromeTop(in: scene)))])",
+            "        DispatchQueue.main.async { [weak self, weak scene] in",
+            "            guard let self, self.view.window?.windowScene === scene else {",
+            "                return",
+            "            }",
+            "            let current = scene?.statusBarManager?.statusBarStyle.rawValue ?? -1",
+            "            ScarletDiagnosticRecorder.shared.record(",
+            "                \"layout\", \"guest_chrome_status_style_readback\",",
+            "                fields: [\"result\": \"uikit_status_bar_observed\",",
+            "                         \"status_style_raw\": String(Int(current)),",
+            "                         \"chrome_dark_status_text\": self.chromeAppearanceIsLight == true",
+            "                             ? \"true\" : \"false\"])",
+            "        }",
+            "    }",
+            "",
+            "    private func chromeTop(in scene: UIWindowScene) -> CGFloat {",
+            "        guard scene.interfaceOrientation.isPortrait else { return 0 }"
+          ],
+          "commit": "66ce18bf6bb631271dea1c544f6b3e0a1e6d4584"
+        },
+        {
+          "file": "rebuild/HostApp/ScarletFullscreenSceneStack.swift",
+          "function": "ScarletFullscreenSceneStack.swift",
+          "location": "@@ -1264,6 +1309,10 @@ final class ScarletFullscreenSceneViewport: UIViewController {\n",
+          "before": [
+            "            chromeEligiblePIDs.contains($0)",
+            "        } == true",
+            "        let top = active ? chromeTop(in: scene) : 0",
+            "        transparentChrome.frame = CGRect(x: 0,y: 0,",
+            "                                         width: view.bounds.width,height: top)",
+            "        transparentChrome.isHidden = top < 1"
+          ],
+          "after": [
+            "            chromeEligiblePIDs.contains($0)",
+            "        } == true",
+            "        let top = active ? chromeTop(in: scene) : 0",
+            "        if top > 0, let id = stack?.activeID,",
+            "           let guest = controllers[id] {",
+            "            applyNativeChromeAppearance(for: guest, scene: scene)",
+            "        }",
+            "        transparentChrome.frame = CGRect(x: 0,y: 0,",
+            "                                         width: view.bounds.width,height: top)",
+            "        transparentChrome.isHidden = top < 1"
+          ],
+          "commit": "66ce18bf6bb631271dea1c544f6b3e0a1e6d4584"
+        },
+        {
+          "file": "rebuild/HostApp/ScarletFullscreenSceneStack.swift",
+          "function": "ScarletFullscreenSceneStack.swift",
+          "location": "@@ -1487,7 +1536,9 @@ final class ScarletFullscreenSceneViewport: UIViewController {\n",
+          "before": [
+            "",
+            "    override func viewDidLoad() {",
+            "        super.viewDidLoad()",
+            "        view.backgroundColor = .black",
+            "        view.clipsToBounds = false",
+            "        transparentChrome.backgroundColor = .clear",
+            "        transparentChrome.isUserInteractionEnabled = false"
+          ],
+          "after": [
+            "",
+            "    override func viewDidLoad() {",
+            "        super.viewDidLoad()",
+            "        // R6P42: never expose a forced black background through a clear",
+            "        // chrome slot while the remote app uses a light interface.",
+            "        view.backgroundColor = .systemBackground",
+            "        view.clipsToBounds = false",
+            "        transparentChrome.backgroundColor = .clear",
+            "        transparentChrome.isUserInteractionEnabled = false"
+          ],
+          "commit": "66ce18bf6bb631271dea1c544f6b3e0a1e6d4584"
+        },
+        {
+          "file": "rebuild/Tests/test_v48_r6p42_native_chrome_appearance.py",
+          "function": "test_v48_r6p42_native_chrome_appearance.py",
+          "location": "@@ -0,0 +1,50 @@\n",
+          "before": [],
+          "after": [
+            "\"\"\"P42 user screenshot: clear chrome must not reveal fixed black host.\"\"\"",
+            "from pathlib import Path",
+            "import unittest",
+            "ROOT=Path(__file__).resolve().parents[1]",
+            "HOST=(ROOT/'HostApp/ScarletFullscreenSceneStack.swift').read_text()",
+            "REC=(ROOT/'HostApp/ScarletDiagnosticRecorder.swift').read_text()",
+            "WORKFLOW=(ROOT.parent/'.github/workflows/scarlet-paired-engines-build.yml').read_text()",
+            "",
+            "class MatchedStatusChrome(unittest.TestCase):",
+            "    def test_no_black_host_under_clear_native_chrome(self):",
+            "        start=HOST.index('override func viewDidLoad()')",
+            "        end=HOST.index('@objc private func onHostAppBecameActive()',start)",
+            "        body=HOST[start:end]",
+            "        self.assertIn('view.backgroundColor = .systemBackground',body)",
+            "        self.assertNotIn('view.backgroundColor = .black',body)",
+            "        self.assertIn('transparentChrome.backgroundColor = .clear',body)",
+            "        self.assertIn('transparentChrome.isUserInteractionEnabled = false',body)",
+            "        self.assertIn('transparentChrome.isAccessibilityElement = false',body)",
+            "    def test_guest_theme_controls_backdrop_and_status_bar_text(self):",
+            "        helper=HOST.split('private func applyNativeChromeAppearance(',1)[1].split('private func chromeTop(',1)[0]",
+            "        for expected in (",
+            "            'guest.contentView?.traitCollection.userInterfaceStyle',",
+            "            'guest.traitCollection.userInterfaceStyle',",
+            "            'style != .dark',",
+            "            'view.backgroundColor = isLight ? .white : .black',",
+            "            'chromeStatusBarPreference = isLight ? .darkContent : .lightContent',",
+            "            'setNeedsStatusBarAppearanceUpdate()',",
+            "            'view.window?.rootViewController?.setNeedsStatusBarAppearanceUpdate()',",
+            "            'guest_chrome_appearance_applied',",
+            "            'guest_chrome_status_style_readback',",
+            "            'scene?.statusBarManager?.statusBarStyle.rawValue'):",
+            "            self.assertIn(expected,helper,expected)",
+            "        self.assertIn('override var preferredStatusBarStyle: UIStatusBarStyle',HOST)",
+            "    def test_only_active_reserved_guest_sets_opaque_native_chrome_backdrop(self):",
+            "        helper=HOST.split('private func updateNativeChromeSlots(',1)[1].split('private func onUnsafeGuestControls(',1)[0]",
+            "        self.assertIn('let top = active ? chromeTop(in: scene) : 0',helper)",
+            "        self.assertIn('if top > 0, let id = stack?.activeID,',helper)",
+            "        self.assertIn('applyNativeChromeAppearance(for: guest, scene: scene)',helper)",
+            "        self.assertNotIn('view.frame =',HOST.split('private func applyNativeChromeAppearance(',1)[1].split('private func chromeTop(',1)[0])",
+            "        self.assertNotIn('setFrame(',HOST.split('private func applyNativeChromeAppearance(',1)[1].split('private func chromeTop(',1)[0])",
+            "    def test_private_data_not_logged_and_apparently_correct_controls_present(self):",
+            "        for field in ('\"chrome_dark_status_text\"','\"status_style_raw\"'):",
+            "            self.assertIn(field,REC)",
+            "        helper=HOST.split('private func applyNativeChromeAppearance(',1)[1].split('private func chromeTop(',1)[0]",
+            "        for forbidden in ('bundleIdentifier','bundleID','accessibilityLabel','screenSnapshot','UIImageJPEGRepresentation','guest.title'):",
+            "            self.assertNotIn(forbidden,helper)",
+            "        self.assertIn('scarlet-v48-r6p42-matched-chrome-unsigned-20261113',WORKFLOW)",
+            "        self.assertIn('Scarlet-Crystal-V48-R6P42-MATCHED-CHROME-UNSIGNED.ipa',WORKFLOW)",
+            "",
+            "if __name__=='__main__': unittest.main()"
+          ],
+          "commit": "66ce18bf6bb631271dea1c544f6b3e0a1e6d4584"
+        }
+      ],
+      "generated_runtime_targets": [
+        {
+          "source_template": "rebuild/HostApp/ScarletFullscreenSceneStack.swift",
+          "generated_file": "rebuild/HostApp/ScarletFullscreenSceneStack.swift",
+          "source_generation_script": "rebuild/integration/apply_scarlet_host.py",
+          "function": "ScarletFullscreenSceneViewport.applyNativeChromeAppearance",
+          "note": "Host UIKit rendering background and preferred status bar style only; guest FBScene geometry remains P41 PID-conditional and no extra transparent overlay window."
         }
       ]
     }
