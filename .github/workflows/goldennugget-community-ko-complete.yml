@@ -1,0 +1,181 @@
+name: GoldenNugget Community Korean Complete IPA
+
+on:
+  push:
+    branches:
+      - build/goldennugget-community-ko-complete-20261114
+    paths:
+      - .github/workflows/goldennugget-community-ko-complete.yml
+      - tools/goldennugget/**
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: xcode-27
+    timeout-minutes: 90
+    steps:
+      - name: Checkout isolated build inputs
+        uses: actions/checkout@v4
+
+      - name: Checkout pinned GoldenNugget Mobile upstream
+        shell: bash
+        run: |
+          set -euo pipefail
+          git clone --filter=blob:none https://github.com/GoldenNugget-Team/GoldenNugget-mobile.git "$RUNNER_TEMP/gn"
+          cd "$RUNNER_TEMP/gn"
+          git checkout --detach e4be86f050f4980ccc58de3b74f9de58b070b705
+          git rev-parse HEAD
+
+      - name: Apply MBErrorDomain/105 actual-volume correction
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/gn"
+          git apply --check "$GITHUB_WORKSPACE/tools/goldennugget/mb105.patch"
+          git apply "$GITHUB_WORKSPACE/tools/goldennugget/mb105.patch"
+          git apply --check "$GITHUB_WORKSPACE/tools/goldennugget/tweak-ui-localize.patch"
+          git apply "$GITHUB_WORKSPACE/tools/goldennugget/tweak-ui-localize.patch"
+          git apply --check "$GITHUB_WORKSPACE/tools/goldennugget/ios27-skip-protective.patch"
+          git apply "$GITHUB_WORKSPACE/tools/goldennugget/ios27-skip-protective.patch"
+          git apply --check "$GITHUB_WORKSPACE/tools/goldennugget/findmy211-community-ko.patch"
+          git apply "$GITHUB_WORKSPACE/tools/goldennugget/findmy211-community-ko.patch"
+          git apply --check "$GITHUB_WORKSPACE/tools/goldennugget/community-remaining-ko.patch"
+          git apply "$GITHUB_WORKSPACE/tools/goldennugget/community-remaining-ko.patch"
+          git diff --check
+          grep -q 'BackupVolumeSpace.available(at: root)' Vendor/MinimuxerGateway/idevice/MobileBackup2Delegate.swift
+          if grep -A18 '^private func mb2_get_free_disk_space(' Vendor/MinimuxerGateway/idevice/MobileBackup2Delegate.swift | grep -q 'NSHomeDirectory()'; then
+            echo 'ERROR: old home-directory probe remains'; exit 1
+          fi
+
+      - name: Verify opt-in safety and iOS 27 SQLite bypass
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/gn"
+          python3 - <<'PY'
+          from pathlib import Path
+          d=Path('Nugget/Core/DevSettings.swift').read_text()
+          e=Path('Nugget/Core/GoldenNuggetEngine.swift').read_text()
+          h=Path('Nugget/Core/HostManifests.swift').read_text()
+          u=Path('Nugget/Views/SettingsView.swift').read_text()
+          cases=[
+              ('opt-in defaults off', 'var skipProtectiveBackup = false' in d),
+              ('development gate', 'skipProtectiveBackup: enabled && skipProtectiveBackup' in d),
+              ('independent reset switch', 'Key.skipProtectiveBackup' in d.split('static let allKeys')[1].splitlines()[0]),
+              ('confirmed activation only', 'confirmUnsafeSkipBackup = true' in u and 'Button("위험을 감수하고 활성화"' in u),
+              ('native iOS27 SQLite database', 'CREATE TABLE Files (' in h and 'writeUnprotectedRestoreSQLite' in h),
+              ('bypass on apply and reset', e.count('try unprotectedIOS27Restore(udid: udid)') == 2),
+              ('normal backups remain', e.count('try await protectiveBackup(udid: udid)') == 2),
+              ('no pruning of synthesized empty backup', 'prune = !unsafeSkipBackup' in e),
+              ('PosterBoard preflight', 'Backup bypass cannot fetch it.' in e),
+          ]
+          for name,ok in cases: print(('PASS' if ok else 'FAIL'),name)
+          assert all(ok for _,ok in cases)
+          PY
+
+      - name: Verify Find My 211 and Korean community strings
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/gn"
+          python3 - <<'PY'
+          from pathlib import Path
+          gate=Path('Vendor/MinimuxerGateway/idevice/IdeviceGateway.swift').read_text()
+          fail=Path('Nugget/Core/TransportFailure.swift').read_text()
+          confirm=Path('Nugget/Views/ApplyConfirmSheet.swift').read_text()
+          community=Path('Nugget/Views/CommunityCatalogView.swift').read_text()
+          home=Path('Nugget/Views/GoldenNuggetView.swift').read_text()
+          cases=[
+              ('211-specific Korean error', 'if code == 211' in gate and '복원 차단(MBErrorDomain/211)' in gate),
+              ('no retry on rejection', '"mberrordomain/211"' in fail and 'case .deviceRejected:' in fail),
+              ('explicit user-side acknowledgement', 'findMyConfirmedOff' in confirm and '.disabled(!findMyConfirmedOff)' in confirm),
+              ('community title translated', '커뮤니티 카탈로그' in community),
+              ('known live template translated', 'springboard-for-ios-27-1-duo' in community and '아직 테스트하지 않았습니다' in community),
+              ('remote identifier and checksum unchanged', 'CommunityCatalog.download(url, limit:' in community),
+              ('reset description Korean', '기기의 선택한 설정 페이지를 기본값으로 초기화합니다' in home),
+              ('media button Korean', '"미디어 복원"' in home),
+          ]
+          for name,passed in cases:print(('PASS' if passed else 'FAIL'),name)
+          assert all(passed for _,passed in cases)
+          PY
+
+      - name: Verify community preview grouping and installed states
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/gn"
+          python3 - <<'PY'
+          from pathlib import Path
+          s=Path("Nugget/Views/CommunityCatalogView.swift").read_text()
+          ids=["Show Home Screen Search Button","Debug HUD","Visualize Touch Suppression",
+               "Require Fresh Touch (Cover Sheet)","Force All Apps to Support Limited Resizing",
+               "Display Dim Touch Suppression (All Surfaces)","Fallback Display Region Blanking Renderer",
+               "Show Hinge Angle HUD","Always Send Hinge Updates","Mock Charging State (StandBy)",
+               "Ambient Overlay Interactive Dismissal","Disable Auto Dim","Home Screen Wallpaper Dimming",
+               "External Display Mirroring","Sensitive UI","Ambient Extended Idle Timer"]
+          checks=[
+              ("16 translated labels",all('"'+v+'":' in s for v in ids)),
+              ("Korean category summary", "ForEach(CommunityCopyKorean.changedFiles(entry.writes))" in s),
+              ("render paths without modification","let path = String(item[delimiter.upperBound...])" in s),
+              ("installed does not imply applied","가져오기 완료 · 아직 기기에 적용된 것은 아님" in s),
+              ("no second install for installed", 'if status == "Installed"' in s),
+              ("16 detail translations", 'static func tweakDetail(id: String, fallback: String)' in s),
+          ]
+          for k,v in checks:print(("PASS" if v else "FAIL"),k)
+          assert all(v for _,v in checks)
+          PY
+
+      - name: Check available Xcode and SDK
+        shell: bash
+        run: |
+          set -euo pipefail
+          xcodebuild -version
+          xcrun --sdk iphoneos --show-sdk-version
+          cd "$RUNNER_TEMP/gn"
+          bash scripts/check-xcode-toolchain.sh
+
+      - name: Install XcodeGen 2.46
+        shell: bash
+        run: |
+          set -euo pipefail
+          dest="$RUNNER_TEMP/xcodegen"
+          mkdir -p "$dest"
+          curl --retry 3 -fsSL -o "$RUNNER_TEMP/xcodegen.zip" https://github.com/yonaskolb/XcodeGen/releases/download/2.46.0/xcodegen.zip
+          unzip -q "$RUNNER_TEMP/xcodegen.zip" -d "$dest"
+          echo "$dest/xcodegen/bin" >> "$GITHUB_PATH"
+
+      - name: Generate project
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/gn"
+          xcodegen --version
+          xcodegen generate
+
+      - name: Run protective backup regressions
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/gn"
+          python3 scripts/check-protective-filters.py
+
+      - name: Build unsigned IPA
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/gn"
+          ./scripts/build-ipa.sh Release --clean
+          unzip -t build/GoldenNuggetMobile.ipa | tail -3
+          shasum -a 256 build/GoldenNuggetMobile.ipa
+
+      - name: Upload IPA
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: GoldenNugget-9.7.5-Korean-Community-Duo-Final-unsigned
+          path: ${{ runner.temp }}/gn/build/GoldenNuggetMobile.ipa
+          if-no-files-found: error
+          retention-days: 30
