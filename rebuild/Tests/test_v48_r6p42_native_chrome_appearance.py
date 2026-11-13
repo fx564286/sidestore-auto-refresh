@@ -19,9 +19,8 @@ class MatchedStatusChrome(unittest.TestCase):
     def test_guest_theme_controls_backdrop_and_status_bar_text(self):
         helper=HOST.split('private func applyNativeChromeAppearance(',1)[1].split('private func chromeTop(',1)[0]
         for expected in (
-            'guest.contentView?.traitCollection.userInterfaceStyle',
-            'guest.traitCollection.userInterfaceStyle',
-            'style != .dark',
+            'let tone = chromeSurfaceToneByPID[guest.pid] ?? 0',
+            'let isLight = tone == 1',
             'view.backgroundColor = isLight ? .white : .black',
             'chromeStatusBarPreference = isLight ? .darkContent : .lightContent',
             'setNeedsStatusBarAppearanceUpdate()',
@@ -30,11 +29,12 @@ class MatchedStatusChrome(unittest.TestCase):
             'guest_chrome_status_style_readback',
             'scene?.statusBarManager?.statusBarStyle.rawValue'):
             self.assertIn(expected,helper,expected)
+        self.assertNotIn('traitCollection.userInterfaceStyle',helper)
         self.assertIn('override var preferredStatusBarStyle: UIStatusBarStyle',HOST)
     def test_only_active_reserved_guest_sets_opaque_native_chrome_backdrop(self):
         helper=HOST.split('private func updateNativeChromeSlots(',1)[1].split('private func onUnsafeGuestControls(',1)[0]
         self.assertIn('let top = active ? chromeTop(in: scene) : 0',helper)
-        self.assertIn('if top > 0, let id = stack?.activeID,',helper)
+        self.assertIn('if stack?.isVisible == true, let id = stack?.activeID,',helper)
         self.assertIn('applyNativeChromeAppearance(for: guest, scene: scene)',helper)
         self.assertNotIn('view.frame =',HOST.split('private func applyNativeChromeAppearance(',1)[1].split('private func chromeTop(',1)[0])
         self.assertNotIn('setFrame(',HOST.split('private func applyNativeChromeAppearance(',1)[1].split('private func chromeTop(',1)[0])

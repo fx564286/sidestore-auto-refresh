@@ -12,6 +12,7 @@
 static __weak UIWindow *scarletIslandLastWindow;
 static char scarletIslandRootAddedInsetKey;
 static char scarletIslandConfirmedChromeWindowKey;
+static char scarletIslandSurfaceToneMonitorKey;
 static char scarletIslandContentProbeKey;
 static char scarletIslandScrollScheduleKey;
 static char scarletIslandScrollInsetKey;
@@ -60,6 +61,77 @@ static void ScarletIslandReceipt(NSString *result, CGFloat required,
         @"result":result ?: @"unknown", @"target":@((int)round(required)),
         @"before":@((int)round(before)), @"after":@((int)round(after))});
 }
+
+
+// R6P43_GUEST_TONE_BEGIN
+// One bounded backgroundColor classification (~1 Hz) in the native
+// LiveProcess. A host remote view's inherited dark-mode trait is NOT the
+// app's own feed/reels appearance. Log categorical numbers only: no
+// snapshots, image pixels, content text, class names or coordinates.
+static NSInteger ScarletIslandOpaqueToneAtPoint(
+    UIView *view, UIWindow *window, CGPoint point,
+    NSUInteger depth, NSUInteger *budget) {
+    if(!view || !*budget || depth > 28 || view.hidden ||
+       view.alpha < 0.9 || view.window != window)
+        return 0;
+    --*budget;
+    CGPoint local=[view convertPoint:point fromView:window];
+    if(!CGRectContainsPoint(view.bounds,local)) return 0;
+    for(UIView *child in view.subviews.reverseObjectEnumerator) {
+        NSInteger tone=ScarletIslandOpaqueToneAtPoint(
+            child,window,point,depth+1,budget);
+        if(tone) return tone;
+    }
+    UIColor *color=view.backgroundColor;
+    if(!color) return 0;
+    UIColor *resolved=[color resolvedColorWithTraitCollection:
+        view.traitCollection];
+    CGFloat red=0,green=0,blue=0,alpha=0;
+    if(![resolved getRed:&red green:&green blue:&blue alpha:&alpha] ||
+       alpha<0.97) return 0;
+    CGFloat luminance=0.2126*red+0.7152*green+0.0722*blue;
+    if(luminance>=0.83) return 1; // light native background
+    if(luminance<=0.17) return 2; // dark native background
+    return 0; // colored/translucent: unknown, never infer
+}
+static void ScarletIslandProbeGuestSurfaceTone(UIWindow *window) {
+    if(!window || window.hidden ||
+       window.windowLevel!=UIWindowLevelNormal ||
+       !window.rootViewController.isViewLoaded) return;
+    CGFloat width=CGRectGetWidth(window.bounds),
+            height=CGRectGetHeight(window.bounds);
+    if(width<250 || height<400) return;
+    CGPoint point=CGPointMake(width*0.55,MIN(30,MAX(12,height*0.03)));
+    NSUInteger budget=96;
+    NSInteger tone=ScarletIslandOpaqueToneAtPoint(
+        window.rootViewController.view,window,point,0,&budget);
+    NSNumber *previous=objc_getAssociatedObject(
+        window,&scarletIslandSurfaceToneMonitorKey);
+    // An unknown sample is not an instruction to paint black.
+    if(previous && previous.integerValue==tone) return;
+    objc_setAssociatedObject(window,&scarletIslandSurfaceToneMonitorKey,
+        @(tone),OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+    ScarletIslandPublish(@{
+        @"receipt":NSUUID.UUID.UUIDString,
+        @"pid":@(getpid()),
+        @"epoch":@([[NSDate date] timeIntervalSince1970]),
+        @"result":@"guest_chrome_surface_tone",
+        @"surface_tone":@(tone)
+    });
+}
+static void ScarletIslandRepeatSurfaceToneCheck(UIWindow *window) {
+    __weak UIWindow *weakWindow=window;
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW,
+        (int64_t)900*NSEC_PER_MSEC),dispatch_get_main_queue(), ^{
+        UIWindow *current=weakWindow;
+        if(!current) return;
+        if(current.windowScene.activationState==
+                UISceneActivationStateForegroundActive)
+            ScarletIslandProbeGuestSurfaceTone(current);
+        ScarletIslandRepeatSurfaceToneCheck(current);
+    });
+}
+// R6P43_GUEST_TONE_END
 
 // R6P18: root Safe Area was already 62pt on both iPhone LiveProcesses.
 // Measure actual descendant interactive geometry, never reposition it.
@@ -1294,6 +1366,16 @@ static void ScarletIslandInspect(UIWindow *window, NSUInteger attempt) {
         }
         return;
     }
+    // R6P43: one bounded UIKit background-tone watcher per real UIWindow.
+    // It only emits when tone switches light/dark/unknown; no images/text.
+    if(!objc_getAssociatedObject(window,
+        (const void *)sel_registerName("scarletToneWatcherRunning"))) {
+        objc_setAssociatedObject(window,
+            (const void *)sel_registerName("scarletToneWatcherRunning"),
+            @YES,OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+        ScarletIslandProbeGuestSurfaceTone(window);
+        ScarletIslandRepeatSurfaceToneCheck(window);
+    }
     // Host safe-top fallback is anonymous normal UIWindow geometry; the
     // correction itself is applied inside the real guest UI root.
     CGFloat sceneTop = CGRectGetMaxY(scene.statusBarManager.statusBarFrame);
@@ -1312,17 +1394,23 @@ static void ScarletIslandInspect(UIWindow *window, NSUInteger attempt) {
     NSArray *activePIDs = [NSUserDefaults.lcSharedDefaults
         arrayForKey:@"Scarlet.Guest.TransparentChromeActivePIDs.V1"];
     BOOL nativeOwner = [activePIDs containsObject:@(getpid())];
+    NSArray *verifiedPIDs = [NSUserDefaults.lcSharedDefaults
+        arrayForKey:@"Scarlet.Guest.TransparentChromeVerifiedPIDs.V1"];
+    BOOL hostRemoteVerified = nativeOwner &&
+        [verifiedPIDs containsObject:@(getpid())] &&
+        isfinite(chrome) && chrome >= 20 && chrome <= 130;
     BOOL frameConfirmed = nativeOwner && isfinite(chrome) &&
         chrome >= 20 && chrome <= 130 && isfinite(screen) &&
         screen >= 500 &&
         fabs(CGRectGetHeight(window.bounds) + chrome - screen) < 4;
-    if(frameConfirmed)
+    if(frameConfirmed || hostRemoteVerified)
         objc_setAssociatedObject(window,
             &scarletIslandConfirmedChromeWindowKey, @YES,
             OBJC_ASSOCIATION_RETAIN_NONATOMIC);
     BOOL confirmedEarlier = [objc_getAssociatedObject(window,
         &scarletIslandConfirmedChromeWindowKey) boolValue];
-    if(nativeOwner && (frameConfirmed || confirmedEarlier)) {
+    if(nativeOwner && (frameConfirmed || confirmedEarlier ||
+                       hostRemoteVerified)) {
         // P40 PID2454: native 894+62=956 was confirmed before background,
         // yet a transient native bounds read caused root +62 on reactivation.
         // The same UIWindow stays owned by the selected PID.
@@ -1336,9 +1424,10 @@ static void ScarletIslandInspect(UIWindow *window, NSUInteger attempt) {
             objc_setAssociatedObject(root, &scarletIslandRootAddedInsetKey,
                 @0, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
         }
-        ScarletIslandReceipt(frameConfirmed ?
-            @"guest_transparent_chrome_slot_unpadded" :
-            @"guest_transparent_chrome_slot_preserved",
+        ScarletIslandReceipt(hostRemoteVerified ?
+            @"guest_transparent_chrome_host_verified" :
+            (frameConfirmed ? @"guest_transparent_chrome_slot_unpadded" :
+                @"guest_transparent_chrome_slot_preserved"),
             chrome,before,content.safeAreaInsets.top);
         return;
     }
