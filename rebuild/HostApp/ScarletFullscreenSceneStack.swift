@@ -799,7 +799,7 @@ private final class ScarletGuestIslandReceiptObserver {
     static let shared = ScarletGuestIslandReceiptObserver()
     private var subscribed: Set<Int32> = []
     private var seen: Set<String> = []
-    var onTopRiskMeasured: ((Int32, Int, Int, Int, Int) -> Void)?
+    var onTopRiskMeasured: ((Int32, Int, Int, Int, Int, Int, Int) -> Void)?
     var onSurfaceToneMeasured: ((Int32, Int) -> Void)?
     var onHeaderTransformVerified: ((Int32, Bool) -> Void)?
 
@@ -1136,7 +1136,12 @@ private final class ScarletGuestIslandReceiptObserver {
                 if let unsafe = (row["visible_unsafe_controls"] as? NSNumber)?.intValue,
                    let first = (row["first_unsafe_control_y"] as? NSNumber)?.intValue,
                    let sample = (row["sample_index"] as? NSNumber)?.intValue {
-                    onTopRiskMeasured?(pid, unsafe, first, target, sample)
+                    // P50: deliver existing guest-owned scroll classification to the
+                    // host. Counts are anonymous and PID-scoped.
+                    let scrolling = (row["unsafe_controls_in_scroll"] as? NSNumber)?.intValue ?? -1
+                    let stationary = (row["unsafe_controls_outside_scroll"] as? NSNumber)?.intValue ?? -1
+                    onTopRiskMeasured?(pid, unsafe, first, target, sample,
+                                       scrolling, stationary)
                 }
                 continue
             }
@@ -1352,6 +1357,10 @@ final class ScarletFullscreenSceneViewport: UIViewController {
     // failure receipt is evidence about a retired trial, not current UI.
     private var chromeFirstUnsafeSampleByPID: [Int32: (first: Int, top: Int)] = [:]
     private var chromeFreshUnsafeProofPIDs: Set<Int32> = []
+    // P50: Freshly proven Island risk on a scroll surface cannot justify
+    // changing the size of the *whole* FBScene and clipping its scroll area.
+    private var chromeFirstScrollRiskByPID: [Int32: (inScroll: Int, outside: Int)] = [:]
+    private var chromeScrollCropVetoPIDs: Set<Int32> = []
     private var chromeSurfaceToneByPID: [Int32: Int] = [:]
 
     override var prefersStatusBarHidden: Bool { false }
@@ -1595,7 +1604,8 @@ final class ScarletFullscreenSceneViewport: UIViewController {
     }
 
     private func onUnsafeGuestControls(pid: Int32, unsafe: Int,
-                                        first: Int, top: Int, sample: Int) {
+                                        first: Int, top: Int, sample: Int,
+                                        inScroll: Int, outsideScroll: Int) {
         guard sample == 650 || sample == 2600 else { return }
         guard unsafe >= 3 && top >= 20 && top <= 130,
               first >= -3 && first < top - 15,
@@ -1606,6 +1616,8 @@ final class ScarletFullscreenSceneViewport: UIViewController {
         guard !chromeHeaderProtectedPIDs.contains(pid) else { return }
         if sample == 650 {
             chromeFirstUnsafeSampleByPID[pid] = (first: first, top: top)
+            chromeFirstScrollRiskByPID[pid] =
+                (inScroll: inScroll, outside: outsideScroll)
             // Give the independently measured guest header a bounded native
             // pass/revert window. Do not physically crop its remote FBScene
             // until a failed/absent result is observed.
@@ -1638,6 +1650,21 @@ final class ScarletFullscreenSceneViewport: UIViewController {
                              "sample_index": String(sample),
                              "result": "full_fbscene_preserved_no_matching_root"])
                 return
+            }
+            // P50: two independent guest snapshots can prove the risk is
+            // real, but a risk INSIDE scrolling content cannot authorize
+            // the old y62/h894 whole-scene crop. Leave the real 956pt FBScene.
+            if let scroll = chromeFirstScrollRiskByPID[pid],
+               scroll.inScroll > 0, inScroll > 0 {
+                chromeScrollCropVetoPIDs.insert(pid)
+                ScarletDiagnosticRecorder.shared.record(
+                    "layout", "guest_chrome_scroll_crop_veto_armed",
+                    fields: ["process_pid": String(pid),
+                             "sample_index": String(sample),
+                             "visible_unsafe_controls": String(unsafe),
+                             "unsafe_controls_in_scroll": String(inScroll),
+                             "unsafe_controls_outside_scroll": String(outsideScroll),
+                             "result": "scrolling_content_needs_full_remote_frame"])
             }
             chromeFreshUnsafeProofPIDs.insert(pid)
             ScarletDiagnosticRecorder.shared.record(
@@ -1714,6 +1741,18 @@ final class ScarletFullscreenSceneViewport: UIViewController {
                 fields: ["process_pid": String(pid),
                          "sample_index": String(sample),
                          "result": "full_fbscene_preserved_until_live_guest_proof"])
+            return
+        }
+        // P50: the two attached observations identify scrolling UIKit
+        // content, not a stationary header. Shrinking the entire remote
+        // FBScene by 62pt creates the hard clipping boundary reported on
+        // the iPhone, regardless of how real that top risk is.
+        guard !chromeScrollCropVetoPIDs.contains(pid) else {
+            ScarletDiagnosticRecorder.shared.record(
+                "layout", "guest_chrome_scroll_surface_crop_withheld",
+                fields: ["process_pid": String(pid),
+                         "sample_index": String(sample),
+                         "result": "full_fbscene_preserved_scroll_owner"])
             return
         }
         chromeEligiblePIDs.insert(pid)
@@ -1932,9 +1971,10 @@ final class ScarletFullscreenSceneViewport: UIViewController {
             self?.onGuestSurfaceTone(pid: pid, tone: tone)
         }
         ScarletGuestIslandReceiptObserver.shared.onTopRiskMeasured = {
-            [weak self] pid, unsafe, first, top, sample in
+            [weak self] pid, unsafe, first, top, sample, inScroll, outside in
             self?.onUnsafeGuestControls(pid: pid, unsafe: unsafe,
-                first: first, top: top, sample: sample)
+                first: first, top: top, sample: sample,
+                inScroll: inScroll, outsideScroll: outside)
         }
         ScarletGuestIslandReceiptObserver.shared.onHeaderTransformVerified = {
             [weak self] pid, retained in
@@ -2050,6 +2090,8 @@ final class ScarletFullscreenSceneViewport: UIViewController {
         chromeLateTrialPIDs.remove(old.pid)
         chromeFirstUnsafeSampleByPID.removeValue(forKey: old.pid)
         chromeFreshUnsafeProofPIDs.remove(old.pid)
+        chromeFirstScrollRiskByPID.removeValue(forKey: old.pid)
+        chromeScrollCropVetoPIDs.remove(old.pid)
         chromeSurfaceToneByPID.removeValue(forKey: old.pid)
         if let scene = view.window?.windowScene {
             updateNativeChromeSlots(scene)
