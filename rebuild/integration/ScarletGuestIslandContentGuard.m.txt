@@ -6,8 +6,12 @@
 #import <CoreFoundation/CoreFoundation.h>
 #import <math.h>
 #import <unistd.h>
+#include <stdio.h>
+#include <string.h>
 #import <objc/runtime.h>
 #import "utils.h"
+// P54: the runtime owner policy applies only to small native app headers.
+static const CGFloat scarletIslandP54MaximumNativeHeaderHeight = 72.0;
 
 static __weak UIWindow *scarletIslandLastWindow;
 static char scarletIslandRootAddedInsetKey;
@@ -36,6 +40,8 @@ static char scarletIslandP46DetachedObservedKey;
 static char scarletIslandP46DetachedRiskSamplesKey;
 static char scarletIslandP46DeferredObservedKey;
 static char scarletIslandP46SafeObservedKey;
+// R6P54: one-instance native controller-owned layout contract.
+static char scarletIslandP54OwnerLayoutContractKey;
 
 // All guest receipts share one anonymous App Group relay. This carries only
 // bounded numbers and a PID; no labels, view names, app identifiers or images.
@@ -1348,6 +1354,16 @@ static BOOL ScarletIslandDeepHeaderOwnerReady(
         fabs(CGRectGetHeight(header.bounds)-CGRectGetHeight(header.frame))<=1;
 }
 
+
+
+
+// R6P54 is defined after legacy probe sections. Keep the original P18
+// and P37 measurement contracts untouched and isolated in the source.
+static BOOL ScarletIslandP54InstallNativeOwnerContract(
+    UIWindow *window, UIView *root, UIView *header, UIView *parent,
+    CGFloat safeTop, NSUInteger beforeControls, NSUInteger beforeImages,
+    UIView *first, UIView *second);
+
 // R6P44: bounded native interactive-header pilot. P37 set the 50pt
 // controller.view FRAME (UIKit reverted it); P39 set its constraints.
 // Unlike those attempts, an affine translation affects only that one
@@ -1444,6 +1460,16 @@ static void ScarletIslandTryP44LocalHeaderTransform(
         if(CGRectGetMinY(clip)>safeTop-2 ||
            CGRectGetMaxY(clip)<safeTop+CGRectGetHeight(header.bounds)-2)
             return;
+    }
+    if(headerKind==2 &&
+       ScarletIslandP54InstallNativeOwnerContract(
+           window,root,header,parent,safeTop,beforeControls,beforeImages,
+           first,second)) {
+        // The native owner hook is active; the P44 affine mutation MUST NOT
+        // race it on the same header. Other geometries keep their own path.
+        objc_setAssociatedObject(root,&scarletIslandP44HeaderTransformTrialKey,
+                                 @YES,OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+        return;
     }
     objc_setAssociatedObject(root,&scarletIslandP44HeaderTransformTrialKey,
                              @YES,OBJC_ASSOCIATION_RETAIN_NONATOMIC);
@@ -2921,6 +2947,210 @@ static void ScarletIslandTryMeasuredHeaderConstraintBridge(
     });
 }
 // R6P39_CONSTRAINT_BRIDGE_END
+
+// R6P54_OWNER_LAYOUT_CONTRACT_BEGIN
+// Signed P53: the parent owns a custom viewDidLayoutSubviews. Changing the
+// child frame *after* that writer or setting its transform lost the race.
+// Install a subclass on ONE confirmed parent-controller instance only.
+// Call the true guest implementation first, then dock the one plain header
+// to the already-correct native parent safe guide. No global method swap,
+// FBScene/window resize, root additionalSafeAreaInsets or scroll insets.
+static void ScarletIslandP54AfterNativeOwnerLayout(UIViewController *owner) {
+    NSMutableDictionary *state=objc_getAssociatedObject(
+        owner,&scarletIslandP54OwnerLayoutContractKey);
+    if(!state || [state[@"disabled"] boolValue]) return;
+    NSHashTable *headers=state[@"headers"];
+    UIView *header=headers.anyObject;
+    UIView *parent=owner.isViewLoaded ? owner.view : nil;
+    UIWindow *window=parent.window;
+    CGFloat target=[state[@"top"] doubleValue];
+    if(!header || !window || window.hidden ||
+       parent!=header.superview || ![header isDescendantOfView:window.rootViewController.view] ||
+       window.windowLevel!=UIWindowLevelNormal ||
+       window.windowScene.activationState!=UISceneActivationStateForegroundActive ||
+       !UIInterfaceOrientationIsPortrait(window.windowScene.interfaceOrientation) ||
+       !CGAffineTransformIsIdentity(header.transform) ||
+       fabs(window.rootViewController.view.safeAreaInsets.top-target)>2)
+        return;
+    CGRect guide=parent.safeAreaLayoutGuide.layoutFrame;
+    CGRect parentGuide=[parent convertRect:guide toView:window];
+    CGRect headerInWindow=[header convertRect:header.bounds toView:window];
+    if(!isfinite(guide.origin.y) ||
+       fabs(CGRectGetMinY(parentGuide)-target)>3 ||
+       CGRectGetHeight(header.bounds)<34 ||
+       CGRectGetHeight(header.bounds)>scarletIslandP54MaximumNativeHeaderHeight ||
+       !isfinite(CGRectGetMinY(headerInWindow)))
+        return;
+    if([state[@"enforcing"] boolValue]) return;
+    state[@"enforcing"]=@YES;
+    CGRect frame=header.frame;
+    if(fabs(frame.origin.y-guide.origin.y)>1) {
+        frame.origin.y=guide.origin.y;
+        header.frame=frame;
+    }
+    state[@"enforcing"]=@NO;
+    // The native guest's viewDidLayoutSubviews just finished. Every future
+    // owner layout pass maintains that policy without timers or transforms.
+    state[@"owner_layout_passes"]=@([state[@"owner_layout_passes"]
+        unsignedIntegerValue]+1);
+}
+static BOOL ScarletIslandP54InstallNativeOwnerContract(
+    UIWindow *window, UIView *root, UIView *header, UIView *parent,
+    CGFloat safeTop, NSUInteger beforeControls, NSUInteger beforeImages,
+    UIView *first, UIView *second) {
+    if(!window || !root || !header || !parent || !first || !second ||
+       beforeControls<3 ||
+       fabs(CGRectGetMinY([parent convertRect:
+           parent.safeAreaLayoutGuide.layoutFrame toView:window])-safeTop)>3)
+        return NO;
+    // P52/P53 actual owner is a plain 50pt UIView directly underneath
+    // a full-height controller.view, NOT itself a child view controller.
+    if(header.nextResponder!=parent ||
+       ![parent.nextResponder isKindOfClass:UIViewController.class])
+        return NO;
+    UIViewController *owner=(UIViewController *)parent.nextResponder;
+    if(owner.view!=parent ||
+       objc_getAssociatedObject(owner,&scarletIslandP54OwnerLayoutContractKey) ||
+       fabs(CGRectGetMinY([header convertRect:
+           header.bounds toView:window]))>3 ||
+       fabs(CGRectGetWidth(header.bounds)-CGRectGetWidth(window.bounds))>4 ||
+       !CGAffineTransformIsIdentity(header.transform))
+        return NO;
+    Class original=object_getClass(owner);
+    const char *baseName=class_getName(original);
+    if(!original || !baseName ||
+       strstr(baseName,"NSKVONotifying_") ||
+       strstr(baseName,"ScarletP54_"))
+        return NO;
+    Method guestMethod=class_getInstanceMethod(
+        original,@selector(viewDidLayoutSubviews));
+    Method uiMethod=class_getInstanceMethod(
+        UIViewController.class,@selector(viewDidLayoutSubviews));
+    if(!guestMethod || !uiMethod ||
+       method_getImplementation(guestMethod)==method_getImplementation(uiMethod))
+        return NO; // the measured parent must actually own custom layout
+    SEL selector=@selector(viewDidLayoutSubviews);
+    IMP originalIMP=method_getImplementation(guestMethod);
+    if(!originalIMP) return NO;
+    char subclassName[160];
+    snprintf(subclassName,sizeof(subclassName),"ScarletP54_%p",(void *)original);
+    Class scoped=objc_lookUpClass(subclassName);
+    if(!scoped) {
+        scoped=objc_allocateClassPair(original,subclassName,0);
+        if(!scoped) return NO;
+        // Forward the REAL app override before enforcing native safe-guide
+        // placement; never install a hook on its original/global class.
+        IMP body=imp_implementationWithBlock(^(__unsafe_unretained id receiver) {
+            ((void (*)(id,SEL))originalIMP)(receiver,selector);
+            ScarletIslandP54AfterNativeOwnerLayout(receiver);
+        });
+        if(!class_addMethod(scoped,selector,body,"v@:")) {
+            imp_removeBlock(body);
+            objc_disposeClassPair(scoped);
+            return NO;
+        }
+        objc_registerClassPair(scoped);
+    }
+    NSHashTable *weakHeader=[NSHashTable weakObjectsHashTable];
+    [weakHeader addObject:header];
+    NSMutableDictionary *state=[@{
+        @"headers":weakHeader,
+        @"top":@(safeTop),
+        @"owner_layout_passes":@0,
+        @"original_class":[NSValue valueWithPointer:original],
+        @"original_frame":[NSValue valueWithCGRect:header.frame],
+        @"disabled":@NO
+    } mutableCopy];
+    objc_setAssociatedObject(owner,&scarletIslandP54OwnerLayoutContractKey,
+                             state,OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+    if(object_setClass(owner,scoped)!=original ||
+       object_getClass(owner)!=scoped) {
+        object_setClass(owner,original);
+        objc_setAssociatedObject(owner,&scarletIslandP54OwnerLayoutContractKey,
+                                 nil,OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+        return NO;
+    }
+    CGRect originalWindow=[header convertRect:header.bounds toView:window];
+    CGSize windowSize=window.bounds.size;
+    // Request a native layout, then go through the exact owner completion
+    // path (a UIKit callback, not a delayed ad-hoc transform).
+    [owner.view setNeedsLayout];
+    [owner.view layoutIfNeeded];
+    ScarletIslandP54AfterNativeOwnerLayout(owner);
+    ScarletIslandDeepHeaderTrialReceipt(
+        @"guest_owner_layout_contract_staged",@"parent_layout_owner_native",
+        safeTop,CGRectGetMinY(originalWindow),
+        CGRectGetMinY([header convertRect:header.bounds toView:window]),
+        beforeControls,beforeControls,beforeImages,NO);
+    __weak UIViewController *weakOwner=owner;
+    __weak UIView *weakRoot=root,*weakParent=parent,*weakFirst=first,*weakSecond=second;
+    __weak UIWindow *weakWindow=window;
+    __block void (^verify)(BOOL)=nil;
+    verify=^(BOOL late) {
+        UIViewController *vc=weakOwner;
+        UIView *head=weakHeader.anyObject,*rt=weakRoot,*par=weakParent;
+        UIWindow *w=weakWindow;
+        NSMutableDictionary *current=vc ? objc_getAssociatedObject(
+            vc,&scarletIslandP54OwnerLayoutContractKey) : nil;
+        BOOL unchanged=w && rt && par && head && vc && current==state &&
+            w.rootViewController.view==rt && head.superview==par &&
+            fabs(w.bounds.size.width-windowSize.width)<2 &&
+            fabs(w.bounds.size.height-windowSize.height)<2 &&
+            object_getClass(vc)==scoped;
+        CGRect topRect=unchanged ?
+            [head convertRect:head.bounds toView:w]:CGRectNull;
+        NSUInteger images=beforeImages;
+        NSUInteger unsafe=unchanged ?
+            ScarletIslandDeepHeaderCountUnsafe(rt,w,safeTop,&images) :
+            beforeControls;
+        CGRect firstRect=weakFirst && w ?
+            ScarletIslandVisibleFrameInWindow(weakFirst,w):CGRectNull;
+        CGRect secondRect=weakSecond && w ?
+            ScarletIslandVisibleFrameInWindow(weakSecond,w):CGRectNull;
+        BOOL reduced=unchanged &&
+            [state[@"owner_layout_passes"] unsignedIntegerValue]>0 &&
+            !CGRectIsNull(topRect) &&
+            fabs(CGRectGetMinY(topRect)-safeTop)<3 &&
+            !CGRectIsNull(firstRect) && !CGRectIsNull(secondRect) &&
+            !CGRectIsEmpty(firstRect) && !CGRectIsEmpty(secondRect) &&
+            CGRectGetMinY(firstRect)>=safeTop-2 &&
+            CGRectGetMinY(secondRect)>=safeTop-2 &&
+            unsafe+2<=beforeControls && images<=beforeImages+1;
+        if(!reduced) {
+            state[@"disabled"]=@YES;
+            if(vc && object_getClass(vc)==scoped) object_setClass(vc,original);
+            if(head && head.superview==par) {
+                CGRect desired=[state[@"original_frame"] CGRectValue];
+                if(fabs(head.frame.origin.y-safeTop)<3)
+                    head.frame=desired;
+            }
+            if(vc) objc_setAssociatedObject(
+                vc,&scarletIslandP54OwnerLayoutContractKey,
+                nil,OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+        }
+        ScarletIslandDeepHeaderTrialReceipt(
+            reduced ? (late ? @"guest_owner_layout_contract_retained"
+                             : @"guest_owner_layout_contract_first_pass")
+                    : @"guest_owner_layout_contract_reverted",
+            reduced ? @"owner_native_layout_and_hits_confirmed"
+                    : @"owner_layout_not_stably_safe",
+            safeTop,CGRectGetMinY(originalWindow),
+            CGRectIsNull(topRect) ? -999:CGRectGetMinY(topRect),
+            beforeControls,unsafe,images,late&&reduced);
+        if(reduced && !late) {
+            dispatch_after(dispatch_time(DISPATCH_TIME_NOW,
+                (int64_t)1100*NSEC_PER_MSEC),dispatch_get_main_queue(),^{
+                verify(YES);
+            });
+        } else verify=nil;
+    };
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW,
+        (int64_t)250*NSEC_PER_MSEC),dispatch_get_main_queue(),^{
+        verify(NO);
+    });
+    return YES;
+}
+// R6P54_OWNER_LAYOUT_CONTRACT_END
 
 void initScarletGuestIslandContentGuard(void) {
     // The resident opt-in bit is supplied before LC guest bootstrap; all

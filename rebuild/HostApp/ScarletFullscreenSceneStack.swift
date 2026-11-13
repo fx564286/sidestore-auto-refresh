@@ -1090,6 +1090,10 @@ private final class ScarletGuestIslandReceiptObserver {
                 "guest_header_local_transform_staged",
                 "guest_header_local_transform_first_pass",
                 "guest_header_local_transform_retained",
+                "guest_owner_layout_contract_staged",
+                "guest_owner_layout_contract_first_pass",
+                "guest_owner_layout_contract_retained",
+                "guest_owner_layout_contract_reverted",
                 "guest_header_local_transform_reverted",
                 "guest_header_local_transform_invalidated",
                 "guest_header_scroll_motion_safe",
@@ -1136,9 +1140,11 @@ private final class ScarletGuestIslandReceiptObserver {
                                 String((row["header_detached_visible_controls"] as? NSNumber)?.intValue ?? -1),
                              "header_detached_samples":
                                 String((row["header_detached_samples"] as? NSNumber)?.intValue ?? -1)])
-                if result == "guest_header_local_transform_retained" {
+                if result == "guest_header_local_transform_retained" ||
+                   result == "guest_owner_layout_contract_retained" {
                     onHeaderTransformVerified?(pid, true)
                 } else if result == "guest_header_local_transform_reverted" ||
+                          result == "guest_owner_layout_contract_reverted" ||
                           result == "guest_header_local_transform_invalidated" {
                     onHeaderTransformVerified?(pid, false)
                 }
