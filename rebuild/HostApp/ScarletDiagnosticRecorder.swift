@@ -72,7 +72,7 @@ final class ScarletDiagnosticRecorder: @unchecked Sendable {
         "slot_top_pt", "slot_y_pt", "slot_height_pt",
         "host_width_pt", "host_height_pt", "scale_milli", "chrome_touches",
         "remote_content_height_pt", "hosting_safe_top_pt",
-        "chrome_dark_status_text", "status_style_raw", "status_hidden", "preferred_style_raw",
+        "chrome_dark_status_text", "status_style_raw", "status_hidden", "expected_hidden", "preferred_style_raw",
         "overlay_window_level", "overlay_is_key", "surface_tone",
         "root_safe_top_pt", "root_frame_y", "root_guide_y", "visited",
         "candidate_controls", "top_controls", "unsafe_controls",

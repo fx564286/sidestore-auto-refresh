@@ -27,6 +27,12 @@ final class ScarletFullscreenSceneStack: NSObject, ObservableObject,
     // switcher UIWindow, requests native status-bar legibility. No pixels,
     // clock widgets or guest layout changes are synthesized.
     @Published private(set) var hostStatusBarScheme: ColorScheme? = nil
+    // P51: native clock/icons share the same physical top region as guest
+    // interactive controls. Fail closed until THIS guest's layout is proven
+    // safe; do not crop, offset or mutate the guest's full FBScene.
+    @Published private(set) var nativeStatusBarCollisionShield = false
+    private var nativeStatusBarUnsafePIDs: Set<Int32> = []
+    private var nativeStatusBarSafePIDs: Set<Int32> = []
     @Published private(set) var lastError: String?
     weak var viewport: ScarletFullscreenSceneViewport?
     // R5 recovery: observation only, no guest UIKit method interception.
@@ -154,8 +160,11 @@ final class ScarletFullscreenSceneStack: NSObject, ObservableObject,
                           bundleID: app.bundleIdentifier,
                           icon: icon, pid: 0, failed: false))
         activeID = folder
-        // New guest must not inherit prior guest's native status-bar tone.
+        // New guest must not inherit the preceding guest's visual style
+        // or assume its header is safe. Native status bar is temporarily
+        // withheld until the attached guest supplies its measured geometry.
         hostStatusBarScheme = nil
+        nativeStatusBarCollisionShield = true
         pendingReveal.remove(folder)
         remoteAttachSeen.remove(folder)
         firstRevealCompleted.remove(folder)
@@ -314,10 +323,14 @@ final class ScarletFullscreenSceneStack: NSObject, ObservableObject,
         // its remote guest. Explicit user activation must reveal the viewport
         // BEFORE select() is allowed to resume this exact guest's audio.
         let wasVisible = isVisible
+        let wasShielded = nativeStatusBarCollisionShield
         collapseSwitcherForNavigation("activate_guest")
+        nativeStatusBarCollisionShield = !nativeStatusBarSafePIDs.contains(slot.pid) ||
+            nativeStatusBarUnsafePIDs.contains(slot.pid)
         isVisible = true
         guard viewport?.select(folder: folder) == true else {
             isVisible = wasVisible
+            nativeStatusBarCollisionShield = wasShielded
             ScarletDiagnosticRecorder.shared.record(
                 "guest", "fullscreen_scene_reuse_failed",
                 status: "warning", fields: [
@@ -342,6 +355,57 @@ final class ScarletFullscreenSceneStack: NSObject, ObservableObject,
     // P49: P48 native readback proved non-key overlay requested raw3 while
     // the foreground UIWindowScene continued raw1 on a light backdrop.
     // Only the key-host SwiftUI root may influence system bar appearance.
+    // P51: Status bar ownership (P49) was fixed on iPhone, but that
+    // SUCCESS exposed overlap with guest action controls at physical y0.
+    // A second zero-risk snapshot must not clear the first proven collision:
+    // Instagram scrolls away from the colliding header between samples.
+    func reportNativeStatusBarCollisionRisk(pid: Int32, unsafe: Int,
+                                            sample: Int, scene: UIWindowScene?) {
+        guard sample == 650 || sample == 2600, pid > 0, isVisible,
+              let activeID,
+              slots.contains(where: { $0.id == activeID && $0.pid == pid })
+        else { return }
+        if unsafe > 0 {
+            nativeStatusBarUnsafePIDs.insert(pid)
+            nativeStatusBarSafePIDs.remove(pid)
+        } else if !nativeStatusBarUnsafePIDs.contains(pid) {
+            nativeStatusBarSafePIDs.insert(pid)
+        }
+        let shield = nativeStatusBarUnsafePIDs.contains(pid) ||
+            !nativeStatusBarSafePIDs.contains(pid)
+        nativeStatusBarCollisionShield = shield
+        ScarletDiagnosticRecorder.shared.record(
+            "layout", "resident_native_status_bar_collision_policy",
+            fields: ["process_pid": String(pid),
+                     "sample_index": String(sample),
+                     "visible_unsafe_controls": String(unsafe),
+                     "result": shield ? "native_icons_withheld_guest_collision"
+                                      : "native_icons_allowed_safe_guest"])
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.32) {
+            [weak self, weak scene] in
+            guard let self, self.isVisible, let scene,
+                  let activeID = self.activeID,
+                  self.nativeStatusBarCollisionShield == shield,
+                  self.slots.contains(where: { $0.id == activeID && $0.pid == pid })
+            else { return }
+            let hidden = scene.statusBarManager?.isStatusBarHidden == true
+            ScarletDiagnosticRecorder.shared.record(
+                "layout", "resident_native_status_bar_collision_readback",
+                fields: ["process_pid": String(pid),
+                         "sample_index": String(sample),
+                         "status_hidden": hidden ? "true" : "false",
+                         "expected_hidden": shield ? "true" : "false",
+                         "result": hidden == shield
+                             ? "native_status_collision_policy_matched"
+                             : "native_status_collision_policy_mismatch"])
+        }
+    }
+
+    func clearNativeStatusBarCollisionRisk(pid: Int32) {
+        nativeStatusBarUnsafePIDs.remove(pid)
+        nativeStatusBarSafePIDs.remove(pid)
+    }
+
     func syncKeyHostStatusBarTone(pid: Int32, tone: Int,
                                   scene: UIWindowScene) {
         guard isVisible, let activeID,
@@ -403,8 +467,9 @@ final class ScarletFullscreenSceneStack: NSObject, ObservableObject,
         // No close, terminate, detach, scene destruction or relaunch.
         // Keep each remote scene in the original full-screen viewport.
         isVisible = false
-        // Release P49's presentation preference on Home immediately.
+        // Release all P49/P51 guest-only presentation preferences on Home.
         hostStatusBarScheme = nil
+        nativeStatusBarCollisionShield = false
         // R6.1: returning to the Scarlet host is a real audio-focus change.
         // A retained LiveProcess must not keep playing simply because its
         // full-screen remote view is hidden. Preserve its process and data.
@@ -1972,7 +2037,11 @@ final class ScarletFullscreenSceneViewport: UIViewController {
         }
         ScarletGuestIslandReceiptObserver.shared.onTopRiskMeasured = {
             [weak self] pid, unsafe, first, top, sample, inScroll, outside in
-            self?.onUnsafeGuestControls(pid: pid, unsafe: unsafe,
+            guard let self else { return }
+            self.stack?.reportNativeStatusBarCollisionRisk(
+                pid: pid, unsafe: unsafe, sample: sample,
+                scene: self.view.window?.windowScene)
+            self.onUnsafeGuestControls(pid: pid, unsafe: unsafe,
                 first: first, top: top, sample: sample,
                 inScroll: inScroll, outsideScroll: outside)
         }
@@ -2093,6 +2162,7 @@ final class ScarletFullscreenSceneViewport: UIViewController {
         chromeFirstScrollRiskByPID.removeValue(forKey: old.pid)
         chromeScrollCropVetoPIDs.remove(old.pid)
         chromeSurfaceToneByPID.removeValue(forKey: old.pid)
+        stack?.clearNativeStatusBarCollisionRisk(pid: old.pid)
         if let scene = view.window?.windowScene {
             updateNativeChromeSlots(scene)
         }

@@ -24,7 +24,10 @@ class P49KeyHostStatusBar(unittest.TestCase):
     def test_root_preference_owned_by_true_host_only_while_guest_visible(self):
         self.assertIn('.preferredColorScheme(fullscreenStack.isVisible',HOST)
         self.assertIn('? fullscreenStack.hostStatusBarScheme : nil)',HOST)
-        self.assertIn('.statusBarHidden(false)',HOST)
+        # P51 signed-device video proves unconditional native icons
+        # collide with guest top actions. The host leaves Home visible and
+        # gates the guest-only status bar on measured risk.
+        self.assertIn('.statusBarHidden(fullscreenStack.isVisible &&', HOST)
         self.assertIn('hostStatusBarScheme = nil',STACK.split('func goHome()',1)[1].split('private func recoverFastFailedGuest',1)[0])
         self.assertIn('hostStatusBarScheme = nil',STACK.split('func enqueueSignedGuest(',1)[1].split('func attach(',1)[0])
         self.assertIn('syncKeyHostStatusBarForActiveGuest()',STACK.split('func activate(folder:',1)[1].split('func syncKeyHostStatusBarTone',1)[0])

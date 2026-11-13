@@ -55,7 +55,10 @@ class TestV47InPlaceGuestSwitch(unittest.TestCase):
     def test_safe_area_and_signed_release_contract(self):
         self.assertIn('first(where: { $0.isKeyWindow })?.safeAreaInsets',SCENE)
         self.assertIn('fullscreen_scene_host_safe_area',SCENE)
-        self.assertIn('.statusBarHidden(false)',HOST)
+        # P51 signed-device video proves unconditional native icons
+        # collide with guest top actions. The host leaves Home visible and
+        # gates the guest-only status bar on measured risk.
+        self.assertIn('.statusBarHidden(fullscreenStack.isVisible &&', HOST)
         self.assertIn('experimentalFullscreenResident = false',HOST)
         self.assertIn('Scarlet-Crystal-V47-UNSIGNED.ipa',WORKFLOW)
         self.assertIn('scarlet-v47-unsigned-20261111',WORKFLOW)

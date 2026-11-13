@@ -61,7 +61,10 @@ class P47LifecycleHeaderProof(unittest.TestCase):
         self.assertIn('chromeStatusBarPreference = isLight ? .darkContent : .lightContent',H)
         self.assertIn('ScarletFullscreenGuestTabInstaller.updateResidentStatusBar(',H)
         self.assertIn('override var prefersStatusBarHidden: Bool { false }',H)
-        self.assertIn('.statusBarHidden(false)',SW)
+        # P51 signed-device video proves unconditional native icons
+        # collide with guest top actions. The host leaves Home visible and
+        # gates the guest-only status bar on measured risk.
+        self.assertIn('.statusBarHidden(fullscreenStack.isVisible &&', SW)
         self.assertNotIn('UILabel(text: "battery',cls)
         self.assertNotIn('UIDevice.current.batteryLevel',cls)
         for key in ('status_hidden','status_style_raw','preferred_style_raw','overlay_window_level','overlay_is_key'):
