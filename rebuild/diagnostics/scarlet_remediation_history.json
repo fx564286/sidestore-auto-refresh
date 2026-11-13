@@ -21299,7 +21299,8 @@
             "    paths:",
             "      - \".github/workflows/scarlet-paired-engines-build.yml\"",
             "      - \"rebuild/integration/**\""
-          ]
+          ],
+          "commit": "70d1ee2f57ebfaede9ef0dcf3f9cd00410ef4a22"
         },
         {
           "file": ".github/workflows/scarlet-paired-engines-build.yml",
@@ -21322,7 +21323,8 @@
             "    runs-on: ubuntu-24.04",
             "    timeout-minutes: 10",
             "    permissions:"
-          ]
+          ],
+          "commit": "70d1ee2f57ebfaede9ef0dcf3f9cd00410ef4a22"
         },
         {
           "file": ".github/workflows/scarlet-paired-engines-build.yml",
@@ -21347,7 +21349,8 @@
             "            asset=\"Scarlet-Crystal-V48-R6P43-HOST-VERIFIED-UNSIGNED.ipa\"",
             "          elif [ \"$GITHUB_REF\" = \"refs/heads/fix/scarlet-v48-r6p42-guest-matched-status-chrome-20261113\" ]; then",
             "            asset=\"Scarlet-Crystal-V48-R6P42-MATCHED-CHROME-UNSIGNED.ipa\""
-          ]
+          ],
+          "commit": "70d1ee2f57ebfaede9ef0dcf3f9cd00410ef4a22"
         },
         {
           "file": ".github/workflows/scarlet-paired-engines-build.yml",
@@ -21373,7 +21376,8 @@
             "            tag=scarlet-v48-r6p43-host-verified-unsigned-20261113",
             "            asset=Scarlet-Crystal-V48-R6P43-HOST-VERIFIED-UNSIGNED.ipa",
             "          elif [ \"$GITHUB_REF\" = \"refs/heads/fix/scarlet-v48-r6p42-guest-matched-status-chrome-20261113\" ]; then"
-          ]
+          ],
+          "commit": "70d1ee2f57ebfaede9ef0dcf3f9cd00410ef4a22"
         },
         {
           "file": "rebuild/HostApp/ScarletFullscreenSceneStack.swift",
@@ -21395,7 +21399,8 @@
             "",
             "    func observe(pid: Int32) {",
             "        guard pid > 0 else { return }"
-          ]
+          ],
+          "commit": "70d1ee2f57ebfaede9ef0dcf3f9cd00410ef4a22"
         },
         {
           "file": "rebuild/HostApp/ScarletFullscreenSceneStack.swift",
@@ -21443,7 +21448,8 @@
             "            if result == \"guest_chrome_surface_tone\" {",
             "                let tone = (row[\"surface_tone\"] as? NSNumber)?.intValue ?? 0",
             "                guard (0...2).contains(tone) else { continue }"
-          ]
+          ],
+          "commit": "70d1ee2f57ebfaede9ef0dcf3f9cd00410ef4a22"
         },
         {
           "file": "rebuild/HostApp/ScarletFullscreenSceneStack.swift",
@@ -21468,7 +21474,8 @@
             "    private var chromeSurfaceToneByPID: [Int32: Int] = [:]",
             "",
             "    override var preferredStatusBarStyle: UIStatusBarStyle {"
-          ]
+          ],
+          "commit": "70d1ee2f57ebfaede9ef0dcf3f9cd00410ef4a22"
         },
         {
           "file": "rebuild/HostApp/ScarletFullscreenSceneStack.swift",
@@ -21547,7 +21554,8 @@
             "        chromeEligiblePIDs.insert(pid)",
             "        ScarletDiagnosticRecorder.shared.record(",
             "            \"layout\", \"guest_chrome_adaptive_qualified\","
-          ]
+          ],
+          "commit": "70d1ee2f57ebfaede9ef0dcf3f9cd00410ef4a22"
         },
         {
           "file": "rebuild/HostApp/ScarletFullscreenSceneStack.swift",
@@ -21570,7 +21578,8 @@
             "        if let scene = view.window?.windowScene {",
             "            updateNativeChromeSlots(scene)",
             "            synchronizeAttachedGuestSafeAreas(scene)"
-          ]
+          ],
+          "commit": "70d1ee2f57ebfaede9ef0dcf3f9cd00410ef4a22"
         },
         {
           "file": "rebuild/HostApp/ScarletFullscreenSceneStack.swift",
@@ -21595,7 +21604,8 @@
             "        let outside = UITapGestureRecognizer(target: self,",
             "            action: #selector(didTapResidentBackground(_:)))",
             "        outside.isEnabled = false"
-          ]
+          ],
+          "commit": "70d1ee2f57ebfaede9ef0dcf3f9cd00410ef4a22"
         },
         {
           "file": "rebuild/HostApp/ScarletFullscreenSceneStack.swift",
@@ -21618,7 +21628,8 @@
             "        chromeSurfaceToneByPID.removeValue(forKey: old.pid)",
             "        if let scene = view.window?.windowScene {",
             "            updateNativeChromeSlots(scene)"
-          ]
+          ],
+          "commit": "70d1ee2f57ebfaede9ef0dcf3f9cd00410ef4a22"
         },
         {
           "file": "rebuild/integration/ScarletGuestIslandContentGuard.m.txt",
@@ -21642,7 +21653,8 @@
             "",
             "// All guest receipts share one anonymous App Group relay. This carries only",
             "// bounded numbers and a PID; no labels, view names, app identifiers or images."
-          ]
+          ],
+          "commit": "70d1ee2f57ebfaede9ef0dcf3f9cd00410ef4a22"
         },
         {
           "file": "rebuild/integration/ScarletGuestIslandContentGuard.m.txt",
@@ -21690,7 +21702,8 @@
             "static void ScarletIslandRepeatSurfaceToneCheck(UIWindow *window) {",
             "    __weak UIWindow *weakWindow=window;",
             "    dispatch_after(dispatch_time(DISPATCH_TIME_NOW,"
-          ]
+          ],
+          "commit": "70d1ee2f57ebfaede9ef0dcf3f9cd00410ef4a22"
         },
         {
           "file": "rebuild/integration/ScarletGuestIslandContentGuard.m.txt",
@@ -21717,7 +21730,8 @@
             "        ScarletIslandRepeatSurfaceToneCheck(current);",
             "    });",
             "}"
-          ]
+          ],
+          "commit": "70d1ee2f57ebfaede9ef0dcf3f9cd00410ef4a22"
         },
         {
           "file": "rebuild/integration/ScarletGuestIslandContentGuard.m.txt",
@@ -21742,7 +21756,8 @@
             "",
             "static void ScarletIslandContentProbe(UIWindow *window,",
             "                                      UIViewController *expectedRoot,"
-          ]
+          ],
+          "commit": "70d1ee2f57ebfaede9ef0dcf3f9cd00410ef4a22"
         },
         {
           "file": "rebuild/integration/ScarletGuestIslandContentGuard.m.txt",
@@ -21768,7 +21783,8 @@
             "}",
             "",
             "// R6P37 distinct measured *short child-controller header* mechanism."
-          ]
+          ],
+          "commit": "70d1ee2f57ebfaede9ef0dcf3f9cd00410ef4a22"
         },
         {
           "file": "rebuild/integration/ScarletGuestIslandContentGuard.m.txt",
@@ -21956,7 +21972,8 @@
             "}",
             "",
             "static void ScarletIslandTryDeepHeaderSafeGuideAnchor("
-          ]
+          ],
+          "commit": "70d1ee2f57ebfaede9ef0dcf3f9cd00410ef4a22"
         },
         {
           "file": "rebuild/Tests/test_v48_r6p44_full_frame_header_pilot.py",
@@ -22048,7 +22065,8 @@
             "",
             "if __name__ == \"__main__\":",
             "    unittest.main()"
-          ]
+          ],
+          "commit": "70d1ee2f57ebfaede9ef0dcf3f9cd00410ef4a22"
         }
       ],
       "generated_runtime_targets": [
