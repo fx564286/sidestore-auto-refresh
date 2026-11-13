@@ -1,0 +1,95 @@
+name: GoldenNugget Mobile MB105 iOS IPA
+
+on:
+  push:
+    branches:
+      - build/goldennugget-mb105-korean-20261113
+    paths:
+      - .github/workflows/goldennugget-mb105.yml
+      - tools/goldennugget/**
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: macos-latest
+    timeout-minutes: 90
+    steps:
+      - name: Checkout isolated build inputs
+        uses: actions/checkout@v4
+
+      - name: Checkout pinned GoldenNugget Mobile upstream
+        shell: bash
+        run: |
+          set -euo pipefail
+          git clone --filter=blob:none https://github.com/GoldenNugget-Team/GoldenNugget-mobile.git "$RUNNER_TEMP/gn"
+          cd "$RUNNER_TEMP/gn"
+          git checkout --detach e4be86f050f4980ccc58de3b74f9de58b070b705
+          git rev-parse HEAD
+
+      - name: Apply MBErrorDomain/105 actual-volume correction
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/gn"
+          git apply --check "$GITHUB_WORKSPACE/tools/goldennugget/mb105.patch"
+          git apply "$GITHUB_WORKSPACE/tools/goldennugget/mb105.patch"
+          git diff --check
+          grep -q 'BackupVolumeSpace.available(at: root)' Vendor/MinimuxerGateway/idevice/MobileBackup2Delegate.swift
+          if grep -A18 '^private func mb2_get_free_disk_space(' Vendor/MinimuxerGateway/idevice/MobileBackup2Delegate.swift | grep -q 'NSHomeDirectory()'; then
+            echo 'ERROR: old home-directory probe remains'; exit 1
+          fi
+
+      - name: Check available Xcode and SDK
+        shell: bash
+        run: |
+          set -euo pipefail
+          xcodebuild -version
+          xcrun --sdk iphoneos --show-sdk-version
+          cd "$RUNNER_TEMP/gn"
+          bash scripts/check-xcode-toolchain.sh
+
+      - name: Install XcodeGen 2.46
+        shell: bash
+        run: |
+          set -euo pipefail
+          dest="$RUNNER_TEMP/xcodegen"
+          mkdir -p "$dest"
+          curl --retry 3 -fsSL -o "$RUNNER_TEMP/xcodegen.zip" https://github.com/yonaskolb/XcodeGen/releases/download/2.46.0/xcodegen.zip
+          unzip -q "$RUNNER_TEMP/xcodegen.zip" -d "$dest"
+          echo "$dest/xcodegen/bin" >> "$GITHUB_PATH"
+
+      - name: Generate project
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/gn"
+          xcodegen --version
+          xcodegen generate
+
+      - name: Run protective backup regressions
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/gn"
+          python3 scripts/check-protective-filters.py
+
+      - name: Build unsigned IPA
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/gn"
+          ./scripts/build-ipa.sh Release --clean
+          unzip -t build/GoldenNuggetMobile.ipa | tail -3
+          shasum -a 256 build/GoldenNuggetMobile.ipa
+
+      - name: Upload IPA
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: GoldenNugget-Mobile-MB105-iOS-unsigned
+          path: ${{ runner.temp }}/gn/build/GoldenNuggetMobile.ipa
+          if-no-files-found: error
+          retention-days: 30
