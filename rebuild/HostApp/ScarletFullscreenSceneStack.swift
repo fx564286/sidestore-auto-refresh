@@ -745,6 +745,7 @@ private final class ScarletGuestIslandReceiptObserver {
     private var subscribed: Set<Int32> = []
     private var seen: Set<String> = []
     var onTopRiskMeasured: ((Int32, Int, Int, Int, Int) -> Void)?
+    var onSurfaceToneMeasured: ((Int32, Int) -> Void)?
 
     func observe(pid: Int32) {
         guard pid > 0 else { return }
@@ -963,6 +964,17 @@ private final class ScarletGuestIslandReceiptObserver {
                 ScarletDiagnosticRecorder.shared.record(
                     "layout", "guest_always_policy_quarantined",
                     fields: ["process_pid": String(pid), "safe_top_pt": String(target)])
+                continue
+            }
+            if result == "guest_chrome_surface_tone" {
+                let tone = (row["surface_tone"] as? NSNumber)?.intValue ?? 0
+                guard (0...2).contains(tone) else { continue }
+                ScarletDiagnosticRecorder.shared.record(
+                    "layout", "guest_chrome_surface_tone",
+                    fields: ["process_pid": String(pid),
+                             "surface_tone": String(tone),
+                             "result": "guest_native_uikit_background"])
+                onSurfaceToneMeasured?(pid, tone)
                 continue
             }
             if result == "guest_content_geometry_probe" {
@@ -1209,26 +1221,46 @@ final class ScarletFullscreenSceneViewport: UIViewController {
     private var chromeEligiblePIDs: Set<Int32> = []
     private var lastChromeTop: CGFloat = -1
     private var chromeAppearanceIsLight: Bool?
+    private var chromeAppearancePID: Int32 = 0
     private var chromeStatusBarPreference: UIStatusBarStyle = .default
+    // R6P43: host-measured FBScene geometry (not guest UIWindow bounds)
+    // and the guest's own UIKit background tone, never the host trait.
+    private var chromeVerifiedPIDs: Set<Int32> = []
+    private var chromeSurfaceToneByPID: [Int32: Int] = [:]
 
     override var preferredStatusBarStyle: UIStatusBarStyle {
         chromeStatusBarPreference
     }
 
-    // R6P42: a UIView with .clear over a .black host produces the black
-    // 62pt status band seen on signed P40. Preserve the transparent
-    // non-touch layout, but match the guest's native light/dark scene
-    // background behind it. Do not duplicate, crop or snapshot app pixels.
+    // R6P43: the host trait in signed P42 reports .dark even while
+    // Instagram's guest UI is white. Only the *guest process* can classify
+    // its own visible UIKit opaque background without screenshots/text.
+    // 0=unknown, 1=light, 2=dark. Unknown is not an app-color guess.
     private func applyNativeChromeAppearance(
         for guest: AppSceneViewController, scene: UIWindowScene) {
-        let style = guest.contentView?.traitCollection.userInterfaceStyle
-            ?? guest.traitCollection.userInterfaceStyle
-        let isLight = style != .dark
-        guard chromeAppearanceIsLight != isLight else { return }
+        let tone = chromeSurfaceToneByPID[guest.pid] ?? 0
+        guard tone == 1 || tone == 2 else {
+            if chromeAppearancePID != guest.pid || chromeAppearanceIsLight != nil {
+                // Never carry guest A's black color into an unmeasured B.
+                chromeAppearancePID = guest.pid
+                chromeAppearanceIsLight = nil
+                view.backgroundColor = .systemBackground
+                chromeStatusBarPreference = .default
+                setNeedsStatusBarAppearanceUpdate()
+                view.window?.rootViewController?.setNeedsStatusBarAppearanceUpdate()
+                ScarletDiagnosticRecorder.shared.record(
+                    "layout", "guest_chrome_appearance_unresolved",
+                    fields: ["process_pid": String(guest.pid),
+                             "result": "guest_background_not_observable",
+                             "surface_tone": String(tone)])
+            }
+            return
+        }
+        let isLight = tone == 1
+        guard chromeAppearanceIsLight != isLight ||
+              chromeAppearancePID != guest.pid else { return }
+        chromeAppearancePID = guest.pid
         chromeAppearanceIsLight = isLight
-        // UIKit's system background is white in a light guest, black in
-        // dark mode; explicit resolved colors avoid inheriting a dark HOST
-        // trait for a guest which has opted into light appearance.
         view.backgroundColor = isLight ? .white : .black
         chromeStatusBarPreference = isLight ? .darkContent : .lightContent
         setNeedsStatusBarAppearanceUpdate()
@@ -1238,19 +1270,93 @@ final class ScarletFullscreenSceneViewport: UIViewController {
             fields: ["process_pid": String(guest.pid),
                      "result": isLight ? "light_guest_backdrop"
                                          : "dark_guest_backdrop",
+                     "surface_tone": String(tone),
                      "chrome_dark_status_text": isLight ? "true" : "false",
                      "slot_top_pt": String(Int(chromeTop(in: scene)))])
         DispatchQueue.main.async { [weak self, weak scene] in
             guard let self, self.view.window?.windowScene === scene else {
                 return
             }
-            let current = scene?.statusBarManager?.statusBarStyle.rawValue ?? -1
+            let actual = scene?.statusBarManager?.statusBarStyle.rawValue ?? -1
             ScarletDiagnosticRecorder.shared.record(
                 "layout", "guest_chrome_status_style_readback",
                 fields: ["result": "uikit_status_bar_observed",
-                         "status_style_raw": String(Int(current)),
+                         "status_style_raw": String(Int(actual)),
                          "chrome_dark_status_text": self.chromeAppearanceIsLight == true
                              ? "true" : "false"])
+        }
+    }
+
+    private func onGuestSurfaceTone(pid: Int32, tone: Int) {
+        guard controllers.values.contains(where: { $0.pid == pid }),
+              (0...2).contains(tone) else { return }
+        chromeSurfaceToneByPID[pid] = tone
+        if let active = stack?.activeID, stack?.isVisible == true,
+           let guest = controllers[active], guest.pid == pid,
+           let scene = view.window?.windowScene {
+            applyNativeChromeAppearance(for: guest, scene: scene)
+        }
+    }
+
+    private func publishNativeChromeVerifiedPIDs(_ scene: UIWindowScene) {
+        let verified: [Int] = controllers.values.compactMap { vc in
+            let pid = vc.pid
+            return pid > 0 && vc.isAppRunning &&
+                chromeVerifiedPIDs.contains(pid) &&
+                chromeEligiblePIDs.contains(pid) &&
+                vc.scarletNativeTransparentChromeSlot &&
+                chromeTop(in: scene) > 0 ? Int(pid) : nil
+        }
+        LCUtils.appGroupUserDefault.set(verified,
+            forKey: "Scarlet.Guest.TransparentChromeVerifiedPIDs.V1")
+    }
+
+    // R6P43: P42 iPhone showed remote contentView.height 894, even though
+    // the guest's separate UIWindow did not satisfy P41's height guard.
+    // Publish PID verification ONLY after reading the actual remote view.
+    private func verifyNativeChromeRemoteSlot(
+        controller: AppSceneViewController, scene: UIWindowScene,
+        expected: CGRect, attempt: Int = 0) {
+        DispatchQueue.main.asyncAfter(
+            deadline: .now() + (attempt == 0 ? 0.20 : 0.45)) {
+            [weak self, weak controller, weak scene] in
+            guard let self, let vc = controller, let realScene = scene,
+                  self.view.window?.windowScene === realScene,
+                  vc.pid > 0, vc.isAppRunning,
+                  self.chromeEligiblePIDs.contains(vc.pid),
+                  vc.scarletNativeTransparentChromeSlot,
+                  self.chromeTop(in: realScene) > 0 else { return }
+            let content = vc.contentView?.bounds.height ?? -1
+            let rect = vc.view.frame
+            let correct = abs(rect.minY - expected.minY) < 2 &&
+                abs(rect.width - expected.width) < 2 &&
+                abs(rect.height - expected.height) < 2 &&
+                abs(content - expected.height) < 2
+            if correct {
+                if self.chromeVerifiedPIDs.insert(vc.pid).inserted {
+                    self.publishNativeChromeVerifiedPIDs(realScene)
+                    ScarletDiagnosticRecorder.shared.record(
+                        "layout", "guest_chrome_remote_slot_verified",
+                        fields: ["process_pid": String(vc.pid),
+                                 "result": "fbscene_content_matches_host_slot",
+                                 "slot_y_pt": String(Int(rect.minY)),
+                                 "slot_height_pt": String(Int(rect.height)),
+                                 "remote_content_height_pt": String(Int(content))])
+                }
+            } else if attempt < 4 {
+                self.verifyNativeChromeRemoteSlot(
+                    controller: vc, scene: realScene,
+                    expected: expected, attempt: attempt + 1)
+            } else {
+                ScarletDiagnosticRecorder.shared.record(
+                    "layout", "guest_chrome_remote_slot_unverified",
+                    status: "warning",
+                    fields: ["process_pid": String(vc.pid),
+                             "result": "remote_scene_size_not_confirmed",
+                             "slot_y_pt": String(Int(rect.minY)),
+                             "slot_height_pt": String(Int(rect.height)),
+                             "remote_content_height_pt": String(Int(content))])
+            }
         }
     }
 
@@ -1278,6 +1384,7 @@ final class ScarletFullscreenSceneViewport: UIViewController {
             forKey: "Scarlet.Guest.TransparentChromeActivePIDs.V1")
         LCUtils.appGroupUserDefault.set(Double(chromeTop(in: scene)),
             forKey: "Scarlet.Guest.TransparentChromeTop.V1")
+        publishNativeChromeVerifiedPIDs(scene)
         for vc in controllers.values {
             let reserved = vc.pid > 0 && chromeEligiblePIDs.contains(vc.pid) &&
                 chromeTop(in: scene) > 0
@@ -1286,6 +1393,7 @@ final class ScarletFullscreenSceneViewport: UIViewController {
                 abs(vc.view.frame.minY - rect.minY) > 0.5 ||
                 abs(vc.view.frame.height - rect.height) > 0.5 ||
                 abs(vc.view.frame.width - rect.width) > 0.5 {
+                if !reserved { chromeVerifiedPIDs.remove(vc.pid) }
                 vc.scarletApplyNativeTransparentChromeSlot(reserved)
                 vc.view.frame = rect
                 let orientation = scene.interfaceOrientation
@@ -1293,6 +1401,12 @@ final class ScarletFullscreenSceneViewport: UIViewController {
                     guard let settings else { return }
                     settings.setFrame(rect)
                     settings.setInterfaceOrientation(orientation)
+                }
+                if reserved {
+                    verifyNativeChromeRemoteSlot(
+                        controller: vc, scene: scene, expected: rect)
+                } else {
+                    publishNativeChromeVerifiedPIDs(scene)
                 }
                 ScarletDiagnosticRecorder.shared.record(
                     "layout", "guest_chrome_adaptive_slot_applied",
@@ -1309,8 +1423,10 @@ final class ScarletFullscreenSceneViewport: UIViewController {
             chromeEligiblePIDs.contains($0)
         } == true
         let top = active ? chromeTop(in: scene) : 0
-        if top > 0, let id = stack?.activeID,
+        if stack?.isVisible == true, let id = stack?.activeID,
            let guest = controllers[id] {
+            // Safe guests also need their own backdrop: P42 retained the
+            // previous guest's black host background across A->B.
             applyNativeChromeAppearance(for: guest, scene: scene)
         }
         transparentChrome.frame = CGRect(x: 0,y: 0,
@@ -1547,6 +1663,12 @@ final class ScarletFullscreenSceneViewport: UIViewController {
         view.insertSubview(transparentChrome, at: 0)
         LCUtils.appGroupUserDefault.set([Int](),
             forKey: "Scarlet.Guest.TransparentChromeActivePIDs.V1")
+        LCUtils.appGroupUserDefault.set([Int](),
+            forKey: "Scarlet.Guest.TransparentChromeVerifiedPIDs.V1")
+        ScarletGuestIslandReceiptObserver.shared.onSurfaceToneMeasured = {
+            [weak self] pid, tone in
+            self?.onGuestSurfaceTone(pid: pid, tone: tone)
+        }
         ScarletGuestIslandReceiptObserver.shared.onTopRiskMeasured = {
             [weak self] pid, unsafe, first, top, sample in
             self?.onUnsafeGuestControls(pid: pid, unsafe: unsafe,
@@ -1656,6 +1778,8 @@ final class ScarletFullscreenSceneViewport: UIViewController {
         observedRemoteInsets.removeValue(forKey: ObjectIdentifier(old))
         lastHostingOwnerProbes.removeValue(forKey: ObjectIdentifier(old))
         chromeEligiblePIDs.remove(old.pid)
+        chromeVerifiedPIDs.remove(old.pid)
+        chromeSurfaceToneByPID.removeValue(forKey: old.pid)
         if let scene = view.window?.windowScene {
             updateNativeChromeSlots(scene)
         }
