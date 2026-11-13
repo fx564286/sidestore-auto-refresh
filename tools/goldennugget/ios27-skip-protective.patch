@@ -1,0 +1,270 @@
+diff --git a/Nugget/Core/DevSettings.swift b/Nugget/Core/DevSettings.swift
+index 4699f0b..1dc680c 100755
+--- a/Nugget/Core/DevSettings.swift
++++ b/Nugget/Core/DevSettings.swift
+@@ -26,12 +26,13 @@ enum DevSettings {
+     enum Key {
+         static let enabled = "Dev.Enabled"
+         static let forcePartialRestore = "Dev.ForcePartialRestore"
++        static let skipProtectiveBackup = "Dev.SkipProtectiveBackup"
+         static let verboseLog = "Dev.VerboseLog"
+         static let skipAfcMedia = "Dev.SkipAfcMedia"
+     }
+ 
+     /// The `UserDefaults` keys in declaration order, for the reset action.
+-    static let allKeys = [Key.forcePartialRestore, Key.verboseLog, Key.skipAfcMedia]
++    static let allKeys = [Key.forcePartialRestore, Key.skipProtectiveBackup, Key.verboseLog, Key.skipAfcMedia]
+ 
+     private static var defaults: UserDefaults { .standard }
+ 
+@@ -66,6 +67,13 @@ enum DevSettings {
+     ///
+     /// Defaults to on, which is the vendor's own default, so entering development
+     /// mode and touching nothing else does not change what gets recorded.
++    /// Opt-in high-risk iOS 27 restore without a device backup.
++    /// This does not ensure restore success, preserve state, or provide recovery.
++    static var skipProtectiveBackup: Bool {
++        get { defaults.bool(forKey: Key.skipProtectiveBackup) }
++        set { defaults.set(newValue, forKey: Key.skipProtectiveBackup) }
++    }
++
+     static var verboseLog: Bool {
+         get { defaults.object(forKey: Key.verboseLog) as? Bool ?? true }
+         set { defaults.set(newValue, forKey: Key.verboseLog) }
+@@ -86,12 +94,14 @@ enum DevSettings {
+     /// allowed to read.
+     struct Effective: Equatable {
+         var forcePartialRestore = false
++        var skipProtectiveBackup = false
+         var verboseLog = true
+         var skipAfcMedia = false
+     }
+ 
+     static var effective: Effective {
+         Effective(forcePartialRestore: enabled && forcePartialRestore,
++                  skipProtectiveBackup: enabled && skipProtectiveBackup,
+                   // Logging is the one switch that is *restored* rather than gated:
+                   // see `applyLoggingPreference`.
+                   verboseLog: enabled ? verboseLog : true,
+diff --git a/Nugget/Core/GoldenNuggetEngine.swift b/Nugget/Core/GoldenNuggetEngine.swift
+index d92b701..5c4e155 100755
+--- a/Nugget/Core/GoldenNuggetEngine.swift
++++ b/Nugget/Core/GoldenNuggetEngine.swift
+@@ -482,6 +482,11 @@ class GoldenNuggetEngine {
+                 // template-only descriptors, must start with the device's database.
+                 log("PosterBoard: reset only — no database is needed, and none is fetched.")
+             } else {
++                if DevSettings.effective.skipProtectiveBackup {
++                    throw GoldenNuggetError("PosterBoard wallpaper edits require a native device snapshot. "
++                        + "Backup bypass cannot fetch it. Select AirLift when supported, disable "
++                        + "PosterBoard changes, or turn the bypass off.")
++                }
+                 let fetched = try await PosterBoardBackup.fetch(
+                     backupRoot: AppPaths.posterBoardFetchRoot, udid: udid,
+                     ios27: major >= 27 && !DevSettings.effective.forcePartialRestore,
+@@ -712,9 +717,13 @@ class GoldenNuggetEngine {
+         // once, here, and both decisions below quote the same snapshot.
+         let dev = DevSettings.effective
+         let ios27 = major >= 27 && !dev.forcePartialRestore
++        let unsafeSkipBackup = ios27 && dev.skipProtectiveBackup
++        if dev.forcePartialRestore && dev.skipProtectiveBackup {
++            throw GoldenNuggetError("Disable Force Partial Restore before using iOS 27 backup bypass.")
++        }
+         let hasEligibility = payloads.contains { $0.domain == "SysContainerDomain-com.apple.eligibilityd" }
+-        if hasEligibility && !ios27 {
+-            throw GoldenNuggetError("Siri AI overrides require an unencrypted protective backup. Disable forced partial restore and retry.")
++        if hasEligibility && (!ios27 || unsafeSkipBackup) {
++            throw GoldenNuggetError("Siri AI overrides require an unencrypted protective backup; backup bypass is unsupported for these payloads.")
+         }
+         // Reported before the fork, because this number *is* the fork: the
+         // branch lines below say where the run went, this says why.
+@@ -737,8 +746,13 @@ class GoldenNuggetEngine {
+         let backupRoot: URL
+         let prune: Bool
+         if ios27 {
+-            log("Manifest format: sqlite (iOS 27+ path), protective backup pulled")
+-            backupRoot = try await protectiveBackup(udid: udid)
++            if unsafeSkipBackup {
++                log("UNSAFE OVERRIDE ACTIVE: using iOS 27 SQLite without protective backup")
++                backupRoot = try unprotectedIOS27Restore(udid: udid)
++            } else {
++                log("Manifest format: sqlite (iOS 27+ path), protective backup pulled")
++                backupRoot = try await protectiveBackup(udid: udid)
++            }
+             if hasEligibility {
+                 let manifestURL = backupRoot.appendingPathComponent(udid).appendingPathComponent("Manifest.plist")
+                 let data = try Data(contentsOf: manifestURL)
+@@ -747,7 +761,7 @@ class GoldenNuggetEngine {
+                     throw GoldenNuggetError("Siri AI overrides require a confirmed unencrypted protective backup. Disable local backup encryption in Finder/iTunes and retry.")
+                 }
+             }
+-            prune = true
++            prune = !unsafeSkipBackup
+             // Media over AFC, after the backup and before the prune: the backup
+             // filter rejects the media domains, so this is the only thing that
+             // collects them, and doing it here means an apply is the one action
+@@ -757,7 +771,9 @@ class GoldenNuggetEngine {
+             // photos: it is started to apply tweaks, and the media page is where
+             // that choice is made with a count and a free-space figure in front
+             // of the user.
+-            if dev.skipAfcMedia {
++            if unsafeSkipBackup {
++                log("UNSAFE OVERRIDE: no AFC media preservation without a protective backup baseline")
++            } else if dev.skipAfcMedia {
+                 log("development mode: skipping the AFC media pull (Dev.SkipAfcMedia)")
+             } else {
+                 clearProgress()
+@@ -840,7 +856,11 @@ class GoldenNuggetEngine {
+         let version = try await resolvedDeviceVersion("")
+         let major = Int(version.split(separator: ".").first ?? "0") ?? 0
+         let dev = DevSettings.effective
++        if dev.forcePartialRestore && dev.skipProtectiveBackup {
++            throw GoldenNuggetError("Disable Force Partial Restore before using iOS 27 backup bypass.")
++        }
+         let ios27 = major >= 27 && !dev.forcePartialRestore
++        let unsafeSkipBackup = ios27 && dev.skipProtectiveBackup
+ 
+         let plan = TweakReset.plan(pages: pages, ios27: ios27)
+         guard !plan.payloads.isEmpty else {
+@@ -889,9 +909,15 @@ class GoldenNuggetEngine {
+         let backupRoot: URL
+         let prune: Bool
+         if ios27 {
+-            log("Manifest format: sqlite (iOS 27+ path), protective backup pulled, then pruned")
+-            backupRoot = try await protectiveBackup(udid: udid)
+-            prune = true
++            if unsafeSkipBackup {
++                log("UNSAFE OVERRIDE ACTIVE: resetting iOS 27 pages without protective backup")
++                backupRoot = try unprotectedIOS27Restore(udid: udid)
++                prune = false
++            } else {
++                log("Manifest format: sqlite (iOS 27+ path), protective backup pulled, then pruned")
++                backupRoot = try await protectiveBackup(udid: udid)
++                prune = true
++            }
+         } else {
+             log("Manifest format: legacy MBDB (iOS 26 path), built from nothing")
+             backupRoot = try await partialRestore(udid: udid)
+@@ -1106,6 +1132,20 @@ class GoldenNuggetEngine {
+     }
+ 
+     /// A real protective backup into `<Documents>/<udid>/`.
++    /// Explicit experimental iOS 27 restore without a device backup.
++    /// The device may reject this manifest or become unbootable.
++    private func unprotectedIOS27Restore(udid: String) throws -> URL {
++        let backupRoot = AppPaths.fullBackupRoot(udid: udid)
++        try resetDirectory(backupRoot)
++        let deviceDir = AppPaths.deviceDir(backupRoot: backupRoot, udid: udid)
++        try HostManifests.ensure(deviceDir: deviceDir, udid: udid,
++                                 ios27: true, isFullBackup: false)
++        try HostManifests.writeUnprotectedRestoreSQLite(deviceDir: deviceDir)
++        log("UNSAFE: iOS 27 protective backup SKIPPED by user opt-in; no device state "
++            + "was saved; restore may be rejected or leave the device unbootable.")
++        return backupRoot
++    }
++
+     private func protectiveBackup(udid: String) async throws -> URL {
+         let backupRoot = AppPaths.fullBackupRoot(udid: udid)
+         try resetDirectory(backupRoot)
+diff --git a/Nugget/Core/HostManifests.swift b/Nugget/Core/HostManifests.swift
+index 3a56118..f887aef 100755
+--- a/Nugget/Core/HostManifests.swift
++++ b/Nugget/Core/HostManifests.swift
+@@ -269,6 +269,38 @@ enum HostManifests {
+     }
+ 
+     /// Wipe `<backupRoot>/<udid>/` and re-seed the host-side manifests.
++    /// Explicitly unsafe backup-free iOS 27 restore: create the Files
++    /// table expected by the injector, without copying any device records.
++    /// The device may still reject missing native domain registration.
++    static func writeUnprotectedRestoreSQLite(deviceDir: URL) throws {
++        let url = deviceDir.appendingPathComponent("Manifest.db")
++        try? FileManager.default.removeItem(at: url)
++        var db: OpaquePointer?
++        guard sqlite3_open(url.path, &db) == SQLITE_OK, let db else {
++            let why = db.map { String(cString: sqlite3_errmsg($0)) } ?? "cannot open"
++            sqlite3_close(db)
++            throw NSError(domain: "HostManifests", code: 5,
++                          userInfo: [NSLocalizedDescriptionKey: "Unprotected restore Manifest.db: \(why)"])
++        }
++        defer { sqlite3_close(db) }
++        guard sqlite3_exec(db, """
++            PRAGMA journal_mode=DELETE;
++            CREATE TABLE Files (
++                fileID TEXT PRIMARY KEY,
++                domain TEXT,
++                relativePath TEXT,
++                flags INTEGER,
++                file BLOB
++            );
++            CREATE TABLE Properties (key TEXT PRIMARY KEY, value BLOB);
++            """, nil, nil, nil) == SQLITE_OK else {
++            throw NSError(domain: "HostManifests", code: 6,
++                          userInfo: [NSLocalizedDescriptionKey:
++                            "Unprotected restore schema: \(String(cString: sqlite3_errmsg(db)))"])
++        }
++        AppLog.write("UNSAFE: synthesized empty iOS 27 Files schema without device backup")
++    }
++
+     static func reset(backupRoot: URL, udid: String) throws {
+         let deviceDir = AppPaths.deviceDir(backupRoot: backupRoot, udid: udid)
+         try? FileManager.default.removeItem(at: deviceDir)
+diff --git a/Nugget/Views/SettingsView.swift b/Nugget/Views/SettingsView.swift
+index 43a021e..597fde2 100755
+--- a/Nugget/Views/SettingsView.swift
++++ b/Nugget/Views/SettingsView.swift
+@@ -18,6 +18,8 @@ struct SettingsView: View {
+     @AppStorage(UntestedTweaks.enabledKey) private var untestedTweaks = false
+     @AppStorage(DevSettings.Key.enabled) private var devModeOn = false
+     @AppStorage(DevSettings.Key.forcePartialRestore) private var forcePartialRestore = false
++    @AppStorage(DevSettings.Key.skipProtectiveBackup) private var skipProtectiveBackup = false
++    @State private var confirmUnsafeSkipBackup = false
+     @AppStorage(DevSettings.Key.verboseLog) private var verboseLog = true
+     @AppStorage(DevSettings.Key.skipAfcMedia) private var skipAfcMedia = false
+ 
+@@ -415,6 +417,35 @@ struct SettingsView: View {
+                               + "from nothing — even on a device that reports iOS 27+, "
+                               + "and skips the protective backup entirely.",
+                           isOn: $forcePartialRestore)
++                    .disabled(skipProtectiveBackup)
++
++                Toggle(isOn: Binding(
++                    get: { skipProtectiveBackup },
++                    set: { newValue in
++                        if newValue {
++                            confirmUnsafeSkipBackup = true
++                        } else {
++                            skipProtectiveBackup = false
++                        }
++                    }
++                )) {
++                    VStack(alignment: .leading, spacing: 4) {
++                        Text("iOS 27 보호 백업 건너뛰기 (고위험)")
++                        NativeSafetyNote("보호 백업을 만들지 않고 iOS 27 복원을 시도합니다. "
++                            + "설정·데이터 손실, 복원 거부, 부팅 장애가 발생할 수 있습니다. "
++                            + "복구 모드로도 데이터 복원은 보장되지 않습니다.")
++                    }
++                }
++                .alert("보호 백업 없이 복원하시겠습니까?", isPresented: $confirmUnsafeSkipBackup) {
++                    Button("취소", role: .cancel) {}
++                    Button("위험을 감수하고 활성화", role: .destructive) {
++                        forcePartialRestore = false
++                        skipProtectiveBackup = true
++                    }
++                } message: {
++                    Text("iOS 27 SQLite 복원 형식만 유지하고 기기 보호 백업을 생략합니다. "
++                        + "기기에서 실제로 동작하는지는 검증되지 않았습니다.")
++                }
+ 
+                 switchRow("Verbose log",
+                           note: verboseLog
+@@ -438,6 +469,9 @@ struct SettingsView: View {
+                     + "because a synthesised manifest carries no domain registration.")
+             }
+         }
++        .onChange(of: devModeOn) { _, enabled in
++            if !enabled { skipProtectiveBackup = false }
++        }
+     }
+ 
+     // MARK: - Rows
