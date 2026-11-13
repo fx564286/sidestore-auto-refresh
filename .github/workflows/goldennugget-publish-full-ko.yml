@@ -1,0 +1,106 @@
+name: GoldenNugget 9.7.5 Complete Korean Direct IPA
+
+on:
+  push:
+    branches:
+      - build/goldennugget-full-ko-20261114
+    paths:
+      - .github/workflows/goldennugget-publish-full-ko.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  actions: read
+
+jobs:
+  package-and-release:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download verified Xcode 27 IPA
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/gn-original"
+          gh run download 43466480798 \
+            -R fx564286/sidestore-auto-refresh \
+            --name GoldenNugget-9.7.5-Korean-Community-Duo-Final-unsigned \
+            --dir "$RUNNER_TEMP/gn-original"
+          test -s "$RUNNER_TEMP/gn-original/GoldenNuggetMobile.ipa"
+
+      - name: Verify original Korean localization resource matches previous baseline
+        run: |
+          set -euo pipefail
+          echo "5b54a1b517ce98cef7b51cd0b2630a5974d35cc170a185c7ff55e94bd7c7fcc1  tools/goldennugget/localization/ko.lproj/Localizable.strings" | sha256sum -c -
+          echo "ba34d5fcf7f4c301a93d342dad164248885ce3f22015ff5248828c3f98c84d9d  tools/goldennugget/localization/ko.lproj/InfoPlist.strings" | sha256sum -c -
+
+      - name: Add Korean resources and bump build to 11 without modifying executable
+        env:
+          ORIGINAL_IPA: ${{ runner.temp }}/gn-original/GoldenNuggetMobile.ipa
+          OUT_IPA: ${{ runner.temp }}/GoldenNugget.ipa
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          import os, zipfile, plistlib, hashlib
+          original = Path(os.environ["ORIGINAL_IPA"])
+          output = Path(os.environ["OUT_IPA"])
+          resources = Path("tools/goldennugget/localization/ko.lproj")
+          prefix = "Payload/GoldenNuggetMobile.app/"
+          with zipfile.ZipFile(original) as source, zipfile.ZipFile(output,"w") as target:
+              assert source.testzip() is None
+              names = set(source.namelist())
+              assert prefix+"GoldenNuggetMobile" in names
+              assert prefix+"ko.lproj/Localizable.strings" not in names
+              oldbinary = source.read(prefix+"GoldenNuggetMobile")
+              # Ensure latest native Swift UI Korean catalog and safe backup changes.
+              for marker in ["가져오기 완료 · 아직 기기에 적용된 것은 아님",
+                             "커뮤니티 카탈로그","복원 차단(MBErrorDomain/211)",
+                             "Dev.SkipProtectiveBackup"]:
+                  assert marker.encode("utf-8") in oldbinary, marker
+              for entry in source.infolist():
+                  data = source.read(entry.filename)
+                  if entry.filename == prefix+"Info.plist":
+                      info = plistlib.loads(data)
+                      assert info["CFBundleIdentifier"] == "com.awesomenull.goldennugget"
+                      info["CFBundleVersion"] = "11"
+                      languages = list(info.get("CFBundleLocalizations",[]))
+                      for lang in ["en","ko"]:
+                          if lang not in languages: languages.append(lang)
+                      info["CFBundleLocalizations"] = languages
+                      data = plistlib.dumps(info, fmt=plistlib.FMT_BINARY)
+                  target.writestr(entry,data)
+              for fn in ["Localizable.strings","InfoPlist.strings"]:
+                  target.write(resources/fn,prefix+"ko.lproj/"+fn)
+          with zipfile.ZipFile(output) as result:
+              assert result.testzip() is None
+              info = plistlib.loads(result.read(prefix+"Info.plist"))
+              assert info["CFBundleVersion"] == "11"
+              assert "ko" in info["CFBundleLocalizations"]
+              assert result.read(prefix+"GoldenNuggetMobile")==oldbinary
+              translation = result.read(prefix+"ko.lproj/Localizable.strings")
+              assert translation.count(b"\n") >= 1150
+              print("PASS: 1150+ Korean strings, source-level catalog translations, binary unchanged")
+              print("PASS: version",info["CFBundleShortVersionString"],"build",info["CFBundleVersion"])
+          print("IPA:",output,"size",output.stat().st_size)
+          print("SHA256:",hashlib.sha256(output.read_bytes()).hexdigest())
+          PY
+          unzip -t "$OUT_IPA" | tail -2
+
+      - name: Publish standalone IPA directly to GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          tag="goldennugget-975-full-korean-20261114"
+          gh release create "$tag" "$RUNNER_TEMP/GoldenNugget.ipa" \
+            --repo fx564286/sidestore-auto-refresh \
+            --target "$GITHUB_SHA" \
+            --title "GoldenNugget 9.7.5 Korean UI Complete (build 11)" \
+            --notes "Unsigned LiveContainer IPA. Bundled 1150 Korean UI translation strings and original Korean InfoPlist, plus source-level community catalog names, Duo descriptions, safe backup path and opt-in skip, and Find My 211 diagnostics. This is a development build; iOS 27 device restore behavior remains unverified."
+          gh release view "$tag" -R fx564286/sidestore-auto-refresh --json assets --jq '.assets[] | .name + " " + .url'
+          test "$(gh release view "$tag" -R fx564286/sidestore-auto-refresh --json assets --jq '.assets | length')" = 1
