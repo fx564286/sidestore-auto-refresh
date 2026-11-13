@@ -1,9 +1,9 @@
 {
   "schema": 2,
   "scope": "Scarlet Crystal guest top-screen overlap, touch access, rotation, remote guest render and related resident regressions",
-  "updated_utc": "2026-11-14T01:28:00+09:00",
-  "current_baseline": "P53 signed 6816d81e parent native Y62/guest header Y0, unsafe9->6 then affine invalidated. P54 consolidated source 7889e60fc55c changes actual parent UIKit layout completion and embeds solution-first log handoff; source static tested, Xcode and signed device pending.",
-  "current_issue_status": "Dynamic Island overlap and statusbar hidden remain P53 device unresolved. P54 source fix and solution-first single-log handoff completed; native CI/IPA/device verification pending. Keychain installation_verified, audio isolation and guest keyboard still independent unresolved.",
+  "updated_utc": "2026-11-14T01:50:00+09:00",
+  "current_baseline": "P53 6816d81e device unsafe9->6 then affine invalidated. P54 native owner layout source 7889e60 and Xcode ARC bridge compile correction 64d7017d45b1 after initial run43464894329 failed. L100 source and new test published, Xcode/IPA signed device outcome pending.",
+  "current_issue_status": "P53 Dynamic Island and time/battery unresolved. Initial P54 CI failed on two ARC Class pointer implicit conversions, P54 correction revision 64d7017d45b1 created, retry pending. Audio isolation and refresh install verification independent.",
   "confidence_note": "P53 source inspection and device data establish parent native custom layout ownership, but do not prove a per-instance Objective-C subclass is accepted on iOS or that its header reflow improves all controls. Native CI plus device A->B->A and statusbar are required.",
   "privacy": "No credentials, Apple ID, OTP, UDID, guest names or device identifiers are stored.",
   "entries": [
@@ -27564,9 +27564,9 @@
         },
         "why_prior_fix_failed": "Prior single header mutation and explicit constraints lost to later native/app parent controller viewDidLayoutSubviews, and re-running the affine transform is merely repeating the same writer race. A per-instance owner lifecycle posthook is distinct because it changes the native layout contract at the writer point rather than the position after that writer; it does not touch other app instances or global UIView/UIViewController methods."
       },
-      "action": "P53 signed 440x956/root Safe Area top62 and parent controller's custom viewDidLayoutSubviews owner (impl origin3) were independently confirmed. P37/P39 changed child frame/constraints once and guest UIKit subsequently overrode; P44/P53 affine transform partly improved 9->6 then invalidated reason2. P54 fixes the actual recognized parent controller's native layout completion source instead of adding another delayed frame/transform/scroll inset or FBScene crop. On the same already-existing 650/2600ms sample of visible unsafe controls, P53 plain 50pt composite header passes unique severe controls, top Y0, native parent guide Y62 and unclipped-ancestor gates. Dynamically subclass only the one exact attached parent UIViewController instance (not global UIKit or guest class), forwarding the native guest's original viewDidLayoutSubviews IMP then laying its one header below parent native safe guide. A per-instance associated weak header and reentrancy guard preserve other guest controllers. The old P44 affine mutation is not run for this confirmed composite. 250ms and 1350ms native visual+hit readbacks require >=2 actually visible controls to move below safeTop and unsafe total to decline by >=2 without increasing unsafe images and without changing UIWindow dimensions, or dynamically restore original class/frame; statusbar pilot owner gets success/failure through existing verified-native-header relay. No original V48 app visual or audio/keychain/keyboard/switcher/signing/bundle ID changes. A new report front section reads last embedded Lxxx and displays source SHA, device verification, next executable action. The embedded prompt now explicitly instructs next session to continue functional source repair rather than error-only probes or web search; full code history and this prompt remain embedded as before. An explicit P54 native-header 72pt maximum eligibility constant is used by the actual runtime owner dock; it also makes the C header include hunk a genuine code-bearing change.",
+      "action": "P53 signed 440x956/root Safe Area top62 and parent controller's custom viewDidLayoutSubviews owner (impl origin3) were independently confirmed. P37/P39 changed child frame/constraints once and guest UIKit subsequently overrode; P44/P53 affine transform partly improved 9->6 then invalidated reason2. P54 fixes the actual recognized parent controller's native layout completion source instead of adding another delayed frame/transform/scroll inset or FBScene crop. On the same already-existing 650/2600ms sample of visible unsafe controls, P53 plain 50pt composite header passes unique severe controls, top Y0, native parent guide Y62 and unclipped-ancestor gates. Dynamically subclass only the one exact attached parent UIViewController instance (not global UIKit or guest class), forwarding the native guest's original viewDidLayoutSubviews IMP then laying its one header below parent native safe guide. A per-instance associated weak header and reentrancy guard preserve other guest controllers. The old P44 affine mutation is not run for this confirmed composite. 250ms and 1350ms native visual+hit readbacks require >=2 actually visible controls to move below safeTop and unsafe total to decline by >=2 without increasing unsafe images and without changing UIWindow dimensions, or dynamically restore original class/frame; statusbar pilot owner gets success/failure through existing verified-native-header relay. No original V48 app visual or audio/keychain/keyboard/switcher/signing/bundle ID changes. A new report front section reads last embedded Lxxx and displays source SHA, device verification, next executable action. The embedded prompt now explicitly instructs next session to continue functional source repair rather than error-only probes or web search; full code history and this prompt remain embedded as before. An explicit P54 native-header 72pt maximum eligibility constant is used by the actual runtime owner dock; it also makes the C header include hunk a genuine code-bearing change. ARC compiler correction commit 64d7017d45b1 uses (__bridge void *)original for snprintf and (__bridge const void *)original for NSValue instead of bridging implicit Class pointer, Xcode 27.2 requires this; same owner-layout mechanism, not a new diagnostic-only experiment.",
       "hypothesis": "Guest P53's 50pt plain interactive header is a subview of a full-size UIViewController view that itself honors a native safe guide at62. Its controller has a custom viewDidLayoutSubviews and native layout subsequently overwrote P44 affine transform and P37 frame. Placing the header *after each genuine owning controller layout pass* can break the repeated write race without resizing root, window, remote FBScene or modifying all guests.",
-      "observation": "P53 6816d81eb66f user-supplied current session d29ecbd2: visible unsafe controls initially9, after local affine6, but guest_header_local_transform_invalidated reason2. Independent P53 session d20efe67 PID3001 records root safe62, 50pt short UIView Y0 directly under full-height parent with native safe guide Y62, parent_controller_layout_impl_origin3 and parent_view autoresizes1, 4 relevant constraints but no safe-top positioning constraint. After turning experimental OFF, original LC launch_selected_next/classic path used and user reported guest visually normal. P54 runs a new structural writer-level solution, but no signed-device image/touch evidence is yet available.",
+      "observation": "P53 6816d81eb66f user-supplied current session d29ecbd2: visible unsafe controls initially9, after local affine6, but guest_header_local_transform_invalidated reason2. Independent P53 session d20efe67 PID3001 records root safe62, 50pt short UIView Y0 directly under full-height parent with native safe guide Y62, parent_controller_layout_impl_origin3 and parent_view autoresizes1, 4 relevant constraints but no safe-top positioning constraint. After turning experimental OFF, original LC launch_selected_next/classic path used and user reported guest visually normal. P54 runs a new structural writer-level solution, but no signed-device image/touch evidence is yet available. Initial P54 Xcode 27.2 Actions run43464894329 livecontainer xcodebuild exit65; exact native source errors: ScarletGuestIslandContentGuard.m line3036 direct (void *)original Class pointer in snprintf and line3060 NSValue valueWithPointer:original both require an ARC __bridge cast. Intermediate initial CI failed before unsigned IPA was produced. P54 code revision 64d7017d45b1 repairs both compiler type conversions, with a regression assertion for exact bridges; actual next Xcode build outcome pending.",
       "evidence": [
         "P53 current user log SourceCommit=6816d81eb66f; unsafe9->6 followed by guest_header_local_transform_invalidated and native statusbar hidden while unsafe controls remain.",
         "P53 independent process PID3001 guest_header_layout_owner_probe confirms plain short 50pt Y0, parent guideY62, custom native parent controller layout origin3 and native root safe62. This is a layout owner contract mismatch, not missing root Safe Area.",
@@ -27574,10 +27574,10 @@
         "P54 source modifies only the recognized parent controller instance using objc_allocateClassPair and forwards original app's layout implementation before the native safe-guide docking. Preserves original class and frames if two verification windows fail.",
         "P54 local tests 684 total, 681 pass, three Xcode/simulator-dependent skipped; Mac iOS native compiler, actual device and persisted statusbar/scroll result pending."
       ],
-      "status": "source_committed_ci_pending",
+      "status": "initial_native_compile_failed_arc_bridge_repair_committed_ci_pending",
       "source_verification": "git_patch_observed",
-      "device_verification": "P53 failure and OFF-vs-ON contrast grounded by signed device/real user. P54 only source-level and local regression verified; native Xcode build, IPA integrity, signed device top controls/time/battery/scroll/touch, rotation and A->B->A NOT YET verified. Do not claim solved.",
-      "next_executable_action": "Verify P54 Xcode/IPA and signed iPhone experimental ON with same app, then inspect guest_owner_layout_contract_staged/first_pass/retained/reverted and actual unsafe controls, status icons, full height, A->B->A. If no retained, find which original parent layout code changes header; do not repeat P44 affine or P37 one-shot frame. If retained but unsafe controls>0, implement a different genuine local native scroll/content owner reflow (new L101), never resize whole FBScene/crop screen or declare success.",
+      "device_verification": "Initial P54 native Xcode archive FAILED exit65 (two ARC Class bridging compile errors); exact fix committed 64d7017d45b1. New CI and IPA NOT YET verified. No signed-device overlap/status/time/battery/scroll/rotate/A->B->A proof.",
+      "next_executable_action": "Run updated P54 Xcode 27.2 native CI after explicit Class pointer __bridge correction; if build passes, verify actual IPA ZIP/sha and source marker, then signed-device ON vs OFF tests, check guest_owner_layout_contract_staged/first_pass/retained/reverted, unsafe controls and status icons. If UIKit layout still overwrites, code-functional L101 with a different owner contract; no diagnostic-only version.",
       "rollback_commit": "6816d81eb66f4884d22d4a90e7709188fca88e28",
       "repeat_policy": "Never reapply 62pt root inset, P37 one-shot frame, P39 three child constraints, P44/P53 affine trial after UIKit updates, all-guest host chrome or viewport crop, nor a merely delayed reapplication renamed P55. P54 per-instance controller-owned UIKit layout callback must be judged from signed device actual visual/hit readback. If it fails, treat its mechanism as attempted and seek another source-of-truth. Avoid diagnostics-only updates as purported fixes.",
       "source_revisions": [
@@ -27585,6 +27585,11 @@
           "sha": "7889e60fc55c62ea451543c9d4805f57e3d57ef7",
           "url": "https://github.com/fx564286/sidestore-auto-refresh/commit/7889e60fc55c62ea451543c9d4805f57e3d57ef7",
           "title": "fix(r6p54): own real parent UIKit layout and embed one-log solution-first continuation"
+        },
+        {
+          "sha": "64d7017d45b1132b1afe11bc9af534f514a4a4ae",
+          "url": "https://github.com/fx564286/sidestore-auto-refresh/commit/64d7017d45b1132b1afe11bc9af534f514a4a4ae",
+          "title": "fix(r6p54): explicit ARC Class-to-void bridges required by Xcode 27.2"
         }
       ],
       "code_locations": [
@@ -28299,6 +28304,78 @@
             "if __name__=='__main__':unittest.main()"
           ],
           "commit": "7889e60fc55c62ea451543c9d4805f57e3d57ef7"
+        },
+        {
+          "file": "rebuild/integration/ScarletGuestIslandContentGuard.m.txt",
+          "function": "ScarletGuestIslandContentGuard.m.txt",
+          "location": "@@ -3033,7 +3033,7 @@ static BOOL ScarletIslandP54InstallNativeOwnerContract(\n",
+          "before": [
+            "    IMP originalIMP=method_getImplementation(guestMethod);",
+            "    if(!originalIMP) return NO;",
+            "    char subclassName[160];",
+            "    snprintf(subclassName,sizeof(subclassName),\"ScarletP54_%p\",(void *)original);",
+            "    Class scoped=objc_lookUpClass(subclassName);",
+            "    if(!scoped) {",
+            "        scoped=objc_allocateClassPair(original,subclassName,0);"
+          ],
+          "after": [
+            "    IMP originalIMP=method_getImplementation(guestMethod);",
+            "    if(!originalIMP) return NO;",
+            "    char subclassName[160];",
+            "    snprintf(subclassName,sizeof(subclassName),\"ScarletP54_%p\",(__bridge void *)original);",
+            "    Class scoped=objc_lookUpClass(subclassName);",
+            "    if(!scoped) {",
+            "        scoped=objc_allocateClassPair(original,subclassName,0);"
+          ],
+          "commit": "64d7017d45b1132b1afe11bc9af534f514a4a4ae"
+        },
+        {
+          "file": "rebuild/integration/ScarletGuestIslandContentGuard.m.txt",
+          "function": "ScarletGuestIslandContentGuard.m.txt",
+          "location": "@@ -3057,7 +3057,7 @@ static BOOL ScarletIslandP54InstallNativeOwnerContract(\n",
+          "before": [
+            "        @\"headers\":weakHeader,",
+            "        @\"top\":@(safeTop),",
+            "        @\"owner_layout_passes\":@0,",
+            "        @\"original_class\":[NSValue valueWithPointer:original],",
+            "        @\"original_frame\":[NSValue valueWithCGRect:header.frame],",
+            "        @\"disabled\":@NO",
+            "    } mutableCopy];"
+          ],
+          "after": [
+            "        @\"headers\":weakHeader,",
+            "        @\"top\":@(safeTop),",
+            "        @\"owner_layout_passes\":@0,",
+            "        @\"original_class\":[NSValue valueWithPointer:(__bridge const void *)original],",
+            "        @\"original_frame\":[NSValue valueWithCGRect:header.frame],",
+            "        @\"disabled\":@NO",
+            "    } mutableCopy];"
+          ],
+          "commit": "64d7017d45b1132b1afe11bc9af534f514a4a4ae"
+        },
+        {
+          "file": "rebuild/Tests/test_v48_r6p54_owner_layout_solution_handoff.py",
+          "function": "test_v48_r6p54_owner_layout_solution_handoff.py",
+          "location": "@@ -42,6 +42,8 @@ class P54NativeOwnerRepair(unittest.TestCase):\n",
+          "before": [
+            "    'state[@\"enforcing\"]=@NO',",
+            "  ):",
+            "   self.assertIn(token,OWNER,token)",
+            "  for token in ('method_setImplementation(','method_exchangeImplementations(',",
+            "                'class_replaceMethod(original','window.frame=',",
+            "                'root.frame=','header.transform=','scroll.contentInset=',"
+          ],
+          "after": [
+            "    'state[@\"enforcing\"]=@NO',",
+            "  ):",
+            "   self.assertIn(token,OWNER,token)",
+            "  self.assertIn('\"ScarletP54_%p\",(__bridge void *)original',OWNER)",
+            "  self.assertIn('[NSValue valueWithPointer:(__bridge const void *)original]',OWNER)",
+            "  for token in ('method_setImplementation(','method_exchangeImplementations(',",
+            "                'class_replaceMethod(original','window.frame=',",
+            "                'root.frame=','header.transform=','scroll.contentInset=',"
+          ],
+          "commit": "64d7017d45b1132b1afe11bc9af534f514a4a4ae"
         }
       ],
       "generated_runtime_targets": [
