@@ -26,6 +26,9 @@ static char scarletIslandAlwaysAppliedKey;
 static char scarletIslandDeepHeaderAnchorAttemptedKey;
 static char scarletIslandHeaderOwnerProbeKey;
 static char scarletIslandHeaderConstraintTrialKey;
+static char scarletIslandP44HeaderTransformTrialKey;
+static char scarletIslandP44LiveHeadersKey;
+static char scarletIslandP44LiveTopKey;
 
 // All guest receipts share one anonymous App Group relay. This carries only
 // bounded numbers and a PID; no labels, view names, app identifiers or images.
@@ -119,6 +122,33 @@ static void ScarletIslandProbeGuestSurfaceTone(UIWindow *window) {
         @"surface_tone":@(tone)
     });
 }
+// P44: native app layout can change when a feed is scrolled or when the
+// retained LiveProcess becomes foreground again. Keep only weak references
+// to headers which passed both readbacks; never continually rewrite frames.
+static void ScarletIslandP44MonitorHeader(UIWindow *window) {
+    NSHashTable<UIView *> *headers=objc_getAssociatedObject(
+        window,&scarletIslandP44LiveHeadersKey);
+    if(!headers || !window || window.hidden ||
+       window.windowScene.activationState!=UISceneActivationStateForegroundActive)
+        return;
+    CGFloat top=[objc_getAssociatedObject(
+        window,&scarletIslandP44LiveTopKey) doubleValue];
+    for(UIView *header in headers.allObjects) {
+        if(!header || header.window!=window) continue;
+        CGAffineTransform wanted=CGAffineTransformMakeTranslation(0,top);
+        CGRect frame=[header convertRect:header.bounds toView:window];
+        if(CGAffineTransformEqualToTransform(header.transform,wanted) &&
+           fabs(CGRectGetMinY(frame)-top)<3) continue;
+        // Native layout invalidated our retained proof. Revert only the
+        // previously owned transform, then report a PID-scoped fallback.
+        if(CGAffineTransformEqualToTransform(header.transform,wanted))
+            header.transform=CGAffineTransformIdentity;
+        [headers removeObject:header];
+        ScarletIslandReceipt(@"guest_header_local_transform_invalidated",
+                             top,0,0);
+    }
+}
+
 static void ScarletIslandRepeatSurfaceToneCheck(UIWindow *window) {
     __weak UIWindow *weakWindow=window;
     dispatch_after(dispatch_time(DISPATCH_TIME_NOW,
@@ -126,8 +156,10 @@ static void ScarletIslandRepeatSurfaceToneCheck(UIWindow *window) {
         UIWindow *current=weakWindow;
         if(!current) return;
         if(current.windowScene.activationState==
-                UISceneActivationStateForegroundActive)
+                UISceneActivationStateForegroundActive) {
             ScarletIslandProbeGuestSurfaceTone(current);
+            ScarletIslandP44MonitorHeader(current);
+        }
         ScarletIslandRepeatSurfaceToneCheck(current);
     });
 }
@@ -926,6 +958,10 @@ static void ScarletIslandTryDeepHeaderSafeGuideAnchor(
     UIWindow *window, UIView *root, CGFloat safeTop, NSUInteger sample,
     NSDictionary<NSValue *, NSDictionary *> *groups,
     NSUInteger beforeControls, NSUInteger beforeImages);
+static void ScarletIslandTryP44LocalHeaderTransform(
+    UIWindow *window, UIView *root, CGFloat safeTop, NSUInteger sample,
+    NSDictionary<NSValue *, NSDictionary *> *groups,
+    NSUInteger beforeControls, NSUInteger beforeImages);
 
 static void ScarletIslandContentProbe(UIWindow *window,
                                       UIViewController *expectedRoot,
@@ -999,6 +1035,11 @@ static void ScarletIslandContentProbe(UIWindow *window,
     ScarletIslandObserveDeepHeaderLayoutOwner(
         window, rootView, expectedTop, sample, ownerGroups,
         metrics.visibleUnsafeControls, metrics.visibleUnsafeImageNodes);
+    // P44: the isolated child header can be moved independently while the
+    // full 1:1 remote scene and its scrolling media stay untouched.
+    ScarletIslandTryP44LocalHeaderTransform(
+        window, rootView, expectedTop, sample, ownerGroups,
+        metrics.visibleUnsafeControls, metrics.visibleUnsafeImageNodes);
 }
 
 // R6P37 distinct measured *short child-controller header* mechanism.
@@ -1063,6 +1104,173 @@ static BOOL ScarletIslandDeepHeaderOwnerReady(
         fabs(CGRectGetMinY(rect)-expectedY)<=3 &&
         fabs(CGRectGetMinY(parentGuide)-safeTop)<=3 &&
         fabs(CGRectGetHeight(header.bounds)-CGRectGetHeight(header.frame))<=1;
+}
+
+// R6P44: bounded native interactive-header pilot. P37 set the 50pt
+// controller.view FRAME (UIKit reverted it); P39 set its constraints.
+// Unlike those attempts, an affine translation affects only that one
+// header's visual + hit-testing coordinates; it does NOT shrink the remote
+// FBScene, set contentInset, move UIWindow, or touch scroll media. Revert
+// after an immediate or delayed failed native readback. Unknown app layout
+// is ineligible: the host then selects the original P43 guarded fallback.
+static void ScarletIslandTryP44LocalHeaderTransform(
+    UIWindow *window, UIView *root, CGFloat safeTop, NSUInteger sample,
+    NSDictionary<NSValue *, NSDictionary *> *groups,
+    NSUInteger beforeControls, NSUInteger beforeImages) {
+    if(sample!=650 || !window || !root || beforeControls<3 ||
+       safeTop<40 || safeTop>130 ||
+       objc_getAssociatedObject(root,&scarletIslandP44HeaderTransformTrialKey) ||
+       window.hidden || window.windowLevel!=UIWindowLevelNormal ||
+       CGRectGetHeight(window.bounds)<700 ||
+       window.windowScene.activationState!=UISceneActivationStateForegroundActive)
+        return;
+    // Exactly one short controller-owned header must account for two or
+    // more severely unsafe controls. A parent scroll container is not
+    // shifted: scrolling content remains full-size and independent.
+    UIView *header=nil,*parent=nil,*first=nil,*second=nil;
+    NSUInteger severe=0;
+    BOOL conflict=NO;
+    for(NSValue *key in groups) {
+        UIScrollView *owner=[key nonretainedObjectValue];
+        if(!owner || owner.window!=window) continue;
+        CGRect area=[owner convertRect:owner.bounds toView:window];
+        if(fabs(CGRectGetMinY(area))>3 ||
+           CGRectGetHeight(area)<CGRectGetHeight(window.bounds)*0.85) continue;
+        for(UIView *node in groups[key][@"control_nodes"]) {
+            CGRect shown=node.window==window ?
+                ScarletIslandVisibleFrameInWindow(node,window):CGRectNull;
+            if(CGRectIsNull(shown) || CGRectIsEmpty(shown) ||
+               CGRectGetMinY(shown)<-3 ||
+               CGRectGetMinY(shown)>=safeTop-15 ||
+               CGRectGetMaxY(shown)<=5) continue;
+            UIView *candidate=nil,*candidateParent=nil;
+            NSUInteger hops=0;
+            for(UIView *cursor=node; cursor && cursor!=root && hops++<24;
+                cursor=cursor.superview) {
+                UIResponder *responder=cursor.nextResponder;
+                if(![responder isKindOfClass:UIViewController.class] ||
+                   ((UIViewController *)responder).view!=cursor) continue;
+                UIView *p=cursor.superview;
+                if(!p || p.window!=window ||
+                   CGRectGetHeight(cursor.bounds)<34 ||
+                   CGRectGetHeight(cursor.bounds)>72 ||
+                   CGRectGetHeight(p.bounds)<CGRectGetHeight(window.bounds)*0.85 ||
+                   fabs(CGRectGetWidth(cursor.bounds)-
+                        CGRectGetWidth(window.bounds))>4 ||
+                   !CGAffineTransformIsIdentity(cursor.transform) ||
+                   !ScarletIslandDeepHeaderOwnerReady(
+                       cursor,p,root,window,safeTop,0)) continue;
+                UIViewController *child=(UIViewController *)responder;
+                UIViewController *parentVC=
+                    [p.nextResponder isKindOfClass:UIViewController.class]
+                    ? (UIViewController *)p.nextResponder : nil;
+                if(!parentVC || child.parentViewController!=parentVC)
+                    continue;
+                candidate=cursor;candidateParent=p;break;
+            }
+            if(!candidate) continue;
+            if(header && header!=candidate) {conflict=YES;break;}
+            header=candidate;parent=candidateParent;
+            severe++;
+            if(!first) first=node;
+            else if(!second) second=node;
+        }
+        if(conflict) break;
+    }
+    if(!header || !parent || !first || !second ||
+       conflict || severe<2) return;
+    // A translation must not move the header behind an ancestor's clipping
+    // region, or steal a global status-bar/window hit-testing surface.
+    for(UIView *cursor=parent; cursor && cursor!=window;
+        cursor=cursor.superview) {
+        if(!cursor.clipsToBounds && ![cursor isKindOfClass:UIScrollView.class])
+            continue;
+        CGRect clip=[cursor convertRect:cursor.bounds toView:window];
+        if(CGRectGetMinY(clip)>safeTop-2 ||
+           CGRectGetMaxY(clip)<safeTop+CGRectGetHeight(header.bounds)-2)
+            return;
+    }
+    objc_setAssociatedObject(root,&scarletIslandP44HeaderTransformTrialKey,
+                             @YES,OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+    CGRect originalWindow=[header convertRect:header.bounds toView:window];
+    CGSize originalWindowSize=window.bounds.size;
+    CGAffineTransform original=header.transform;
+    __weak UIView *weakHeader=header,*weakRoot=root;
+    __weak UIView *weakParent=parent,*weakFirst=first,*weakSecond=second;
+    __weak UIWindow *weakWindow=window;
+    header.transform=CGAffineTransformTranslate(original,0,safeTop);
+    ScarletIslandDeepHeaderTrialReceipt(
+        @"guest_header_local_transform_staged", @"isolated_interactive_header",
+        safeTop, CGRectGetMinY(originalWindow),
+        CGRectGetMinY([header convertRect:header.bounds toView:window]),
+        beforeControls,beforeControls,beforeImages,NO);
+    __block void (^readback)(BOOL);
+    readback=^(BOOL late) {
+        UIView *head=weakHeader,*rt=weakRoot,*par=weakParent;
+        UIView *one=weakFirst,*two=weakSecond; UIWindow *w=weakWindow;
+        BOOL sceneValid=w && w.rootViewController.view==rt &&
+            w.windowScene.activationState==UISceneActivationStateForegroundActive &&
+            UIInterfaceOrientationIsPortrait(w.windowScene.interfaceOrientation) &&
+            fabs(CGRectGetWidth(w.bounds)-originalWindowSize.width)<2 &&
+            fabs(CGRectGetHeight(w.bounds)-originalWindowSize.height)<2;
+        BOOL attached=sceneValid && ScarletIslandDeepHeaderOwnerReady(
+            head,par,rt,w,safeTop,safeTop) &&
+            head && CGAffineTransformEqualToTransform(
+                head.transform,CGAffineTransformMakeTranslation(0,safeTop));
+        CGRect f=attached && one ?
+            ScarletIslandVisibleFrameInWindow(one,w):CGRectNull;
+        CGRect s=attached && two ?
+            ScarletIslandVisibleFrameInWindow(two,w):CGRectNull;
+        NSUInteger images=beforeImages;
+        NSUInteger unsafe=attached ?
+            ScarletIslandDeepHeaderCountUnsafe(rt,w,safeTop,&images) :
+            beforeControls;
+        BOOL pass=attached && !CGRectIsNull(f) && !CGRectIsNull(s) &&
+            !CGRectIsEmpty(f) && !CGRectIsEmpty(s) &&
+            CGRectGetMinY(f)>=safeTop-2 &&
+            CGRectGetMinY(s)>=safeTop-2 &&
+            unsafe+2<=beforeControls && images<=beforeImages+1;
+        if(!pass) {
+            if(head && par && head.superview==par &&
+               CGAffineTransformEqualToTransform(
+                   head.transform,CGAffineTransformMakeTranslation(0,safeTop)))
+                head.transform=original;
+        }
+        if(pass && late && w && head) {
+            NSHashTable<UIView *> *live=objc_getAssociatedObject(
+                w,&scarletIslandP44LiveHeadersKey);
+            if(!live) {
+                live=[NSHashTable weakObjectsHashTable];
+                objc_setAssociatedObject(w,&scarletIslandP44LiveHeadersKey,
+                    live,OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+            }
+            [live addObject:head];
+            objc_setAssociatedObject(w,&scarletIslandP44LiveTopKey,
+                @(safeTop),OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+        }
+        ScarletIslandDeepHeaderTrialReceipt(
+            pass ? (late ? @"guest_header_local_transform_retained"
+                         : @"guest_header_local_transform_first_pass") :
+                   @"guest_header_local_transform_reverted",
+            pass ? (late ? @"late_native_visual_and_hit_geometry"
+                         : @"first_native_visual_and_hit_geometry") :
+                   @"native_visual_or_hit_geometry_unconfirmed",
+            safeTop,CGRectGetMinY(originalWindow),
+            head && w ? CGRectGetMinY(
+                [head convertRect:head.bounds toView:w]) : -999,
+            beforeControls,unsafe,images,late && pass);
+        if(pass && !late) {
+            dispatch_after(dispatch_time(DISPATCH_TIME_NOW,
+                (int64_t)1050*NSEC_PER_MSEC),
+                dispatch_get_main_queue(),^{readback(YES);});
+        } else {
+            readback=nil; // break the single-shot recursive block capture
+        }
+    };
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW,
+        (int64_t)220*NSEC_PER_MSEC),dispatch_get_main_queue(),^{
+            readback(NO);
+    });
 }
 
 static void ScarletIslandTryDeepHeaderSafeGuideAnchor(

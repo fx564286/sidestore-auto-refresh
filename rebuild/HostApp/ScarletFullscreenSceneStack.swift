@@ -746,6 +746,7 @@ private final class ScarletGuestIslandReceiptObserver {
     private var seen: Set<String> = []
     var onTopRiskMeasured: ((Int32, Int, Int, Int, Int) -> Void)?
     var onSurfaceToneMeasured: ((Int32, Int) -> Void)?
+    var onHeaderTransformVerified: ((Int32, Bool) -> Void)?
 
     func observe(pid: Int32) {
         guard pid > 0 else { return }
@@ -964,6 +965,33 @@ private final class ScarletGuestIslandReceiptObserver {
                 ScarletDiagnosticRecorder.shared.record(
                     "layout", "guest_always_policy_quarantined",
                     fields: ["process_pid": String(pid), "safe_top_pt": String(target)])
+                continue
+            }
+            if ["guest_header_local_transform_staged",
+                "guest_header_local_transform_first_pass",
+                "guest_header_local_transform_retained",
+                "guest_header_local_transform_reverted",
+                "guest_header_local_transform_invalidated"].contains(result) {
+                ScarletDiagnosticRecorder.shared.record(
+                    "layout", "guest_header_local_transform_receipt",
+                    status: result == "guest_header_local_transform_reverted"
+                        ? "warning" : "info",
+                    fields: ["process_pid": String(pid),
+                             "result": result,
+                             "safe_top_pt": String(target),
+                             "header_controls_before":
+                                String((row["header_controls_before"] as? NSNumber)?.intValue ?? -1),
+                             "header_controls_after":
+                                String((row["header_controls_after"] as? NSNumber)?.intValue ?? -1),
+                             "header_gate_pass":
+                                (row["header_gate_pass"] as? NSNumber)?.boolValue == true
+                                    ? "true" : "false"])
+                if result == "guest_header_local_transform_retained" {
+                    onHeaderTransformVerified?(pid, true)
+                } else if result == "guest_header_local_transform_reverted" ||
+                          result == "guest_header_local_transform_invalidated" {
+                    onHeaderTransformVerified?(pid, false)
+                }
                 continue
             }
             if result == "guest_chrome_surface_tone" {
@@ -1226,6 +1254,10 @@ final class ScarletFullscreenSceneViewport: UIViewController {
     // R6P43: host-measured FBScene geometry (not guest UIWindow bounds)
     // and the guest's own UIKit background tone, never the host trait.
     private var chromeVerifiedPIDs: Set<Int32> = []
+    // P44: fullscreen scene remains unmodified when a measured native
+    // interactive header proves safe at immediate and delayed readback.
+    private var chromeHeaderProtectedPIDs: Set<Int32> = []
+    private var chromePendingFallbackPIDs: Set<Int32> = []
     private var chromeSurfaceToneByPID: [Int32: Int] = [:]
 
     override var preferredStatusBarStyle: UIStatusBarStyle {
@@ -1454,6 +1486,64 @@ final class ScarletFullscreenSceneViewport: UIViewController {
               controllers.values.contains(where: {
                   $0.pid == pid && $0.isAppRunning
               }) else { return }
+        guard !chromeHeaderProtectedPIDs.contains(pid) else { return }
+        if sample == 650 {
+            // Give the independently measured guest header a bounded native
+            // pass/revert window. Do not physically crop its remote FBScene
+            // until a failed/absent result is observed.
+            guard chromePendingFallbackPIDs.insert(pid).inserted else { return }
+            ScarletDiagnosticRecorder.shared.record(
+                "layout", "guest_header_fullscreen_trial_pending",
+                fields: ["process_pid": String(pid),
+                         "result": "retain_full_native_fbscene_until_proven"])
+            DispatchQueue.main.asyncAfter(deadline: .now() + 2.4) {
+                [weak self] in
+                guard let self,
+                      self.chromePendingFallbackPIDs.remove(pid) != nil,
+                      !self.chromeHeaderProtectedPIDs.contains(pid) else { return }
+                self.applyP43FallbackChrome(pid: pid,
+                    unsafe: unsafe, first: first, top: top, sample: sample)
+            }
+        } else if !chromePendingFallbackPIDs.contains(pid) {
+            applyP43FallbackChrome(pid: pid,
+                unsafe: unsafe, first: first, top: top, sample: sample)
+        }
+    }
+
+    private func onNativeHeaderTransform(pid: Int32, retained: Bool) {
+        guard controllers.values.contains(where: {
+            $0.pid == pid && $0.isAppRunning
+        }) else { return }
+        chromePendingFallbackPIDs.remove(pid)
+        if retained {
+            chromeHeaderProtectedPIDs.insert(pid)
+            // A delayed receipt is possible. Do not strand the guest in
+            // the old cropped native slot after its header passed.
+            chromeEligiblePIDs.remove(pid)
+            chromeVerifiedPIDs.remove(pid)
+            ScarletDiagnosticRecorder.shared.record(
+                "layout", "guest_fullscreen_header_verified",
+                fields: ["process_pid": String(pid),
+                         "result": "full_fbscene_and_native_header"])
+            if let scene = view.window?.windowScene {
+                updateNativeChromeSlots(scene)
+                synchronizeAttachedGuestSafeAreas(scene)
+            }
+        } else {
+            chromeHeaderProtectedPIDs.remove(pid)
+            applyP43FallbackChrome(pid: pid,
+                unsafe: 3, first: 0, top: view.window?.windowScene.map { Int(chromeTop(in: $0)) } ?? 0,
+                sample: 650)
+        }
+    }
+
+    private func applyP43FallbackChrome(pid: Int32, unsafe: Int,
+                                       first: Int, top: Int, sample: Int) {
+        guard !chromeEligiblePIDs.contains(pid),
+              !chromeHeaderProtectedPIDs.contains(pid),
+              controllers.values.contains(where: {
+                  $0.pid == pid && $0.isAppRunning
+              }) else { return }
         chromeEligiblePIDs.insert(pid)
         ScarletDiagnosticRecorder.shared.record(
             "layout", "guest_chrome_adaptive_qualified",
@@ -1462,7 +1552,7 @@ final class ScarletFullscreenSceneViewport: UIViewController {
                      "first_unsafe_control_y": String(first),
                      "safe_top_pt": String(top),
                      "sample_index": String(sample),
-                     "result": "native_slot_allowed_once"])
+                     "result": "p43_fallback_after_header_pilot"])
         if let scene = view.window?.windowScene {
             updateNativeChromeSlots(scene)
             synchronizeAttachedGuestSafeAreas(scene)
@@ -1674,6 +1764,10 @@ final class ScarletFullscreenSceneViewport: UIViewController {
             self?.onUnsafeGuestControls(pid: pid, unsafe: unsafe,
                 first: first, top: top, sample: sample)
         }
+        ScarletGuestIslandReceiptObserver.shared.onHeaderTransformVerified = {
+            [weak self] pid, retained in
+            self?.onNativeHeaderTransform(pid: pid, retained: retained)
+        }
         let outside = UITapGestureRecognizer(target: self,
             action: #selector(didTapResidentBackground(_:)))
         outside.isEnabled = false
@@ -1779,6 +1873,8 @@ final class ScarletFullscreenSceneViewport: UIViewController {
         lastHostingOwnerProbes.removeValue(forKey: ObjectIdentifier(old))
         chromeEligiblePIDs.remove(old.pid)
         chromeVerifiedPIDs.remove(old.pid)
+        chromeHeaderProtectedPIDs.remove(old.pid)
+        chromePendingFallbackPIDs.remove(old.pid)
         chromeSurfaceToneByPID.removeValue(forKey: old.pid)
         if let scene = view.window?.windowScene {
             updateNativeChromeSlots(scene)
