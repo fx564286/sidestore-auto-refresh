@@ -1,0 +1,2 @@
+"NSLocalNetworkUsageDescription" = "GoldenNugget는 로컬 네트워크에 iOS 27 무선 페어링 서비스를 게시합니다. 이를 통해 컴퓨터 없이 iPhone을 자체적으로 페어링하고 페어링 파일을 생성할 수 있습니다.";
+"UTTypeDescription" = "모바일 기기 페어링 파일";
