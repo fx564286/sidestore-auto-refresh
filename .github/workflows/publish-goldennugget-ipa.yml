@@ -1,0 +1,54 @@
+name: Publish GoldenNugget direct IPA download
+
+on:
+  push:
+    branches: [build/goldennugget-skip-protective-20261114]
+    paths:
+      - .github/workflows/publish-goldennugget-ipa.yml
+      - tools/goldennugget/ko-locale/**
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  actions: read
+
+jobs:
+  publish:
+    runs-on: xcode-27
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: Fetch verified compiled GitHub IPA
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          mkdir -p dist
+          gh run download 43457290603 --repo "$GITHUB_REPOSITORY" \
+            --name GoldenNugget-iOS27-SkipProtective-Korean-unsigned --dir dist
+          test -f dist/GoldenNuggetMobile.ipa
+          unzip -t dist/GoldenNuggetMobile.ipa | tail -2
+      - name: Package Korean localization
+        run: |
+          set -euo pipefail
+          python3 tools/goldennugget/ko-locale/package.py \
+            dist/GoldenNuggetMobile.ipa \
+            dist/GoldenNuggetMobile-9.7.5-Korean-iOS27-SkipBackup.ipa
+          shasum -a 256 dist/GoldenNuggetMobile-9.7.5-Korean-iOS27-SkipBackup.ipa
+      - name: Publish GitHub Release asset
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          TAG="goldennugget-ko-9.7.5-ios27-skipbackup"
+          FILE=dist/GoldenNuggetMobile-9.7.5-Korean-iOS27-SkipBackup.ipa
+          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release upload "$TAG" "$FILE" --clobber --repo "$GITHUB_REPOSITORY"
+          else
+            gh release create "$TAG" "$FILE" --repo "$GITHUB_REPOSITORY" \
+              --target "$GITHUB_SHA" --title "GoldenNugget 9.7.5 Korean iOS27 Skip Backup" \
+              --notes "Unsigned IPA. Includes Korean localization and experimental, high-risk backup-free iOS 27 restore. Untested on device. Restore failure, data loss, or boot problems possible." \
+              --prerelease
+          fi
+          gh api "repos/$GITHUB_REPOSITORY/releases/tags/$TAG" \
+             --jq '.assets[] | select(.name == "GoldenNuggetMobile-9.7.5-Korean-iOS27-SkipBackup.ipa") | "\(.name) \(.size) \(.browser_download_url)"'
