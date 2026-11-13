@@ -1671,6 +1671,32 @@ final class ScarletFullscreenSceneViewport: UIViewController {
                                         first: Int, top: Int, sample: Int,
                                         inScroll: Int, outsideScroll: Int) {
         guard sample == 650 || sample == 2600 else { return }
+        // P53: the y position of a UIControl inside UIScrollView is not a
+        // stationary identity. At 650ms the signed iPhone saw y=3 and at
+        // 2600ms y=-21: P43's first>=-3 predicate rejected sample #2
+        // BEFORE P50 could arm its scroll-owned full-scene crop veto.
+        // Confirm the SAME PID's scrolling ownership from both snapshots
+        // before the separate (unchanged) stationary-header crop criteria.
+        if sample == 2600, unsafe >= 3, top >= 20, top <= 130,
+           !chromeEligiblePIDs.contains(pid),
+           controllers.values.contains(where: { $0.pid == pid && $0.isAppRunning }),
+           let initial = chromeFirstUnsafeSampleByPID[pid],
+           let scroll = chromeFirstScrollRiskByPID[pid],
+           abs(initial.top - top) <= 3,
+           scroll.inScroll > 0, scroll.outside == 0,
+           inScroll == unsafe, outsideScroll == 0,
+           (first < -3 || abs(initial.first - first) > 16) {
+            if chromeScrollCropVetoPIDs.insert(pid).inserted {
+                ScarletDiagnosticRecorder.shared.record(
+                    "layout", "guest_chrome_scroll_motion_crop_veto_armed",
+                    fields: ["process_pid": String(pid),
+                             "sample_index": String(sample),
+                             "visible_unsafe_controls": String(unsafe),
+                             "unsafe_controls_in_scroll": String(inScroll),
+                             "unsafe_controls_outside_scroll": String(outsideScroll),
+                             "result": "scroll_moved_full_fbscene_retained"])
+            }
+        }
         guard unsafe >= 3 && top >= 20 && top <= 130,
               first >= -3 && first < top - 15,
               !chromeEligiblePIDs.contains(pid),
@@ -1796,27 +1822,28 @@ final class ScarletFullscreenSceneViewport: UIViewController {
               controllers.values.contains(where: {
                   $0.pid == pid && $0.isAppRunning
               }) else { return }
-        // P48 independent crop authorization: the P44 failure/timeout is
-        // never proof of *current* Island overlap. Only an independently
-        // corroborated sample from the same still-running PID qualifies.
-        guard chromeFreshUnsafeProofPIDs.contains(pid) else {
-            ScarletDiagnosticRecorder.shared.record(
-                "layout", "guest_chrome_stale_crop_withheld",
-                fields: ["process_pid": String(pid),
-                         "sample_index": String(sample),
-                         "result": "full_fbscene_preserved_until_live_guest_proof"])
-            return
-        }
-        // P50: the two attached observations identify scrolling UIKit
-        // content, not a stationary header. Shrinking the entire remote
-        // FBScene by 62pt creates the hard clipping boundary reported on
-        // the iPhone, regardless of how real that top risk is.
+        // P50/P53: independent same-PID scroll ownership prohibits an
+        // irreversible full-remote FBScene crop, even when scrolling moves
+        // the first unsafe control out of the stationary y-coordinate gate.
+        // Evaluate that veto BEFORE P48 freshness so readback proves the
+        // scroll-specific protection rather than a coincidental stale gate.
         guard !chromeScrollCropVetoPIDs.contains(pid) else {
             ScarletDiagnosticRecorder.shared.record(
                 "layout", "guest_chrome_scroll_surface_crop_withheld",
                 fields: ["process_pid": String(pid),
                          "sample_index": String(sample),
                          "result": "full_fbscene_preserved_scroll_owner"])
+            return
+        }
+        // P48 independent crop authorization: the P44 failure/timeout is
+        // never proof of *current* Island overlap. Stationary risky header
+        // cropping still needs corroborated present-PID content geometry.
+        guard chromeFreshUnsafeProofPIDs.contains(pid) else {
+            ScarletDiagnosticRecorder.shared.record(
+                "layout", "guest_chrome_stale_crop_withheld",
+                fields: ["process_pid": String(pid),
+                         "sample_index": String(sample),
+                         "result": "full_fbscene_preserved_until_live_guest_proof"])
             return
         }
         chromeEligiblePIDs.insert(pid)

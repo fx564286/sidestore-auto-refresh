@@ -20,7 +20,14 @@ class P50ScrollCropVeto(unittest.TestCase):
         self.assertIn('chromeScrollCropVetoPIDs.insert(pid)',sample)
         self.assertIn('guest_chrome_scroll_crop_veto_armed',sample)
         self.assertIn('guard let initial = chromeFirstUnsafeSampleByPID[pid]',sample)
-        self.assertLess(sample.index('guard let initial = chromeFirstUnsafeSampleByPID[pid]'),sample.index('chromeScrollCropVetoPIDs.insert(pid)'))
+        # P53 iPhone evidence: the second scroll sample moved from y=3
+        # to y=-21 and was dropped before the old P50 positional gate.
+        # Both modes still require the first saved PID-scoped reading;
+        # the scroll-only veto now comes BEFORE first >= -3, whereas the
+        # old stationary-header crop proof remains after that guard.
+        self.assertLess(sample.index('let initial = chromeFirstUnsafeSampleByPID[pid]'), sample.index('chromeScrollCropVetoPIDs.insert(pid)'))
+        self.assertLess(sample.index('chromeScrollCropVetoPIDs.insert(pid)'), sample.index('first >= -3 && first < top - 15'))
+        self.assertLess(sample.index('guard let initial = chromeFirstUnsafeSampleByPID[pid]'), sample.index('chromeFreshUnsafeProofPIDs.insert(pid)'))
         crop=SRC.split('private func applyP43FallbackChrome(',1)[1].split('func setResidentOutsideDismissEnabled(',1)[0]
         self.assertLess(crop.index('guard !chromeScrollCropVetoPIDs.contains(pid)'),crop.index('chromeEligiblePIDs.insert(pid)'))
         self.assertIn('guest_chrome_scroll_surface_crop_withheld',crop)
