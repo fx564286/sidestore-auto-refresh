@@ -1292,6 +1292,11 @@ final class ScarletFullscreenSceneViewport: UIViewController {
     // P47: existing 2600ms foreground sample may be the first valid trial;
     // a late PID-scoped readback supersedes the early fallback deadline.
     private var chromeLateTrialPIDs: Set<Int32> = []
+    // P48: only a second independently attached *guest-process* measurement
+    // can authorize the irreversible host FBScene y62/h894 crop. The P44
+    // failure receipt is evidence about a retired trial, not current UI.
+    private var chromeFirstUnsafeSampleByPID: [Int32: (first: Int, top: Int)] = [:]
+    private var chromeFreshUnsafeProofPIDs: Set<Int32> = []
     private var chromeSurfaceToneByPID: [Int32: Int] = [:]
 
     override var prefersStatusBarHidden: Bool { false }
@@ -1531,6 +1536,7 @@ final class ScarletFullscreenSceneViewport: UIViewController {
               }) else { return }
         guard !chromeHeaderProtectedPIDs.contains(pid) else { return }
         if sample == 650 {
+            chromeFirstUnsafeSampleByPID[pid] = (first: first, top: top)
             // Give the independently measured guest header a bounded native
             // pass/revert window. Do not physically crop its remote FBScene
             // until a failed/absent result is observed.
@@ -1549,6 +1555,29 @@ final class ScarletFullscreenSceneViewport: UIViewController {
                     unsafe: unsafe, first: first, top: top, sample: sample)
             }
         } else {
+            // P48: require a second CURRENT attached guest root report.
+            // P47 cropped first, then its 2600ms sample found root.safeTop=0
+            // (safe_unready): the crop had erased its own proof opportunity.
+            // Merely waiting for a timer does not prove that the unsafe
+            // header still exists. Do not promote an old failed trial.
+            guard let initial = chromeFirstUnsafeSampleByPID[pid],
+                  abs(initial.top - top) <= 3,
+                  abs(initial.first - first) <= 16 else {
+                ScarletDiagnosticRecorder.shared.record(
+                    "layout", "guest_chrome_fresh_risk_proof_missing",
+                    fields: ["process_pid": String(pid),
+                             "sample_index": String(sample),
+                             "result": "full_fbscene_preserved_no_matching_root"])
+                return
+            }
+            chromeFreshUnsafeProofPIDs.insert(pid)
+            ScarletDiagnosticRecorder.shared.record(
+                "layout", "guest_chrome_fresh_risk_proof_confirmed",
+                fields: ["process_pid": String(pid),
+                         "sample_index": String(sample),
+                         "visible_unsafe_controls": String(unsafe),
+                         "first_unsafe_control_y": String(first),
+                         "safe_top_pt": String(top)])
             // Late native root measurement is only evidence of a real
             // foreground guest. Preserve fullscreen until its own 220ms+
             // 1050ms native readback can complete. The first timer is
@@ -1607,6 +1636,17 @@ final class ScarletFullscreenSceneViewport: UIViewController {
               controllers.values.contains(where: {
                   $0.pid == pid && $0.isAppRunning
               }) else { return }
+        // P48 independent crop authorization: the P44 failure/timeout is
+        // never proof of *current* Island overlap. Only an independently
+        // corroborated sample from the same still-running PID qualifies.
+        guard chromeFreshUnsafeProofPIDs.contains(pid) else {
+            ScarletDiagnosticRecorder.shared.record(
+                "layout", "guest_chrome_stale_crop_withheld",
+                fields: ["process_pid": String(pid),
+                         "sample_index": String(sample),
+                         "result": "full_fbscene_preserved_until_live_guest_proof"])
+            return
+        }
         chromeEligiblePIDs.insert(pid)
         ScarletDiagnosticRecorder.shared.record(
             "layout", "guest_chrome_adaptive_qualified",
@@ -1939,6 +1979,8 @@ final class ScarletFullscreenSceneViewport: UIViewController {
         chromeHeaderProtectedPIDs.remove(old.pid)
         chromePendingFallbackPIDs.remove(old.pid)
         chromeLateTrialPIDs.remove(old.pid)
+        chromeFirstUnsafeSampleByPID.removeValue(forKey: old.pid)
+        chromeFreshUnsafeProofPIDs.remove(old.pid)
         chromeSurfaceToneByPID.removeValue(forKey: old.pid)
         if let scene = view.window?.windowScene {
             updateNativeChromeSlots(scene)
