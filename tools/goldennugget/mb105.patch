@@ -1,0 +1,85 @@
+diff --git a/Vendor/MinimuxerGateway/idevice/MobileBackup2Delegate.swift b/Vendor/MinimuxerGateway/idevice/MobileBackup2Delegate.swift
+index 04496c9..5db96a4 100755
+--- a/Vendor/MinimuxerGateway/idevice/MobileBackup2Delegate.swift
++++ b/Vendor/MinimuxerGateway/idevice/MobileBackup2Delegate.swift
+@@ -168,14 +168,14 @@ public final class MobileBackup2BackupContext: @unchecked Sendable {
+ 
+     /// Log the disk-space answer once, so the value the device acted on is not a
+     /// mystery when a run dies mid-transfer.
+-    func reportDiskSpaceOnce(_ bytes: UInt64) {
++    func reportDiskSpaceOnce(_ bytes: UInt64, source: String) {
+         errorLock.lock()
+         let first = !reportedDiskSpace
+         reportedDiskSpace = true
+         errorLock.unlock()
+         guard first else { return }
+-        reportEvent(String(format: "host free space reported to the device: %.2f GB",
+-                           Double(bytes) / 1_073_741_824.0))
++        reportEvent(String(format: "host free space reported to the device: %.2f GiB (source: %@)",
++                           Double(bytes) / 1_073_741_824.0, source))
+     }
+ 
+     public init(
+@@ -452,22 +452,51 @@ private func context(_ ctx: UnsafeMutableRawPointer?) -> MobileBackup2BackupCont
+ 
+ // MARK: - C delegate callbacks
+ 
++/// Query the volume that will actually receive the backup. LiveContainer may
++/// redirect guest Documents independently of NSHomeDirectory().
++/// Never report an invented free-space value if the query fails.
++private enum BackupVolumeSpace {
++    static func available(at rawPath: String) -> (bytes: UInt64, source: String)? {
++        guard !rawPath.isEmpty, rawPath.hasPrefix("/") else { return nil }
++        let fm = FileManager.default
++        var url = URL(fileURLWithPath: rawPath, isDirectory: true).standardizedFileURL
++        // The backup service can ask about a child before that child is created.
++        while !fm.fileExists(atPath: url.path) {
++            let parent = url.deletingLastPathComponent()
++            guard parent.path != url.path else { return nil }
++            url = parent
++        }
++
++        if let capacity = (try? url.resourceValues(
++            forKeys: [.volumeAvailableCapacityForImportantUsageKey]
++        ))?.volumeAvailableCapacityForImportantUsage, capacity >= 0 {
++            return (UInt64(capacity), "important-usage")
++        }
++
++        // URL resource values may be unavailable for a redirected container.
++        var fs = statfs()
++        guard Darwin.statfs(url.path, &fs) == 0 else { return nil }
++        let (bytes, overflow) = UInt64(fs.f_bavail).multipliedReportingOverflow(
++            by: UInt64(fs.f_bsize)
++        )
++        return overflow ? nil : (bytes, "statfs")
++    }
++}
++
+ private func mb2_get_free_disk_space(
+     _ path: UnsafePointer<CChar>?,
+     _ ctx: UnsafeMutableRawPointer?
+ ) -> UInt64 {
+     guard let c = context(ctx) else { return 0 }
+-    // The host-side backup root lives in the app's container, i.e. on the SAME
+-    // volume as the device's own data — so the true answer is this volume's free
+-    // space.  A hard-coded 1 TiB ("plenty of room") told the device there was
+-    // room that may not exist; when the volume filled, the writes below failed
+-    // and the payload silently went missing while the device kept streaming.
+-    let url = URL(fileURLWithPath: NSHomeDirectory())
+-    let capacity = (try? url.resourceValues(forKeys: [.volumeAvailableCapacityForImportantUsageKey]))?
+-        .volumeAvailableCapacityForImportantUsage
+-    let bytes = capacity.flatMap { $0 > 0 ? UInt64($0) : nil } ?? (UInt64(1) << 40)
+-    c.reportDiskSpaceOnce(bytes)
+-    return bytes
++    let requestedRoot = path.map { String(cString: $0) }
++    let root = requestedRoot.flatMap { $0.isEmpty ? nil : $0 } ?? c.backupRoot
++    guard let root, let capacity = BackupVolumeSpace.available(at: root) else {
++        c.reportEvent("backup volume capacity probe FAILED; storage path unavailable or unreadable")
++        c.reportDiskSpaceOnce(0, source: "probe-failed")
++        return 0
++    }
++    c.reportDiskSpaceOnce(capacity.bytes, source: capacity.source)
++    return capacity.bytes
+ }
+ 
+ private func mb2_open_file_read(
