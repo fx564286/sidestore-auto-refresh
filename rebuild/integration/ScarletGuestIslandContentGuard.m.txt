@@ -32,6 +32,10 @@ static char scarletIslandP44LiveTopKey;
 static char scarletIslandP45MeasuredHeaderControlsKey;
 static char scarletIslandP45ScrollDriftObservedKey;
 static char scarletIslandP45UnsafeSamplesKey;
+static char scarletIslandP46DetachedObservedKey;
+static char scarletIslandP46DetachedRiskSamplesKey;
+static char scarletIslandP46DeferredObservedKey;
+static char scarletIslandP46SafeObservedKey;
 
 // All guest receipts share one anonymous App Group relay. This carries only
 // bounded numbers and a PID; no labels, view names, app identifiers or images.
@@ -136,6 +140,89 @@ static void ScarletIslandProbeGuestSurfaceTone(UIWindow *window) {
 // controls require consecutive observations, then revert to P43.
 static CGRect ScarletIslandVisibleFrameInWindow(UIView *node, UIWindow *window);
 static NSInteger ScarletIslandMetric(CGFloat value);
+// -1 means root geometry was not observable; never treat absence as proof.
+static NSInteger ScarletIslandP46CurrentSevereControls(
+    UIWindow *window, CGFloat safeTop, NSInteger *firstY,
+    NSUInteger *visibleControls);
+static void ScarletIslandP46PublishDetached(
+    UIWindow *window, NSString *result, NSInteger severe,
+    NSInteger firstY, NSUInteger visible, NSUInteger samples) {
+    ScarletIslandPublish(@{
+        @"receipt":NSUUID.UUID.UUIDString, @"pid":@(getpid()),
+        @"epoch":@([[NSDate date] timeIntervalSince1970]),
+        @"result":result, @"target":@(ScarletIslandMetric(
+            [objc_getAssociatedObject(window,&scarletIslandP44LiveTopKey)
+             doubleValue])),
+        @"header_detached_severe":@(severe),
+        @"header_detached_first_y":@(firstY),
+        @"header_detached_visible_controls":@(visible),
+        @"header_detached_samples":@(samples)
+    });
+}
+static BOOL ScarletIslandP46HandleDetached(
+    UIWindow *window, CGFloat safeTop, BOOL firstDetachment) {
+    NSInteger firstY=-999;
+    NSUInteger visible=0;
+    NSInteger severe=ScarletIslandP46CurrentSevereControls(
+        window,safeTop,&firstY,&visible);
+    NSUInteger samples=[objc_getAssociatedObject(
+        window,&scarletIslandP46DetachedRiskSamplesKey) unsignedIntegerValue];
+    if(severe<0) {
+        // A provisional or temporarily detached UIWindow is not evidence
+        // that the guest needs its whole remote framebuffer cropped.
+        // Remember to keep monitoring even when UIKit releases the weak
+        // header during the provisional phase.
+        objc_setAssociatedObject(window,&scarletIslandP46DetachedObservedKey,
+                                 @YES,OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+        if(firstDetachment && !objc_getAssociatedObject(
+            window,&scarletIslandP46DeferredObservedKey)) {
+            objc_setAssociatedObject(window,&scarletIslandP46DeferredObservedKey,
+                                     @YES,OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+            ScarletIslandP46PublishDetached(window,
+                @"guest_header_detached_probe_deferred",severe,firstY,visible,0);
+        }
+        return YES;
+    }
+    if(severe==0) {
+        objc_setAssociatedObject(window,&scarletIslandP46DetachedRiskSamplesKey,
+                                 @0,OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+        objc_setAssociatedObject(window,&scarletIslandP46DetachedObservedKey,
+                                 @YES,OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+        if(!objc_getAssociatedObject(
+            window,&scarletIslandP46SafeObservedKey)) {
+            objc_setAssociatedObject(window,&scarletIslandP46SafeObservedKey,
+                                     @YES,OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+            ScarletIslandP46PublishDetached(window,
+                @"guest_header_detached_fullscene_retained",
+                0,firstY,visible,0);
+        }
+        return YES;
+    }
+    // Two consecutive current-root samples with >=2 genuinely visible
+    // controls well INSIDE Dynamic Island are required for a crop fallback.
+    // Current feed thumbnails at Y60 with safeTop62 are not severe.
+    if(severe<2) {
+        objc_setAssociatedObject(window,&scarletIslandP46DetachedRiskSamplesKey,
+                                 @0,OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+        return YES;
+    }
+    if(samples<1) {
+        objc_setAssociatedObject(window,&scarletIslandP46DetachedObservedKey,
+                                 @YES,OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+        objc_setAssociatedObject(window,&scarletIslandP46DetachedRiskSamplesKey,
+                                 @1,OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+        ScarletIslandP46PublishDetached(window,
+            @"guest_header_detached_risk_provisional",
+            severe,firstY,visible,1);
+        return YES;
+    }
+    ScarletIslandP46PublishDetached(window,
+        @"guest_header_detached_risk_confirmed",
+        severe,firstY,visible,2);
+    objc_setAssociatedObject(window,&scarletIslandP46DetachedObservedKey,
+                             nil,OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+    return NO;
+}
 static void ScarletIslandP44MonitorHeader(UIWindow *window) {
     NSHashTable<UIView *> *headers=objc_getAssociatedObject(
         window,&scarletIslandP44LiveHeadersKey);
@@ -144,12 +231,31 @@ static void ScarletIslandP44MonitorHeader(UIWindow *window) {
         return;
     CGFloat top=[objc_getAssociatedObject(
         window,&scarletIslandP44LiveTopKey) doubleValue];
+    if(headers.count==0 &&
+       objc_getAssociatedObject(window,&scarletIslandP46DetachedObservedKey)) {
+        // The old header was deallocated by UIKit; do not lose monitoring
+        // just because the weak object no longer exists.
+        if(!ScarletIslandP46HandleDetached(window,top,NO)) {
+            ScarletIslandReceipt(@"guest_header_local_transform_invalidated",
+                                 top,0,0);
+        }
+        return;
+    }
     for(UIView *header in headers.allObjects) {
         if(!header) continue;
         BOOL attached=header.window==window;
         CGAffineTransform wanted=CGAffineTransformMakeTranslation(0,top);
         BOOL affineRetained=attached &&
             CGAffineTransformEqualToTransform(header.transform,wanted);
+        if(!attached) {
+            // P45 signed PID5066 went 8->5 with full native FBScene,
+            // then stale header.window!=window (reason 1) cropped it to
+            // y62/h894. Reinspect CURRENT attached root controls first.
+            // Detached/removed navigation headers are not proof that any
+            // currently visible interactive target overlaps the Island.
+            if(ScarletIslandP46HandleDetached(window,top,YES))
+                continue;
+        }
         CGFloat currentY=attached ? CGRectGetMinY(
             [header convertRect:header.bounds toView:window]) : -999;
         NSHashTable<UIView *> *controls=objc_getAssociatedObject(
@@ -167,6 +273,12 @@ static void ScarletIslandP44MonitorHeader(UIWindow *window) {
                    CGRectGetMaxY(shown)>0) unsafe++;
             }
         }
+        // UIKit can recycle the two originally measured controls while the
+        // header itself stays attached. The old weak-target count is then
+        // stale, not evidence of a current Dynamic Island hit conflict.
+        if(attached && affineRetained && checked<2 &&
+           ScarletIslandP46HandleDetached(window,top,YES))
+            continue;
         // A header may scroll completely out of view: this is not loss of
         // the earlier native transform or evidence to crop all scroll media.
         BOOL healthy=affineRetained && checked>=2 && unsafe==0;
@@ -542,6 +654,57 @@ static void ScarletIslandWalkViews(UIView *view, UIWindow *window,
         ScarletIslandWalkViews(child, window, safeY, depth + 1,
                               metrics, ownerGroups);
     }
+}
+
+// P46: read-only fresh CURRENT root scan, not the historical weak header.
+// Severe threshold uses 15pt penetration, not the 2pt near-boundary feed
+// thumbnails. The original measured unsafe header controls were at Y3/13.
+// We count only visible current UIControl descendants; an incomplete scan
+// with unaccounted severe geometry is unknown (-1), never silently PASS.
+static NSInteger ScarletIslandP46CurrentSevereControls(
+    UIWindow *window, CGFloat safeTop, NSInteger *firstY,
+    NSUInteger *visibleControls) {
+    if(firstY) *firstY=-999;
+    if(visibleControls) *visibleControls=0;
+    if(!window || window.hidden || !window.rootViewController.isViewLoaded ||
+       window.windowLevel!=UIWindowLevelNormal ||
+       window.windowScene.activationState!=UISceneActivationStateForegroundActive ||
+       !UIInterfaceOrientationIsPortrait(window.windowScene.interfaceOrientation))
+        return -1;
+    UIView *root=window.rootViewController.view;
+    if(root.window!=window || fabs(root.safeAreaInsets.top-safeTop)>3)
+        return -1;
+    ScarletIslandViewMetrics metrics={0};
+    metrics.firstTopControlY=NSIntegerMax;
+    metrics.firstUnsafeControlY=NSIntegerMax;
+    metrics.firstUnsafeTextY=NSIntegerMax;
+    metrics.firstUnsafeImageY=NSIntegerMax;
+    metrics.firstTopScrollY=NSIntegerMax;
+    NSMutableDictionary *groups=[NSMutableDictionary dictionary];
+    ScarletIslandWalkViews(root,window,safeTop,0,&metrics,groups);
+    if(metrics.visited<8 || metrics.countCapped) return -1;
+    if(visibleControls) *visibleControls=metrics.visibleUnsafeControls;
+    NSInteger minY=NSIntegerMax;
+    NSUInteger severe=0;
+    for(NSValue *key in groups) {
+        for(UIView *control in groups[key][@"control_nodes"]) {
+            if(!control || control.window!=window) continue;
+            CGRect shown=ScarletIslandVisibleFrameInWindow(control,window);
+            if(CGRectIsNull(shown) || CGRectIsEmpty(shown) ||
+               CGRectGetMinY(shown)>=safeTop-15 ||
+               CGRectGetMaxY(shown)<=5) continue;
+            severe++;
+            minY=MIN(minY,(NSInteger)lround(CGRectGetMinY(shown)));
+        }
+    }
+    if(firstY) *firstY=minY==NSIntegerMax ? -999 : minY;
+    // A truly severe control exists outside the bounded owner samples:
+    // do not misreport this root as safe. Keep current full scene until
+    // an actual visible witness is available; never crop on a guess.
+    if(metrics.firstUnsafeControlY!=NSIntegerMax &&
+       metrics.firstUnsafeControlY<safeTop-15 && severe==0)
+        return -1;
+    return (NSInteger)severe;
 }
 
 // R6P34: the signed P33 owner was foreground, inset62, offset/bounds-62,

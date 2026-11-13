@@ -160,7 +160,10 @@ final class ScarletDiagnosticRecorder: @unchecked Sendable {
         // losing full native scroll surface after a P44 transform pass.
         "header_current_y", "header_checked_controls",
         "header_visible_controls", "header_unsafe_controls",
-        "header_affine_retained", "header_invalidation_reason"
+        "header_affine_retained", "header_invalidation_reason",
+        // P46: record only bounded counts and positions, not UI contents.
+        "header_detached_severe", "header_detached_first_y",
+        "header_detached_visible_controls", "header_detached_samples"
     ]
 
     private init() {

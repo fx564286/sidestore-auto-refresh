@@ -972,7 +972,11 @@ private final class ScarletGuestIslandReceiptObserver {
                 "guest_header_local_transform_retained",
                 "guest_header_local_transform_reverted",
                 "guest_header_local_transform_invalidated",
-                "guest_header_scroll_motion_safe"].contains(result) {
+                "guest_header_scroll_motion_safe",
+                "guest_header_detached_fullscene_retained",
+                "guest_header_detached_probe_deferred",
+                "guest_header_detached_risk_provisional",
+                "guest_header_detached_risk_confirmed"].contains(result) {
                 ScarletDiagnosticRecorder.shared.record(
                     "layout", "guest_header_local_transform_receipt",
                     status: result == "guest_header_local_transform_reverted"
@@ -1001,7 +1005,15 @@ private final class ScarletGuestIslandReceiptObserver {
                                 (row["header_affine_retained"] as? NSNumber)?.boolValue == true
                                     ? "true" : "false",
                              "header_invalidation_reason":
-                                String((row["header_invalidation_reason"] as? NSNumber)?.intValue ?? -1)])
+                                String((row["header_invalidation_reason"] as? NSNumber)?.intValue ?? -1),
+                             "header_detached_severe":
+                                String((row["header_detached_severe"] as? NSNumber)?.intValue ?? -1),
+                             "header_detached_first_y":
+                                String((row["header_detached_first_y"] as? NSNumber)?.intValue ?? -999),
+                             "header_detached_visible_controls":
+                                String((row["header_detached_visible_controls"] as? NSNumber)?.intValue ?? -1),
+                             "header_detached_samples":
+                                String((row["header_detached_samples"] as? NSNumber)?.intValue ?? -1)])
                 if result == "guest_header_local_transform_retained" {
                     onHeaderTransformVerified?(pid, true)
                 } else if result == "guest_header_local_transform_reverted" ||
