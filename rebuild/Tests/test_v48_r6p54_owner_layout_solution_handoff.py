@@ -42,6 +42,8 @@ class P54NativeOwnerRepair(unittest.TestCase):
     'state[@"enforcing"]=@NO',
   ):
    self.assertIn(token,OWNER,token)
+  self.assertIn('"ScarletP54_%p",(__bridge void *)original',OWNER)
+  self.assertIn('[NSValue valueWithPointer:(__bridge const void *)original]',OWNER)
   for token in ('method_setImplementation(','method_exchangeImplementations(',
                 'class_replaceMethod(original','window.frame=',
                 'root.frame=','header.transform=','scroll.contentInset=',

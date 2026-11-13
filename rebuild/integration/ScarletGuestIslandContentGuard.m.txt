@@ -3033,7 +3033,7 @@ static BOOL ScarletIslandP54InstallNativeOwnerContract(
     IMP originalIMP=method_getImplementation(guestMethod);
     if(!originalIMP) return NO;
     char subclassName[160];
-    snprintf(subclassName,sizeof(subclassName),"ScarletP54_%p",(void *)original);
+    snprintf(subclassName,sizeof(subclassName),"ScarletP54_%p",(__bridge void *)original);
     Class scoped=objc_lookUpClass(subclassName);
     if(!scoped) {
         scoped=objc_allocateClassPair(original,subclassName,0);
@@ -3057,7 +3057,7 @@ static BOOL ScarletIslandP54InstallNativeOwnerContract(
         @"headers":weakHeader,
         @"top":@(safeTop),
         @"owner_layout_passes":@0,
-        @"original_class":[NSValue valueWithPointer:original],
+        @"original_class":[NSValue valueWithPointer:(__bridge const void *)original],
         @"original_frame":[NSValue valueWithCGRect:header.frame],
         @"disabled":@NO
     } mutableCopy];
