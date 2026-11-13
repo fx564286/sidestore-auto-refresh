@@ -36,6 +36,8 @@ jobs:
           cd "$RUNNER_TEMP/gn"
           git apply --check "$GITHUB_WORKSPACE/tools/goldennugget/mb105.patch"
           git apply "$GITHUB_WORKSPACE/tools/goldennugget/mb105.patch"
+          git apply --check "$GITHUB_WORKSPACE/tools/goldennugget/tweak-ui-localize.patch"
+          git apply "$GITHUB_WORKSPACE/tools/goldennugget/tweak-ui-localize.patch"
           git diff --check
           grep -q 'BackupVolumeSpace.available(at: root)' Vendor/MinimuxerGateway/idevice/MobileBackup2Delegate.swift
           if grep -A18 '^private func mb2_get_free_disk_space(' Vendor/MinimuxerGateway/idevice/MobileBackup2Delegate.swift | grep -q 'NSHomeDirectory()'; then
