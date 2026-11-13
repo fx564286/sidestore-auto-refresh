@@ -14,7 +14,7 @@ permissions:
 
 jobs:
   release-ipa:
-    runs-on: xcode-27
+    runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
       - name: Download the verified Xcode 27 IPA artifact
