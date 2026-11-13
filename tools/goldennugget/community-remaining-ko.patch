@@ -1,0 +1,133 @@
+diff --git a/Nugget/Views/CommunityCatalogView.swift b/Nugget/Views/CommunityCatalogView.swift
+--- a/Nugget/Views/CommunityCatalogView.swift
++++ b/Nugget/Views/CommunityCatalogView.swift
+@@ -81,7 +81,7 @@
+                                     Toggle(CommunityCopyKorean.tweakLabel(tweak.label), isOn: Binding(get: { tweak.enabled }, set: {
+                                         library.edit(template: template.id, tweak: tweak.id, enabled: $0)
+                                     })).disabled(!tweak.supports(device.current.version))
+-                                    if !tweak.detail.isEmpty { Text(tweak.detail).font(.caption).foregroundStyle(.secondary) }
++                                    if !tweak.detail.isEmpty { Text(CommunityCopyKorean.tweakDetail(id: tweak.id, fallback: tweak.detail)).font(.caption).foregroundStyle(.secondary) }
+                                     if let control = tweak.control { controlEditor(control, tweak: tweak, template: template) }
+                                     DisclosureGroup("변경되는 파일") {
+                                         ForEach(Array(Set((tweak.writes + tweak.writesOff).map(\.path))).sorted(), id: \.self) {
+@@ -142,17 +142,44 @@
+             }
+             if !entry.detail.isEmpty { Text(CommunityCopyKorean.detail(templateID: entry.id, fallback: entry.detail)).font(.footnote) }
+             if !entry.writes.isEmpty {
+-                DisclosureGroup("변경되는 파일") { ForEach(entry.writes, id: \.self) { Text($0).font(.caption.monospaced()) } }
++                DisclosureGroup("변경되는 파일") {
++                    // The catalog combines an English switch label and an
++                    // absolute path into one display string. Translate only
++                    // the label; group identical paths for a readable list.
++                    ForEach(CommunityCopyKorean.changedFiles(entry.writes)) { file in
++                        VStack(alignment: .leading, spacing: 5) {
++                            Text(file.path)
++                                .font(.caption.monospaced())
++                                .foregroundStyle(.secondary)
++                                .textSelection(.enabled)
++                            ForEach(file.labels, id: \.self) { label in
++                                Text("• " + label)
++                                    .font(.subheadline)
++                            }
++                        }
++                        .padding(.vertical, 3)
++                    }
++                }
+             }
+             let status = CommunityCatalog.status(entry)
+-            Button {
+-                Task { await install(entry) }
+-            } label: {
+-                Label(busy == entry.key ? "다운로드 중…" : (status == "Update available" ? "업데이트" : "가져오기"), systemImage: "square.and.arrow.down")
+-            }.disabled(busy != nil || !entry.supports(device.current.version) || status == "Installed")
+-            if let status {
+-                Text(status == "Installed" ? "설치됨" : "업데이트 가능")
+-                    .font(.caption).foregroundStyle(.secondary)
++            if status == "Installed" {
++                Label("가져오기 완료 · 아직 기기에 적용된 것은 아님",
++                      systemImage: "checkmark.circle.fill")
++                    .font(.caption)
++                    .foregroundStyle(.secondary)
++            } else {
++                Button {
++                    Task { await install(entry) }
++                } label: {
++                    Label(busy == entry.key ? "다운로드 중…" :
++                          (status == "Update available" ? "업데이트" : "가져오기"),
++                          systemImage: "square.and.arrow.down")
++                }
++                .disabled(busy != nil || !entry.supports(device.current.version))
++                if status == "Update available" {
++                    Text("새 버전 사용 가능")
++                        .font(.caption).foregroundStyle(.secondary)
++                }
+             }
+         }.padding(.vertical, 4)
+     }
+@@ -250,6 +277,35 @@
+ /// Display-only Korean copy for the current verified community catalog.
+ /// The server's metadata, hashes, package bytes and file paths remain intact.
+ private enum CommunityCopyKorean {
++    struct ChangedFile: Identifiable {
++        let path: String
++        var labels: [String]
++        var id: String { path }
++    }
++
++    /// Catalog wires stay in English to preserve compatibility. Rendering can
++    /// translate labels while keeping every original absolute path untouched.
++    static func changedFiles(_ raw: [String]) -> [ChangedFile] {
++        var groups: [ChangedFile] = []
++        for item in raw {
++            guard let delimiter = item.range(of: ": ") else {
++                groups.append(ChangedFile(path: item, labels: []))
++                continue
++            }
++            let originalLabel = String(item[..<delimiter.lowerBound])
++            let path = String(item[delimiter.upperBound...])
++            let label = tweakLabel(originalLabel)
++            if let index = groups.firstIndex(where: { $0.path == path }) {
++                if !groups[index].labels.contains(label) {
++                    groups[index].labels.append(label)
++                }
++            } else {
++                groups.append(ChangedFile(path: path, labels: [label]))
++            }
++        }
++        return groups
++    }
++
+     static func name(id: String, fallback: String) -> String {
+         let known: [String: String] = [
+             "calm-glass": "차분한 글래스",
+@@ -278,6 +334,30 @@
+             "secret-bootloop-button": "성능 향상을 주장하는 고위험 프리셋입니다. 부팅 문제가 발생할 수 있으므로 파일 변경 내용을 확인하세요.",
+             "solid-glass": "Dock과 잠금 화면 시계의 리퀴드 글래스 외관을 끕니다.",
+             "springboard-for-ios-27-1-duo": "iOS 27.1(24A94401) 시뮬레이터의 dyld 공유 캐시에서 SpringBoardFoundation 기본값 바인딩 테이블을 iOS 27.0과 비교해 설정 키를 추출하고 기존 분석에서 누락된 키를 보완했습니다. 각 키는 펌웨어 내부에서 존재가 확인됐지만, 실제 iPhone에서는 아직 테스트하지 않았습니다."
++        ]
++        return known[id] ?? fallback
++    }
++
++    /// Descriptions inside the downloaded .batter template are external data.
++    /// Localize the known firmware-verified keys without changing package data.
++    static func tweakDetail(id: String, fallback: String) -> String {
++        let known: [String: String] = [
++            "SBHomeScreenShowsSearchButton": "홈 화면 검색 버튼을 표시하거나 숨기는 iOS 27.1의 새 설정 키입니다. 켜면 표시, 끄면 숨김으로 기록됩니다. 기존 키 대신 새 키만 사용하며 실제 기기 동작은 미검증입니다.",
++            "SBDebugHUD": "SpringBoard의 새 SBDebugHUDDefaults 디버그 화면을 제어하는 기본 스위치입니다. 내부 키 존재만 확인됐으며 실제 효과는 미검증입니다.",
++            "SBVisualizeTouchSuppression": "잠금 화면 제스처나 화면 어두워짐 때문에 터치가 차단되는 영역을 시각적으로 표시합니다. 디버깅 용도이며 실제 효과는 미검증입니다.",
++            "SBRequireFreshTouch": "잠금 화면 제스처가 기존에 추적하던 터치 대신 새로운 터치에서 시작하도록 요구합니다. 실제 효과는 미검증입니다.",
++            "SBForceAllAppsToSupportLimitedResizing": "앱별 지원 선언과 관계없이 모든 앱을 제한적 크기 조절 지원 앱으로 취급합니다. iPad 창 관리와 관련되며 실제 효과는 미검증입니다.",
++            "SBEnableDisplayDimTouchSuppressionForAllSurfaces": "화면이 어두워졌을 때의 터치 차단을 잠금 화면뿐 아니라 모든 화면 영역에 적용합니다. 실제 효과는 미검증입니다.",
++            "SBUseFallbackDisplayRegionBlankingRenderer": "시스템 화면 개구부(System Aperture) 주변의 검은 영역을 표시하는 대체 렌더러 경로로 전환합니다. 실제 효과는 미검증입니다.",
++            "SBShowHingeAngleHUD": "접이식 기기에서 힌지 각도를 실시간으로 보여주는 디버그 HUD입니다. 일반 iPhone에서는 효과가 없으며 실제 접이식 기기에서도 미검증입니다.",
++            "SBAlwaysSendHingeUpdates": "구독하는 구성요소가 없어도 접이식 기기의 힌지 각도 변경 정보를 계속 전송합니다. 접이식 기기 전용이며 실제 효과는 미검증입니다.",
++            "SBAmbientPresentationControllerMockIsCharging": "대기 모드(StandBy) 테스트를 위해 충전 상태를 가상으로 설정합니다. 실제 효과는 미검증입니다.",
++            "SBAmbientTransientOverlayInteractiveDismissal": "대기 화면의 임시 오버레이를 제스처로 닫을 수 있도록 하는 내부 설정입니다. 실제 효과는 미검증입니다.",
++            "SBDisableAutoDim": "화면 보호를 위한 자동 밝기 감소 기능을 비활성화합니다. 키는 iOS 27.0부터 존재하지만 실제 효과는 미검증입니다.",
++            "SBEnableHomeScreenWallpaperDimming": "홈 화면 아이콘 뒤의 배경화면을 어둡게 합니다. 키는 iOS 27.0부터 존재하지만 실제 효과는 미검증입니다.",
++            "SBExternalDisplayMirroringEnabled": "외부 디스플레이 화면 미러링 관련 내부 스위치입니다. 키는 iOS 27.0부터 존재하지만 실제 효과는 미검증입니다.",
++            "SBSensitiveUIEnabled": "SpringBoard의 민감한 UI 보호 관련 설정입니다. 기본값이 이미 켜져 있을 가능성이 있으며, 활성·비활성 효과는 미검증입니다.",
++            "SBAmbientExtendedIdleTimer": "대기 화면(StandBy)의 유휴 대기 시간을 조정하는 내부 타이머입니다. 값의 단위와 기본값이 확인되지 않았고 슬라이더 조절 효과도 미검증입니다."
+         ]
+         return known[id] ?? fallback
+     }
