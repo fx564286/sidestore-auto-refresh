@@ -23,6 +23,10 @@ final class ScarletFullscreenSceneStack: NSObject, ObservableObject,
     @Published private(set) var slots: [Slot] = []
     @Published private(set) var activeID: String?
     @Published private(set) var isVisible = false
+    // P49: SwiftUI's actual key host scene, rather than P47's non-key
+    // switcher UIWindow, requests native status-bar legibility. No pixels,
+    // clock widgets or guest layout changes are synthesized.
+    @Published private(set) var hostStatusBarScheme: ColorScheme? = nil
     @Published private(set) var lastError: String?
     weak var viewport: ScarletFullscreenSceneViewport?
     // R5 recovery: observation only, no guest UIKit method interception.
@@ -150,6 +154,8 @@ final class ScarletFullscreenSceneStack: NSObject, ObservableObject,
                           bundleID: app.bundleIdentifier,
                           icon: icon, pid: 0, failed: false))
         activeID = folder
+        // New guest must not inherit prior guest's native status-bar tone.
+        hostStatusBarScheme = nil
         pendingReveal.remove(folder)
         remoteAttachSeen.remove(folder)
         firstRevealCompleted.remove(folder)
@@ -320,6 +326,9 @@ final class ScarletFullscreenSceneStack: NSObject, ObservableObject,
             return false
         }
         activeID = folder
+        // After select() switched guest surfaces, restore only that live
+        // guest's measured native tone on the key host scene.
+        viewport?.syncKeyHostStatusBarForActiveGuest()
         ScarletDiagnosticRecorder.shared.record(
             "guest", "fullscreen_scene_process_reused",
             status: "success", fields: [
@@ -328,6 +337,50 @@ final class ScarletFullscreenSceneStack: NSObject, ObservableObject,
                 "count": String(slots.count)])
         updateOverlay()
         return true
+    }
+
+    // P49: P48 native readback proved non-key overlay requested raw3 while
+    // the foreground UIWindowScene continued raw1 on a light backdrop.
+    // Only the key-host SwiftUI root may influence system bar appearance.
+    func syncKeyHostStatusBarTone(pid: Int32, tone: Int,
+                                  scene: UIWindowScene) {
+        guard isVisible, let activeID,
+              slots.contains(where: { $0.id == activeID && $0.pid == pid && pid > 0 })
+              else { return }
+        let next: ColorScheme? = tone == 1 ? .light : (tone == 2 ? .dark : nil)
+        guard hostStatusBarScheme != next else { return }
+        hostStatusBarScheme = next
+        let desired: UIStatusBarStyle = tone == 1 ? .darkContent :
+            (tone == 2 ? .lightContent : .default)
+        ScarletDiagnosticRecorder.shared.record(
+            "layout", "resident_key_host_status_bar_requested",
+            fields: ["process_pid": String(pid),
+                     "surface_tone": String(tone),
+                     "preferred_style_raw": String(Int(desired.rawValue)),
+                     "result": next == nil ? "unmeasured_preference_cleared"
+                                          : "key_scene_color_scheme_published"])
+        // SwiftUI reconciles preferences asynchronously. Read the real
+        // UIWindowScene status bar rather than assuming a successful change.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.30) {
+            [weak self, weak scene] in
+            guard let self, self.isVisible, let scene,
+                  self.activeID == activeID,
+                  self.hostStatusBarScheme == next else { return }
+            let observed = scene.statusBarManager?.statusBarStyle.rawValue ?? -1
+            let keyPresent = scene.windows.contains(where: { $0.isKeyWindow })
+            ScarletDiagnosticRecorder.shared.record(
+                "layout", "resident_key_host_status_bar_readback",
+                fields: ["process_pid": String(pid),
+                         "surface_tone": String(tone),
+                         "host_key": keyPresent ? "true" : "false",
+                         "status_hidden": scene.statusBarManager?.isStatusBarHidden == true
+                             ? "true" : "false",
+                         "preferred_style_raw": String(Int(desired.rawValue)),
+                         "status_style_raw": String(Int(observed)),
+                         "result": observed == desired.rawValue && keyPresent
+                             ? "key_host_status_style_matched"
+                             : "key_host_status_style_mismatch"])
+        }
     }
 
     func restoreForegroundOnHostActive() {
@@ -350,6 +403,8 @@ final class ScarletFullscreenSceneStack: NSObject, ObservableObject,
         // No close, terminate, detach, scene destruction or relaunch.
         // Keep each remote scene in the original full-screen viewport.
         isVisible = false
+        // Release P49's presentation preference on Home immediately.
+        hostStatusBarScheme = nil
         // R6.1: returning to the Scarlet host is a real audio-focus change.
         // A retained LiveProcess must not keep playing simply because its
         // full-screen remote view is hidden. Preserve its process and data.
@@ -1373,7 +1428,18 @@ final class ScarletFullscreenSceneViewport: UIViewController {
             applyNativeChromeAppearance(for: guest, scene: scene)
             ScarletFullscreenGuestTabInstaller.updateResidentStatusBar(
                 chromeStatusBarPreference, scene: scene)
+            stack?.syncKeyHostStatusBarTone(pid: pid, tone: tone, scene: scene)
         }
+    }
+
+    func syncKeyHostStatusBarForActiveGuest() {
+        guard let stack, stack.isVisible,
+              let activeID = stack.activeID,
+              let guest = controllers[activeID], guest.pid > 0,
+              let scene = view.window?.windowScene else { return }
+        stack.syncKeyHostStatusBarTone(
+            pid: guest.pid, tone: chromeSurfaceToneByPID[guest.pid] ?? 0,
+            scene: scene)
     }
 
     private func publishNativeChromeVerifiedPIDs(_ scene: UIWindowScene) {
@@ -1508,6 +1574,9 @@ final class ScarletFullscreenSceneViewport: UIViewController {
             applyNativeChromeAppearance(for: guest, scene: scene)
             ScarletFullscreenGuestTabInstaller.updateResidentStatusBar(
                 chromeStatusBarPreference, scene: scene)
+            stack?.syncKeyHostStatusBarTone(
+                pid: guest.pid, tone: chromeSurfaceToneByPID[guest.pid] ?? 0,
+                scene: scene)
         }
         transparentChrome.frame = CGRect(x: 0,y: 0,
                                          width: view.bounds.width,height: top)

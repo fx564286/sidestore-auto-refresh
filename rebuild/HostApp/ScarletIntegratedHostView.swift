@@ -1223,6 +1223,12 @@ struct ScarletIntegratedHostView: View {
             }
         }
         .statusBarHidden(false)
+        // P49: this view is hosted by the *key host UIWindow*; changing the
+        // non-key resident overlay owner's preferred style in P47 could not
+        // affect UIStatusBarManager. Use the actual guest background tone as
+        // a temporary root presentation preference only while resident.
+        .preferredColorScheme(fullscreenStack.isVisible
+            ? fullscreenStack.hostStatusBarScheme : nil)
         .onReceive(NotificationCenter.default.publisher(
             for: Notification.Name("ScarletPilotRemoteSafeAreaChanged"))) { note in
             let stage = note.userInfo?["stage"] as? String ?? "unknown"
