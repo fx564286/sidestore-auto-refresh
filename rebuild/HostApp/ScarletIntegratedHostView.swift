@@ -1225,15 +1225,10 @@ struct ScarletIntegratedHostView: View {
         }
         .statusBarHidden(fullscreenStack.isVisible &&
             fullscreenStack.nativeStatusBarCollisionShield)
-        // P49: this view is hosted by the *key host UIWindow*; changing the
-        // non-key resident overlay owner's preferred style in P47 could not
-        // affect UIStatusBarManager. Use the actual guest background tone as
-        // a temporary root presentation preference only while resident.
-        // P51: do not force presentation-wide appearance if native
-        // status icons were withheld due to a proven unsafe guest header.
-        .preferredColorScheme(fullscreenStack.isVisible &&
-            !fullscreenStack.nativeStatusBarCollisionShield
-            ? fullscreenStack.hostStatusBarScheme : nil)
+        // P52: preserve the ORIGINAL Scarlet Crystal palette and native
+        // materials. P49's root preferredColorScheme changed the entire app
+        // merely to modify the clock, even on non-colliding guest surfaces.
+        // Native status collision suppression remains PID-scoped above.
         .onReceive(NotificationCenter.default.publisher(
             for: Notification.Name("ScarletPilotRemoteSafeAreaChanged"))) { note in
             let stage = note.userInfo?["stage"] as? String ?? "unknown"

@@ -23,9 +23,9 @@ final class ScarletFullscreenSceneStack: NSObject, ObservableObject,
     @Published private(set) var slots: [Slot] = []
     @Published private(set) var activeID: String?
     @Published private(set) var isVisible = false
-    // P49: SwiftUI's actual key host scene, rather than P47's non-key
-    // switcher UIWindow, requests native status-bar legibility. No pixels,
-    // clock widgets or guest layout changes are synthesized.
+    // P52: reference only for guest native tone/readback; never attach this
+    // to the host root SwiftUI .preferredColorScheme, which changes all of
+    // Scarlet Crystal's original semantic colors and native glass materials.
     @Published private(set) var hostStatusBarScheme: ColorScheme? = nil
     // P51: native clock/icons share the same physical top region as guest
     // interactive controls. Fail closed until THIS guest's layout is proven
@@ -352,9 +352,9 @@ final class ScarletFullscreenSceneStack: NSObject, ObservableObject,
         return true
     }
 
-    // P49: P48 native readback proved non-key overlay requested raw3 while
-    // the foreground UIWindowScene continued raw1 on a light backdrop.
-    // Only the key-host SwiftUI root may influence system bar appearance.
+    // P49 revealed that changing the key-host SwiftUI root's colorScheme
+    // changes the native statusbar but ALSO the entire host palette. P52
+    // preserves guest tone as passive evidence; never force host appearance.
     // P51: Status bar ownership (P49) was fixed on iPhone, but that
     // SUCCESS exposed overlap with guest action controls at physical y0.
     // A second zero-risk snapshot must not clear the first proven collision:
@@ -417,14 +417,13 @@ final class ScarletFullscreenSceneStack: NSObject, ObservableObject,
         let desired: UIStatusBarStyle = tone == 1 ? .darkContent :
             (tone == 2 ? .lightContent : .default)
         ScarletDiagnosticRecorder.shared.record(
-            "layout", "resident_key_host_status_bar_requested",
+            "layout", "resident_key_host_status_bar_tone_observed",
             fields: ["process_pid": String(pid),
                      "surface_tone": String(tone),
                      "preferred_style_raw": String(Int(desired.rawValue)),
-                     "result": next == nil ? "unmeasured_preference_cleared"
-                                          : "key_scene_color_scheme_published"])
-        // SwiftUI reconciles preferences asynchronously. Read the real
-        // UIWindowScene status bar rather than assuming a successful change.
+                     "result": "guest_tone_read_only_original_palette_preserved"])
+        // P52: there is no global presentation override. The readback is
+        // diagnostic only and can differ from the guest contrast preference.
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.30) {
             [weak self, weak scene] in
             guard let self, self.isVisible, let scene,
@@ -442,8 +441,8 @@ final class ScarletFullscreenSceneStack: NSObject, ObservableObject,
                          "preferred_style_raw": String(Int(desired.rawValue)),
                          "status_style_raw": String(Int(observed)),
                          "result": observed == desired.rawValue && keyPresent
-                             ? "key_host_status_style_matched"
-                             : "key_host_status_style_mismatch"])
+                             ? "unforced_host_status_style_matches_guest"
+                             : "unforced_host_status_style_mismatch_guest"])
         }
     }
 

@@ -16,14 +16,18 @@ class P49KeyHostStatusBar(unittest.TestCase):
         self.assertIn('hostStatusBarScheme = next',body)
         self.assertIn('scene.windows.contains(where: { $0.isKeyWindow })',body)
         self.assertIn('resident_key_host_status_bar_readback',body)
-        self.assertIn('key_host_status_style_mismatch',body)
+        # P52 observed palette regression: the old global appearance request is withdrawn.
+        self.assertIn('unforced_host_status_style_mismatch_guest',body)
         self.assertIn('scene.statusBarManager?.statusBarStyle.rawValue',body)
         self.assertNotIn('windowLevel =',body)
         self.assertNotIn('UIStatusBarStyleLightContent',body)
 
-    def test_root_preference_owned_by_true_host_only_while_guest_visible(self):
-        self.assertIn('.preferredColorScheme(fullscreenStack.isVisible',HOST)
-        self.assertIn('? fullscreenStack.hostStatusBarScheme : nil)',HOST)
+    def test_historical_root_preference_withdrawn_after_p52_palette_regression(self):
+        # P49's key-window tone request changed unrelated host settings
+        # colors. Keep its passive readback and P51 collision suppression,
+        # but never publish the guest theme as a global presentation style.
+        self.assertNotIn('.preferredColorScheme(',HOST)
+        self.assertIn('guest_tone_read_only_original_palette_preserved',STACK)
         # P51 signed-device video proves unconditional native icons
         # collide with guest top actions. The host leaves Home visible and
         # gates the guest-only status bar on measured risk.
