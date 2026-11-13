@@ -167,10 +167,10 @@ index d92b701..5c4e155 100755
          let backupRoot = AppPaths.fullBackupRoot(udid: udid)
          try resetDirectory(backupRoot)
 diff --git a/Nugget/Core/HostManifests.swift b/Nugget/Core/HostManifests.swift
-index 3a56118..f887aef 100755
+index 3a56118..3f08c94 100755
 --- a/Nugget/Core/HostManifests.swift
 +++ b/Nugget/Core/HostManifests.swift
-@@ -269,6 +269,38 @@ enum HostManifests {
+@@ -269,6 +269,40 @@ enum HostManifests {
      }
  
      /// Wipe `<backupRoot>/<udid>/` and re-seed the host-side manifests.
@@ -178,8 +178,10 @@ index 3a56118..f887aef 100755
 +    /// table expected by the injector, without copying any device records.
 +    /// The device may still reject missing native domain registration.
 +    static func writeUnprotectedRestoreSQLite(deviceDir: URL) throws {
++        // Seed the same Properties metadata as the established iOS 27 host
++        // manifest writer, then replace its backup-only placeholder table.
++        try writeSQLiteManifest(deviceDir: deviceDir, ios27: true)
 +        let url = deviceDir.appendingPathComponent("Manifest.db")
-+        try? FileManager.default.removeItem(at: url)
 +        var db: OpaquePointer?
 +        guard sqlite3_open(url.path, &db) == SQLITE_OK, let db else {
 +            let why = db.map { String(cString: sqlite3_errmsg($0)) } ?? "cannot open"
@@ -190,6 +192,7 @@ index 3a56118..f887aef 100755
 +        defer { sqlite3_close(db) }
 +        guard sqlite3_exec(db, """
 +            PRAGMA journal_mode=DELETE;
++            DROP TABLE IF EXISTS ManifestEntry;
 +            CREATE TABLE Files (
 +                fileID TEXT PRIMARY KEY,
 +                domain TEXT,
@@ -197,7 +200,6 @@ index 3a56118..f887aef 100755
 +                flags INTEGER,
 +                file BLOB
 +            );
-+            CREATE TABLE Properties (key TEXT PRIMARY KEY, value BLOB);
 +            """, nil, nil, nil) == SQLITE_OK else {
 +            throw NSError(domain: "HostManifests", code: 6,
 +                          userInfo: [NSLocalizedDescriptionKey:
