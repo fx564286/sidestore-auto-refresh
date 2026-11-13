@@ -971,7 +971,8 @@ private final class ScarletGuestIslandReceiptObserver {
                 "guest_header_local_transform_first_pass",
                 "guest_header_local_transform_retained",
                 "guest_header_local_transform_reverted",
-                "guest_header_local_transform_invalidated"].contains(result) {
+                "guest_header_local_transform_invalidated",
+                "guest_header_scroll_motion_safe"].contains(result) {
                 ScarletDiagnosticRecorder.shared.record(
                     "layout", "guest_header_local_transform_receipt",
                     status: result == "guest_header_local_transform_reverted"
@@ -985,7 +986,22 @@ private final class ScarletGuestIslandReceiptObserver {
                                 String((row["header_controls_after"] as? NSNumber)?.intValue ?? -1),
                              "header_gate_pass":
                                 (row["header_gate_pass"] as? NSNumber)?.boolValue == true
-                                    ? "true" : "false"])
+                                    ? "true" : "false",
+                             // P45: why the P44 native header was invalidated.
+                             // The source only publishes bounded numeric geometry.
+                             "header_current_y":
+                                String((row["header_current_y"] as? NSNumber)?.intValue ?? -999),
+                             "header_checked_controls":
+                                String((row["header_checked_controls"] as? NSNumber)?.intValue ?? -1),
+                             "header_visible_controls":
+                                String((row["header_visible_controls"] as? NSNumber)?.intValue ?? -1),
+                             "header_unsafe_controls":
+                                String((row["header_unsafe_controls"] as? NSNumber)?.intValue ?? -1),
+                             "header_affine_retained":
+                                (row["header_affine_retained"] as? NSNumber)?.boolValue == true
+                                    ? "true" : "false",
+                             "header_invalidation_reason":
+                                String((row["header_invalidation_reason"] as? NSNumber)?.intValue ?? -1)])
                 if result == "guest_header_local_transform_retained" {
                     onHeaderTransformVerified?(pid, true)
                 } else if result == "guest_header_local_transform_reverted" ||

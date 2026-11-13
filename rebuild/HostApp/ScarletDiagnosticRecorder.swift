@@ -155,7 +155,12 @@ final class ScarletDiagnosticRecorder: @unchecked Sendable {
         "header_scene_status_height", "header_scene_status_hidden", "header_setbounds_impl_origin",
         "header_setcenter_impl_origin", "header_setframe_impl_origin", "header_severe_nodes",
         "header_slot", "header_translates", "header_window_y",
-        "header_constraint_index"
+        "header_constraint_index",
+        // P45: no guest identity, text or view class. Show true cause of
+        // losing full native scroll surface after a P44 transform pass.
+        "header_current_y", "header_checked_controls",
+        "header_visible_controls", "header_unsafe_controls",
+        "header_affine_retained", "header_invalidation_reason"
     ]
 
     private init() {

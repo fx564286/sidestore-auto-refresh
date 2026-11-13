@@ -29,6 +29,9 @@ static char scarletIslandHeaderConstraintTrialKey;
 static char scarletIslandP44HeaderTransformTrialKey;
 static char scarletIslandP44LiveHeadersKey;
 static char scarletIslandP44LiveTopKey;
+static char scarletIslandP45MeasuredHeaderControlsKey;
+static char scarletIslandP45ScrollDriftObservedKey;
+static char scarletIslandP45UnsafeSamplesKey;
 
 // All guest receipts share one anonymous App Group relay. This carries only
 // bounded numbers and a PID; no labels, view names, app identifiers or images.
@@ -122,9 +125,17 @@ static void ScarletIslandProbeGuestSurfaceTone(UIWindow *window) {
         @"surface_tone":@(tone)
     });
 }
-// P44: native app layout can change when a feed is scrolled or when the
-// retained LiveProcess becomes foreground again. Keep only weak references
-// to headers which passed both readbacks; never continually rewrite frames.
+// P45: R6P44 signed PID4346 passed 8->5 native controls twice but the
+// 900ms monitor invalidated it after 2.6s, shrinking FBScene back to 894pt.
+// It used the header's *window-space origin* as proof. That origin can
+// legitimately move as the guest scrolls while its native affine transform
+// and interactive controls remain safe. Compare the actual matrix and
+// *originally measured* weak control hit areas, not a single absolute y.
+// This does not reposition a scroll, root, native UIWindow or remote scene.
+// A genuine native-transform loss fails immediately; newly unsafe visible
+// controls require consecutive observations, then revert to P43.
+static CGRect ScarletIslandVisibleFrameInWindow(UIView *node, UIWindow *window);
+static NSInteger ScarletIslandMetric(CGFloat value);
 static void ScarletIslandP44MonitorHeader(UIWindow *window) {
     NSHashTable<UIView *> *headers=objc_getAssociatedObject(
         window,&scarletIslandP44LiveHeadersKey);
@@ -134,18 +145,86 @@ static void ScarletIslandP44MonitorHeader(UIWindow *window) {
     CGFloat top=[objc_getAssociatedObject(
         window,&scarletIslandP44LiveTopKey) doubleValue];
     for(UIView *header in headers.allObjects) {
-        if(!header || header.window!=window) continue;
+        if(!header) continue;
+        BOOL attached=header.window==window;
         CGAffineTransform wanted=CGAffineTransformMakeTranslation(0,top);
-        CGRect frame=[header convertRect:header.bounds toView:window];
-        if(CGAffineTransformEqualToTransform(header.transform,wanted) &&
-           fabs(CGRectGetMinY(frame)-top)<3) continue;
-        // Native layout invalidated our retained proof. Revert only the
-        // previously owned transform, then report a PID-scoped fallback.
-        if(CGAffineTransformEqualToTransform(header.transform,wanted))
+        BOOL affineRetained=attached &&
+            CGAffineTransformEqualToTransform(header.transform,wanted);
+        CGFloat currentY=attached ? CGRectGetMinY(
+            [header convertRect:header.bounds toView:window]) : -999;
+        NSHashTable<UIView *> *controls=objc_getAssociatedObject(
+            header,&scarletIslandP45MeasuredHeaderControlsKey);
+        NSUInteger checked=0,unsafe=0,visible=0;
+        if(attached && controls) {
+            for(UIView *control in controls.allObjects) {
+                if(!control || control.window!=window ||
+                   ![control isDescendantOfView:header]) continue;
+                checked++;
+                CGRect shown=ScarletIslandVisibleFrameInWindow(control,window);
+                if(CGRectIsNull(shown) || CGRectIsEmpty(shown)) continue;
+                visible++;
+                if(CGRectGetMinY(shown)<top-2 &&
+                   CGRectGetMaxY(shown)>0) unsafe++;
+            }
+        }
+        // A header may scroll completely out of view: this is not loss of
+        // the earlier native transform or evidence to crop all scroll media.
+        BOOL healthy=affineRetained && checked>=2 && unsafe==0;
+        if(healthy) {
+            objc_setAssociatedObject(header,&scarletIslandP45UnsafeSamplesKey,
+                                     @0,OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+            if(fabs(currentY-top)>=3 &&
+               !objc_getAssociatedObject(
+                   header,&scarletIslandP45ScrollDriftObservedKey)) {
+                objc_setAssociatedObject(header,
+                    &scarletIslandP45ScrollDriftObservedKey,@YES,
+                    OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+                ScarletIslandPublish(@{
+                    @"receipt":NSUUID.UUID.UUIDString,
+                    @"pid":@(getpid()),
+                    @"epoch":@([[NSDate date] timeIntervalSince1970]),
+                    @"result":@"guest_header_scroll_motion_safe",
+                    @"target":@(ScarletIslandMetric(top)),
+                    @"header_current_y":@(ScarletIslandMetric(currentY)),
+                    @"header_checked_controls":@(checked),
+                    @"header_visible_controls":@(visible),
+                    @"header_unsafe_controls":@0,
+                    @"header_affine_retained":@YES,
+                    @"header_invalidation_reason":@0
+                });
+            }
+            continue;
+        }
+        NSUInteger samples=[objc_getAssociatedObject(
+            header,&scarletIslandP45UnsafeSamplesKey) unsignedIntegerValue];
+        // Geometry and clipping are in flux during scrolling. Require two
+        // sequential unsafe samples for still-affine native headers. Lost
+        // transform or measured control provenance is a hard invalidation.
+        if(affineRetained && checked>=2 && unsafe>0 && samples<1) {
+            objc_setAssociatedObject(header,&scarletIslandP45UnsafeSamplesKey,
+                                     @1,OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+            continue;
+        }
+        NSUInteger reason=!attached ? 1 :
+            (!affineRetained ? 2 : (checked<2 ? 3 : 4));
+        // Preserve any app-owned transform if native layout replaced ours.
+        // Undo only the exact affine we owned.
+        if(affineRetained)
             header.transform=CGAffineTransformIdentity;
         [headers removeObject:header];
-        ScarletIslandReceipt(@"guest_header_local_transform_invalidated",
-                             top,0,0);
+        ScarletIslandPublish(@{
+            @"receipt":NSUUID.UUID.UUIDString,
+            @"pid":@(getpid()),
+            @"epoch":@([[NSDate date] timeIntervalSince1970]),
+            @"result":@"guest_header_local_transform_invalidated",
+            @"target":@(ScarletIslandMetric(top)),
+            @"header_current_y":@(ScarletIslandMetric(currentY)),
+            @"header_checked_controls":@(checked),
+            @"header_visible_controls":@(visible),
+            @"header_unsafe_controls":@(unsafe),
+            @"header_affine_retained":@(affineRetained),
+            @"header_invalidation_reason":@(reason)
+        });
     }
 }
 
@@ -1245,6 +1324,12 @@ static void ScarletIslandTryP44LocalHeaderTransform(
                     live,OBJC_ASSOCIATION_RETAIN_NONATOMIC);
             }
             [live addObject:head];
+            NSHashTable<UIView *> *proven=[NSHashTable weakObjectsHashTable];
+            if(one) [proven addObject:one];
+            if(two) [proven addObject:two];
+            objc_setAssociatedObject(head,
+                &scarletIslandP45MeasuredHeaderControlsKey,proven,
+                OBJC_ASSOCIATION_RETAIN_NONATOMIC);
             objc_setAssociatedObject(w,&scarletIslandP44LiveTopKey,
                 @(safeTop),OBJC_ASSOCIATION_RETAIN_NONATOMIC);
         }
