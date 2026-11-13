@@ -1,10 +1,10 @@
 {
   "schema": 2,
   "scope": "Scarlet Crystal guest top-screen overlap, touch access, rotation, remote guest render and related resident regressions",
-  "updated_utc": "2026-11-13T03:36:34Z",
-  "current_baseline": "P45 signed PID5066 8->5 retained, then header reason1 detached + currentY-999 and old y62/894 crop. P46 new current-root severe-control reconciliation source 943cde336094 static 648 passed (2 skipped), iOS/native and signed-device pending.",
-  "current_issue_status": "P45 fails to preserve native 956pt scrolling after UIKit removes or recycles header. P46 rechecks current root rather than blindly entering P43 cropped mode. Other app and SideStore native refresh installation verified independently; not fixed by this change.",
-  "confidence_note": "The exact P45 detach and P43 crop are verified in signed logs; whether P46 user sees seamless scroll remains unverified until iPhone screen and new reason/event receipt. Do not claim solved based on CI alone.",
+  "updated_utc": "2026-11-13T04:15:59Z",
+  "current_baseline": "P46 388414638b98 signed portrait PID5400 inactive initial sample and active late sample ignored, P43 crop y62/h894; white guest chrome actual style raw1 and user-visible blank clock/battery. P47 source 5e7c1546a2d1 retries at existing active 2600ms sample and projects system native status bar via resident UIWindow. 654 static PASS 2 skipped; signed P47 UI unverified.",
+  "current_issue_status": "P46 62pt hard crop and clock/battery invisibility unresolved until signed P47 device proof. P47 addresses distinct lifecycle gating and upper UIWindow native statusbar ownership; no modifications to audio, keyboard or signing.",
+  "confidence_note": "P47 static and source verification only. On signed iPhone verify statusBarManager.isStatusBarHidden and styleRaw, actual clock/battery visible, header real remote height956 after foregound retry, before calling solved.",
   "privacy": "No credentials, Apple ID, OTP, UDID, guest names or device identifiers are stored.",
   "entries": [
     {
@@ -23278,6 +23278,826 @@
           "source_generation_script": "rebuild/integration/apply_scarlet_host.py",
           "function": "ScarletGuestIslandReceiptObserver.readBack",
           "note": "Bounded anonymous current control count and detached status, host does not invalidate PID for safe observation; original P43 fallback if guest explicitly reports severe risk."
+        }
+      ]
+    },
+    {
+      "date": "2026-11-13",
+      "problem": "guest_top",
+      "status": "source_committed_ci_pending",
+      "source_verification": "git_patch_observed",
+      "rollback_commit": "388414638b98d1ee73f6ecd22d25fb4efa75fde0",
+      "source_revisions": [
+        {
+          "sha": "5e7c1546a2d1947c84015d42e7ddca4b89834bec",
+          "url": "https://github.com/fx564286/sidestore-auto-refresh/commit/5e7c1546a2d1947c84015d42e7ddca4b89834bec",
+          "title": "fix(r6p47): retry native header on foreground and restore real iOS status bar above resident overlay"
+        }
+      ],
+      "id": "L091",
+      "version": "new-v48-r6p47-lifecycle-foreground-header-trial",
+      "mechanism": "two_sample_foreground_lifecycle_resumption_with_pid_scoped_deferred_header_proof",
+      "novelty": {
+        "prior_excluded_ids": [
+          "L033",
+          "L035",
+          "L043",
+          "L050",
+          "L080",
+          "L081",
+          "L083",
+          "L084",
+          "L085",
+          "L087",
+          "L088",
+          "L089",
+          "L090"
+        ],
+        "causal_difference": "P44/P45/P46 handle a successful native header translation during the first 650ms sample, then preserve it or repair detach. Signed P46 session 0f379656 PID5400 has an INITIAL 650ms risk scan while UIWindowScene activationState=1 (foregroundInactive), so the P44 guest trial expressly returns before staging. At 2600ms the original UI is active (activationState=0), but the P44 guest trial requires sample==650 and cannot run; host fallback from first risk receipt then shrinks the actual FBScene to y62/894. L091 retries the exact previously permitted trial on the existing 2600ms attached-root measurement only if it did not stage at650, and uses a per-PID host late-evidence gate to give the original 220ms+1050ms two-readback proof time. This is a lifecycle callback/timing race fix, NOT any new scroll offset, header frame, transform, safe inset, remote FBScene resize or a repeat of P46 detached header policy.",
+        "falsifiable_prediction": "For P46-like active->inactive->background->active sequence, P47 shows guest_header_postforeground_trial_staged sample2600 and guest_header_local_transform_retained by second readback, with NO guest_chrome_adaptive_slot_applied for that PID, and native fullscreen y0 height956. If no qualifying header after second sample, the PID-scoped 1.7s late fallback applies original P43 y62/894, and logs stage and latency. A previously proven 650ms native header does not rerun.",
+        "new_device_evidence": {
+          "source_commit": "388414638b98d1ee73f6ecd22d25fb4efa75fde0",
+          "event": "guest_header_fullscreen_trial_pending / scene_phase=background / guest_content_geometry_probe sample_index=2600 / guest_chrome_adaptive_slot_applied",
+          "observed_value": "Signed P46 session0f379656 iOS27.2 440x956 safe62 PID5400 seq72/73 sample650 unsafe8, seq66 and seq75-81 guest_scene_state1 inactive, seq82 background, seq84/85 host active same PID, seq89 sample2600 still unsafe8 with guest_scene_state0 active, no guest_header_local_transform_staged at either sample; seq142 host cropped native FBScene y62 height894 and seq147 verified894. User screenshot shows horizontally sheared stories and text exactly at hard native scene boundary."
+        },
+        "why_prior_fix_failed": "The guest's transformation trial was gated on sample650 and foregroundActive simultaneously. A host background event before first measurement caused permanent one-shot trial omission; P46 could not repair because it only handles detached headers following a successful trial. The host timed fallback from first measurement without allowing the second foreground sample's 220+1050ms verification sequence."
+      },
+      "action": "When signed P46 first 650ms sample is in guest UIWindowScene foregroundInactive, the old P44 one-shot eligibility guard rejects header transform. P47 reuses the EXISTING scheduled 2600ms foregroundActive root sample iff the per-root P44 trial key is absent. The host 650ms PID-scoped original 2.4s deadline defers to a PID-scoped late 1.7s window only when that 2600ms risk receipt arrives. 220ms then 1050ms native guest geometry readbacks must retain before allowing fullscreen; otherwise original P43 cropping fallback. Full remote scene remains 1:1 until trial verdict; never changes app view frame, gesture, audio, keyboard, signing, scale or reentry host process. Tests 654 static PASS, 2 skipped.",
+      "hypothesis": "P46 first inactive sample gave risk but no staged transform, active 2600ms sample was ignored by previous P44 one-shot guard, and host cropped framebuffer y62/h894 on original timer. A second-sample conditional trial with a sufficient late proof window should prevent that false fallback.",
+      "observation": "P46 SourceCommit388414638b98 signed iOS27.2 session0f379656 PID5400, sample650 unsafe8 guest scene inactive1; early background; sample2600 unsafe8 active0; no guest_header_local_transform_staged receipt; native fallback y62/h894 and user screenshot still shows abrupt hard horizontal cut.",
+      "evidence": [
+        "P46 session0f379656 seq72/73 first risk and pending, seq75-81 scene activation state1, seq82 scene background, seq84/85 host restored active, seq89 and seq90-92 attached unsafe8 and activation state0 at 2600ms.",
+        "P46 source P44 function sample!=650 and host early fallback+2.4s; new source allows 2600 only after eligible gate and records guest_header_postforeground_trial_staged.",
+        "V48 original pan SHA preserved exactly; no geometry writes in modified lifecycle trial; full static suite 654 tests passed (2 skipped); signed P47 UI test remains pending."
+      ],
+      "device_verification": "Signed P46 failure established; P47 patch, readbacks, actual iPhone 956px fullscreen and scrolling image/clock presence NOT YET VERIFIED.",
+      "repeat_policy": "Do not repeat P35/P36 blind background timers, P37 frame/P39 constraints, P40/P43 crop as primary, P44 transform implementation or P45/P46 detach behavior. P47 changes only WHEN the existing probe stage can first try, and the corresponding native second readback wait window; hardware tests must test foreground lifecycle transition and verify full 956pt scene.",
+      "code_locations": [
+        {
+          "file": "rebuild/HostApp/ScarletFullscreenSceneStack.swift",
+          "function": "ScarletFullscreenSceneStack.swift",
+          "location": "@@ -967,7 +967,8 @@",
+          "before": [
+            "                    fields: [\"process_pid\": String(pid), \"safe_top_pt\": String(target)])",
+            "                continue",
+            "            }",
+            "            if [\"guest_header_local_transform_staged\",",
+            "                \"guest_header_local_transform_first_pass\",",
+            "                \"guest_header_local_transform_retained\",",
+            "                \"guest_header_local_transform_reverted\","
+          ],
+          "after": [
+            "                    fields: [\"process_pid\": String(pid), \"safe_top_pt\": String(target)])",
+            "                continue",
+            "            }",
+            "            if [\"guest_header_postforeground_trial_staged\",",
+            "                \"guest_header_local_transform_staged\",",
+            "                \"guest_header_local_transform_first_pass\",",
+            "                \"guest_header_local_transform_retained\",",
+            "                \"guest_header_local_transform_reverted\","
+          ],
+          "commit": "5e7c1546a2d1947c84015d42e7ddca4b89834bec"
+        },
+        {
+          "file": "rebuild/HostApp/ScarletFullscreenSceneStack.swift",
+          "function": "ScarletFullscreenSceneStack.swift",
+          "location": "@@ -984,6 +985,8 @@",
+          "before": [
+            "                    fields: [\"process_pid\": String(pid),",
+            "                             \"result\": result,",
+            "                             \"safe_top_pt\": String(target),",
+            "                             \"header_controls_before\":",
+            "                                String((row[\"header_controls_before\"] as? NSNumber)?.intValue ?? -1),",
+            "                             \"header_controls_after\":"
+          ],
+          "after": [
+            "                    fields: [\"process_pid\": String(pid),",
+            "                             \"result\": result,",
+            "                             \"safe_top_pt\": String(target),",
+            "                             \"sample_index\":",
+            "                                String((row[\"sample_index\"] as? NSNumber)?.intValue ?? -1),",
+            "                             \"header_controls_before\":",
+            "                                String((row[\"header_controls_before\"] as? NSNumber)?.intValue ?? -1),",
+            "                             \"header_controls_after\":"
+          ],
+          "commit": "5e7c1546a2d1947c84015d42e7ddca4b89834bec"
+        },
+        {
+          "file": "rebuild/HostApp/ScarletFullscreenSceneStack.swift",
+          "function": "ScarletFullscreenSceneStack.swift",
+          "location": "@@ -1286,11 +1289,17 @@",
+          "before": [
+            "    // interactive header proves safe at immediate and delayed readback.",
+            "    private var chromeHeaderProtectedPIDs: Set<Int32> = []",
+            "    private var chromePendingFallbackPIDs: Set<Int32> = []",
+            "    private var chromeSurfaceToneByPID: [Int32: Int] = [:]",
+            "",
+            "    override var preferredStatusBarStyle: UIStatusBarStyle {",
+            "        chromeStatusBarPreference",
+            "    }",
+            "",
+            "    // R6P43: the host trait in signed P42 reports .dark even while",
+            "    // Instagram's guest UI is white. Only the *guest process* can classify"
+          ],
+          "after": [
+            "    // interactive header proves safe at immediate and delayed readback.",
+            "    private var chromeHeaderProtectedPIDs: Set<Int32> = []",
+            "    private var chromePendingFallbackPIDs: Set<Int32> = []",
+            "    // P47: existing 2600ms foreground sample may be the first valid trial;",
+            "    // a late PID-scoped readback supersedes the early fallback deadline.",
+            "    private var chromeLateTrialPIDs: Set<Int32> = []",
+            "    private var chromeSurfaceToneByPID: [Int32: Int] = [:]",
+            "",
+            "    override var prefersStatusBarHidden: Bool { false }",
+            "    override var childForStatusBarHidden: UIViewController? { nil }",
+            "    override var preferredStatusBarStyle: UIStatusBarStyle {",
+            "        chromeStatusBarPreference",
+            "    }",
+            "    override var childForStatusBarStyle: UIViewController? { nil }",
+            "",
+            "    // R6P43: the host trait in signed P42 reports .dark even while",
+            "    // Instagram's guest UI is white. Only the *guest process* can classify"
+          ],
+          "commit": "5e7c1546a2d1947c84015d42e7ddca4b89834bec"
+        },
+        {
+          "file": "rebuild/HostApp/ScarletFullscreenSceneStack.swift",
+          "function": "ScarletFullscreenSceneStack.swift",
+          "location": "@@ -1355,6 +1366,8 @@",
+          "before": [
+            "           let guest = controllers[active], guest.pid == pid,",
+            "           let scene = view.window?.windowScene {",
+            "            applyNativeChromeAppearance(for: guest, scene: scene)",
+            "        }",
+            "    }",
+            ""
+          ],
+          "after": [
+            "           let guest = controllers[active], guest.pid == pid,",
+            "           let scene = view.window?.windowScene {",
+            "            applyNativeChromeAppearance(for: guest, scene: scene)",
+            "            ScarletFullscreenGuestTabInstaller.updateResidentStatusBar(",
+            "                chromeStatusBarPreference, scene: scene)",
+            "        }",
+            "    }",
+            ""
+          ],
+          "commit": "5e7c1546a2d1947c84015d42e7ddca4b89834bec"
+        },
+        {
+          "file": "rebuild/HostApp/ScarletFullscreenSceneStack.swift",
+          "function": "ScarletFullscreenSceneStack.swift",
+          "location": "@@ -1488,6 +1501,8 @@",
+          "before": [
+            "            // Safe guests also need their own backdrop: P42 retained the",
+            "            // previous guest's black host background across A->B.",
+            "            applyNativeChromeAppearance(for: guest, scene: scene)",
+            "        }",
+            "        transparentChrome.frame = CGRect(x: 0,y: 0,",
+            "                                         width: view.bounds.width,height: top)"
+          ],
+          "after": [
+            "            // Safe guests also need their own backdrop: P42 retained the",
+            "            // previous guest's black host background across A->B.",
+            "            applyNativeChromeAppearance(for: guest, scene: scene)",
+            "            ScarletFullscreenGuestTabInstaller.updateResidentStatusBar(",
+            "                chromeStatusBarPreference, scene: scene)",
+            "        }",
+            "        transparentChrome.frame = CGRect(x: 0,y: 0,",
+            "                                         width: view.bounds.width,height: top)"
+          ],
+          "commit": "5e7c1546a2d1947c84015d42e7ddca4b89834bec"
+        },
+        {
+          "file": "rebuild/HostApp/ScarletFullscreenSceneStack.swift",
+          "function": "ScarletFullscreenSceneStack.swift",
+          "location": "@@ -1527,14 +1542,33 @@",
+          "before": [
+            "            DispatchQueue.main.asyncAfter(deadline: .now() + 2.4) {",
+            "                [weak self] in",
+            "                guard let self,",
+            "                      self.chromePendingFallbackPIDs.remove(pid) != nil,",
+            "                      !self.chromeHeaderProtectedPIDs.contains(pid) else { return }",
+            "                self.applyP43FallbackChrome(pid: pid,",
+            "                    unsafe: unsafe, first: first, top: top, sample: sample)",
+            "            }",
+            "        } else if !chromePendingFallbackPIDs.contains(pid) {",
+            "            applyP43FallbackChrome(pid: pid,",
+            "                unsafe: unsafe, first: first, top: top, sample: sample)",
+            "        }",
+            "    }",
+            ""
+          ],
+          "after": [
+            "            DispatchQueue.main.asyncAfter(deadline: .now() + 2.4) {",
+            "                [weak self] in",
+            "                guard let self,",
+            "                      !self.chromeLateTrialPIDs.contains(pid),",
+            "                      self.chromePendingFallbackPIDs.remove(pid) != nil,",
+            "                      !self.chromeHeaderProtectedPIDs.contains(pid) else { return }",
+            "                self.applyP43FallbackChrome(pid: pid,",
+            "                    unsafe: unsafe, first: first, top: top, sample: sample)",
+            "            }",
+            "        } else {",
+            "            // Late native root measurement is only evidence of a real",
+            "            // foreground guest. Preserve fullscreen until its own 220ms+",
+            "            // 1050ms native readback can complete. The first timer is",
+            "            // ignored for this PID, not for any other guest.",
+            "            guard chromeLateTrialPIDs.insert(pid).inserted else { return }",
+            "            chromePendingFallbackPIDs.insert(pid)",
+            "            ScarletDiagnosticRecorder.shared.record(",
+            "                \"layout\", \"guest_header_foreground_retry_window\",",
+            "                fields: [\"process_pid\": String(pid),",
+            "                         \"sample_index\": String(sample),",
+            "                         \"result\": \"second_attached_sample_await_native_readback\"])",
+            "            DispatchQueue.main.asyncAfter(deadline: .now() + 1.7) {",
+            "                [weak self] in",
+            "                guard let self,",
+            "                      self.chromeLateTrialPIDs.remove(pid) != nil,",
+            "                      self.chromePendingFallbackPIDs.remove(pid) != nil,",
+            "                      !self.chromeHeaderProtectedPIDs.contains(pid) else { return }",
+            "                self.applyP43FallbackChrome(pid: pid,",
+            "                    unsafe: unsafe, first: first, top: top, sample: sample)",
+            "            }",
+            "        }",
+            "    }",
+            ""
+          ],
+          "commit": "5e7c1546a2d1947c84015d42e7ddca4b89834bec"
+        },
+        {
+          "file": "rebuild/HostApp/ScarletFullscreenSceneStack.swift",
+          "function": "ScarletFullscreenSceneStack.swift",
+          "location": "@@ -1543,6 +1577,7 @@",
+          "before": [
+            "            $0.pid == pid && $0.isAppRunning",
+            "        }) else { return }",
+            "        chromePendingFallbackPIDs.remove(pid)",
+            "        if retained {",
+            "            chromeHeaderProtectedPIDs.insert(pid)",
+            "            // A delayed receipt is possible. Do not strand the guest in"
+          ],
+          "after": [
+            "            $0.pid == pid && $0.isAppRunning",
+            "        }) else { return }",
+            "        chromePendingFallbackPIDs.remove(pid)",
+            "        chromeLateTrialPIDs.remove(pid)",
+            "        if retained {",
+            "            chromeHeaderProtectedPIDs.insert(pid)",
+            "            // A delayed receipt is possible. Do not strand the guest in"
+          ],
+          "commit": "5e7c1546a2d1947c84015d42e7ddca4b89834bec"
+        },
+        {
+          "file": "rebuild/HostApp/ScarletFullscreenSceneStack.swift",
+          "function": "ScarletFullscreenSceneStack.swift",
+          "location": "@@ -1903,6 +1938,7 @@",
+          "before": [
+            "        chromeVerifiedPIDs.remove(old.pid)",
+            "        chromeHeaderProtectedPIDs.remove(old.pid)",
+            "        chromePendingFallbackPIDs.remove(old.pid)",
+            "        chromeSurfaceToneByPID.removeValue(forKey: old.pid)",
+            "        if let scene = view.window?.windowScene {",
+            "            updateNativeChromeSlots(scene)"
+          ],
+          "after": [
+            "        chromeVerifiedPIDs.remove(old.pid)",
+            "        chromeHeaderProtectedPIDs.remove(old.pid)",
+            "        chromePendingFallbackPIDs.remove(old.pid)",
+            "        chromeLateTrialPIDs.remove(old.pid)",
+            "        chromeSurfaceToneByPID.removeValue(forKey: old.pid)",
+            "        if let scene = view.window?.windowScene {",
+            "            updateNativeChromeSlots(scene)"
+          ],
+          "commit": "5e7c1546a2d1947c84015d42e7ddca4b89834bec"
+        },
+        {
+          "file": "rebuild/integration/ScarletGuestIslandContentGuard.m.txt",
+          "function": "ScarletGuestIslandContentGuard.m.txt",
+          "location": "@@ -1359,8 +1359,11 @@",
+          "before": [
+            "    UIWindow *window, UIView *root, CGFloat safeTop, NSUInteger sample,",
+            "    NSDictionary<NSValue *, NSDictionary *> *groups,",
+            "    NSUInteger beforeControls, NSUInteger beforeImages) {",
+            "    if(sample!=650 || !window || !root || beforeControls<3 ||",
+            "       safeTop<40 || safeTop>130 ||",
+            "       objc_getAssociatedObject(root,&scarletIslandP44HeaderTransformTrialKey) ||",
+            "       window.hidden || window.windowLevel!=UIWindowLevelNormal ||",
+            "       CGRectGetHeight(window.bounds)<700 ||"
+          ],
+          "after": [
+            "    UIWindow *window, UIView *root, CGFloat safeTop, NSUInteger sample,",
+            "    NSDictionary<NSValue *, NSDictionary *> *groups,",
+            "    NSUInteger beforeControls, NSUInteger beforeImages) {",
+            "    // P47: P46 signed first 650ms sample happened foregroundInactive.",
+            "    // Only retry at the ALREADY scheduled 2600ms root measurement if the",
+            "    // original transform trial never ran. Do not create an extra UI timer.",
+            "    if((sample!=650 && sample!=2600) || !window || !root ||",
+            "       beforeControls<3 || safeTop<40 || safeTop>130 ||",
+            "       objc_getAssociatedObject(root,&scarletIslandP44HeaderTransformTrialKey) ||",
+            "       window.hidden || window.windowLevel!=UIWindowLevelNormal ||",
+            "       CGRectGetHeight(window.bounds)<700 ||"
+          ],
+          "commit": "5e7c1546a2d1947c84015d42e7ddca4b89834bec"
+        },
+        {
+          "file": "rebuild/integration/ScarletGuestIslandContentGuard.m.txt",
+          "function": "ScarletGuestIslandContentGuard.m.txt",
+          "location": "@@ -1441,6 +1444,15 @@",
+          "before": [
+            "    __weak UIView *weakParent=parent,*weakFirst=first,*weakSecond=second;",
+            "    __weak UIWindow *weakWindow=window;",
+            "    header.transform=CGAffineTransformTranslate(original,0,safeTop);",
+            "    ScarletIslandDeepHeaderTrialReceipt(",
+            "        @\"guest_header_local_transform_staged\", @\"isolated_interactive_header\",",
+            "        safeTop, CGRectGetMinY(originalWindow),"
+          ],
+          "after": [
+            "    __weak UIView *weakParent=parent,*weakFirst=first,*weakSecond=second;",
+            "    __weak UIWindow *weakWindow=window;",
+            "    header.transform=CGAffineTransformTranslate(original,0,safeTop);",
+            "    if(sample==2600) {",
+            "        ScarletIslandPublish(@{",
+            "            @\"receipt\":NSUUID.UUID.UUIDString, @\"pid\":@(getpid()),",
+            "            @\"epoch\":@([[NSDate date] timeIntervalSince1970]),",
+            "            @\"result\":@\"guest_header_postforeground_trial_staged\",",
+            "            @\"target\":@(ScarletIslandMetric(safeTop)),",
+            "            @\"sample_index\":@(sample)",
+            "        });",
+            "    }",
+            "    ScarletIslandDeepHeaderTrialReceipt(",
+            "        @\"guest_header_local_transform_staged\", @\"isolated_interactive_header\",",
+            "        safeTop, CGRectGetMinY(originalWindow),"
+          ],
+          "commit": "5e7c1546a2d1947c84015d42e7ddca4b89834bec"
+        },
+        {
+          "file": "rebuild/Tests/test_v48_r6p47_lifecycle_native_statusbar.py",
+          "function": "test_v48_r6p47_lifecycle_native_statusbar.py",
+          "location": "@@ -0,0 +1,84 @@",
+          "before": [],
+          "after": [
+            "\"\"\"P47 signed-P46 regression: foreground retry, real native status-bar ownership.",
+            "",
+            "Static contracts and native Xcode success are NOT proof of visible status icons",
+            "or continuous unclipped scrolling on a signed iPhone.",
+            "\"\"\"",
+            "from pathlib import Path",
+            "import hashlib",
+            "import unittest",
+            "P=Path(__file__).resolve().parents[1]",
+            "H=(P/'HostApp/ScarletFullscreenSceneStack.swift').read_text()",
+            "G=(P/'integration/ScarletGuestIslandContentGuard.m.txt').read_text()",
+            "UI=(P/'HostApp/ScarletFullscreenGuestTab.swift').read_text()",
+            "SW=(P/'HostApp/ScarletIntegratedHostView.swift').read_text()",
+            "WF=(P.parent/'.github/workflows/scarlet-paired-engines-build.yml').read_text()",
+            "REC=(P/'HostApp/ScarletDiagnosticRecorder.swift').read_text()",
+            "",
+            "class P47LifecycleHeaderProof(unittest.TestCase):",
+            "    def test_one_shot_initial_and_existing_foreground_sample(self):",
+            "        body=G.split('static void ScarletIslandTryP44LocalHeaderTransform(\\n',2)[-1]",
+            "        body=body.split('static void ScarletIslandTryDeepHeaderSafeGuideAnchor(',1)[0]",
+            "        self.assertIn('(sample!=650 && sample!=2600)',body)",
+            "        self.assertIn('objc_getAssociatedObject(root,&scarletIslandP44HeaderTransformTrialKey)',body)",
+            "        self.assertIn('window.windowScene.activationState!=UISceneActivationStateForegroundActive',body)",
+            "        self.assertIn('if(sample==2600) {',body)",
+            "        self.assertIn('guest_header_postforeground_trial_staged',body)",
+            "        self.assertNotIn('window.frame=',body)",
+            "        self.assertNotIn('root.transform=',body)",
+            "        self.assertIn('header.transform=CGAffineTransformTranslate(original,0,safeTop)',body)",
+            "",
+            "    def test_late_sample_keeps_native_956_scene_until_readback(self):",
+            "        body=H.split('private func onUnsafeGuestControls(',1)[-1].split('private func onNativeHeaderTransform(',1)[0]",
+            "        self.assertIn('!self.chromeLateTrialPIDs.contains(pid)',body)",
+            "        self.assertIn('chromeLateTrialPIDs.insert(pid)',body)",
+            "        self.assertIn('deadline: .now() + 1.7',body)",
+            "        self.assertIn('guest_header_foreground_retry_window',body)",
+            "        self.assertIn('chromePendingFallbackPIDs.remove(pid)',body)",
+            "        self.assertIn('applyP43FallbackChrome(pid:',body)",
+            "        self.assertIn('chromeLateTrialPIDs.remove(pid)',H)",
+            "        self.assertIn('chromeLateTrialPIDs.remove(old.pid)',H)",
+            "        self.assertIn('settings.setFrame(rect)',H) # safe fail-closed P43 unchanged",
+            "        self.assertIn('let top = reserved ? chromeTop(in: scene) : 0',H)",
+            "",
+            "    def test_nonkey_resident_window_below_native_statusbar(self):",
+            "        a=UI.split('static func makeResidentSwitcherWindow(',1)[1].split('return overlay',1)[0]",
+            "        self.assertIn('overlay.windowLevel = UIWindow.Level.normal + 1',a)",
+            "        self.assertIn('let root = ScarletResidentStatusBarHostingController(rootView: content)',a)",
+            "        self.assertIn('overlay.residentHostOwnsOutsideTaps = true',a)",
+            "        self.assertIn('overlay.isHidden = false',a)",
+            "        self.assertNotIn('overlay.makeKeyAndVisible()',a)",
+            "        # Classic bootstrap path retains exact old UI layering.",
+            "        prior=UI.split('static func makeResidentSwitcherWindow(',1)[0]",
+            "        self.assertIn('overlay.windowLevel = UIWindow.Level.alert + 1',prior)",
+            "",
+            "    def test_real_native_statusbar_visibility_and_contrast(self):",
+            "        cls=UI.split('final class ScarletResidentStatusBarHostingController<Content: View>',1)[1]",
+            "        self.assertIn('override var prefersStatusBarHidden: Bool { false }',cls)",
+            "        self.assertIn('override var preferredStatusBarStyle: UIStatusBarStyle { residentBarStyle }',cls)",
+            "        self.assertIn('override var childForStatusBarHidden: UIViewController? { nil }',cls)",
+            "        self.assertIn('scene.statusBarManager?.isStatusBarHidden',UI)",
+            "        self.assertIn('scene.statusBarManager?.statusBarStyle.rawValue',UI)",
+            "        self.assertIn('chromeStatusBarPreference = isLight ? .darkContent : .lightContent',H)",
+            "        self.assertIn('ScarletFullscreenGuestTabInstaller.updateResidentStatusBar(',H)",
+            "        self.assertIn('override var prefersStatusBarHidden: Bool { false }',H)",
+            "        self.assertIn('.statusBarHidden(false)',SW)",
+            "        self.assertNotIn('UILabel(text: \"battery',cls)",
+            "        self.assertNotIn('UIDevice.current.batteryLevel',cls)",
+            "        for key in ('status_hidden','status_style_raw','preferred_style_raw','overlay_window_level','overlay_is_key'):",
+            "            self.assertIn('\"'+key+'\"',REC)",
+            "        self.assertIn('resident_native_status_bar_readback',UI)",
+            "",
+            "    def test_v48_gesture_original_pan_bytes_still_exact(self):",
+            "        c=UI[UI.index('// UIkit pan tracks finger'):UI.index('@objc(ScarletFullscreenGuestTabInstaller)')]",
+            "        p=UI[UI.index('    private static func panChanged('):UI.index('    private static func resizeOverlay(')]",
+            "        self.assertEqual(hashlib.sha256(c.encode()).hexdigest(),'105c875b0c09a1c6b567859da3ee1e273a3fb32e471f75b026bcdff4af561ff2')",
+            "        self.assertEqual(hashlib.sha256(p.encode()).hexdigest(),'37aaf834d19592d3846786abc794dac6365dc19fc9bdc96213251095555c24ce')",
+            "        self.assertNotIn('bundleID == \"com.burbn.instagram\"',H)",
+            "",
+            "    def test_release_is_separate_and_unsigned(self):",
+            "        self.assertIn('fix/scarlet-v48-r6p47-lifecycle-statusbar-20261113',WF)",
+            "        self.assertIn('scarlet-v48-r6p47-lifecycle-statusbar-unsigned-20261113',WF)",
+            "        self.assertIn('Scarlet-Crystal-V48-R6P47-LIFECYCLE-STATUSBAR-UNSIGNED.ipa',WF)",
+            "        self.assertIn('scarlet-v48-r6p46-detached-full-scroll-unsigned-20261113',WF)",
+            "",
+            "if __name__=='__main__':unittest.main()"
+          ],
+          "commit": "5e7c1546a2d1947c84015d42e7ddca4b89834bec"
+        }
+      ],
+      "generated_runtime_targets": [
+        {
+          "source_template": "rebuild/integration/ScarletGuestIslandContentGuard.m.txt",
+          "generated_file": "LiveContainer/Tweaks/ScarletGuestIslandContentGuard.m",
+          "source_generation_script": "rebuild/integration/apply_scarlet_host.py",
+          "function": "ScarletIslandTryP44LocalHeaderTransform",
+          "note": "Only existing 650ms/2600ms eligible probe and sample-specific anonymous receipt."
+        },
+        {
+          "source_template": "rebuild/HostApp/ScarletFullscreenSceneStack.swift",
+          "generated_file": "rebuild/HostApp/ScarletFullscreenSceneStack.swift",
+          "source_generation_script": "rebuild/integration/apply_scarlet_host.py",
+          "function": "ScarletFullscreenSceneViewport.onUnsafeGuestControls",
+          "note": "PID-only late readback gate and fallback; no additional scene geometry writer."
+        }
+      ]
+    },
+    {
+      "date": "2026-11-13",
+      "problem": "native_clock_battery_statusbar_invisible",
+      "status": "source_committed_ci_pending",
+      "source_verification": "git_patch_observed",
+      "rollback_commit": "388414638b98d1ee73f6ecd22d25fb4efa75fde0",
+      "source_revisions": [
+        {
+          "sha": "5e7c1546a2d1947c84015d42e7ddca4b89834bec",
+          "url": "https://github.com/fx564286/sidestore-auto-refresh/commit/5e7c1546a2d1947c84015d42e7ddca4b89834bec",
+          "title": "fix(r6p47): retry native header on foreground and restore real iOS status bar above resident overlay"
+        }
+      ],
+      "id": "L092",
+      "version": "new-v48-r6p47-native-resident-statusbar-clock-battery",
+      "mechanism": "resident_highlevel_overlay_uiscene_native_statusbar_ownership_and_style_mismatch",
+      "novelty": {
+        "prior_excluded_ids": [
+          "L007",
+          "L009",
+          "L016",
+          "L023",
+          "L050",
+          "L084",
+          "L085",
+          "L086",
+          "L087",
+          "L090"
+        ],
+        "causal_difference": "P42 sets only ScarletFullscreenSceneViewport.preferredStatusBarStyle according to guest tone, but signed P46 white guest surface tone1 produces host chrome_dark_status_text=true while actual UIWindowScene.statusBarManager.statusBarStyle raw1 (lightContent), leaving white clock/battery on white background or hidden entirely. Separately the unchanged classic V48 fullscreen switcher overlay window is alert+1, visually ABOVE UIKit system statusBar window; its hosting controller has no explicit visible bar/style. P47 changes ONLY the resident instance's overlay UIWindow level to normal+1 (still above native guest and with unchanged original pan gestures), gives its hosting root an explicit prefersStatusBarHidden=false/statusBarStyle coordinated with measured guest tone, and logs real native isStatusBarHidden and style readback. The original classic installer window remains alert+1; no hand-drawn fake status bar, no global swizzle, no fullscreen guest frame changes.",
+        "falsifiable_prediction": "After P47 signed install on portrait iOS27.2, white guest tone1 should report preferred_style_raw3 (darkContent), actual status_style_raw3 or compatible legible style, and status_hidden=false for the resident overlay, with clock/battery/system wireless icons visible at top. Guest dark tone2 should report preferred raw1. On tab switch or return Home these should remain matched; if actual native readback still raw1/hidden true, the next investigation targets UIWindowScene/root controller priority rather than repeating background color changes.",
+        "new_device_evidence": {
+          "source_commit": "388414638b98d1ee73f6ecd22d25fb4efa75fde0",
+          "event": "guest_chrome_appearance_applied + guest_chrome_status_style_readback + user screenshot 2026-11-13",
+          "observed_value": "P46 signed PID5400 white background guest surface_tone1 chrome_dark_status_text=true at seq63, actual UIKit status_style_raw1=lightContent at seq65. User screenshot shows a completely blank white top region lacking visible time/battery. Native actual status hidden flag was not recorded in P46; it may be hidden OR invisible white-on-white. Code has resident full-screen overlay UIWindow.Level.alert+1 and plain UIHostingController, despite below viewport requested style and root SwiftUI .statusBarHidden(false)."
+        },
+        "why_prior_fix_failed": "Earlier L086/P42 only selected the intended style on the inner ScarletFullscreenSceneViewport; it did not control the higher, non-key resident overlay UIWindow or prove isStatusBarHidden. Therefore rawStyle1 could persist despite user-visible white top and intent darkContent. This change targets the actual upper UIWindow and native visibility/state ownership separately without altering its drag/pan body."
+      },
+      "action": "Keep the original classic UIWindow alert+1; only RESIDENT switcher overlay is lowered from alert+1 to UIWindow.Level.normal+1, above normal guest but below system status bar. Its UIHostingController subclass explicitly reports prefersStatusBarHidden=false and a native preferredStatusBarStyle driven by measured guest background tone through host viewport. SwiftUI overlay also .statusBarHidden(false), view controller reports prefersStatusBarHidden=false, and scene.statusBarManager native hidden/style readback is recorded; never paints fake clock/battery. Original V48 UIPanGestureRecognizer source, callbacks, position, touch and dismissal SHA remain exact. Actual native readback will distinguish white-on-white vs globally hidden style. Tests 654 static PASS, 2 skipped.",
+      "hypothesis": "P46 guest tone light1 requested dark status icons but actual UIWindowScene statusBarStyle raw1 (lightContent) on white, while resident overlay has separate high-level UIWindow.Level.alert+1 with unconfigured UIKit status bar owner. This mismatch explains unreadable clock/battery or hidden system glyphs without altering full-scene layout.",
+      "observation": "P46 log seq62 guest surface_tone1, seq63 chrome_dark_status_text true, seq65 actual status_style_raw1; user screenshot 2026-11-13 displays top blank white with no visible clock/battery. P46 did not collect UIStatusBarManager.isStatusBarHidden. Current code has full-screen resident UIWindow.Level.alert+1, plain UIHostingController root, and inner viewport style that was not honored by scene manager.",
+      "evidence": [
+        "User iPhone screenshot shows absent time/battery in white top status region. P46 seq63 requested dark text on light guest; seq65 readback UIStatusBarStyle.rawValue=1 means lightContent.",
+        "P47 uses system statusBarManager, no manually drawn statusbar; only resident window lowered. Viewport and window root report native status visible and style explicitly.",
+        "Previously frozen V48 pan SHA exactly unchanged; all 654 static tests PASS with 2 skips. No signed P47 statusbar visual verification yet."
+      ],
+      "device_verification": "P46 dark-on-white request vs actual style mismatch confirmed, user photo blank status region. P47 full native clock/battery contrast and visibility NOT YET verified; statusBarManager.hidden/style next device receipts required.",
+      "repeat_policy": "L086/P42 merely selected an inner viewport preferred style; do not repeat color swaps or assume .statusBarHidden(false) proves visible. L092 targets top resident UIWindow level and its UIKit root status owner and provides isStatusBarHidden readback, preserves original classic switcher and V48 drag hashes.",
+      "code_locations": [
+        {
+          "file": ".github/workflows/scarlet-paired-engines-build.yml",
+          "function": "scarlet-paired-engines-build.yml",
+          "location": "@@ -3,7 +3,7 @@",
+          "before": [
+            "on:",
+            "  workflow_dispatch:",
+            "  push:",
+            "    branches: [rebuild/scarlet-from-zero-20261106, fix/scarlet-auth-status-rootcause-20261109, fix/scarlet-pr48-guest-overlay-no-resize-20261109, fix/scarlet-pr48-airpods-glass-guest-switch-v3-20261109, fix/scarlet-pr48-draggable-guest-tab-v4-20261109, fix/scarlet-pr48-v5-glass-drag-cert-recovery-20261109, fix/scarlet-pr48-v6-unified-cert-glass-20261109, fix/scarlet-pr48-v7-cert-jitless-unify-panel-rim-20261109, fix/scarlet-pr48-v8-flicker-certificate-menu-20261109, fix/scarlet-pr48-v9-single-glass-rim-20261109, fix/scarlet-pr48-v10-fixed-tab-cert-and-session-20261109, fix/scarlet-pr48-v11-module-settings-appid-20261109, fix/scarlet-pr48-v12-live-sessions-source-auto-refresh-20261109, fix/scarlet-pr48-v13-compact-settings-current-app-20261109, fix/scarlet-pr48-v14-guest-history-native-scenes-three-ids-20261109, fix/scarlet-pr48-v15-source-disclosure-icons-guest-handoff-20261109, fix/scarlet-pr48-v16-guest-switcher-icons-readback-20261110, fix/scarlet-v17-cold-switch-rotation-20261110, fix/scarlet-v18-refresh-diagnostics-native-glass-20261110, fix/scarlet-v19-active-session-switcher-20261110, fix/scarlet-v20-guest-switcher-trace-20261110, fix/scarlet-v21-hook-telemetry-persistence-20261110, fix/scarlet-v22-runtime-guest-identity-20261110, fix/scarlet-v23-session-only-switcher-20261110, fix/scarlet-v24-refresh-lifecycle-switch-receipt-20261110, fix/scarlet-v25-single-panel-outside-dismiss-20261110, fix/scarlet-v26-liquidglass-button-to-fixed-panel-morph-20261110, fix/scarlet-v27-sidestore-direct-native-refresh-20261110, fix/scarlet-v28-minimuxer-readiness-recovery-20261110, fix/scarlet-v29-inapp-rppairing-20261110, fix/scarlet-v30-restore-sidestore-active-team-20261110, fix/scarlet-v31-pairing-persistence-sheet-purple-20261110, fix/scarlet-v32-korean-copy-20261110, fix/scarlet-v33-log-rootcause-20261110, fix/scarlet-v34-iphone-virtual-resident-20261110, fix/scarlet-v35-restore-original-fullscreen-20261110, fix/scarlet-v36-remove-legacy-ui-20261110, fix/scarlet-v37-session-refresh-20261110, fix/scarlet-v38-current-launch-logs-20261110, fix/scarlet-v39-log-truth-20261110, fix/scarlet-v40-clean-work-session-20261110, fix/scarlet-v42-v40-safe-diagnostics-20261110, fix/scarlet-v43-install-rootcause-20261110, fix/scarlet-v44-rppairing-postsign-install-20261111, fix/scarlet-v45-single-viewport-liveprocess-20261111, fix/scarlet-v46-guard-provisional-guest-geometry-20261111, fix/scarlet-v47-resident-inplace-guest-switch-20261111, fix/scarlet-v48-guest-runtime-recovery-20261111, fix/scarlet-v48-restored-20261111, fix/scarlet-v48-r2-unified-switcher-20261111, fix/scarlet-v48-r3-original-pan-diagnostics-20261111, fix/scarlet-v48-r4-native-outside-remote-insets-20261111, fix/scarlet-v48-r5-attached-insets-shield-20261111, fix/scarlet-v48-r5-crash-recovery-20261111, fix/scarlet-v48-r5-recovery-r2-host-owner-20261111, fix/scarlet-v48-r5-recovery-r3-scene-authority-20261111, fix/scarlet-v48-r5-recovery-r4-native-ready-20261111, fix/scarlet-v48-r5-recovery-r5-compat-foreground-20261111, fix/scarlet-v48-r6-island-outside-audio-20261111, fix/scarlet-v48-r6p1-audio-home-focus-20261111, fix/scarlet-v48-r6p2-blocked-history-20261111, fix/scarlet-v48-r6p3-home-audio-gate-20261111, fix/scarlet-v48-r6p4-guest-audio-ack-20261112, fix/scarlet-v48-r6p7-launch-policy-rootcause-20261112, fix/scarlet-v48-r6p8-policy-field-relay-20261112, fix/scarlet-v48-r6p9-deferred-scene-boot-20261112, fix/scarlet-v48-r6p10-persistent-remediation-ledger-20261112, fix/scarlet-v48-r6p11-resident-guest-sdk-contract-20261112, fix/scarlet-v48-r6p12-instant-recent-switcher-20261112, fix/scarlet-v48-r6p14-switcher-reset-on-navigation-20261112, fix/scarlet-v48-r6p15-guest-root-island-pairing-recovery-20261112, fix/scarlet-v48-r6p16-audit-coverage-20261112, fix/scarlet-v48-r6p17-resident-optin-defaults-20261112, fix/scarlet-v48-r6p18-guest-content-geometry-20261112, fix/scarlet-v48-r6p19-entitlement-failclosed-network-recovery-20261112, fix/scarlet-v48-r6p20-auth-session-bg-id-20261112, fix/scarlet-v48-r6p21-depth-probe-cert-recheck-20261112, fix/scarlet-v48-r6p22-guest-scroll-content-inset-20261112, fix/scarlet-v48-r6p23-guest-owner-refresh-stage-20261112, fix/scarlet-v48-r6p24-keyboard-stage-relay-20261112, fix/scarlet-v48-r6p25-visibility-occlusion-20261112, fix/scarlet-v48-r6p26-recorder-field-contract-20261112, fix/scarlet-v48-r6p27-visible-scroll-owner-20261112, fix/scarlet-v48-r6p28-guest-local-scroll-inset-20261112, fix/scarlet-v48-r6p29-residual-auto-inset-20261112, fix/scarlet-v48-r6p30-inset-interference-isolation-20261112, fix/scarlet-v48-r6p31-nonvertical-always-safearea-20261112, fix/scarlet-v48-r6p32-nonscrolling-owner-stabilization-20261112, fix/scarlet-v48-r6p33-deferred-inset-anchor-20261112, fix/scarlet-v48-r6p34-constraint-native-error-proof-20261112, fix/scarlet-v48-r6p35-ancestor-layout-owner-20261112, fix/scarlet-v48-r6p36-lost-guest-probe-readback-20261112, fix/scarlet-v48-r6p37-nested-header-safe-guide-anchor-20261112, fix/scarlet-v48-r6p38-header-layout-owner-20261113, fix/scarlet-v48-r6p39-parent-safe-guide-constraint-20261113, fix/scarlet-v48-r6p40-transparent-chrome-slot-20261113, fix/scarlet-v48-r6p41-adaptive-chrome-stickiness-20261113, fix/scarlet-v48-r6p42-guest-matched-status-chrome-20261113, fix/scarlet-v48-r6p43-host-verified-native-slot-20261113, fix/scarlet-v48-r6p44-full-native-scroll-header-20261113, fix/scarlet-v48-r6p45-scroll-aware-header-proof-20261113, fix/scarlet-v48-r6p46-detached-header-full-scroll-20261113]",
+            "    paths:",
+            "      - \".github/workflows/scarlet-paired-engines-build.yml\"",
+            "      - \"rebuild/integration/**\""
+          ],
+          "after": [
+            "on:",
+            "  workflow_dispatch:",
+            "  push:",
+            "    branches: [rebuild/scarlet-from-zero-20261106, fix/scarlet-auth-status-rootcause-20261109, fix/scarlet-pr48-guest-overlay-no-resize-20261109, fix/scarlet-pr48-airpods-glass-guest-switch-v3-20261109, fix/scarlet-pr48-draggable-guest-tab-v4-20261109, fix/scarlet-pr48-v5-glass-drag-cert-recovery-20261109, fix/scarlet-pr48-v6-unified-cert-glass-20261109, fix/scarlet-pr48-v7-cert-jitless-unify-panel-rim-20261109, fix/scarlet-pr48-v8-flicker-certificate-menu-20261109, fix/scarlet-pr48-v9-single-glass-rim-20261109, fix/scarlet-pr48-v10-fixed-tab-cert-and-session-20261109, fix/scarlet-pr48-v11-module-settings-appid-20261109, fix/scarlet-pr48-v12-live-sessions-source-auto-refresh-20261109, fix/scarlet-pr48-v13-compact-settings-current-app-20261109, fix/scarlet-pr48-v14-guest-history-native-scenes-three-ids-20261109, fix/scarlet-pr48-v15-source-disclosure-icons-guest-handoff-20261109, fix/scarlet-pr48-v16-guest-switcher-icons-readback-20261110, fix/scarlet-v17-cold-switch-rotation-20261110, fix/scarlet-v18-refresh-diagnostics-native-glass-20261110, fix/scarlet-v19-active-session-switcher-20261110, fix/scarlet-v20-guest-switcher-trace-20261110, fix/scarlet-v21-hook-telemetry-persistence-20261110, fix/scarlet-v22-runtime-guest-identity-20261110, fix/scarlet-v23-session-only-switcher-20261110, fix/scarlet-v24-refresh-lifecycle-switch-receipt-20261110, fix/scarlet-v25-single-panel-outside-dismiss-20261110, fix/scarlet-v26-liquidglass-button-to-fixed-panel-morph-20261110, fix/scarlet-v27-sidestore-direct-native-refresh-20261110, fix/scarlet-v28-minimuxer-readiness-recovery-20261110, fix/scarlet-v29-inapp-rppairing-20261110, fix/scarlet-v30-restore-sidestore-active-team-20261110, fix/scarlet-v31-pairing-persistence-sheet-purple-20261110, fix/scarlet-v32-korean-copy-20261110, fix/scarlet-v33-log-rootcause-20261110, fix/scarlet-v34-iphone-virtual-resident-20261110, fix/scarlet-v35-restore-original-fullscreen-20261110, fix/scarlet-v36-remove-legacy-ui-20261110, fix/scarlet-v37-session-refresh-20261110, fix/scarlet-v38-current-launch-logs-20261110, fix/scarlet-v39-log-truth-20261110, fix/scarlet-v40-clean-work-session-20261110, fix/scarlet-v42-v40-safe-diagnostics-20261110, fix/scarlet-v43-install-rootcause-20261110, fix/scarlet-v44-rppairing-postsign-install-20261111, fix/scarlet-v45-single-viewport-liveprocess-20261111, fix/scarlet-v46-guard-provisional-guest-geometry-20261111, fix/scarlet-v47-resident-inplace-guest-switch-20261111, fix/scarlet-v48-guest-runtime-recovery-20261111, fix/scarlet-v48-restored-20261111, fix/scarlet-v48-r2-unified-switcher-20261111, fix/scarlet-v48-r3-original-pan-diagnostics-20261111, fix/scarlet-v48-r4-native-outside-remote-insets-20261111, fix/scarlet-v48-r5-attached-insets-shield-20261111, fix/scarlet-v48-r5-crash-recovery-20261111, fix/scarlet-v48-r5-recovery-r2-host-owner-20261111, fix/scarlet-v48-r5-recovery-r3-scene-authority-20261111, fix/scarlet-v48-r5-recovery-r4-native-ready-20261111, fix/scarlet-v48-r5-recovery-r5-compat-foreground-20261111, fix/scarlet-v48-r6-island-outside-audio-20261111, fix/scarlet-v48-r6p1-audio-home-focus-20261111, fix/scarlet-v48-r6p2-blocked-history-20261111, fix/scarlet-v48-r6p3-home-audio-gate-20261111, fix/scarlet-v48-r6p4-guest-audio-ack-20261112, fix/scarlet-v48-r6p7-launch-policy-rootcause-20261112, fix/scarlet-v48-r6p8-policy-field-relay-20261112, fix/scarlet-v48-r6p9-deferred-scene-boot-20261112, fix/scarlet-v48-r6p10-persistent-remediation-ledger-20261112, fix/scarlet-v48-r6p11-resident-guest-sdk-contract-20261112, fix/scarlet-v48-r6p12-instant-recent-switcher-20261112, fix/scarlet-v48-r6p14-switcher-reset-on-navigation-20261112, fix/scarlet-v48-r6p15-guest-root-island-pairing-recovery-20261112, fix/scarlet-v48-r6p16-audit-coverage-20261112, fix/scarlet-v48-r6p17-resident-optin-defaults-20261112, fix/scarlet-v48-r6p18-guest-content-geometry-20261112, fix/scarlet-v48-r6p19-entitlement-failclosed-network-recovery-20261112, fix/scarlet-v48-r6p20-auth-session-bg-id-20261112, fix/scarlet-v48-r6p21-depth-probe-cert-recheck-20261112, fix/scarlet-v48-r6p22-guest-scroll-content-inset-20261112, fix/scarlet-v48-r6p23-guest-owner-refresh-stage-20261112, fix/scarlet-v48-r6p24-keyboard-stage-relay-20261112, fix/scarlet-v48-r6p25-visibility-occlusion-20261112, fix/scarlet-v48-r6p26-recorder-field-contract-20261112, fix/scarlet-v48-r6p27-visible-scroll-owner-20261112, fix/scarlet-v48-r6p28-guest-local-scroll-inset-20261112, fix/scarlet-v48-r6p29-residual-auto-inset-20261112, fix/scarlet-v48-r6p30-inset-interference-isolation-20261112, fix/scarlet-v48-r6p31-nonvertical-always-safearea-20261112, fix/scarlet-v48-r6p32-nonscrolling-owner-stabilization-20261112, fix/scarlet-v48-r6p33-deferred-inset-anchor-20261112, fix/scarlet-v48-r6p34-constraint-native-error-proof-20261112, fix/scarlet-v48-r6p35-ancestor-layout-owner-20261112, fix/scarlet-v48-r6p36-lost-guest-probe-readback-20261112, fix/scarlet-v48-r6p37-nested-header-safe-guide-anchor-20261112, fix/scarlet-v48-r6p38-header-layout-owner-20261113, fix/scarlet-v48-r6p39-parent-safe-guide-constraint-20261113, fix/scarlet-v48-r6p40-transparent-chrome-slot-20261113, fix/scarlet-v48-r6p41-adaptive-chrome-stickiness-20261113, fix/scarlet-v48-r6p42-guest-matched-status-chrome-20261113, fix/scarlet-v48-r6p43-host-verified-native-slot-20261113, fix/scarlet-v48-r6p44-full-native-scroll-header-20261113, fix/scarlet-v48-r6p45-scroll-aware-header-proof-20261113, fix/scarlet-v48-r6p46-detached-header-full-scroll-20261113, fix/scarlet-v48-r6p47-lifecycle-statusbar-20261113]",
+            "    paths:",
+            "      - \".github/workflows/scarlet-paired-engines-build.yml\"",
+            "      - \"rebuild/integration/**\""
+          ],
+          "commit": "5e7c1546a2d1947c84015d42e7ddca4b89834bec"
+        },
+        {
+          "file": ".github/workflows/scarlet-paired-engines-build.yml",
+          "function": "scarlet-paired-engines-build.yml",
+          "location": "@@ -305,7 +305,7 @@",
+          "before": [
+            "  # A Release asset in this public repo has a stable public download URL.",
+            "  publish-unsigned-github-release:",
+            "    needs: [package-paired]",
+            "    if: github.event_name == 'push' && (github.ref == 'refs/heads/rebuild/scarlet-from-zero-20261106' || github.ref == 'refs/heads/fix/scarlet-v31-pairing-persistence-sheet-purple-20261110' || github.ref == 'refs/heads/fix/scarlet-v32-korean-copy-20261110' || github.ref == 'refs/heads/fix/scarlet-v33-log-rootcause-20261110' || github.ref == 'refs/heads/fix/scarlet-v34-iphone-virtual-resident-20261110' || github.ref == 'refs/heads/fix/scarlet-v35-restore-original-fullscreen-20261110' || github.ref == 'refs/heads/fix/scarlet-v36-remove-legacy-ui-20261110' || github.ref == 'refs/heads/fix/scarlet-v37-session-refresh-20261110' || github.ref == 'refs/heads/fix/scarlet-v38-current-launch-logs-20261110' || github.ref == 'refs/heads/fix/scarlet-v39-log-truth-20261110' || github.ref == 'refs/heads/fix/scarlet-v40-clean-work-session-20261110' || github.ref == 'refs/heads/fix/scarlet-v42-v40-safe-diagnostics-20261110' || github.ref == 'refs/heads/fix/scarlet-v43-install-rootcause-20261110' || github.ref == 'refs/heads/fix/scarlet-v44-rppairing-postsign-install-20261111' || github.ref == 'refs/heads/fix/scarlet-v45-single-viewport-liveprocess-20261111' || github.ref == 'refs/heads/fix/scarlet-v46-guard-provisional-guest-geometry-20261111' || github.ref == 'refs/heads/fix/scarlet-v47-resident-inplace-guest-switch-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-guest-runtime-recovery-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-restored-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r2-unified-switcher-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r3-original-pan-diagnostics-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r4-native-outside-remote-insets-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r5-attached-insets-shield-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r5-crash-recovery-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r5-recovery-r2-host-owner-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r5-recovery-r3-scene-authority-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r5-recovery-r4-native-ready-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r5-recovery-r5-compat-foreground-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r6-island-outside-audio-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r6p1-audio-home-focus-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r6p2-blocked-history-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r6p3-home-audio-gate-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r6p4-guest-audio-ack-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p7-launch-policy-rootcause-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p8-policy-field-relay-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p9-deferred-scene-boot-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p10-persistent-remediation-ledger-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p11-resident-guest-sdk-contract-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p12-instant-recent-switcher-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p14-switcher-reset-on-navigation-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p15-guest-root-island-pairing-recovery-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p16-audit-coverage-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p17-resident-optin-defaults-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p18-guest-content-geometry-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p19-entitlement-failclosed-network-recovery-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p20-auth-session-bg-id-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p21-depth-probe-cert-recheck-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p22-guest-scroll-content-inset-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p23-guest-owner-refresh-stage-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p24-keyboard-stage-relay-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p25-visibility-occlusion-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p26-recorder-field-contract-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p27-visible-scroll-owner-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p28-guest-local-scroll-inset-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p29-residual-auto-inset-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p30-inset-interference-isolation-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p31-nonvertical-always-safearea-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p32-nonscrolling-owner-stabilization-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p33-deferred-inset-anchor-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p34-constraint-native-error-proof-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p35-ancestor-layout-owner-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p36-lost-guest-probe-readback-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p37-nested-header-safe-guide-anchor-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p38-header-layout-owner-20261113' || github.ref == 'refs/heads/fix/scarlet-v48-r6p39-parent-safe-guide-constraint-20261113' || github.ref == 'refs/heads/fix/scarlet-v48-r6p40-transparent-chrome-slot-20261113' || github.ref == 'refs/heads/fix/scarlet-v48-r6p41-adaptive-chrome-stickiness-20261113' || github.ref == 'refs/heads/fix/scarlet-v48-r6p42-guest-matched-status-chrome-20261113' || github.ref == 'refs/heads/fix/scarlet-v48-r6p43-host-verified-native-slot-20261113' || github.ref == 'refs/heads/fix/scarlet-v48-r6p44-full-native-scroll-header-20261113' || github.ref == 'refs/heads/fix/scarlet-v48-r6p45-scroll-aware-header-proof-20261113' || github.ref == 'refs/heads/fix/scarlet-v48-r6p46-detached-header-full-scroll-20261113')",
+            "    runs-on: ubuntu-24.04",
+            "    timeout-minutes: 10",
+            "    permissions:"
+          ],
+          "after": [
+            "  # A Release asset in this public repo has a stable public download URL.",
+            "  publish-unsigned-github-release:",
+            "    needs: [package-paired]",
+            "    if: github.event_name == 'push' && (github.ref == 'refs/heads/rebuild/scarlet-from-zero-20261106' || github.ref == 'refs/heads/fix/scarlet-v31-pairing-persistence-sheet-purple-20261110' || github.ref == 'refs/heads/fix/scarlet-v32-korean-copy-20261110' || github.ref == 'refs/heads/fix/scarlet-v33-log-rootcause-20261110' || github.ref == 'refs/heads/fix/scarlet-v34-iphone-virtual-resident-20261110' || github.ref == 'refs/heads/fix/scarlet-v35-restore-original-fullscreen-20261110' || github.ref == 'refs/heads/fix/scarlet-v36-remove-legacy-ui-20261110' || github.ref == 'refs/heads/fix/scarlet-v37-session-refresh-20261110' || github.ref == 'refs/heads/fix/scarlet-v38-current-launch-logs-20261110' || github.ref == 'refs/heads/fix/scarlet-v39-log-truth-20261110' || github.ref == 'refs/heads/fix/scarlet-v40-clean-work-session-20261110' || github.ref == 'refs/heads/fix/scarlet-v42-v40-safe-diagnostics-20261110' || github.ref == 'refs/heads/fix/scarlet-v43-install-rootcause-20261110' || github.ref == 'refs/heads/fix/scarlet-v44-rppairing-postsign-install-20261111' || github.ref == 'refs/heads/fix/scarlet-v45-single-viewport-liveprocess-20261111' || github.ref == 'refs/heads/fix/scarlet-v46-guard-provisional-guest-geometry-20261111' || github.ref == 'refs/heads/fix/scarlet-v47-resident-inplace-guest-switch-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-guest-runtime-recovery-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-restored-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r2-unified-switcher-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r3-original-pan-diagnostics-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r4-native-outside-remote-insets-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r5-attached-insets-shield-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r5-crash-recovery-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r5-recovery-r2-host-owner-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r5-recovery-r3-scene-authority-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r5-recovery-r4-native-ready-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r5-recovery-r5-compat-foreground-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r6-island-outside-audio-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r6p1-audio-home-focus-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r6p2-blocked-history-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r6p3-home-audio-gate-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r6p4-guest-audio-ack-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p7-launch-policy-rootcause-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p8-policy-field-relay-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p9-deferred-scene-boot-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p10-persistent-remediation-ledger-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p11-resident-guest-sdk-contract-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p12-instant-recent-switcher-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p14-switcher-reset-on-navigation-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p15-guest-root-island-pairing-recovery-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p16-audit-coverage-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p17-resident-optin-defaults-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p18-guest-content-geometry-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p19-entitlement-failclosed-network-recovery-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p20-auth-session-bg-id-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p21-depth-probe-cert-recheck-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p22-guest-scroll-content-inset-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p23-guest-owner-refresh-stage-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p24-keyboard-stage-relay-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p25-visibility-occlusion-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p26-recorder-field-contract-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p27-visible-scroll-owner-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p28-guest-local-scroll-inset-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p29-residual-auto-inset-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p30-inset-interference-isolation-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p31-nonvertical-always-safearea-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p32-nonscrolling-owner-stabilization-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p33-deferred-inset-anchor-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p34-constraint-native-error-proof-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p35-ancestor-layout-owner-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p36-lost-guest-probe-readback-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p37-nested-header-safe-guide-anchor-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p38-header-layout-owner-20261113' || github.ref == 'refs/heads/fix/scarlet-v48-r6p39-parent-safe-guide-constraint-20261113' || github.ref == 'refs/heads/fix/scarlet-v48-r6p40-transparent-chrome-slot-20261113' || github.ref == 'refs/heads/fix/scarlet-v48-r6p41-adaptive-chrome-stickiness-20261113' || github.ref == 'refs/heads/fix/scarlet-v48-r6p42-guest-matched-status-chrome-20261113' || github.ref == 'refs/heads/fix/scarlet-v48-r6p43-host-verified-native-slot-20261113' || github.ref == 'refs/heads/fix/scarlet-v48-r6p44-full-native-scroll-header-20261113' || github.ref == 'refs/heads/fix/scarlet-v48-r6p45-scroll-aware-header-proof-20261113' || github.ref == 'refs/heads/fix/scarlet-v48-r6p46-detached-header-full-scroll-20261113' || github.ref == 'refs/heads/fix/scarlet-v48-r6p47-lifecycle-statusbar-20261113')",
+            "    runs-on: ubuntu-24.04",
+            "    timeout-minutes: 10",
+            "    permissions:"
+          ],
+          "commit": "5e7c1546a2d1947c84015d42e7ddca4b89834bec"
+        },
+        {
+          "file": ".github/workflows/scarlet-paired-engines-build.yml",
+          "function": "scarlet-paired-engines-build.yml",
+          "location": "@@ -334,7 +334,9 @@",
+          "before": [
+            "              assert any(p.endswith(\"LiveProcess.appex/Info.plist\") for p in paths), \"Missing LiveProcess\"",
+            "          print(\"[PASS] Public IPA ZIP structure; Apple signature not verified\")",
+            "          PY",
+            "          if [ \"$GITHUB_REF\" = \"refs/heads/fix/scarlet-v48-r6p46-detached-header-full-scroll-20261113\" ]; then",
+            "            asset=\"Scarlet-Crystal-V48-R6P46-DETACHED-FULL-SCROLL-UNSIGNED.ipa\"",
+            "          elif [ \"$GITHUB_REF\" = \"refs/heads/fix/scarlet-v48-r6p45-scroll-aware-header-proof-20261113\" ]; then",
+            "            asset=\"Scarlet-Crystal-V48-R6P45-SCROLL-PROOF-UNSIGNED.ipa\""
+          ],
+          "after": [
+            "              assert any(p.endswith(\"LiveProcess.appex/Info.plist\") for p in paths), \"Missing LiveProcess\"",
+            "          print(\"[PASS] Public IPA ZIP structure; Apple signature not verified\")",
+            "          PY",
+            "          if [ \"$GITHUB_REF\" = \"refs/heads/fix/scarlet-v48-r6p47-lifecycle-statusbar-20261113\" ]; then",
+            "            asset=\"Scarlet-Crystal-V48-R6P47-LIFECYCLE-STATUSBAR-UNSIGNED.ipa\"",
+            "          elif [ \"$GITHUB_REF\" = \"refs/heads/fix/scarlet-v48-r6p46-detached-header-full-scroll-20261113\" ]; then",
+            "            asset=\"Scarlet-Crystal-V48-R6P46-DETACHED-FULL-SCROLL-UNSIGNED.ipa\"",
+            "          elif [ \"$GITHUB_REF\" = \"refs/heads/fix/scarlet-v48-r6p45-scroll-aware-header-proof-20261113\" ]; then",
+            "            asset=\"Scarlet-Crystal-V48-R6P45-SCROLL-PROOF-UNSIGNED.ipa\""
+          ],
+          "commit": "5e7c1546a2d1947c84015d42e7ddca4b89834bec"
+        },
+        {
+          "file": ".github/workflows/scarlet-paired-engines-build.yml",
+          "function": "scarlet-paired-engines-build.yml",
+          "location": "@@ -500,7 +502,10 @@",
+          "before": [
+            "          GH_TOKEN: ${{ github.token }}",
+            "        run: |",
+            "          set -Eeuo pipefail",
+            "          if [ \"$GITHUB_REF\" = \"refs/heads/fix/scarlet-v48-r6p46-detached-header-full-scroll-20261113\" ]; then",
+            "            tag=scarlet-v48-r6p46-detached-full-scroll-unsigned-20261113",
+            "            asset=Scarlet-Crystal-V48-R6P46-DETACHED-FULL-SCROLL-UNSIGNED.ipa",
+            "          elif [ \"$GITHUB_REF\" = \"refs/heads/fix/scarlet-v48-r6p45-scroll-aware-header-proof-20261113\" ]; then"
+          ],
+          "after": [
+            "          GH_TOKEN: ${{ github.token }}",
+            "        run: |",
+            "          set -Eeuo pipefail",
+            "          if [ \"$GITHUB_REF\" = \"refs/heads/fix/scarlet-v48-r6p47-lifecycle-statusbar-20261113\" ]; then",
+            "            tag=scarlet-v48-r6p47-lifecycle-statusbar-unsigned-20261113",
+            "            asset=Scarlet-Crystal-V48-R6P47-LIFECYCLE-STATUSBAR-UNSIGNED.ipa",
+            "          elif [ \"$GITHUB_REF\" = \"refs/heads/fix/scarlet-v48-r6p46-detached-header-full-scroll-20261113\" ]; then",
+            "            tag=scarlet-v48-r6p46-detached-full-scroll-unsigned-20261113",
+            "            asset=Scarlet-Crystal-V48-R6P46-DETACHED-FULL-SCROLL-UNSIGNED.ipa",
+            "          elif [ \"$GITHUB_REF\" = \"refs/heads/fix/scarlet-v48-r6p45-scroll-aware-header-proof-20261113\" ]; then"
+          ],
+          "commit": "5e7c1546a2d1947c84015d42e7ddca4b89834bec"
+        },
+        {
+          "file": "rebuild/HostApp/ScarletDiagnosticRecorder.swift",
+          "function": "ScarletDiagnosticRecorder.swift",
+          "location": "@@ -72,7 +72,8 @@",
+          "before": [
+            "        \"slot_top_pt\", \"slot_y_pt\", \"slot_height_pt\",",
+            "        \"host_width_pt\", \"host_height_pt\", \"scale_milli\", \"chrome_touches\",",
+            "        \"remote_content_height_pt\", \"hosting_safe_top_pt\",",
+            "        \"chrome_dark_status_text\", \"status_style_raw\", \"surface_tone\",",
+            "        \"root_safe_top_pt\", \"root_frame_y\", \"root_guide_y\", \"visited\",",
+            "        \"candidate_controls\", \"top_controls\", \"unsafe_controls\",",
+            "        \"first_top_control_y\", \"first_unsafe_control_y\","
+          ],
+          "after": [
+            "        \"slot_top_pt\", \"slot_y_pt\", \"slot_height_pt\",",
+            "        \"host_width_pt\", \"host_height_pt\", \"scale_milli\", \"chrome_touches\",",
+            "        \"remote_content_height_pt\", \"hosting_safe_top_pt\",",
+            "        \"chrome_dark_status_text\", \"status_style_raw\", \"status_hidden\", \"preferred_style_raw\",",
+            "        \"overlay_window_level\", \"overlay_is_key\", \"surface_tone\",",
+            "        \"root_safe_top_pt\", \"root_frame_y\", \"root_guide_y\", \"visited\",",
+            "        \"candidate_controls\", \"top_controls\", \"unsafe_controls\",",
+            "        \"first_top_control_y\", \"first_unsafe_control_y\","
+          ],
+          "commit": "5e7c1546a2d1947c84015d42e7ddca4b89834bec"
+        },
+        {
+          "file": "rebuild/HostApp/ScarletFullscreenGuestTab.swift",
+          "function": "ScarletFullscreenGuestTab.swift",
+          "location": "@@ -619,6 +619,35 @@",
+          "before": [
+            "@objc(ScarletFullscreenGuestTabInstaller)",
+            "final class ScarletFullscreenGuestTabInstaller: NSObject {",
+            "    private static var floatingWindow: ScarletGuestTouchPassthroughWindow?",
+            "    private static weak var guestWindow: UIWindow?",
+            "    private static var dragOrigin: CGPoint?",
+            "    private static var dragCenter: CGPoint?"
+          ],
+          "after": [
+            "@objc(ScarletFullscreenGuestTabInstaller)",
+            "final class ScarletFullscreenGuestTabInstaller: NSObject {",
+            "    private static var floatingWindow: ScarletGuestTouchPassthroughWindow?",
+            "    // Keep real native clock/battery/signal above the resident overlay.",
+            "    // The classic original LC switcher code path remains unchanged.",
+            "    static func updateResidentStatusBar(_ style: UIStatusBarStyle,",
+            "                                        scene: UIWindowScene) {",
+            "        guard let window=floatingWindow, !window.isHidden,",
+            "              window.residentHostOwnsOutsideTaps,",
+            "              window.windowScene === scene,",
+            "              let owner=window.rootViewController as?",
+            "                  ScarletResidentStatusBarHostingController<ScarletFullscreenGuestFloatingTab>",
+            "              else { return }",
+            "        owner.residentBarStyle = style",
+            "        owner.setNeedsStatusBarAppearanceUpdate()",
+            "        // Verify actual UIKit, rather than claiming that a preference",
+            "        // request made the native status bar visible.",
+            "        DispatchQueue.main.async { [weak scene] in",
+            "            guard let scene, window.windowScene === scene,",
+            "                  !window.isHidden else { return }",
+            "            ScarletDiagnosticRecorder.shared.record(",
+            "                \"layout\", \"resident_native_status_bar_readback\",",
+            "                fields: [\"status_hidden\":",
+            "                    scene.statusBarManager?.isStatusBarHidden == true ? \"true\" : \"false\",",
+            "                         \"status_style_raw\":",
+            "                    String(Int(scene.statusBarManager?.statusBarStyle.rawValue ?? -1)),",
+            "                         \"preferred_style_raw\": String(Int(style.rawValue)),",
+            "                         \"overlay_window_level\":",
+            "                    String(Int(window.windowLevel.rawValue)),",
+            "                         \"overlay_is_key\": window.isKeyWindow ? \"true\" : \"false\"])",
+            "        }",
+            "    }",
+            "    private static weak var guestWindow: UIWindow?",
+            "    private static var dragOrigin: CGPoint?",
+            "    private static var dragCenter: CGPoint?"
+          ],
+          "commit": "5e7c1546a2d1947c84015d42e7ddca4b89834bec"
+        },
+        {
+          "file": "rebuild/HostApp/ScarletFullscreenGuestTab.swift",
+          "function": "ScarletFullscreenGuestTab.swift",
+          "location": "@@ -1345,12 +1374,14 @@",
+          "before": [
+            "            onExit: onExit,",
+            "            dismissState: dismissState)",
+            "        let overlay = ScarletGuestTouchPassthroughWindow(windowScene: scene)",
+            "        overlay.windowLevel = UIWindow.Level.alert + 1",
+            "        overlay.backgroundColor = .clear",
+            "        overlay.isOpaque = false",
+            "        overlay.layer.backgroundColor = UIColor.clear.cgColor",
+            "        overlay.layer.masksToBounds = false",
+            "        let root = UIHostingController(rootView: content)",
+            "        root.view.backgroundColor = .clear",
+            "        root.view.isOpaque = false",
+            "        // These are the verbatim V48 construction/wiring steps, NOT a new"
+          ],
+          "after": [
+            "            onExit: onExit,",
+            "            dismissState: dismissState)",
+            "        let overlay = ScarletGuestTouchPassthroughWindow(windowScene: scene)",
+            "        // Resident window must be above the native guest, BELOW the",
+            "        // system status bar. V48 drag/panel hit-testing remains identical.",
+            "        overlay.windowLevel = UIWindow.Level.normal + 1",
+            "        overlay.backgroundColor = .clear",
+            "        overlay.isOpaque = false",
+            "        overlay.layer.backgroundColor = UIColor.clear.cgColor",
+            "        overlay.layer.masksToBounds = false",
+            "        let root = ScarletResidentStatusBarHostingController(rootView: content)",
+            "        root.view.backgroundColor = .clear",
+            "        root.view.isOpaque = false",
+            "        // These are the verbatim V48 construction/wiring steps, NOT a new"
+          ],
+          "commit": "5e7c1546a2d1947c84015d42e7ddca4b89834bec"
+        },
+        {
+          "file": "rebuild/HostApp/ScarletFullscreenGuestTab.swift",
+          "function": "ScarletFullscreenGuestTab.swift",
+          "location": "@@ -1383,3 +1414,19 @@",
+          "before": [
+            "        return overlay",
+            "    }",
+            "}"
+          ],
+          "after": [
+            "        return overlay",
+            "    }",
+            "}",
+            "",
+            "// P47: the resident switcher is an overlay UIWindow, not a guest. Give",
+            "// its UIKit hosting owner an explicit visible SYSTEM status-bar preference;",
+            "// never draw a fake clock/battery or query private SpringBoard services.",
+            "@available(iOS 17.0, *)",
+            "@MainActor",
+            "final class ScarletResidentStatusBarHostingController<Content: View>:",
+            "    UIHostingController<Content> {",
+            "    var residentBarStyle: UIStatusBarStyle = .default {",
+            "        didSet { setNeedsStatusBarAppearanceUpdate() }",
+            "    }",
+            "    override var prefersStatusBarHidden: Bool { false }",
+            "    override var preferredStatusBarStyle: UIStatusBarStyle { residentBarStyle }",
+            "    override var childForStatusBarHidden: UIViewController? { nil }",
+            "    override var childForStatusBarStyle: UIViewController? { nil }",
+            "}"
+          ],
+          "commit": "5e7c1546a2d1947c84015d42e7ddca4b89834bec"
+        },
+        {
+          "file": "rebuild/HostApp/ScarletFullscreenSceneStack.swift",
+          "function": "ScarletFullscreenSceneStack.swift",
+          "location": "@@ -1341,6 +1350,8 @@",
+          "before": [
+            "            ScarletDiagnosticRecorder.shared.record(",
+            "                \"layout\", \"guest_chrome_status_style_readback\",",
+            "                fields: [\"result\": \"uikit_status_bar_observed\",",
+            "                         \"status_style_raw\": String(Int(actual)),",
+            "                         \"chrome_dark_status_text\": self.chromeAppearanceIsLight == true",
+            "                             ? \"true\" : \"false\"])"
+          ],
+          "after": [
+            "            ScarletDiagnosticRecorder.shared.record(",
+            "                \"layout\", \"guest_chrome_status_style_readback\",",
+            "                fields: [\"result\": \"uikit_status_bar_observed\",",
+            "                         \"status_hidden\": scene?.statusBarManager?.isStatusBarHidden == true",
+            "                             ? \"true\" : \"false\",",
+            "                         \"status_style_raw\": String(Int(actual)),",
+            "                         \"chrome_dark_status_text\": self.chromeAppearanceIsLight == true",
+            "                             ? \"true\" : \"false\"])"
+          ],
+          "commit": "5e7c1546a2d1947c84015d42e7ddca4b89834bec"
+        },
+        {
+          "file": "rebuild/HostApp/ScarletIntegratedHostView.swift",
+          "function": "ScarletIntegratedHostView.swift",
+          "location": "@@ -1216,6 +1216,7 @@",
+          "before": [
+            "                ScarletFullscreenSceneViewportRepresentable(",
+            "                    stack: fullscreenStack, installedApps: sharedModel.apps)",
+            "                    .ignoresSafeArea(.all, edges: .all)",
+            "                    .opacity(fullscreenStack.isVisible ? 1 : 0)",
+            "                    .allowsHitTesting(fullscreenStack.isVisible)",
+            "                    .accessibilityIdentifier(\"SCARLET_V45_NATIVE_FULLSCREEN_VIEWPORT\")"
+          ],
+          "after": [
+            "                ScarletFullscreenSceneViewportRepresentable(",
+            "                    stack: fullscreenStack, installedApps: sharedModel.apps)",
+            "                    .ignoresSafeArea(.all, edges: .all)",
+            "                    .statusBarHidden(false)",
+            "                    .opacity(fullscreenStack.isVisible ? 1 : 0)",
+            "                    .allowsHitTesting(fullscreenStack.isVisible)",
+            "                    .accessibilityIdentifier(\"SCARLET_V45_NATIVE_FULLSCREEN_VIEWPORT\")"
+          ],
+          "commit": "5e7c1546a2d1947c84015d42e7ddca4b89834bec"
+        }
+      ],
+      "generated_runtime_targets": [
+        {
+          "source_template": "rebuild/HostApp/ScarletFullscreenGuestTab.swift",
+          "generated_file": "rebuild/HostApp/ScarletFullscreenGuestTab.swift",
+          "source_generation_script": "rebuild/integration/apply_scarlet_host.py",
+          "function": "ScarletFullscreenGuestTabInstaller.makeResidentSwitcherWindow / ScarletResidentStatusBarHostingController",
+          "note": "Only resident overlay native window layer/hosting controller statusbar; original classic overlay pan code byte unchanged."
+        },
+        {
+          "source_template": "rebuild/HostApp/ScarletFullscreenSceneStack.swift",
+          "generated_file": "rebuild/HostApp/ScarletFullscreenSceneStack.swift",
+          "source_generation_script": "rebuild/integration/apply_scarlet_host.py",
+          "function": "ScarletFullscreenSceneViewport.applyNativeChromeAppearance / updateNativeChromeSlots",
+          "note": "Host projects measured guest surface style into topmost resident UIHostingController and records UIWindowScene native hidden/status style."
         }
       ]
     }
