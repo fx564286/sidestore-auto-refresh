@@ -153,7 +153,8 @@ struct ScarletSigningReadinessPanel: View {
                 "lc_cert_present": readiness.liveContainerCertificatePresent ? "true" : "false"
             ])
         Task { @MainActor in
-            authenticated = await ScarletConnectedSideSignEngine().storedAuthenticated()
+            let state = await ScarletConnectedSideSignEngine().storedAuthenticationState()
+            authenticated = state.verifiedValue
         }
     }
 
@@ -174,9 +175,21 @@ struct ScarletSigningReadinessPanel: View {
         statusMessage = "내장 SideStore에서 앱 새로고침을 요청하는 중입니다."
         Task { @MainActor in
             defer { refreshing = false }
-            let verified = await ScarletConnectedSideSignEngine().storedAuthenticated()
-            authenticated = verified
-            guard verified else {
+            let state = await ScarletConnectedSideSignEngine().storedAuthenticationState()
+            authenticated = state.verifiedValue
+            if case .unavailable(let reason) = state {
+                statusMessage = "로그인 상태를 읽지 못했습니다. 내장 SideStore 연결이 돌아온 뒤 다시 시도하세요."
+                lastRefreshAttemptState = "보류 · SideStore 로그인 상태 확인 필요"
+                lastRefreshFailureReason = "auth_state_unavailable"
+                UserDefaults.standard.set(lastRefreshAttemptState,
+                    forKey: "Scarlet.Refresh.LastAttemptOutcome")
+                UserDefaults.standard.set(lastRefreshFailureReason,
+                    forKey: "Scarlet.Refresh.LastFailureReason")
+                ScarletDiagnosticRecorder.shared.record("refresh", "manual_deferred_auth_read",
+                    status: "blocked", fields: ["reason": reason])
+                return
+            }
+            guard state.isAuthenticated else {
                 statusMessage = "내장 SideStore 로그인 세션이 없습니다. 먼저 Apple ID 인증을 완료하세요."
                 UserDefaults.standard.set("차단 · SideStore 로그인 상태 확인 필요",
                     forKey: "Scarlet.Refresh.LastAttemptOutcome")

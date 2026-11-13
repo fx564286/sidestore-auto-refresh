@@ -16,6 +16,10 @@ final class ScarletConnectedSideSignEngine: ScarletAppleSignInEngine {
         await ScarletNativeAuthTransport.shared.storedAuthenticated()
     }
 
+    func storedAuthenticationState() async -> ScarletStoredAuthState {
+        await ScarletNativeAuthTransport.shared.storedAuthenticationState()
+    }
+
     func signIn(appleID: String, password: String,
                 anisetteProfile: String,
                  requestTwoFactorCode: @escaping @MainActor () async throws -> String) async throws {

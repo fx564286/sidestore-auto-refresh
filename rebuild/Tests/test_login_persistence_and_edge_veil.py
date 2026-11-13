@@ -60,7 +60,7 @@ class PersistedSideStoreLogin(unittest.TestCase):
         self.assertIn("requestGeneration == authStateReadGeneration", HOST)
         self.assertIn("!showScarletAppleIDLogin", HOST)
         self.assertLess(HOST.index("requestGeneration == authStateReadGeneration"),
-                        HOST.index("appleAuthVerified = stored"))
+                        HOST.index("appleAuthVerified = verified"))
         self.assertIn("host_session_read_discarded", HOST)
 
     def test_system_glass_minimize_remains_but_all_edge_veils_removed(self):

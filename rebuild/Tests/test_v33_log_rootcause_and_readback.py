@@ -48,7 +48,8 @@ class V33LogRootCauses(unittest.TestCase):
         self.assertIn('guard paired else',AUTO)
         self.assertLess(AUTO.index('inspectPersistedState()'),
                         AUTO.index('ScarletNativeRefreshExecutor.execute()'))
-        self.assertIn('storedAuthenticated()', AUTO)
+        self.assertIn('storedAuthenticationState()', AUTO)
+        self.assertIn('guard authState.isAuthenticated else', AUTO)
         self.assertLess(AUTO.index('guard nativeState.canRefreshHost else'),
                         AUTO.index('prefs.set(Date(), forKey: attemptKey)'))
         self.assertIn('ScarletSigningReadiness.inspect()',AUTO)
