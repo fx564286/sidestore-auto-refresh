@@ -1216,6 +1216,7 @@ struct ScarletIntegratedHostView: View {
                 ScarletFullscreenSceneViewportRepresentable(
                     stack: fullscreenStack, installedApps: sharedModel.apps)
                     .ignoresSafeArea(.all, edges: .all)
+                    .statusBarHidden(false)
                     .opacity(fullscreenStack.isVisible ? 1 : 0)
                     .allowsHitTesting(fullscreenStack.isVisible)
                     .accessibilityIdentifier("SCARLET_V45_NATIVE_FULLSCREEN_VIEWPORT")

@@ -1359,8 +1359,11 @@ static void ScarletIslandTryP44LocalHeaderTransform(
     UIWindow *window, UIView *root, CGFloat safeTop, NSUInteger sample,
     NSDictionary<NSValue *, NSDictionary *> *groups,
     NSUInteger beforeControls, NSUInteger beforeImages) {
-    if(sample!=650 || !window || !root || beforeControls<3 ||
-       safeTop<40 || safeTop>130 ||
+    // P47: P46 signed first 650ms sample happened foregroundInactive.
+    // Only retry at the ALREADY scheduled 2600ms root measurement if the
+    // original transform trial never ran. Do not create an extra UI timer.
+    if((sample!=650 && sample!=2600) || !window || !root ||
+       beforeControls<3 || safeTop<40 || safeTop>130 ||
        objc_getAssociatedObject(root,&scarletIslandP44HeaderTransformTrialKey) ||
        window.hidden || window.windowLevel!=UIWindowLevelNormal ||
        CGRectGetHeight(window.bounds)<700 ||
@@ -1441,6 +1444,15 @@ static void ScarletIslandTryP44LocalHeaderTransform(
     __weak UIView *weakParent=parent,*weakFirst=first,*weakSecond=second;
     __weak UIWindow *weakWindow=window;
     header.transform=CGAffineTransformTranslate(original,0,safeTop);
+    if(sample==2600) {
+        ScarletIslandPublish(@{
+            @"receipt":NSUUID.UUID.UUIDString, @"pid":@(getpid()),
+            @"epoch":@([[NSDate date] timeIntervalSince1970]),
+            @"result":@"guest_header_postforeground_trial_staged",
+            @"target":@(ScarletIslandMetric(safeTop)),
+            @"sample_index":@(sample)
+        });
+    }
     ScarletIslandDeepHeaderTrialReceipt(
         @"guest_header_local_transform_staged", @"isolated_interactive_header",
         safeTop, CGRectGetMinY(originalWindow),

@@ -967,7 +967,8 @@ private final class ScarletGuestIslandReceiptObserver {
                     fields: ["process_pid": String(pid), "safe_top_pt": String(target)])
                 continue
             }
-            if ["guest_header_local_transform_staged",
+            if ["guest_header_postforeground_trial_staged",
+                "guest_header_local_transform_staged",
                 "guest_header_local_transform_first_pass",
                 "guest_header_local_transform_retained",
                 "guest_header_local_transform_reverted",
@@ -984,6 +985,8 @@ private final class ScarletGuestIslandReceiptObserver {
                     fields: ["process_pid": String(pid),
                              "result": result,
                              "safe_top_pt": String(target),
+                             "sample_index":
+                                String((row["sample_index"] as? NSNumber)?.intValue ?? -1),
                              "header_controls_before":
                                 String((row["header_controls_before"] as? NSNumber)?.intValue ?? -1),
                              "header_controls_after":
@@ -1286,11 +1289,17 @@ final class ScarletFullscreenSceneViewport: UIViewController {
     // interactive header proves safe at immediate and delayed readback.
     private var chromeHeaderProtectedPIDs: Set<Int32> = []
     private var chromePendingFallbackPIDs: Set<Int32> = []
+    // P47: existing 2600ms foreground sample may be the first valid trial;
+    // a late PID-scoped readback supersedes the early fallback deadline.
+    private var chromeLateTrialPIDs: Set<Int32> = []
     private var chromeSurfaceToneByPID: [Int32: Int] = [:]
 
+    override var prefersStatusBarHidden: Bool { false }
+    override var childForStatusBarHidden: UIViewController? { nil }
     override var preferredStatusBarStyle: UIStatusBarStyle {
         chromeStatusBarPreference
     }
+    override var childForStatusBarStyle: UIViewController? { nil }
 
     // R6P43: the host trait in signed P42 reports .dark even while
     // Instagram's guest UI is white. Only the *guest process* can classify
@@ -1341,6 +1350,8 @@ final class ScarletFullscreenSceneViewport: UIViewController {
             ScarletDiagnosticRecorder.shared.record(
                 "layout", "guest_chrome_status_style_readback",
                 fields: ["result": "uikit_status_bar_observed",
+                         "status_hidden": scene?.statusBarManager?.isStatusBarHidden == true
+                             ? "true" : "false",
                          "status_style_raw": String(Int(actual)),
                          "chrome_dark_status_text": self.chromeAppearanceIsLight == true
                              ? "true" : "false"])
@@ -1355,6 +1366,8 @@ final class ScarletFullscreenSceneViewport: UIViewController {
            let guest = controllers[active], guest.pid == pid,
            let scene = view.window?.windowScene {
             applyNativeChromeAppearance(for: guest, scene: scene)
+            ScarletFullscreenGuestTabInstaller.updateResidentStatusBar(
+                chromeStatusBarPreference, scene: scene)
         }
     }
 
@@ -1488,6 +1501,8 @@ final class ScarletFullscreenSceneViewport: UIViewController {
             // Safe guests also need their own backdrop: P42 retained the
             // previous guest's black host background across A->B.
             applyNativeChromeAppearance(for: guest, scene: scene)
+            ScarletFullscreenGuestTabInstaller.updateResidentStatusBar(
+                chromeStatusBarPreference, scene: scene)
         }
         transparentChrome.frame = CGRect(x: 0,y: 0,
                                          width: view.bounds.width,height: top)
@@ -1527,14 +1542,33 @@ final class ScarletFullscreenSceneViewport: UIViewController {
             DispatchQueue.main.asyncAfter(deadline: .now() + 2.4) {
                 [weak self] in
                 guard let self,
+                      !self.chromeLateTrialPIDs.contains(pid),
                       self.chromePendingFallbackPIDs.remove(pid) != nil,
                       !self.chromeHeaderProtectedPIDs.contains(pid) else { return }
                 self.applyP43FallbackChrome(pid: pid,
                     unsafe: unsafe, first: first, top: top, sample: sample)
             }
-        } else if !chromePendingFallbackPIDs.contains(pid) {
-            applyP43FallbackChrome(pid: pid,
-                unsafe: unsafe, first: first, top: top, sample: sample)
+        } else {
+            // Late native root measurement is only evidence of a real
+            // foreground guest. Preserve fullscreen until its own 220ms+
+            // 1050ms native readback can complete. The first timer is
+            // ignored for this PID, not for any other guest.
+            guard chromeLateTrialPIDs.insert(pid).inserted else { return }
+            chromePendingFallbackPIDs.insert(pid)
+            ScarletDiagnosticRecorder.shared.record(
+                "layout", "guest_header_foreground_retry_window",
+                fields: ["process_pid": String(pid),
+                         "sample_index": String(sample),
+                         "result": "second_attached_sample_await_native_readback"])
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.7) {
+                [weak self] in
+                guard let self,
+                      self.chromeLateTrialPIDs.remove(pid) != nil,
+                      self.chromePendingFallbackPIDs.remove(pid) != nil,
+                      !self.chromeHeaderProtectedPIDs.contains(pid) else { return }
+                self.applyP43FallbackChrome(pid: pid,
+                    unsafe: unsafe, first: first, top: top, sample: sample)
+            }
         }
     }
 
@@ -1543,6 +1577,7 @@ final class ScarletFullscreenSceneViewport: UIViewController {
             $0.pid == pid && $0.isAppRunning
         }) else { return }
         chromePendingFallbackPIDs.remove(pid)
+        chromeLateTrialPIDs.remove(pid)
         if retained {
             chromeHeaderProtectedPIDs.insert(pid)
             // A delayed receipt is possible. Do not strand the guest in
@@ -1903,6 +1938,7 @@ final class ScarletFullscreenSceneViewport: UIViewController {
         chromeVerifiedPIDs.remove(old.pid)
         chromeHeaderProtectedPIDs.remove(old.pid)
         chromePendingFallbackPIDs.remove(old.pid)
+        chromeLateTrialPIDs.remove(old.pid)
         chromeSurfaceToneByPID.removeValue(forKey: old.pid)
         if let scene = view.window?.windowScene {
             updateNativeChromeSlots(scene)

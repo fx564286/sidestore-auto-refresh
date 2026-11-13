@@ -619,6 +619,35 @@ private final class ScarletGuestScreenPan: NSObject, UIGestureRecognizerDelegate
 @objc(ScarletFullscreenGuestTabInstaller)
 final class ScarletFullscreenGuestTabInstaller: NSObject {
     private static var floatingWindow: ScarletGuestTouchPassthroughWindow?
+    // Keep real native clock/battery/signal above the resident overlay.
+    // The classic original LC switcher code path remains unchanged.
+    static func updateResidentStatusBar(_ style: UIStatusBarStyle,
+                                        scene: UIWindowScene) {
+        guard let window=floatingWindow, !window.isHidden,
+              window.residentHostOwnsOutsideTaps,
+              window.windowScene === scene,
+              let owner=window.rootViewController as?
+                  ScarletResidentStatusBarHostingController<ScarletFullscreenGuestFloatingTab>
+              else { return }
+        owner.residentBarStyle = style
+        owner.setNeedsStatusBarAppearanceUpdate()
+        // Verify actual UIKit, rather than claiming that a preference
+        // request made the native status bar visible.
+        DispatchQueue.main.async { [weak scene] in
+            guard let scene, window.windowScene === scene,
+                  !window.isHidden else { return }
+            ScarletDiagnosticRecorder.shared.record(
+                "layout", "resident_native_status_bar_readback",
+                fields: ["status_hidden":
+                    scene.statusBarManager?.isStatusBarHidden == true ? "true" : "false",
+                         "status_style_raw":
+                    String(Int(scene.statusBarManager?.statusBarStyle.rawValue ?? -1)),
+                         "preferred_style_raw": String(Int(style.rawValue)),
+                         "overlay_window_level":
+                    String(Int(window.windowLevel.rawValue)),
+                         "overlay_is_key": window.isKeyWindow ? "true" : "false"])
+        }
+    }
     private static weak var guestWindow: UIWindow?
     private static var dragOrigin: CGPoint?
     private static var dragCenter: CGPoint?
@@ -1345,12 +1374,14 @@ extension ScarletFullscreenGuestTabInstaller {
             onExit: onExit,
             dismissState: dismissState)
         let overlay = ScarletGuestTouchPassthroughWindow(windowScene: scene)
-        overlay.windowLevel = UIWindow.Level.alert + 1
+        // Resident window must be above the native guest, BELOW the
+        // system status bar. V48 drag/panel hit-testing remains identical.
+        overlay.windowLevel = UIWindow.Level.normal + 1
         overlay.backgroundColor = .clear
         overlay.isOpaque = false
         overlay.layer.backgroundColor = UIColor.clear.cgColor
         overlay.layer.masksToBounds = false
-        let root = UIHostingController(rootView: content)
+        let root = ScarletResidentStatusBarHostingController(rootView: content)
         root.view.backgroundColor = .clear
         root.view.isOpaque = false
         // These are the verbatim V48 construction/wiring steps, NOT a new
@@ -1382,4 +1413,20 @@ extension ScarletFullscreenGuestTabInstaller {
                      "source": "v48_original_pan"])
         return overlay
     }
+}
+
+// P47: the resident switcher is an overlay UIWindow, not a guest. Give
+// its UIKit hosting owner an explicit visible SYSTEM status-bar preference;
+// never draw a fake clock/battery or query private SpringBoard services.
+@available(iOS 17.0, *)
+@MainActor
+final class ScarletResidentStatusBarHostingController<Content: View>:
+    UIHostingController<Content> {
+    var residentBarStyle: UIStatusBarStyle = .default {
+        didSet { setNeedsStatusBarAppearanceUpdate() }
+    }
+    override var prefersStatusBarHidden: Bool { false }
+    override var preferredStatusBarStyle: UIStatusBarStyle { residentBarStyle }
+    override var childForStatusBarHidden: UIViewController? { nil }
+    override var childForStatusBarStyle: UIViewController? { nil }
 }
