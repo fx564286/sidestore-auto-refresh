@@ -1,5 +1,5 @@
 diff --git a/Vendor/MinimuxerGateway/idevice/MobileBackup2Delegate.swift b/Vendor/MinimuxerGateway/idevice/MobileBackup2Delegate.swift
-index 04496c9..5db96a4 100755
+index 04496c9..cc7c5f5 100755
 --- a/Vendor/MinimuxerGateway/idevice/MobileBackup2Delegate.swift
 +++ b/Vendor/MinimuxerGateway/idevice/MobileBackup2Delegate.swift
 @@ -168,14 +168,14 @@ public final class MobileBackup2BackupContext: @unchecked Sendable {
@@ -46,12 +46,12 @@ index 04496c9..5db96a4 100755
 +        }
 +
 +        // URL resource values may be unavailable for a redirected container.
-+        var fs = statfs()
-+        guard Darwin.statfs(url.path, &fs) == 0 else { return nil }
-+        let (bytes, overflow) = UInt64(fs.f_bavail).multipliedReportingOverflow(
-+            by: UInt64(fs.f_bsize)
-+        )
-+        return overflow ? nil : (bytes, "statfs")
++        // FileManager resolves the free space on the same existing filesystem.
++        guard let attrs = try? fm.attributesOfFileSystem(forPath: url.path),
++              let free = attrs[.systemFreeSize] as? NSNumber else {
++            return nil
++        }
++        return (free.uint64Value, "filemanager")
 +    }
 +}
 +
