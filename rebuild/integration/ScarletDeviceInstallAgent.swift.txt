@@ -171,3 +171,117 @@ final class ScarletDeviceInstallAgent: NSObject {
             object: nil, userInfo: ["result": result])
     }
 }
+
+
+// R6P61_SLOT_MANAGER_BEGIN
+// Manual, user-confirmed slot recycling uses SideStore's ORIGINAL pipelines.
+// The host is protected and no action is ever taken merely to make an install succeed.
+private actor ScarletSlotOperationGate {
+    static let shared = ScarletSlotOperationGate()
+    private var running = false
+    func claim() -> Bool { guard !running else { return false }; running = true; return true }
+    func release() { running = false }
+}
+
+private struct ScarletSlotRow: Codable {
+    let id: String
+    let name: String
+    let active: Bool
+    let editable: Bool
+}
+
+extension ScarletDeviceInstallAgent {
+    @objc(listManagedSlots:)
+    static func listManagedSlots(_ reply: @escaping (String, String) -> Void) {
+        Task { @MainActor in
+            do {
+                try await DatabaseManager.shared.start()
+                let context = DatabaseManager.shared.viewContext
+                let hostBundle = Bundle.Info.activeBundleIdentifier
+                let apps = InstalledApp.all(in: context)
+                let rows = apps.map { app in
+                    let protected = app.resignedBundleIdentifier == hostBundle ||
+                        app.bundleIdentifier == StoreApp.altstoreAppID
+                    return ScarletSlotRow(id: app.resignedBundleIdentifier,
+                        name: String(app.name.prefix(120)), active: app.isActive,
+                        editable: !protected)
+                }
+                let encoded = try JSONEncoder().encode(rows)
+                guard encoded.count < 64000,
+                      let json = String(data: encoded, encoding: .utf8) else {
+                    reply("[]", "response_too_large"); return
+                }
+                reply(json, "ready")
+            } catch {
+                reply("[]", "database_unavailable")
+            }
+        }
+    }
+
+    @objc(setManagedSlot:reply:)
+    static func setManagedSlot(_ request: NSDictionary,
+                               reply: @escaping (Bool, String) -> Void) {
+        guard let bundle = request["bundleID"] as? String,
+              let active = request["active"] as? Bool,
+              bundle.utf8.count > 3, bundle.utf8.count <= 200,
+              bundle.allSatisfy({ $0.isASCII && ($0.isLetter || $0.isNumber ||
+                                    $0 == "." || $0 == "_" || $0 == "-") }) else {
+            reply(false, "invalid_request"); return
+        }
+        Task { @MainActor in
+            guard await ScarletSlotOperationGate.shared.claim() else {
+                reply(false, "operation_in_progress"); return
+            }
+            defer { Task { await ScarletSlotOperationGate.shared.release() } }
+            do {
+                try await DatabaseManager.shared.start()
+                let context = DatabaseManager.shared.viewContext
+                let matches = InstalledApp.all(in: context).filter {
+                    $0.resignedBundleIdentifier == bundle
+                }
+                guard matches.count == 1, let app = matches.first else {
+                    reply(false, "app_not_managed"); return
+                }
+                // Never unload the resident Scarlet host or upstream self app.
+                guard app.resignedBundleIdentifier != Bundle.Info.activeBundleIdentifier,
+                      app.bundleIdentifier != StoreApp.altstoreAppID else {
+                    reply(false, "host_protected"); return
+                }
+                guard app.isActive != active else {
+                    reply(true, "already_in_requested_state"); return
+                }
+                if active, AppManager.shared.appsToDeactivate(for: app) != nil {
+                    // The native app limit applies even if there are no
+                    // eligible managed candidates to deactivate.
+                    reply(false, "active_slot_full"); return
+                }
+                // Original SideStore pipeline performs backup-before-remove
+                // on deactivation and reinstall-then-restore on activation.
+                // No manual CoreData isActive mutation before the callback.
+                let operation: Result<InstalledApp, Error> = await withCheckedContinuation { c in
+                    if active {
+                        AppManager.shared.activate(app, presentingViewController: nil) { c.resume(returning: $0) }
+                    } else {
+                        AppManager.shared.deactivate(app, presentingViewController: nil) { c.resume(returning: $0) }
+                    }
+                }
+                switch operation {
+                case .success(let updated):
+                    // A successful callback can precede iOS device readback.
+                    // Also refuse to report success if the original database
+                    // did not transition to the requested active state.
+                    if updated.isActive == active {
+                        reply(true, "side_store_pipeline_returned_device_unverified")
+                    } else {
+                        reply(false, "coredata_state_unverified")
+                    }
+                case .failure:
+                    reply(false, active ? "activation_or_restore_failed" : "backup_or_deactivation_failed")
+                }
+            } catch {
+                reply(false, "database_unavailable")
+            }
+        }
+    }
+}
+// R6P61_SLOT_MANAGER_END

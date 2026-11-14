@@ -104,6 +104,7 @@ struct ScarletIntegratedHostView: View {
     @State private var deviceInstallRunning = false
     @State private var deviceInstallStatus: String?
     @State private var showDeviceInstallSheet = false
+    @State private var showManagedSlotSheet = false
     @State private var sourceInputError: String?
     @State private var showScarletAppleIDLogin = false
     @State private var showInAppDevicePairing = false
@@ -1173,6 +1174,7 @@ struct ScarletIntegratedHostView: View {
                 AnyView(
                     LCSettingsView()
                         .safeAreaInset(edge: .top) {
+                            VStack(spacing: 8) {
                             Toggle(isOn: $experimentalFullscreenResident) {
                                 VStack(alignment: .leading, spacing: 2) {
                                     Text("실험적 전체화면 RAM 유지")
@@ -1203,6 +1205,12 @@ struct ScarletIntegratedHostView: View {
                                 }
                             }
                             .accessibilityHint("실험 모드는 앱 재실행 없이 켜거나 끌 수 있습니다.")
+                            Button("기기 설치 앱 활성화 관리") {
+                                showManagedSlotSheet = true
+                            }
+                            .buttonStyle(.bordered)
+                            .accessibilityIdentifier("SCARLET_NATIVE_SLOT_MANAGER_OPEN")
+                            } // settings controls
                         }
                         .environmentObject(sharedModel)
                         .environmentObject(LCAppSortManager.shared)
@@ -1521,6 +1529,9 @@ struct ScarletIntegratedHostView: View {
                 }
             }
         }
+        .sheet(isPresented: $showManagedSlotSheet) {
+            ScarletManagedSlotSheet()
+        }
         .sheet(isPresented: $showDeviceInstallSheet) {
             // Presentation only. The XPC install task is owned by the host
             // and can continue while the user browses Scarlet's other tabs.
@@ -1701,3 +1712,127 @@ struct ScarletIntegratedHostView: View {
     }
 
 }
+
+// R6P61_SLOT_MANAGER_BEGIN
+// Separate from LiveContainer guests. Only original SideStore DB managed apps
+// are switchable, and the Scarlet host itself is always protected.
+@available(iOS 17.0, *)
+@MainActor
+private struct ScarletManagedSlotSheet: View {
+    @Environment(\.dismiss) private var dismiss
+    @State private var rows: [ScarletSideloadSlot] = []
+    @State private var loading = false
+    @State private var operationRunning = false
+    @State private var status = ""
+    @State private var pendingBundle: String?
+    @State private var pendingActive = false
+    @State private var showingConfirmation = false
+
+    var body: some View {
+        NavigationStack {
+            List {
+                Section {
+                    Text("기기에 직접 설치한 앱만 관리합니다. 컨테이너 게스트 앱은 제한 대상이 아닙니다.")
+                    Text("무료 계정은 일반적으로 동시 활성 앱 3개(호스트 포함), 7일간 App ID 10개 제한이 적용됩니다. 다른 계정을 등록해도 설치 팀이 자동 변경되지는 않습니다.")
+                }
+                Section("SideStore 설치 기록") {
+                    if rows.isEmpty {
+                        Text(loading ? "SideStore 설치 기록 확인 중" : "관리 가능한 앱이 없거나 SideStore 데이터베이스에 접근할 수 없습니다.")
+                            .foregroundStyle(.secondary)
+                    }
+                    ForEach(rows) { app in
+                        HStack(spacing: 12) {
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text(app.name).font(.body)
+                                Text(app.active ? "활성" : "비활성")
+                                    .font(.caption).foregroundStyle(.secondary)
+                            }
+                            Spacer()
+                            if app.editable {
+                                Button(app.active ? "비활성화" : "재활성화") {
+                                    pendingBundle = app.id
+                                    pendingActive = !app.active
+                                    showingConfirmation = true
+                                }
+                                .disabled(loading || operationRunning)
+                            } else {
+                                Text("호스트 보호").font(.caption).foregroundStyle(.secondary)
+                            }
+                        }
+                    }
+                }
+                if !status.isEmpty {
+                    Section("작업 상태") { Text(status).font(.subheadline) }
+                }
+            }
+            .navigationTitle("기기 설치 앱 관리")
+            .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    Button("새로고침") { Task { await reload() } }
+                        .disabled(loading || operationRunning)
+                }
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("닫기") { dismiss() }.disabled(operationRunning)
+                }
+            }
+            .task { await reload() }
+            .confirmationDialog(
+                pendingActive ? "앱을 재활성화하시겠습니까?" : "앱 데이터를 백업하고 기기에서 임시 제거하시겠습니까?",
+                isPresented: $showingConfirmation, titleVisibility: .visible
+            ) {
+                Button(pendingActive ? "재활성화" : "데이터 백업 후 비활성화",
+                       role: pendingActive ? nil : .destructive) {
+                    guard let bundle = pendingBundle else { return }
+                    let target = pendingActive
+                    Task { await change(bundle, active: target) }
+                }
+            } message: {
+                Text("SideStore 원본 백업·복원 경로만 사용합니다. 백업 실패 시 제거를 성공으로 처리하지 않습니다. 기기 실제 설치 여부는 별도 확인이 필요합니다.")
+            }
+        }
+        .accessibilityIdentifier("SCARLET_NATIVE_SLOT_MANAGER_SHEET")
+    }
+
+    private func reload() async {
+        guard !loading && !operationRunning else { return }
+        loading = true
+        defer { loading = false }
+        let result = await ScarletNativeSideloadSlots.list()
+        rows = result.apps
+        status = result.reason == "ready" ? "" : "목록 조회 불가: " + result.reason
+        ScarletDiagnosticRecorder.shared.record("sidestore", "slot_management_inspected",
+            fields: ["result": result.reason,
+                     "count": String(result.apps.count)])
+    }
+
+    private func change(_ bundle: String, active: Bool) async {
+        guard !operationRunning else { return }
+        operationRunning = true
+        status = "SideStore 원본 백업·설치 경로 처리 중"
+        let result = await ScarletNativeSideloadSlots.change(bundleID: bundle, active: active)
+        operationRunning = false
+        if result.0 {
+            status = "SideStore 작업 반환. 실제 iPhone 설치·데이터 복원 결과는 검증이 필요합니다."
+        } else {
+            switch result.1 {
+            case "active_slot_full":
+                status = "활성 앱 슬롯이 부족합니다. 다른 앱을 먼저 비활성화하세요."
+            case "backup_or_deactivation_failed":
+                status = "백업 또는 비활성화 실패. 기기에서 앱을 임의로 삭제하지 마세요."
+            case "activation_or_restore_failed":
+                status = "앱 재설치 또는 데이터 복원에 실패했습니다. 기존 백업을 보존하세요."
+            default:
+                status = "처리 실패: " + result.1
+            }
+        }
+        ScarletDiagnosticRecorder.shared.record("sidestore", "slot_operation_returned",
+            fields: ["action": active ? "activate" : "deactivate",
+                     "reason": result.1, "pipeline_success": String(result.0),
+                     "device_verified": "false"])
+        // Re-fetch SideStore DB even on failure: upstream bugs can leave
+        // a stale isActive flag; never assert that data was restored.
+        let after = await ScarletNativeSideloadSlots.list()
+        rows = after.apps
+    }
+}
+// R6P61_SLOT_MANAGER_END

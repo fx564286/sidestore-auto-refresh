@@ -38,6 +38,8 @@ def patch_livecontainer(engine: Path) -> None:
 - (void)scarletPerformNativeRefresh:(void (^)(BOOL operationReturned, NSString *status))reply;
 - (void)scarletInstallPairingRecord:(NSData*)record reply:(void (^)(BOOL verified, NSString *status))reply;
 - (void)scarletInspectDevicePairing:(void (^)(BOOL ready, NSString *status))reply;
+- (void)scarletManagedSlots:(void (^)(NSString *json, NSString *status))reply;
+- (void)scarletSetManagedSlot:(NSString*)bundleID active:(BOOL)active reply:(void (^)(BOOL ok, NSString *status))reply;
 - (void)scarletBeginAuth:(NSString*)requestID email:(NSString*)email password:(NSString*)password profile:(NSString*)profile;
 - (void)scarletProvideCode:(NSString*)requestID code:(NSString*)code;
 - (void)scarletCancelAuth:(NSString*)requestID;
@@ -146,6 +148,26 @@ def patch_livecontainer(engine: Path) -> None:
         return;
     }
     ((void (*)(id, SEL, id))objc_msgSend)(worker, selector, reply);
+}
+
+- (void)scarletManagedSlots:(void (^)(NSString *, NSString *))reply {
+    Class worker = NSClassFromString(@"ScarletDeviceInstallAgent");
+    SEL action = @selector(listManagedSlots:);
+    if (!worker || ![worker respondsToSelector:action]) {
+        reply(@"[]", @"slot_worker_missing"); return;
+    }
+    ((void (*)(id, SEL, id))objc_msgSend)(worker, action, reply);
+}
+
+- (void)scarletSetManagedSlot:(NSString*)bundleID active:(BOOL)active
+                       reply:(void (^)(BOOL, NSString *))reply {
+    Class worker = NSClassFromString(@"ScarletDeviceInstallAgent");
+    SEL action = @selector(setManagedSlot:reply:);
+    if (!worker || ![worker respondsToSelector:action]) {
+        reply(NO, @"slot_worker_missing"); return;
+    }
+    NSDictionary *request = @{@"bundleID": bundleID ?: @"", @"active": @(active)};
+    ((void (*)(id, SEL, id, id))objc_msgSend)(worker, action, request, reply);
 }
 
 - (void)scarletAuthStored:(void (^)(BOOL))reply {

@@ -613,3 +613,81 @@ extension RefreshHandler {
         throw ScarletNativeAuthError.guestUnavailable
     }
 }
+
+
+// R6P61_SLOT_MANAGER_BEGIN
+public struct ScarletSideloadSlot: Identifiable, Decodable, Sendable {
+    public let id: String
+    public let name: String
+    public let active: Bool
+    public let editable: Bool
+}
+
+@available(iOS 17.0, *)
+@MainActor
+public enum ScarletNativeSideloadSlots {
+    public static func list() async -> (apps: [ScarletSideloadSlot], reason: String) {
+        do { try await ScarletNativeAuthTransport.shared.prepare() }
+        catch { return ([], "transport_unavailable") }
+        guard let client = RefreshHandler.shared.client else { return ([], "transport_unavailable") }
+        return await withCheckedContinuation { c in
+            let gate = ScarletSlotsListGate(c)
+            DispatchQueue.main.asyncAfter(deadline: .now() + 20) {
+                gate.finish([], "timeout")
+            }
+            client.scarletManagedSlots { json, reason in
+                let raw = json ?? "[]"
+                guard raw.utf8.count <= 64000,
+                      let bytes = raw.data(using: .utf8),
+                      let rows = try? JSONDecoder().decode([ScarletSideloadSlot].self, from: bytes),
+                      rows.count <= 80,
+                      rows.allSatisfy({ $0.id.utf8.count <= 200 && $0.name.utf8.count <= 120 }) else {
+                    gate.finish([], "response_invalid"); return
+                }
+                let status = reason ?? "worker_unknown"
+                gate.finish(rows, ["ready", "database_unavailable", "response_too_large",
+                                   "slot_worker_missing"].contains(status) ? status : "worker_unknown")
+            }
+        }
+    }
+    public static func change(bundleID: String, active: Bool) async -> (Bool, String) {
+        do { try await ScarletNativeAuthTransport.shared.prepare() }
+        catch { return (false, "transport_unavailable") }
+        guard let client = RefreshHandler.shared.client else { return (false, "transport_unavailable") }
+        return await withCheckedContinuation { c in
+            let gate = ScarletSlotChangeGate(c)
+            DispatchQueue.main.asyncAfter(deadline: .now() + 240) {
+                gate.finish(false, "timeout_device_state_unknown")
+            }
+            client.scarletSetManagedSlot(bundleID, active: active) { ok, reason in
+                let status = reason ?? "worker_unknown"
+                let allowed = ["side_store_pipeline_returned_device_unverified",
+                    "already_in_requested_state", "coredata_state_unverified",
+                    "active_slot_full", "app_not_managed", "invalid_request", "host_protected",
+                    "operation_in_progress", "activation_or_restore_failed",
+                    "backup_or_deactivation_failed", "database_unavailable", "slot_worker_missing"]
+                gate.finish(ok, allowed.contains(status) ? status : "worker_unknown")
+            }
+        }
+    }
+}
+
+private final class ScarletSlotsListGate: @unchecked Sendable {
+    private let lock = NSLock()
+    private var continuation: CheckedContinuation<([ScarletSideloadSlot], String), Never>?
+    init(_ c: CheckedContinuation<([ScarletSideloadSlot], String), Never>) { continuation = c }
+    func finish(_ apps: [ScarletSideloadSlot], _ reason: String) {
+        lock.lock(); let c = continuation; continuation = nil; lock.unlock()
+        c?.resume(returning: (apps, reason))
+    }
+}
+private final class ScarletSlotChangeGate: @unchecked Sendable {
+    private let lock = NSLock()
+    private var continuation: CheckedContinuation<(Bool, String), Never>?
+    init(_ c: CheckedContinuation<(Bool, String), Never>) { continuation = c }
+    func finish(_ ok: Bool, _ reason: String) {
+        lock.lock(); let c = continuation; continuation = nil; lock.unlock()
+        c?.resume(returning: (ok, reason))
+    }
+}
+// R6P61_SLOT_MANAGER_END
