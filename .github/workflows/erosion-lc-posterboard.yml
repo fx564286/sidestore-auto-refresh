@@ -1,0 +1,120 @@
+name: Erosion LC PosterBoard Path Repair IPA
+on:
+  push:
+    branches:
+      - build/erosion-lc-posterboard-20261114
+    paths:
+      - .github/workflows/erosion-lc-posterboard.yml
+      - tools/erosion/**
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  build:
+    runs-on: xcode-27
+    timeout-minutes: 75
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Fetch exact Erosion 0.3.1 baseline
+        shell: bash
+        run: |
+          set -euo pipefail
+          git clone -q --depth 1 --branch 0.3.1 https://github.com/jailbreakdotparty/Erosion.git "$RUNNER_TEMP/erosion"
+          cd "$RUNNER_TEMP/erosion"
+          test "$(git rev-parse HEAD)" = "585a24a973d1ffa33bb71e48eab59a79cca505e1"
+
+      - name: Patch and verify source
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/erosion"
+          git apply --check "$GITHUB_WORKSPACE/tools/erosion/erosion-lc-posterboard.patch"
+          git apply "$GITHUB_WORKSPACE/tools/erosion/erosion-lc-posterboard.patch"
+          git diff --check
+          python3 - <<'PY'
+          from pathlib import Path
+          f=Path("Erosion/Helpers/Functions/FSHandlers.swift").read_text()
+          m=Path("Erosion/FileManager/Helpers/InfoHelpers.swift").read_text()
+          w=Path("Erosion/Exploits/WorseQuerySwift.swift").read_text()
+          n=Path("Erosion/Exploits/worse_query.m").read_text()
+          v=Path("Erosion/Tweaks/PosterBoard/PosterBoardView.swift").read_text()
+          tests=[
+            ("direct directory enumeration", "directory listing:" in f),
+            ("legacy inode fallback", "fallbackBound: UInt64 = 10_000_000" in f),
+            ("metadata fallback", "readMetadata()" in m),
+            ("sandbox handle cleanup", "defer { wq.releaseHandle(handle) }" in m),
+            ("host entitlement test", "entitledGroups()" in w and "containerURL(" in w),
+            ("no shared cache deletion", "cacheContents.count != 0" in n and "return -7" in n),
+            ("visible diagnostics", "pathDiagnostics" in v),
+            ("background path discovery", "DispatchQueue.global(qos: .userInitiated)" in v),
+            ("original install retained", "let res = applyObjects(" in v),
+            ("original disabled-state guard", ".disabled(pbContainerPath.isEmpty" in v),
+          ]
+          for name,passed in tests: print(("PASS" if passed else "FAIL"),name)
+          assert all(ok for _,ok in tests)
+          PY
+
+      - name: Xcode 27 build unsigned iOS application
+        shell: bash
+        run: |
+          set -euo pipefail
+          xcodebuild -version
+          xcrun --sdk iphoneos --show-sdk-version
+          cd "$RUNNER_TEMP/erosion"
+          xcodebuild -project Erosion.xcodeproj -scheme Erosion -configuration Release -derivedDataPath "$RUNNER_TEMP/ErosionDerived" -destination 'generic/platform=iOS' CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" build > "$RUNNER_TEMP/erosion-build.log" 2>&1 || { tail -150 "$RUNNER_TEMP/erosion-build.log"; exit 1; }
+          tail -18 "$RUNNER_TEMP/erosion-build.log"
+          app="$RUNNER_TEMP/ErosionDerived/Build/Products/Release-iphoneos/Erosion.app"
+          test -f "$app/Erosion"
+          /usr/libexec/PlistBuddy -c 'Set :CFBundleVersion 2' "$app/Info.plist"
+          mkdir -p "$RUNNER_TEMP/ipa/Payload"
+          ditto "$app" "$RUNNER_TEMP/ipa/Payload/Erosion.app"
+          cd "$RUNNER_TEMP/ipa"
+          /usr/bin/zip -qry -9 "$RUNNER_TEMP/Erosion-LC-PosterBoard.ipa" Payload
+          unzip -t "$RUNNER_TEMP/Erosion-LC-PosterBoard.ipa" | tail -3
+          shasum -a 256 "$RUNNER_TEMP/Erosion-LC-PosterBoard.ipa"
+
+      - name: Verify artifact structure
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          from zipfile import ZipFile
+          import plistlib,hashlib,os
+          p=Path(os.environ["RUNNER_TEMP"])/"Erosion-LC-PosterBoard.ipa"
+          with ZipFile(p) as z:
+            assert z.testzip() is None
+            info=plistlib.loads(z.read("Payload/Erosion.app/Info.plist"))
+            assert info["CFBundleIdentifier"]=="com.jbdotparty.Erosion"
+            assert info["CFBundleVersion"]=="2"
+            binary=z.read("Payload/Erosion.app/Erosion")
+            assert len(binary)>100000
+            print("PASS",info["CFBundleIdentifier"],info["CFBundleVersion"],len(binary))
+          print("BYTES",p.stat().st_size)
+          print("SHA256",hashlib.sha256(p.read_bytes()).hexdigest())
+          PY
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Erosion-0.3.1-LiveContainer-PosterBoard-unsigned
+          path: ${{ runner.temp }}/Erosion-LC-PosterBoard.ipa
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Publish direct IPA asset
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          tag="erosion-lc-posterboard-preflight-20261114"
+          ipa="$RUNNER_TEMP/Erosion-LC-PosterBoard.ipa"
+          if gh release view "$tag" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release upload "$tag" "$ipa" --clobber --repo "$GITHUB_REPOSITORY"
+          else
+            gh release create "$tag" "$ipa" --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --title "Erosion 0.3.1 LiveContainer PosterBoard compatibility (build 2)" --notes "Experimental unsigned guest IPA. Adds direct listing, legacy inode and metadata path fallbacks, visible path and actual App Group permission preflight. Blocks worse_query when host App Group Caches contain existing data. This does NOT grant missing host entitlements or prove wallpaper installation on iOS 27.2. Original PosterBoard data stays untouched by the preflight." --prerelease
+          fi
+          curl -fLsSI --retry 3 --max-time 30 "https://github.com/$GITHUB_REPOSITORY/releases/download/$tag/Erosion-LC-PosterBoard.ipa" | head -9
