@@ -140,10 +140,10 @@ index 0000000..eb72bfb
 +}
 diff --git a/Nugget/Views/PosterBoardImageExportGallery.swift b/Nugget/Views/PosterBoardImageExportGallery.swift
 new file mode 100644
-index 0000000..2da86c4
+index 0000000..cc0f0de
 --- /dev/null
 +++ b/Nugget/Views/PosterBoardImageExportGallery.swift
-@@ -0,0 +1,78 @@
+@@ -0,0 +1,83 @@
 +import SwiftUI
 +import UIKit
 +
@@ -214,9 +214,14 @@ index 0000000..2da86c4
 +    let imageURL: URL
 +
 +    func makeUIViewController(context: Context) -> UIActivityViewController {
-+        let object: Any = UIImage(contentsOfFile: imageURL.path) ?? imageURL
++        let activityItems: [Any]
++        if let image = UIImage(contentsOfFile: imageURL.path) {
++            activityItems = [image]
++        } else {
++            activityItems = [imageURL]
++        }
 +        let controller = UIActivityViewController(
-+            activityItems: [object], applicationActivities: nil)
++            activityItems: activityItems, applicationActivities: nil)
 +        return controller
 +    }
 +
