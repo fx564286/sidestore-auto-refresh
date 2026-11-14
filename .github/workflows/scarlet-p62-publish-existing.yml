@@ -1,0 +1,64 @@
+name: Scarlet P62 Publish Existing Native IPA
+
+on:
+  push:
+    branches:
+      - fix/scarlet-v48-r6p62-scroll-viewport-20261114
+    paths:
+      - .github/workflows/scarlet-p62-publish-existing.yml
+
+permissions:
+  contents: write
+  actions: read
+
+jobs:
+  publish-p62-unsigned:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Reuse successful P62 native engine and paired IPA artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: Scarlet-Paired-Engines-UNSIGNED-DIAGNOSTIC-ONLY
+          run-id: 43579721196
+          github-token: ${{ github.token }}
+          path: packaged
+      - name: Verify existing paired IPA before public release
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          from zipfile import ZipFile
+          import hashlib, plistlib
+          src=Path('packaged/Scarlet-LiveContainer+SideStore-ENGINES-UNSIGNED.ipa')
+          assert src.is_file() and src.stat().st_size>10000000, 'missing paired native IPA'
+          out=Path('Scarlet-Crystal-V48-R6P62-SCROLL-VIEWPORT-UNSIGNED.ipa')
+          out.write_bytes(src.read_bytes())
+          with ZipFile(out) as z:
+              assert z.testzip() is None, 'invalid IPA ZIP CRC'
+              names=z.namelist()
+              host=next(x for x in names if x.startswith('Payload/') and x.count('/')==2 and x.endswith('.app/Info.plist'))
+              info=plistlib.loads(z.read(host))
+              assert info['CFBundleIdentifier']=='com.kdt.livecontainer.P8EZT3U5N4'
+              assert info['CFBundleVersion']=='3.8.62'
+              assert info['CFBundleDisplayName']=='Scarlet Crystal'
+              assert any(p.endswith('LiveProcess.appex/Info.plist') for p in names)
+          digest=hashlib.sha256(out.read_bytes()).hexdigest()
+          Path(str(out)+'.sha256').write_text(f'{digest}  {out.name}\n')
+          print('P62_PAIRED_IPA_VERIFIED',out.stat().st_size,digest)
+          PY
+      - name: Publish P62 GitHub Release with public direct IPA URL
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          asset=Scarlet-Crystal-V48-R6P62-SCROLL-VIEWPORT-UNSIGNED.ipa
+          tag=scarlet-v48-r6p62-scroll-viewport-unsigned-20261114
+          gh release create "$tag" "$asset" "$asset.sha256" \
+            --repo "$GITHUB_REPOSITORY" \
+            --target "$GITHUB_SHA" \
+            --title "Scarlet Crystal V48 R6P62 (unsigned)" \
+            --notes "Native IPA built from source commit 919b15ff155727230fe9a0ebe3c3d41c6a033db2 in successful Xcode 27.2 workflow run 43579721196. This follow-up workflow publishes the exact prebuilt artifact without recompiling or changing it. Not Apple signed; sign with the user's legitimate identity before installation. Runtime fixes not yet verified on a physical device." \
+            --prerelease
