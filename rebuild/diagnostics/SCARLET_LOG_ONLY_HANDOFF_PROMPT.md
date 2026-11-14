@@ -1,4 +1,4 @@
-# 실행 우선·문제 해결 지속 지침 — 2026-11-14 P55 / L101
+# 실행 우선·문제 해결 지속 지침 — 2026-11-14 P56 / L102
 
 ## 사용자가 명시한 목표
 
@@ -7,13 +7,21 @@ Scarlet Crystal 실험 모드 OFF에서는 정상인 게스트 앱들이 ON에�
 ## 새 채팅의 실행 순서 (강제)
 
 1. 보고서 SourceCommit, CurrentSession, 현재 기기 증상과 마지막 Lxxx 수정 이력을 읽고 해당 빌드가 실제 설치된 것인지 먼저 구분한다. 최신 GitHub 소스를 열어 이력 상태와 정확한 소스 커밋을 비교한다.
-2. L001~L101의 기존 실패 방법·실제 코드 위치·before/after를 확인한다. P37 단회 헤더 프레임 이동, P39 강제 제약, P44/P53 affine transform, 호스트 전체 콘텐츠 축소/투명띠, 추가 Safe Area 중복 적용, 상태 표시줄 강제 은폐 등은 장치 증거가 없는 동일 재시도를 금지한다.
+2. L001~L102의 기존 실패 방법·실제 코드 위치·before/after를 확인한다. P37 단회 헤더 프레임 이동, P39 강제 제약, P44/P53 affine transform, 호스트 전체 콘텐츠 축소/투명띠, 추가 Safe Area 중복 적용, 상태 표시줄 강제 은폐 등은 장치 증거가 없는 동일 재시도를 금지한다.
 3. **항상 실행 코드 수정이 주작업**이다. 기록용 이벤트만 추가하는 새 버전은 허용되지 않는다. 성공할 때까지 원인을 재모델링하고 새 인과 메커니즘을 설계·검증한다. 사용자에게 PC 조작을 요구하는 대신 저장소에서 가능한 작업을 먼저 수행한다.
 4. 실제 기기 결과가 없는 테스트/컴파일/IPA 성공은 해결이 아니다. 정상 판정은 실기기에서 상단 위험 컨트롤 0, 정상 상태 표시줄, 가로·세로 및 홈 복귀 A→B→A, 전체화면/하단/스크롤·터치 보존으로만 한다.
 5. L100 P54 신규 방식: 부모 UIViewController에 실제 게스트 커스텀 viewDidLayoutSubviews가 존재하고, 그 아래 50pt plain UIView 헤더가 Y0에 있는 경우, **단 하나의 부모 컨트롤러 인스턴스만 동적 서브클래싱하여 게스트 원래 레이아웃 구현을 먼저 실행한 후 그 부모의 native safeAreaLayoutGuide에서 헤더를 도킹**한다. 기존 P44 transform을 해당 대상에 중복 적용하지 않는다. 250/1350ms 실측 통과 시 retained, 실패하면 원래 클래스와 원래 프레임을 원복한다.
 6. 실제 장치 로그의 guest_owner_layout_contract_staged / first_pass / retained / reverted와 원래 위험 컨트롤 수치, 앱 재진입 시 헤더 Y, 전체 콘텐츠/상태 표시줄을 대조한다. P54가 guest_owner_layout_contract_retained라도 위험 컨트롤이 0이 아니거나 실제 화면이 잘리면 **미해결**이며 L100의 같은 수정을 반복하지 않고 L101의 새로운 원인·실행 수정을 설계한다.
 7. 새로운 후보는 수정 전에 scarlet_no_repeat_gate.py --proposal로 판정한다. 실제 변경 diff와 소스 SHA, 새 검증, 빌드/IPA, rollback, 다음 시도에서 피해야 할 원인까지 scarlet_remediation_history.json에 새 Lxxx로 기록한다. 그 JSON과 이 지침이 앱에서 내보낸 CURRENT RUN 공유 텍스트에 모두 내장돼야 한다.
 8. V48 안정 기준의 번들 ID·원래 전체화면 크기·리사이징 금지·멀티탭·앱 간 RAM·색상/리퀴드 글라스·서명·오디오·키보드 동작은 별도 검증 없이 수정하지 않는다.
+
+## P56 / L102: 서명된 P55의 부분 성공 이후 콘텐츠 소유권 수정
+
+- 2026-11-14 서명 실기기 로그 SourceCommit 54d24ab2b20a, 세션 99565816, PID2293에서 parent layout owner 수정 staged/first_pass/retained가 확정되었음. 650ms 위험 컨트롤 9개 → 2600ms 6개 유지, Instagram 스토리 위에 wordmark가 겹친 화면과 시계·배터리 숨김은 미해결. 상태바가 자동으로 보인 다른 PID2305에서는 위험 컨트롤 0개와 status_hidden=false가 확인됨.
+- **L102 기능 변경:** 기존 P55는 헤더 y만 부모 safe guide로 옮겼고 실제 스크롤 본문은 원래 y50 근처에서 움직이지 않았다. P56은 같은 원래 UIKit 부모 viewDidLayoutSubviews 실행 직후, 헤더와 같은 부모에 있는 유일한 전체폭 스크롤 본문을 헤더 아래로 정렬하며 그 본문 하단은 고정한다. 게스트 UIWindow/FBScene/루트 크기 1.0 배율, contentSize/contentOffset/contentInset, 원래 하단탭, 인증/오디오 등은 바꾸지 않는다.
+- **원복 조건:** 스크롤 본문 후보가 한 개가 아니거나 없으면 P55 헤더만 유지. 후보가 있더라도 첫 250ms 및 두 번째 1350ms 모두에서 실제 위험 컨트롤 0, 헤더 아래 스크롤 본문 정렬, 원래 하단, 동일 PID 및 전체화면이 확인되지 않으면 본문만 원복한다. 이전 P44 affine/host crop을 재시도하지 않는다.
+- **시계·배터리:** 처음 650ms 위험 때문에 저장된 P51 sticky statusbar collision shield는 단순 후속 unsafe0으로 풀지 않는다. P56의 독립적인 두 번 연속 native owner + feed 실제 unsafe0 확인 및 활성 PID 매칭시에만 해제한다. `guest_owner_content_reflow_retained`와 `resident_native_status_bar_verified_reflow_readback(status_hidden=false)`가 모두 확인돼야 복구.
+- 사용자에게서 새 로그만 오면 `guest_owner_content_reflow_staged/first_pass/retained/reverted`, `guest_content_geometry_probe(visible_unsafe_controls)`, 시계·배터리 및 스토리 겹침 실화면을 읽는다. 본문 후보 없음/되돌림인 경우 기존 P55보다 후퇴시키지 않고 다음 L103에서 실제 화면 계층을 근거로 다른 소유권 수정 코드를 작성한다. P56은 소스 빌드 통과와 실기기 정상화가 아직 별개이다.
 
 ## P55 / L101: 실제 P54 로그에서 발견된 실행 분기 불일치
 
