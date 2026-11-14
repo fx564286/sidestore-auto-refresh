@@ -3233,15 +3233,6 @@ static BOOL ScarletIslandP54InstallNativeOwnerContract(
             fabs(CGRectGetWidth(nowFeed)-CGRectGetWidth(oldFeed))<3 &&
             unsafe==0;
         if(bodyTrial) {
-            ScarletIslandDeepHeaderTrialReceipt(
-                provenBody ? (late ? @"guest_owner_content_reflow_retained"
-                                   : @"guest_owner_content_reflow_first_pass")
-                           : @"guest_owner_content_reflow_reverted",
-                provenBody ? @"native_body_scroll_header_zero_risk"
-                           : @"body_layout_or_remaining_unsafe",
-                safeTop,CGRectGetMinY(oldFeed),
-                CGRectIsNull(nowFeed) ? -999:CGRectGetMinY(nowFeed),
-                beforeControls,unsafe,images,late && provenBody);
             if(!provenBody) {
                 // Preserve the P55 header improvement, restore ONLY the
                 // unproven feed geometry, and do not release status icons.
@@ -3265,6 +3256,21 @@ static BOOL ScarletIslandP54InstallNativeOwnerContract(
             CGRectGetMinY(firstRect)>=safeTop-2 &&
             CGRectGetMinY(secondRect)>=safeTop-2 &&
             unsafe+2<=beforeControls && images<=beforeImages+1;
+        // Only publish a two-pass content reflow success AFTER the original
+        // P55 hit/visibility/size gate also passes. Otherwise the native
+        // owner can immediately revert and exposing icons would collide.
+        if(bodyTrial) {
+            BOOL bodyAccepted=provenBody && reduced;
+            ScarletIslandDeepHeaderTrialReceipt(
+                bodyAccepted ? (late ? @"guest_owner_content_reflow_retained"
+                                     : @"guest_owner_content_reflow_first_pass")
+                             : @"guest_owner_content_reflow_reverted",
+                bodyAccepted ? @"native_body_and_header_all_safe"
+                             : @"body_or_parent_contract_not_safe",
+                safeTop,CGRectGetMinY(oldFeed),
+                CGRectIsNull(nowFeed) ? -999:CGRectGetMinY(nowFeed),
+                beforeControls,unsafe,images,late && bodyAccepted);
+        }
         if(!reduced) {
             state[@"disabled"]=@YES;
             if(vc && object_getClass(vc)==scoped) object_setClass(vc,original);

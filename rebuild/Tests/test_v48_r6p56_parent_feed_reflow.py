@@ -29,6 +29,11 @@ class ParentFeedReflow(unittest.TestCase):
     'guest_owner_content_reflow_reverted', 'unsafe==0', 'feed.frame=oldFeed',
     'state[@"body_disabled"]=@YES','(int64_t)1100*NSEC_PER_MSEC'):
    self.assertIn(k,OWNER,k)
+ def test_reflow_receipt_cannot_succeed_before_original_parent_hit_gate(self):
+  self.assertLess(OWNER.index('BOOL reduced=unchanged &&'),
+                  OWNER.index('guest_owner_content_reflow_retained'))
+  self.assertIn('BOOL bodyAccepted=provenBody && reduced;',OWNER)
+  self.assertIn('late && bodyAccepted',OWNER)
  def test_status_bar_cannot_clear_for_single_transient_zero_or_p55_six(self):
   for k in ('onContentReflowVerified?(pid)','guest_owner_content_reflow_retained',
     'row["header_controls_after"] as? NSNumber)?.intValue == 0',
