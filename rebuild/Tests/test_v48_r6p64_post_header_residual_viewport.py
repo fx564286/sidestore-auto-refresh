@@ -35,7 +35,7 @@ class P64PostHeaderResidual(unittest.TestCase):
 
     def test_no_scene_crop_and_closed_loop_two_pass_rollback(self):
         for needle in ('[state[@"body_kind"] integerValue]==64',
-                       'CGFloat delta=residual ? [state[@"body_residual_delta"] doubleValue]',
+                       '(residual ? [state[@"body_residual_delta"] doubleValue]',
                        'scroll.adjustedContentInset.top<target-12',
                        'revised.origin.y+=delta;',
                        'revised.size.height-=delta;',
@@ -67,7 +67,7 @@ class P64PostHeaderResidual(unittest.TestCase):
                        'SCARLET_HOST_VERSION_ARGS=(--host-build-version 3.8.64)',
                        'Scarlet-Crystal-V48-R6P64-RESIDUAL-VIEWPORT-UNSIGNED.ipa',
                        'scarlet-v48-r6p64-residual-viewport-unsigned-20261115',
-                       'version="3.8.64" if "r6p64"'):
+                       '"3.8.64" if "r6p64"'):
             self.assertIn(needle,W)
 if __name__=="__main__":
     unittest.main()

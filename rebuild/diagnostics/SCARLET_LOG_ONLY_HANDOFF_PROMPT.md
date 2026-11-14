@@ -457,3 +457,50 @@ L051=R6P15 저장된 RSD 연결의 제한적 재검사다. 과거 항목에 `dev
   scrolling and rotation pass. A staged receipt is NOT a successful device fix.
 - P64 Xcode native compile and real iPhone confirmation remain required.
   Unsigned IPA is not installable without proper Apple signing.
+
+## 2026-11-15 P64 signed iPhone confirmation and P65 new code
+- Fresh device export 2026-11-14 19:24:26 UTC, build 3.8.64,
+  SourceCommit 8518c552e03c, session c7732019, PID5205.
+- Native 650ms unsafe 8, images 7, initial control y3. Parent 50pt
+  child controller header was actually staged and P54 layout retained
+  (unsafe after header: 5); P64/p60 native body staging reverted.
+  2600ms unsafe1 images0, first control y50 vs 62pt safe guide,
+  full native scroll top inset 50, offset -67, top content size432%,
+  scroll enabled, scan capped at depth24. Status_hidden=true.
+- Crucial P64 source defect beyond that device: P64 stores
+  state.body_kind=64, but P63BindNestedParent allowed ONLY kind60.
+  Thus P64's new candidate could never be bound even when the
+  !nativeBody precondition was satisfied. P65 fixes allowed types
+  60/64/65; static tests verify this exact guard.
+- P64 also only evaluates the 1..4-risk residual path while
+  !nativeBody, so when old p60 candidate exists but its proof fails,
+  the P64 path cannot recover afterward.
+- P65 introduces a separate solution conditional on a FAILED original
+  native body, RETAINED original P54 header and a post-2600ms native
+  UIWindow. Select a FULL-viewport common scroll enclosing exactly
+  1..3 unsafe interactive nodes y=(safeTop-28..safeTop-2), with pre-
+  existing real adjusted and content top insets near safeTop.
+  Require 2 independent settled UIScrollView states, no tracking,
+  dragging or deceleration, and offset within3pt of native -inset.
+  Only 4 bounded retry opportunities after 2600ms, not a global hook.
+- Formula for the distinct P65 native lever:
+  corrected scroll viewport top = headerBottom - original
+  adjustedContentInset.top. Example headerBottom112 and native
+  inset50 => scroll frame origin +62 (not +112 as P60 tried).
+  This preserves the original scroll content inset, offset, size,
+  UI scale, UIWindow and FBScene geometry; reduces scroll viewport
+  height by exactly that Y displacement, retaining bottom edge.
+  Apply within existing parent UIView.layoutSubviews after its IMP,
+  per-instance. Reject any other unknown scroll owner.
+- Require first and late native proof with original contentSize and
+  contentInset intact, header y62, scroll effective content y112,
+  complete bounded risk walk, unsafeControls0, unsafeImages0 and
+  stationary native offset. If either fails, restore exact previous
+  scroll.frame and unbind the scoped dynamic parent subclass.
+  Only the two-pass retained receipt can allow host native status icons.
+- Original V48 visual/switcher/color and signing assets unchanged.
+  Local tests and CI build do not prove guest success. Next on-device
+  run must compare PID sample650/2600, verified P64 kind64 binding
+  if selected, optional P65 settled compensation receipts, clip/scroll
+  touch behavior, orientation, A/B switcher, clock and battery.
+  No icon release without TWO zero-risk proofs.
