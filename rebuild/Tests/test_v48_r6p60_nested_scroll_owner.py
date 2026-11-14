@@ -32,7 +32,7 @@ class P60NestedOwner(unittest.TestCase):
         for x in ('ScarletIslandP60FocusedUnsafe(rt,w,safeTop,&focusedComplete)',
                   'focusedComplete && focusedUnsafe==0 && scrollStateUnchanged',
                   'CGSizeEqualToSize(sc.contentSize',
-                  'CGPointEqualToPoint(sc.contentOffset',
+                  'isfinite(sc.contentOffset.y)',
                   'UIEdgeInsetsEqualToEdgeInsets(sc.contentInset',
                   'BOOL provenBody=bodyTrial && feed.superview==bodyParent',
                   'unsafe==0;', 'feed.frame=oldFeed;',

@@ -3190,6 +3190,111 @@ static UIScrollView *ScarletIslandP60CommonUnsafeScroll(
 }
 // R6P60_COMMON_SCROLL_ANCESTOR_END
 
+// R6P63_NESTED_LAYOUT_OWNER_BEGIN
+// P62 iPhone PID3634 had a real staged deep viewport, then reverted at
+// +250ms. P54's owner.viewDidLayoutSubviews runs BEFORE arbitrary descendant
+// containers finish their own layout. Do not repeat the P60/P62 selector.
+// Attach a scoped subclass to the *actual immediate scroll parent* and
+// enforce only that verified native child's viewport AFTER its real layout.
+static char scarletIslandP63NestedParentLayoutKey;
+static void ScarletIslandP63MaintainNestedViewport(UIView *parent) {
+    NSMutableDictionary *state=objc_getAssociatedObject(
+        parent,&scarletIslandP63NestedParentLayoutKey);
+    if(!state || [state[@"body_disabled"] boolValue] ||
+       [state[@"body_enforcing"] boolValue] ||
+       [state[@"body_kind"] integerValue]!=60) return;
+    UIScrollView *scroll=(UIScrollView *)[state[@"native_body"] anyObject];
+    NSHashTable *parentRefs=state[@"body_parent"];
+    UIView *header=[state[@"headers"] anyObject];
+    UIWindow *window=parent.window;
+    CGFloat target=[state[@"top"] doubleValue];
+    if(![scroll isKindOfClass:UIScrollView.class] ||
+       parentRefs.anyObject!=parent || scroll.superview!=parent ||
+       !header || header.window!=window || !window ||
+       !UIInterfaceOrientationIsPortrait(window.windowScene.interfaceOrientation) ||
+       window.windowScene.activationState!=UISceneActivationStateForegroundActive ||
+       fabs(window.rootViewController.view.safeAreaInsets.top-target)>2)
+        return;
+    CGRect original=[state[@"body_original_frame"] CGRectValue];
+    CGRect originalWindow=[parent convertRect:original toView:window];
+    CGRect headerWindow=[header convertRect:header.bounds toView:window];
+    CGFloat delta=CGRectGetMaxY(headerWindow)-CGRectGetMinY(originalWindow);
+    CGRect revised=original;
+    revised.origin.y+=delta;
+    revised.size.height-=delta;
+    CGFloat content=scroll.contentSize.height;
+    if(!isfinite(delta) || !isfinite(content) || content<=0 ||
+       delta<15 || delta>target+75 || !scroll.scrollEnabled ||
+       revised.size.height<CGRectGetHeight(window.bounds)*0.65 ||
+       fabs(CGRectGetMaxY(revised)-CGRectGetMaxY(original))>1 ||
+       fabs(CGRectGetMaxY(originalWindow)-
+            CGRectGetHeight(window.bounds))>75)
+        return;
+    state[@"body_enforcing"]=@YES;
+    if(!CGRectEqualToRect(scroll.frame,revised)) {
+        scroll.frame=revised;
+        state[@"body_reflow_passes"]=@(
+            [state[@"body_reflow_passes"] unsignedIntegerValue]+1);
+    }
+    state[@"body_enforcing"]=@NO;
+}
+static BOOL ScarletIslandP63BindNestedParent(UIView *parent,
+                                             NSMutableDictionary *state) {
+    if(!parent || !state || !parent.window ||
+       [state[@"body_kind"] integerValue]!=60 ||
+       objc_getAssociatedObject(parent,&scarletIslandP63NestedParentLayoutKey))
+        return NO;
+    Class original=object_getClass(parent);
+    const char *baseName=class_getName(original);
+    if(!original || !baseName || strstr(baseName,"NSKVONotifying_") ||
+       strstr(baseName,"ScarletP63_")) return NO;
+    SEL selector=@selector(layoutSubviews);
+    Method m=class_getInstanceMethod(original,selector);
+    IMP originalIMP=m ? method_getImplementation(m) : NULL;
+    if(!originalIMP) return NO;
+    char className[160];
+    snprintf(className,sizeof(className),"ScarletP63_%p",(__bridge void *)original);
+    Class scoped=objc_lookUpClass(className);
+    if(!scoped) {
+        scoped=objc_allocateClassPair(original,className,0);
+        if(!scoped) return NO;
+        IMP body=imp_implementationWithBlock(^(__unsafe_unretained id receiver) {
+            ((void (*)(id,SEL))originalIMP)(receiver,selector);
+            ScarletIslandP63MaintainNestedViewport(receiver);
+        });
+        if(!class_addMethod(scoped,selector,body,"v@:")) {
+            imp_removeBlock(body);
+            objc_disposeClassPair(scoped);
+            return NO;
+        }
+        objc_registerClassPair(scoped);
+    }
+    state[@"body_parent_original_class"]=[NSValue valueWithPointer:
+        (__bridge const void *)original];
+    objc_setAssociatedObject(parent,&scarletIslandP63NestedParentLayoutKey,
+                             state,OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+    if(object_setClass(parent,scoped)!=original ||
+       object_getClass(parent)!=scoped) {
+        object_setClass(parent,original);
+        objc_setAssociatedObject(parent,&scarletIslandP63NestedParentLayoutKey,
+                                 nil,OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+        return NO;
+    }
+    return YES;
+}
+static void ScarletIslandP63UnbindNestedParent(UIView *parent,
+                                               NSMutableDictionary *state) {
+    if(!parent || !state) return;
+    if(objc_getAssociatedObject(parent,
+          &scarletIslandP63NestedParentLayoutKey)!=state) return;
+    Class original=(Class)[state[@"body_parent_original_class"] pointerValue];
+    if(original && object_getClass(parent)!=original)
+        object_setClass(parent,original);
+    objc_setAssociatedObject(parent,&scarletIslandP63NestedParentLayoutKey,
+                             nil,OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+}
+// R6P63_NESTED_LAYOUT_OWNER_END
+
 // R6P54_OWNER_LAYOUT_CONTRACT_BEGIN
 // R6P55 also accepts the signed P54 child UIViewController header owner.
 // Signed P53: the parent owns a custom viewDidLayoutSubviews. Changing the
@@ -3214,6 +3319,7 @@ static void ScarletIslandP54AfterNativeOwnerLayout(UIViewController *owner) {
         if(scroll && scroll.superview==bodyParent)
             scroll.frame=[state[@"body_original_frame"] CGRectValue];
         state[@"body_disabled"]=@YES;
+        ScarletIslandP63UnbindNestedParent(bodyParent,state);
     }
     if(!header || !window || window.hidden ||
        parent!=header.superview || ![header isDescendantOfView:window.rootViewController.view] ||
@@ -3404,6 +3510,11 @@ static BOOL ScarletIslandP54InstallNativeOwnerContract(
                                  nil,OBJC_ASSOCIATION_RETAIN_NONATOMIC);
         return NO;
     }
+    // P63 binds the nested parent AFTER owning guest class verification.
+    // A missing/unhookable parent means a P62-only trial is unproven.
+    if(p60DeepScroll && !ScarletIslandP63BindNestedParent(
+            p60DeepScroll.superview,state))
+        state[@"body_disabled"]=@YES;
     CGRect originalWindow=[header convertRect:header.bounds toView:window];
     CGSize windowSize=window.bounds.size;
     // Request a native layout, then go through the exact owner completion
@@ -3411,6 +3522,11 @@ static BOOL ScarletIslandP54InstallNativeOwnerContract(
     [owner.view setNeedsLayout];
     [owner.view layoutIfNeeded];
     ScarletIslandP54AfterNativeOwnerLayout(owner);
+    if(p60DeepScroll && ![state[@"body_disabled"] boolValue]) {
+        [p60DeepScroll.superview setNeedsLayout];
+        [p60DeepScroll.superview layoutIfNeeded];
+        ScarletIslandP63MaintainNestedViewport(p60DeepScroll.superview);
+    }
     if(nativeBody) ScarletIslandDeepHeaderTrialReceipt(
         @"guest_owner_content_reflow_staged",
         p60DeepScroll ? @"p60_nested_common_scroll_owner" :
@@ -3467,8 +3583,14 @@ static BOOL ScarletIslandP54InstallNativeOwnerContract(
             scrollStateUnchanged=sc &&
                 CGSizeEqualToSize(sc.contentSize,
                     [state[@"body_scroll_size"] CGSizeValue]) &&
-                CGPointEqualToPoint(sc.contentOffset,
-                    [state[@"body_scroll_offset"] CGPointValue]) &&
+                // Unlike P62, ordinary UIKit contentOffset reconciliation
+                // following viewport size change is not evidence of loss.
+                // Require a finite offset within native adjusted bounds.
+                isfinite(sc.contentOffset.y) &&
+                sc.contentOffset.y>=-sc.adjustedContentInset.top-4 &&
+                sc.contentOffset.y<=MAX(-sc.adjustedContentInset.top,
+                    sc.contentSize.height-CGRectGetHeight(sc.bounds)+
+                    sc.adjustedContentInset.bottom)+4 &&
                 UIEdgeInsetsEqualToEdgeInsets(sc.contentInset,
                     [state[@"body_scroll_inset"] UIEdgeInsetsValue]);
         }
@@ -3495,6 +3617,7 @@ static BOOL ScarletIslandP54InstallNativeOwnerContract(
                 // Preserve the P55 header improvement, restore ONLY the
                 // unproven feed geometry, and do not release status icons.
                 state[@"body_disabled"]=@YES;
+                if(deep) ScarletIslandP63UnbindNestedParent(bodyParent,state);
                 if(feed.superview==bodyParent) feed.frame=oldFeed;
                 if(unchanged)
                     unsafe=ScarletIslandDeepHeaderCountUnsafe(
@@ -3534,6 +3657,7 @@ static BOOL ScarletIslandP54InstallNativeOwnerContract(
             if(vc && object_getClass(vc)==scoped) object_setClass(vc,original);
             if(feed && feed.superview==bodyParent) {
                 state[@"body_disabled"]=@YES;
+                if(deep) ScarletIslandP63UnbindNestedParent(bodyParent,state);
                 feed.frame=oldFeed;
             }
             if(head && head.superview==par) {

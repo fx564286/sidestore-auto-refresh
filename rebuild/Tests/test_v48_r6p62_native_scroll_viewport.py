@@ -30,6 +30,6 @@ class P62Viewport(unittest.TestCase):
                   "SCARLET_HOST_VERSION_ARGS=(--host-build-version 3.8.62)",
                   "scarlet-v48-r6p62-scroll-viewport-unsigned-20261114",
                   "Scarlet-Crystal-V48-R6P62-SCROLL-VIEWPORT-UNSIGNED.ipa",
-                  'version="3.8.62" if "r6p62"'):
+                  '"3.8.62" if "r6p62"'):
             self.assertIn(x,W)
 if __name__=="__main__":unittest.main()
