@@ -1,9 +1,9 @@
 {
   "schema": 2,
   "scope": "Scarlet Crystal guest top-screen overlap, touch access, rotation, remote guest render and related resident regressions",
-  "updated_utc": "2026-11-14T11:37:30+09:00",
-  "current_baseline": "Signed P55 54d24ab2b20a session99565816: native header retained unsafe9->6, Instagram wordmark overlaps story feed; second guest PID2305 unsafe0 and statusbar visible. P56 source commit 689eb11601b7 performs per-instance parent-owned feed sibling reflow and two-pass zero-risk statusbar release, local 691 tests PASS, native CI/device not yet verified.",
-  "current_issue_status": "P55 Instagram: six unsafe controls remain; clock/battery hidden due sticky collision. P56 L102 layout root-cause source modification staged, CI/IPA and signed device pending. Other independent auto-refresh/audio/keyboard status unchanged and not claimed fixed.",
+  "updated_utc": "2026-11-14T11:43:51+09:00",
+  "current_baseline": "P55 signed 54d24ab2b20a: header retained unsafe9->6 but overlaps Instagram stories; PID2305 healthy statusbar safe0. P56 L102 source 689eb116 layout feed reflow and e79af707 two-pass status safety correction, local 692 tests pass, native CI/release/device pending.",
+  "current_issue_status": "P56 functional reflow and safety source amended before signed device validation. Requires current successful native build and user visual for 0 unsafe/statusbar; P55 still known unsafe6, time/battery absent in Instagram.",
   "confidence_note": "Same signed device supports need to reflow feed with owner header, but parent.subviews unique full-width feed membership and zero-risk after P56 are hypotheses until signed-device telemetry/screenshots confirm; if absent, no body mutation and P55 retained.",
   "privacy": "No credentials, Apple ID, OTP, UDID, guest names or device identifiers are stored.",
   "entries": [
@@ -28856,15 +28856,15 @@
         "why_prior_fix_failed": "P54/P55 moved just the short header, not its scrolling body; native safe area remained62 but body content at Y50, so visual header/story overlap and unsafe6 remained. P51 sticky PID shield correctly resists transient zero but has no signed two-stage verified full content reflow release path. Previous global slot crop and scroll contentInsets altered root/scroll but did not correct the parent-owned sibling geometry."
       },
       "hypothesis": "P55 moved the child 50pt header below parent native top62 but its scroll feed sibling remained at original y50 or y0, overlapping shifted header. Moving a uniquely proven parent-owned full-width tall scroll body to the header bottom within the SAME owning controller native viewDidLayoutSubviews pass can naturally restore vertical flow while preserving bottom bound; two zero-unsafe control readbacks allow release of P51 PID sticky collision shield, with no blanket statusbar forcing.",
-      "action": "In original UIKit owner callback, identify exactly one visible direct sibling with full width, >=65% height, bottom near parent bottom and scroll-owned content; align its top to header bottom after original app layout and shrink ONLY that local feed viewport by same delta, keeping original bottom. Keep UIWindow, FBScene, root scale, contentSize, contentInset, contentOffset, tabbar, audio and signature unchanged. Verify two separated 250/1350ms readbacks with zero unsafe and feed/header geometry; otherwise disable body mutation and restore its original frame, retaining validated P55 header. Host only clears sticky statusbar collision on two-pass zero risk receipt and matching visible active PID. No generic header/frame/transforms or crop fallback.",
-      "observation": "P55 signed 2026-11-14 current session 99565816 source 54d24ab2b20a: PID2293 native header staged -> first_pass -> retained, unsafe9 at650ms ->6 at2600ms, native status_hidden true, parent guideY62, nearest scrolling ownerY50; supplied screenshot shows Instagram header drawn across story row. PID2305 separate guest unsafe0 at both samples, statusbar hidden false at 2600ms. Reflow body sibling membership is source hypothesis (not yet observed on device). P56 local tests 691 executed, 0 failures, 3 Xcode/simulator skips; native CI, IPA, signed-device proof pending.",
+      "action": "In original UIKit owner callback, identify exactly one visible direct sibling with full width, >=65% height, bottom near parent bottom and scroll-owned content; align its top to header bottom after original app layout and shrink ONLY that local feed viewport by same delta, keeping original bottom. Keep UIWindow, FBScene, root scale, contentSize, contentInset, contentOffset, tabbar, audio and signature unchanged. Verify two separated 250/1350ms readbacks with zero unsafe and feed/header geometry; otherwise disable body mutation and restore its original frame, retaining validated P55 header. Host only clears sticky statusbar collision on two-pass zero risk receipt and matching visible active PID. No generic header/frame/transforms or crop fallback. SAFETY HARDENING: content_reflow_retained event is now published AFTER original P55 reduced/hit/root-size owner gate passes, so two zero-risk results cannot clear statusbar on a concurrent native owner rollback.",
+      "observation": "P55 signed 2026-11-14 current session 99565816 source 54d24ab2b20a: PID2293 native header staged -> first_pass -> retained, unsafe9 at650ms ->6 at2600ms, native status_hidden true, parent guideY62, nearest scrolling ownerY50; supplied screenshot shows Instagram header drawn across story row. PID2305 separate guest unsafe0 at both samples, statusbar hidden false at 2600ms. Reflow body sibling membership is source hypothesis (not yet observed on device). P56 local tests 691 executed, 0 failures, 3 Xcode/simulator skips; native CI, IPA, signed-device proof pending. Source safety correction e79af707 2026-11-14 local full suite 692 tests: 0 failures, 3 environment skips. Revised code committed and CI/device pending.",
       "evidence": [
         "User current attached log Generated 2026-11-14T02:23:42Z session 99565816, SourceCommit 54d24ab2b20a, PID2293 guest_owner_layout_contract_staged/first_pass/retained, header_controls_after=6, owner_frame_y=50, visible_unsafe_controls=6 at 2600ms and status_hidden=true.",
         "User screenshot 942x2048 pixels: Instagram wordmark overlaps story circles in the same top band, clock/battery absent. Source shows P55 parent layout callback sets header.frame.y=parent guide.y but never reflows its scrolling content.",
         "Same session PID2305 records visible_unsafe_controls=0 at 650ms and 2600ms, statusbar hidden=false at later readback; statusbar can display without overriding palette when risk is zero.",
         "P51 host nativeStatusBarUnsafePIDs sticky prevents a mere transient unsafe0 later from re-enabling icons; P56 newly requires two native zero-risk body/header readbacks."
       ],
-      "status": "source_691_local_tests_pass_p56_native_ci_pending",
+      "status": "source_two_commits_692_local_tests_pass_rebuild_pending",
       "source_verification": "git_patch_observed",
       "device_verification": "P55 parent header partial pass and screenshot regressions observed. P56 source-only test passed; native iOS compiler/build, IPA and signed device full scroll/touch/clock/rotate/A-B-A not yet verified.",
       "next_executable_action": "Verify P56 Xcode 27.2 paired native build and actual unsigned IPA ZIP+sha; legitimately sign before device installation. On same Instagram check guest_owner_content_reflow_staged -> first_pass -> retained and visible unsafe controls=0 at 2600ms, no feed/hero crop, clock/battery status_hidden=false, touch/scroll/rotation and A->B->A. If no_body_candidate, inspect the exact feed parent UIView hierarchy and implement proper native owner reflow distinct from already attempted global transforms/insets, not diagnostic-only. If body_reverted, retain P55, analyze why unsafe after 2 samples; only then L103 functional change.",
@@ -29487,6 +29487,101 @@
             "- 실기기 소스 fc2fd271b9e8, 세션 990090a7, PID1841의 header_controller_parent_match=1은 문제의 50pt Y0 헤더가 plain UIView가 아니라 자식 UIViewController.view임을 입증한다. parent custom viewDidLayoutSubviews origin3, parent native safe guideY62가 같은 샘플에 존재한다."
           ],
           "commit": "b243e2d94dbae6bb6eaa3d0ffdbd3cee8143c74e"
+        },
+        {
+          "file": "rebuild/Tests/test_v48_r6p56_parent_feed_reflow.py",
+          "function": "ScarletIslandP54InstallNativeOwnerContract two-pass verify / test_v48_r6p56_parent_feed_reflow",
+          "location": "@@ -29,6 +29,11 @@ class ParentFeedReflow(unittest.TestCase):",
+          "before": [
+            "    'guest_owner_content_reflow_reverted', 'unsafe==0', 'feed.frame=oldFeed',",
+            "    'state[@\"body_disabled\"]=@YES','(int64_t)1100*NSEC_PER_MSEC'):",
+            "   self.assertIn(k,OWNER,k)",
+            " def test_status_bar_cannot_clear_for_single_transient_zero_or_p55_six(self):",
+            "  for k in ('onContentReflowVerified?(pid)','guest_owner_content_reflow_retained',",
+            "    'row[\"header_controls_after\"] as? NSNumber)?.intValue == 0',"
+          ],
+          "after": [
+            "    'guest_owner_content_reflow_reverted', 'unsafe==0', 'feed.frame=oldFeed',",
+            "    'state[@\"body_disabled\"]=@YES','(int64_t)1100*NSEC_PER_MSEC'):",
+            "   self.assertIn(k,OWNER,k)",
+            " def test_reflow_receipt_cannot_succeed_before_original_parent_hit_gate(self):",
+            "  self.assertLess(OWNER.index('BOOL reduced=unchanged &&'),",
+            "                  OWNER.index('guest_owner_content_reflow_retained'))",
+            "  self.assertIn('BOOL bodyAccepted=provenBody && reduced;',OWNER)",
+            "  self.assertIn('late && bodyAccepted',OWNER)",
+            " def test_status_bar_cannot_clear_for_single_transient_zero_or_p55_six(self):",
+            "  for k in ('onContentReflowVerified?(pid)','guest_owner_content_reflow_retained',",
+            "    'row[\"header_controls_after\"] as? NSNumber)?.intValue == 0',"
+          ],
+          "commit": "e79af7070aa39595234ea43d5c7b9044d4c1ba09"
+        },
+        {
+          "file": "rebuild/integration/ScarletGuestIslandContentGuard.m.txt",
+          "function": "ScarletIslandP54InstallNativeOwnerContract two-pass verify / test_v48_r6p56_parent_feed_reflow",
+          "location": "@@ -3233,15 +3233,6 @@ static BOOL ScarletIslandP54InstallNativeOwnerContract(",
+          "before": [
+            "            fabs(CGRectGetWidth(nowFeed)-CGRectGetWidth(oldFeed))<3 &&",
+            "            unsafe==0;",
+            "        if(bodyTrial) {",
+            "            ScarletIslandDeepHeaderTrialReceipt(",
+            "                provenBody ? (late ? @\"guest_owner_content_reflow_retained\"",
+            "                                   : @\"guest_owner_content_reflow_first_pass\")",
+            "                           : @\"guest_owner_content_reflow_reverted\",",
+            "                provenBody ? @\"native_body_scroll_header_zero_risk\"",
+            "                           : @\"body_layout_or_remaining_unsafe\",",
+            "                safeTop,CGRectGetMinY(oldFeed),",
+            "                CGRectIsNull(nowFeed) ? -999:CGRectGetMinY(nowFeed),",
+            "                beforeControls,unsafe,images,late && provenBody);",
+            "            if(!provenBody) {",
+            "                // Preserve the P55 header improvement, restore ONLY the",
+            "                // unproven feed geometry, and do not release status icons."
+          ],
+          "after": [
+            "            fabs(CGRectGetWidth(nowFeed)-CGRectGetWidth(oldFeed))<3 &&",
+            "            unsafe==0;",
+            "        if(bodyTrial) {",
+            "            if(!provenBody) {",
+            "                // Preserve the P55 header improvement, restore ONLY the",
+            "                // unproven feed geometry, and do not release status icons."
+          ],
+          "commit": "e79af7070aa39595234ea43d5c7b9044d4c1ba09"
+        },
+        {
+          "file": "rebuild/integration/ScarletGuestIslandContentGuard.m.txt",
+          "function": "ScarletIslandP54InstallNativeOwnerContract two-pass verify / test_v48_r6p56_parent_feed_reflow",
+          "location": "@@ -3265,6 +3256,21 @@ static BOOL ScarletIslandP54InstallNativeOwnerContract(",
+          "before": [
+            "            CGRectGetMinY(firstRect)>=safeTop-2 &&",
+            "            CGRectGetMinY(secondRect)>=safeTop-2 &&",
+            "            unsafe+2<=beforeControls && images<=beforeImages+1;",
+            "        if(!reduced) {",
+            "            state[@\"disabled\"]=@YES;",
+            "            if(vc && object_getClass(vc)==scoped) object_setClass(vc,original);"
+          ],
+          "after": [
+            "            CGRectGetMinY(firstRect)>=safeTop-2 &&",
+            "            CGRectGetMinY(secondRect)>=safeTop-2 &&",
+            "            unsafe+2<=beforeControls && images<=beforeImages+1;",
+            "        // Only publish a two-pass content reflow success AFTER the original",
+            "        // P55 hit/visibility/size gate also passes. Otherwise the native",
+            "        // owner can immediately revert and exposing icons would collide.",
+            "        if(bodyTrial) {",
+            "            BOOL bodyAccepted=provenBody && reduced;",
+            "            ScarletIslandDeepHeaderTrialReceipt(",
+            "                bodyAccepted ? (late ? @\"guest_owner_content_reflow_retained\"",
+            "                                     : @\"guest_owner_content_reflow_first_pass\")",
+            "                             : @\"guest_owner_content_reflow_reverted\",",
+            "                bodyAccepted ? @\"native_body_and_header_all_safe\"",
+            "                             : @\"body_or_parent_contract_not_safe\",",
+            "                safeTop,CGRectGetMinY(oldFeed),",
+            "                CGRectIsNull(nowFeed) ? -999:CGRectGetMinY(nowFeed),",
+            "                beforeControls,unsafe,images,late && bodyAccepted);",
+            "        }",
+            "        if(!reduced) {",
+            "            state[@\"disabled\"]=@YES;",
+            "            if(vc && object_getClass(vc)==scoped) object_setClass(vc,original);"
+          ],
+          "commit": "e79af7070aa39595234ea43d5c7b9044d4c1ba09"
         }
       ],
       "source_revisions": [
@@ -29500,6 +29595,12 @@
           "url": "https://github.com/fx564286/sidestore-auto-refresh/commit/b243e2d94dbae6bb6eaa3d0ffdbd3cee8143c74e",
           "title": "audit(r6p56): embed L102 exact diffs and P55 signed-device feed/status research handoff",
           "note": "Real source changes only belong to code SHA 689eb116. This revision changes audit prompt and ledger, not runtime classes."
+        },
+        {
+          "sha": "e79af7070aa39595234ea43d5c7b9044d4c1ba09",
+          "url": "https://github.com/fx564286/sidestore-auto-refresh/commit/e79af7070aa39595234ea43d5c7b9044d4c1ba09",
+          "title": "fix(r6p56): require native parent hit gate before zero-risk statusbar release",
+          "note": "Security-critical correction before real device verification: guest_owner_content_reflow_retained must not precede P55 native header hit/window validation. Host statusbar can only be released after both checks."
         }
       ],
       "generated_runtime_targets": [
