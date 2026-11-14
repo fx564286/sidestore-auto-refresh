@@ -64,7 +64,7 @@ jobs:
             ("native query function failure counters", "필수 API 누락" in Path("Erosion/Exploits/pathleak.m").read_text()),
             ("native container mapping counters", "컨테이너 관리자 클래스" in Path("Erosion/Exploits/pathleak.m").read_text()),
             ("native diagnostic bridge", "posterboard_container_manager_diagnostics()" in f),
-            ("LaunchServices CSStore2 path verification", "posterboard_lsstore_parse(bytes as NSData)" in f),
+            ("LaunchServices CSStore2 path verification", "posterboard_lsstore_parse(bytes)" in f),
             ("bounded recent-inode search", "posterboard_lsstore_file(10_000_000)" in f),
             ("read-only lsd file grant", "grantReadAccess(path:" in w),
             ("exact app identity in parser", "com.apple.PosterBoard" in Path("Erosion/Exploits/PosterBoardLSStoreCore.h").read_text()),
