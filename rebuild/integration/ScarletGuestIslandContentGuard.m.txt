@@ -3090,6 +3090,99 @@ static UIView *ScarletIslandP59UniqueRiskNativeBody(
 }
 // R6P59_RESIDUAL_UNSAFE_OWNER_END
 
+// R6P60_COMMON_SCROLL_ANCESTOR_BEGIN
+// Signed P59 PID1881: header owner retained (unsafe 9 -> 6), but the P59
+// parent-direct-child selector did not stage a content reflow at all. The
+// six remaining interactive controls are owned by a nested full-viewport
+// scroll hierarchy, not necessarily a direct parent sibling. Its existing
+// 24-level subtree scan also marks valid deep guests as capped.
+// Resolve the common scroll ancestor of ACTUAL visible unsafe controls
+// using a separate bounded 56-level, clipping-aware traversal. No guessed
+// root inset, contentOffset or global view transform is permitted.
+static void ScarletIslandP60GatherRiskControls(
+    UIView *view, UIView *excluded, UIWindow *window, CGFloat safeTop,
+    NSUInteger depth, NSUInteger *visited, BOOL *capped,
+    NSMutableArray<UIView *> *risk) {
+    if(*capped || !view || view==excluded || view.window!=window ||
+       view.hidden || view.alpha<0.05) return;
+    if(depth>56 || ++(*visited)>2400) { *capped=YES; return; }
+    BOOL clickable=[view isKindOfClass:UIControl.class] ||
+        (view.isAccessibilityElement &&
+         (view.accessibilityTraits & UIAccessibilityTraitButton)!=0);
+    if(clickable) {
+        CGRect r=[view convertRect:view.bounds toView:window];
+        if(isfinite(CGRectGetMinY(r)) &&
+           CGRectGetHeight(r)>2 && CGRectGetHeight(r)<=160 &&
+           CGRectGetMinY(r)<safeTop-2 && CGRectGetMaxY(r)>5) {
+            CGRect visible=ScarletIslandVisibleFrameInWindow(view,window);
+            if(!CGRectIsNull(visible) && !CGRectIsEmpty(visible) &&
+               CGRectGetMinY(visible)<safeTop-2 &&
+               CGRectGetMaxY(visible)>5)
+                [risk addObject:view];
+        }
+    }
+    for(UIView *child in view.subviews)
+        ScarletIslandP60GatherRiskControls(
+            child,excluded,window,safeTop,depth+1,visited,capped,risk);
+}
+static NSUInteger ScarletIslandP60FocusedUnsafe(
+    UIView *root, UIWindow *window, CGFloat safeTop, BOOL *complete) {
+    NSUInteger visited=0;
+    BOOL capped=NO;
+    NSMutableArray<UIView *> *risk=[NSMutableArray array];
+    ScarletIslandP60GatherRiskControls(
+        root,nil,window,safeTop,0,&visited,&capped,risk);
+    if(complete) *complete=!capped;
+    return risk.count;
+}
+static UIScrollView *ScarletIslandP60CommonUnsafeScroll(
+    UIView *parent, UIView *header, UIWindow *window, CGFloat safeTop,
+    UIView *p56Body) {
+    if(!parent || !header || !window ||
+       header.superview!=parent || safeTop<40 || safeTop>95)
+        return nil;
+    NSUInteger visited=0; BOOL capped=NO;
+    NSMutableArray<UIView *> *risk=[NSMutableArray array];
+    ScarletIslandP60GatherRiskControls(
+        parent,header,window,safeTop,0,&visited,&capped,risk);
+    if(capped || risk.count<3 || risk.count>32) return nil;
+    // Find the NEAREST scroll container common to all six residual nodes.
+    // The common scroll can be nested several UIViewController layers down;
+    // moving a guessed P56 full-height sibling is forbidden.
+    UIView *first=risk.firstObject;
+    for(UIView *cursor=first; cursor && cursor!=parent;
+        cursor=cursor.superview) {
+        if(![cursor isKindOfClass:UIScrollView.class] ||
+           cursor==p56Body || !CGAffineTransformIsIdentity(cursor.transform))
+            continue;
+        UIScrollView *scroll=(UIScrollView *)cursor;
+        BOOL common=YES;
+        for(UIView *node in risk) {
+            if(node!=scroll && ![node isDescendantOfView:scroll]) {
+                common=NO; break;
+            }
+        }
+        if(!common || !scroll.superview || scroll.superview.window!=window)
+            continue;
+        CGRect rect=[scroll convertRect:scroll.bounds toView:window];
+        CGFloat h=CGRectGetHeight(rect),w=CGRectGetWidth(rect);
+        if(fabs(CGRectGetMinX(rect))>4 ||
+           fabs(w-CGRectGetWidth(window.bounds))>5 ||
+           fabs(CGRectGetMinY(rect))>4 ||
+           h<CGRectGetHeight(window.bounds)*0.78 ||
+           fabs(CGRectGetMaxY(rect)-CGRectGetHeight(window.bounds))>75 ||
+           scroll.contentSize.height<h+safeTop+25 ||
+           !scroll.scrollEnabled || scroll.hidden || scroll.alpha<0.5)
+            continue;
+        // A native scrolling region whose content is already scrollable
+        // can safely accommodate a smaller viewport without changing its
+        // content size/offset/insets. The 2-pass readback below still gates.
+        return scroll;
+    }
+    return nil;
+}
+// R6P60_COMMON_SCROLL_ANCESTOR_END
+
 // R6P54_OWNER_LAYOUT_CONTRACT_BEGIN
 // R6P55 also accepts the signed P54 child UIViewController header owner.
 // Signed P53: the parent owns a custom viewDidLayoutSubviews. Changing the
@@ -3107,6 +3200,14 @@ static void ScarletIslandP54AfterNativeOwnerLayout(UIViewController *owner) {
     UIView *parent=owner.isViewLoaded ? owner.view : nil;
     UIWindow *window=parent.window;
     CGFloat target=[state[@"top"] doubleValue];
+    if([state[@"body_kind"] integerValue]==60 && window &&
+       !UIInterfaceOrientationIsPortrait(window.windowScene.interfaceOrientation)) {
+        UIView *scroll=[state[@"native_body"] anyObject];
+        UIView *bodyParent=[state[@"body_parent"] anyObject];
+        if(scroll && scroll.superview==bodyParent)
+            scroll.frame=[state[@"body_original_frame"] CGRectValue];
+        state[@"body_disabled"]=@YES;
+    }
     if(!header || !window || window.hidden ||
        parent!=header.superview || ![header isDescendantOfView:window.rootViewController.view] ||
        window.windowLevel!=UIWindowLevelNormal ||
@@ -3131,22 +3232,45 @@ static void ScarletIslandP54AfterNativeOwnerLayout(UIViewController *owner) {
         frame.origin.y=guide.origin.y;
         header.frame=frame;
     }
-    // R6P56: reflow the measured scrolling BODY with the native header.
-    // Parent-owned bottom edge and unmodified scroll content preserve reach.
+    // R6P60: native deep-scroll viewport is owned by an intermediate
+    // parent, NOT the P56/P59 direct sibling. Dock its leading viewport
+    // edge under the header without changing the scroll's content geometry.
     NSHashTable *bodyRefs=state[@"native_body"];
     UIView *body=bodyRefs.anyObject;
+    BOOL deep=[state[@"body_kind"] integerValue]==60;
+    NSHashTable *expectedParents=state[@"body_parent"];
+    UIView *expectedParent=deep ? expectedParents.anyObject : parent;
     if(body && ![state[@"body_disabled"] boolValue] &&
-       body.superview==parent && body.window==window) {
+       body.superview==expectedParent && body.window==window) {
         CGRect originalBody=[state[@"body_original_frame"] CGRectValue];
-        CGFloat desiredY=CGRectGetMaxY(header.frame);
-        CGFloat delta=desiredY-CGRectGetMinY(originalBody);
         CGRect revised=originalBody;
-        revised.origin.y=desiredY;
-        revised.size.height-=delta;
-        if(delta>=15 && delta<=target+75 &&
-           revised.size.height>=CGRectGetHeight(parent.bounds)*0.52 &&
-           fabs(CGRectGetMaxY(revised)-CGRectGetMaxY(originalBody))<1 &&
-           fabs(revised.size.width-CGRectGetWidth(parent.bounds))<=5) {
+        CGFloat delta=0;
+        BOOL extentEnough=NO;
+        if(deep && [body isKindOfClass:UIScrollView.class]) {
+            UIScrollView *scroll=(UIScrollView *)body;
+            CGRect originalWindow=[expectedParent convertRect:
+                originalBody toView:window];
+            CGRect headerWindow=[header convertRect:header.bounds toView:window];
+            delta=CGRectGetMaxY(headerWindow)-CGRectGetMinY(originalWindow);
+            revised.origin.y+=delta;
+            revised.size.height-=delta;
+            extentEnough=scroll.scrollEnabled &&
+                scroll.contentSize.height>=
+                    CGRectGetHeight(originalBody)+delta+20 &&
+                revised.size.height>=CGRectGetHeight(window.bounds)*0.65 &&
+                fabs(CGRectGetMaxY(originalWindow)-
+                     CGRectGetHeight(window.bounds))<75;
+        } else if(!deep) {
+            CGFloat desiredY=CGRectGetMaxY(header.frame);
+            delta=desiredY-CGRectGetMinY(originalBody);
+            revised.origin.y=desiredY;
+            revised.size.height-=delta;
+            extentEnough=revised.size.height>=
+                CGRectGetHeight(parent.bounds)*0.52 &&
+                fabs(revised.size.width-CGRectGetWidth(parent.bounds))<=5;
+        }
+        if(delta>=15 && delta<=target+75 && extentEnough &&
+           fabs(CGRectGetMaxY(revised)-CGRectGetMaxY(originalBody))<1) {
             if(!CGRectEqualToRect(body.frame,revised)) body.frame=revised;
             state[@"body_reflow_passes"]=@(
                 [state[@"body_reflow_passes"] unsignedIntegerValue]+1);
@@ -3223,14 +3347,30 @@ static BOOL ScarletIslandP54InstallNativeOwnerContract(
     [weakHeader addObject:header];
     UIView *p56GeometryBody=childOwned ?
         ScarletIslandP56UniqueNativeBody(parent,header,window) : nil;
-    UIView *nativeBody=childOwned ?
+    UIView *p59Body=childOwned ?
         ScarletIslandP59UniqueRiskNativeBody(
             parent,header,window,safeTop,beforeControls,p56GeometryBody) : nil;
+    UIScrollView *p60DeepScroll=childOwned ?
+        ScarletIslandP60CommonUnsafeScroll(
+            parent,header,window,safeTop,p56GeometryBody) : nil;
+    UIView *nativeBody=p60DeepScroll ? (UIView *)p60DeepScroll : p59Body;
     NSHashTable *weakBody=[NSHashTable weakObjectsHashTable];
-    if(nativeBody) [weakBody addObject:nativeBody];
+    NSHashTable *weakBodyParent=[NSHashTable weakObjectsHashTable];
+    if(nativeBody) {
+        [weakBody addObject:nativeBody];
+        [weakBodyParent addObject:nativeBody.superview];
+    }
     NSMutableDictionary *state=[@{
         @"headers":weakHeader,
         @"native_body":weakBody,
+        @"body_parent":weakBodyParent,
+        @"body_kind":@(p60DeepScroll ? 60 : 59),
+        @"body_scroll_size":[NSValue valueWithCGSize:
+            p60DeepScroll ? p60DeepScroll.contentSize : CGSizeZero],
+        @"body_scroll_offset":[NSValue valueWithCGPoint:
+            p60DeepScroll ? p60DeepScroll.contentOffset : CGPointZero],
+        @"body_scroll_inset":[NSValue valueWithUIEdgeInsets:
+            p60DeepScroll ? p60DeepScroll.contentInset : UIEdgeInsetsZero],
         @"body_original_frame":[NSValue valueWithCGRect:
             nativeBody ? nativeBody.frame : CGRectNull],
         @"body_reflow_passes":@0,
@@ -3258,7 +3398,9 @@ static BOOL ScarletIslandP54InstallNativeOwnerContract(
     [owner.view layoutIfNeeded];
     ScarletIslandP54AfterNativeOwnerLayout(owner);
     if(nativeBody) ScarletIslandDeepHeaderTrialReceipt(
-        @"guest_owner_content_reflow_staged",@"p59_unique_residual_unsafe_owner",
+        @"guest_owner_content_reflow_staged",
+        p60DeepScroll ? @"p60_nested_common_scroll_owner" :
+                        @"p59_unique_residual_unsafe_owner",
         safeTop,CGRectGetMinY([nativeBody convertRect:
             nativeBody.bounds toView:window]),
         CGRectGetMaxY([header convertRect:header.bounds toView:window]),
@@ -3295,18 +3437,51 @@ static BOOL ScarletIslandP54InstallNativeOwnerContract(
         CGRect oldFeed=[state[@"body_original_frame"] CGRectValue];
         CGRect nowFeed=bodyTrial ? feed.frame : CGRectNull;
         CGRect headFrame=unchanged ? head.frame : CGRectNull;
-        BOOL provenBody=bodyTrial && feed.superview==par &&
-            [state[@"body_reflow_passes"] unsignedIntegerValue]>0 &&
+        BOOL deep=[state[@"body_kind"] integerValue]==60;
+        NSHashTable *bodyParents=state[@"body_parent"];
+        UIView *bodyParent=deep ? bodyParents.anyObject : par;
+        CGRect movedWindow=(bodyTrial && w) ?
+            [feed convertRect:feed.bounds toView:w]:CGRectNull;
+        CGRect oldWindow=(bodyTrial && w && bodyParent) ?
+            [bodyParent convertRect:oldFeed toView:w]:CGRectNull;
+        CGRect headerWindow=(unchanged && w) ?
+            [head convertRect:head.bounds toView:w]:CGRectNull;
+        BOOL scrollStateUnchanged=YES;
+        if(deep) {
+            UIScrollView *sc=[feed isKindOfClass:UIScrollView.class] ?
+                (UIScrollView *)feed : nil;
+            scrollStateUnchanged=sc &&
+                CGSizeEqualToSize(sc.contentSize,
+                    [state[@"body_scroll_size"] CGSizeValue]) &&
+                CGPointEqualToPoint(sc.contentOffset,
+                    [state[@"body_scroll_offset"] CGPointValue]) &&
+                UIEdgeInsetsEqualToEdgeInsets(sc.contentInset,
+                    [state[@"body_scroll_inset"] UIEdgeInsetsValue]);
+        }
+        BOOL focusedComplete=NO;
+        NSUInteger focusedUnsafe=(bodyTrial && deep && unchanged) ?
+            ScarletIslandP60FocusedUnsafe(rt,w,safeTop,&focusedComplete) : 0;
+        BOOL deepGeometry=deep &&
+            !CGRectIsNull(movedWindow) && !CGRectIsNull(oldWindow) &&
+            !CGRectIsNull(headerWindow) &&
+            fabs(CGRectGetMinY(movedWindow)-
+                 CGRectGetMaxY(headerWindow))<3 &&
+            fabs(CGRectGetMaxY(movedWindow)-CGRectGetMaxY(oldWindow))<3 &&
+            fabs(CGRectGetWidth(movedWindow)-CGRectGetWidth(oldWindow))<3 &&
+            focusedComplete && focusedUnsafe==0 && scrollStateUnchanged;
+        BOOL siblingGeometry=!deep && feed.superview==par &&
             fabs(CGRectGetMinY(nowFeed)-CGRectGetMaxY(headFrame))<3 &&
             fabs(CGRectGetMaxY(nowFeed)-CGRectGetMaxY(oldFeed))<3 &&
-            fabs(CGRectGetWidth(nowFeed)-CGRectGetWidth(oldFeed))<3 &&
-            unsafe==0;
+            fabs(CGRectGetWidth(nowFeed)-CGRectGetWidth(oldFeed))<3;
+        BOOL provenBody=bodyTrial && feed.superview==bodyParent &&
+            [state[@"body_reflow_passes"] unsignedIntegerValue]>0 &&
+            (deepGeometry || siblingGeometry) && unsafe==0;
         if(bodyTrial) {
             if(!provenBody) {
                 // Preserve the P55 header improvement, restore ONLY the
                 // unproven feed geometry, and do not release status icons.
                 state[@"body_disabled"]=@YES;
-                if(feed.superview==par) feed.frame=oldFeed;
+                if(feed.superview==bodyParent) feed.frame=oldFeed;
                 if(unchanged)
                     unsafe=ScarletIslandDeepHeaderCountUnsafe(
                         rt,w,safeTop,&images);
@@ -3343,7 +3518,7 @@ static BOOL ScarletIslandP54InstallNativeOwnerContract(
         if(!reduced) {
             state[@"disabled"]=@YES;
             if(vc && object_getClass(vc)==scoped) object_setClass(vc,original);
-            if(feed && feed.superview==par) {
+            if(feed && feed.superview==bodyParent) {
                 state[@"body_disabled"]=@YES;
                 feed.frame=oldFeed;
             }

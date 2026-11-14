@@ -56,7 +56,7 @@ class R6P59RiskVerifiedOwner(unittest.TestCase):
         for marker in (
             "fix/scarlet-v48-r6p59-unsafe-feed-owner-20261114",
             "SCARLET_HOST_VERSION_ARGS=(--host-build-version 3.8.59)",
-            'version="3.8.59" if "r6p59"',
+            '"3.8.59" if "r6p59"',
             "scarlet-v48-r6p59-unsafe-feed-owner-unsigned-20261114",
             "Scarlet-Crystal-V48-R6P59-UNSAFE-FEED-OWNER-UNSIGNED.ipa"):
             self.assertIn(marker,W,marker)
