@@ -1,10 +1,10 @@
 {
   "schema": 2,
   "scope": "Scarlet Crystal guest top-screen overlap, touch access, rotation, remote guest render and related resident regressions",
-  "updated_utc": "2026-11-14T17:55:00+09:00",
-  "current_baseline": "P61 3.8.61 native CI succeeded and user iPhone confirmed SourceCommit f45095766da7. Native parent header correction retained, but six scrolling controls remain unsafe and statusbar hidden. P62 source 38edfb47dd59 modifies scroll selection/viewport size policy; device pending.",
-  "current_issue_status": "P62 safe post-docking scrolling viewport implementation source pushed. Need Xcode 27.2 build/release and signed iPhone report. P61 SideStore slot activation/backup restore and dual independent Apple Team still device unverified.",
-  "confidence_note": "P61 current device result confirmed by user log; P62 local 724 tests pass, zero proof yet of native device correctness; no statusbar unhide without zero unsafe.",
+  "updated_utc": "2026-11-14T19:20:00+09:00",
+  "current_baseline": "P62 3.8.62 native CI success; signed iPhone session 6df2a01a PID3634 shows real staged native nested scroll, reverted at 250ms, header first pass then rollback, 9→4 visible controls still unsafe, status_hidden=true. P63 per-instance nested scroll parent layout hook source 1f98f8819b56 pending native build and device.",
+  "current_issue_status": "P63 scoped deep scroll parent layout enforcement addresses failed P62 post-layout retention. Native CI, signed device proof, SideStore P61 active slot transitions and independent second Apple Team remain unverified.",
+  "confidence_note": "P62 signed device runtime events verified; P63 compile/unit tests only so far. Do not claim remaining island overlap or status icons solved without same-device zero-unsafe two-pass readback.",
   "privacy": "No credentials, Apple ID, OTP, UDID, guest names or device identifiers are stored.",
   "entries": [
     {
@@ -32755,6 +32755,412 @@
           "source_generation_script": "rebuild/integration/apply_scarlet_host.py",
           "function": "ScarletIslandP60CommonUnsafeScroll; ScarletIslandP54AfterNativeOwnerLayout",
           "note": "P62 guest runtime code is compiled inside LiveProcess while classic LC remains inert."
+        }
+      ]
+    },
+    {
+      "id": "L111",
+      "date": "2026-11-14",
+      "version": "Scarlet-V48-R6P63-scoped-native-nested-parent-layout",
+      "problem": "guest_top",
+      "mechanism": "scoped_deep_scroll_immediate_parent_post_layout_enforcement",
+      "novelty": {
+        "prior_excluded_ids": [
+          "L071",
+          "L085",
+          "L100",
+          "L101",
+          "L102",
+          "L105",
+          "L106",
+          "L110"
+        ],
+        "causal_difference": "P62 solved P60 deep-scroll candidate rejection and now actually staged a viewport for signed iPhone PID3634, but first +250ms receipt reverted body despite reduction 9→6, then the P54 header owner also reverted at +1350ms. The P54 parent UIViewController viewDidLayoutSubviews executes upstream of the nested deep scroll container UIKit layout, so that nested immediate parent may subsequently override the body frame. P63 does NOT repeat P60 candidate selection or alter root safe area: it installs a per-instance subclass on the verified scroll.superview, forwards its original layoutSubviews IMP first, and reapplies the exact native child viewport only after that nested owner finishes, with reversible class restoration, two independent zero-unsafe checks, and no global transforms/insets. Strict initial contentOffset equality is replaced with physically valid native scroll range checks because UIKit can legitimately reconcile position when the viewport height changes.",
+        "falsifiable_prediction": "P63 signed iPhone same guest shows guest_owner_content_reflow_staged; P63 parent layout hook preserves actual nested scroll viewport through both +250/+1350ms readbacks and either reduces every visible unsafe control to zero and allows native status icons, OR correctly restores exact original frame and class without exposing overlapping status icons. If still reverted, next investigation must use a different identified content owning node rather than loosening an unrelated P60 condition.",
+        "new_device_evidence": {
+          "source_commit": "919b15ff155727230fe9a0ebe3c3d41c6a033db2",
+          "event": "guest_owner_content_reflow_staged/guest_owner_content_reflow_reverted/guest_owner_layout_contract_first_pass/guest_owner_layout_contract_reverted",
+          "observed_value": "iOS27.2 P62 3.8.62 real launch session 6df2a01a PID3634: 650ms visible unsafe controls 9; real body stage at 10:17:09.067Z, reversion at 10:17:09.320Z with 6 unsafe; parent first pass then rollback at 10:17:10.428Z with 8; 2600ms unsafe 4; status_hidden=true."
+        },
+        "why_prior_fix_failed": "Prior P54 UIViewController lifecycle contract enforced header/child before deeper scrolling container parent layout, while P60/P62 used only frame assignment from owner callback, then strictly compared the initial contentOffset. P63 enforces after the verified deep child parent layout and separately validates legal native scroll offset reconciliation. It retains the existing hard zero-overlap rollback and never changes guest full-frame size."
+      },
+      "hypothesis": "P62 deep body frame is not stable through nested parent UIKit layout; a legal native scroll adjustment also violates P62 stored-offset equality even when no code manually changes contentOffset.",
+      "action": "Per-instance UIView parent layoutSubviews subclass after original IMP, safe native viewport frame enforcement, scoped unbind on rollback/orientation, allow finite legal adjusted native scroll offset while preserving size/inset and requiring two independent zero-unsafe confirmations.",
+      "observation": "P62 device observed staged then reverted. P63 728 local unittests pass, 3 skipped. Native iOS Xcode and device not verified.",
+      "evidence": "User attached P62 diagnostic current session 6df2a01a with SourceCommit 919b15ff1557, plus source patch 1f98f8819b56ebded84316465adba15d19fed9af",
+      "status": "source_committed_728_tests_pass_native_ci_device_pending",
+      "source_verification": "git_patch_observed",
+      "device_verification": "not_verified",
+      "next_executable_action": "Run fresh P63 native Xcode27.2 paired workflow; inspect C/ObjC/Swift compile and fix exact error if any; validate 3.8.63 IPA ZIP, Info.plist and checksum, publish public link. On signed iPhone PID compare 650/2600 unsafe counts, body first/retained or revert, parent class safety, status_hidden, scrolling/rotation and managed slots. Existing P62 incomplete device overlap is NOT solved yet.",
+      "rollback_commit": "442ec7113e4e1228a0c10b175cf18af73843399e",
+      "repeat_policy": "new_device_evidence_before_same_mechanism_reused",
+      "source_revisions": [
+        {
+          "sha": "1f98f8819b56ebded84316465adba15d19fed9af",
+          "title": "fix(r6p63): preserve nested guest scroll viewport after its owning parent layout",
+          "url": "https://github.com/fx564286/sidestore-auto-refresh/commit/1f98f8819b56ebded84316465adba15d19fed9af"
+        }
+      ],
+      "code_locations": [
+        {
+          "file": ".github/workflows/scarlet-paired-engines-build.yml",
+          "commit": "1f98f8819b56ebded84316465adba15d19fed9af",
+          "function": "P63 scoped nested parent layout enforcement, bounded scroll integrity and build contracts",
+          "location": "@@ -3,7 +3,7 @@ name: Scarlet paired LiveContainer and SideStore iOS build",
+          "before": [
+            "    branches: [rebuild/scarlet-from-zero-20261106, fix/scarlet-auth-status-rootcause-20261109, fix/scarlet-pr48-guest-overlay-no-resize-20261109, fix/scarlet-pr48-airpods-glass-guest-switch-v3-20261109, fix/scarlet-pr48-draggable-guest-tab-v4-20261109, fix/scarlet-pr48-v5-glass-drag-cert-recovery-20261109, fix/scarlet-pr48-v6-unified-cert-glass-20261109, fix/scarlet-pr48-v7-cert-jitless-unify-panel-rim-20261109, fix/scarlet-pr48-v8-flicker-certificate-menu-20261109, fix/scarlet-pr48-v9-single-glass-rim-20261109, fix/scarlet-pr48-v10-fixed-tab-cert-and-session-20261109, fix/scarlet-pr48-v11-module-settings-appid-20261109, fix/scarlet-pr48-v12-live-sessions-source-auto-refresh-20261109, fix/scarlet-pr48-v13-compact-settings-current-app-20261109, fix/scarlet-pr48-v14-guest-history-native-scenes-three-ids-20261109, fix/scarlet-pr48-v15-source-disclosure-icons-guest-handoff-20261109, fix/scarlet-pr48-v16-guest-switcher-icons-readback-20261110, fix/scarlet-v17-cold-switch-rotation-20261110, fix/scarlet-v18-refresh-diagnostics-native-glass-20261110, fix/scarlet-v19-active-session-switcher-20261110, fix/scarlet-v20-guest-switcher-trace-20261110, fix/scarlet-v21-hook-telemetry-persistence-20261110, fix/scarlet-v22-runtime-guest-identity-20261110, fix/scarlet-v23-session-only-switcher-20261110, fix/scarlet-v24-refresh-lifecycle-switch-receipt-20261110, fix/scarlet-v25-single-panel-outside-dismiss-20261110, fix/scarlet-v26-liquidglass-button-to-fixed-panel-morph-20261110, fix/scarlet-v27-sidestore-direct-native-refresh-20261110, fix/scarlet-v28-minimuxer-readiness-recovery-20261110, fix/scarlet-v29-inapp-rppairing-20261110, fix/scarlet-v30-restore-sidestore-active-team-20261110, fix/scarlet-v31-pairing-persistence-sheet-purple-20261110, fix/scarlet-v32-korean-copy-20261110, fix/scarlet-v33-log-rootcause-20261110, fix/scarlet-v34-iphone-virtual-resident-20261110, fix/scarlet-v35-restore-original-fullscreen-20261110, fix/scarlet-v36-remove-legacy-ui-20261110, fix/scarlet-v37-session-refresh-20261110, fix/scarlet-v38-current-launch-logs-20261110, fix/scarlet-v39-log-truth-20261110, fix/scarlet-v40-clean-work-session-20261110, fix/scarlet-v42-v40-safe-diagnostics-20261110, fix/scarlet-v43-install-rootcause-20261110, fix/scarlet-v44-rppairing-postsign-install-20261111, fix/scarlet-v45-single-viewport-liveprocess-20261111, fix/scarlet-v46-guard-provisional-guest-geometry-20261111, fix/scarlet-v47-resident-inplace-guest-switch-20261111, fix/scarlet-v48-guest-runtime-recovery-20261111, fix/scarlet-v48-restored-20261111, fix/scarlet-v48-r2-unified-switcher-20261111, fix/scarlet-v48-r3-original-pan-diagnostics-20261111, fix/scarlet-v48-r4-native-outside-remote-insets-20261111, fix/scarlet-v48-r5-attached-insets-shield-20261111, fix/scarlet-v48-r5-crash-recovery-20261111, fix/scarlet-v48-r5-recovery-r2-host-owner-20261111, fix/scarlet-v48-r5-recovery-r3-scene-authority-20261111, fix/scarlet-v48-r5-recovery-r4-native-ready-20261111, fix/scarlet-v48-r5-recovery-r5-compat-foreground-20261111, fix/scarlet-v48-r6-island-outside-audio-20261111, fix/scarlet-v48-r6p1-audio-home-focus-20261111, fix/scarlet-v48-r6p2-blocked-history-20261111, fix/scarlet-v48-r6p3-home-audio-gate-20261111, fix/scarlet-v48-r6p4-guest-audio-ack-20261112, fix/scarlet-v48-r6p7-launch-policy-rootcause-20261112, fix/scarlet-v48-r6p8-policy-field-relay-20261112, fix/scarlet-v48-r6p9-deferred-scene-boot-20261112, fix/scarlet-v48-r6p10-persistent-remediation-ledger-20261112, fix/scarlet-v48-r6p11-resident-guest-sdk-contract-20261112, fix/scarlet-v48-r6p12-instant-recent-switcher-20261112, fix/scarlet-v48-r6p14-switcher-reset-on-navigation-20261112, fix/scarlet-v48-r6p15-guest-root-island-pairing-recovery-20261112, fix/scarlet-v48-r6p16-audit-coverage-20261112, fix/scarlet-v48-r6p17-resident-optin-defaults-20261112, fix/scarlet-v48-r6p18-guest-content-geometry-20261112, fix/scarlet-v48-r6p19-entitlement-failclosed-network-recovery-20261112, fix/scarlet-v48-r6p20-auth-session-bg-id-20261112, fix/scarlet-v48-r6p21-depth-probe-cert-recheck-20261112, fix/scarlet-v48-r6p22-guest-scroll-content-inset-20261112, fix/scarlet-v48-r6p23-guest-owner-refresh-stage-20261112, fix/scarlet-v48-r6p24-keyboard-stage-relay-20261112, fix/scarlet-v48-r6p25-visibility-occlusion-20261112, fix/scarlet-v48-r6p26-recorder-field-contract-20261112, fix/scarlet-v48-r6p27-visible-scroll-owner-20261112, fix/scarlet-v48-r6p28-guest-local-scroll-inset-20261112, fix/scarlet-v48-r6p29-residual-auto-inset-20261112, fix/scarlet-v48-r6p30-inset-interference-isolation-20261112, fix/scarlet-v48-r6p31-nonvertical-always-safearea-20261112, fix/scarlet-v48-r6p32-nonscrolling-owner-stabilization-20261112, fix/scarlet-v48-r6p33-deferred-inset-anchor-20261112, fix/scarlet-v48-r6p34-constraint-native-error-proof-20261112, fix/scarlet-v48-r6p35-ancestor-layout-owner-20261112, fix/scarlet-v48-r6p36-lost-guest-probe-readback-20261112, fix/scarlet-v48-r6p37-nested-header-safe-guide-anchor-20261112, fix/scarlet-v48-r6p38-header-layout-owner-20261113, fix/scarlet-v48-r6p39-parent-safe-guide-constraint-20261113, fix/scarlet-v48-r6p40-transparent-chrome-slot-20261113, fix/scarlet-v48-r6p41-adaptive-chrome-stickiness-20261113, fix/scarlet-v48-r6p42-guest-matched-status-chrome-20261113, fix/scarlet-v48-r6p43-host-verified-native-slot-20261113, fix/scarlet-v48-r6p44-full-native-scroll-header-20261113, fix/scarlet-v48-r6p45-scroll-aware-header-proof-20261113, fix/scarlet-v48-r6p46-detached-header-full-scroll-20261113, fix/scarlet-v48-r6p47-lifecycle-statusbar-20261113, fix/scarlet-v48-r6p48-fresh-proof-crop-gate-20261113, fix/scarlet-v48-r6p49-key-host-statusbar-20261113, fix/scarlet-v48-r6p50-scroll-crop-veto-20261113, fix/scarlet-v48-r6p51-native-statusbar-collision-shield-20261113, fix/scarlet-v48-r6p52-restore-original-host-colors-20261113, fix/scarlet-v48-r6p53-current-log-followup-20261113, fix/scarlet-v48-r6p54-owning-layout-contract-20261114, fix/scarlet-v48-r6p55-child-controller-owner-layout-20261114, fix/scarlet-v48-r6p56-parent-feed-reflow-20261114, fix/scarlet-v48-r6p57-guest-overwrite-20261114, fix/scarlet-v48-r6p58-install-identity-20261114, fix/scarlet-v48-r6p59-unsafe-feed-owner-20261114, fix/scarlet-v48-r6p60-deep-owner-20261114, fix/scarlet-v48-r6p61-slot-manager-20261114, fix/scarlet-v48-r6p62-scroll-viewport-20261114]"
+          ],
+          "after": [
+            "    branches: [rebuild/scarlet-from-zero-20261106, fix/scarlet-auth-status-rootcause-20261109, fix/scarlet-pr48-guest-overlay-no-resize-20261109, fix/scarlet-pr48-airpods-glass-guest-switch-v3-20261109, fix/scarlet-pr48-draggable-guest-tab-v4-20261109, fix/scarlet-pr48-v5-glass-drag-cert-recovery-20261109, fix/scarlet-pr48-v6-unified-cert-glass-20261109, fix/scarlet-pr48-v7-cert-jitless-unify-panel-rim-20261109, fix/scarlet-pr48-v8-flicker-certificate-menu-20261109, fix/scarlet-pr48-v9-single-glass-rim-20261109, fix/scarlet-pr48-v10-fixed-tab-cert-and-session-20261109, fix/scarlet-pr48-v11-module-settings-appid-20261109, fix/scarlet-pr48-v12-live-sessions-source-auto-refresh-20261109, fix/scarlet-pr48-v13-compact-settings-current-app-20261109, fix/scarlet-pr48-v14-guest-history-native-scenes-three-ids-20261109, fix/scarlet-pr48-v15-source-disclosure-icons-guest-handoff-20261109, fix/scarlet-pr48-v16-guest-switcher-icons-readback-20261110, fix/scarlet-v17-cold-switch-rotation-20261110, fix/scarlet-v18-refresh-diagnostics-native-glass-20261110, fix/scarlet-v19-active-session-switcher-20261110, fix/scarlet-v20-guest-switcher-trace-20261110, fix/scarlet-v21-hook-telemetry-persistence-20261110, fix/scarlet-v22-runtime-guest-identity-20261110, fix/scarlet-v23-session-only-switcher-20261110, fix/scarlet-v24-refresh-lifecycle-switch-receipt-20261110, fix/scarlet-v25-single-panel-outside-dismiss-20261110, fix/scarlet-v26-liquidglass-button-to-fixed-panel-morph-20261110, fix/scarlet-v27-sidestore-direct-native-refresh-20261110, fix/scarlet-v28-minimuxer-readiness-recovery-20261110, fix/scarlet-v29-inapp-rppairing-20261110, fix/scarlet-v30-restore-sidestore-active-team-20261110, fix/scarlet-v31-pairing-persistence-sheet-purple-20261110, fix/scarlet-v32-korean-copy-20261110, fix/scarlet-v33-log-rootcause-20261110, fix/scarlet-v34-iphone-virtual-resident-20261110, fix/scarlet-v35-restore-original-fullscreen-20261110, fix/scarlet-v36-remove-legacy-ui-20261110, fix/scarlet-v37-session-refresh-20261110, fix/scarlet-v38-current-launch-logs-20261110, fix/scarlet-v39-log-truth-20261110, fix/scarlet-v40-clean-work-session-20261110, fix/scarlet-v42-v40-safe-diagnostics-20261110, fix/scarlet-v43-install-rootcause-20261110, fix/scarlet-v44-rppairing-postsign-install-20261111, fix/scarlet-v45-single-viewport-liveprocess-20261111, fix/scarlet-v46-guard-provisional-guest-geometry-20261111, fix/scarlet-v47-resident-inplace-guest-switch-20261111, fix/scarlet-v48-guest-runtime-recovery-20261111, fix/scarlet-v48-restored-20261111, fix/scarlet-v48-r2-unified-switcher-20261111, fix/scarlet-v48-r3-original-pan-diagnostics-20261111, fix/scarlet-v48-r4-native-outside-remote-insets-20261111, fix/scarlet-v48-r5-attached-insets-shield-20261111, fix/scarlet-v48-r5-crash-recovery-20261111, fix/scarlet-v48-r5-recovery-r2-host-owner-20261111, fix/scarlet-v48-r5-recovery-r3-scene-authority-20261111, fix/scarlet-v48-r5-recovery-r4-native-ready-20261111, fix/scarlet-v48-r5-recovery-r5-compat-foreground-20261111, fix/scarlet-v48-r6-island-outside-audio-20261111, fix/scarlet-v48-r6p1-audio-home-focus-20261111, fix/scarlet-v48-r6p2-blocked-history-20261111, fix/scarlet-v48-r6p3-home-audio-gate-20261111, fix/scarlet-v48-r6p4-guest-audio-ack-20261112, fix/scarlet-v48-r6p7-launch-policy-rootcause-20261112, fix/scarlet-v48-r6p8-policy-field-relay-20261112, fix/scarlet-v48-r6p9-deferred-scene-boot-20261112, fix/scarlet-v48-r6p10-persistent-remediation-ledger-20261112, fix/scarlet-v48-r6p11-resident-guest-sdk-contract-20261112, fix/scarlet-v48-r6p12-instant-recent-switcher-20261112, fix/scarlet-v48-r6p14-switcher-reset-on-navigation-20261112, fix/scarlet-v48-r6p15-guest-root-island-pairing-recovery-20261112, fix/scarlet-v48-r6p16-audit-coverage-20261112, fix/scarlet-v48-r6p17-resident-optin-defaults-20261112, fix/scarlet-v48-r6p18-guest-content-geometry-20261112, fix/scarlet-v48-r6p19-entitlement-failclosed-network-recovery-20261112, fix/scarlet-v48-r6p20-auth-session-bg-id-20261112, fix/scarlet-v48-r6p21-depth-probe-cert-recheck-20261112, fix/scarlet-v48-r6p22-guest-scroll-content-inset-20261112, fix/scarlet-v48-r6p23-guest-owner-refresh-stage-20261112, fix/scarlet-v48-r6p24-keyboard-stage-relay-20261112, fix/scarlet-v48-r6p25-visibility-occlusion-20261112, fix/scarlet-v48-r6p26-recorder-field-contract-20261112, fix/scarlet-v48-r6p27-visible-scroll-owner-20261112, fix/scarlet-v48-r6p28-guest-local-scroll-inset-20261112, fix/scarlet-v48-r6p29-residual-auto-inset-20261112, fix/scarlet-v48-r6p30-inset-interference-isolation-20261112, fix/scarlet-v48-r6p31-nonvertical-always-safearea-20261112, fix/scarlet-v48-r6p32-nonscrolling-owner-stabilization-20261112, fix/scarlet-v48-r6p33-deferred-inset-anchor-20261112, fix/scarlet-v48-r6p34-constraint-native-error-proof-20261112, fix/scarlet-v48-r6p35-ancestor-layout-owner-20261112, fix/scarlet-v48-r6p36-lost-guest-probe-readback-20261112, fix/scarlet-v48-r6p37-nested-header-safe-guide-anchor-20261112, fix/scarlet-v48-r6p38-header-layout-owner-20261113, fix/scarlet-v48-r6p39-parent-safe-guide-constraint-20261113, fix/scarlet-v48-r6p40-transparent-chrome-slot-20261113, fix/scarlet-v48-r6p41-adaptive-chrome-stickiness-20261113, fix/scarlet-v48-r6p42-guest-matched-status-chrome-20261113, fix/scarlet-v48-r6p43-host-verified-native-slot-20261113, fix/scarlet-v48-r6p44-full-native-scroll-header-20261113, fix/scarlet-v48-r6p45-scroll-aware-header-proof-20261113, fix/scarlet-v48-r6p46-detached-header-full-scroll-20261113, fix/scarlet-v48-r6p47-lifecycle-statusbar-20261113, fix/scarlet-v48-r6p48-fresh-proof-crop-gate-20261113, fix/scarlet-v48-r6p49-key-host-statusbar-20261113, fix/scarlet-v48-r6p50-scroll-crop-veto-20261113, fix/scarlet-v48-r6p51-native-statusbar-collision-shield-20261113, fix/scarlet-v48-r6p52-restore-original-host-colors-20261113, fix/scarlet-v48-r6p53-current-log-followup-20261113, fix/scarlet-v48-r6p54-owning-layout-contract-20261114, fix/scarlet-v48-r6p55-child-controller-owner-layout-20261114, fix/scarlet-v48-r6p56-parent-feed-reflow-20261114, fix/scarlet-v48-r6p57-guest-overwrite-20261114, fix/scarlet-v48-r6p58-install-identity-20261114, fix/scarlet-v48-r6p59-unsafe-feed-owner-20261114, fix/scarlet-v48-r6p60-deep-owner-20261114, fix/scarlet-v48-r6p61-slot-manager-20261114, fix/scarlet-v48-r6p62-scroll-viewport-20261114, fix/scarlet-v48-r6p63-nested-parent-20261114]"
+          ]
+        },
+        {
+          "file": ".github/workflows/scarlet-paired-engines-build.yml",
+          "commit": "1f98f8819b56ebded84316465adba15d19fed9af",
+          "function": "P63 scoped nested parent layout enforcement, bounded scroll integrity and build contracts",
+          "location": "@@ -326,7 +326,9 @@ jobs:",
+          "before": [
+            "          if [ \"$GITHUB_REF\" = \"refs/heads/fix/scarlet-v48-r6p62-scroll-viewport-20261114\" ]; then"
+          ],
+          "after": [
+            "          if [ \"$GITHUB_REF\" = \"refs/heads/fix/scarlet-v48-r6p63-nested-parent-20261114\" ]; then",
+            "            SCARLET_HOST_VERSION_ARGS=(--host-build-version 3.8.63)",
+            "          elif [ \"$GITHUB_REF\" = \"refs/heads/fix/scarlet-v48-r6p62-scroll-viewport-20261114\" ]; then"
+          ]
+        },
+        {
+          "file": ".github/workflows/scarlet-paired-engines-build.yml",
+          "commit": "1f98f8819b56ebded84316465adba15d19fed9af",
+          "function": "P63 scoped nested parent layout enforcement, bounded scroll integrity and build contracts",
+          "location": "@@ -366,7 +368,7 @@ jobs:",
+          "before": [
+            "    if: github.event_name == 'push' && (github.ref == 'refs/heads/rebuild/scarlet-from-zero-20261106' || github.ref == 'refs/heads/fix/scarlet-v31-pairing-persistence-sheet-purple-20261110' || github.ref == 'refs/heads/fix/scarlet-v32-korean-copy-20261110' || github.ref == 'refs/heads/fix/scarlet-v33-log-rootcause-20261110' || github.ref == 'refs/heads/fix/scarlet-v34-iphone-virtual-resident-20261110' || github.ref == 'refs/heads/fix/scarlet-v35-restore-original-fullscreen-20261110' || github.ref == 'refs/heads/fix/scarlet-v36-remove-legacy-ui-20261110' || github.ref == 'refs/heads/fix/scarlet-v37-session-refresh-20261110' || github.ref == 'refs/heads/fix/scarlet-v38-current-launch-logs-20261110' || github.ref == 'refs/heads/fix/scarlet-v39-log-truth-20261110' || github.ref == 'refs/heads/fix/scarlet-v40-clean-work-session-20261110' || github.ref == 'refs/heads/fix/scarlet-v42-v40-safe-diagnostics-20261110' || github.ref == 'refs/heads/fix/scarlet-v43-install-rootcause-20261110' || github.ref == 'refs/heads/fix/scarlet-v44-rppairing-postsign-install-20261111' || github.ref == 'refs/heads/fix/scarlet-v45-single-viewport-liveprocess-20261111' || github.ref == 'refs/heads/fix/scarlet-v46-guard-provisional-guest-geometry-20261111' || github.ref == 'refs/heads/fix/scarlet-v47-resident-inplace-guest-switch-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-guest-runtime-recovery-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-restored-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r2-unified-switcher-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r3-original-pan-diagnostics-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r4-native-outside-remote-insets-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r5-attached-insets-shield-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r5-crash-recovery-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r5-recovery-r2-host-owner-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r5-recovery-r3-scene-authority-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r5-recovery-r4-native-ready-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r5-recovery-r5-compat-foreground-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r6-island-outside-audio-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r6p1-audio-home-focus-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r6p2-blocked-history-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r6p3-home-audio-gate-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r6p4-guest-audio-ack-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p7-launch-policy-rootcause-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p8-policy-field-relay-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p9-deferred-scene-boot-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p10-persistent-remediation-ledger-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p11-resident-guest-sdk-contract-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p12-instant-recent-switcher-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p14-switcher-reset-on-navigation-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p15-guest-root-island-pairing-recovery-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p16-audit-coverage-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p17-resident-optin-defaults-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p18-guest-content-geometry-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p19-entitlement-failclosed-network-recovery-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p20-auth-session-bg-id-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p21-depth-probe-cert-recheck-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p22-guest-scroll-content-inset-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p23-guest-owner-refresh-stage-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p24-keyboard-stage-relay-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p25-visibility-occlusion-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p26-recorder-field-contract-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p27-visible-scroll-owner-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p28-guest-local-scroll-inset-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p29-residual-auto-inset-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p30-inset-interference-isolation-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p31-nonvertical-always-safearea-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p32-nonscrolling-owner-stabilization-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p33-deferred-inset-anchor-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p34-constraint-native-error-proof-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p35-ancestor-layout-owner-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p36-lost-guest-probe-readback-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p37-nested-header-safe-guide-anchor-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p38-header-layout-owner-20261113' || github.ref == 'refs/heads/fix/scarlet-v48-r6p39-parent-safe-guide-constraint-20261113' || github.ref == 'refs/heads/fix/scarlet-v48-r6p40-transparent-chrome-slot-20261113' || github.ref == 'refs/heads/fix/scarlet-v48-r6p41-adaptive-chrome-stickiness-20261113' || github.ref == 'refs/heads/fix/scarlet-v48-r6p42-guest-matched-status-chrome-20261113' || github.ref == 'refs/heads/fix/scarlet-v48-r6p43-host-verified-native-slot-20261113' || github.ref == 'refs/heads/fix/scarlet-v48-r6p44-full-native-scroll-header-20261113' || github.ref == 'refs/heads/fix/scarlet-v48-r6p45-scroll-aware-header-proof-20261113' || github.ref == 'refs/heads/fix/scarlet-v48-r6p46-detached-header-full-scroll-20261113' || github.ref == 'refs/heads/fix/scarlet-v48-r6p47-lifecycle-statusbar-20261113' || github.ref == 'refs/heads/fix/scarlet-v48-r6p48-fresh-proof-crop-gate-20261113' || github.ref == 'refs/heads/fix/scarlet-v48-r6p49-key-host-statusbar-20261113' || github.ref == 'refs/heads/fix/scarlet-v48-r6p50-scroll-crop-veto-20261113' || github.ref == 'refs/heads/fix/scarlet-v48-r6p51-native-statusbar-collision-shield-20261113' || github.ref == 'refs/heads/fix/scarlet-v48-r6p52-restore-original-host-colors-20261113' || github.ref == 'refs/heads/fix/scarlet-v48-r6p53-current-log-followup-20261113' || github.ref == 'refs/heads/fix/scarlet-v48-r6p54-owning-layout-contract-20261114' || github.ref == 'refs/heads/fix/scarlet-v48-r6p55-child-controller-owner-layout-20261114' || github.ref == 'refs/heads/fix/scarlet-v48-r6p56-parent-feed-reflow-20261114' || github.ref == 'refs/heads/fix/scarlet-v48-r6p57-guest-overwrite-20261114' || github.ref == 'refs/heads/fix/scarlet-v48-r6p58-install-identity-20261114' || github.ref == 'refs/heads/fix/scarlet-v48-r6p59-unsafe-feed-owner-20261114' || github.ref == 'refs/heads/fix/scarlet-v48-r6p60-deep-owner-20261114' || github.ref == 'refs/heads/fix/scarlet-v48-r6p61-slot-manager-20261114')"
+          ],
+          "after": [
+            "    if: github.event_name == 'push' && (github.ref == 'refs/heads/rebuild/scarlet-from-zero-20261106' || github.ref == 'refs/heads/fix/scarlet-v31-pairing-persistence-sheet-purple-20261110' || github.ref == 'refs/heads/fix/scarlet-v32-korean-copy-20261110' || github.ref == 'refs/heads/fix/scarlet-v33-log-rootcause-20261110' || github.ref == 'refs/heads/fix/scarlet-v34-iphone-virtual-resident-20261110' || github.ref == 'refs/heads/fix/scarlet-v35-restore-original-fullscreen-20261110' || github.ref == 'refs/heads/fix/scarlet-v36-remove-legacy-ui-20261110' || github.ref == 'refs/heads/fix/scarlet-v37-session-refresh-20261110' || github.ref == 'refs/heads/fix/scarlet-v38-current-launch-logs-20261110' || github.ref == 'refs/heads/fix/scarlet-v39-log-truth-20261110' || github.ref == 'refs/heads/fix/scarlet-v40-clean-work-session-20261110' || github.ref == 'refs/heads/fix/scarlet-v42-v40-safe-diagnostics-20261110' || github.ref == 'refs/heads/fix/scarlet-v43-install-rootcause-20261110' || github.ref == 'refs/heads/fix/scarlet-v44-rppairing-postsign-install-20261111' || github.ref == 'refs/heads/fix/scarlet-v45-single-viewport-liveprocess-20261111' || github.ref == 'refs/heads/fix/scarlet-v46-guard-provisional-guest-geometry-20261111' || github.ref == 'refs/heads/fix/scarlet-v47-resident-inplace-guest-switch-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-guest-runtime-recovery-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-restored-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r2-unified-switcher-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r3-original-pan-diagnostics-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r4-native-outside-remote-insets-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r5-attached-insets-shield-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r5-crash-recovery-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r5-recovery-r2-host-owner-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r5-recovery-r3-scene-authority-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r5-recovery-r4-native-ready-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r5-recovery-r5-compat-foreground-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r6-island-outside-audio-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r6p1-audio-home-focus-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r6p2-blocked-history-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r6p3-home-audio-gate-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r6p4-guest-audio-ack-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p7-launch-policy-rootcause-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p8-policy-field-relay-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p9-deferred-scene-boot-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p10-persistent-remediation-ledger-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p11-resident-guest-sdk-contract-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p12-instant-recent-switcher-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p14-switcher-reset-on-navigation-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p15-guest-root-island-pairing-recovery-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p16-audit-coverage-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p17-resident-optin-defaults-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p18-guest-content-geometry-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p19-entitlement-failclosed-network-recovery-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p20-auth-session-bg-id-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p21-depth-probe-cert-recheck-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p22-guest-scroll-content-inset-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p23-guest-owner-refresh-stage-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p24-keyboard-stage-relay-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p25-visibility-occlusion-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p26-recorder-field-contract-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p27-visible-scroll-owner-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p28-guest-local-scroll-inset-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p29-residual-auto-inset-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p30-inset-interference-isolation-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p31-nonvertical-always-safearea-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p32-nonscrolling-owner-stabilization-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p33-deferred-inset-anchor-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p34-constraint-native-error-proof-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p35-ancestor-layout-owner-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p36-lost-guest-probe-readback-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p37-nested-header-safe-guide-anchor-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p38-header-layout-owner-20261113' || github.ref == 'refs/heads/fix/scarlet-v48-r6p39-parent-safe-guide-constraint-20261113' || github.ref == 'refs/heads/fix/scarlet-v48-r6p40-transparent-chrome-slot-20261113' || github.ref == 'refs/heads/fix/scarlet-v48-r6p41-adaptive-chrome-stickiness-20261113' || github.ref == 'refs/heads/fix/scarlet-v48-r6p42-guest-matched-status-chrome-20261113' || github.ref == 'refs/heads/fix/scarlet-v48-r6p43-host-verified-native-slot-20261113' || github.ref == 'refs/heads/fix/scarlet-v48-r6p44-full-native-scroll-header-20261113' || github.ref == 'refs/heads/fix/scarlet-v48-r6p45-scroll-aware-header-proof-20261113' || github.ref == 'refs/heads/fix/scarlet-v48-r6p46-detached-header-full-scroll-20261113' || github.ref == 'refs/heads/fix/scarlet-v48-r6p47-lifecycle-statusbar-20261113' || github.ref == 'refs/heads/fix/scarlet-v48-r6p48-fresh-proof-crop-gate-20261113' || github.ref == 'refs/heads/fix/scarlet-v48-r6p49-key-host-statusbar-20261113' || github.ref == 'refs/heads/fix/scarlet-v48-r6p50-scroll-crop-veto-20261113' || github.ref == 'refs/heads/fix/scarlet-v48-r6p51-native-statusbar-collision-shield-20261113' || github.ref == 'refs/heads/fix/scarlet-v48-r6p52-restore-original-host-colors-20261113' || github.ref == 'refs/heads/fix/scarlet-v48-r6p53-current-log-followup-20261113' || github.ref == 'refs/heads/fix/scarlet-v48-r6p54-owning-layout-contract-20261114' || github.ref == 'refs/heads/fix/scarlet-v48-r6p55-child-controller-owner-layout-20261114' || github.ref == 'refs/heads/fix/scarlet-v48-r6p56-parent-feed-reflow-20261114' || github.ref == 'refs/heads/fix/scarlet-v48-r6p57-guest-overwrite-20261114' || github.ref == 'refs/heads/fix/scarlet-v48-r6p58-install-identity-20261114' || github.ref == 'refs/heads/fix/scarlet-v48-r6p59-unsafe-feed-owner-20261114' || github.ref == 'refs/heads/fix/scarlet-v48-r6p60-deep-owner-20261114' || github.ref == 'refs/heads/fix/scarlet-v48-r6p61-slot-manager-20261114' || github.ref == 'refs/heads/fix/scarlet-v48-r6p63-nested-parent-20261114')"
+          ]
+        },
+        {
+          "file": ".github/workflows/scarlet-paired-engines-build.yml",
+          "commit": "1f98f8819b56ebded84316465adba15d19fed9af",
+          "function": "P63 scoped nested parent layout enforcement, bounded scroll integrity and build contracts",
+          "location": "@@ -393,11 +395,11 @@ jobs:",
+          "before": [
+            "              if any(x in __import__(\"os\").environ.get(\"GITHUB_REF\",\"\") for x in (\"r6p58\",\"r6p59\",\"r6p60\",\"r6p61\",\"r6p62\")):",
+            "                  version=\"3.8.62\" if \"r6p62\" in __import__(\"os\").environ.get(\"GITHUB_REF\",\"\") else (\"3.8.61\" if \"r6p61\" in __import__(\"os\").environ.get(\"GITHUB_REF\",\"\") else (\"3.8.60\" if \"r6p60\" in __import__(\"os\").environ.get(\"GITHUB_REF\",\"\") else (\"3.8.59\" if \"r6p59\" in __import__(\"os\").environ.get(\"GITHUB_REF\",\"\") else \"3.8.58\")))"
+          ],
+          "after": [
+            "              if any(x in __import__(\"os\").environ.get(\"GITHUB_REF\",\"\") for x in (\"r6p58\",\"r6p59\",\"r6p60\",\"r6p61\",\"r6p62\",\"r6p63\")):",
+            "                  version=\"3.8.63\" if \"r6p63\" in __import__(\"os\").environ.get(\"GITHUB_REF\",\"\") else (\"3.8.62\" if \"r6p62\" in __import__(\"os\").environ.get(\"GITHUB_REF\",\"\") else (\"3.8.61\" if \"r6p61\" in __import__(\"os\").environ.get(\"GITHUB_REF\",\"\") else (\"3.8.60\" if \"r6p60\" in __import__(\"os\").environ.get(\"GITHUB_REF\",\"\") else (\"3.8.59\" if \"r6p59\" in __import__(\"os\").environ.get(\"GITHUB_REF\",\"\") else \"3.8.58\"))))"
+          ]
+        },
+        {
+          "file": ".github/workflows/scarlet-paired-engines-build.yml",
+          "commit": "1f98f8819b56ebded84316465adba15d19fed9af",
+          "function": "P63 scoped nested parent layout enforcement, bounded scroll integrity and build contracts",
+          "location": "@@ -405,7 +407,9 @@ jobs:",
+          "before": [
+            "          if [ \"$GITHUB_REF\" = \"refs/heads/fix/scarlet-v48-r6p62-scroll-viewport-20261114\" ]; then"
+          ],
+          "after": [
+            "          if [ \"$GITHUB_REF\" = \"refs/heads/fix/scarlet-v48-r6p63-nested-parent-20261114\" ]; then",
+            "            asset=\"Scarlet-Crystal-V48-R6P63-NESTED-PARENT-UNSIGNED.ipa\"",
+            "          elif [ \"$GITHUB_REF\" = \"refs/heads/fix/scarlet-v48-r6p62-scroll-viewport-20261114\" ]; then"
+          ]
+        },
+        {
+          "file": ".github/workflows/scarlet-paired-engines-build.yml",
+          "commit": "1f98f8819b56ebded84316465adba15d19fed9af",
+          "function": "P63 scoped nested parent layout enforcement, bounded scroll integrity and build contracts",
+          "location": "@@ -603,7 +607,10 @@ jobs:",
+          "before": [
+            "          if [ \"$GITHUB_REF\" = \"refs/heads/fix/scarlet-v48-r6p62-scroll-viewport-20261114\" ]; then"
+          ],
+          "after": [
+            "          if [ \"$GITHUB_REF\" = \"refs/heads/fix/scarlet-v48-r6p63-nested-parent-20261114\" ]; then",
+            "            tag=scarlet-v48-r6p63-nested-parent-unsigned-20261114",
+            "            asset=Scarlet-Crystal-V48-R6P63-NESTED-PARENT-UNSIGNED.ipa",
+            "          elif [ \"$GITHUB_REF\" = \"refs/heads/fix/scarlet-v48-r6p62-scroll-viewport-20261114\" ]; then"
+          ]
+        },
+        {
+          "file": "rebuild/Tests/test_v48_r6p60_nested_scroll_owner.py",
+          "commit": "1f98f8819b56ebded84316465adba15d19fed9af",
+          "function": "P63 scoped nested parent layout enforcement, bounded scroll integrity and build contracts",
+          "location": "@@ -32,7 +32,7 @@ class P60NestedOwner(unittest.TestCase):",
+          "before": [
+            "                  'CGPointEqualToPoint(sc.contentOffset',"
+          ],
+          "after": [
+            "                  'isfinite(sc.contentOffset.y)',"
+          ]
+        },
+        {
+          "file": "rebuild/Tests/test_v48_r6p62_native_scroll_viewport.py",
+          "commit": "1f98f8819b56ebded84316465adba15d19fed9af",
+          "function": "P63 scoped nested parent layout enforcement, bounded scroll integrity and build contracts",
+          "location": "@@ -30,6 +30,6 @@ class P62Viewport(unittest.TestCase):",
+          "before": [
+            "                  'version=\"3.8.62\" if \"r6p62\"'):"
+          ],
+          "after": [
+            "                  '\"3.8.62\" if \"r6p62\"'):"
+          ]
+        },
+        {
+          "file": "rebuild/Tests/test_v48_r6p63_nested_parent_layout_owner.py",
+          "commit": "1f98f8819b56ebded84316465adba15d19fed9af",
+          "function": "P63 scoped nested parent layout enforcement, bounded scroll integrity and build contracts",
+          "location": "@@ -0,0 +1,45 @@",
+          "before": [],
+          "after": [
+            "\"\"\"P63: scope the P62 nested-scroll reflow to the actual parent layout completion.\"\"\"",
+            "from pathlib import Path",
+            "import unittest",
+            "R=Path(__file__).resolve().parents[1]",
+            "S=(R/'integration/ScarletGuestIslandContentGuard.m.txt').read_text()",
+            "W=(R.parent/'.github/workflows/scarlet-paired-engines-build.yml').read_text()",
+            "P=S.split('// R6P63_NESTED_LAYOUT_OWNER_BEGIN',1)[1].split('// R6P63_NESTED_LAYOUT_OWNER_END',1)[0]",
+            "O=S.split('// R6P54_OWNER_LAYOUT_CONTRACT_BEGIN',1)[1].split('// R6P54_OWNER_LAYOUT_CONTRACT_END',1)[0]",
+            "class P63NestedParent(unittest.TestCase):",
+            " def test_actual_parent_layout_after_original_method_and_per_instance(self):",
+            "  for x in ('ScarletIslandP63BindNestedParent','ScarletIslandP63MaintainNestedViewport',",
+            "    'ScarletIslandP63UnbindNestedParent','@selector(layoutSubviews)',",
+            "    '((void (*)(id,SEL))originalIMP)(receiver,selector);',",
+            "    'ScarletIslandP63MaintainNestedViewport(receiver);',",
+            "    'objc_setAssociatedObject(parent,&scarletIslandP63NestedParentLayoutKey',",
+            "    'object_setClass(parent,scoped)', 'scroll.superview!=parent',",
+            "    'window.windowScene.activationState!=UISceneActivationStateForegroundActive',",
+            "    'revised.origin.y+=delta','revised.size.height-=delta'):",
+            "   self.assertIn(x,P,x)",
+            "  self.assertNotIn('method_exchangeImplementations',P)",
+            " def test_dock_only_after_identified_parent_own_layout_and_support_rollback(self):",
+            "  for x in ('ScarletIslandP63BindNestedParent(\\n            p60DeepScroll.superview,state)',",
+            "   '[p60DeepScroll.superview layoutIfNeeded]',",
+            "   'ScarletIslandP63MaintainNestedViewport(p60DeepScroll.superview)',",
+            "   'ScarletIslandP63UnbindNestedParent(bodyParent,state)',",
+            "   'focusedComplete && focusedUnsafe==0 && scrollStateUnchanged',",
+            "   'bodyTrial && feed.superview==bodyParent',",
+            "   'feed.frame=oldFeed;','native_status','state[@\"body_disabled\"]=@YES;'):",
+            "   if x=='native_status': continue",
+            "   self.assertIn(x,O,x)",
+            "  self.assertIn('ScarletIslandP63UnbindNestedParent(bodyParent,state);',O)",
+            " def test_native_offset_reconciles_only_within_bound_and_content_unchanged(self):",
+            "  for x in ('CGSizeEqualToSize(sc.contentSize','isfinite(sc.contentOffset.y)',",
+            "    'sc.contentOffset.y>=-sc.adjustedContentInset.top-4',",
+            "    'sc.contentSize.height-CGRectGetHeight(sc.bounds)',",
+            "    'UIEdgeInsetsEqualToEdgeInsets(sc.contentInset'):",
+            "   self.assertIn(x,O,x)",
+            "  self.assertNotIn('CGPointEqualToPoint(sc.contentOffset',O)",
+            " def test_build_identity(self):",
+            "  for x in ('fix/scarlet-v48-r6p63-nested-parent-20261114',",
+            "    'SCARLET_HOST_VERSION_ARGS=(--host-build-version 3.8.63)',",
+            "    'Scarlet-Crystal-V48-R6P63-NESTED-PARENT-UNSIGNED.ipa',",
+            "    'scarlet-v48-r6p63-nested-parent-unsigned-20261114'):",
+            "   self.assertIn(x,W,x)",
+            "if __name__=='__main__': unittest.main()"
+          ]
+        },
+        {
+          "file": "rebuild/integration/ScarletGuestIslandContentGuard.m.txt",
+          "commit": "1f98f8819b56ebded84316465adba15d19fed9af",
+          "function": "P63 scoped nested parent layout enforcement, bounded scroll integrity and build contracts",
+          "location": "@@ -3190,6 +3190,111 @@ static UIScrollView *ScarletIslandP60CommonUnsafeScroll(",
+          "before": [],
+          "after": [
+            "// R6P63_NESTED_LAYOUT_OWNER_BEGIN",
+            "// P62 iPhone PID3634 had a real staged deep viewport, then reverted at",
+            "// +250ms. P54's owner.viewDidLayoutSubviews runs BEFORE arbitrary descendant",
+            "// containers finish their own layout. Do not repeat the P60/P62 selector.",
+            "// Attach a scoped subclass to the *actual immediate scroll parent* and",
+            "// enforce only that verified native child's viewport AFTER its real layout.",
+            "static char scarletIslandP63NestedParentLayoutKey;",
+            "static void ScarletIslandP63MaintainNestedViewport(UIView *parent) {",
+            "    NSMutableDictionary *state=objc_getAssociatedObject(",
+            "        parent,&scarletIslandP63NestedParentLayoutKey);",
+            "    if(!state || [state[@\"body_disabled\"] boolValue] ||",
+            "       [state[@\"body_enforcing\"] boolValue] ||",
+            "       [state[@\"body_kind\"] integerValue]!=60) return;",
+            "    UIScrollView *scroll=(UIScrollView *)[state[@\"native_body\"] anyObject];",
+            "    NSHashTable *parentRefs=state[@\"body_parent\"];",
+            "    UIView *header=[state[@\"headers\"] anyObject];",
+            "    UIWindow *window=parent.window;",
+            "    CGFloat target=[state[@\"top\"] doubleValue];",
+            "    if(![scroll isKindOfClass:UIScrollView.class] ||",
+            "       parentRefs.anyObject!=parent || scroll.superview!=parent ||",
+            "       !header || header.window!=window || !window ||",
+            "       !UIInterfaceOrientationIsPortrait(window.windowScene.interfaceOrientation) ||",
+            "       window.windowScene.activationState!=UISceneActivationStateForegroundActive ||",
+            "       fabs(window.rootViewController.view.safeAreaInsets.top-target)>2)",
+            "        return;",
+            "    CGRect original=[state[@\"body_original_frame\"] CGRectValue];",
+            "    CGRect originalWindow=[parent convertRect:original toView:window];",
+            "    CGRect headerWindow=[header convertRect:header.bounds toView:window];",
+            "    CGFloat delta=CGRectGetMaxY(headerWindow)-CGRectGetMinY(originalWindow);",
+            "    CGRect revised=original;",
+            "    revised.origin.y+=delta;",
+            "    revised.size.height-=delta;",
+            "    CGFloat content=scroll.contentSize.height;",
+            "    if(!isfinite(delta) || !isfinite(content) || content<=0 ||",
+            "       delta<15 || delta>target+75 || !scroll.scrollEnabled ||",
+            "       revised.size.height<CGRectGetHeight(window.bounds)*0.65 ||",
+            "       fabs(CGRectGetMaxY(revised)-CGRectGetMaxY(original))>1 ||",
+            "       fabs(CGRectGetMaxY(originalWindow)-",
+            "            CGRectGetHeight(window.bounds))>75)",
+            "        return;",
+            "    state[@\"body_enforcing\"]=@YES;",
+            "    if(!CGRectEqualToRect(scroll.frame,revised)) {",
+            "        scroll.frame=revised;",
+            "        state[@\"body_reflow_passes\"]=@(",
+            "            [state[@\"body_reflow_passes\"] unsignedIntegerValue]+1);",
+            "    }",
+            "    state[@\"body_enforcing\"]=@NO;",
+            "}",
+            "static BOOL ScarletIslandP63BindNestedParent(UIView *parent,",
+            "                                             NSMutableDictionary *state) {",
+            "    if(!parent || !state || !parent.window ||",
+            "       [state[@\"body_kind\"] integerValue]!=60 ||",
+            "       objc_getAssociatedObject(parent,&scarletIslandP63NestedParentLayoutKey))",
+            "        return NO;",
+            "    Class original=object_getClass(parent);",
+            "    const char *baseName=class_getName(original);",
+            "    if(!original || !baseName || strstr(baseName,\"NSKVONotifying_\") ||",
+            "       strstr(baseName,\"ScarletP63_\")) return NO;",
+            "    SEL selector=@selector(layoutSubviews);",
+            "    Method m=class_getInstanceMethod(original,selector);",
+            "    IMP originalIMP=m ? method_getImplementation(m) : NULL;",
+            "    if(!originalIMP) return NO;",
+            "    char className[160];",
+            "    snprintf(className,sizeof(className),\"ScarletP63_%p\",(__bridge void *)original);",
+            "    Class scoped=objc_lookUpClass(className);",
+            "    if(!scoped) {",
+            "        scoped=objc_allocateClassPair(original,className,0);",
+            "        if(!scoped) return NO;",
+            "        IMP body=imp_implementationWithBlock(^(__unsafe_unretained id receiver) {",
+            "            ((void (*)(id,SEL))originalIMP)(receiver,selector);",
+            "            ScarletIslandP63MaintainNestedViewport(receiver);",
+            "        });",
+            "        if(!class_addMethod(scoped,selector,body,\"v@:\")) {",
+            "            imp_removeBlock(body);",
+            "            objc_disposeClassPair(scoped);",
+            "            return NO;",
+            "        }",
+            "        objc_registerClassPair(scoped);",
+            "    }",
+            "    state[@\"body_parent_original_class\"]=[NSValue valueWithPointer:",
+            "        (__bridge const void *)original];",
+            "    objc_setAssociatedObject(parent,&scarletIslandP63NestedParentLayoutKey,",
+            "                             state,OBJC_ASSOCIATION_RETAIN_NONATOMIC);",
+            "    if(object_setClass(parent,scoped)!=original ||",
+            "       object_getClass(parent)!=scoped) {",
+            "        object_setClass(parent,original);",
+            "        objc_setAssociatedObject(parent,&scarletIslandP63NestedParentLayoutKey,",
+            "                                 nil,OBJC_ASSOCIATION_RETAIN_NONATOMIC);",
+            "        return NO;",
+            "    }",
+            "    return YES;",
+            "}",
+            "static void ScarletIslandP63UnbindNestedParent(UIView *parent,",
+            "                                               NSMutableDictionary *state) {",
+            "    if(!parent || !state) return;",
+            "    if(objc_getAssociatedObject(parent,",
+            "          &scarletIslandP63NestedParentLayoutKey)!=state) return;",
+            "    Class original=(Class)[state[@\"body_parent_original_class\"] pointerValue];",
+            "    if(original && object_getClass(parent)!=original)",
+            "        object_setClass(parent,original);",
+            "    objc_setAssociatedObject(parent,&scarletIslandP63NestedParentLayoutKey,",
+            "                             nil,OBJC_ASSOCIATION_RETAIN_NONATOMIC);",
+            "}",
+            "// R6P63_NESTED_LAYOUT_OWNER_END",
+            ""
+          ]
+        },
+        {
+          "file": "rebuild/integration/ScarletGuestIslandContentGuard.m.txt",
+          "commit": "1f98f8819b56ebded84316465adba15d19fed9af",
+          "function": "P63 scoped nested parent layout enforcement, bounded scroll integrity and build contracts",
+          "location": "@@ -3214,6 +3319,7 @@ static void ScarletIslandP54AfterNativeOwnerLayout(UIViewController *owner) {",
+          "before": [],
+          "after": [
+            "        ScarletIslandP63UnbindNestedParent(bodyParent,state);"
+          ]
+        },
+        {
+          "file": "rebuild/integration/ScarletGuestIslandContentGuard.m.txt",
+          "commit": "1f98f8819b56ebded84316465adba15d19fed9af",
+          "function": "P63 scoped nested parent layout enforcement, bounded scroll integrity and build contracts",
+          "location": "@@ -3404,6 +3510,11 @@ static BOOL ScarletIslandP54InstallNativeOwnerContract(",
+          "before": [],
+          "after": [
+            "    // P63 binds the nested parent AFTER owning guest class verification.",
+            "    // A missing/unhookable parent means a P62-only trial is unproven.",
+            "    if(p60DeepScroll && !ScarletIslandP63BindNestedParent(",
+            "            p60DeepScroll.superview,state))",
+            "        state[@\"body_disabled\"]=@YES;"
+          ]
+        },
+        {
+          "file": "rebuild/integration/ScarletGuestIslandContentGuard.m.txt",
+          "commit": "1f98f8819b56ebded84316465adba15d19fed9af",
+          "function": "P63 scoped nested parent layout enforcement, bounded scroll integrity and build contracts",
+          "location": "@@ -3411,6 +3522,11 @@ static BOOL ScarletIslandP54InstallNativeOwnerContract(",
+          "before": [],
+          "after": [
+            "    if(p60DeepScroll && ![state[@\"body_disabled\"] boolValue]) {",
+            "        [p60DeepScroll.superview setNeedsLayout];",
+            "        [p60DeepScroll.superview layoutIfNeeded];",
+            "        ScarletIslandP63MaintainNestedViewport(p60DeepScroll.superview);",
+            "    }"
+          ]
+        },
+        {
+          "file": "rebuild/integration/ScarletGuestIslandContentGuard.m.txt",
+          "commit": "1f98f8819b56ebded84316465adba15d19fed9af",
+          "function": "P63 scoped nested parent layout enforcement, bounded scroll integrity and build contracts",
+          "location": "@@ -3467,8 +3583,14 @@ static BOOL ScarletIslandP54InstallNativeOwnerContract(",
+          "before": [
+            "                CGPointEqualToPoint(sc.contentOffset,",
+            "                    [state[@\"body_scroll_offset\"] CGPointValue]) &&"
+          ],
+          "after": [
+            "                // Unlike P62, ordinary UIKit contentOffset reconciliation",
+            "                // following viewport size change is not evidence of loss.",
+            "                // Require a finite offset within native adjusted bounds.",
+            "                isfinite(sc.contentOffset.y) &&",
+            "                sc.contentOffset.y>=-sc.adjustedContentInset.top-4 &&",
+            "                sc.contentOffset.y<=MAX(-sc.adjustedContentInset.top,",
+            "                    sc.contentSize.height-CGRectGetHeight(sc.bounds)+",
+            "                    sc.adjustedContentInset.bottom)+4 &&"
+          ]
+        },
+        {
+          "file": "rebuild/integration/ScarletGuestIslandContentGuard.m.txt",
+          "commit": "1f98f8819b56ebded84316465adba15d19fed9af",
+          "function": "P63 scoped nested parent layout enforcement, bounded scroll integrity and build contracts",
+          "location": "@@ -3495,6 +3617,7 @@ static BOOL ScarletIslandP54InstallNativeOwnerContract(",
+          "before": [],
+          "after": [
+            "                if(deep) ScarletIslandP63UnbindNestedParent(bodyParent,state);"
+          ]
+        },
+        {
+          "file": "rebuild/integration/ScarletGuestIslandContentGuard.m.txt",
+          "commit": "1f98f8819b56ebded84316465adba15d19fed9af",
+          "function": "P63 scoped nested parent layout enforcement, bounded scroll integrity and build contracts",
+          "location": "@@ -3534,6 +3657,7 @@ static BOOL ScarletIslandP54InstallNativeOwnerContract(",
+          "before": [],
+          "after": [
+            "                if(deep) ScarletIslandP63UnbindNestedParent(bodyParent,state);"
+          ]
+        }
+      ],
+      "generated_runtime_targets": [
+        {
+          "source_template": "rebuild/integration/ScarletGuestIslandContentGuard.m.txt",
+          "generated_file": "LiveContainer/Tweaks/ScarletGuestIslandContentGuard.m",
+          "source_generation_script": "rebuild/integration/apply_scarlet_host.py",
+          "function": "ScarletIslandP63BindNestedParent, ScarletIslandP63MaintainNestedViewport, ScarletIslandP63UnbindNestedParent",
+          "note": "Per-instance native layout hook applied only to resident opted-in LiveProcess guest validated by common scroll ancestry and portrait safe area."
         }
       ]
     }
