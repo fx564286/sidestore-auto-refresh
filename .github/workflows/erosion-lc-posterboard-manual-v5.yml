@@ -55,7 +55,7 @@ jobs:
             ("strict PosterBoard match in manager result", 'strcmp(idString, "com.apple.PosterBoard")' in Path("Erosion/Exploits/pathleak.m").read_text()),
             ("strict UUID path validation", "normalized.length != prefix.length + 36" in Path("Erosion/Exploits/pathleak.m").read_text()),
             ("manual UI does not tear down navigation", "guard !isScanningPath else" in v and "isReady = false" not in v[v.index("private func refreshPosterBoardPath"):v.index("private func applyObjects")]),
-            ("no repeated onAppear read-only scan", "guard !didStartInitialPathLookup else" in v),
+            ("no repeated onAppear read-only scan", "guard !didStartInitialPathLookup && !didRequestManualLookup else" in v),
             ("manual vs auto result retained", "[\\(mode) 완료]" in v),
             ("manual request persisted across view rebuild", "erosionPBDirectMapManualRequestedV5" in v),
             ("manual diagnosis persisted across view rebuild", "erosionPBDirectMapDiagnosisV5" in v),
