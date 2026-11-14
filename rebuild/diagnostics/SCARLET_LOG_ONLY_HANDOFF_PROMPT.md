@@ -1,4 +1,4 @@
-# 실행 우선·문제 해결 지속 지침 — 2026-11-14 P59 / L105
+# 실행 우선·문제 해결 지속 지침 — 2026-11-14 P60 / L106
 
 ## 사용자가 명시한 목표
 
@@ -7,13 +7,20 @@ Scarlet Crystal 실험 모드 OFF에서는 정상인 게스트 앱들이 ON에�
 ## 새 채팅의 실행 순서 (강제)
 
 1. 보고서 SourceCommit, CurrentSession, 현재 기기 증상과 마지막 Lxxx 수정 이력을 읽고 해당 빌드가 실제 설치된 것인지 먼저 구분한다. 최신 GitHub 소스를 열어 이력 상태와 정확한 소스 커밋을 비교한다.
-2. L001~L105의 기존 실패 방법·실제 코드 위치·before/after를 확인한다. P37 단회 헤더 프레임 이동, P39 강제 제약, P44/P53 affine transform, 호스트 전체 콘텐츠 축소/투명띠, 추가 Safe Area 중복 적용, 상태 표시줄 강제 은폐 등은 장치 증거가 없는 동일 재시도를 금지한다.
+2. L001~L106의 기존 실패 방법·실제 코드 위치·before/after를 확인한다. P37 단회 헤더 프레임 이동, P39 강제 제약, P44/P53 affine transform, 호스트 전체 콘텐츠 축소/투명띠, 추가 Safe Area 중복 적용, 상태 표시줄 강제 은폐 등은 장치 증거가 없는 동일 재시도를 금지한다.
 3. **항상 실행 코드 수정이 주작업**이다. 기록용 이벤트만 추가하는 새 버전은 허용되지 않는다. 성공할 때까지 원인을 재모델링하고 새 인과 메커니즘을 설계·검증한다. 사용자에게 PC 조작을 요구하는 대신 저장소에서 가능한 작업을 먼저 수행한다.
 4. 실제 기기 결과가 없는 테스트/컴파일/IPA 성공은 해결이 아니다. 정상 판정은 실기기에서 상단 위험 컨트롤 0, 정상 상태 표시줄, 가로·세로 및 홈 복귀 A→B→A, 전체화면/하단/스크롤·터치 보존으로만 한다.
 5. L100 P54 신규 방식: 부모 UIViewController에 실제 게스트 커스텀 viewDidLayoutSubviews가 존재하고, 그 아래 50pt plain UIView 헤더가 Y0에 있는 경우, **단 하나의 부모 컨트롤러 인스턴스만 동적 서브클래싱하여 게스트 원래 레이아웃 구현을 먼저 실행한 후 그 부모의 native safeAreaLayoutGuide에서 헤더를 도킹**한다. 기존 P44 transform을 해당 대상에 중복 적용하지 않는다. 250/1350ms 실측 통과 시 retained, 실패하면 원래 클래스와 원래 프레임을 원복한다.
 6. 실제 장치 로그의 guest_owner_layout_contract_staged / first_pass / retained / reverted와 원래 위험 컨트롤 수치, 앱 재진입 시 헤더 Y, 전체 콘텐츠/상태 표시줄을 대조한다. P54가 guest_owner_layout_contract_retained라도 위험 컨트롤이 0이 아니거나 실제 화면이 잘리면 **미해결**이며 L100의 같은 수정을 반복하지 않고 L101의 새로운 원인·실행 수정을 설계한다.
 7. 새로운 후보는 수정 전에 scarlet_no_repeat_gate.py --proposal로 판정한다. 실제 변경 diff와 소스 SHA, 새 검증, 빌드/IPA, rollback, 다음 시도에서 피해야 할 원인까지 scarlet_remediation_history.json에 새 Lxxx로 기록한다. 그 JSON과 이 지침이 앱에서 내보낸 CURRENT RUN 공유 텍스트에 모두 내장돼야 한다.
 8. V48 안정 기준의 번들 ID·원래 전체화면 크기·리사이징 금지·멀티탭·앱 간 RAM·색상/리퀴드 글라스·서명·오디오·키보드 동작은 별도 검증 없이 수정하지 않는다.
+
+## P60 / L106: SideInstaller의 최종 설치 Bundle ID 정합성
+
+- 원인 직접 확인: SideInstaller의 vendored isideload sideloader.rs sign_app는 무조건 main_app_id_str = main_bundle_id + "." + team.team_id 를 만들고 Application::update_bundle_id로 메인 ID/확장 ID를 재작성한다. 기존 P56/P57/P58/P59의 unsigned 본체 ID는 com.kdt.livecontainer.P8EZT3U5N4이므로, SideInstaller로 서명하면 main ID가 com.kdt.livecontainer.P8EZT3U5N4.P8EZT3U5N4가 되어 사용자가 유지할 설치 ID와 달라진다. 현재 아이폰의 실제 CFBundleIdentifier를 직접 읽지 못했으므로 이것만으로 과거 설치 실패를 확정하지는 않는다.
+- P60 실제 실행 코드: pinned Xcode 27.2로 원래 ID com.kdt.livecontainer.P8EZT3U5N4 및 3.8.60 호스트 빌드를 생성한 다음, 공개 Release의 **unsigned SideInstaller 전용 입력 IPA**에서만 4개 Info.plist CFBundleIdentifier를 서명 전 ID로 바꾼다. 본체 원본 com.kdt.livecontainer, 확장 원본 com.kdt.livecontainer.LiveProcess / .ShareExtension / .LaunchAppExtension. SideInstaller가 동일 Team ID P8EZT3U5N4로 서명하면 최종 설치 ID는 com.kdt.livecontainer.P8EZT3U5N4와 확장 .LiveProcess/.ShareExtension/.LaunchAppExtension으로 돌아간다.
+- 제한: Apple 서명 팀이 다른 경우, 원래 기기 설치 ID가 또 다른 경우의 덮어쓰기 성공은 미검증. 실제 iPhone의 앱 삭제/인증서 폐기/게스트 데이터 삭제는 하지 않는다. Python은 기존 IPA 원본 파일을 변경하지 않고 사본만 내보낸다. 332개 ZIP 항목과 실행 파일, 권한/심볼릭 링크 등은 손대지 않는다. XML/bplist 구분 유지, CRC/서명 후 ID 공식 전부 검증 실패 시 공개 릴리스 중단.
+- 검증: 실제 P58 raw IPA를 테스트 입력으로 사용해 4개 plist만 변경되는 것과 332개 ZIP 구조/바이너리/UNIX 메타데이터 보존 확인, 711개 테스트 통과(3 infra skips). P60 네이티브 Xcode 성공/배포 릴리스 실제 SHA/실기기 서명 결과는 별도 확인해야 한다. P59 위험 컨트롤 소유권 코드와 P57 게스트 덮어쓰기 트랜잭션은 변경하지 않는다.
 
 ## P59 / L105: 실제 위험 컨트롤을 소유한 스크롤 본문만 선택
 
