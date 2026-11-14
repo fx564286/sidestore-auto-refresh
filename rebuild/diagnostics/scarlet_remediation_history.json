@@ -3,7 +3,7 @@
   "scope": "Scarlet Crystal guest top-screen overlap, touch access, rotation, remote guest render and related resident regressions",
   "updated_utc": "2026-11-14T12:22:19+09:00",
   "current_baseline": "P56 signed SourceCommit bed3419b9dd4, current session7105e9c3 no import events. P57 code commit 8b8a3390c238 fixes hidden same-ID replace alert deadlock and destructive pre-sign delete via transactional replacement. 697 local tests pass. iOS native CI/IPA/device not verified.",
-  "current_issue_status": "P56 header/stories issue still separate. P57 overwrite source path implemented, user-reported failure not directly present in log, device reimport proof pending.",
+  "current_issue_status": "P57 original queued IPA same-ID import hidden replace picker deadlock fixed in source; second revision a417b86b adds visible+hidden duplicate guard. Native build and same iPhone overwrite with dataUUID/old app rollback pending; P56 island/header state unresolved in device.",
   "confidence_note": "Same signed device supports need to reflow feed with owner header, but parent.subviews unique full-width feed membership and zero-risk after P56 are hypotheses until signed-device telemetry/screenshots confirm; if absent, no body mutation and P55 retained.",
   "privacy": "No credentials, Apple ID, OTP, UDID, guest names or device identifiers are stored.",
   "entries": [
@@ -29641,15 +29641,15 @@
         "why_prior_fix_failed": "Earlier import progress UI was moved to a hidden worker to survive sheet dismiss, but native LC replacement dialog remained attached to hidden view. Pinned LC removes old bundle before patch/sign, risking app deletion on signing errors. This is independent of P56 island geometry."
       },
       "hypothesis": "Pinned LC importer awaits replace alert for same bundle ID, but Scarlet hosts it in invisible 1x1 view. Scoped auto-choosing sole matching target fixes hang. Previous LC deletes old bundle before signing, so same-volume staged signing and reversible backup swap protect app/data.",
-      "action": "P57 only for scarletQueuedIPAURL: choose sole same-ID installed guest without invisible alert; block ambiguous/hidden locked/running; preserve classic native LC visible options. Stage a new .app as sibling, sign before moving old; copy all previous LCAppInfo settings and dataUUID, move old app into hidden backup, commit candidate to identical folder, read back ID/dataUUID and roll back on any failure. Pass private error explanation to visible host import progress. Do not uninstall user app, change signing assets, or edit P56 geometry.",
-      "observation": "Current signed P56 2026-11-14T03:04:04Z session7105e9c3 SourceCommit bed3419b9dd4 has NO guest_import attempt; user report only. Pinned upstream LC 9108ae6 source shows installReplaceAlert.open after same bundle detection and removeItem old app before signing. Scarlet hidden worker 1x1 .opacity(0).allowsHitTesting(false). New source tests: 697 run 0 failed 3 skipped; real iPhone outcome unknown.",
+      "action": "P57 only for scarletQueuedIPAURL: choose sole same-ID installed guest without invisible alert; block ambiguous/hidden locked/running; preserve classic native LC visible options. Stage a new .app as sibling, sign before moving old; copy all previous LCAppInfo settings and dataUUID, move old app into hidden backup, commit candidate to identical folder, read back ID/dataUUID and roll back on any failure. Pass private error explanation to visible host import progress. Do not uninstall user app, change signing assets, or edit P56 geometry. FOLLOW-UP SAFETY: Include both visible and hidden installed LC apps when counting matching Bundle IDs; require hidden unlock before replacement, refuse duplicates; original visible importer unchanged.",
+      "observation": "Current signed P56 2026-11-14T03:04:04Z session7105e9c3 SourceCommit bed3419b9dd4 has NO guest_import attempt; user report only. Pinned upstream LC 9108ae6 source shows installReplaceAlert.open after same bundle detection and removeItem old app before signing. Scarlet hidden worker 1x1 .opacity(0).allowsHitTesting(false). New source tests: 697 run 0 failed 3 skipped; real iPhone outcome unknown. Supplementary original-source case: LC upstream searches hidden list only when visible list empty. This permits a visible+hidden duplicate to be missed. Code commit a417b86b47e6 adds union, 698 local tests pass (3 skips), native compile and signed-device result pending.",
       "evidence": [
         "User attached signed P56 log session7105e9c3 SourceCommit bed3419b9dd4: no guest import event, so actual reinstall result not confirmed.",
         "Pinned LiveContainer 9108ae624ea001f7d7696d48407f890b48fa2653 LCAppListView.swift installIpaFile original replacement alert is inaccessible on Scarlet hidden importer.",
         "ScarletIntegratedHostView.swift mounts LCAppListView in 1x1 invisible background, source generator had preserved alert await; no options could be tapped.",
         "P57 generated real pinned upstream importer verified in a temporary fixture. All 697 local regressions passed, three simulator/infrastructure skips."
       ],
-      "status": "source_code_697_local_tests_pass_native_ci_pending",
+      "status": "P57_source_revision_v2_698_tests_passed_native_ci_pending",
       "source_verification": "git_patch_observed",
       "device_verification": "P57 iOS native build, published IPA, same-BundleID device reimport and data retention NOT YET VERIFIED.",
       "next_executable_action": "Run pinned LiveContainer + SideStore Xcode 27.2 paired CI and publish P57 IPA. On signed device import identical Bundle ID twice from Files and source, verify guest_import overwrite_single_match_selected then overwrite_committed, unchanged app count and dataUUID/containerInfo/previous user data. Intentionally fail signing and verify old app runnable. If failure, use P57 categorical stage log, do not uninstall user guest. Continue P56 Island display work independently.",
@@ -30293,6 +30293,78 @@
             "- 2026-11-14 서명 실기기 로그 SourceCommit 54d24ab2b20a, 세션 99565816, PID2293에서 parent layout owner 수정 staged/first_pass/retained가 확정되었음. 650ms 위험 컨트롤 9개 → 2600ms 6개 유지, Instagram 스토리 위에 wordmark가 겹친 화면과 시계·배터리 숨김은 미해결. 상태바가 자동으로 보인 다른 PID2305에서는 위험 컨트롤 0개와 status_hidden=false가 확인됨."
           ],
           "commit": "055edcff9f5953dce0461d2b018b420b61ce401f"
+        },
+        {
+          "file": "rebuild/Tests/test_v48_r6p57_same_guest_overwrite.py",
+          "function": "P57Overwrite.test_visible_and_hidden_same_bundle_not_silently_overwritten",
+          "location": "@@ -23,6 +23,12 @@ class P57Overwrite(unittest.TestCase):",
+          "before": [
+            "        self.assertIn('guard let selected = await installReplaceAlert.open()',PATCH)",
+            "        self.assertIn('installOptionChosen = selected',PATCH)",
+            "        self.assertIn('if installOptionChosen.isReplace && scarletQueuedIPAURL == nil',PATCH)",
+            "    def test_never_delete_old_app_before_sign_ready(self):",
+            "        self.assertIn('let scarletTransactionalReplace =',PATCH)",
+            "        self.assertIn('try fm.moveItem(at: appFolderPath, to: scarletStageFolder)',PATCH)"
+          ],
+          "after": [
+            "        self.assertIn('guard let selected = await installReplaceAlert.open()',PATCH)",
+            "        self.assertIn('installOptionChosen = selected',PATCH)",
+            "        self.assertIn('if installOptionChosen.isReplace && scarletQueuedIPAURL == nil',PATCH)",
+            "    def test_visible_and_hidden_same_bundle_not_silently_overwritten(self):",
+            "        self.assertIn('let hiddenMatches = sharedModel.hiddenApps.filter {',PATCH)",
+            "        self.assertIn('for hidden in hiddenMatches where !sameBundleIdApp.contains',PATCH)",
+            "        self.assertIn('if !hiddenMatches.isEmpty && !sharedModel.isHiddenAppUnlocked',PATCH)",
+            "        self.assertLess(PATCH.index('for hidden in hiddenMatches where'),",
+            "                        PATCH.index('if sameBundleIdApp.count > 1 {'))",
+            "    def test_never_delete_old_app_before_sign_ready(self):",
+            "        self.assertIn('let scarletTransactionalReplace =',PATCH)",
+            "        self.assertIn('try fm.moveItem(at: appFolderPath, to: scarletStageFolder)',PATCH)"
+          ],
+          "commit": "a417b86b47e66649fdd79b755dda3be2a5c8cef4"
+        },
+        {
+          "file": "rebuild/integration/apply_scarlet_host.py",
+          "function": "apply_queued_guest_overwrite_source hidden/visible union",
+          "location": "@@ -176,6 +176,28 @@ def apply_queued_guest_overwrite_source(source: str) -> str:",
+          "before": [
+            "                do {",
+            "\"\"\", 1)",
+            "",
+            "    replace_anchor = \"\"\"            guard let installOptionChosen = await installReplaceAlert.open() else {",
+            "                // user cancelled",
+            "                self.installprogressVisible = false"
+          ],
+          "after": [
+            "                do {",
+            "\"\"\", 1)",
+            "",
+            "    # A visible and a hidden guest can share the same Bundle ID. Upstream",
+            "    # searches hiddenApps only when no visible match exists, so a hidden",
+            "    # duplicate would otherwise be overwritten ambiguously. The queued",
+            "    # worker must consider the union; the visible LC selector is unchanged.",
+            "    union_anchor = \"\"\"        if fm.fileExists(atPath: outputFolder.path) || sameBundleIdApp.count > 0 {",
+            "\"\"\"",
+            "    assert source.count(union_anchor)==1, \"Pinned LC replacement boundary moved\"",
+            "    source=source.replace(union_anchor, \"\"\"        if scarletQueuedIPAURL != nil {",
+            "            let hiddenMatches = sharedModel.hiddenApps.filter {",
+            "                $0.appInfo.bundleIdentifier() == newAppInfo.bundleIdentifier()",
+            "            }",
+            "            if !hiddenMatches.isEmpty && !sharedModel.isHiddenAppUnlocked {",
+            "                throw NSError(domain: \"ScarletGuestOverwrite\", code: 41,",
+            "                    userInfo: [NSLocalizedDescriptionKey:",
+            "                        \"숨김 앱의 잠금을 해제한 뒤 덮어쓰세요.\"])",
+            "            }",
+            "            for hidden in hiddenMatches where !sameBundleIdApp.contains(where: { $0 === hidden }) {",
+            "                sameBundleIdApp.append(hidden)",
+            "            }",
+            "        }",
+            "\"\"\" + union_anchor,1)",
+            "",
+            "    replace_anchor = \"\"\"            guard let installOptionChosen = await installReplaceAlert.open() else {",
+            "                // user cancelled",
+            "                self.installprogressVisible = false"
+          ],
+          "commit": "a417b86b47e66649fdd79b755dda3be2a5c8cef4"
         }
       ],
       "source_revisions": [
@@ -30306,6 +30378,12 @@
           "url": "https://github.com/fx564286/sidestore-auto-refresh/commit/055edcff9f5953dce0461d2b018b420b61ce401f",
           "title": "audit(r6p57): append L103 original LC overwrite root cause and exact code diffs to handoff",
           "note": "Handoff prompt change belongs to this commit; runtime code change remains 8b8a3390."
+        },
+        {
+          "sha": "a417b86b47e66649fdd79b755dda3be2a5c8cef4",
+          "title": "fix(r6p57): refuse ambiguous visible and hidden guest Bundle ID replacements",
+          "url": "https://github.com/fx564286/sidestore-auto-refresh/commit/a417b86b47e66649fdd79b755dda3be2a5c8cef4",
+          "note": "Native queued importer scans union of visible and hidden exact ID matches; locked hidden entries fail closed, ambiguous matches cannot silently replace wrong app."
         }
       ],
       "generated_runtime_targets": [
