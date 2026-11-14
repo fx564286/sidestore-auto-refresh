@@ -717,10 +717,10 @@ index 032a355..a3b4c09 100644
  }
  
 diff --git a/Erosion/Helpers/Functions/FSHandlers.swift b/Erosion/Helpers/Functions/FSHandlers.swift
-index 5648c7b..673f53e 100644
+index 5648c7b..0d0d272 100644
 --- a/Erosion/Helpers/Functions/FSHandlers.swift
 +++ b/Erosion/Helpers/Functions/FSHandlers.swift
-@@ -11,59 +11,163 @@ import UIKit
+@@ -11,59 +11,151 @@ import UIKit
  let fsHandlers = FSHandlers()
  
  class FSHandlers {
@@ -777,9 +777,6 @@ index 5648c7b..673f53e 100644
 -        
 -        if paths.count == 0 {
 -            print("(fs) got no paths! something went wrong.")
--        }
--        
--        return paths
 +        print("(fs) pathleak start, inode bound \(baselineInode)")
 +        let primary = pathleak(path, baselineInode) ?? []
 +        if !primary.isEmpty {
@@ -797,7 +794,9 @@ index 5648c7b..673f53e 100644
 +            let fallback = pathleak(path, fallbackBound) ?? []
 +            print("(fs) legacy bounded scan found \(fallback.count) entries")
 +            return fallback
-+        }
+         }
+-        
+-        return paths
 +        print("(fs) no container paths found via direct listing or inode scan")
 +        return []
      }
@@ -854,46 +853,37 @@ index 5648c7b..673f53e 100644
 +
 +    func getContainerPath(at containerURL: URL = FSURL.appContainers, forMatch match: String,
 +                          hashOnly: Bool = false, allowPrivateAccess: Bool = false) -> String {
-+        // Capture native query statistics for release diagnostics. Previous
-+        // builds only reported 256 paths/0 labels, masking missing API exports
-+        // and denied iteration alike.
-+        // WQFiles' 27.2-specific fix: the container manager itself supplies
-+        // the path and exact identifier, without inaccessible xattrs or
-+        // touching the host App Group. Never brute-force 256 access grants.
-+        if match == "com.apple.PosterBoard",
-+           let verified = posterboard_container_manager_path() {
-+            lastDiscovery = "컨테이너 관리자에서 com.apple.PosterBoard의 실제 경로와 앱 식별자를 일치시켰습니다. 경로 자체의 쓰기 권한은 아직 별도 검사 대상입니다."
-+            return hashOnly
-+                ? URL(fileURLWithPath: verified).lastPathComponent
-+                : verified
-+        }
-+        let nativeQueryResult = posterboard_container_manager_diagnostics() ?? "컨테이너 관리자 응답 없음"
-+        if match == "com.apple.PosterBoard", allowPrivateAccess,
-+           let resolved = posterBoardPathViaLSStore() {
-+            return hashOnly
-+                ? URL(fileURLWithPath: resolved).lastPathComponent
-+                : resolved
-+        }
-+        // Preserve the alternate source's precise failure reason when direct
-+        // listing and xattr checks cannot identify a matching container.
-+        let lsFailure = allowPrivateAccess ? lastDiscovery : "수동 조회 전용"
-+        if match == "com.apple.PosterBoard", !hashOnly,
-+           let candidate = pathleak_posterboard(10_000_000) {
-+            // Marker-derived path is not automatically trusted. Verify its
-+            // actual container metadata via the normal entitlement-aware gate.
-+            if getBIDFromXattr(URL(fileURLWithPath: candidate),
-+                               allowPrivateAccess: allowPrivateAccess) == match {
-+                lastDiscovery = "PosterBoard 저장소 마커를 발견하고 컨테이너 식별까지 확인했습니다."
-+                print("(fs) PosterBoard marker and bundle ID both verified")
-+                return candidate
++        // iOS 27.2 proved that enumerating 256 candidates + xattrs identifies
++        // zero apps within LiveContainer. Do NOT repeat the previously failed
++        // inode brute-force or xattr loops on every manual tap.
++        if match == "com.apple.PosterBoard" {
++            if let verified = posterboard_container_manager_path() {
++                lastDiscovery = "컨테이너 관리자 직접 조회: PosterBoard 식별자와 시스템 컨테이너 경로 일치. 실제 쓰기 권한은 아직 검증되지 않았습니다."
++                return hashOnly ? URL(fileURLWithPath: verified).lastPathComponent : verified
 +            }
-+            print("(fs) PosterBoard marker candidate found; bundle ID not verified")
++            let managerDiagnosis = posterboard_container_manager_diagnostics() ?? "컨테이너 관리자 응답 없음"
++
++            if allowPrivateAccess {
++                // Unlike the automatic read-only scan, this route reads lsd's
++                // CSStore2 after an explicit user tap. It is bounded and
++                // returns its exact failure reason instead of falling through
++                // to another 10-million-inode enumeration.
++                if let path = posterBoardPathViaLSStore() {
++                    return hashOnly ? URL(fileURLWithPath: path).lastPathComponent : path
++                }
++                let lsResult = lastDiscovery
++                lastDiscovery = "수동 LaunchServices 조회 실패. 컨테이너 관리자: \(managerDiagnosis). \(lsResult). 임의 경로·UUID 및 기존 배경화면 데이터에 쓰기 작업을 수행하지 않았습니다."
++                return ""
++            }
++
++            lastDiscovery = "자동 읽기 전용 조회 완료: \(managerDiagnosis). PosterBoard 식별자 없음. LaunchServices 데이터베이스는 수동 Fetch Path에서만 검사합니다."
++            return ""
 +        }
++
++        // Retain the original filesystem enumeration for unrelated Erosion
++        // features without elevating permissions or guessing an app identity.
          let containers = getDirPaths(containerURL.path)
 +        var readable = 0
-+        // Enumerating every candidate with privileged WQ would temporarily
-+        // transact the host cache hundreds of times. Try read-only labels
-+        // only; if no verified candidate exists, fail rather than guessing.
          for path in containers {
              let url = URL(fileURLWithPath: path)
 -            if let appName = getBIDFromXattr(url) {
@@ -904,16 +894,13 @@ index 5648c7b..673f53e 100644
 -                        return url.lastPathComponent
 -                    }
 -                    return url.path
-+                    lastDiscovery = "컨테이너 후보 \(containers.count)개, 식별 가능 \(readable)개, PosterBoard 경로 확인"
-+                    print("(fs) PosterBoard path found via container metadata")
++                    lastDiscovery = "컨테이너 후보 \(containers.count)개, 메타데이터 식별 \(readable)개, 앱 경로 확인"
 +                    return hashOnly ? url.lastPathComponent : url.path
                  }
              }
          }
 -        print("(fs) failed to get container for \(match)! containers: \(containerURL.path)")
-+        let method = allowPrivateAccess ? "컨테이너 관리자 및 권한 대체 조회" : "읽기 전용 조회"
-+        lastDiscovery = "\(method) 실패: \(nativeQueryResult). 후보 \(containers.count)개, xattr/메타데이터 식별 \(readable)개. LaunchServices: \(lsFailure). 임의 경로 쓰기는 차단. \(wq.preflight())"
-+        print("(fs) \(lastDiscovery)")
++        lastDiscovery = "컨테이너 조회 실패: \(match), 후보 \(containers.count)개, 식별 \(readable)개"
          return ""
      }
 -    
@@ -922,10 +909,10 @@ index 5648c7b..673f53e 100644
          guard var components = URLComponents(url: fileURL, resolvingAgainstBaseURL: false) else { return }
          components.scheme = "shareddocuments"
 diff --git a/Erosion/Tweaks/PosterBoard/PosterBoardView.swift b/Erosion/Tweaks/PosterBoard/PosterBoardView.swift
-index 268ede0..4ecc0cd 100644
+index 268ede0..0fb06e2 100644
 --- a/Erosion/Tweaks/PosterBoard/PosterBoardView.swift
 +++ b/Erosion/Tweaks/PosterBoard/PosterBoardView.swift
-@@ -23,11 +23,17 @@ enum PBMsg {
+@@ -23,11 +23,18 @@ enum PBMsg {
  
  struct PosterBoardView: View {
      @AppStorage("pbContainerPath") private var pbContainerPath = ""
@@ -941,16 +928,14 @@ index 268ede0..4ecc0cd 100644
 +    @AppStorage("erosionPBDirectMapManualRequestedV5") private var didRequestManualLookup = false
 +    @State private var didStartInitialPathLookup = false
 +    @State private var isScanningPath = false
++    @State private var pathLookupGeneration = 0
      let columns = Array(repeating: GridItem(.flexible()), count: device.userInterfaceIdiom == .pad ? 4 : 2)
      
      var body: some View {
-@@ -134,11 +140,28 @@ struct PosterBoardView: View {
+@@ -134,10 +141,34 @@ struct PosterBoardView: View {
          }
          .navigationTitle("Wallpapers")
          .navigationBarTitleDisplayMode(.inline)
--        .onAppear {
--            DispatchQueue.global(qos: .userInitiated).async {
--                doSetupStuff()
 +        .safeAreaInset(edge: .top) {
 +            if isReady && pbContainerPath.isEmpty {
 +                VStack(alignment: .leading, spacing: 4) {
@@ -963,32 +948,40 @@ index 268ede0..4ecc0cd 100644
 +                .frame(maxWidth: .infinity, alignment: .leading)
 +                .padding(10)
 +                .background(Color(.secondarySystemBackground))
++            }
++        }
+         .onAppear {
+-            DispatchQueue.global(qos: .userInitiated).async {
+-                doSetupStuff()
++            // Persisted V5 manual request can survive reinstall. The old code
++            // returned early while isReady was false, trapping the view in
++            // "Getting Container Path..." forever.
++            if didRequestManualLookup {
++                isReady = true
++                if pathDiagnostics.contains("[자동 읽기 전용 조회 완료]") {
++                    pathDiagnostics = "[수동 조회 결과 미확인] 기존 자동 검사 결과만 저장되어 있습니다. LaunchServices 직접 조회에서 실제 결과를 확인합니다."
++                }
++                return
              }
-         }
-+        .onAppear {
-+            // When the Settings NavigationLink changes the parent view,
-+            // SwiftUI may invoke onAppear again. Do not overwrite a manual
-+            // scan's result with an automatic read-only scan.
-+            guard !didStartInitialPathLookup && !didRequestManualLookup else { return }
++            guard !didStartInitialPathLookup else { return }
 +            didStartInitialPathLookup = true
 +            refreshPosterBoardPath(allowPrivateAccess: false)
-+        }
+         }
          .safeAreaInset(edge: .bottom) {
              if isReady {
-                 VStack {
-@@ -175,9 +198,20 @@ struct PosterBoardView: View {
+@@ -175,9 +206,20 @@ struct PosterBoardView: View {
                          List {
                              Section {
                                  TextField("PosterBoard Path", text: $pbContainerPath, axis: .vertical)
 -                                Button("Fetch Path") {
 -                                    pbContainerPath = fsHandlers.getContainerPath(forMatch: "com.apple.PosterBoard")
-+                                Button("Fetch Path · iOS 27.2 직접 조회") {
++                                Button("Fetch Path · LaunchServices 직접 조회 (V7)") {
 +                                    didRequestManualLookup = true
 +                                    pathDiagnostics = "[수동 직접 조회 요청 접수] 컨테이너 관리자의 앱 식별자 확인을 시작합니다."
 +                                    refreshPosterBoardPath(allowPrivateAccess: true)
                                  }
-+                                .disabled(!isReady || isScanningPath)
-+                                if isScanningPath { ProgressView("경로 탐색 중") }
++                                .disabled(!isReady)
++                                if isScanningPath { ProgressView("경로 탐색 중 · 시스템 데이터베이스 확인") }
 +                                Text(pathDiagnostics)
 +                                    .font(.footnote)
 +                                    .foregroundStyle(.secondary)
@@ -999,7 +992,7 @@ index 268ede0..4ecc0cd 100644
                              } header: {
                                  HeaderLabel("PosterBoard", symbol: "photo")
                              }
-@@ -240,12 +274,19 @@ struct PosterBoardView: View {
+@@ -240,12 +282,19 @@ struct PosterBoardView: View {
                      
                      @MainActor
                      func proceed() {
@@ -1020,7 +1013,7 @@ index 268ede0..4ecc0cd 100644
                              }
                          } else {
                              Haptic.shared.play(.soft)
-@@ -265,21 +306,49 @@ struct PosterBoardView: View {
+@@ -265,21 +314,59 @@ struct PosterBoardView: View {
          }
      }
      
@@ -1037,7 +1030,11 @@ index 268ede0..4ecc0cd 100644
 +    /// Discovery is intentionally off the UI thread. All SwiftUI state writes
 +    /// are published on the main queue, and no system files are changed here.
 +    private func refreshPosterBoardPath(allowPrivateAccess: Bool) {
-+        guard !isScanningPath else { return }
++        // A user-triggered scan takes precedence over an automatic scan.
++        // Never silently discard a tap while the previous lookup is running.
++        if !allowPrivateAccess && didRequestManualLookup { return }
++        pathLookupGeneration += 1
++        let generation = pathLookupGeneration
 +        // This MUST NOT set isReady=false on manual refresh: replacing the
 +        // entire parent navigation content with a spinner tears down Settings
 +        // and can cause .onAppear to rerun the weaker automatic query.
@@ -1045,14 +1042,20 @@ index 268ede0..4ecc0cd 100644
 +        let mode = allowPrivateAccess ? "수동 직접 조회" : "자동 읽기 전용 조회"
 +        pathDiagnostics = "\(mode): iOS 27.2 컨테이너 관리자에서 com.apple.PosterBoard 검색 중…"
 +        DispatchQueue.global(qos: .userInitiated).async {
-+            let found = fsHandlers.getContainerPath(forMatch: "com.apple.PosterBoard",
-+                                                     allowPrivateAccess: allowPrivateAccess)
-+            let diagnosis = fsHandlers.lastDiscovery
++            // Each request gets its own mutable lookup state: an outdated
++            // automatic query cannot replace the manual query's diagnostics.
++            let lookup = FSHandlers()
++            let found = lookup.getContainerPath(forMatch: "com.apple.PosterBoard",
++                                                allowPrivateAccess: allowPrivateAccess)
++            let diagnosis = lookup.lastDiscovery
 +            let entitlementStatus = wq.preflight()
 +            DispatchQueue.main.async {
-+                // An older automatic job must never overwrite the outcome of
-+                // a subsequently requested manual lookup, even if the parent
-+                // View was destroyed and reconstructed by SwiftUI.
++                // Finish only the newest lookup. Any older auto scan result is
++                // discarded, including its displayed status and path.
++                guard generation == pathLookupGeneration else {
++                    print("(pb) older lookup result discarded in favour of latest request")
++                    return
++                }
 +                if !allowPrivateAccess &&
 +                    UserDefaults.standard.bool(forKey: "erosionPBDirectMapManualRequestedV5") {
 +                    print("(pb) skipped stale auto lookup after manual request")
