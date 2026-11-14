@@ -95,10 +95,10 @@ index 7d30b6a..595b512 100644
          default: errorString = nil
          }
 diff --git a/Erosion/Exploits/pathleak.h b/Erosion/Exploits/pathleak.h
-index 538eef8..c4ce4f8 100644
+index 538eef8..0d4f77a 100644
 --- a/Erosion/Exploits/pathleak.h
 +++ b/Erosion/Exploits/pathleak.h
-@@ -29,5 +29,11 @@
+@@ -29,5 +29,13 @@
  #import <Foundation/Foundation.h>
  
  NSArray<NSString *> *pathleak(NSString *filter, uint64_t max_inode);
@@ -108,10 +108,12 @@ index 538eef8..c4ce4f8 100644
 +// WQFiles-derived read-only container-manager enumeration on iOS 27.2.
 +// Returns only a validated data container path with exact bundle ID.
 +NSString * _Nullable posterboard_container_manager_path(void);
++/// Aggregated iOS container-manager query result, without filesystem paths.
++NSString *posterboard_container_manager_diagnostics(void);
  
  #endif /* pathleak_h */
 diff --git a/Erosion/Exploits/pathleak.m b/Erosion/Exploits/pathleak.m
-index 7ea6185..8e3f03e 100644
+index 7ea6185..b6e0fdc 100644
 --- a/Erosion/Exploits/pathleak.m
 +++ b/Erosion/Exploits/pathleak.m
 @@ -24,6 +24,7 @@
@@ -122,7 +124,7 @@ index 7ea6185..8e3f03e 100644
  #include <sys/fsgetpath.h>
  #include <sys/mount.h>
  
-@@ -79,3 +80,107 @@ NSArray<NSString *> *pathleak(NSString *path, uint64_t max_inode) {
+@@ -79,3 +80,151 @@ NSArray<NSString *> *pathleak(NSString *path, uint64_t max_inode) {
      }
      return result;
  }
@@ -173,6 +175,20 @@ index 7ea6185..8e3f03e 100644
 +// 0.9.6 resolves path->identifier via container_query_iterate_results_sync.
 +// This is a READ-ONLY query, not worse_query, and does not modify group caches.
 +// GPL-3.0-or-later implementation adapted from WQFiles commit 0d9c28c.
++static NSString *gPosterboardManagerLookupSummary = @"조회 기록 없음";
++
++static void setPosterboardManagerLookupSummary(NSString *summary) {
++    @synchronized ([NSString class]) {
++        gPosterboardManagerLookupSummary = [summary copy];
++    }
++}
++
++NSString *posterboard_container_manager_diagnostics(void) {
++    @synchronized ([NSString class]) {
++        return gPosterboardManagerLookupSummary ?: @"조회 기록 없음";
++    }
++}
++
 +NSString *posterboard_container_manager_path(void) {
 +    typedef void *(*cq_create_fn)(void);
 +    typedef void (*cq_set_class_fn)(void *, uint64_t);
@@ -182,6 +198,7 @@ index 7ea6185..8e3f03e 100644
 +    void *mgr = dlopen("/usr/lib/system/libsystem_containermanager.dylib",
 +                       RTLD_NOW | RTLD_LOCAL);
 +    if (!mgr) {
++        setPosterboardManagerLookupSummary(@"시스템 컨테이너 관리자 라이브러리 로드 실패");
 +        NSLog(@"(pb) container manager library unavailable");
 +        return nil;
 +    }
@@ -193,6 +210,9 @@ index 7ea6185..8e3f03e 100644
 +    co_get_string_fn getID = (co_get_string_fn)dlsym(mgr, "container_object_get_identifier");
 +    if (!getID) getID = (co_get_string_fn)dlsym(mgr, "container_result_get_identifier");
 +    if (!create || !setClass || !iterate || !queryFree || !getPath || !getID) {
++        setPosterboardManagerLookupSummary(
++            [NSString stringWithFormat:@"필수 API 누락: create=%d class=%d iterate=%d free=%d path=%d id=%d",
++             !!create, !!setClass, !!iterate, !!queryFree, !!getPath, !!getID]);
 +        NSLog(@"(pb) container-manager query functions unavailable");
 +        dlclose(mgr);
 +        return nil;
@@ -200,17 +220,30 @@ index 7ea6185..8e3f03e 100644
 +    const uint64_t classes[] = { 2, 0, 5, 7, 8, 10, 11, 13 };
 +    NSString *const prefix = @"/var/mobile/Containers/Data/Application/";
 +    __block NSString *found = nil;
++    __block NSUInteger inspected = 0;
++    __block NSUInteger identified = 0;
++    __block NSUInteger posterboardIDs = 0;
++    __block NSUInteger invalidPosterboardPaths = 0;
++    NSUInteger executedClasses = 0;
 +    for (size_t i = 0; i < sizeof(classes)/sizeof(classes[0]); ++i) {
 +        if (found) break;
 +        void *query = create();
 +        if (!query) continue;
++        executedClasses++;
 +        setClass(query, classes[i]);
 +        iterate(query, ^bool(void *object) {
 +            if (!object) return true;
++            inspected++;
 +            const char *idString = getID(object);
-+            if (!idString || strcmp(idString, "com.apple.PosterBoard") != 0) return true;
++            if (!idString || !idString[0]) return true;
++            identified++;
++            if (strcmp(idString, "com.apple.PosterBoard") != 0) return true;
++            posterboardIDs++;
 +            const char *pathString = getPath(object);
-+            if (!pathString || !pathString[0]) return true;
++            if (!pathString || !pathString[0]) {
++                invalidPosterboardPaths++;
++                return true;
++            }
 +            NSString *path = [NSString stringWithUTF8String:pathString];
 +            if (!path.length) return true;
 +            NSString *normalized = [path hasPrefix:@"/private/var/"]
@@ -218,16 +251,29 @@ index 7ea6185..8e3f03e 100644
 +            // A bundle ID alone cannot authorize an arbitrary filesystem
 +            // write. Accept only the canonical Apple data-container layout.
 +            if (![normalized hasPrefix:prefix] ||
-+                normalized.length != prefix.length + 36) return true;
++                normalized.length != prefix.length + 36) {
++                invalidPosterboardPaths++;
++                return true;
++            }
 +            NSString *uuidText = [normalized substringFromIndex:prefix.length];
-+            if (![[NSUUID alloc] initWithUUIDString:uuidText]) return true;
++            if (![[NSUUID alloc] initWithUUIDString:uuidText]) {
++                invalidPosterboardPaths++;
++                return true;
++            }
 +            found = normalized;
 +            return false;
 +        });
 +        queryFree(query);
 +    }
 +    dlclose(mgr);
-+    NSLog(@"(pb) read-only container manager lookup %@", found ? @"matched PosterBoard" : @"no match");
++    NSString *summary = [NSString stringWithFormat:
++        @"컨테이너 관리자 클래스 %lu/8, 검색 결과 %lu개, 식별자 %lu개, PosterBoard 일치 %lu개, 경로 거부 %lu개. %@",
++        (unsigned long)executedClasses, (unsigned long)inspected,
++        (unsigned long)identified, (unsigned long)posterboardIDs,
++        (unsigned long)invalidPosterboardPaths,
++        found ? @"실제 경로 확인" : @"일치하는 유효 경로 없음"];
++    setPosterboardManagerLookupSummary(summary);
++    NSLog(@"(pb) container manager summary: %@", summary);
 +    return found;
 +}
 diff --git a/Erosion/Exploits/worse_query.h b/Erosion/Exploits/worse_query.h
@@ -536,10 +582,10 @@ index 032a355..a3b4c09 100644
  }
  
 diff --git a/Erosion/Helpers/Functions/FSHandlers.swift b/Erosion/Helpers/Functions/FSHandlers.swift
-index 5648c7b..99fe107 100644
+index 5648c7b..8de2d07 100644
 --- a/Erosion/Helpers/Functions/FSHandlers.swift
 +++ b/Erosion/Helpers/Functions/FSHandlers.swift
-@@ -11,59 +11,102 @@ import UIKit
+@@ -11,59 +11,106 @@ import UIKit
  let fsHandlers = FSHandlers()
  
  class FSHandlers {
@@ -624,6 +670,9 @@ index 5648c7b..99fe107 100644
 +
 +    func getContainerPath(at containerURL: URL = FSURL.appContainers, forMatch match: String,
 +                          hashOnly: Bool = false, allowPrivateAccess: Bool = false) -> String {
++        // Capture native query statistics for release diagnostics. Previous
++        // builds only reported 256 paths/0 labels, masking missing API exports
++        // and denied iteration alike.
 +        // WQFiles' 27.2-specific fix: the container manager itself supplies
 +        // the path and exact identifier, without inaccessible xattrs or
 +        // touching the host App Group. Never brute-force 256 access grants.
@@ -634,6 +683,7 @@ index 5648c7b..99fe107 100644
 +                ? URL(fileURLWithPath: verified).lastPathComponent
 +                : verified
 +        }
++        let nativeQueryResult = posterboard_container_manager_diagnostics()
 +        if match == "com.apple.PosterBoard", !hashOnly,
 +           let candidate = pathleak_posterboard(10_000_000) {
 +            // Marker-derived path is not automatically trusted. Verify its
@@ -669,7 +719,7 @@ index 5648c7b..99fe107 100644
          }
 -        print("(fs) failed to get container for \(match)! containers: \(containerURL.path)")
 +        let method = allowPrivateAccess ? "컨테이너 관리자 및 권한 대체 조회" : "읽기 전용 조회"
-+        lastDiscovery = "\(method) 실패: 컨테이너 후보 \(containers.count)개, 식별 가능 \(readable)개. iOS 27.2에서 시스템 앱 식별자를 받지 못했습니다. 경로를 추측하거나 256개 후보에 쓰기 권한을 요청하지 않았습니다. \(wq.preflight())"
++        lastDiscovery = "\(method) 실패: \(nativeQueryResult). 후보 \(containers.count)개, xattr/메타데이터 식별 \(readable)개. 경로를 추측하거나 256개 후보에 쓰기 권한을 요청하지 않았습니다. \(wq.preflight())"
 +        print("(fs) \(lastDiscovery)")
          return ""
      }
@@ -679,20 +729,29 @@ index 5648c7b..99fe107 100644
          guard var components = URLComponents(url: fileURL, resolvingAgainstBaseURL: false) else { return }
          components.scheme = "shareddocuments"
 diff --git a/Erosion/Tweaks/PosterBoard/PosterBoardView.swift b/Erosion/Tweaks/PosterBoard/PosterBoardView.swift
-index 268ede0..3f2efba 100644
+index 268ede0..4ecc0cd 100644
 --- a/Erosion/Tweaks/PosterBoard/PosterBoardView.swift
 +++ b/Erosion/Tweaks/PosterBoard/PosterBoardView.swift
-@@ -28,6 +28,9 @@ struct PosterBoardView: View {
+@@ -23,11 +23,17 @@ enum PBMsg {
+ 
+ struct PosterBoardView: View {
+     @AppStorage("pbContainerPath") private var pbContainerPath = ""
+-    @State private var isReady = false
++    @AppStorage("erosionPBDirectMapReadyV5") private var isReady = false
+     @AppStorage("tendiesArray") private var tendiesArray: [TendiesObject] = []
      @AppStorage("hasShownFirstRunMsg") private var hasShownFirstRunMsg = false
      
      @State private var showImporter = false
-+    @State private var pathDiagnostics = "PosterBoard 경로 검사 전"
++    // Persist last result across SwiftUI NavigationLink rebuilding. A manual
++    // failure/success must not be overwritten by the automatic lookup.
++    @AppStorage("erosionPBDirectMapDiagnosisV5") private var pathDiagnostics = "PosterBoard 경로 검사 전"
++    @AppStorage("erosionPBDirectMapManualRequestedV5") private var didRequestManualLookup = false
 +    @State private var didStartInitialPathLookup = false
 +    @State private var isScanningPath = false
      let columns = Array(repeating: GridItem(.flexible()), count: device.userInterfaceIdiom == .pad ? 4 : 2)
      
      var body: some View {
-@@ -134,11 +137,28 @@ struct PosterBoardView: View {
+@@ -134,11 +140,28 @@ struct PosterBoardView: View {
          }
          .navigationTitle("Wallpapers")
          .navigationBarTitleDisplayMode(.inline)
@@ -717,20 +776,22 @@ index 268ede0..3f2efba 100644
 +            // When the Settings NavigationLink changes the parent view,
 +            // SwiftUI may invoke onAppear again. Do not overwrite a manual
 +            // scan's result with an automatic read-only scan.
-+            guard !didStartInitialPathLookup else { return }
++            guard !didStartInitialPathLookup && !didRequestManualLookup else { return }
 +            didStartInitialPathLookup = true
 +            refreshPosterBoardPath(allowPrivateAccess: false)
 +        }
          .safeAreaInset(edge: .bottom) {
              if isReady {
                  VStack {
-@@ -175,9 +195,18 @@ struct PosterBoardView: View {
+@@ -175,9 +198,20 @@ struct PosterBoardView: View {
                          List {
                              Section {
                                  TextField("PosterBoard Path", text: $pbContainerPath, axis: .vertical)
 -                                Button("Fetch Path") {
 -                                    pbContainerPath = fsHandlers.getContainerPath(forMatch: "com.apple.PosterBoard")
 +                                Button("Fetch Path · iOS 27.2 직접 조회") {
++                                    didRequestManualLookup = true
++                                    pathDiagnostics = "[수동 직접 조회 요청 접수] 컨테이너 관리자의 앱 식별자 확인을 시작합니다."
 +                                    refreshPosterBoardPath(allowPrivateAccess: true)
                                  }
 +                                .disabled(!isReady || isScanningPath)
@@ -745,7 +806,7 @@ index 268ede0..3f2efba 100644
                              } header: {
                                  HeaderLabel("PosterBoard", symbol: "photo")
                              }
-@@ -240,12 +269,19 @@ struct PosterBoardView: View {
+@@ -240,12 +274,19 @@ struct PosterBoardView: View {
                      
                      @MainActor
                      func proceed() {
@@ -766,7 +827,7 @@ index 268ede0..3f2efba 100644
                              }
                          } else {
                              Haptic.shared.play(.soft)
-@@ -265,21 +301,39 @@ struct PosterBoardView: View {
+@@ -265,21 +306,49 @@ struct PosterBoardView: View {
          }
      }
      
@@ -796,6 +857,16 @@ index 268ede0..3f2efba 100644
 +            let diagnosis = fsHandlers.lastDiscovery
 +            let entitlementStatus = wq.preflight()
 +            DispatchQueue.main.async {
++                // An older automatic job must never overwrite the outcome of
++                // a subsequently requested manual lookup, even if the parent
++                // View was destroyed and reconstructed by SwiftUI.
++                if !allowPrivateAccess &&
++                    UserDefaults.standard.bool(forKey: "erosionPBDirectMapManualRequestedV5") {
++                    print("(pb) skipped stale auto lookup after manual request")
++                    isScanningPath = false
++                    isReady = true
++                    return
++                }
 +                if !found.isEmpty { pbContainerPath = found }
 +                if !fm.fileExists(atPath: AppURL.pb.path) {
 +                    do {
