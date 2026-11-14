@@ -13,15 +13,15 @@ class P60NestedOwner(unittest.TestCase):
                   "ScarletIslandVisibleFrameInWindow(view,window)",
                   "NSMutableArray<UIView *> *risk","if(capped || risk.count<3 || risk.count>32)",
                   "if(node!=scroll && ![node isDescendantOfView:scroll])",
-                  "cursor==p56Body","scroll.contentSize.height<h+safeTop+25"):
+                  "cursor==p56Body","scroll.contentSize.height<=0"):
             self.assertIn(x,P,x)
     def test_native_scroll_segment_not_global_inset_or_resize(self):
         for x in ('ScarletIslandP60CommonUnsafeScroll(',
                   'UIView *nativeBody=p60DeepScroll ? (UIView *)p60DeepScroll : p59Body;',
                   '@"body_kind":@(p60DeepScroll ? 60 : 59)',
                   'revised.origin.y+=delta;', 'revised.size.height-=delta;',
-                  'scroll.contentSize.height>=',
-                  'CGRectGetHeight(originalBody)+delta+20',
+                  'BOOL canReachBottom=isfinite(content)',
+                  'content<=CGRectGetHeight(revised)+2',
                   'fabs(CGRectGetMaxY(revised)-CGRectGetMaxY(originalBody))<1',
                   'body.frame=revised;'):
             self.assertIn(x,O,x)

@@ -3171,7 +3171,14 @@ static UIScrollView *ScarletIslandP60CommonUnsafeScroll(
            fabs(CGRectGetMinY(rect))>4 ||
            h<CGRectGetHeight(window.bounds)*0.78 ||
            fabs(CGRectGetMaxY(rect)-CGRectGetHeight(window.bounds))>75 ||
-           scroll.contentSize.height<h+safeTop+25 ||
+           // P62: P61 device PID2015 retained six scroll-owned unsafe
+           // controls, but P60 never staged the selected viewport. Requiring
+           // contentSize > ORIGINAL viewport+safeTop rejects legitimate
+           // UIScrollViews whose content fits before shortening. The new
+           // smaller viewport still keeps all content accessible: content
+           // shorter than it fits; longer content is natively scrollable.
+           !isfinite(scroll.contentSize.height) ||
+           scroll.contentSize.height<=0 ||
            !scroll.scrollEnabled || scroll.hidden || scroll.alpha<0.5)
             continue;
         // A native scrolling region whose content is already scrollable
@@ -3254,9 +3261,16 @@ static void ScarletIslandP54AfterNativeOwnerLayout(UIViewController *owner) {
             delta=CGRectGetMaxY(headerWindow)-CGRectGetMinY(originalWindow);
             revised.origin.y+=delta;
             revised.size.height-=delta;
-            extentEnough=scroll.scrollEnabled &&
-                scroll.contentSize.height>=
-                    CGRectGetHeight(originalBody)+delta+20 &&
+            // P62: use the actual post-docking viewport and the native
+            // scrollability invariant instead of P60's impossible
+            // originalHeight + delta + 20 minimum content size. Never
+            // alter contentOffset, contentInset, contentSize or guest root.
+            CGFloat content=scroll.contentSize.height;
+            BOOL canReachBottom=isfinite(content) && content>0 &&
+                (content<=CGRectGetHeight(revised)+2 ||
+                 (scroll.scrollEnabled &&
+                  content>CGRectGetHeight(revised)));
+            extentEnough=scroll.scrollEnabled && canReachBottom &&
                 revised.size.height>=CGRectGetHeight(window.bounds)*0.65 &&
                 fabs(CGRectGetMaxY(originalWindow)-
                      CGRectGetHeight(window.bounds))<75;
