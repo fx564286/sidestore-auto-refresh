@@ -1,10 +1,10 @@
 {
   "schema": 2,
   "scope": "Scarlet Crystal guest top-screen overlap, touch access, rotation, remote guest render and related resident regressions",
-  "updated_utc": "2026-11-14T16:39:00+09:00",
-  "current_baseline": "P59 signed iPhone 3.8.59 SourceCommit 229e48d60bae overlap unresolved; P60 3.8.60 nested scroll native fix device-unverified; P61 3.8.61 native SideStore slot manager source commit c2090225fa2e77774ddaa58b0ca486a8b7d0288c published, local 721 regression tests pass, native CI/signed device result pending.",
-  "current_issue_status": "P59 overlap/statusbar still unresolved. P61 SideStore device app deactivate/reactivate source added and pushed; free 3 active apps vs 10 App ID and 2 account entries not team switch; native signed device backup/restore unverified.",
-  "confidence_note": "Verified local Python tests and exact remote P61 GitHub source sha; native Xcode and real iPhone app state pending.",
+  "updated_utc": "2026-11-14T16:50:00+09:00",
+  "current_baseline": "P61 native 3.8.61 first build source SHA 84ddedb48 failed on labeled CheckedContinuation type; P61 fix source SHA 6f445675e73909591e5a38c366446012568fff7e pushed. P59 device top overlap/statusbar unresolved; P60 nested scroll fix device unverified; original P61 inactive/active iPhone operation unverified.",
+  "current_issue_status": "P61 Xcode27 tuple signature mismatch corrected in source; next CI pending. Original SideStore managed slot feature implemented but actual signed device backup/restore not verified. Two account login entries do not prove multiple signed developer teams.",
+  "confidence_note": "Observed precise native compiler error from CI artifact; source correction and static contract test pass; no native compile success claim yet.",
   "privacy": "No credentials, Apple ID, OTP, UDID, guest names or device identifiers are stored.",
   "entries": [
     {
@@ -32457,6 +32457,79 @@
           "source_generation_script": "rebuild/integration/wire_scarlet_auth.py",
           "function": "patch_livecontainer: copy host native auth support",
           "note": "Same original XPC transport; no separate app ID."
+        }
+      ]
+    },
+    {
+      "id": "L109",
+      "date": "2026-11-14",
+      "version": "Scarlet-V48-R6P61-native-Xcode-tuple-label-compile-repair",
+      "problem": "native_ios_compile_rejects_unlabeled_swift_continuation_tuple",
+      "mechanism": "swift_checkedcontinuation_tuple_element_label_alignment",
+      "novelty": {
+        "prior_excluded_ids": [
+          "L108",
+          "L107",
+          "L106"
+        ],
+        "causal_difference": "P61 XPC response list() explicitly returns labeled tuple (apps:, reason:), but the new gate expected unlabeled tuple. Native Xcode 27.2 Swift compiler rejected the mismatched CheckedContinuation specialization; fix exactly the gate stored and initialized generic types, preserving existing backup and deactivation behavior.",
+        "falsifiable_prediction": "Next Xcode 27.2 native LC build compiles ScarletAuthXPCSupport.swift at the formerly failing line 634 without tuple conversion error. Any additional errors require independent logs; device management success is not inferred.",
+        "new_device_evidence": {}
+      },
+      "hypothesis": "Aligning the gate CheckedContinuation tuple labels with the enclosing async list return type eliminates Swift compile error without changing XPC runtime.",
+      "action": "Change two CheckedContinuation type signatures to (apps:, reason:) and add a P61 regression test for the exact declared signature.",
+      "observation": "GitHub Actions run 43572251851 LiveContainer job 132378944361 failed exit65 at ScarletAuthXPCSupport.swift:634:45, cannot convert labeled result tuple to unlabeled gate type. P61 source patch submitted for new CI run; native success pending.",
+      "evidence": [
+        "CI LiveContainer artifact 14105136565 original 334231-byte livecontainer-build.log line1472: cannot convert value of type CheckedContinuation<(apps:[...],reason:String),Never> to CheckedContinuation<([...],String),Never>.",
+        "Original run 43572251851 Native Step Build LiveContainer exited 65.",
+        "Source sha 6f445675e73909591e5a38c366446012568fff7e corrects two generic type sites and adds regression assertion."
+      ],
+      "status": "P61_Xcode27_tuple_compile_fix_source_pushed_native_ci_pending_device_unverified",
+      "source_verification": "git_patch_observed",
+      "device_verification": "NOT VERIFIED. This patch only resolves the observed Swift generic type mismatch; device sign+install+backup+restore still pending.",
+      "next_executable_action": "Rerun native Xcode27.2 workflow; inspect next actual compiler error if any; verify 3.8.61 IPA integrity/signing/team; exercise managed slot backup and restore on same iPhone only when signed. Continue P60 island issue independently.",
+      "rollback_commit": "84ddedb48cb79b44e4f857fd41e103621a86aa82",
+      "repeat_policy": "Do not repeat this tuple label correction under new version; require source/log proof for different Swift compile error.",
+      "source_revisions": [
+        {
+          "sha": "6f445675e73909591e5a38c366446012568fff7e",
+          "title": "fix(r6p61): preserve labeled Swift continuation tuple in Xcode 27.2",
+          "url": "https://github.com/fx564286/sidestore-auto-refresh/commit/6f445675e73909591e5a38c366446012568fff7e"
+        }
+      ],
+      "code_locations": [
+        {
+          "file": "rebuild/HostApp/ScarletAuthXPCSupport.swift",
+          "commit": "6f445675e73909591e5a38c366446012568fff7e",
+          "function": "ScarletSlotsListGate tuple continuation and P61 regression contract",
+          "location": "@@ -674,8 +674,8 @@ public enum ScarletNativeSideloadSlots {",
+          "before": [
+            "    private var continuation: CheckedContinuation<([ScarletSideloadSlot], String), Never>?",
+            "    init(_ c: CheckedContinuation<([ScarletSideloadSlot], String), Never>) { continuation = c }"
+          ],
+          "after": [
+            "    private var continuation: CheckedContinuation<(apps: [ScarletSideloadSlot], reason: String), Never>?",
+            "    init(_ c: CheckedContinuation<(apps: [ScarletSideloadSlot], reason: String), Never>) { continuation = c }"
+          ]
+        },
+        {
+          "file": "rebuild/Tests/test_v48_r6p61_managed_sideload_slots.py",
+          "commit": "6f445675e73909591e5a38c366446012568fff7e",
+          "function": "ScarletSlotsListGate tuple continuation and P61 regression contract",
+          "location": "@@ -60,6 +60,7 @@ class NativeSideloadSlotContract(unittest.TestCase):",
+          "before": [],
+          "after": [
+            "        self.assertEqual(SUPPORT.count('CheckedContinuation<(apps: [ScarletSideloadSlot], reason: String), Never>'), 2)"
+          ]
+        }
+      ],
+      "generated_runtime_targets": [
+        {
+          "source_template": "rebuild/HostApp/ScarletAuthXPCSupport.swift",
+          "generated_file": "SideStoreSupport/ScarletAuthXPCSupport.swift",
+          "source_generation_script": "rebuild/integration/wire_scarlet_auth.py",
+          "function": "ScarletSlotsListGate init, stored continuation",
+          "note": "Generated source retains tuple labels in Xcode native SideStoreSupport compile."
         }
       ]
     }
