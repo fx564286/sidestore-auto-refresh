@@ -51,9 +51,28 @@ jobs:
           set -euo pipefail
           mkdir -p report
           pin="$(python3 -c 'import json;print(json.load(open("config/scarlet-upstream-pins.json"))["LIVE_CONTAINER_REF"])')"
-          git clone --filter=blob:none https://github.com/LiveContainer/LiveContainer.git engine/LiveContainer
+          # Transient runner DNS outages must not become false source-build failures.
+          # Bounded attempts, pinned git SHA checked after cloning, no host data touched.
+          for attempt in 1 2 3 4; do
+            if git clone --filter=blob:none https://github.com/LiveContainer/LiveContainer.git engine/LiveContainer; then break; fi
+            if [ "$attempt" -eq 4 ]; then
+              echo "[NETWORK-STOP] LiveContainer GitHub source unavailable after four attempts"
+              exit 1
+            fi
+            rm -rf engine/LiveContainer
+            echo "[NETWORK-RETRY] LiveContainer source clone attempt $attempt failed"
+            sleep "$((attempt*5))"
+          done
           git -C engine/LiveContainer checkout --detach "$pin"
-          git -C engine/LiveContainer submodule update --init --recursive --jobs 3
+          for attempt in 1 2 3 4; do
+            if git -C engine/LiveContainer submodule update --init --recursive --jobs 3; then break; fi
+            if [ "$attempt" -eq 4 ]; then
+              echo "[NETWORK-STOP] LiveContainer pinned submodules unavailable"
+              exit 1
+            fi
+            echo "[NETWORK-RETRY] LiveContainer submodules attempt $attempt failed"
+            sleep "$((attempt*5))"
+          done
           test "$(git -C engine/LiveContainer rev-parse HEAD)" = "$pin"
           echo "$pin" > report/livecontainer-commit.txt
           # V14 slim IPA removed ShareExtension, but LaunchAppExtension
@@ -76,7 +95,18 @@ jobs:
         run: |
           set -Eeuo pipefail
           pin="7c911d8319dc5bcc411bf299d963689e26009b0b"
-          git clone --filter=blob:none https://github.com/StikDebug/StikPair.git engine/StikPair
+          # Transient runner DNS outages must not become false source-build failures.
+          # Bounded attempts, pinned git SHA checked after cloning, no host data touched.
+          for attempt in 1 2 3 4; do
+            if git clone --filter=blob:none https://github.com/StikDebug/StikPair.git engine/StikPair; then break; fi
+            if [ "$attempt" -eq 4 ]; then
+              echo "[NETWORK-STOP] StikPair GitHub source unavailable after four attempts"
+              exit 1
+            fi
+            rm -rf engine/StikPair
+            echo "[NETWORK-RETRY] StikPair source clone attempt $attempt failed"
+            sleep "$((attempt*5))"
+          done
           git -C engine/StikPair checkout --detach "$pin"
           test "$(git -C engine/StikPair rev-parse HEAD)" = "$pin"
           cargo --version
@@ -176,9 +206,28 @@ jobs:
           set -euo pipefail
           mkdir -p report
           pin="$(python3 -c 'import json;print(json.load(open("config/scarlet-upstream-pins.json"))["EMBEDDED_SIDESTORE_REF"])')"
-          git clone --filter=blob:none https://github.com/LiveContainer/SideStore.git engine/SideStore
+          # Transient runner DNS outages must not become false source-build failures.
+          # Bounded attempts, pinned git SHA checked after cloning, no host data touched.
+          for attempt in 1 2 3 4; do
+            if git clone --filter=blob:none https://github.com/LiveContainer/SideStore.git engine/SideStore; then break; fi
+            if [ "$attempt" -eq 4 ]; then
+              echo "[NETWORK-STOP] SideStore GitHub source unavailable after four attempts"
+              exit 1
+            fi
+            rm -rf engine/SideStore
+            echo "[NETWORK-RETRY] SideStore source clone attempt $attempt failed"
+            sleep "$((attempt*5))"
+          done
           git -C engine/SideStore checkout --detach "$pin"
-          git -C engine/SideStore submodule update --init --recursive --jobs 3
+          for attempt in 1 2 3 4; do
+            if git -C engine/SideStore submodule update --init --recursive --jobs 3; then break; fi
+            if [ "$attempt" -eq 4 ]; then
+              echo "[NETWORK-STOP] SideStore pinned submodules unavailable"
+              exit 1
+            fi
+            echo "[NETWORK-RETRY] SideStore submodules attempt $attempt failed"
+            sleep "$((attempt*5))"
+          done
           python3 rebuild/integration/verify_engines.py \
             --sidestore-source engine/SideStore --phase pins \
             --report report/source-gitlink-audit.json
