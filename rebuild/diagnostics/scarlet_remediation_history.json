@@ -1,10 +1,10 @@
 {
   "schema": 2,
   "scope": "Scarlet Crystal guest top-screen overlap, touch access, rotation, remote guest render and related resident regressions",
-  "updated_utc": "2026-11-14T16:50:00+09:00",
-  "current_baseline": "P61 native 3.8.61 first build source SHA 84ddedb48 failed on labeled CheckedContinuation type; P61 fix source SHA 6f445675e73909591e5a38c366446012568fff7e pushed. P59 device top overlap/statusbar unresolved; P60 nested scroll fix device unverified; original P61 inactive/active iPhone operation unverified.",
-  "current_issue_status": "P61 Xcode27 tuple signature mismatch corrected in source; next CI pending. Original SideStore managed slot feature implemented but actual signed device backup/restore not verified. Two account login entries do not prove multiple signed developer teams.",
-  "confidence_note": "Observed precise native compiler error from CI artifact; source correction and static contract test pass; no native compile success claim yet.",
+  "updated_utc": "2026-11-14T17:30:00+09:00",
+  "current_baseline": "P61 signed device SourceCommit f45095766da7 Build3.8.61 session ae5c93f6 confirms 9 -> 6 unsafe scroll controls, status_hidden=true; P62 source b3da55ea changes native deep scroll eligibility, signed device unverified.",
+  "current_issue_status": "Dynamic Island overlap and status icons P61 unresolved. P62 proposed actual trial replaces P60 original-height scroll content gate with projected-height native candidate gate; Xcode 27.2 and device pending. P61 side-slot manager and P57 same-IPA overwrite not exercised in attached session. Two account registrations do not imply two developer teams.",
+  "confidence_note": "Observed signed P61 run. P62 source and 725 local tests verified, P62 native iOS artifact and iPhone restoration not verified; exact P60 selection-exclusion cause remains a hypothesis.",
   "privacy": "No credentials, Apple ID, OTP, UDID, guest names or device identifiers are stored.",
   "entries": [
     {
@@ -32530,6 +32530,238 @@
           "source_generation_script": "rebuild/integration/wire_scarlet_auth.py",
           "function": "ScarletSlotsListGate init, stored continuation",
           "note": "Generated source retains tuple labels in Xcode native SideStoreSupport compile."
+        }
+      ]
+    },
+    {
+      "id": "L110",
+      "date": "2026-11-14",
+      "version": "Scarlet-V48-R6P62-measured-short-content-native-scroll-eligibility",
+      "problem": "guest_top_p61_signed_nested_scroll_unsafe_six_and_native_statusbar_hidden",
+      "mechanism": "measured_reduced_viewport_content_eligibility_replaces_impossible_original_height_growth_requirement",
+      "novelty": {
+        "prior_excluded_ids": [
+          "L102",
+          "L105",
+          "L106",
+          "L108",
+          "L109"
+        ],
+        "causal_difference": "P60 selects the nearest common nested UIScrollView of actual unsafe controls but refuses any original scroll with contentSize smaller than its ORIGINAL height + safeTop + 25, then repeats that invalid original-height-plus-delta requirement in native owner layout. The signed P61 08:08:35 session still has six scroll-owned unsafe buttons after header retention and no body stage, despite normal parent native safeArea. P62 does not change selection ownership, size, scroll insets, offset or whole scene. It permits a genuine shorter scroll content to fit the prospective reduced viewport (or remain natively scrollable), and retains the existing 2-sample complete risk/offset/inset/geometry rollback. This edits actual eligibility behavior rather than adding logging or repeating P56 moving a directly guessed sibling.",
+        "falsifiable_prediction": "If P60 selected no body due to excessive original-height contentSize gate, signed P62 same iPhone/guest shall emit guest_owner_content_reflow_staged with reason p62_measured_short_content_native_scroll_owner followed by 2-pass zero focused/root unsafe, retained body, and status_hidden=false. If staged never appears, selection is blocked for another cause; if staged reverts, original measured offset/insets/geometry or full risk failed. Only full visual/touch/scroll and orientation checks prove actual success.",
+        "new_device_evidence": {
+          "source_commit": "f45095766da7",
+          "session": "ae5c93f6",
+          "event": "P61_signed_native_owner_retained_but_content_reflow_never_staged",
+          "observed_value": "2026-11-14 08:08:51Z guest PID2015: risk=9 at 650ms -> risk=6 at 2600ms all inside scroll. native owner layout retained; P60 guest_owner_content_reflow_staged absent; native status_hidden=true and 24-depth root sample capped. Exact common scroll contentSize is not logged; guard-specific exclusion is a hypothesis."
+        },
+        "why_prior_fix_failed": "P60 was not observed staging on a correctly installed signed P61 and its source requires content size to exceed the original screen plus extra safeTop at selection and owner application, which is not necessary for a shorter native viewport. P62 removes this duplicate strict condition rather than retrying P60 unchanged."
+      },
+      "hypothesis": "P60 fails to pick the nested scroll owner because content is not long enough to exceed the original full-screen viewport plus extra 87+ points, even though it can fit or scroll within a reduced viewport.",
+      "action": "Replace both old P60 contentSize>=originalHeight+extra eligibility checks with one bounded native P62 predicate using projected viewport, positive native scroll geometry and finite scroll offset/inset; retain original parent owner callback, fixed bottom, zero-risk 2 readbacks, strict unchanged scroll state and rollback. Update P60 exact source tests, add P62 unique tests, 3.8.62 branch release, and user handoff.",
+      "observation": "P61 logged signed Build3.8.61 and actual PID2015 with 9 -> 6 unsafe, statusbar hidden, parent header owner contract retained; no content-reflow events. P62 GitHub source pushed; 725 local Python tests pass, 3 environment skips; Xcode27.2 compile/IPA and signed P62 device result pending.",
+      "evidence": [
+        "User-provided 20261114-081142 report CurrentSession ae5c93f6, SourceCommit f45095766da7, Build3.8.61, current-run event lines 229/257/252-255/230,258.",
+        "P60 source in rebuild/integration/ScarletGuestIslandContentGuard.m.txt required scroll.contentSize.height<h+safeTop+25 and originalBody+delta+20 in owner candidate, preventing normal short-content native viewport trial.",
+        "P61 report shows 0 guest_owner_content_reflow_staged events and 0 slot_management_inspected events; slot manager simply not exercised in session.",
+        "P62 source SHA b3da55ea44d3ed175d694ce0db59965f109736b8 changes eligibility only while preserving statusbar collision shield and rollback; all local 725 tests pass (3 skips)."
+      ],
+      "status": "P62_source_pushed_725_tests_pass_native_ios_ci_pending_device_unverified",
+      "source_verification": "git_patch_observed",
+      "device_verification": "Signed P61 installed and reproduces six unsafe scroll-owned controls and hidden clock/battery. No signed P62 install or visual+touch test; runtime fix not verified.",
+      "next_executable_action": "Run Xcode27.2 native SideStore+LiveContainer and P62 IPA readback. Sign with existing team/profile preserving app and data; same guest native iPhone test should show p62_measured_short_content_native_scroll_owner staged/retained, unsafe0 two checks, status_hidden=false and intact scroll/touch/rotation/A-B-A. Separately click P61 device install slot manager to verify backups and activate; no account-team inference.",
+      "rollback_commit": "f45095766da711ccacaca840c7202e3dd283f506",
+      "repeat_policy": "P60 original-height content growth gate and P62 projected-height gate must not be repeated. If P62 still stages no body, obtain actual candidate rejection reason and choose different causal implementation, not another percentage tweak without evidence.",
+      "source_revisions": [
+        {
+          "sha": "b3da55ea44d3ed175d694ce0db59965f109736b8",
+          "title": "fix(r6p62): accept measured short-content native scroll viewport with rollback",
+          "url": "https://github.com/fx564286/sidestore-auto-refresh/commit/b3da55ea44d3ed175d694ce0db59965f109736b8"
+        }
+      ],
+      "code_locations": [
+        {
+          "file": ".github/workflows/scarlet-paired-engines-build.yml",
+          "commit": "b3da55ea44d3ed175d694ce0db59965f109736b8",
+          "function": "R6P62 packaging, regression and historical handoff contract",
+          "location": "@@ -3,7 +3,7 @@ name: Scarlet paired LiveContainer and SideStore iOS build",
+          "before": [
+            "    branches: [rebuild/scarlet-from-zero-20261106, fix/scarlet-auth-status-rootcause-20261109, fix/scarlet-pr48-guest-overlay-no-resize-20261109, fix/scarlet-pr48-airpods-glass-guest-switch-v3-20261109, fix/scarlet-pr48-draggable-guest-tab-v4-20261109, fix/scarlet-pr48-v5-glass-drag-cert-recovery-20261109, fix/scarlet-pr48-v6-unified-cert-glass-20261109, fix/scarlet-pr48-v7-cert-jitless-unify-panel-rim-20261109, fix/scarlet-pr48-v8-flicker-certificate-menu-20261109, fix/scarlet-pr48-v9-single-glass-rim-20261109, fix/scarlet-pr48-v10-fixed-tab-cert-and-session-20261109, fix/scarlet-pr48-v11-module-settings-appid-20261109, fix/scarlet-pr48-v12-live-sessions-source-auto-refresh-20261109, fix/scarlet-pr48-v13-compact-settings-current-app-20261109, fix/scarlet-pr48-v14-guest-history-native-scenes-three-ids-20261109, fix/scarlet-pr48-v15-source-disclosure-icons-guest-handoff-20261109, fix/scarlet-pr48-v16-guest-switcher-icons-readback-20261110, fix/scarlet-v17-cold-switch-rotation-20261110, fix/scarlet-v18-refresh-diagnostics-native-glass-20261110, fix/scarlet-v19-active-session-switcher-20261110, fix/scarlet-v20-guest-switcher-trace-20261110, fix/scarlet-v21-hook-telemetry-persistence-20261110, fix/scarlet-v22-runtime-guest-identity-20261110, fix/scarlet-v23-session-only-switcher-20261110, fix/scarlet-v24-refresh-lifecycle-switch-receipt-20261110, fix/scarlet-v25-single-panel-outside-dismiss-20261110, fix/scarlet-v26-liquidglass-button-to-fixed-panel-morph-20261110, fix/scarlet-v27-sidestore-direct-native-refresh-20261110, fix/scarlet-v28-minimuxer-readiness-recovery-20261110, fix/scarlet-v29-inapp-rppairing-20261110, fix/scarlet-v30-restore-sidestore-active-team-20261110, fix/scarlet-v31-pairing-persistence-sheet-purple-20261110, fix/scarlet-v32-korean-copy-20261110, fix/scarlet-v33-log-rootcause-20261110, fix/scarlet-v34-iphone-virtual-resident-20261110, fix/scarlet-v35-restore-original-fullscreen-20261110, fix/scarlet-v36-remove-legacy-ui-20261110, fix/scarlet-v37-session-refresh-20261110, fix/scarlet-v38-current-launch-logs-20261110, fix/scarlet-v39-log-truth-20261110, fix/scarlet-v40-clean-work-session-20261110, fix/scarlet-v42-v40-safe-diagnostics-20261110, fix/scarlet-v43-install-rootcause-20261110, fix/scarlet-v44-rppairing-postsign-install-20261111, fix/scarlet-v45-single-viewport-liveprocess-20261111, fix/scarlet-v46-guard-provisional-guest-geometry-20261111, fix/scarlet-v47-resident-inplace-guest-switch-20261111, fix/scarlet-v48-guest-runtime-recovery-20261111, fix/scarlet-v48-restored-20261111, fix/scarlet-v48-r2-unified-switcher-20261111, fix/scarlet-v48-r3-original-pan-diagnostics-20261111, fix/scarlet-v48-r4-native-outside-remote-insets-20261111, fix/scarlet-v48-r5-attached-insets-shield-20261111, fix/scarlet-v48-r5-crash-recovery-20261111, fix/scarlet-v48-r5-recovery-r2-host-owner-20261111, fix/scarlet-v48-r5-recovery-r3-scene-authority-20261111, fix/scarlet-v48-r5-recovery-r4-native-ready-20261111, fix/scarlet-v48-r5-recovery-r5-compat-foreground-20261111, fix/scarlet-v48-r6-island-outside-audio-20261111, fix/scarlet-v48-r6p1-audio-home-focus-20261111, fix/scarlet-v48-r6p2-blocked-history-20261111, fix/scarlet-v48-r6p3-home-audio-gate-20261111, fix/scarlet-v48-r6p4-guest-audio-ack-20261112, fix/scarlet-v48-r6p7-launch-policy-rootcause-20261112, fix/scarlet-v48-r6p8-policy-field-relay-20261112, fix/scarlet-v48-r6p9-deferred-scene-boot-20261112, fix/scarlet-v48-r6p10-persistent-remediation-ledger-20261112, fix/scarlet-v48-r6p11-resident-guest-sdk-contract-20261112, fix/scarlet-v48-r6p12-instant-recent-switcher-20261112, fix/scarlet-v48-r6p14-switcher-reset-on-navigation-20261112, fix/scarlet-v48-r6p15-guest-root-island-pairing-recovery-20261112, fix/scarlet-v48-r6p16-audit-coverage-20261112, fix/scarlet-v48-r6p17-resident-optin-defaults-20261112, fix/scarlet-v48-r6p18-guest-content-geometry-20261112, fix/scarlet-v48-r6p19-entitlement-failclosed-network-recovery-20261112, fix/scarlet-v48-r6p20-auth-session-bg-id-20261112, fix/scarlet-v48-r6p21-depth-probe-cert-recheck-20261112, fix/scarlet-v48-r6p22-guest-scroll-content-inset-20261112, fix/scarlet-v48-r6p23-guest-owner-refresh-stage-20261112, fix/scarlet-v48-r6p24-keyboard-stage-relay-20261112, fix/scarlet-v48-r6p25-visibility-occlusion-20261112, fix/scarlet-v48-r6p26-recorder-field-contract-20261112, fix/scarlet-v48-r6p27-visible-scroll-owner-20261112, fix/scarlet-v48-r6p28-guest-local-scroll-inset-20261112, fix/scarlet-v48-r6p29-residual-auto-inset-20261112, fix/scarlet-v48-r6p30-inset-interference-isolation-20261112, fix/scarlet-v48-r6p31-nonvertical-always-safearea-20261112, fix/scarlet-v48-r6p32-nonscrolling-owner-stabilization-20261112, fix/scarlet-v48-r6p33-deferred-inset-anchor-20261112, fix/scarlet-v48-r6p34-constraint-native-error-proof-20261112, fix/scarlet-v48-r6p35-ancestor-layout-owner-20261112, fix/scarlet-v48-r6p36-lost-guest-probe-readback-20261112, fix/scarlet-v48-r6p37-nested-header-safe-guide-anchor-20261112, fix/scarlet-v48-r6p38-header-layout-owner-20261113, fix/scarlet-v48-r6p39-parent-safe-guide-constraint-20261113, fix/scarlet-v48-r6p40-transparent-chrome-slot-20261113, fix/scarlet-v48-r6p41-adaptive-chrome-stickiness-20261113, fix/scarlet-v48-r6p42-guest-matched-status-chrome-20261113, fix/scarlet-v48-r6p43-host-verified-native-slot-20261113, fix/scarlet-v48-r6p44-full-native-scroll-header-20261113, fix/scarlet-v48-r6p45-scroll-aware-header-proof-20261113, fix/scarlet-v48-r6p46-detached-header-full-scroll-20261113, fix/scarlet-v48-r6p47-lifecycle-statusbar-20261113, fix/scarlet-v48-r6p48-fresh-proof-crop-gate-20261113, fix/scarlet-v48-r6p49-key-host-statusbar-20261113, fix/scarlet-v48-r6p50-scroll-crop-veto-20261113, fix/scarlet-v48-r6p51-native-statusbar-collision-shield-20261113, fix/scarlet-v48-r6p52-restore-original-host-colors-20261113, fix/scarlet-v48-r6p53-current-log-followup-20261113, fix/scarlet-v48-r6p54-owning-layout-contract-20261114, fix/scarlet-v48-r6p55-child-controller-owner-layout-20261114, fix/scarlet-v48-r6p56-parent-feed-reflow-20261114, fix/scarlet-v48-r6p57-guest-overwrite-20261114, fix/scarlet-v48-r6p58-install-identity-20261114, fix/scarlet-v48-r6p59-unsafe-feed-owner-20261114, fix/scarlet-v48-r6p60-deep-owner-20261114, fix/scarlet-v48-r6p61-slot-manager-20261114]",
+            "          if [ \"$GITHUB_REF\" = \"refs/heads/fix/scarlet-v48-r6p61-slot-manager-20261114\" ]; then",
+            "    if: github.event_name == 'push' && (github.ref == 'refs/heads/rebuild/scarlet-from-zero-20261106' || github.ref == 'refs/heads/fix/scarlet-v31-pairing-persistence-sheet-purple-20261110' || github.ref == 'refs/heads/fix/scarlet-v32-korean-copy-20261110' || github.ref == 'refs/heads/fix/scarlet-v33-log-rootcause-20261110' || github.ref == 'refs/heads/fix/scarlet-v34-iphone-virtual-resident-20261110' || github.ref == 'refs/heads/fix/scarlet-v35-restore-original-fullscreen-20261110' || github.ref == 'refs/heads/fix/scarlet-v36-remove-legacy-ui-20261110' || github.ref == 'refs/heads/fix/scarlet-v37-session-refresh-20261110' || github.ref == 'refs/heads/fix/scarlet-v38-current-launch-logs-20261110' || github.ref == 'refs/heads/fix/scarlet-v39-log-truth-20261110' || github.ref == 'refs/heads/fix/scarlet-v40-clean-work-session-20261110' || github.ref == 'refs/heads/fix/scarlet-v42-v40-safe-diagnostics-20261110' || github.ref == 'refs/heads/fix/scarlet-v43-install-rootcause-20261110' || github.ref == 'refs/heads/fix/scarlet-v44-rppairing-postsign-install-20261111' || github.ref == 'refs/heads/fix/scarlet-v45-single-viewport-liveprocess-20261111' || github.ref == 'refs/heads/fix/scarlet-v46-guard-provisional-guest-geometry-20261111' || github.ref == 'refs/heads/fix/scarlet-v47-resident-inplace-guest-switch-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-guest-runtime-recovery-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-restored-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r2-unified-switcher-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r3-original-pan-diagnostics-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r4-native-outside-remote-insets-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r5-attached-insets-shield-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r5-crash-recovery-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r5-recovery-r2-host-owner-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r5-recovery-r3-scene-authority-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r5-recovery-r4-native-ready-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r5-recovery-r5-compat-foreground-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r6-island-outside-audio-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r6p1-audio-home-focus-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r6p2-blocked-history-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r6p3-home-audio-gate-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r6p4-guest-audio-ack-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p7-launch-policy-rootcause-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p8-policy-field-relay-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p9-deferred-scene-boot-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p10-persistent-remediation-ledger-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p11-resident-guest-sdk-contract-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p12-instant-recent-switcher-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p14-switcher-reset-on-navigation-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p15-guest-root-island-pairing-recovery-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p16-audit-coverage-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p17-resident-optin-defaults-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p18-guest-content-geometry-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p19-entitlement-failclosed-network-recovery-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p20-auth-session-bg-id-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p21-depth-probe-cert-recheck-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p22-guest-scroll-content-inset-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p23-guest-owner-refresh-stage-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p24-keyboard-stage-relay-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p25-visibility-occlusion-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p26-recorder-field-contract-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p27-visible-scroll-owner-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p28-guest-local-scroll-inset-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p29-residual-auto-inset-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p30-inset-interference-isolation-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p31-nonvertical-always-safearea-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p32-nonscrolling-owner-stabilization-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p33-deferred-inset-anchor-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p34-constraint-native-error-proof-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p35-ancestor-layout-owner-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p36-lost-guest-probe-readback-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p37-nested-header-safe-guide-anchor-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p38-header-layout-owner-20261113' || github.ref == 'refs/heads/fix/scarlet-v48-r6p39-parent-safe-guide-constraint-20261113' || github.ref == 'refs/heads/fix/scarlet-v48-r6p40-transparent-chrome-slot-20261113' || github.ref == 'refs/heads/fix/scarlet-v48-r6p41-adaptive-chrome-stickiness-20261113' || github.ref == 'refs/heads/fix/scarlet-v48-r6p42-guest-matched-status-chrome-20261113' || github.ref == 'refs/heads/fix/scarlet-v48-r6p43-host-verified-native-slot-20261113' || github.ref == 'refs/heads/fix/scarlet-v48-r6p44-full-native-scroll-header-20261113' || github.ref == 'refs/heads/fix/scarlet-v48-r6p45-scroll-aware-header-proof-20261113' || github.ref == 'refs/heads/fix/scarlet-v48-r6p46-detached-header-full-scroll-20261113' || github.ref == 'refs/heads/fix/scarlet-v48-r6p47-lifecycle-statusbar-20261113' || github.ref == 'refs/heads/fix/scarlet-v48-r6p48-fresh-proof-crop-gate-20261113' || github.ref == 'refs/heads/fix/scarlet-v48-r6p49-key-host-statusbar-20261113' || github.ref == 'refs/heads/fix/scarlet-v48-r6p50-scroll-crop-veto-20261113' || github.ref == 'refs/heads/fix/scarlet-v48-r6p51-native-statusbar-collision-shield-20261113' || github.ref == 'refs/heads/fix/scarlet-v48-r6p52-restore-original-host-colors-20261113' || github.ref == 'refs/heads/fix/scarlet-v48-r6p53-current-log-followup-20261113' || github.ref == 'refs/heads/fix/scarlet-v48-r6p54-owning-layout-contract-20261114' || github.ref == 'refs/heads/fix/scarlet-v48-r6p55-child-controller-owner-layout-20261114' || github.ref == 'refs/heads/fix/scarlet-v48-r6p56-parent-feed-reflow-20261114' || github.ref == 'refs/heads/fix/scarlet-v48-r6p57-guest-overwrite-20261114' || github.ref == 'refs/heads/fix/scarlet-v48-r6p58-install-identity-20261114' || github.ref == 'refs/heads/fix/scarlet-v48-r6p59-unsafe-feed-owner-20261114' || github.ref == 'refs/heads/fix/scarlet-v48-r6p60-deep-owner-20261114' || github.ref == 'refs/heads/fix/scarlet-v48-r6p61-slot-manager-20261114')",
+            "              if any(x in __import__(\"os\").environ.get(\"GITHUB_REF\",\"\") for x in (\"r6p58\",\"r6p59\",\"r6p60\",\"r6p61\")):",
+            "                  version=\"3.8.61\" if \"r6p61\" in __import__(\"os\").environ.get(\"GITHUB_REF\",\"\") else (\"3.8.60\" if \"r6p60\" in __import__(\"os\").environ.get(\"GITHUB_REF\",\"\") else (\"3.8.59\" if \"r6p59\" in __import__(\"os\").environ.get(\"GITHUB_REF\",\"\") else \"3.8.58\"))",
+            "          if [ \"$GITHUB_REF\" = \"refs/heads/fix/scarlet-v48-r6p61-slot-manager-20261114\" ]; then",
+            "          if [ \"$GITHUB_REF\" = \"refs/heads/fix/scarlet-v48-r6p61-slot-manager-20261114\" ]; then"
+          ],
+          "after": [
+            "    branches: [rebuild/scarlet-from-zero-20261106, fix/scarlet-auth-status-rootcause-20261109, fix/scarlet-pr48-guest-overlay-no-resize-20261109, fix/scarlet-pr48-airpods-glass-guest-switch-v3-20261109, fix/scarlet-pr48-draggable-guest-tab-v4-20261109, fix/scarlet-pr48-v5-glass-drag-cert-recovery-20261109, fix/scarlet-pr48-v6-unified-cert-glass-20261109, fix/scarlet-pr48-v7-cert-jitless-unify-panel-rim-20261109, fix/scarlet-pr48-v8-flicker-certificate-menu-20261109, fix/scarlet-pr48-v9-single-glass-rim-20261109, fix/scarlet-pr48-v10-fixed-tab-cert-and-session-20261109, fix/scarlet-pr48-v11-module-settings-appid-20261109, fix/scarlet-pr48-v12-live-sessions-source-auto-refresh-20261109, fix/scarlet-pr48-v13-compact-settings-current-app-20261109, fix/scarlet-pr48-v14-guest-history-native-scenes-three-ids-20261109, fix/scarlet-pr48-v15-source-disclosure-icons-guest-handoff-20261109, fix/scarlet-pr48-v16-guest-switcher-icons-readback-20261110, fix/scarlet-v17-cold-switch-rotation-20261110, fix/scarlet-v18-refresh-diagnostics-native-glass-20261110, fix/scarlet-v19-active-session-switcher-20261110, fix/scarlet-v20-guest-switcher-trace-20261110, fix/scarlet-v21-hook-telemetry-persistence-20261110, fix/scarlet-v22-runtime-guest-identity-20261110, fix/scarlet-v23-session-only-switcher-20261110, fix/scarlet-v24-refresh-lifecycle-switch-receipt-20261110, fix/scarlet-v25-single-panel-outside-dismiss-20261110, fix/scarlet-v26-liquidglass-button-to-fixed-panel-morph-20261110, fix/scarlet-v27-sidestore-direct-native-refresh-20261110, fix/scarlet-v28-minimuxer-readiness-recovery-20261110, fix/scarlet-v29-inapp-rppairing-20261110, fix/scarlet-v30-restore-sidestore-active-team-20261110, fix/scarlet-v31-pairing-persistence-sheet-purple-20261110, fix/scarlet-v32-korean-copy-20261110, fix/scarlet-v33-log-rootcause-20261110, fix/scarlet-v34-iphone-virtual-resident-20261110, fix/scarlet-v35-restore-original-fullscreen-20261110, fix/scarlet-v36-remove-legacy-ui-20261110, fix/scarlet-v37-session-refresh-20261110, fix/scarlet-v38-current-launch-logs-20261110, fix/scarlet-v39-log-truth-20261110, fix/scarlet-v40-clean-work-session-20261110, fix/scarlet-v42-v40-safe-diagnostics-20261110, fix/scarlet-v43-install-rootcause-20261110, fix/scarlet-v44-rppairing-postsign-install-20261111, fix/scarlet-v45-single-viewport-liveprocess-20261111, fix/scarlet-v46-guard-provisional-guest-geometry-20261111, fix/scarlet-v47-resident-inplace-guest-switch-20261111, fix/scarlet-v48-guest-runtime-recovery-20261111, fix/scarlet-v48-restored-20261111, fix/scarlet-v48-r2-unified-switcher-20261111, fix/scarlet-v48-r3-original-pan-diagnostics-20261111, fix/scarlet-v48-r4-native-outside-remote-insets-20261111, fix/scarlet-v48-r5-attached-insets-shield-20261111, fix/scarlet-v48-r5-crash-recovery-20261111, fix/scarlet-v48-r5-recovery-r2-host-owner-20261111, fix/scarlet-v48-r5-recovery-r3-scene-authority-20261111, fix/scarlet-v48-r5-recovery-r4-native-ready-20261111, fix/scarlet-v48-r5-recovery-r5-compat-foreground-20261111, fix/scarlet-v48-r6-island-outside-audio-20261111, fix/scarlet-v48-r6p1-audio-home-focus-20261111, fix/scarlet-v48-r6p2-blocked-history-20261111, fix/scarlet-v48-r6p3-home-audio-gate-20261111, fix/scarlet-v48-r6p4-guest-audio-ack-20261112, fix/scarlet-v48-r6p7-launch-policy-rootcause-20261112, fix/scarlet-v48-r6p8-policy-field-relay-20261112, fix/scarlet-v48-r6p9-deferred-scene-boot-20261112, fix/scarlet-v48-r6p10-persistent-remediation-ledger-20261112, fix/scarlet-v48-r6p11-resident-guest-sdk-contract-20261112, fix/scarlet-v48-r6p12-instant-recent-switcher-20261112, fix/scarlet-v48-r6p14-switcher-reset-on-navigation-20261112, fix/scarlet-v48-r6p15-guest-root-island-pairing-recovery-20261112, fix/scarlet-v48-r6p16-audit-coverage-20261112, fix/scarlet-v48-r6p17-resident-optin-defaults-20261112, fix/scarlet-v48-r6p18-guest-content-geometry-20261112, fix/scarlet-v48-r6p19-entitlement-failclosed-network-recovery-20261112, fix/scarlet-v48-r6p20-auth-session-bg-id-20261112, fix/scarlet-v48-r6p21-depth-probe-cert-recheck-20261112, fix/scarlet-v48-r6p22-guest-scroll-content-inset-20261112, fix/scarlet-v48-r6p23-guest-owner-refresh-stage-20261112, fix/scarlet-v48-r6p24-keyboard-stage-relay-20261112, fix/scarlet-v48-r6p25-visibility-occlusion-20261112, fix/scarlet-v48-r6p26-recorder-field-contract-20261112, fix/scarlet-v48-r6p27-visible-scroll-owner-20261112, fix/scarlet-v48-r6p28-guest-local-scroll-inset-20261112, fix/scarlet-v48-r6p29-residual-auto-inset-20261112, fix/scarlet-v48-r6p30-inset-interference-isolation-20261112, fix/scarlet-v48-r6p31-nonvertical-always-safearea-20261112, fix/scarlet-v48-r6p32-nonscrolling-owner-stabilization-20261112, fix/scarlet-v48-r6p33-deferred-inset-anchor-20261112, fix/scarlet-v48-r6p34-constraint-native-error-proof-20261112, fix/scarlet-v48-r6p35-ancestor-layout-owner-20261112, fix/scarlet-v48-r6p36-lost-guest-probe-readback-20261112, fix/scarlet-v48-r6p37-nested-header-safe-guide-anchor-20261112, fix/scarlet-v48-r6p38-header-layout-owner-20261113, fix/scarlet-v48-r6p39-parent-safe-guide-constraint-20261113, fix/scarlet-v48-r6p40-transparent-chrome-slot-20261113, fix/scarlet-v48-r6p41-adaptive-chrome-stickiness-20261113, fix/scarlet-v48-r6p42-guest-matched-status-chrome-20261113, fix/scarlet-v48-r6p43-host-verified-native-slot-20261113, fix/scarlet-v48-r6p44-full-native-scroll-header-20261113, fix/scarlet-v48-r6p45-scroll-aware-header-proof-20261113, fix/scarlet-v48-r6p46-detached-header-full-scroll-20261113, fix/scarlet-v48-r6p47-lifecycle-statusbar-20261113, fix/scarlet-v48-r6p48-fresh-proof-crop-gate-20261113, fix/scarlet-v48-r6p49-key-host-statusbar-20261113, fix/scarlet-v48-r6p50-scroll-crop-veto-20261113, fix/scarlet-v48-r6p51-native-statusbar-collision-shield-20261113, fix/scarlet-v48-r6p52-restore-original-host-colors-20261113, fix/scarlet-v48-r6p53-current-log-followup-20261113, fix/scarlet-v48-r6p54-owning-layout-contract-20261114, fix/scarlet-v48-r6p55-child-controller-owner-layout-20261114, fix/scarlet-v48-r6p56-parent-feed-reflow-20261114, fix/scarlet-v48-r6p57-guest-overwrite-20261114, fix/scarlet-v48-r6p58-install-identity-20261114, fix/scarlet-v48-r6p59-unsafe-feed-owner-20261114, fix/scarlet-v48-r6p60-deep-owner-20261114, fix/scarlet-v48-r6p61-slot-manager-20261114, fix/scarlet-v48-r6p62-measured-content-scroll-20261114]",
+            "          if [ \"$GITHUB_REF\" = \"refs/heads/fix/scarlet-v48-r6p62-measured-content-scroll-20261114\" ]; then",
+            "            SCARLET_HOST_VERSION_ARGS=(--host-build-version 3.8.62)",
+            "          elif [ \"$GITHUB_REF\" = \"refs/heads/fix/scarlet-v48-r6p61-slot-manager-20261114\" ]; then",
+            "    if: github.event_name == 'push' && (github.ref == 'refs/heads/rebuild/scarlet-from-zero-20261106' || github.ref == 'refs/heads/fix/scarlet-v31-pairing-persistence-sheet-purple-20261110' || github.ref == 'refs/heads/fix/scarlet-v32-korean-copy-20261110' || github.ref == 'refs/heads/fix/scarlet-v33-log-rootcause-20261110' || github.ref == 'refs/heads/fix/scarlet-v34-iphone-virtual-resident-20261110' || github.ref == 'refs/heads/fix/scarlet-v35-restore-original-fullscreen-20261110' || github.ref == 'refs/heads/fix/scarlet-v36-remove-legacy-ui-20261110' || github.ref == 'refs/heads/fix/scarlet-v37-session-refresh-20261110' || github.ref == 'refs/heads/fix/scarlet-v38-current-launch-logs-20261110' || github.ref == 'refs/heads/fix/scarlet-v39-log-truth-20261110' || github.ref == 'refs/heads/fix/scarlet-v40-clean-work-session-20261110' || github.ref == 'refs/heads/fix/scarlet-v42-v40-safe-diagnostics-20261110' || github.ref == 'refs/heads/fix/scarlet-v43-install-rootcause-20261110' || github.ref == 'refs/heads/fix/scarlet-v44-rppairing-postsign-install-20261111' || github.ref == 'refs/heads/fix/scarlet-v45-single-viewport-liveprocess-20261111' || github.ref == 'refs/heads/fix/scarlet-v46-guard-provisional-guest-geometry-20261111' || github.ref == 'refs/heads/fix/scarlet-v47-resident-inplace-guest-switch-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-guest-runtime-recovery-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-restored-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r2-unified-switcher-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r3-original-pan-diagnostics-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r4-native-outside-remote-insets-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r5-attached-insets-shield-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r5-crash-recovery-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r5-recovery-r2-host-owner-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r5-recovery-r3-scene-authority-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r5-recovery-r4-native-ready-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r5-recovery-r5-compat-foreground-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r6-island-outside-audio-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r6p1-audio-home-focus-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r6p2-blocked-history-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r6p3-home-audio-gate-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r6p4-guest-audio-ack-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p7-launch-policy-rootcause-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p8-policy-field-relay-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p9-deferred-scene-boot-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p10-persistent-remediation-ledger-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p11-resident-guest-sdk-contract-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p12-instant-recent-switcher-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p14-switcher-reset-on-navigation-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p15-guest-root-island-pairing-recovery-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p16-audit-coverage-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p17-resident-optin-defaults-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p18-guest-content-geometry-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p19-entitlement-failclosed-network-recovery-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p20-auth-session-bg-id-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p21-depth-probe-cert-recheck-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p22-guest-scroll-content-inset-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p23-guest-owner-refresh-stage-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p24-keyboard-stage-relay-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p25-visibility-occlusion-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p26-recorder-field-contract-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p27-visible-scroll-owner-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p28-guest-local-scroll-inset-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p29-residual-auto-inset-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p30-inset-interference-isolation-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p31-nonvertical-always-safearea-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p32-nonscrolling-owner-stabilization-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p33-deferred-inset-anchor-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p34-constraint-native-error-proof-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p35-ancestor-layout-owner-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p36-lost-guest-probe-readback-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p37-nested-header-safe-guide-anchor-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p38-header-layout-owner-20261113' || github.ref == 'refs/heads/fix/scarlet-v48-r6p39-parent-safe-guide-constraint-20261113' || github.ref == 'refs/heads/fix/scarlet-v48-r6p40-transparent-chrome-slot-20261113' || github.ref == 'refs/heads/fix/scarlet-v48-r6p41-adaptive-chrome-stickiness-20261113' || github.ref == 'refs/heads/fix/scarlet-v48-r6p42-guest-matched-status-chrome-20261113' || github.ref == 'refs/heads/fix/scarlet-v48-r6p43-host-verified-native-slot-20261113' || github.ref == 'refs/heads/fix/scarlet-v48-r6p44-full-native-scroll-header-20261113' || github.ref == 'refs/heads/fix/scarlet-v48-r6p45-scroll-aware-header-proof-20261113' || github.ref == 'refs/heads/fix/scarlet-v48-r6p46-detached-header-full-scroll-20261113' || github.ref == 'refs/heads/fix/scarlet-v48-r6p47-lifecycle-statusbar-20261113' || github.ref == 'refs/heads/fix/scarlet-v48-r6p48-fresh-proof-crop-gate-20261113' || github.ref == 'refs/heads/fix/scarlet-v48-r6p49-key-host-statusbar-20261113' || github.ref == 'refs/heads/fix/scarlet-v48-r6p50-scroll-crop-veto-20261113' || github.ref == 'refs/heads/fix/scarlet-v48-r6p51-native-statusbar-collision-shield-20261113' || github.ref == 'refs/heads/fix/scarlet-v48-r6p52-restore-original-host-colors-20261113' || github.ref == 'refs/heads/fix/scarlet-v48-r6p53-current-log-followup-20261113' || github.ref == 'refs/heads/fix/scarlet-v48-r6p54-owning-layout-contract-20261114' || github.ref == 'refs/heads/fix/scarlet-v48-r6p55-child-controller-owner-layout-20261114' || github.ref == 'refs/heads/fix/scarlet-v48-r6p56-parent-feed-reflow-20261114' || github.ref == 'refs/heads/fix/scarlet-v48-r6p57-guest-overwrite-20261114' || github.ref == 'refs/heads/fix/scarlet-v48-r6p58-install-identity-20261114' || github.ref == 'refs/heads/fix/scarlet-v48-r6p59-unsafe-feed-owner-20261114' || github.ref == 'refs/heads/fix/scarlet-v48-r6p60-deep-owner-20261114' || github.ref == 'refs/heads/fix/scarlet-v48-r6p61-slot-manager-20261114' || github.ref == 'refs/heads/fix/scarlet-v48-r6p62-measured-content-scroll-20261114')",
+            "              if any(x in __import__(\"os\").environ.get(\"GITHUB_REF\",\"\") for x in (\"r6p58\",\"r6p59\",\"r6p60\",\"r6p61\",\"r6p62\")):",
+            "                  version=\"3.8.62\" if \"r6p62\" in __import__(\"os\").environ.get(\"GITHUB_REF\",\"\") else (\"3.8.61\" if \"r6p61\" in __import__(\"os\").environ.get(\"GITHUB_REF\",\"\") else (\"3.8.60\" if \"r6p60\" in __import__(\"os\").environ.get(\"GITHUB_REF\",\"\") else (\"3.8.59\" if \"r6p59\" in __import__(\"os\").environ.get(\"GITHUB_REF\",\"\") else \"3.8.58\")))",
+            "          if [ \"$GITHUB_REF\" = \"refs/heads/fix/scarlet-v48-r6p62-measured-content-scroll-20261114\" ]; then",
+            "            asset=\"Scarlet-Crystal-V48-R6P62-MEASURED-SCROLL-UNSIGNED.ipa\"",
+            "          elif [ \"$GITHUB_REF\" = \"refs/heads/fix/scarlet-v48-r6p61-slot-manager-20261114\" ]; then",
+            "          if [ \"$GITHUB_REF\" = \"refs/heads/fix/scarlet-v48-r6p62-measured-content-scroll-20261114\" ]; then",
+            "            tag=scarlet-v48-r6p62-measured-content-scroll-unsigned-20261114",
+            "            asset=Scarlet-Crystal-V48-R6P62-MEASURED-SCROLL-UNSIGNED.ipa",
+            "          elif [ \"$GITHUB_REF\" = \"refs/heads/fix/scarlet-v48-r6p61-slot-manager-20261114\" ]; then"
+          ]
+        },
+        {
+          "file": "rebuild/Tests/test_v48_r6p60_nested_scroll_owner.py",
+          "commit": "b3da55ea44d3ed175d694ce0db59965f109736b8",
+          "function": "R6P62 packaging, regression and historical handoff contract",
+          "location": "@@ -13,15 +13,15 @@ class P60NestedOwner(unittest.TestCase):",
+          "before": [
+            "                  \"cursor==p56Body\",\"scroll.contentSize.height<h+safeTop+25\"):",
+            "                  'scroll.contentSize.height>=',",
+            "                  'CGRectGetHeight(originalBody)+delta+20',"
+          ],
+          "after": [
+            "                  \"cursor==p56Body\",\"ScarletIslandP62ShortContentViewportEligible(\"):",
+            "                  'ScarletIslandP62ShortContentViewportEligible(',",
+            "                  'CGRectGetHeight(originalBody),delta',"
+          ]
+        },
+        {
+          "file": "rebuild/Tests/test_v48_r6p62_measured_content_scroll.py",
+          "commit": "b3da55ea44d3ed175d694ce0db59965f109736b8",
+          "function": "R6P62 packaging, regression and historical handoff contract",
+          "location": "@@ -0,0 +1,46 @@",
+          "before": [],
+          "after": [
+            "\"\"\"P62: P61 signed native device disproved P60 original-height contentSize requirement.\"\"\"",
+            "from pathlib import Path",
+            "import unittest",
+            "R=Path(__file__).resolve().parents[1]",
+            "G=(R/'integration/ScarletGuestIslandContentGuard.m.txt').read_text()",
+            "W=(R.parent/'.github/workflows/scarlet-paired-engines-build.yml').read_text()",
+            "P62=G.split('// R6P62_MEASURED_SHORT_CONTENT_VIEWPORT_BEGIN',1)[1].split('// R6P62_MEASURED_SHORT_CONTENT_VIEWPORT_END',1)[0]",
+            "P60=G.split('// R6P60_COMMON_SCROLL_ANCESTOR_BEGIN',1)[1].split('// R6P60_COMMON_SCROLL_ANCESTOR_END',1)[0]",
+            "OWNER=G.split('// R6P54_OWNER_LAYOUT_CONTRACT_BEGIN',1)[1].split('// R6P54_OWNER_LAYOUT_CONTRACT_END',1)[0]",
+            "class P62NativeViewport(unittest.TestCase):",
+            "    def test_gate_accepts_short_but_meaningful_scroll_extent(self):",
+            "        self.assertIn('projectedHeight=originalHeight-topReduction',P62)",
+            "        self.assertIn('contentHeight<projectedHeight*0.50',P62)",
+            "        self.assertNotIn('originalHeight+topReduction',P62)",
+            "        self.assertNotIn('scroll.contentSize.height<h+safeTop+25',P60)",
+            "        self.assertNotIn('CGRectGetHeight(originalBody)+delta+20',OWNER)",
+            "        self.assertIn('scroll,h,safeTop+CGRectGetHeight(header.bounds)',P60)",
+            "        self.assertIn('scroll,CGRectGetHeight(originalBody),delta',OWNER)",
+            "    def test_no_unguarded_geometry_mutation_or_inset_change(self):",
+            "        for x in ('scroll.scrollEnabled','topReduction<15','topReduction>190',",
+            "                  'projectedHeight<originalHeight*0.65',",
+            "                  '!isfinite(contentHeight)','!isfinite(offset.y)',",
+            "                  '!isfinite(insets.top)','!isfinite(insets.bottom)'):",
+            "            self.assertIn(x,P62,x)",
+            "        for forbidden in ('contentOffset=', 'contentInset=', 'setContentOffset:',",
+            "                          'root.frame=', 'window.frame=','method_exchangeImplementations'):",
+            "            self.assertNotIn(forbidden,P62)",
+            "        self.assertIn('revised.origin.y+=delta;',OWNER)",
+            "        self.assertIn('revised.size.height-=delta;',OWNER)",
+            "        self.assertIn('fabs(CGRectGetMaxY(revised)-CGRectGetMaxY(originalBody))<1',OWNER)",
+            "    def test_original_p60_native_rollback_and_two_sample_proof_remain(self):",
+            "        for x in ('if(!provenBody)', 'feed.frame=oldFeed;',",
+            "                  'state[@\"body_disabled\"]=@YES;',",
+            "                  'focusedComplete && focusedUnsafe==0 && scrollStateUnchanged',",
+            "                  'CGSizeEqualToSize(sc.contentSize',",
+            "                  'CGPointEqualToPoint(sc.contentOffset',",
+            "                  'UIEdgeInsetsEqualToEdgeInsets(sc.contentInset',",
+            "                  'guest_owner_content_reflow_retained',",
+            "                  'guest_owner_content_reflow_reverted'):",
+            "            self.assertIn(x,OWNER,x)",
+            "        self.assertIn('p62_measured_short_content_native_scroll_owner',OWNER)",
+            "    def test_release_identity_and_old_version_are_unchanged(self):",
+            "        self.assertIn('fix/scarlet-v48-r6p62-measured-content-scroll-20261114',W)",
+            "        self.assertIn('SCARLET_HOST_VERSION_ARGS=(--host-build-version 3.8.62)',W)",
+            "        self.assertIn('Scarlet-Crystal-V48-R6P62-MEASURED-SCROLL-UNSIGNED.ipa',W)",
+            "if __name__=='__main__': unittest.main()"
+          ]
+        },
+        {
+          "file": "rebuild/diagnostics/SCARLET_LOG_ONLY_HANDOFF_PROMPT.md",
+          "commit": "b3da55ea44d3ed175d694ce0db59965f109736b8",
+          "function": "R6P62 packaging, regression and historical handoff contract",
+          "location": "@@ -1,4 +1,4 @@",
+          "before": [
+            "# 실행 우선·문제 해결 지속 지침 — 2026-11-14 P60 / L107",
+            "2. L001~L107의 기존 실패 방법·실제 코드 위치·before/after를 확인한다. P37 단회 헤더 프레임 이동, P39 강제 제약, P44/P53 affine transform, 호스트 전체 콘텐츠 축소/투명띠, 추가 Safe Area 중복 적용, 상태 표시줄 강제 은폐 등은 장치 증거가 없는 동일 재시도를 금지한다."
+          ],
+          "after": [
+            "# 실행 우선·문제 해결 지속 지침 — 2026-11-14 P62 / L110",
+            "2. L001~L110의 기존 실패 방법·실제 코드 위치·before/after를 확인한다. P37 단회 헤더 프레임 이동, P39 강제 제약, P44/P53 affine transform, 호스트 전체 콘텐츠 축소/투명띠, 추가 Safe Area 중복 적용, 상태 표시줄 강제 은폐 등은 장치 증거가 없는 동일 재시도를 금지한다.",
+            "## P62 / L110: P61 서명 기기에서 P60 후보 미선택 — 짧은 콘텐츠 스크롤 적격성 수정",
+            "",
+            "- 실제 서명된 P61: SourceCommit `f45095766da7`, Build `3.8.61`, 세션 `ae5c93f6` (UTC 2026-11-14 08:08:35), iOS 27.2, 게스트 PID2015. 최초 위험 컨트롤 `9`, P55 헤더 보정 retained 뒤 2600ms `6`, 전부 스크롤 내부이며 `status_hidden=true` 유지. `guest_owner_content_reflow_staged` 이벤트는 0. 따라서 P60 native deep scroll 본문 선택기는 이번 세션에서 후보를 찾지 못함. P61 `slot_management_inspected`·`slot_operation_returned` 0건은 기능 미사용이며 결함 재현은 아님.",
+            "- P60은 공통 risk 중첩 UIScrollView를 선택할 때 `scroll.contentSize.height>=originalHeight+safeTop+25`를 요구하고, 실제 owner 레이아웃 적용 시에도 `contentSize>=originalHeight+delta+20`을 중복 요구함. 화면 높이 956, safeTop 62, 헤더 높이 50인 상황에서 이 조건은 스크롤 가능한 정상 콘텐츠가 오히려 원래 뷰포트보다 **추가로 훨씬 길어야** 한다는 불필요한 전제임. 로그 owner_content_height_pct=88은 P60 후보의 정확한 contentSize를 증명하지는 않으므로 선택 실패 원인은 가설이며 P62 시험으로 검증한다.",
+            "- P62 새 실제 동작 수정 `ScarletIslandP62ShortContentViewportEligible`: **기존 viewport가 아니라 줄어든 viewport**를 기준으로 콘텐츠 크기를 평가하며 정상 콘텐츠 비율, offset/inset의 유한성, portrait에서 충분한 잔여 viewport와 원래 scrolling 활성 여부를 확인한다. 화면 아래 edge와 기존 contentSize/offset/inset, 원래 UIKit callback, 후속 두 번의 0 위험 readback, 원복, 원래 statusbar shield 해제 조건은 전부 유지한다. 레이아웃을 지탱하지 못하면 body 원복하고 P55 헤더 유지. 새 상태는 `guest_owner_content_reflow_staged(reason=p62_measured_short_content_native_scroll_owner)`로만 구분한다. 대안은 기존 P56 직접 sibling 후보 이동, viewport 전역 crop, 인셋 억지 변경이 아니다.",
+            "- **성공 전제:** 다음 서명 P62에서 새로운 staged가 나타나고 두 readback `unsafe_controls=0`, `focusedUnsafe=0`, `guest_owner_content_reflow_retained`, `status_hidden=false`, 자연스러운 스크롤/가로·세로/홈재진입 및 화면 증명이 함께 있어야 한다. 후보 없이 staged가 없으면 P62의 콘텐츠 크기 가설은 충분하지 않으며 이전 P60 eligibility만 반복하지 말고 실제 owner hierarchy/bounds 재조사. `visible_unsafe_controls`가 6 유지되면 미해결. 실기기 iOS 설치·게스트 파일 교체·서명·멀티 계정 비활성화는 별개 검증이다.",
+            ""
+          ]
+        },
+        {
+          "file": "rebuild/integration/ScarletGuestIslandContentGuard.m.txt",
+          "commit": "b3da55ea44d3ed175d694ce0db59965f109736b8",
+          "function": "R6P62 measured native scroll viewport eligibility and associated release/audit tests",
+          "location": "@@ -3090,6 +3090,35 @@ static UIView *ScarletIslandP59UniqueRiskNativeBody(",
+          "before": [
+            "           scroll.contentSize.height<h+safeTop+25 ||",
+            "           !scroll.scrollEnabled || scroll.hidden || scroll.alpha<0.5)",
+            "            extentEnough=scroll.scrollEnabled &&",
+            "                scroll.contentSize.height>=",
+            "                    CGRectGetHeight(originalBody)+delta+20 &&",
+            "        p60DeepScroll ? @\"p60_nested_common_scroll_owner\" :"
+          ],
+          "after": [
+            "// R6P62_MEASURED_SHORT_CONTENT_VIEWPORT_BEGIN",
+            "// P61 signed iPhone ae5c93f6 again proved six remaining controls live",
+            "// within full-height NESTED UIScrollViews, while P60 never selected a body.",
+            "// P60 wrongly required contentSize >= ORIGINAL viewport + safeTop + 25,",
+            "// although shortening a viewport can preserve every node when content fits",
+            "// the NEW viewport (or remains natively scrollable). Avoid requiring extra",
+            "// content that an existing legitimate scroll view need not have.",
+            "static BOOL ScarletIslandP62ShortContentViewportEligible(",
+            "    UIScrollView *scroll, CGFloat originalHeight, CGFloat topReduction) {",
+            "    if(!scroll || !scroll.scrollEnabled ||",
+            "       !isfinite(originalHeight) || !isfinite(topReduction) ||",
+            "       topReduction<15 || topReduction>190) return NO;",
+            "    CGFloat projectedHeight=originalHeight-topReduction;",
+            "    CGFloat contentHeight=scroll.contentSize.height;",
+            "    CGPoint offset=scroll.contentOffset;",
+            "    UIEdgeInsets insets=scroll.contentInset;",
+            "    if(!isfinite(projectedHeight) ||",
+            "       projectedHeight<originalHeight*0.65 ||",
+            "       !isfinite(contentHeight) ||",
+            "       contentHeight<projectedHeight*0.50 ||",
+            "       !isfinite(offset.y) ||",
+            "       !isfinite(insets.top) || !isfinite(insets.bottom)) return NO;",
+            "    // If content is SHORTER than the new viewport it already fits; if",
+            "    // LONGER, UIKit retains scroll ability. The native owner transaction",
+            "    // verifies unchanged offset/insets/contentSize and zero risk twice.",
+            "    return YES;",
+            "}",
+            "// R6P62_MEASURED_SHORT_CONTENT_VIEWPORT_END",
+            "",
+            "           !ScarletIslandP62ShortContentViewportEligible(",
+            "               scroll,h,safeTop+CGRectGetHeight(header.bounds)) ||",
+            "           scroll.hidden || scroll.alpha<0.5)",
+            "            extentEnough=ScarletIslandP62ShortContentViewportEligible(",
+            "                    scroll,CGRectGetHeight(originalBody),delta) &&",
+            "        p60DeepScroll ? @\"p62_measured_short_content_native_scroll_owner\" :"
+          ]
+        }
+      ],
+      "generated_runtime_targets": [
+        {
+          "source_template": "rebuild/integration/ScarletGuestIslandContentGuard.m.txt",
+          "generated_file": "LiveContainer/Tweaks/ScarletGuestIslandContentGuard.m",
+          "source_generation_script": "rebuild/integration/apply_scarlet_host.py",
+          "function": "ScarletIslandP62ShortContentViewportEligible, ScarletIslandP60CommonUnsafeScroll and ScarletIslandP54AfterNativeOwnerLayout",
+          "note": "Exact body eligibility logic is native guest process hook; no global safeArea or UA root geometry modified."
         }
       ]
     }
