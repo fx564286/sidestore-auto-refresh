@@ -1,0 +1,399 @@
+diff --git a/Erosion/Exploits/WorseQuerySwift.swift b/Erosion/Exploits/WorseQuerySwift.swift
+index 7d30b6a..7f9644f 100644
+--- a/Erosion/Exploits/WorseQuerySwift.swift
++++ b/Erosion/Exploits/WorseQuerySwift.swift
+@@ -12,11 +12,56 @@ let wq = WorseQuery()
+ var group = "group.com.jbdotparty.Erosion.WQ"
+ 
+ class WorseQuery {
++    private func entitledGroups() -> [String] {
++        guard let task = SecTaskCreateFromSelf(nil),
++              let value = SecTaskCopyValueForEntitlement(
++                  task, "com.apple.security.application-groups" as CFString, nil)
++        else { return [] }
++        return (value as? [String]) ?? []
++    }
++
++    /// A LiveContainer guest executes with the HOST process's entitlements.
++    /// The first declared group may be inaccessible; choose one that the
++    /// running process can actually open instead of silently using a fake ID.
+     func getAppGroup() -> String {
+-        if let task = SecTaskCreateFromSelf(nil), let groups = SecTaskCopyValueForEntitlement(task, "com.apple.security.application-groups" as CFString, nil) {
+-            return (groups as? [String])?.first ?? "group.com.jbdotparty.Erosion.WQ"
++        let ids = entitledGroups()
++        return ids.first {
++            FileManager.default.containerURL(
++                forSecurityApplicationGroupIdentifier: $0) != nil
++        } ?? "group.com.jbdotparty.Erosion.WQ"
++    }
++
++    /// Read-only preflight. The worse_query implementation replaces the App
++    /// Group's Library/Caches with a symlink. Never erase a LiveContainer host's
++    /// shared cache to install a wallpaper.
++    func preflight() -> String {
++        let ids = entitledGroups()
++        guard !ids.isEmpty else {
++            return "실행 호스트의 App Group 권한 없음. 게스트 IPA의 entitlement로 보완 불가."
++        }
++        guard ids.contains(group) else {
++            return "선택된 App Group이 실행 프로세스의 entitlement에 없음."
+         }
+-        return "group.com.jbdotparty.Erosion.WQ"
++        guard let container = FileManager.default.containerURL(
++            forSecurityApplicationGroupIdentifier: group) else {
++            return "App Group ID는 있지만 실제 그룹 컨테이너 접근 실패."
++        }
++        let caches = container.appendingPathComponent("Library/Caches")
++        let fm = FileManager.default
++        if let attributes = try? fm.attributesOfItem(atPath: caches.path) {
++            if (attributes[.type] as? FileAttributeType) != .typeDirectory {
++                return "공유 App Group의 Library/Caches가 일반 폴더가 아님. 변경 차단."
++            }
++            guard let names = try? fm.contentsOfDirectory(atPath: caches.path) else {
++                return "공유 App Group 캐시 상태 확인 실패. 변경 차단."
++            }
++            if !names.isEmpty {
++                return "공유 App Group의 Library/Caches에 기존 데이터가 있음. 삭제 위험으로 차단."
++            }
++        } else if fm.fileExists(atPath: caches.path) {
++            return "공유 App Group 캐시의 속성을 확인할 수 없음. 변경 차단."
++        }
++        return "App Group 권한 및 비어 있는 캐시 폴더 확인됨. PosterBoard 접근은 별도 검증 필요."
+     }
+     
+     func grantAccess(path: String) -> (Bool, Int64, String) {
+@@ -26,6 +71,12 @@ class WorseQuery {
+             return (false, 0, "i don't believe you")
+         }
+         
++        // Guard the destructive native exploit path before invoking it.
++        // The C implementation repeats this guard to cover other call sites.
++        if !preflight().hasPrefix("App Group 권한 및") {
++            return (false, -7, preflight())
++        }
++
+         if path.contains("/var/mobile/Containers/Shared/AppGroup") && ProcessInfo.processInfo.operatingSystemVersion.majorVersion == 26 {
+             res = worse_query(path, group, true, false)
+         } else {
+@@ -40,6 +91,7 @@ class WorseQuery {
+         case -4: errorString = "failed to create symlink"
+         case -5: errorString = "query rejected"
+         case -6: errorString = "kernel refused extension issue"
++        case -7: errorString = "App Group caches contain data or cannot be safely replaced"
+         case -255: errorString = "target doesn't exist"
+         default: errorString = nil
+         }
+diff --git a/Erosion/Exploits/worse_query.m b/Erosion/Exploits/worse_query.m
+index cba035a..e8e2fb1 100644
+--- a/Erosion/Exploits/worse_query.m
++++ b/Erosion/Exploits/worse_query.m
+@@ -69,7 +69,19 @@ int64_t worse_query(NSString *target, NSString *group, bool alt_flags, bool crea
+     NSURL *groupRoot = [files containerURLForSecurityApplicationGroupIdentifier: group];
+     if (!groupRoot) return -1; // App Group doesn't exist or we can't access it
+     NSString *caches = [[groupRoot URLByAppendingPathComponent: @"Library/Caches"] path];
+-    
++
++    // LiveContainer hosts may hold unrelated data in shared App Group caches.
++    // Reject unsafe directories before the symlink replacement below.
++    NSError *cacheError = nil;
++    NSDictionary *cacheAttributes = [files attributesOfItemAtPath:caches error:&cacheError];
++    if (cacheAttributes) {
++        if (![cacheAttributes[NSFileType] isEqualToString:NSFileTypeDirectory]) return -7;
++        NSArray *cacheContents = [files contentsOfDirectoryAtPath:caches error:&cacheError];
++        if (!cacheContents || cacheContents.count != 0) return -7;
++    } else if (cacheError && [files fileExistsAtPath:caches]) {
++        return -7;
++    }
++
+     // Resolve functions
+     void *mgr = dlopen("/usr/lib/system/libsystem_containermanager.dylib", RTLD_NOW | RTLD_LOCAL);
+     if (!mgr) return -2; // dlopen failed?
+diff --git a/Erosion/FileManager/Helpers/InfoHelpers.swift b/Erosion/FileManager/Helpers/InfoHelpers.swift
+index 032a355..0f8be04 100644
+--- a/Erosion/FileManager/Helpers/InfoHelpers.swift
++++ b/Erosion/FileManager/Helpers/InfoHelpers.swift
+@@ -24,25 +24,39 @@ func getFolderType(url: URL) -> FolderType {
+ 
+ // skidded from worse_query. thx forcequit 1000x!!
+ func getBIDFromXattr(_ url: URL) -> String? {
+-    let handle = wq.grantAccess(path: url.path).1
+-    
+-    if handle > 0 {
+-        var buf = [CChar](repeating: 0, count: 512)
+-        let len = getxattr(url.path, "com.apple.containermanager.identifier", &buf, 511, 0, 0)
+-        
+-        if len < 0 {
+-            print("failed to read xattr: \(String(cString: strerror(errno))) (errno \(errno))")
+-            return nil
+-        }
+-        
+-        let bid = String(cString: buf)
+-        
+-        wq.releaseHandle(handle)
+-        
+-        if !bid.isEmpty {
+-            return bid
++    func readIdentifier() -> String? {
++        var buffer = [CChar](repeating: 0, count: 512)
++        let length = getxattr(url.path, "com.apple.containermanager.identifier", &buffer, 511, 0, 0)
++        guard length > 0 else { return nil }
++        let bytes = buffer.prefix(Int(length)).map { UInt8(bitPattern: $0) }
++        let value = String(decoding: bytes, as: UTF8.self)
++        return value.isEmpty ? nil : value
++    }
++
++    func readMetadata() -> String? {
++        for name in [
++            ".com.apple.mobile_container_manager.metadata.plist",
++            "com.apple.mobile_container_manager.metadata.plist"
++        ] {
++            let file = url.appendingPathComponent(name)
++            if let data = try? Data(contentsOf: file),
++               let identifier = metadataID(from: data) {
++                return identifier
++            }
+         }
++        return nil
++    }
++
++    if let identifier = readIdentifier() ?? readMetadata() { return identifier }
++
++    let (success, handle, reason) = wq.grantAccess(path: url.path)
++    guard success, handle > 0 else {
++        print("(fs) container metadata access denied: \(reason)")
++        return nil
+     }
++    defer { wq.releaseHandle(handle) }
++    if let identifier = readIdentifier() ?? readMetadata() { return identifier }
++    print("(fs) sandbox extension succeeded; xattr and MCM metadata still unreadable")
+     return nil
+ }
+ 
+diff --git a/Erosion/Helpers/Functions/FSHandlers.swift b/Erosion/Helpers/Functions/FSHandlers.swift
+index 5648c7b..35f4804 100644
+--- a/Erosion/Helpers/Functions/FSHandlers.swift
++++ b/Erosion/Helpers/Functions/FSHandlers.swift
+@@ -11,59 +11,75 @@ import UIKit
+ let fsHandlers = FSHandlers()
+ 
+ class FSHandlers {
++    private(set) var lastDiscovery = "아직 검사하지 않았습니다."
+     func getDirPaths(_ path: String) -> [String] {
+-        // skidded from worse_query. thx forcequit 1000x!!
+-        let baselineURL = fm.temporaryDirectory.appendingPathComponent(".baseline_\(UUID().uuidString)")
++        // First try the ordinary directory enumeration. Some LiveContainer
++        // hosts can list the parent even if the guest's other APIs cannot.
++        let parent = URL(fileURLWithPath: path)
++        if let entries = try? FileManager.default.contentsOfDirectory(
++            at: parent, includingPropertiesForKeys: [.isDirectoryKey],
++            options: [.skipsHiddenFiles]), !entries.isEmpty {
++            print("(fs) directory listing: \(entries.count) entries")
++            return entries.map(\.path)
++        }
++
++        let baselineURL = fm.temporaryDirectory
++            .appendingPathComponent(".baseline_\(UUID().uuidString)")
+         var baselineInode: UInt64 = 0
+-        var paths: [String] = []
+-        
+         do {
+-            try "thxforcequit".write(to: baselineURL, atomically: true, encoding: .utf8)
+-            var baselineInfo = stat()
+-            let baselinePath = baselineURL.path
+-            
+-            if stat(baselinePath, &baselineInfo) == 0 {
+-                baselineInode = baselineInfo.st_ino
+-                print("(fs) baseline: \(baselineInode)")
+-            } else {
+-                print("(fs) Failed to get baseline inode!")
+-            }
+-            
+-            try fm.removeItem(at: baselineURL)
++            try "gnlc".write(to: baselineURL, atomically: true, encoding: .utf8)
++            defer { try? fm.removeItem(at: baselineURL) }
++            var info = stat()
++            if stat(baselineURL.path, &info) == 0 { baselineInode = info.st_ino }
+         } catch {
+-            print("(fs) Failed to get baseline inode: \(error)")
++            print("(fs) baseline inode unavailable: \(error.localizedDescription)")
++        }
++
++        guard baselineInode > 0 else {
++            print("(fs) no direct listing and baseline inode unavailable")
+             return []
+         }
+-        
+-        print("(fs) pathleaking \(path)")
+-        let leakedPaths = pathleak(path, baselineInode) ?? []
+-        print("(fs) got \(leakedPaths.count) paths via pathleak")
+-        paths = leakedPaths
+-        
+-        if paths.count == 0 {
+-            print("(fs) got no paths! something went wrong.")
++        print("(fs) pathleak start, inode bound \(baselineInode)")
++        let primary = pathleak(path, baselineInode) ?? []
++        if !primary.isEmpty {
++            print("(fs) pathleak found \(primary.count) entries")
++            return primary
+         }
+-        
+-        return paths
++
++        // Erosion 0.3 used a 10-million inode bound. 0.3.1 replaced it with a
++        // freshly created guest file's inode, which may fall BELOW the system
++        // PosterBoard container inode when run inside a host app. Retry once
++        // with the former fixed limit, and never expand an already larger scan.
++        let fallbackBound: UInt64 = 10_000_000
++        if baselineInode < fallbackBound {
++            print("(fs) host/guest inode gap suspected; retrying legacy 10m bound")
++            let fallback = pathleak(path, fallbackBound) ?? []
++            print("(fs) legacy bounded scan found \(fallback.count) entries")
++            return fallback
++        }
++        print("(fs) no container paths found via direct listing or inode scan")
++        return []
+     }
+-    
++
+     func getContainerPath(at containerURL: URL = FSURL.appContainers, forMatch match: String, hashOnly: Bool = false) -> String {
+         let containers = getDirPaths(containerURL.path)
++        var readable = 0
+         for path in containers {
+             let url = URL(fileURLWithPath: path)
+             if let appName = getBIDFromXattr(url) {
++                readable += 1
+                 if appName == match {
+-                    if hashOnly {
+-                        return url.lastPathComponent
+-                    }
+-                    return url.path
++                    lastDiscovery = "컨테이너 후보 \(containers.count)개, 식별 가능 \(readable)개, PosterBoard 경로 확인"
++                    print("(fs) PosterBoard path found via container metadata")
++                    return hashOnly ? url.lastPathComponent : url.path
+                 }
+             }
+         }
+-        print("(fs) failed to get container for \(match)! containers: \(containerURL.path)")
++        lastDiscovery = "경로 탐색 실패: 컨테이너 후보 \(containers.count)개, 식별 가능 \(readable)개. \(wq.preflight())"
++        print("(fs) \(lastDiscovery)")
+         return ""
+     }
+-    
++
+     func openInFilesApp(_ fileURL: URL) {
+         guard var components = URLComponents(url: fileURL, resolvingAgainstBaseURL: false) else { return }
+         components.scheme = "shareddocuments"
+diff --git a/Erosion/Tweaks/PosterBoard/PosterBoardView.swift b/Erosion/Tweaks/PosterBoard/PosterBoardView.swift
+index 268ede0..d524f8e 100644
+--- a/Erosion/Tweaks/PosterBoard/PosterBoardView.swift
++++ b/Erosion/Tweaks/PosterBoard/PosterBoardView.swift
+@@ -28,6 +28,7 @@ struct PosterBoardView: View {
+     @AppStorage("hasShownFirstRunMsg") private var hasShownFirstRunMsg = false
+     
+     @State private var showImporter = false
++    @State private var pathDiagnostics = "PosterBoard 경로 검사 전"
+     let columns = Array(repeating: GridItem(.flexible()), count: device.userInterfaceIdiom == .pad ? 4 : 2)
+     
+     var body: some View {
+@@ -134,11 +135,23 @@ struct PosterBoardView: View {
+         }
+         .navigationTitle("Wallpapers")
+         .navigationBarTitleDisplayMode(.inline)
+-        .onAppear {
+-            DispatchQueue.global(qos: .userInitiated).async {
+-                doSetupStuff()
++        .safeAreaInset(edge: .top) {
++            if isReady && pbContainerPath.isEmpty {
++                VStack(alignment: .leading, spacing: 4) {
++                    Text("LiveContainer: PosterBoard 경로를 찾지 못했습니다.")
++                        .font(.footnote.bold())
++                    Text(pathDiagnostics)
++                        .font(.caption)
++                        .lineLimit(4)
++                }
++                .frame(maxWidth: .infinity, alignment: .leading)
++                .padding(10)
++                .background(Color(.secondarySystemBackground))
+             }
+         }
++        .onAppear {
++            refreshPosterBoardPath()
++        }
+         .safeAreaInset(edge: .bottom) {
+             if isReady {
+                 VStack {
+@@ -175,9 +188,14 @@ struct PosterBoardView: View {
+                         List {
+                             Section {
+                                 TextField("PosterBoard Path", text: $pbContainerPath, axis: .vertical)
+-                                Button("Fetch Path") {
+-                                    pbContainerPath = fsHandlers.getContainerPath(forMatch: "com.apple.PosterBoard")
++                                Button("Fetch Path · 경로 재검사") {
++                                    refreshPosterBoardPath()
+                                 }
++                                .disabled(!isReady)
++                                Text(pathDiagnostics)
++                                    .font(.footnote)
++                                    .foregroundStyle(.secondary)
++                                    .textSelection(.enabled)
+                             } header: {
+                                 HeaderLabel("PosterBoard", symbol: "photo")
+                             }
+@@ -240,6 +258,12 @@ struct PosterBoardView: View {
+                     
+                     @MainActor
+                     func proceed() {
++                        let groupCheck = wq.preflight()
++                        guard groupCheck.hasPrefix("App Group 권한 및") else {
++                            Alertinator.shared.alert(title: "LiveContainer 권한 부족",
++                                body: groupCheck)
++                            return
++                        }
+                         let res = applyObjects(tendiesArray.filter { $0.isOn })
+                         if !res.0 {
+                             if res.1.contains("an item with the same name already exists") {
+@@ -265,21 +289,32 @@ struct PosterBoardView: View {
+         }
+     }
+     
+-    private func doSetupStuff() {
+-        if pbContainerPath.isEmpty {
+-            pbContainerPath = fsHandlers.getContainerPath(forMatch: "com.apple.PosterBoard")
+-        }
+-        if !fm.fileExists(atPath: AppURL.pb.path) {
+-            do {
+-                try fm.createDirIfNeeded(at: AppURL.pb)
+-                try fm.createDirIfNeeded(at: AppURL.pbFolders)
+-            } catch {
+-                Alertinator.shared.alert(title: "Failed to setup PosterBoard tweaks!", body: AppMsg.opFailed)
++    /// Discovery is intentionally off the UI thread. All SwiftUI state writes
++    /// are published on the main queue, and no system files are changed here.
++    private func refreshPosterBoardPath() {
++        isReady = false
++        pathDiagnostics = "시스템 컨테이너 검색 중…"
++        DispatchQueue.global(qos: .userInitiated).async {
++            let found = fsHandlers.getContainerPath(forMatch: "com.apple.PosterBoard")
++            let diagnosis = fsHandlers.lastDiscovery
++            let entitlementStatus = wq.preflight()
++            DispatchQueue.main.async {
++                if !found.isEmpty { pbContainerPath = found }
++                if !fm.fileExists(atPath: AppURL.pb.path) {
++                    do {
++                        try fm.createDirIfNeeded(at: AppURL.pb)
++                        try fm.createDirIfNeeded(at: AppURL.pbFolders)
++                    } catch {
++                        print("(pb) local storage initialization failed: \(error.localizedDescription)")
++                    }
++                }
++                pathDiagnostics = "\(diagnosis)\n\(entitlementStatus)"
++                print("(pb) LiveContainer preflight: \(pathDiagnostics)")
++                isReady = true
+             }
+         }
+-        isReady = true
+     }
+-    
++
+     private func applyObjects(_ objects: [TendiesObject]) -> (Bool, String) {
+         let descrTargets = Set(objects.map(\.targetDescr))
+         for descrTarget in descrTargets {
