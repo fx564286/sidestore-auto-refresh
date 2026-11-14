@@ -169,7 +169,7 @@ index 0275bb9..8344382 100644
  void worse_query_release(int64_t handle);
  
 diff --git a/Erosion/Exploits/worse_query.m b/Erosion/Exploits/worse_query.m
-index cba035a..76a82e1 100644
+index cba035a..e85d1fd 100644
 --- a/Erosion/Exploits/worse_query.m
 +++ b/Erosion/Exploits/worse_query.m
 @@ -29,6 +29,7 @@
@@ -357,7 +357,7 @@ index cba035a..76a82e1 100644
 +                            }
 +                        }
 +                        queryFree(query);
-+                        xpc_release(identifier);
++                        // Under Xcode 27 ARC, XPC Objective-C objects are managed automatically.
 +                    }
 +                }
 +                dlclose(mgr);
