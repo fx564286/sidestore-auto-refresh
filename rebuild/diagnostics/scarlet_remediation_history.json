@@ -3,7 +3,7 @@
   "scope": "Scarlet Crystal guest top-screen overlap, touch access, rotation, remote guest render and related resident regressions",
   "updated_utc": "2026-11-14T11:06:55+09:00",
   "current_baseline": "P54 signed session 990090a7 SourceCommit fc2fd271b9e8: 50pt header is child UIViewController.view (controller_parent_match=1), so P54 plain-only native owner hook never fired, P44 affine unsafe9->6 then invalidated. P55 L101 source routes measured child owner, CI/device pending.",
-  "current_issue_status": "P54 actual signed device: Dynamic Island unsafe6 remain and native statusbar hidden=true, audio scope ACK only; P55 code commit 1cc40b42d90d, native CI/IPA/visual NOT YET VERIFIED; refresh installation_verified=false.",
+  "current_issue_status": "P54 device unresolved: unsafe6 and statusbar hidden. P55 first native CI 43544683411 blocked by missing prompt audit commit receipt before Xcode; L101 receipt corrected, next CI/IPA and signed-device outcome pending.",
   "confidence_note": "Signed P54 log directly proves mismatch between child controller header ownership and P54 headerKind==2 / nextResponder==parent eligibility, but P55 native owner callback runtime safety and visual effect require Xcode compile and signed-device proof.",
   "privacy": "No credentials, Apple ID, OTP, UDID, guest names or device identifiers are stored.",
   "entries": [
@@ -28428,13 +28428,13 @@
       },
       "hypothesis": "Signed P54 header is a child UIViewController.view, but P54 owner hook had headerKind==2 only and required header.nextResponder==parent. The existing verified parent native layout owner can be targeted by strictly accepting the child responder chain; never re-run invalidated affine on this child.",
       "action": "Change exact P44 candidate routing to permit measured 50pt child UIViewController.view only when it has the same parent controller with custom viewDidLayoutSubviews; alter P54 install eligibility to validate both plain and child-owned responder shapes. If per-instance owner hook rejects this verified child, fail closed rather than reapply P44 affine. No UIWindow/FBScene resizing, root SafeArea change, color, switcher, audio, keyboard, signing edits. Add tests, branch-specific unsigned IPA packaging. Full rollback to P54 fc2fd271b9e8.",
-      "observation": "User signed-device P54 SourceCommit fc2fd271b9e8 session 990090a7 PID1841: owner probe header_controller_parent_match=1, 50pt Y0, parent guideY62 and parent_controller_layout_impl_origin3; P54 owner contract events absent. P44 transform got 9->6 unsafe controls at 2600ms then guest_header_local_transform_invalidated reason2. P54 CI 43466427187 succeeded but this real device result is NOT fixed. P55 code static tests pass; new iOS CI/IPA and visual results pending.",
+      "observation": "User signed-device P54 SourceCommit fc2fd271b9e8 session 990090a7 PID1841: owner probe header_controller_parent_match=1, 50pt Y0, parent guideY62 and parent_controller_layout_impl_origin3; P54 owner contract events absent. P44 transform got 9->6 unsafe controls at 2600ms then guest_header_local_transform_invalidated reason2. P54 CI 43466427187 succeeded but this real device result is NOT fixed. P55 code static tests pass; new iOS CI/IPA and visual results pending. First P55 CI run 43544683411 blocked at preflight: missing revision coverage for SCARLET_LOG_ONLY_HANDOFF_PROMPT.md in audit commit ae4956f; this L101 receipt corrects the audit metadata, no functional Objective-C change.",
       "evidence": [
         "Attached signed P54 CURRENT RUN session 990090a7, SourceCommit fc2fd271b9e8, guest_header_layout_owner_probe sample650 header_controller_parent_match=1, windowY0, height50, parentSafeGuide62, parent_controller_layout_impl_origin3.",
         "Same session guest_header_local_transform_staged, first_pass unsafe9->6, invalidated reason2; zero guest_owner_layout_contract_* events. Native status_hidden=true, unsafe6 at 2600ms.",
         "Actual P54 code pre-change routes only headerKind==2; P54 install rejects header.nextResponder != parent, which is correct for a child controller view."
       ],
-      "status": "source_committed_static_tested_ci_pending",
+      "status": "source_committed_static_tested_first_ci_gate_failed_audit_receipt_correction",
       "source_verification": "git_patch_observed",
       "device_verification": "P54 device failure observed; P55 source only, Xcode and signed-device visual/touch proof pending. No completed top overlap, clock/battery, scroll, rotate or A-B-A proof.",
       "next_executable_action": "Run P55 native paired Xcode CI, verify IPA ZIP+sha/source marker; install only after legitimate signing; compare signed experimental ON/OFF on same guest, require guest_owner_layout_contract_staged -> first_pass -> retained and unsafe controls ZERO plus statusbar clock/battery and scroll/rotation/A-B-A. If still unsafe, preserve failure and change the actual child controller owning layout constraints in L102 rather than repeat delayed affine/frame/crop.",
@@ -28742,6 +28742,60 @@
             "           header.bounds toView:window]))>3 ||"
           ],
           "commit": "1cc40b42d90dda43cef8511f95af81ff1cd5bb1f"
+        },
+        {
+          "file": "rebuild/diagnostics/SCARLET_LOG_ONLY_HANDOFF_PROMPT.md",
+          "function": "P55/L101 next-engineering-action and one-log handoff",
+          "location": "@@ -7,7 +7,7 @@ Scarlet Crystal 실험 모드 OFF에서는 정상인 게스트 앱들이 ON에",
+          "before": [
+            "## 새 채팅의 실행 순서 (강제)",
+            "",
+            "1. 보고서 SourceCommit, CurrentSession, 현재 기기 증상과 마지막 Lxxx 수정 이력을 읽고 해당 빌드가 실제 설치된 것인지 먼저 구분한다. 최신 GitHub 소스를 열어 이력 상태와 정확한 소스 커밋을 비교한다.",
+            "2. L001~L100의 기존 실패 방법·실제 코드 위치·before/after를 확인한다. P37 단회 헤더 프레임 이동, P39 강제 제약, P44/P53 affine transform, 호스트 전체 콘텐츠 축소/투명띠, 추가 Safe Area 중복 적용, 상태 표시줄 강제 은폐 등은 장치 증거가 없는 동일 재시도를 금지한다.",
+            "3. **항상 실행 코드 수정이 주작업**이다. 기록용 이벤트만 추가하는 새 버전은 허용되지 않는다. 성공할 때까지 원인을 재모델링하고 새 인과 메커니즘을 설계·검증한다. 사용자에게 PC 조작을 요구하는 대신 저장소에서 가능한 작업을 먼저 수행한다.",
+            "4. 실제 기기 결과가 없는 테스트/컴파일/IPA 성공은 해결이 아니다. 정상 판정은 실기기에서 상단 위험 컨트롤 0, 정상 상태 표시줄, 가로·세로 및 홈 복귀 A→B→A, 전체화면/하단/스크롤·터치 보존으로만 한다.",
+            "5. L100 P54 신규 방식: 부모 UIViewController에 실제 게스트 커스텀 viewDidLayoutSubviews가 존재하고, 그 아래 50pt plain UIView 헤더가 Y0에 있는 경우, **단 하나의 부모 컨트롤러 인스턴스만 동적 서브클래싱하여 게스트 원래 레이아웃 구현을 먼저 실행한 후 그 부모의 native safeAreaLayoutGuide에서 헤더를 도킹**한다. 기존 P44 transform을 해당 대상에 중복 적용하지 않는다. 250/1350ms 실측 통과 시 retained, 실패하면 원래 클래스와 원래 프레임을 원복한다."
+          ],
+          "after": [
+            "## 새 채팅의 실행 순서 (강제)",
+            "",
+            "1. 보고서 SourceCommit, CurrentSession, 현재 기기 증상과 마지막 Lxxx 수정 이력을 읽고 해당 빌드가 실제 설치된 것인지 먼저 구분한다. 최신 GitHub 소스를 열어 이력 상태와 정확한 소스 커밋을 비교한다.",
+            "2. L001~L101의 기존 실패 방법·실제 코드 위치·before/after를 확인한다. P37 단회 헤더 프레임 이동, P39 강제 제약, P44/P53 affine transform, 호스트 전체 콘텐츠 축소/투명띠, 추가 Safe Area 중복 적용, 상태 표시줄 강제 은폐 등은 장치 증거가 없는 동일 재시도를 금지한다.",
+            "3. **항상 실행 코드 수정이 주작업**이다. 기록용 이벤트만 추가하는 새 버전은 허용되지 않는다. 성공할 때까지 원인을 재모델링하고 새 인과 메커니즘을 설계·검증한다. 사용자에게 PC 조작을 요구하는 대신 저장소에서 가능한 작업을 먼저 수행한다.",
+            "4. 실제 기기 결과가 없는 테스트/컴파일/IPA 성공은 해결이 아니다. 정상 판정은 실기기에서 상단 위험 컨트롤 0, 정상 상태 표시줄, 가로·세로 및 홈 복귀 A→B→A, 전체화면/하단/스크롤·터치 보존으로만 한다.",
+            "5. L100 P54 신규 방식: 부모 UIViewController에 실제 게스트 커스텀 viewDidLayoutSubviews가 존재하고, 그 아래 50pt plain UIView 헤더가 Y0에 있는 경우, **단 하나의 부모 컨트롤러 인스턴스만 동적 서브클래싱하여 게스트 원래 레이아웃 구현을 먼저 실행한 후 그 부모의 native safeAreaLayoutGuide에서 헤더를 도킹**한다. 기존 P44 transform을 해당 대상에 중복 적용하지 않는다. 250/1350ms 실측 통과 시 retained, 실패하면 원래 클래스와 원래 프레임을 원복한다."
+          ],
+          "commit": "ae4956f97507473117d2cd374a54c846fb86b3c1"
+        },
+        {
+          "file": "rebuild/diagnostics/SCARLET_LOG_ONLY_HANDOFF_PROMPT.md",
+          "function": "P55/L101 next-engineering-action and one-log handoff",
+          "location": "@@ -15,6 +15,14 @@ Scarlet Crystal 실험 모드 OFF에서는 정상인 게스트 앱들이 ON에",
+          "before": [
+            "7. 새로운 후보는 수정 전에 scarlet_no_repeat_gate.py --proposal로 판정한다. 실제 변경 diff와 소스 SHA, 새 검증, 빌드/IPA, rollback, 다음 시도에서 피해야 할 원인까지 scarlet_remediation_history.json에 새 Lxxx로 기록한다. 그 JSON과 이 지침이 앱에서 내보낸 CURRENT RUN 공유 텍스트에 모두 내장돼야 한다.",
+            "8. V48 안정 기준의 번들 ID·원래 전체화면 크기·리사이징 금지·멀티탭·앱 간 RAM·색상/리퀴드 글라스·서명·오디오·키보드 동작은 별도 검증 없이 수정하지 않는다.",
+            "",
+            "## 현재 연구 결론과 반증 조건",
+            "",
+            "- 2026-11-14 P53 소스 6816d81eb66f4884d22d4a90e7709188fca88e28 및 서명 실기기 로그: iPhone 440x956, root/parent safeTop62, 문제 short header Y0/높이50, 위험 컨트롤 약9개. 실제 P53 보정은 9→6 일부 개선 뒤 local affine transform invalidated (reason2). parent UIViewController가 앱 자체 viewDidLayoutSubviews 구현을 가지고 있어 after-layout 변형이 덮이는 원인 후보이다."
+          ],
+          "after": [
+            "7. 새로운 후보는 수정 전에 scarlet_no_repeat_gate.py --proposal로 판정한다. 실제 변경 diff와 소스 SHA, 새 검증, 빌드/IPA, rollback, 다음 시도에서 피해야 할 원인까지 scarlet_remediation_history.json에 새 Lxxx로 기록한다. 그 JSON과 이 지침이 앱에서 내보낸 CURRENT RUN 공유 텍스트에 모두 내장돼야 한다.",
+            "8. V48 안정 기준의 번들 ID·원래 전체화면 크기·리사이징 금지·멀티탭·앱 간 RAM·색상/리퀴드 글라스·서명·오디오·키보드 동작은 별도 검증 없이 수정하지 않는다.",
+            "",
+            "## P55 / L101: 실제 P54 로그에서 발견된 실행 분기 불일치",
+            "",
+            "- 실기기 소스 fc2fd271b9e8, 세션 990090a7, PID1841의 header_controller_parent_match=1은 문제의 50pt Y0 헤더가 plain UIView가 아니라 자식 UIViewController.view임을 입증한다. parent custom viewDidLayoutSubviews origin3, parent native safe guideY62가 같은 샘플에 존재한다.",
+            "- P54 코드는 owner 수정 진입을 headerKind==2로 제한하고 header.nextResponder==parent를 강제했으므로 이 로그에서 owner contract가 실행되지 않았다. 실제 로그는 P44 affine unsafe9→6 뒤 reason2 invalidated이며, guest_owner_layout_contract_* 0건이다.",
+            "- P55 코드 변경은 이 미실행 대상만 parent.viewDidLayoutSubviews 원래 콜백 후 native guide 도킹으로 진입시키는 **소유권 분기 실제 동작 수정**이다. 헤더의 child UIViewController가 parentViewController인 것, 높이50±4, 부모의 custom layout override 등 기기에서 측정된 조건만 허용한다. owner 경로 거절 시 이전에 실패한 P44 변환을 반복하지 않는다.",
+            "- P55 사용자 기기 성공 미검증. Xcode/IPA 성공도 실제 게스트 위험 컨트롤 0과 상태바·터치·스크롤·회전·A→B→A 증거가 아니면 해결 아님. 이후에는 guest_owner_layout_contract_staged/first_pass/retained/reverted 및 화면 시계/배터리 결과를 확인한다.",
+            "- P55에도 여전히 UI가 위험하면 같은 frame/transform/inset/crop을 다시 적용하지 말고, 자식 컨트롤러의 실제 부모 레이아웃 제약 쓰기 지점을 연구한 L102 기능 수정으로 진행한다. 같은 로그만으로 작업 지속 가능하도록 이 L101와 전체 소스 diff/검증 범위를 JSON에 유지한다.",
+            "",
+            "## 현재 연구 결론과 반증 조건",
+            "",
+            "- 2026-11-14 P53 소스 6816d81eb66f4884d22d4a90e7709188fca88e28 및 서명 실기기 로그: iPhone 440x956, root/parent safeTop62, 문제 short header Y0/높이50, 위험 컨트롤 약9개. 실제 P53 보정은 9→6 일부 개선 뒤 local affine transform invalidated (reason2). parent UIViewController가 앱 자체 viewDidLayoutSubviews 구현을 가지고 있어 after-layout 변형이 덮이는 원인 후보이다."
+          ],
+          "commit": "ae4956f97507473117d2cd374a54c846fb86b3c1"
         }
       ],
       "source_revisions": [
@@ -28749,6 +28803,12 @@
           "sha": "1cc40b42d90dda43cef8511f95af81ff1cd5bb1f",
           "url": "https://github.com/fx564286/sidestore-auto-refresh/commit/1cc40b42d90dda43cef8511f95af81ff1cd5bb1f",
           "title": "fix(r6p55): route signed child-owned header to native parent layout instead of invalid affine"
+        },
+        {
+          "sha": "ae4956f97507473117d2cd374a54c846fb86b3c1",
+          "url": "https://github.com/fx564286/sidestore-auto-refresh/commit/ae4956f97507473117d2cd374a54c846fb86b3c1",
+          "title": "audit(r6p55): embed signed P54 ownership mismatch and L101 exact code history handoff",
+          "note": "Documentation/handoff update; source run is first native CI failed before Xcode due omitted prompt audit receipt, now recorded."
         }
       ],
       "generated_runtime_targets": [
