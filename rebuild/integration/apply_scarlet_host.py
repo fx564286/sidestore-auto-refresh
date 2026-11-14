@@ -154,6 +154,206 @@ def apply_figma_app_icon(root: Path, engine: Path) -> dict:
             "assetSHA256":{n:file_sha(iconset/n) for n in names}}
 
 
+def apply_queued_guest_overwrite_source(source: str) -> str:
+    """P57: full pinned LC installer only, scoped to Scarlet queued imports."""
+    # P57: Scarlet hosts this original LC importer in a 1x1, opacity-0 view.
+    # The ORIGINAL replaceAlert is therefore inaccessible, leaving
+    # installIpaFile suspended for every already-installed matching Bundle ID.
+    # Only the explicitly queued Scarlet IPA path chooses a single exact
+    # match automatically. The original interactive LC importer is unchanged.
+    hidden_auth = """            if sameBundleIdApp.count > 0 && !sharedModel.isHiddenAppUnlocked {
+                do {
+"""
+    assert source.count(hidden_auth) == 1, "Pinned hidden app authentication moved"
+    source = source.replace(hidden_auth, """            if sameBundleIdApp.count > 0 && !sharedModel.isHiddenAppUnlocked {
+                // The hidden Scarlet worker cannot show a biometric prompt.
+                // Refuse without touching the protected app or its data.
+                if scarletQueuedIPAURL != nil {
+                    throw NSError(domain: "ScarletGuestOverwrite", code: 41,
+                        userInfo: [NSLocalizedDescriptionKey:
+                            "숨김 앱은 먼저 잠금을 해제해야 덮어쓸 수 있습니다."])
+                }
+                do {
+""", 1)
+
+    replace_anchor = """            guard let installOptionChosen = await installReplaceAlert.open() else {
+                // user cancelled
+                self.installprogressVisible = false
+                try fm.removeItem(at: payloadPath)
+                return
+            }
+"""
+    replace_patch = """            let installOptionChosen: AppReplaceOption
+            if scarletQueuedIPAURL != nil {
+                // Unlike the visible LC manager, our worker has no usable
+                // replace alert. Exact one-match policy prevents duplicates.
+                if sameBundleIdApp.count > 1 {
+                    ScarletDiagnosticRecorder.shared.record(
+                        "guest_import", "overwrite_ambiguous", status: "blocked",
+                        fields: ["result": "multiple_exact_bundle_matches"])
+                    throw NSError(domain: "ScarletGuestOverwrite", code: 42,
+                        userInfo: [NSLocalizedDescriptionKey:
+                            "같은 Bundle ID의 게스트 앱이 여러 개입니다. 자동 덮어쓰기를 중단했습니다."])
+                }
+                if let existing = sameBundleIdApp.first {
+                    guard !existing.isAppRunning else {
+                        ScarletDiagnosticRecorder.shared.record(
+                            "guest_import", "overwrite_active_blocked", status: "blocked")
+                        throw NSError(domain: "ScarletGuestOverwrite", code: 43,
+                            userInfo: [NSLocalizedDescriptionKey:
+                                "실행 중인 게스트 앱을 종료한 뒤 덮어쓰세요."])
+                    }
+                    installOptionChosen = AppReplaceOption(
+                        isReplace: true,
+                        nameOfFolderToInstall: existing.appInfo.relativeBundlePath,
+                        appToReplace: existing)
+                    ScarletDiagnosticRecorder.shared.record(
+                        "guest_import", "overwrite_single_match_selected",
+                        fields: ["result": "same_bundle_id_existing_guest"])
+                } else {
+                    // An orphaned folder is NOT proof of an installed target.
+                    // Allocate a new folder without deleting unknown data.
+                    installOptionChosen = AppReplaceOption(
+                        isReplace: false, nameOfFolderToInstall: appRelativePath)
+                    ScarletDiagnosticRecorder.shared.record(
+                        "guest_import", "untracked_folder_preserved",
+                        fields: ["result": "import_to_new_slot"])
+                }
+            } else {
+                // Original visible LC importer retains the full user choice.
+                guard let selected = await installReplaceAlert.open() else {
+                    self.installprogressVisible = false
+                    try fm.removeItem(at: payloadPath)
+                    return
+                }
+                installOptionChosen = selected
+            }
+"""
+    assert source.count(replace_anchor)==1, "Pinned LC original confirmation changed"
+    source=source.replace(replace_anchor,replace_patch,1)
+
+    early_delete="""            if installOptionChosen.isReplace {
+                try fm.removeItem(at: outputFolder)
+            }
+        }
+        // Move it!
+        try fm.moveItem(at: appFolderPath, to: outputFolder)
+        let finalNewApp = LCAppInfo(bundlePath: outputFolder.path)
+"""
+    new_stage="""            if installOptionChosen.isReplace && scarletQueuedIPAURL == nil {
+                // Original visible LC import policy stays untouched.
+                try fm.removeItem(at: outputFolder)
+            }
+        }
+        let scarletTransactionalReplace = scarletQueuedIPAURL != nil && appToReplace != nil
+        let scarletStageFolder = scarletTransactionalReplace
+            ? outputFolder.deletingLastPathComponent().appendingPathComponent(
+                ".scarlet-p57-staged-\\(UUID().uuidString).app")
+            : outputFolder
+        // P57 never destroys the existing bundle before the new one is
+        // signed, validated, and has copied all prior LCAppInfo settings.
+        defer {
+            if scarletTransactionalReplace &&
+               fm.fileExists(atPath: scarletStageFolder.path) {
+                try? fm.removeItem(at: scarletStageFolder)
+            }
+        }
+        try fm.moveItem(at: appFolderPath, to: scarletStageFolder)
+        let finalNewApp = LCAppInfo(bundlePath: scarletStageFolder.path)
+"""
+    assert source.count(early_delete)==1, "Pinned LC pre-sign destructive delete moved"
+    source=source.replace(early_delete,new_stage,1)
+    sign_patch_anchor="""        if let appToReplace {
+            // copy previous configration to new app
+"""
+    sign_guard="""        if scarletTransactionalReplace && !signSuccess && !finalNewApp.dontSign {
+            ScarletDiagnosticRecorder.shared.record(
+                "guest_import", "overwrite_sign_failed_preserved", status: "error",
+                fields: ["result": "old_bundle_untouched"])
+            throw NSError(domain: "ScarletGuestOverwrite", code: 44,
+                userInfo: [NSLocalizedDescriptionKey:
+                    "새 IPA 서명이 완료되지 않아 기존 앱과 데이터를 유지했습니다."])
+        }
+        if let appToReplace {
+            // copy previous configration to new app
+"""
+    assert source.count(sign_patch_anchor)==1, "Pinned original LC settings boundary moved"
+    source=source.replace(sign_patch_anchor,sign_guard,1)
+
+    commit_anchor = "        finalNewApp.installationDate = Date.now\n" + (" " * 8) + "\n        DispatchQueue.main.async {\n"
+    transaction="""        finalNewApp.installationDate = Date.now
+
+        if scarletTransactionalReplace {
+            guard let previous = appToReplace,
+                  fm.fileExists(atPath: outputFolder.path),
+                  previous.appInfo.bundleIdentifier() == newAppInfo.bundleIdentifier()
+            else {
+                ScarletDiagnosticRecorder.shared.record(
+                    "guest_import", "overwrite_target_changed", status: "blocked")
+                throw NSError(domain: "ScarletGuestOverwrite", code: 45,
+                    userInfo: [NSLocalizedDescriptionKey:
+                        "기존 게스트 앱이 변경되어 덮어쓰기를 중단했습니다."])
+            }
+            let backupFolder = outputFolder.deletingLastPathComponent()
+                .appendingPathComponent(".scarlet-p57-backup-\\(UUID().uuidString).app")
+            // Both folders are siblings in the same storage volume.
+            // The former app remains fully recoverable until commit passes.
+            try fm.moveItem(at: outputFolder, to: backupFolder)
+            do {
+                try fm.moveItem(at: scarletStageFolder, to: outputFolder)
+                guard let readback = LCAppInfo(bundlePath: outputFolder.path),
+                      readback.bundleIdentifier() == previous.appInfo.bundleIdentifier(),
+                      readback.dataUUID == previous.appInfo.dataUUID else {
+                    throw NSError(domain: "ScarletGuestOverwrite", code: 46,
+                        userInfo: [NSLocalizedDescriptionKey:
+                            "교체 결과 검증에 실패해 이전 앱을 복구합니다."])
+                }
+                finalNewApp.setBundlePath(outputFolder.path)
+                ScarletDiagnosticRecorder.shared.record(
+                    "guest_import", "overwrite_committed", status: "success",
+                    fields: ["result": "bundle_replaced_data_uuid_preserved"])
+            } catch {
+                // If either commit or readback fails, restore old app.
+                if fm.fileExists(atPath: outputFolder.path) {
+                    try? fm.removeItem(at: outputFolder)
+                }
+                do {
+                    try fm.moveItem(at: backupFolder, to: outputFolder)
+                    ScarletDiagnosticRecorder.shared.record(
+                        "guest_import", "overwrite_rollback_restored",
+                        status: "warning", fields: ["result": "previous_app_restored"])
+                } catch {
+                    ScarletDiagnosticRecorder.shared.record(
+                        "guest_import", "overwrite_rollback_failed",
+                        status: "error", fields: ["result": "backup_preserved"])
+                    throw NSError(domain: "ScarletGuestOverwrite", code: 47,
+                        userInfo: [NSLocalizedDescriptionKey:
+                            "복구에 실패했습니다. 앱을 삭제하거나 재설치하지 마세요. 기존 앱 백업이 보존되어 있습니다."])
+                }
+                throw error
+            }
+            // Do not treat leftover backup cleanup as an install failure.
+            // It is an extra recoverable copy, not guest user data deletion.
+            do { try fm.removeItem(at: backupFolder) }
+            catch {
+                ScarletDiagnosticRecorder.shared.record(
+                    "guest_import", "overwrite_backup_cleanup_deferred",
+                    status: "warning")
+            }
+        }
+
+        DispatchQueue.main.async {
+"""
+    assert source.count(commit_anchor)==1, "Pinned LC post-config commit moved"
+    source=source.replace(commit_anchor,transaction,1)
+    # Syntactic boundaries for safety in the generated LC importer.
+    assert source.count("overwrite_single_match_selected")==1
+    assert source.count("overwrite_rollback_restored")==1
+    assert source.count("scarletTransactionalReplace")==5 or source.count("scarletTransactionalReplace")>=4
+
+    return source
+
+
 def hide_embedded_sidestore_guest_navigation(engine: Path) -> dict:
     """Retain SideStore/SideSign engines, remove only its *guest UI* shortcuts.
 
@@ -242,6 +442,13 @@ def hide_embedded_sidestore_guest_navigation(engine: Path) -> dict:
         else:
             assert source.count(original)==1, "Pinned LC import tracer duplicate: "+repr(original)
             source=source.replace(original,patched)
+    # Tiny synthetic upstream test fixtures omit the real replacement loop.
+    # Only a pinned full installer with the exact original branch is patched.
+    if "var sameBundleIdApp = sharedModel.apps.filter" in source:
+        assert "if fm.fileExists(atPath: outputFolder.path) || sameBundleIdApp.count > 0 {" in source, (
+            "Pinned LC matching-bundle installer changed; refuse silent P57 bypass")
+        source = apply_queued_guest_overwrite_source(source)
+
     # Upstream deliberately keeps an imported guest when signing fails.
     # A returned importer is *not* proof of a runnable, signed application.
     # Emit a bounded failure class; do not put the user-facing signing error,
@@ -423,7 +630,8 @@ def hide_embedded_sidestore_guest_navigation(engine: Path) -> dict:
                         scarletQueuedImportFinished = true
                         scarletActivity?.finish(
                             signingUnverified: scarletGuestImportSignFailed,
-                            failed: errorShow)
+                            failed: errorShow,
+                            failureDetail: errorShow ? errorInfo : nil)
                         scarletOnImportFinished?()
                     }
                 }

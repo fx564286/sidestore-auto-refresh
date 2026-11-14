@@ -37,8 +37,12 @@ class ScarletBootAndBrandingContract(unittest.TestCase):
                   'assert src.count(before)==1', 'src.count(url_schemes_anchor)==2',
                   "phase=app-init-start"):
             self.assertIn(k, INJECTION)
-        self.assertNotIn("shutil.rmtree(LCPath", INJECTION)
-        self.assertNotIn("removeItem(at:", INJECTION)
+        # This is a BOOT invariant; P57 has a separate transactional import
+        # path that must clean staging copies without deleting guest data.
+        boot = INJECTION.split("# Pinned LiveContainer initialization force-unwraps", 1)[1]
+        boot = boot.split("    entry.write_text(src)", 1)[0]
+        self.assertNotIn("shutil.rmtree(LCPath", boot)
+        self.assertNotIn("removeItem(at:", boot)
         self.assertIn("phase=home-visible", HOST)
 
     def test_crash_causing_legacy_dock_renderer_physically_removed(self):

@@ -17,6 +17,7 @@ final class ScarletGuestImportActivity: ObservableObject {
     }
     @Published private(set) var phase: Phase = .idle
     @Published private(set) var progress: Double = 0
+    @Published private(set) var failureDetail: String?
 
     var isRunning: Bool { phase == .importing }
     var hasActivity: Bool { phase != .idle }
@@ -35,11 +36,13 @@ final class ScarletGuestImportActivity: ObservableObject {
         case .importing: return "창을 내려도 가져오기가 계속됩니다."
         case .imported: return "가져오기 완료 · 실제 실행은 별도 확인"
         case .signingUnverified: return "가져왔지만 JIT-Less 서명 확인이 필요합니다."
-        case .failed: return "원본 LiveContainer 가져오기에서 오류가 발생했습니다."
+        case .failed: return failureDetail ??
+            "원본 LiveContainer 가져오기에서 오류가 발생했습니다."
         }
     }
     func start() {
         progress = 0
+        failureDetail = nil
         phase = .importing
         ScarletDiagnosticRecorder.shared.record("guest_import", "worker_started",
             fields: ["owner": "host_view"])
@@ -48,8 +51,14 @@ final class ScarletGuestImportActivity: ObservableObject {
         guard isRunning else { return }
         progress = min(1, max(0, value))
     }
-    func finish(signingUnverified: Bool, failed: Bool) {
+    func finish(signingUnverified: Bool, failed: Bool,
+                failureDetail: String? = nil) {
         guard isRunning else { return }
+        // Only show this error on the user's own device; never export it
+        // to JSONL because an upstream error may contain a private path.
+        self.failureDetail = failed ? failureDetail.map {
+            String($0.prefix(240))
+        } : nil
         phase = failed ? .failed :
             (signingUnverified ? .signingUnverified : .imported)
         ScarletDiagnosticRecorder.shared.record("guest_import", "worker_finished",
