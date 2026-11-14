@@ -1,0 +1,179 @@
+name: Erosion LC iOS27.2 LaunchServices Wallpaper Installation Build6
+on:
+  push:
+    branches:
+      - build/erosion-lc-posterboard-lsstore-v6-20261114
+    paths:
+      - .github/workflows/erosion-lc-posterboard-lsstore-v6.yml
+      - tools/erosion/**
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  build:
+    runs-on: xcode-27
+    timeout-minutes: 75
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Fetch exact Erosion 0.3.1 baseline
+        shell: bash
+        run: |
+          set -euo pipefail
+          git clone -q --depth 1 --branch 0.3.1 https://github.com/jailbreakdotparty/Erosion.git "$RUNNER_TEMP/erosion"
+          cd "$RUNNER_TEMP/erosion"
+          test "$(git rev-parse HEAD)" = "585a24a973d1ffa33bb71e48eab59a79cca505e1"
+
+      - name: Patch and verify source
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/erosion"
+          git apply --check "$GITHUB_WORKSPACE/tools/erosion/erosion-lc-posterboard.patch"
+          git apply "$GITHUB_WORKSPACE/tools/erosion/erosion-lc-posterboard.patch"
+          git diff --check
+          python3 - <<'PY'
+          from pathlib import Path
+          f=Path("Erosion/Helpers/Functions/FSHandlers.swift").read_text()
+          m=Path("Erosion/FileManager/Helpers/InfoHelpers.swift").read_text()
+          w=Path("Erosion/Exploits/WorseQuerySwift.swift").read_text()
+          n=Path("Erosion/Exploits/worse_query.m").read_text()
+          v=Path("Erosion/Tweaks/PosterBoard/PosterBoardView.swift").read_text()
+          tests=[
+            ("direct directory enumeration", "directory listing:" in f),
+            ("legacy inode fallback", "fallbackBound: UInt64 = 10_000_000" in f),
+            ("metadata fallback", "readMetadata()" in m),
+            ("sandbox handle cleanup", "defer { wq.releaseHandle(handle) }" in m),
+            ("host entitlement test", "entitledGroups()" in w and "containerURL(" in w),
+            ("journalled cache preservation", "WQCacheSwapBegin" in n and "WQCacheSwapRecover" in n),
+            ("no destructive cache deletion", "removeItemAtPath: caches" not in n and "clean_symlink" not in n),
+            ("read-only PosterBoard path marker", "pathleak_posterboard(10_000_000)" in f),
+            ("host cache recovery", "worse_query_recover_cache(group)" in w),
+            ("direct identifier query from container manager", "posterboard_container_manager_path()" in f),
+            ("no privileged enumeration of 256 containers", "getBIDFromXattr(url, allowPrivateAccess: false)" in f),
+            ("strict PosterBoard match in manager result", 'strcmp(idString, "com.apple.PosterBoard")' in Path("Erosion/Exploits/pathleak.m").read_text()),
+            ("strict UUID path validation", "normalized.length != prefix.length + 36" in Path("Erosion/Exploits/pathleak.m").read_text()),
+            ("manual UI does not tear down navigation", "guard !isScanningPath else" in v and "isReady = false" not in v[v.index("private func refreshPosterBoardPath"):v.index("private func applyObjects")]),
+            ("no repeated onAppear read-only scan", "guard !didStartInitialPathLookup && !didRequestManualLookup else" in v),
+            ("manual vs auto result retained", "[\\(mode) 완료]" in v),
+            ("manual request persisted across view rebuild", "erosionPBDirectMapManualRequestedV5" in v),
+            ("manual diagnosis persisted across view rebuild", "erosionPBDirectMapDiagnosisV5" in v),
+            ("manual action acknowledgement", "수동 직접 조회 요청 접수" in v),
+            ("do not overwrite manual result with auto", "skipped stale auto lookup after manual request" in v),
+            ("native query function failure counters", "필수 API 누락" in Path("Erosion/Exploits/pathleak.m").read_text()),
+            ("native container mapping counters", "컨테이너 관리자 클래스" in Path("Erosion/Exploits/pathleak.m").read_text()),
+            ("native diagnostic bridge", "posterboard_container_manager_diagnostics()" in f),
+            ("LaunchServices CSStore2 path verification", "posterboard_lsstore_parse(bytes as NSData)" in f),
+            ("bounded recent-inode search", "posterboard_lsstore_file(10_000_000)" in f),
+            ("read-only lsd file grant", "grantReadAccess(path:" in w),
+            ("exact app identity in parser", "com.apple.PosterBoard" in Path("Erosion/Exploits/PosterBoardLSStoreCore.h").read_text()),
+            ("no guessed UUID", "pbls_container_path" in Path("Erosion/Exploits/PosterBoardLSStoreCore.h").read_text()),
+            ("manual only LS scan", "if match == \"com.apple.PosterBoard\", allowPrivateAccess" in f),
+            ("keep original writer for verified path", "let res = applyObjects(" in v),
+            ("explicit private-access path button", "allowPrivateAccess: true" in v),
+            ("safe non-private page loading", "allowPrivateAccess: false" in v),
+            ("host concurrency warning", "호스트의 동시 캐시 접근" in v),
+            ("visible diagnostics", "pathDiagnostics" in v),
+            ("background path discovery", "DispatchQueue.global(qos: .userInitiated)" in v),
+            ("original install retained", "let res = applyObjects(" in v),
+            ("original disabled-state guard", ".disabled(pbContainerPath.isEmpty" in v),
+          ]
+          for name,passed in tests: print(("PASS" if passed else "FAIL"),name)
+          assert all(ok for _,ok in tests)
+          PY
+
+      - name: Test CSStore2 PosterBoard identity and fail-closed paths
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/erosion"
+          xcrun --sdk macosx clang -std=c11 -O2 -Wall -Wextra -Werror \
+            -I "$RUNNER_TEMP/erosion/Erosion/Exploits" \
+            "$GITHUB_WORKSPACE/tools/erosion/tests/PosterBoardLSStoreCoreTests.c" \
+            -o "$RUNNER_TEMP/PosterBoardLSStoreCoreTests"
+          "$RUNNER_TEMP/PosterBoardLSStoreCoreTests" | tee "$RUNNER_TEMP/pbls-core-tests.log"
+          test "$(grep -c '^PASS:' "$RUNNER_TEMP/pbls-core-tests.log")" -ge 7
+
+      - name: Verify original cache inode, contents and crash recovery with macOS tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/erosion"
+          curl --retry 3 -fLsS --max-time 45 \
+            "https://raw.githubusercontent.com/kolbicz/WQFiles/0d9c28c7e283e729b7cef4e18adcce145920dbdb/tests/WQAccessSafetyTests.m" \
+            -o "$RUNNER_TEMP/WQAccessSafetyTests.m"
+          export TMPDIR="$RUNNER_TEMP/wq-safety-test-tmp/"
+          mkdir -p "$TMPDIR"
+          SDK="$(xcrun --sdk macosx --show-sdk-path)"
+          xcrun --sdk macosx clang -fobjc-arc -fmodules -isysroot "$SDK" \
+            -Wall -Wextra -Werror \
+            -I "$RUNNER_TEMP/erosion/Erosion/Exploits" \
+            "$RUNNER_TEMP/WQAccessSafetyTests.m" \
+            -framework Foundation -o "$RUNNER_TEMP/WQAccessSafetyTests"
+          "$RUNNER_TEMP/WQAccessSafetyTests" | tee "$RUNNER_TEMP/wq-safety-results.txt"
+          test "$(grep -c '^PASS:' "$RUNNER_TEMP/wq-safety-results.txt")" -ge 30
+          echo "PASS: cache inode, nested sentinel bytes and interrupted-swap restoration"
+
+      - name: Xcode 27 build unsigned iOS application
+        shell: bash
+        run: |
+          set -euo pipefail
+          xcodebuild -version
+          xcrun --sdk iphoneos --show-sdk-version
+          cd "$RUNNER_TEMP/erosion"
+          xcodebuild -project Erosion.xcodeproj -scheme Erosion -configuration Release -derivedDataPath "$RUNNER_TEMP/ErosionDerived" -destination 'generic/platform=iOS' CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" build > "$RUNNER_TEMP/erosion-build.log" 2>&1 || { tail -150 "$RUNNER_TEMP/erosion-build.log"; exit 1; }
+          tail -18 "$RUNNER_TEMP/erosion-build.log"
+          app="$RUNNER_TEMP/ErosionDerived/Build/Products/Release-iphoneos/Erosion.app"
+          test -f "$app/Erosion"
+          /usr/libexec/PlistBuddy -c 'Set :CFBundleVersion 6' "$app/Info.plist"
+          mkdir -p "$RUNNER_TEMP/ipa/Payload"
+          ditto "$app" "$RUNNER_TEMP/ipa/Payload/Erosion.app"
+          cd "$RUNNER_TEMP/ipa"
+          /usr/bin/zip -qry -9 "$RUNNER_TEMP/Erosion-LC-PosterBoard.ipa" Payload
+          unzip -t "$RUNNER_TEMP/Erosion-LC-PosterBoard.ipa" | tail -3
+          shasum -a 256 "$RUNNER_TEMP/Erosion-LC-PosterBoard.ipa"
+
+      - name: Verify artifact structure
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          from zipfile import ZipFile
+          import plistlib,hashlib,os
+          p=Path(os.environ["RUNNER_TEMP"])/"Erosion-LC-PosterBoard.ipa"
+          with ZipFile(p) as z:
+            assert z.testzip() is None
+            info=plistlib.loads(z.read("Payload/Erosion.app/Info.plist"))
+            assert info["CFBundleIdentifier"]=="com.jbdotparty.Erosion"
+            assert info["CFBundleVersion"]=="6"
+            binary=z.read("Payload/Erosion.app/Erosion")
+            assert len(binary)>100000
+            print("PASS",info["CFBundleIdentifier"],info["CFBundleVersion"],len(binary))
+          print("BYTES",p.stat().st_size)
+          print("SHA256",hashlib.sha256(p.read_bytes()).hexdigest())
+          PY
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Erosion-0.3.1-LiveContainer-PosterBoard-LSStore-build6-unsigned
+          path: ${{ runner.temp }}/Erosion-LC-PosterBoard.ipa
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Publish direct IPA asset
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          tag="erosion-lc-posterboard-lsstore-v6-20261114"
+          ipa="$RUNNER_TEMP/Erosion-LC-PosterBoard.ipa"
+          if gh release view "$tag" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release upload "$tag" "$ipa" --clobber --repo "$GITHUB_REPOSITORY"
+          else
+            gh release create "$tag" "$ipa" --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --title "Erosion 0.3.1 LC PosterBoard LaunchServices CSStore2 mapping (build 6)" --notes "Experimental unsigned LiveContainer guest IPA. Adds a DIFFERENT iOS27.2 identification method: search lsd's newest LaunchServices CSStore2 file via bounded APFS inode scan; read with read-only worse_query grant; parse known 27.2 Bundle record layout and verify exact com.apple.PosterBoard -> Data/Application/UUID identity. Refuse ambiguous, truncated and unsupported stores. Adds independent C parser tests and retains reversible App Group cache recovery tests. Older direct container manager returned only two process-accessible identities, not PosterBoard. Original PosterBoard writer retained but actual iOS27.2/24B119 device installation NOT yet verified. No guessed IDs, no Reset Collections, no automatic cache deletion." --prerelease
+          fi
+          curl -fLsSI --retry 3 --max-time 30 "https://github.com/$GITHUB_REPOSITORY/releases/download/$tag/Erosion-LC-PosterBoard.ipa" | head -9
