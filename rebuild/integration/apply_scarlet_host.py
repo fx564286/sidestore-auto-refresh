@@ -176,6 +176,28 @@ def apply_queued_guest_overwrite_source(source: str) -> str:
                 do {
 """, 1)
 
+    # A visible and a hidden guest can share the same Bundle ID. Upstream
+    # searches hiddenApps only when no visible match exists, so a hidden
+    # duplicate would otherwise be overwritten ambiguously. The queued
+    # worker must consider the union; the visible LC selector is unchanged.
+    union_anchor = """        if fm.fileExists(atPath: outputFolder.path) || sameBundleIdApp.count > 0 {
+"""
+    assert source.count(union_anchor)==1, "Pinned LC replacement boundary moved"
+    source=source.replace(union_anchor, """        if scarletQueuedIPAURL != nil {
+            let hiddenMatches = sharedModel.hiddenApps.filter {
+                $0.appInfo.bundleIdentifier() == newAppInfo.bundleIdentifier()
+            }
+            if !hiddenMatches.isEmpty && !sharedModel.isHiddenAppUnlocked {
+                throw NSError(domain: "ScarletGuestOverwrite", code: 41,
+                    userInfo: [NSLocalizedDescriptionKey:
+                        "숨김 앱의 잠금을 해제한 뒤 덮어쓰세요."])
+            }
+            for hidden in hiddenMatches where !sameBundleIdApp.contains(where: { $0 === hidden }) {
+                sameBundleIdApp.append(hidden)
+            }
+        }
+""" + union_anchor,1)
+
     replace_anchor = """            guard let installOptionChosen = await installReplaceAlert.open() else {
                 // user cancelled
                 self.installprogressVisible = false

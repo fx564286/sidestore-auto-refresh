@@ -23,6 +23,12 @@ class P57Overwrite(unittest.TestCase):
         self.assertIn('guard let selected = await installReplaceAlert.open()',PATCH)
         self.assertIn('installOptionChosen = selected',PATCH)
         self.assertIn('if installOptionChosen.isReplace && scarletQueuedIPAURL == nil',PATCH)
+    def test_visible_and_hidden_same_bundle_not_silently_overwritten(self):
+        self.assertIn('let hiddenMatches = sharedModel.hiddenApps.filter {',PATCH)
+        self.assertIn('for hidden in hiddenMatches where !sameBundleIdApp.contains',PATCH)
+        self.assertIn('if !hiddenMatches.isEmpty && !sharedModel.isHiddenAppUnlocked',PATCH)
+        self.assertLess(PATCH.index('for hidden in hiddenMatches where'),
+                        PATCH.index('if sameBundleIdApp.count > 1 {'))
     def test_never_delete_old_app_before_sign_ready(self):
         self.assertIn('let scarletTransactionalReplace =',PATCH)
         self.assertIn('try fm.moveItem(at: appFolderPath, to: scarletStageFolder)',PATCH)
