@@ -2973,6 +2973,57 @@ static void ScarletIslandTryMeasuredHeaderConstraintBridge(
 }
 // R6P39_CONSTRAINT_BRIDGE_END
 
+// R6P56_OWNER_CONTENT_REFLOW_BEGIN
+// P55 signed 99565816: header moved to parent safe y62, but its scrolling
+// body stayed at native y50, so Instagram header overlapped the stories.
+// Own the ONE verified sibling in the same original parent layout pass.
+// The root UIWindow, FBScene, scroll contentSize/offset/insets and app tabs
+// are not changed. Revert only this body on any non-zero two-pass risk.
+static BOOL ScarletIslandP56ContainsFeedScroll(UIView *v, NSUInteger depth) {
+    if(!v || depth==0) return NO;
+    for(UIView *child in v.subviews) {
+        if([child isKindOfClass:UIScrollView.class] &&
+           CGRectGetWidth(child.bounds)>=CGRectGetWidth(v.bounds)*0.55)
+            return YES;
+        if(ScarletIslandP56ContainsFeedScroll(child,depth-1))
+            return YES;
+    }
+    return NO;
+}
+static UIView *ScarletIslandP56UniqueNativeBody(
+    UIView *parent, UIView *header, UIWindow *window) {
+    if(!parent || !header || !window || header.superview!=parent)
+        return nil;
+    CGFloat width=CGRectGetWidth(parent.bounds);
+    CGFloat height=CGRectGetHeight(parent.bounds);
+    CGFloat headerEnd=CGRectGetMaxY(header.frame);
+    if(width<260 || height<650 || fabs(header.frame.origin.y)>3 ||
+       headerEnd<34 || headerEnd>75) return nil;
+    UIView *only=nil;
+    for(UIView *candidate in parent.subviews) {
+        if(candidate==header || candidate.hidden || candidate.alpha<0.5 ||
+           candidate.window!=window || !CGAffineTransformIsIdentity(candidate.transform) ||
+           [header isDescendantOfView:candidate] ||
+           [candidate isKindOfClass:UIControl.class] ||
+           [candidate isKindOfClass:UINavigationBar.class] ||
+           [candidate isKindOfClass:UITabBar.class]) continue;
+        CGRect rect=candidate.frame;
+        BOOL startsBelowOriginal=fabs(CGRectGetMinY(rect)-headerEnd)<=9;
+        BOOL fullHeightSibling=fabs(CGRectGetMinY(rect))<=3;
+        if(!startsBelowOriginal && !fullHeightSibling) continue;
+        if(fabs(rect.origin.x)>4 || fabs(rect.size.width-width)>5 ||
+           rect.size.height<height*0.65 ||
+           fabs(CGRectGetMaxY(rect)-height)>75) continue;
+        if(![candidate isKindOfClass:UIScrollView.class] &&
+           !ScarletIslandP56ContainsFeedScroll(candidate,4)) continue;
+        // Ambiguous native composition is not permission to reposition it.
+        if(only) return nil;
+        only=candidate;
+    }
+    return only;
+}
+// R6P56_OWNER_CONTENT_REFLOW_END
+
 // R6P54_OWNER_LAYOUT_CONTRACT_BEGIN
 // R6P55 also accepts the signed P54 child UIViewController header owner.
 // Signed P53: the parent owns a custom viewDidLayoutSubviews. Changing the
@@ -3013,6 +3064,27 @@ static void ScarletIslandP54AfterNativeOwnerLayout(UIViewController *owner) {
     if(fabs(frame.origin.y-guide.origin.y)>1) {
         frame.origin.y=guide.origin.y;
         header.frame=frame;
+    }
+    // R6P56: reflow the measured scrolling BODY with the native header.
+    // Parent-owned bottom edge and unmodified scroll content preserve reach.
+    NSHashTable *bodyRefs=state[@"native_body"];
+    UIView *body=bodyRefs.anyObject;
+    if(body && ![state[@"body_disabled"] boolValue] &&
+       body.superview==parent && body.window==window) {
+        CGRect originalBody=[state[@"body_original_frame"] CGRectValue];
+        CGFloat desiredY=CGRectGetMaxY(header.frame);
+        CGFloat delta=desiredY-CGRectGetMinY(originalBody);
+        CGRect revised=originalBody;
+        revised.origin.y=desiredY;
+        revised.size.height-=delta;
+        if(delta>=15 && delta<=target+75 &&
+           revised.size.height>=CGRectGetHeight(parent.bounds)*0.52 &&
+           fabs(CGRectGetMaxY(revised)-CGRectGetMaxY(originalBody))<1 &&
+           fabs(revised.size.width-CGRectGetWidth(parent.bounds))<=5) {
+            if(!CGRectEqualToRect(body.frame,revised)) body.frame=revised;
+            state[@"body_reflow_passes"]=@(
+                [state[@"body_reflow_passes"] unsignedIntegerValue]+1);
+        }
     }
     state[@"enforcing"]=@NO;
     // The native guest's viewDidLayoutSubviews just finished. Every future
@@ -3083,8 +3155,17 @@ static BOOL ScarletIslandP54InstallNativeOwnerContract(
     }
     NSHashTable *weakHeader=[NSHashTable weakObjectsHashTable];
     [weakHeader addObject:header];
+    UIView *nativeBody=childOwned ?
+        ScarletIslandP56UniqueNativeBody(parent,header,window) : nil;
+    NSHashTable *weakBody=[NSHashTable weakObjectsHashTable];
+    if(nativeBody) [weakBody addObject:nativeBody];
     NSMutableDictionary *state=[@{
         @"headers":weakHeader,
+        @"native_body":weakBody,
+        @"body_original_frame":[NSValue valueWithCGRect:
+            nativeBody ? nativeBody.frame : CGRectNull],
+        @"body_reflow_passes":@0,
+        @"body_disabled":@NO,
         @"top":@(safeTop),
         @"owner_layout_passes":@0,
         @"original_class":[NSValue valueWithPointer:(__bridge const void *)original],
@@ -3107,6 +3188,12 @@ static BOOL ScarletIslandP54InstallNativeOwnerContract(
     [owner.view setNeedsLayout];
     [owner.view layoutIfNeeded];
     ScarletIslandP54AfterNativeOwnerLayout(owner);
+    if(nativeBody) ScarletIslandDeepHeaderTrialReceipt(
+        @"guest_owner_content_reflow_staged",@"unique_parent_scroll_sibling",
+        safeTop,CGRectGetMinY([nativeBody convertRect:
+            nativeBody.bounds toView:window]),
+        CGRectGetMaxY([header convertRect:header.bounds toView:window]),
+        beforeControls,beforeControls,beforeImages,NO);
     ScarletIslandDeepHeaderTrialReceipt(
         @"guest_owner_layout_contract_staged",@"parent_layout_owner_native",
         safeTop,CGRectGetMinY(originalWindow),
@@ -3133,6 +3220,38 @@ static BOOL ScarletIslandP54InstallNativeOwnerContract(
         NSUInteger unsafe=unchanged ?
             ScarletIslandDeepHeaderCountUnsafe(rt,w,safeTop,&images) :
             beforeControls;
+        UIView *feed=weakBody.anyObject;
+        BOOL bodyTrial=unchanged && feed &&
+            ![state[@"body_disabled"] boolValue];
+        CGRect oldFeed=[state[@"body_original_frame"] CGRectValue];
+        CGRect nowFeed=bodyTrial ? feed.frame : CGRectNull;
+        CGRect headFrame=unchanged ? head.frame : CGRectNull;
+        BOOL provenBody=bodyTrial && feed.superview==par &&
+            [state[@"body_reflow_passes"] unsignedIntegerValue]>0 &&
+            fabs(CGRectGetMinY(nowFeed)-CGRectGetMaxY(headFrame))<3 &&
+            fabs(CGRectGetMaxY(nowFeed)-CGRectGetMaxY(oldFeed))<3 &&
+            fabs(CGRectGetWidth(nowFeed)-CGRectGetWidth(oldFeed))<3 &&
+            unsafe==0;
+        if(bodyTrial) {
+            ScarletIslandDeepHeaderTrialReceipt(
+                provenBody ? (late ? @"guest_owner_content_reflow_retained"
+                                   : @"guest_owner_content_reflow_first_pass")
+                           : @"guest_owner_content_reflow_reverted",
+                provenBody ? @"native_body_scroll_header_zero_risk"
+                           : @"body_layout_or_remaining_unsafe",
+                safeTop,CGRectGetMinY(oldFeed),
+                CGRectIsNull(nowFeed) ? -999:CGRectGetMinY(nowFeed),
+                beforeControls,unsafe,images,late && provenBody);
+            if(!provenBody) {
+                // Preserve the P55 header improvement, restore ONLY the
+                // unproven feed geometry, and do not release status icons.
+                state[@"body_disabled"]=@YES;
+                if(feed.superview==par) feed.frame=oldFeed;
+                if(unchanged)
+                    unsafe=ScarletIslandDeepHeaderCountUnsafe(
+                        rt,w,safeTop,&images);
+            }
+        }
         CGRect firstRect=weakFirst && w ?
             ScarletIslandVisibleFrameInWindow(weakFirst,w):CGRectNull;
         CGRect secondRect=weakSecond && w ?
@@ -3149,6 +3268,10 @@ static BOOL ScarletIslandP54InstallNativeOwnerContract(
         if(!reduced) {
             state[@"disabled"]=@YES;
             if(vc && object_getClass(vc)==scoped) object_setClass(vc,original);
+            if(feed && feed.superview==par) {
+                state[@"body_disabled"]=@YES;
+                feed.frame=oldFeed;
+            }
             if(head && head.superview==par) {
                 CGRect desired=[state[@"original_frame"] CGRectValue];
                 if(fabs(head.frame.origin.y-safeTop)<3)

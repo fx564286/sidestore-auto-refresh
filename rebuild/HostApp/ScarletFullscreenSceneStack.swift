@@ -401,6 +401,33 @@ final class ScarletFullscreenSceneStack: NSObject, ObservableObject,
         }
     }
 
+    // R6P56: P51 intentionally held the first 650ms unsafe sample.
+    // Only TWO native parent+feed frame and zero-control readbacks permit
+    // clearing that old PID collision, never a transient scroll snapshot.
+    func acceptVerifiedNativeContentReflow(pid: Int32, scene: UIWindowScene?) {
+        guard pid>0, isVisible, let activeID, let scene,
+              slots.contains(where: { $0.id==activeID && $0.pid==pid }),
+              nativeStatusBarUnsafePIDs.contains(pid) else { return }
+        nativeStatusBarUnsafePIDs.remove(pid)
+        nativeStatusBarSafePIDs.insert(pid)
+        nativeStatusBarCollisionShield=false
+        ScarletDiagnosticRecorder.shared.record(
+            "layout", "resident_native_status_bar_verified_reflow_release",
+            fields: ["process_pid":String(pid),
+                     "result":"two_parent_native_zero_control_readbacks"])
+        DispatchQueue.main.asyncAfter(deadline: .now()+0.35) {
+            [weak self, weak scene] in
+            guard let self, self.isVisible, let scene,
+                  self.slots.contains(where: {$0.id==self.activeID && $0.pid==pid})
+            else { return }
+            ScarletDiagnosticRecorder.shared.record(
+                "layout", "resident_native_status_bar_verified_reflow_readback",
+                fields: ["process_pid":String(pid),
+                         "status_hidden":scene.statusBarManager?.isStatusBarHidden==true
+                             ? "true" : "false"])
+        }
+    }
+
     func clearNativeStatusBarCollisionRisk(pid: Int32) {
         nativeStatusBarUnsafePIDs.remove(pid)
         nativeStatusBarSafePIDs.remove(pid)
@@ -866,6 +893,7 @@ private final class ScarletGuestIslandReceiptObserver {
     var onTopRiskMeasured: ((Int32, Int, Int, Int, Int, Int, Int) -> Void)?
     var onSurfaceToneMeasured: ((Int32, Int) -> Void)?
     var onHeaderTransformVerified: ((Int32, Bool) -> Void)?
+    var onContentReflowVerified: ((Int32) -> Void)?
 
     func observe(pid: Int32) {
         guard pid > 0 else { return }
@@ -1094,6 +1122,10 @@ private final class ScarletGuestIslandReceiptObserver {
                 "guest_owner_layout_contract_first_pass",
                 "guest_owner_layout_contract_retained",
                 "guest_owner_layout_contract_reverted",
+                "guest_owner_content_reflow_staged",
+                "guest_owner_content_reflow_first_pass",
+                "guest_owner_content_reflow_retained",
+                "guest_owner_content_reflow_reverted",
                 "guest_header_local_transform_reverted",
                 "guest_header_local_transform_invalidated",
                 "guest_header_scroll_motion_safe",
@@ -1140,6 +1172,11 @@ private final class ScarletGuestIslandReceiptObserver {
                                 String((row["header_detached_visible_controls"] as? NSNumber)?.intValue ?? -1),
                              "header_detached_samples":
                                 String((row["header_detached_samples"] as? NSNumber)?.intValue ?? -1)])
+                if result == "guest_owner_content_reflow_retained",
+                   (row["header_controls_after"] as? NSNumber)?.intValue == 0,
+                   (row["header_gate_pass"] as? NSNumber)?.boolValue == true {
+                    onContentReflowVerified?(pid)
+                }
                 if result == "guest_header_local_transform_retained" ||
                    result == "guest_owner_layout_contract_retained" {
                     onHeaderTransformVerified?(pid, true)
@@ -2053,6 +2090,12 @@ final class ScarletFullscreenSceneViewport: UIViewController {
         ScarletGuestIslandReceiptObserver.shared.onHeaderTransformVerified = {
             [weak self] pid, retained in
             self?.onNativeHeaderTransform(pid: pid, retained: retained)
+        }
+        ScarletGuestIslandReceiptObserver.shared.onContentReflowVerified = {
+            [weak self] pid in
+            guard let self else { return }
+            self.stack?.acceptVerifiedNativeContentReflow(
+                pid: pid, scene: self.view.window?.windowScene)
         }
         let outside = UITapGestureRecognizer(target: self,
             action: #selector(didTapResidentBackground(_:)))
