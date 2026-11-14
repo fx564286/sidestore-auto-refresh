@@ -1,4 +1,4 @@
-# 실행 우선·문제 해결 지속 지침 — 2026-11-14 P54 / L100
+# 실행 우선·문제 해결 지속 지침 — 2026-11-14 P55 / L101
 
 ## 사용자가 명시한 목표
 
@@ -7,13 +7,21 @@ Scarlet Crystal 실험 모드 OFF에서는 정상인 게스트 앱들이 ON에�
 ## 새 채팅의 실행 순서 (강제)
 
 1. 보고서 SourceCommit, CurrentSession, 현재 기기 증상과 마지막 Lxxx 수정 이력을 읽고 해당 빌드가 실제 설치된 것인지 먼저 구분한다. 최신 GitHub 소스를 열어 이력 상태와 정확한 소스 커밋을 비교한다.
-2. L001~L100의 기존 실패 방법·실제 코드 위치·before/after를 확인한다. P37 단회 헤더 프레임 이동, P39 강제 제약, P44/P53 affine transform, 호스트 전체 콘텐츠 축소/투명띠, 추가 Safe Area 중복 적용, 상태 표시줄 강제 은폐 등은 장치 증거가 없는 동일 재시도를 금지한다.
+2. L001~L101의 기존 실패 방법·실제 코드 위치·before/after를 확인한다. P37 단회 헤더 프레임 이동, P39 강제 제약, P44/P53 affine transform, 호스트 전체 콘텐츠 축소/투명띠, 추가 Safe Area 중복 적용, 상태 표시줄 강제 은폐 등은 장치 증거가 없는 동일 재시도를 금지한다.
 3. **항상 실행 코드 수정이 주작업**이다. 기록용 이벤트만 추가하는 새 버전은 허용되지 않는다. 성공할 때까지 원인을 재모델링하고 새 인과 메커니즘을 설계·검증한다. 사용자에게 PC 조작을 요구하는 대신 저장소에서 가능한 작업을 먼저 수행한다.
 4. 실제 기기 결과가 없는 테스트/컴파일/IPA 성공은 해결이 아니다. 정상 판정은 실기기에서 상단 위험 컨트롤 0, 정상 상태 표시줄, 가로·세로 및 홈 복귀 A→B→A, 전체화면/하단/스크롤·터치 보존으로만 한다.
 5. L100 P54 신규 방식: 부모 UIViewController에 실제 게스트 커스텀 viewDidLayoutSubviews가 존재하고, 그 아래 50pt plain UIView 헤더가 Y0에 있는 경우, **단 하나의 부모 컨트롤러 인스턴스만 동적 서브클래싱하여 게스트 원래 레이아웃 구현을 먼저 실행한 후 그 부모의 native safeAreaLayoutGuide에서 헤더를 도킹**한다. 기존 P44 transform을 해당 대상에 중복 적용하지 않는다. 250/1350ms 실측 통과 시 retained, 실패하면 원래 클래스와 원래 프레임을 원복한다.
 6. 실제 장치 로그의 guest_owner_layout_contract_staged / first_pass / retained / reverted와 원래 위험 컨트롤 수치, 앱 재진입 시 헤더 Y, 전체 콘텐츠/상태 표시줄을 대조한다. P54가 guest_owner_layout_contract_retained라도 위험 컨트롤이 0이 아니거나 실제 화면이 잘리면 **미해결**이며 L100의 같은 수정을 반복하지 않고 L101의 새로운 원인·실행 수정을 설계한다.
 7. 새로운 후보는 수정 전에 scarlet_no_repeat_gate.py --proposal로 판정한다. 실제 변경 diff와 소스 SHA, 새 검증, 빌드/IPA, rollback, 다음 시도에서 피해야 할 원인까지 scarlet_remediation_history.json에 새 Lxxx로 기록한다. 그 JSON과 이 지침이 앱에서 내보낸 CURRENT RUN 공유 텍스트에 모두 내장돼야 한다.
 8. V48 안정 기준의 번들 ID·원래 전체화면 크기·리사이징 금지·멀티탭·앱 간 RAM·색상/리퀴드 글라스·서명·오디오·키보드 동작은 별도 검증 없이 수정하지 않는다.
+
+## P55 / L101: 실제 P54 로그에서 발견된 실행 분기 불일치
+
+- 실기기 소스 fc2fd271b9e8, 세션 990090a7, PID1841의 header_controller_parent_match=1은 문제의 50pt Y0 헤더가 plain UIView가 아니라 자식 UIViewController.view임을 입증한다. parent custom viewDidLayoutSubviews origin3, parent native safe guideY62가 같은 샘플에 존재한다.
+- P54 코드는 owner 수정 진입을 headerKind==2로 제한하고 header.nextResponder==parent를 강제했으므로 이 로그에서 owner contract가 실행되지 않았다. 실제 로그는 P44 affine unsafe9→6 뒤 reason2 invalidated이며, guest_owner_layout_contract_* 0건이다.
+- P55 코드 변경은 이 미실행 대상만 parent.viewDidLayoutSubviews 원래 콜백 후 native guide 도킹으로 진입시키는 **소유권 분기 실제 동작 수정**이다. 헤더의 child UIViewController가 parentViewController인 것, 높이50±4, 부모의 custom layout override 등 기기에서 측정된 조건만 허용한다. owner 경로 거절 시 이전에 실패한 P44 변환을 반복하지 않는다.
+- P55 사용자 기기 성공 미검증. Xcode/IPA 성공도 실제 게스트 위험 컨트롤 0과 상태바·터치·스크롤·회전·A→B→A 증거가 아니면 해결 아님. 이후에는 guest_owner_layout_contract_staged/first_pass/retained/reverted 및 화면 시계/배터리 결과를 확인한다.
+- P55에도 여전히 UI가 위험하면 같은 frame/transform/inset/crop을 다시 적용하지 말고, 자식 컨트롤러의 실제 부모 레이아웃 제약 쓰기 지점을 연구한 L102 기능 수정으로 진행한다. 같은 로그만으로 작업 지속 가능하도록 이 L101와 전체 소스 diff/검증 범위를 JSON에 유지한다.
 
 ## 현재 연구 결론과 반증 조건
 
