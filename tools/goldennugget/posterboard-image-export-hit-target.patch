@@ -1,0 +1,88 @@
+diff --git a/Nugget/Views/PosterBoardView.swift b/Nugget/Views/PosterBoardView.swift
+--- a/Nugget/Views/PosterBoardView.swift
++++ b/Nugget/Views/PosterBoardView.swift
+@@ -305,7 +305,10 @@
+     }
+ 
+     private func packRow(_ pack: PosterBoardTendie) -> some View {
+-        VStack(alignment: .leading, spacing: 8) {
++        // Each element in this Group becomes its own List row. Previously the
++        // export Button and the automatic-style Picker lived in one VStack/List
++        // row, and iOS could route a tap on export to the Picker instead.
++        Group {
+             HStack(alignment: .top, spacing: 12) {
+                 VStack(alignment: .leading, spacing: 4) {
+                     Text(pack.name)
+@@ -331,37 +334,47 @@
+             }
+ 
+             Button {
++                // A visible event confirms that the export action, rather than
++                // the target-extension picker, received the touch.
++                RunLog.shared.append("PosterBoard: 이미지 내보내기 선택 (\(pack.name))")
+                 exportingPack = true
+                 let packURL = pack.url
+                 Task {
++                    defer { exportingPack = false }
+                     do {
+                         let images = try await Task.detached(priority: .userInitiated) {
+                             try PosterBoardPackImageExport.extractImages(from: packURL)
+                         }.value
+                         exportImages = images
++                        RunLog.shared.append("PosterBoard: 이미지 추출 완료 (\(images.count)개)")
+                         showExportImages = true
+                     } catch {
+                         pickError = error.localizedDescription
++                        RunLog.shared.append("PosterBoard: 이미지 추출 실패 - \(error.localizedDescription)")
+                     }
+-                    exportingPack = false
+                 }
+             } label: {
+-                HStack {
++                HStack(spacing: 10) {
+                     Label("이미지로 내보내기 (iOS 27.2 대안)",
+                           systemImage: "square.and.arrow.up.on.square")
+-                    if exportingPack { ProgressView().controlSize(.small) }
+-                }
+-            }
++                    Spacer(minLength: 4)
++                    if exportingPack {
++                        ProgressView().controlSize(.small)
++                    } else {
++                        Image(systemName: "chevron.right")
++                            .font(.caption)
++                            .foregroundStyle(.secondary)
++                    }
++                }
++                .frame(maxWidth: .infinity, minHeight: 48, alignment: .leading)
++                .contentShape(Rectangle())
++            }
++            .buttonStyle(.plain)
+             .disabled(running || exportingPack)
+-
+-            // Which extension this pack is injected under. A bare pack does not
+-            // carry that, and picking the wrong one is silent: the descriptor
+-            // lands in a folder the provider never reads and the wallpaper just
+-            // does not appear. The reference asks at import time
+-            // (`TendieItem.posterType`); here it is a row control that persists
+-            // with the pack.
++            .accessibilityIdentifier("posterboard.image-export.\(pack.name)")
++
+             if !pack.isContainer {
+-                Picker("Target extension", selection: Binding(
++                Picker("대상 확장자", selection: Binding(
+                     get: { pack.posterType },
+                     set: { chosen in
+                         guard let index = selection.tendies.firstIndex(where: { $0.id == pack.id })
+@@ -373,7 +386,11 @@
+                         Text(type.label).tag(type)
+                     }
+                 }
++                // Picker has a separate, explicit menu-style List row; it
++                // cannot become the implicit action for the export row.
++                .pickerStyle(.menu)
+                 .disabled(running)
++                .accessibilityIdentifier("posterboard.target-extension.\(pack.name)")
+             }
+         }
+     }
