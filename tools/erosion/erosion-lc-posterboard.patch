@@ -716,7 +716,7 @@ index 032a355..a3b4c09 100644
  }
  
 diff --git a/Erosion/Helpers/Functions/FSHandlers.swift b/Erosion/Helpers/Functions/FSHandlers.swift
-index 5648c7b..ccebcb6 100644
+index 5648c7b..288fc05 100644
 --- a/Erosion/Helpers/Functions/FSHandlers.swift
 +++ b/Erosion/Helpers/Functions/FSHandlers.swift
 @@ -11,59 +11,160 @@ import UIKit
@@ -833,7 +833,7 @@ index 5648c7b..ccebcb6 100644
 +            lastDiscovery = "LaunchServices 데이터베이스를 일관되게 읽지 못했습니다."
 +            return nil
 +        }
-+        let result = posterboard_lsstore_parse(bytes as NSData)
++        let result = posterboard_lsstore_parse(bytes)
 +        let accepted = (result["verified"] as? Bool) ?? false
 +        let matches = (result["targetMatches"] as? NSNumber)?.intValue ?? 0
 +        let score = (result["layoutScore"] as? NSNumber)?.intValue ?? 0
