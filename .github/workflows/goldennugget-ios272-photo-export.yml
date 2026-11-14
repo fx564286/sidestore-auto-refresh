@@ -1,0 +1,280 @@
+name: GoldenNugget iOS27.2 Wallpaper Photo Export Korean IPA
+
+on:
+  push:
+    branches:
+      - build/goldennugget-ios272-photo-export-20261114
+    paths:
+      - .github/workflows/goldennugget-ios272-photo-export.yml
+      - tools/goldennugget/**
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  actions: read
+
+jobs:
+  build:
+    runs-on: xcode-27
+    timeout-minutes: 90
+    steps:
+      - name: Checkout isolated build inputs
+        uses: actions/checkout@v4
+
+      - name: Checkout pinned GoldenNugget Mobile upstream
+        shell: bash
+        run: |
+          set -euo pipefail
+          git clone --filter=blob:none https://github.com/GoldenNugget-Team/GoldenNugget-mobile.git "$RUNNER_TEMP/gn"
+          cd "$RUNNER_TEMP/gn"
+          git checkout --detach e4be86f050f4980ccc58de3b74f9de58b070b705
+          git rev-parse HEAD
+
+      - name: Apply MBErrorDomain/105 actual-volume correction
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/gn"
+          git apply --check "$GITHUB_WORKSPACE/tools/goldennugget/mb105.patch"
+          git apply "$GITHUB_WORKSPACE/tools/goldennugget/mb105.patch"
+          git apply --check "$GITHUB_WORKSPACE/tools/goldennugget/tweak-ui-localize.patch"
+          git apply "$GITHUB_WORKSPACE/tools/goldennugget/tweak-ui-localize.patch"
+          git apply --check "$GITHUB_WORKSPACE/tools/goldennugget/ios27-skip-protective.patch"
+          git apply "$GITHUB_WORKSPACE/tools/goldennugget/ios27-skip-protective.patch"
+          git apply --check "$GITHUB_WORKSPACE/tools/goldennugget/findmy211-community-ko.patch"
+          git apply "$GITHUB_WORKSPACE/tools/goldennugget/findmy211-community-ko.patch"
+          git apply --check "$GITHUB_WORKSPACE/tools/goldennugget/community-remaining-ko.patch"
+          git apply "$GITHUB_WORKSPACE/tools/goldennugget/community-remaining-ko.patch"
+          git apply --check "$GITHUB_WORKSPACE/tools/goldennugget/ios272-photo-export.patch"
+          git apply "$GITHUB_WORKSPACE/tools/goldennugget/ios272-photo-export.patch"
+          git diff --check
+          grep -q 'BackupVolumeSpace.available(at: root)' Vendor/MinimuxerGateway/idevice/MobileBackup2Delegate.swift
+          if grep -A18 '^private func mb2_get_free_disk_space(' Vendor/MinimuxerGateway/idevice/MobileBackup2Delegate.swift | grep -q 'NSHomeDirectory()'; then
+            echo 'ERROR: old home-directory probe remains'; exit 1
+          fi
+
+      - name: Verify opt-in safety and iOS 27 SQLite bypass
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/gn"
+          python3 - <<'PY'
+          from pathlib import Path
+          d=Path('Nugget/Core/DevSettings.swift').read_text()
+          e=Path('Nugget/Core/GoldenNuggetEngine.swift').read_text()
+          h=Path('Nugget/Core/HostManifests.swift').read_text()
+          u=Path('Nugget/Views/SettingsView.swift').read_text()
+          cases=[
+              ('opt-in defaults off', 'var skipProtectiveBackup = false' in d),
+              ('development gate', 'skipProtectiveBackup: enabled && skipProtectiveBackup' in d),
+              ('independent reset switch', 'Key.skipProtectiveBackup' in d.split('static let allKeys')[1].splitlines()[0]),
+              ('confirmed activation only', 'confirmUnsafeSkipBackup = true' in u and 'Button("위험을 감수하고 활성화"' in u),
+              ('native iOS27 SQLite database', 'CREATE TABLE Files (' in h and 'writeUnprotectedRestoreSQLite' in h),
+              ('bypass on apply and reset', e.count('try unprotectedIOS27Restore(udid: udid)') == 2),
+              ('normal backups remain', e.count('try await protectiveBackup(udid: udid)') == 2),
+              ('no pruning of synthesized empty backup', 'prune = !unsafeSkipBackup' in e),
+              ('PosterBoard preflight', 'Backup bypass cannot fetch it.' in e),
+          ]
+          for name,ok in cases: print(('PASS' if ok else 'FAIL'),name)
+          assert all(ok for _,ok in cases)
+          PY
+
+      - name: Verify Find My 211 and Korean community strings
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/gn"
+          python3 - <<'PY'
+          from pathlib import Path
+          gate=Path('Vendor/MinimuxerGateway/idevice/IdeviceGateway.swift').read_text()
+          fail=Path('Nugget/Core/TransportFailure.swift').read_text()
+          confirm=Path('Nugget/Views/ApplyConfirmSheet.swift').read_text()
+          community=Path('Nugget/Views/CommunityCatalogView.swift').read_text()
+          home=Path('Nugget/Views/GoldenNuggetView.swift').read_text()
+          cases=[
+              ('211-specific Korean error', 'if code == 211' in gate and '복원 차단(MBErrorDomain/211)' in gate),
+              ('no retry on rejection', '"mberrordomain/211"' in fail and 'case .deviceRejected:' in fail),
+              ('explicit user-side acknowledgement', 'findMyConfirmedOff' in confirm and '.disabled(!findMyConfirmedOff)' in confirm),
+              ('community title translated', '커뮤니티 카탈로그' in community),
+              ('known live template translated', 'springboard-for-ios-27-1-duo' in community and '아직 테스트하지 않았습니다' in community),
+              ('remote identifier and checksum unchanged', 'CommunityCatalog.download(url, limit:' in community),
+              ('reset description Korean', '기기의 선택한 설정 페이지를 기본값으로 초기화합니다' in home),
+              ('media button Korean', '"미디어 복원"' in home),
+          ]
+          for name,passed in cases:print(('PASS' if passed else 'FAIL'),name)
+          assert all(passed for _,passed in cases)
+          PY
+
+      - name: Verify community preview grouping and installed states
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/gn"
+          python3 - <<'PY'
+          from pathlib import Path
+          s=Path("Nugget/Views/CommunityCatalogView.swift").read_text()
+          ids=["Show Home Screen Search Button","Debug HUD","Visualize Touch Suppression",
+               "Require Fresh Touch (Cover Sheet)","Force All Apps to Support Limited Resizing",
+               "Display Dim Touch Suppression (All Surfaces)","Fallback Display Region Blanking Renderer",
+               "Show Hinge Angle HUD","Always Send Hinge Updates","Mock Charging State (StandBy)",
+               "Ambient Overlay Interactive Dismissal","Disable Auto Dim","Home Screen Wallpaper Dimming",
+               "External Display Mirroring","Sensitive UI","Ambient Extended Idle Timer"]
+          checks=[
+              ("16 translated labels",all('"'+v+'":' in s for v in ids)),
+              ("Korean category summary", "ForEach(CommunityCopyKorean.changedFiles(entry.writes))" in s),
+              ("render paths without modification","let path = String(item[delimiter.upperBound...])" in s),
+              ("installed does not imply applied","가져오기 완료 · 아직 기기에 적용된 것은 아님" in s),
+              ("no second install for installed", 'if status == "Installed"' in s),
+              ("16 detail translations", 'static func tweakDetail(id: String, fallback: String)' in s),
+          ]
+          for k,v in checks:print(("PASS" if v else "FAIL"),k)
+          assert all(v for _,v in checks)
+          PY
+
+      - name: Verify iOS 27.2 photo-export alternative
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/gn"
+          python3 - <<'PY'
+          from pathlib import Path
+          extractor=Path("Nugget/Core/PosterBoardPackImageExport.swift").read_text()
+          view=Path("Nugget/Views/PosterBoardView.swift").read_text()
+          gallery=Path("Nugget/Views/PosterBoardImageExportGallery.swift").read_text()
+          policy=Path("Nugget/Core/AirliftAvailability.swift").read_text()
+          checks=[
+              ("raster ZIP extraction", "archive.extract(entry, to: destination)" in extractor),
+              ("ZIP-slip prevention", 'String(format: "wallpaper-%02d.%@"' in extractor),
+              ("inflated-size cap", "maxTotalBytes" in extractor and "maxFileBytes" in extractor),
+              ("native Photos share sheet", "UIActivityViewController" in gallery and "UIImage(contentsOfFile:" in gallery),
+              ("actual .tendies entry point", "이미지로 내보내기 (iOS 27.2 대안)" in view),
+              ("no unsafe AirLift unlock", 'early272Builds: Set<String> = ["24B5084k", "24B5089g"]' in policy),
+              ("no automatic wallpaper claims", "레이어의 합성을 그대로" in gallery),
+              ("existing backup route unchanged", "PosterBoardApplyModeSettings.resolved" in view),
+          ]
+          for label,passed in checks: print(("PASS" if passed else "FAIL"),label)
+          assert all(passed for _,passed in checks)
+          PY
+
+      - name: Check available Xcode and SDK
+        shell: bash
+        run: |
+          set -euo pipefail
+          xcodebuild -version
+          xcrun --sdk iphoneos --show-sdk-version
+          cd "$RUNNER_TEMP/gn"
+          bash scripts/check-xcode-toolchain.sh
+
+      - name: Install XcodeGen 2.46
+        shell: bash
+        run: |
+          set -euo pipefail
+          dest="$RUNNER_TEMP/xcodegen"
+          mkdir -p "$dest"
+          curl --retry 3 -fsSL -o "$RUNNER_TEMP/xcodegen.zip" https://github.com/yonaskolb/XcodeGen/releases/download/2.46.0/xcodegen.zip
+          unzip -q "$RUNNER_TEMP/xcodegen.zip" -d "$dest"
+          echo "$dest/xcodegen/bin" >> "$GITHUB_PATH"
+
+      - name: Generate project
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/gn"
+          xcodegen --version
+          xcodegen generate
+
+      - name: Run protective backup regressions
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/gn"
+          python3 scripts/check-protective-filters.py
+
+      - name: Build unsigned IPA
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/gn"
+          ./scripts/build-ipa.sh Release --clean
+          unzip -t build/GoldenNuggetMobile.ipa | tail -3
+          shasum -a 256 build/GoldenNuggetMobile.ipa
+
+      - name: Add full Korean catalog and build 12
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --retry 3 -fL --max-time 90 -o "$RUNNER_TEMP/GoldenNugget-Korean-v11.ipa" \
+            "https://github.com/fx564286/sidestore-auto-refresh/releases/download/goldennugget-975-full-korean-20261114/GoldenNugget.ipa"
+          cd "$RUNNER_TEMP/gn"
+          python3 - <<'PY'
+          import os,zipfile,plistlib,hashlib
+          from pathlib import Path
+          tmp=Path(os.environ["RUNNER_TEMP"])
+          src=tmp/"gn/build/GoldenNuggetMobile.ipa"
+          old=tmp/"GoldenNugget-Korean-v11.ipa"
+          out=tmp/"GoldenNugget.ipa"
+          base="Payload/GoldenNuggetMobile.app/"
+          with zipfile.ZipFile(src) as new, zipfile.ZipFile(old) as ko, zipfile.ZipFile(out,'w') as dest:
+              assert new.testzip() is None and ko.testzip() is None
+              for info in new.infolist():
+                  data=new.read(info.filename)
+                  if info.filename==base+"Info.plist":
+                      plist=plistlib.loads(data)
+                      assert plist["CFBundleIdentifier"]=="com.awesomenull.goldennugget"
+                      plist["CFBundleVersion"]="12"
+                      langs=list(plist.get("CFBundleLocalizations",[]))
+                      if "ko" not in langs: langs.append("ko")
+                      plist["CFBundleLocalizations"]=langs
+                      data=plistlib.dumps(plist,fmt=plistlib.FMT_BINARY)
+                  dest.writestr(info,data)
+              for name in ("Localizable.strings","InfoPlist.strings"):
+                  path=base+"ko.lproj/"+name
+                  data=ko.read(path)
+                  if name=="Localizable.strings":
+                      assert data.count(b"\n") >= 1100, "Korean translations incomplete"
+                  dest.writestr(path,data,compress_type=zipfile.ZIP_DEFLATED)
+          with zipfile.ZipFile(out) as z:
+              assert z.testzip() is None
+              plist=plistlib.loads(z.read(base+"Info.plist"))
+              assert plist["CFBundleVersion"]=="12"
+              assert "ko" in plist["CFBundleLocalizations"]
+              assert "ko.lproj/Localizable.strings" in "\n".join(z.namelist())
+              assert base+"GoldenNuggetMobile" in z.namelist()
+          print("PASS: fully localized IPA",out.stat().st_size,"bytes")
+          print("SHA256",hashlib.sha256(out.read_bytes()).hexdigest())
+          PY
+
+      - name: Upload Korean IPA as GitHub Actions artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: GoldenNugget-Korean-iOS272-PhotoExport-build12
+          path: ${{ runner.temp }}/GoldenNugget.ipa
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Publish a directly downloadable IPA release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          tag="goldennugget-ko-ios272-photo-20261114"
+          ipa="$RUNNER_TEMP/GoldenNugget.ipa"
+          test -s "$ipa"
+          if gh release view "$tag" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release upload "$tag" "$ipa" --clobber --repo "$GITHUB_REPOSITORY"
+          else
+            gh release create "$tag" "$ipa" \
+              --repo "$GITHUB_REPOSITORY" \
+              --target "$GITHUB_SHA" \
+              --title "GoldenNugget 9.7.5 (12) Korean · iOS27.2 Wallpaper Image Export" \
+              --notes "Build 12: full 1150+ Korean localizations, iOS27.2 backup-free JPG/PNG/HEIC image export from .tendies using the native photo share sheet. Preserves prior MB105/211 fixes and optional backup skip. Native animated/layered PosterBoard injection remains unsupported on iOS27.2 build 24B119; wallpaper must be selected manually from Photos/Settings. Not verified on a real device." \
+              --prerelease
+          fi
+          gh release view "$tag" --repo "$GITHUB_REPOSITORY" --json assets \
+            --jq '.assets[] | .name + " " + .url'
+          curl -fLsSI --retry 3 \
+            "https://github.com/$GITHUB_REPOSITORY/releases/download/$tag/GoldenNugget.ipa" \
+            | head -8
