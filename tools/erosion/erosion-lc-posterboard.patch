@@ -140,10 +140,10 @@ index 538eef8..0b4b742 100644
  
  #endif /* pathleak_h */
 diff --git a/Erosion/Exploits/pathleak.m b/Erosion/Exploits/pathleak.m
-index 7ea6185..cb870c1 100644
+index 7ea6185..b42c299 100644
 --- a/Erosion/Exploits/pathleak.m
 +++ b/Erosion/Exploits/pathleak.m
-@@ -24,8 +24,13 @@
+@@ -24,8 +24,14 @@
  */
  
  #import <Foundation/Foundation.h>
@@ -151,13 +151,14 @@ index 7ea6185..cb870c1 100644
 +#include "PosterBoardLSStoreCore.h"
  #include <sys/fsgetpath.h>
  #include <sys/mount.h>
++#include <sys/stat.h>
 +#include <fcntl.h>
 +#include <unistd.h>
 +#include <limits.h>
  
  // This is just a rewrite of bad_query_list to return an NSString array and run faster
  // The way this works is literally just brute-forcing inodes and doing fsgetpath until it gets a matching path, lol.
-@@ -79,3 +84,252 @@ NSArray<NSString *> *pathleak(NSString *path, uint64_t max_inode) {
+@@ -79,3 +85,252 @@ NSArray<NSString *> *pathleak(NSString *path, uint64_t max_inode) {
      }
      return result;
  }
