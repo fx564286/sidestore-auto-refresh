@@ -11,6 +11,7 @@ import json
 import os
 from pathlib import Path
 import plistlib
+import re
 import shutil
 import subprocess
 import tarfile
@@ -35,6 +36,23 @@ def read(path):
 
 def write(path,value):
     with Path(path).open("wb") as fp: plistlib.dump(value,fp,sort_keys=False)
+
+def apply_host_build_version(info: dict, build_version: str | None) -> dict:
+    """Advance only the host build number without changing app identity."""
+    if build_version is None:
+        return info
+    if not re.fullmatch(r"[1-9][0-9]*(?:\.[0-9]+){0,2}", build_version):
+        raise ValueError("Invalid CFBundleVersion")
+    original=str(info.get("CFBundleVersion",""))
+    if not re.fullmatch(r"[0-9]+(?:\.[0-9]+){0,2}",original):
+        raise ValueError(f"Cannot compare previous CFBundleVersion: {original!r}")
+    def components(value):
+        return tuple(int(x) for x in value.split(".") + ["0"]*(3-len(value.split("."))))
+    if components(build_version)<=components(original):
+        raise ValueError(f"New CFBundleVersion {build_version} must exceed {original}")
+    info["CFBundleVersion"]=build_version
+    return info
+
 
 def sha256(path):
     h=hashlib.sha256()
@@ -101,7 +119,11 @@ def main():
     p.add_argument("--dylibify",type=Path,required=True)
     p.add_argument("--out",type=Path,required=True)
     p.add_argument("--host-report",type=Path)
+    p.add_argument("--host-build-version", help="Optional monotonically increased CFBundleVersion for the Scarlet host")
     args=p.parse_args()
+    if args.host_build_version is not None:
+        if not re.fullmatch(r"[1-9][0-9]*(?:\.[0-9]+){0,2}", args.host_build_version):
+            p.error("--host-build-version must be a numeric Apple CFBundleVersion")
     args.out.mkdir(parents=True,exist_ok=True)
     work=args.out/"_build_work"
     if work.exists():shutil.rmtree(work)
@@ -127,6 +149,7 @@ def main():
     info=read(standalone/"Info.plist")
     info["CFBundleIdentifier"]=HOST_ID
     info["CFBundleDisplayName"]="Scarlet Crystal (Engine Diagnostic)"
+    apply_host_build_version(info,args.host_build_version)
     write(standalone/"Info.plist",info)
     for ext in EXTENSIONS:
         f=standalone/"PlugIns"/(ext+".appex")/"Info.plist"
@@ -146,6 +169,7 @@ def main():
     info=read(combined/"Info.plist")
     info["CFBundleIdentifier"]=HOST_ID
     info["CFBundleDisplayName"]="Scarlet Crystal"
+    apply_host_build_version(info,args.host_build_version)
     side_urls(info)
     write(combined/"Info.plist",info)
     for ext in RELEASE_EXTENSIONS:
@@ -215,6 +239,8 @@ def main():
     host_proof=json.loads(args.host_report.read_text()) if args.host_report and args.host_report.is_file() else {}
     report={
         "schema":1,"hostBundleID":HOST_ID,
+        "hostCFBundleVersion":info["CFBundleVersion"],
+        "hostCFBundleShortVersionString":info.get("CFBundleShortVersionString"),
         "threeOriginalExtensions":list(EXTENSIONS),
         "releaseExtensions":list(RELEASE_EXTENSIONS),
         "releaseAppIDCount":1 + len(RELEASE_EXTENSIONS),
