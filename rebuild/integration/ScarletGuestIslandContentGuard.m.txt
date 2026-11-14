@@ -1461,15 +1461,40 @@ static void ScarletIslandTryP44LocalHeaderTransform(
            CGRectGetMaxY(clip)<safeTop+CGRectGetHeight(header.bounds)-2)
             return;
     }
-    if(headerKind==2 &&
-       ScarletIslandP54InstallNativeOwnerContract(
-           window,root,header,parent,safeTop,beforeControls,beforeImages,
-           first,second)) {
-        // The native owner hook is active; the P44 affine mutation MUST NOT
-        // race it on the same header. Other geometries keep their own path.
-        objc_setAssociatedObject(root,&scarletIslandP44HeaderTransformTrialKey,
-                                 @YES,OBJC_ASSOCIATION_RETAIN_NONATOMIC);
-        return;
+    // R6P55: signed P54 PID1841 identified a 50pt CHILD-controller header,
+    // header_controller_parent_match=1 with a custom parent layout owner.
+    // P54 admitted only headerKind==2 (plain UIView), so it never ran.
+    // Route only this independently measured child ownership to the same
+    // per-instance native owner contract; do not revive the invalidated affine.
+    UIViewController *measuredParent =
+        [parent.nextResponder isKindOfClass:UIViewController.class]
+        ? (UIViewController *)parent.nextResponder : nil;
+    UIViewController *measuredChild =
+        [header.nextResponder isKindOfClass:UIViewController.class]
+        ? (UIViewController *)header.nextResponder : nil;
+    Method parentLayout=measuredParent ? class_getInstanceMethod(
+        object_getClass(measuredParent),@selector(viewDidLayoutSubviews)) : NULL;
+    Method systemLayout=class_getInstanceMethod(
+        UIViewController.class,@selector(viewDidLayoutSubviews));
+    BOOL measuredChildParent=headerKind==1 && measuredParent && measuredChild &&
+        measuredParent.view==parent && measuredChild.view==header &&
+        measuredChild.parentViewController==measuredParent &&
+        fabs(CGRectGetHeight(header.bounds)-50)<4 &&
+        parentLayout && systemLayout &&
+        method_getImplementation(parentLayout)!=method_getImplementation(systemLayout);
+    if(headerKind==2 || measuredChildParent) {
+        if(ScarletIslandP54InstallNativeOwnerContract(
+               window,root,header,parent,safeTop,beforeControls,beforeImages,
+               first,second)) {
+            objc_setAssociatedObject(root,&scarletIslandP44HeaderTransformTrialKey,
+                                     @YES,OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+            return;
+        }
+        if(measuredChildParent) {
+            // Fail closed on a rejected owner mutation; the P54 device proved
+            // that an automatic P44 fallback will later be invalidated.
+            return;
+        }
     }
     objc_setAssociatedObject(root,&scarletIslandP44HeaderTransformTrialKey,
                              @YES,OBJC_ASSOCIATION_RETAIN_NONATOMIC);
@@ -2949,6 +2974,7 @@ static void ScarletIslandTryMeasuredHeaderConstraintBridge(
 // R6P39_CONSTRAINT_BRIDGE_END
 
 // R6P54_OWNER_LAYOUT_CONTRACT_BEGIN
+// R6P55 also accepts the signed P54 child UIViewController header owner.
 // Signed P53: the parent owns a custom viewDidLayoutSubviews. Changing the
 // child frame *after* that writer or setting its transform lost the race.
 // Install a subclass on ONE confirmed parent-controller instance only.
@@ -3005,11 +3031,15 @@ static BOOL ScarletIslandP54InstallNativeOwnerContract(
         return NO;
     // P52/P53 actual owner is a plain 50pt UIView directly underneath
     // a full-height controller.view, NOT itself a child view controller.
-    if(header.nextResponder!=parent ||
-       ![parent.nextResponder isKindOfClass:UIViewController.class])
+    if(![parent.nextResponder isKindOfClass:UIViewController.class])
         return NO;
     UIViewController *owner=(UIViewController *)parent.nextResponder;
-    if(owner.view!=parent ||
+    UIResponder *headerResponder=header.nextResponder;
+    BOOL plainComposite=headerResponder==parent;
+    BOOL childOwned=[headerResponder isKindOfClass:UIViewController.class] &&
+        ((UIViewController *)headerResponder).view==header &&
+        ((UIViewController *)headerResponder).parentViewController==owner;
+    if((!plainComposite && !childOwned) || owner.view!=parent ||
        objc_getAssociatedObject(owner,&scarletIslandP54OwnerLayoutContractKey) ||
        fabs(CGRectGetMinY([header convertRect:
            header.bounds toView:window]))>3 ||

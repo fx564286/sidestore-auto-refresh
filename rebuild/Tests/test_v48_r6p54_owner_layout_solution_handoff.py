@@ -16,8 +16,8 @@ class P54NativeOwnerRepair(unittest.TestCase):
  def test_true_parent_layout_overrides_y0_only_for_unique_composite_owner(self):
   for token in (
     'ScarletIslandP54InstallNativeOwnerContract(',
-    'headerKind==2 &&', 'owner.view!=parent',
-    'header.nextResponder!=parent', 'beforeControls<3',
+    'headerKind==2 || measuredChildParent', 'owner.view!=parent',
+    '(!plainComposite && !childOwned)', 'beforeControls<3',
     'CGRectGetHeight(header.bounds)<34',
     'CGRectGetHeight(header.bounds)>scarletIslandP54MaximumNativeHeaderHeight',
     'method_getImplementation(guestMethod)==method_getImplementation(uiMethod)',
@@ -67,7 +67,7 @@ class P54NativeOwnerRepair(unittest.TestCase):
   ):
    self.assertIn(token,OWNER,token)
  def test_old_affine_not_run_on_same_composite(self):
-  self.assertIn('if(headerKind==2 &&',TRIAL)
+  self.assertIn('if(headerKind==2 || measuredChildParent)',TRIAL)
   self.assertIn('ScarletIslandP54InstallNativeOwnerContract(',TRIAL)
   self.assertIn('return;',TRIAL)
   self.assertIn('header.transform=CGAffineTransformTranslate(original,0,safeTop);',TRIAL)
