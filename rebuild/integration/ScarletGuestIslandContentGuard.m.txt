@@ -3190,6 +3190,81 @@ static UIScrollView *ScarletIslandP60CommonUnsafeScroll(
 }
 // R6P60_COMMON_SCROLL_ANCESTOR_END
 
+// R6P64_POST_HEADER_RESIDUAL_VIEWPORT_BEGIN
+// Signed P63 PID1798: after the native parent header was retained, two
+// residual interactive nodes were at UIWindow y58 with a native root guide
+// y62. Their full-page scroll owner has .never adjustment, native inset58
+// and offset -58. P60/P63 cannot select this owner because they require
+// >=3 unsafe controls BEFORE docking the header. P64 selects only a
+// different, AFTER-header residual scroll owner and reflows its *viewport*
+// by the exact observed 2..10pt deficit, preserving all scroll insets,
+// content geometry, offset, window, root, appearance and guest scale.
+static UIScrollView *ScarletIslandP64PostHeaderResidualViewport(
+    UIView *root, UIView *header, UIWindow *window,
+    CGFloat safeTop, CGFloat *measuredGap) {
+    if(!root || !header || !window || safeTop<40 || safeTop>95 ||
+       fabs(window.rootViewController.view.safeAreaInsets.top-safeTop)>2)
+        return nil;
+    NSUInteger visited=0; BOOL capped=NO;
+    NSMutableArray<UIView *> *risk=[NSMutableArray array];
+    ScarletIslandP60GatherRiskControls(
+        root,header,window,safeTop,0,&visited,&capped,risk);
+    // A separate remaining header, ambiguous/missing risk or capped walk
+    // cannot license a runtime geometry mutation.
+    if(capped || risk.count<1 || risk.count>4) return nil;
+    CGFloat firstY=CGFLOAT_MAX;
+    for(UIView *control in risk) {
+        CGRect visible=ScarletIslandVisibleFrameInWindow(control,window);
+        if(CGRectIsNull(visible) || CGRectIsEmpty(visible) ||
+           CGRectGetMinY(visible)<safeTop-12 ||
+           CGRectGetMinY(visible)>safeTop-2)
+            return nil;
+        firstY=MIN(firstY,CGRectGetMinY(visible));
+    }
+    CGFloat gap=safeTop-firstY;
+    if(!isfinite(gap) || gap<2 || gap>10) return nil;
+    UIView *node=risk.firstObject;
+    for(UIView *cursor=node; cursor && cursor!=root;
+        cursor=cursor.superview) {
+        if(![cursor isKindOfClass:UIScrollView.class] ||
+           !CGAffineTransformIsIdentity(cursor.transform) ||
+           !cursor.superview || cursor.superview.window!=window)
+            continue;
+        UIScrollView *scroll=(UIScrollView *)cursor;
+        BOOL common=YES;
+        for(UIView *control in risk) {
+            if(control!=scroll && ![control isDescendantOfView:scroll]) {
+                common=NO; break;
+            }
+        }
+        if(!common ||
+           scroll.contentInsetAdjustmentBehavior!=
+               UIScrollViewContentInsetAdjustmentNever ||
+           !scroll.scrollEnabled || scroll.dragging || scroll.decelerating ||
+           !isfinite(scroll.contentSize.height) ||
+           scroll.contentSize.height<=CGRectGetHeight(scroll.bounds)+20)
+            continue;
+        CGFloat nativeTop=scroll.adjustedContentInset.top;
+        if(!isfinite(nativeTop) ||
+           nativeTop<safeTop-12 || nativeTop>safeTop-2 ||
+           fabs(nativeTop-scroll.contentInset.top)>1 ||
+           fabs(scroll.contentOffset.y+nativeTop)>3)
+            continue;
+        CGRect frame=[scroll convertRect:scroll.bounds toView:window];
+        if(fabs(CGRectGetMinY(frame))>4 ||
+           fabs(CGRectGetMinX(frame))>30 ||
+           CGRectGetWidth(frame)<CGRectGetWidth(window.bounds)*0.94 ||
+           CGRectGetWidth(frame)>CGRectGetWidth(window.bounds)*1.08 ||
+           CGRectGetHeight(frame)<CGRectGetHeight(window.bounds)*0.75 ||
+           fabs(CGRectGetMaxY(frame)-CGRectGetHeight(window.bounds))>75)
+            continue;
+        if(measuredGap) *measuredGap=gap;
+        return scroll;
+    }
+    return nil;
+}
+// R6P64_POST_HEADER_RESIDUAL_VIEWPORT_END
+
 // R6P63_NESTED_LAYOUT_OWNER_BEGIN
 // P62 iPhone PID3634 had a real staged deep viewport, then reverted at
 // +250ms. P54's owner.viewDidLayoutSubviews runs BEFORE arbitrary descendant
@@ -3202,7 +3277,8 @@ static void ScarletIslandP63MaintainNestedViewport(UIView *parent) {
         parent,&scarletIslandP63NestedParentLayoutKey);
     if(!state || [state[@"body_disabled"] boolValue] ||
        [state[@"body_enforcing"] boolValue] ||
-       [state[@"body_kind"] integerValue]!=60) return;
+       !([state[@"body_kind"] integerValue]==60 ||
+         [state[@"body_kind"] integerValue]==64)) return;
     UIScrollView *scroll=(UIScrollView *)[state[@"native_body"] anyObject];
     NSHashTable *parentRefs=state[@"body_parent"];
     UIView *header=[state[@"headers"] anyObject];
@@ -3218,13 +3294,21 @@ static void ScarletIslandP63MaintainNestedViewport(UIView *parent) {
     CGRect original=[state[@"body_original_frame"] CGRectValue];
     CGRect originalWindow=[parent convertRect:original toView:window];
     CGRect headerWindow=[header convertRect:header.bounds toView:window];
-    CGFloat delta=CGRectGetMaxY(headerWindow)-CGRectGetMinY(originalWindow);
+    BOOL residual=[state[@"body_kind"] integerValue]==64;
+    CGFloat delta=residual ? [state[@"body_residual_delta"] doubleValue] :
+        CGRectGetMaxY(headerWindow)-CGRectGetMinY(originalWindow);
+    if(residual &&
+       (scroll.adjustedContentInset.top<target-12 ||
+        scroll.adjustedContentInset.top>target-2 ||
+        fabs(scroll.adjustedContentInset.top-scroll.contentInset.top)>1))
+        return;
     CGRect revised=original;
     revised.origin.y+=delta;
     revised.size.height-=delta;
     CGFloat content=scroll.contentSize.height;
     if(!isfinite(delta) || !isfinite(content) || content<=0 ||
-       delta<15 || delta>target+75 || !scroll.scrollEnabled ||
+       delta<(residual ? 2 : 15) || delta>target+75 ||
+       !scroll.scrollEnabled ||
        revised.size.height<CGRectGetHeight(window.bounds)*0.65 ||
        fabs(CGRectGetMaxY(revised)-CGRectGetMaxY(original))>1 ||
        fabs(CGRectGetMaxY(originalWindow)-
@@ -3312,7 +3396,8 @@ static void ScarletIslandP54AfterNativeOwnerLayout(UIViewController *owner) {
     UIView *parent=owner.isViewLoaded ? owner.view : nil;
     UIWindow *window=parent.window;
     CGFloat target=[state[@"top"] doubleValue];
-    if([state[@"body_kind"] integerValue]==60 && window &&
+    if(([state[@"body_kind"] integerValue]==60 ||
+        [state[@"body_kind"] integerValue]==64) && window &&
        !UIInterfaceOrientationIsPortrait(window.windowScene.interfaceOrientation)) {
         UIView *scroll=[state[@"native_body"] anyObject];
         UIView *bodyParent=[state[@"body_parent"] anyObject];
@@ -3350,7 +3435,8 @@ static void ScarletIslandP54AfterNativeOwnerLayout(UIViewController *owner) {
     // edge under the header without changing the scroll's content geometry.
     NSHashTable *bodyRefs=state[@"native_body"];
     UIView *body=bodyRefs.anyObject;
-    BOOL deep=[state[@"body_kind"] integerValue]==60;
+    NSInteger bodyKind=[state[@"body_kind"] integerValue];
+    BOOL deep=bodyKind==60 || bodyKind==64;
     NSHashTable *expectedParents=state[@"body_parent"];
     UIView *expectedParent=deep ? expectedParents.anyObject : parent;
     if(body && ![state[@"body_disabled"] boolValue] &&
@@ -3364,7 +3450,9 @@ static void ScarletIslandP54AfterNativeOwnerLayout(UIViewController *owner) {
             CGRect originalWindow=[expectedParent convertRect:
                 originalBody toView:window];
             CGRect headerWindow=[header convertRect:header.bounds toView:window];
-            delta=CGRectGetMaxY(headerWindow)-CGRectGetMinY(originalWindow);
+            delta=bodyKind==64 ?
+                [state[@"body_residual_delta"] doubleValue] :
+                CGRectGetMaxY(headerWindow)-CGRectGetMinY(originalWindow);
             revised.origin.y+=delta;
             revised.size.height-=delta;
             // P62: use the actual post-docking viewport and the native
@@ -3389,7 +3477,8 @@ static void ScarletIslandP54AfterNativeOwnerLayout(UIViewController *owner) {
                 CGRectGetHeight(parent.bounds)*0.52 &&
                 fabs(revised.size.width-CGRectGetWidth(parent.bounds))<=5;
         }
-        if(delta>=15 && delta<=target+75 && extentEnough &&
+        if(delta>=(bodyKind==64 ? 2 : 15) &&
+           delta<=target+75 && extentEnough &&
            fabs(CGRectGetMaxY(revised)-CGRectGetMaxY(originalBody))<1) {
             if(!CGRectEqualToRect(body.frame,revised)) body.frame=revised;
             state[@"body_reflow_passes"]=@(
@@ -3522,6 +3611,39 @@ static BOOL ScarletIslandP54InstallNativeOwnerContract(
     [owner.view setNeedsLayout];
     [owner.view layoutIfNeeded];
     ScarletIslandP54AfterNativeOwnerLayout(owner);
+    // P64 is considered only AFTER the real header's native safe-guide
+    // placement. P60's pre-header >=3-risk selector is intentionally not
+    // reused for the measured residual 2-control, 4pt cohort.
+    BOOL p64Residual=NO;
+    if(!nativeBody && ![state[@"disabled"] boolValue]) {
+        CGFloat measuredGap=0;
+        UIScrollView *residual=ScarletIslandP64PostHeaderResidualViewport(
+            root,header,window,safeTop,&measuredGap);
+        if(residual) {
+            [weakBody addObject:residual];
+            [weakBodyParent addObject:residual.superview];
+            state[@"body_kind"]=@64;
+            state[@"body_residual_delta"]=@(measuredGap);
+            state[@"body_original_frame"]=[NSValue valueWithCGRect:residual.frame];
+            state[@"body_scroll_size"]=[NSValue valueWithCGSize:residual.contentSize];
+            state[@"body_scroll_offset"]=[NSValue valueWithCGPoint:residual.contentOffset];
+            state[@"body_scroll_inset"]=[NSValue valueWithUIEdgeInsets:residual.contentInset];
+            if(ScarletIslandP63BindNestedParent(residual.superview,state)) {
+                nativeBody=residual;
+                p64Residual=YES;
+                [owner.view setNeedsLayout];
+                [owner.view layoutIfNeeded];
+                ScarletIslandP54AfterNativeOwnerLayout(owner);
+                [residual.superview setNeedsLayout];
+                [residual.superview layoutIfNeeded];
+                ScarletIslandP63MaintainNestedViewport(residual.superview);
+            } else {
+                state[@"body_disabled"]=@YES;
+                [weakBody removeObject:residual];
+                [weakBodyParent removeObject:residual.superview];
+            }
+        }
+    }
     if(p60DeepScroll && ![state[@"body_disabled"] boolValue]) {
         [p60DeepScroll.superview setNeedsLayout];
         [p60DeepScroll.superview layoutIfNeeded];
@@ -3529,8 +3651,9 @@ static BOOL ScarletIslandP54InstallNativeOwnerContract(
     }
     if(nativeBody) ScarletIslandDeepHeaderTrialReceipt(
         @"guest_owner_content_reflow_staged",
-        p60DeepScroll ? @"p60_nested_common_scroll_owner" :
-                        @"p59_unique_residual_unsafe_owner",
+        p64Residual ? @"p64_post_header_residual_viewport" :
+            (p60DeepScroll ? @"p60_nested_common_scroll_owner" :
+                        @"p59_unique_residual_unsafe_owner"),
         safeTop,CGRectGetMinY([nativeBody convertRect:
             nativeBody.bounds toView:window]),
         CGRectGetMaxY([header convertRect:header.bounds toView:window]),
@@ -3567,7 +3690,8 @@ static BOOL ScarletIslandP54InstallNativeOwnerContract(
         CGRect oldFeed=[state[@"body_original_frame"] CGRectValue];
         CGRect nowFeed=bodyTrial ? feed.frame : CGRectNull;
         CGRect headFrame=unchanged ? head.frame : CGRectNull;
-        BOOL deep=[state[@"body_kind"] integerValue]==60;
+        NSInteger kind=[state[@"body_kind"] integerValue];
+        BOOL deep=kind==60 || kind==64;
         NSHashTable *bodyParents=state[@"body_parent"];
         UIView *bodyParent=deep ? bodyParents.anyObject : par;
         CGRect movedWindow=(bodyTrial && w) ?
@@ -3605,13 +3729,23 @@ static BOOL ScarletIslandP54InstallNativeOwnerContract(
             fabs(CGRectGetMaxY(movedWindow)-CGRectGetMaxY(oldWindow))<3 &&
             fabs(CGRectGetWidth(movedWindow)-CGRectGetWidth(oldWindow))<3 &&
             focusedComplete && focusedUnsafe==0 && scrollStateUnchanged;
+        CGFloat p64Gap=[state[@"body_residual_delta"] doubleValue];
+        BOOL residualGeometry=kind==64 &&
+            !CGRectIsNull(movedWindow) && !CGRectIsNull(oldWindow) &&
+            p64Gap>=2 && p64Gap<=10 &&
+            fabs(CGRectGetMinY(movedWindow)-
+                 (CGRectGetMinY(oldWindow)+p64Gap))<2 &&
+            fabs(CGRectGetMaxY(movedWindow)-CGRectGetMaxY(oldWindow))<2 &&
+            fabs(CGRectGetWidth(movedWindow)-CGRectGetWidth(oldWindow))<2 &&
+            focusedComplete && focusedUnsafe==0 && scrollStateUnchanged;
         BOOL siblingGeometry=!deep && feed.superview==par &&
             fabs(CGRectGetMinY(nowFeed)-CGRectGetMaxY(headFrame))<3 &&
             fabs(CGRectGetMaxY(nowFeed)-CGRectGetMaxY(oldFeed))<3 &&
             fabs(CGRectGetWidth(nowFeed)-CGRectGetWidth(oldFeed))<3;
         BOOL provenBody=bodyTrial && feed.superview==bodyParent &&
             [state[@"body_reflow_passes"] unsignedIntegerValue]>0 &&
-            (deepGeometry || siblingGeometry) && unsafe==0;
+            (deepGeometry || residualGeometry || siblingGeometry) &&
+            unsafe==0;
         if(bodyTrial) {
             if(!provenBody) {
                 // Preserve the P55 header improvement, restore ONLY the

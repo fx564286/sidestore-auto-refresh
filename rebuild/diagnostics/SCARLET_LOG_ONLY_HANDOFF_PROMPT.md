@@ -417,3 +417,43 @@ L051=R6P15 저장된 RSD 연결의 제한적 재검사다. 과거 항목에 `dev
 - 신규 수정 이력은 L061(한계를 실제 iPhone에서 반증한 하위 콘텐츠
   좌표 관찰) / L062(인증서 provider 이후 SideStore 상태 재확인)이며,
   각각 GitHub 정확한 SHA와 before/after unified diff 기록 필수.
+
+## 2026-11-15 · P63 signed-device readback and P64 handoff
+- User upload (2026-11-14 18:50:38 UTC) P63 build 3.8.63; source b09aa169b56f;
+  CURRENT LAUNCH session 263e2ce2; 1,005 JSONL events.
+- Guest PID1798 650ms: rootSafeTop62, unsafeControls5, inset0.
+  Native P54 parent header contract staged, first pass, retained, unsafe 5->2.
+  At 2600ms: unsafeControls2; first unsafe y58 vs root safe guide y62;
+  fullpage scroll owner frameY0 height100%, native content and adjusted inset58,
+  offsetY-58, explicit .never (2), scrollEnabled1, contentHeight383%.
+  Depth capped at24 (coverage not complete).
+- Guest PID3873 650ms and 2600ms: unsafeControls0, root safeTop62,
+  scan uncapped, native status_hidden=false observed. An unsafe image
+  outside scroll remains, so visual perfection NOT proven.
+- Guest SDK user override PID1798=27.1 vs PID3873=26.4.
+  This difference is not proof of SDK-based root cause; no arbitrary SDK changes.
+- A/B recent session count reached2, switcher content rendered2, reported audio
+  pause/resume OK acknowledgements, not acoustic separation proof.
+  Pairing transport alternated unavailable/restored. Automatic native worker
+  reported native_profile_date_advanced_install_unverified and
+  installation_verified=false, not a verified successful installation.
+- Historical L063/L071 scroll.contentInset direct writes, L072 automatic
+  adjustment policy and P54-P63 parent/deep viewport attempts did NOT solve
+  the residual P63 2-control y58 case; do not repeat these exact changes.
+- P64 novelty: select ONLY after the P54 original controller-owned header was
+  anchored to the native safe guide; reject if not 1..4 narrowly unsafe
+  visible controls or if they do not share a true fullscreen scrolling owner.
+  Require 2..10pt measured gap, existing native near-safe inset, original
+  scroll offset anchor, scroll enabled and stationary, root safeTop confirmed,
+  no layout scan capping. Reflow ONLY this scoped scroll's native VIEWPORT
+  origin.y += gap and height -= gap, retaining its bottom edge; leave
+  scroll contentInset, contentOffset, adjustmentBehavior, root scene/window,
+  colors and V48 scaling untouched. Retain existing per-instance parent
+  layout completion hook and two independent zero-risk verification gates.
+  If either gate fails, restore original viewport/frame and original class.
+- New expected receipt: guest_owner_content_reflow_staged with reason
+  p64_post_header_residual_viewport, then guest_owner_content_reflow_first_pass
+  and retained; two consecutive zero-unsafe readbacks, status bar visible,
+  scrolling and rotation pass. A staged receipt is NOT a successful device fix.
+- P64 Xcode native compile and real iPhone confirmation remain required.
+  Unsigned IPA is not installable without proper Apple signing.
