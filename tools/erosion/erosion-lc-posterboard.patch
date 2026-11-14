@@ -108,7 +108,7 @@ index 538eef8..31d28d7 100644
  
  #endif /* pathleak_h */
 diff --git a/Erosion/Exploits/pathleak.m b/Erosion/Exploits/pathleak.m
-index 7ea6185..8a40366 100644
+index 7ea6185..2977253 100644
 --- a/Erosion/Exploits/pathleak.m
 +++ b/Erosion/Exploits/pathleak.m
 @@ -79,3 +79,44 @@ NSArray<NSString *> *pathleak(NSString *path, uint64_t max_inode) {
@@ -138,7 +138,7 @@ index 7ea6185..8a40366 100644
 +}
 +
 +NSString *pathleak_posterboard(uint64_t max_inode) {
-+    if (max_inode < 1 || max_inode > 15_000_000) return nil;
++    if (max_inode < 1 || max_inode > 15000000) return nil;
 +    struct statfs sfs;
 +    if (statfs("/var/mobile/Containers/Data/Application", &sfs) != 0 &&
 +        statfs("/private/var", &sfs) != 0) return nil;
@@ -169,7 +169,7 @@ index 0275bb9..8344382 100644
  void worse_query_release(int64_t handle);
  
 diff --git a/Erosion/Exploits/worse_query.m b/Erosion/Exploits/worse_query.m
-index cba035a..1592b50 100644
+index cba035a..76a82e1 100644
 --- a/Erosion/Exploits/worse_query.m
 +++ b/Erosion/Exploits/worse_query.m
 @@ -29,6 +29,7 @@
@@ -373,9 +373,9 @@ index cba035a..1592b50 100644
 +        if (!WQCacheSwapRecover(library)) {
 +            NSLog(@"(wq) CRITICAL: App Group cache recovery failed: %d", errno);
 +            if (answer >= 0) {
-+                sandbox_extension_release_fn release =
++                sandbox_extension_release_fn releaseExtension =
 +                    (sandbox_extension_release_fn)dlsym(RTLD_DEFAULT, "sandbox_extension_release");
-+                if (release) release(answer);
++                if (releaseExtension) releaseExtension(answer);
 +            }
 +            answer = -8;
 +        }
