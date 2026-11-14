@@ -1,4 +1,4 @@
-# 실행 우선·문제 해결 지속 지침 — 2026-11-14 P56 / L102
+# 실행 우선·문제 해결 지속 지침 — 2026-11-14 P57 / L103
 
 ## 사용자가 명시한 목표
 
@@ -7,13 +7,22 @@ Scarlet Crystal 실험 모드 OFF에서는 정상인 게스트 앱들이 ON에�
 ## 새 채팅의 실행 순서 (강제)
 
 1. 보고서 SourceCommit, CurrentSession, 현재 기기 증상과 마지막 Lxxx 수정 이력을 읽고 해당 빌드가 실제 설치된 것인지 먼저 구분한다. 최신 GitHub 소스를 열어 이력 상태와 정확한 소스 커밋을 비교한다.
-2. L001~L102의 기존 실패 방법·실제 코드 위치·before/after를 확인한다. P37 단회 헤더 프레임 이동, P39 강제 제약, P44/P53 affine transform, 호스트 전체 콘텐츠 축소/투명띠, 추가 Safe Area 중복 적용, 상태 표시줄 강제 은폐 등은 장치 증거가 없는 동일 재시도를 금지한다.
+2. L001~L103의 기존 실패 방법·실제 코드 위치·before/after를 확인한다. P37 단회 헤더 프레임 이동, P39 강제 제약, P44/P53 affine transform, 호스트 전체 콘텐츠 축소/투명띠, 추가 Safe Area 중복 적용, 상태 표시줄 강제 은폐 등은 장치 증거가 없는 동일 재시도를 금지한다.
 3. **항상 실행 코드 수정이 주작업**이다. 기록용 이벤트만 추가하는 새 버전은 허용되지 않는다. 성공할 때까지 원인을 재모델링하고 새 인과 메커니즘을 설계·검증한다. 사용자에게 PC 조작을 요구하는 대신 저장소에서 가능한 작업을 먼저 수행한다.
 4. 실제 기기 결과가 없는 테스트/컴파일/IPA 성공은 해결이 아니다. 정상 판정은 실기기에서 상단 위험 컨트롤 0, 정상 상태 표시줄, 가로·세로 및 홈 복귀 A→B→A, 전체화면/하단/스크롤·터치 보존으로만 한다.
 5. L100 P54 신규 방식: 부모 UIViewController에 실제 게스트 커스텀 viewDidLayoutSubviews가 존재하고, 그 아래 50pt plain UIView 헤더가 Y0에 있는 경우, **단 하나의 부모 컨트롤러 인스턴스만 동적 서브클래싱하여 게스트 원래 레이아웃 구현을 먼저 실행한 후 그 부모의 native safeAreaLayoutGuide에서 헤더를 도킹**한다. 기존 P44 transform을 해당 대상에 중복 적용하지 않는다. 250/1350ms 실측 통과 시 retained, 실패하면 원래 클래스와 원래 프레임을 원복한다.
 6. 실제 장치 로그의 guest_owner_layout_contract_staged / first_pass / retained / reverted와 원래 위험 컨트롤 수치, 앱 재진입 시 헤더 Y, 전체 콘텐츠/상태 표시줄을 대조한다. P54가 guest_owner_layout_contract_retained라도 위험 컨트롤이 0이 아니거나 실제 화면이 잘리면 **미해결**이며 L100의 같은 수정을 반복하지 않고 L101의 새로운 원인·실행 수정을 설계한다.
 7. 새로운 후보는 수정 전에 scarlet_no_repeat_gate.py --proposal로 판정한다. 실제 변경 diff와 소스 SHA, 새 검증, 빌드/IPA, rollback, 다음 시도에서 피해야 할 원인까지 scarlet_remediation_history.json에 새 Lxxx로 기록한다. 그 JSON과 이 지침이 앱에서 내보낸 CURRENT RUN 공유 텍스트에 모두 내장돼야 한다.
 8. V48 안정 기준의 번들 ID·원래 전체화면 크기·리사이징 금지·멀티탭·앱 간 RAM·색상/리퀴드 글라스·서명·오디오·키보드 동작은 별도 검증 없이 수정하지 않는다.
+
+## P57 / L103: 동일한 게스트 IPA 덮어쓰기 실제 수정
+
+- 새 사용자 보고: 동일 게스트 IPA를 다시 설치하면 업데이트가 되지 않음. 첨부 세션 7105e9c3에는 게스트 IPA 설치 이벤트가 없어 실기기 원인 확정은 아님.
+- 확인된 코드 결함: Scarlet의 원본 LCAppListView 파일 가져오기 워커는 1x1 픽셀, 완전 투명, 터치 차단 상태. 원래 LiveContainer는 기존 동일 Bundle ID를 발견하면 installReplaceAlert.open()의 사용자 선택을 기다리므로 진행이 정지할 수 있음.
+- P57 실제 소스 변경: queued Scarlet IPA일 때 설치된 동일 ID 게스트가 정확히 하나면 기존 상대경로로 교체, 여러 개/잠긴 숨김 앱/실행 중인 앱이면 차단하여 사용자에게 명확한 오류 표시. 원본 LC가 보이는 화면에서는 기존 사용자 선택 그대로 유지.
+- 기존 앱 보존 트랜잭션: 동일 볼륨 임시 .app에 새 바이너리 이동 및 서명 완료 → 종전 설정/dataUUID/containerInfo/tweaks/언어/잠금 복사 → 기존 .app 숨김 백업 → 새 바이너리를 같은 경로로 교체 → Bundle ID와 dataUUID 재검증 → 실패 시 백업 복원. 게스트 사용자 데이터, 인증서 및 페어링 파일 삭제 없음.
+- 검증: 변경된 원본 pinned LC 소스 생성 경로 테스트, 697개 전체 로컬 테스트 통과(3개 환경상 skip), 구체적인 설치 단계는 기기 검증 전까지 성공 아님. 새 로그의 guest_import overwrite_single_match_selected / overwrite_committed / overwrite_sign_failed_preserved / overwrite_rollback_restored를 확인.
+- P56 상단 Safe Area 수정은 P57에 포함되어 유지된다. 다음 새 로그만으로 P56 헤더와 P57 게스트 덮어쓰기 모두 이어서 처리한다.
 
 ## P56 / L102: 서명된 P55의 부분 성공 이후 콘텐츠 소유권 수정
 
