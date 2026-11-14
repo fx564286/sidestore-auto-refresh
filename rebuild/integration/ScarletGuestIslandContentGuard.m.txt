@@ -3090,6 +3090,35 @@ static UIView *ScarletIslandP59UniqueRiskNativeBody(
 }
 // R6P59_RESIDUAL_UNSAFE_OWNER_END
 
+// R6P62_MEASURED_SHORT_CONTENT_VIEWPORT_BEGIN
+// P61 signed iPhone ae5c93f6 again proved six remaining controls live
+// within full-height NESTED UIScrollViews, while P60 never selected a body.
+// P60 wrongly required contentSize >= ORIGINAL viewport + safeTop + 25,
+// although shortening a viewport can preserve every node when content fits
+// the NEW viewport (or remains natively scrollable). Avoid requiring extra
+// content that an existing legitimate scroll view need not have.
+static BOOL ScarletIslandP62ShortContentViewportEligible(
+    UIScrollView *scroll, CGFloat originalHeight, CGFloat topReduction) {
+    if(!scroll || !scroll.scrollEnabled ||
+       !isfinite(originalHeight) || !isfinite(topReduction) ||
+       topReduction<15 || topReduction>190) return NO;
+    CGFloat projectedHeight=originalHeight-topReduction;
+    CGFloat contentHeight=scroll.contentSize.height;
+    CGPoint offset=scroll.contentOffset;
+    UIEdgeInsets insets=scroll.contentInset;
+    if(!isfinite(projectedHeight) ||
+       projectedHeight<originalHeight*0.65 ||
+       !isfinite(contentHeight) ||
+       contentHeight<projectedHeight*0.50 ||
+       !isfinite(offset.y) ||
+       !isfinite(insets.top) || !isfinite(insets.bottom)) return NO;
+    // If content is SHORTER than the new viewport it already fits; if
+    // LONGER, UIKit retains scroll ability. The native owner transaction
+    // verifies unchanged offset/insets/contentSize and zero risk twice.
+    return YES;
+}
+// R6P62_MEASURED_SHORT_CONTENT_VIEWPORT_END
+
 // R6P60_COMMON_SCROLL_ANCESTOR_BEGIN
 // Signed P59 PID1881: header owner retained (unsafe 9 -> 6), but the P59
 // parent-direct-child selector did not stage a content reflow at all. The
@@ -3171,8 +3200,9 @@ static UIScrollView *ScarletIslandP60CommonUnsafeScroll(
            fabs(CGRectGetMinY(rect))>4 ||
            h<CGRectGetHeight(window.bounds)*0.78 ||
            fabs(CGRectGetMaxY(rect)-CGRectGetHeight(window.bounds))>75 ||
-           scroll.contentSize.height<h+safeTop+25 ||
-           !scroll.scrollEnabled || scroll.hidden || scroll.alpha<0.5)
+           !ScarletIslandP62ShortContentViewportEligible(
+               scroll,h,safeTop+CGRectGetHeight(header.bounds)) ||
+           scroll.hidden || scroll.alpha<0.5)
             continue;
         // A native scrolling region whose content is already scrollable
         // can safely accommodate a smaller viewport without changing its
@@ -3254,9 +3284,8 @@ static void ScarletIslandP54AfterNativeOwnerLayout(UIViewController *owner) {
             delta=CGRectGetMaxY(headerWindow)-CGRectGetMinY(originalWindow);
             revised.origin.y+=delta;
             revised.size.height-=delta;
-            extentEnough=scroll.scrollEnabled &&
-                scroll.contentSize.height>=
-                    CGRectGetHeight(originalBody)+delta+20 &&
+            extentEnough=ScarletIslandP62ShortContentViewportEligible(
+                    scroll,CGRectGetHeight(originalBody),delta) &&
                 revised.size.height>=CGRectGetHeight(window.bounds)*0.65 &&
                 fabs(CGRectGetMaxY(originalWindow)-
                      CGRectGetHeight(window.bounds))<75;
@@ -3399,7 +3428,7 @@ static BOOL ScarletIslandP54InstallNativeOwnerContract(
     ScarletIslandP54AfterNativeOwnerLayout(owner);
     if(nativeBody) ScarletIslandDeepHeaderTrialReceipt(
         @"guest_owner_content_reflow_staged",
-        p60DeepScroll ? @"p60_nested_common_scroll_owner" :
+        p60DeepScroll ? @"p62_measured_short_content_native_scroll_owner" :
                         @"p59_unique_residual_unsafe_owner",
         safeTop,CGRectGetMinY([nativeBody convertRect:
             nativeBody.bounds toView:window]),

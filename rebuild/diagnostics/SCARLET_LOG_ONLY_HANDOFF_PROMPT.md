@@ -1,4 +1,4 @@
-# 실행 우선·문제 해결 지속 지침 — 2026-11-14 P60 / L107
+# 실행 우선·문제 해결 지속 지침 — 2026-11-14 P62 / L110
 
 ## 사용자가 명시한 목표
 
@@ -7,13 +7,20 @@ Scarlet Crystal 실험 모드 OFF에서는 정상인 게스트 앱들이 ON에�
 ## 새 채팅의 실행 순서 (강제)
 
 1. 보고서 SourceCommit, CurrentSession, 현재 기기 증상과 마지막 Lxxx 수정 이력을 읽고 해당 빌드가 실제 설치된 것인지 먼저 구분한다. 최신 GitHub 소스를 열어 이력 상태와 정확한 소스 커밋을 비교한다.
-2. L001~L107의 기존 실패 방법·실제 코드 위치·before/after를 확인한다. P37 단회 헤더 프레임 이동, P39 강제 제약, P44/P53 affine transform, 호스트 전체 콘텐츠 축소/투명띠, 추가 Safe Area 중복 적용, 상태 표시줄 강제 은폐 등은 장치 증거가 없는 동일 재시도를 금지한다.
+2. L001~L110의 기존 실패 방법·실제 코드 위치·before/after를 확인한다. P37 단회 헤더 프레임 이동, P39 강제 제약, P44/P53 affine transform, 호스트 전체 콘텐츠 축소/투명띠, 추가 Safe Area 중복 적용, 상태 표시줄 강제 은폐 등은 장치 증거가 없는 동일 재시도를 금지한다.
 3. **항상 실행 코드 수정이 주작업**이다. 기록용 이벤트만 추가하는 새 버전은 허용되지 않는다. 성공할 때까지 원인을 재모델링하고 새 인과 메커니즘을 설계·검증한다. 사용자에게 PC 조작을 요구하는 대신 저장소에서 가능한 작업을 먼저 수행한다.
 4. 실제 기기 결과가 없는 테스트/컴파일/IPA 성공은 해결이 아니다. 정상 판정은 실기기에서 상단 위험 컨트롤 0, 정상 상태 표시줄, 가로·세로 및 홈 복귀 A→B→A, 전체화면/하단/스크롤·터치 보존으로만 한다.
 5. L100 P54 신규 방식: 부모 UIViewController에 실제 게스트 커스텀 viewDidLayoutSubviews가 존재하고, 그 아래 50pt plain UIView 헤더가 Y0에 있는 경우, **단 하나의 부모 컨트롤러 인스턴스만 동적 서브클래싱하여 게스트 원래 레이아웃 구현을 먼저 실행한 후 그 부모의 native safeAreaLayoutGuide에서 헤더를 도킹**한다. 기존 P44 transform을 해당 대상에 중복 적용하지 않는다. 250/1350ms 실측 통과 시 retained, 실패하면 원래 클래스와 원래 프레임을 원복한다.
 6. 실제 장치 로그의 guest_owner_layout_contract_staged / first_pass / retained / reverted와 원래 위험 컨트롤 수치, 앱 재진입 시 헤더 Y, 전체 콘텐츠/상태 표시줄을 대조한다. P54가 guest_owner_layout_contract_retained라도 위험 컨트롤이 0이 아니거나 실제 화면이 잘리면 **미해결**이며 L100의 같은 수정을 반복하지 않고 L101의 새로운 원인·실행 수정을 설계한다.
 7. 새로운 후보는 수정 전에 scarlet_no_repeat_gate.py --proposal로 판정한다. 실제 변경 diff와 소스 SHA, 새 검증, 빌드/IPA, rollback, 다음 시도에서 피해야 할 원인까지 scarlet_remediation_history.json에 새 Lxxx로 기록한다. 그 JSON과 이 지침이 앱에서 내보낸 CURRENT RUN 공유 텍스트에 모두 내장돼야 한다.
 8. V48 안정 기준의 번들 ID·원래 전체화면 크기·리사이징 금지·멀티탭·앱 간 RAM·색상/리퀴드 글라스·서명·오디오·키보드 동작은 별도 검증 없이 수정하지 않는다.
+
+## P62 / L110: P61 서명 기기에서 P60 후보 미선택 — 짧은 콘텐츠 스크롤 적격성 수정
+
+- 실제 서명된 P61: SourceCommit `f45095766da7`, Build `3.8.61`, 세션 `ae5c93f6` (UTC 2026-11-14 08:08:35), iOS 27.2, 게스트 PID2015. 최초 위험 컨트롤 `9`, P55 헤더 보정 retained 뒤 2600ms `6`, 전부 스크롤 내부이며 `status_hidden=true` 유지. `guest_owner_content_reflow_staged` 이벤트는 0. 따라서 P60 native deep scroll 본문 선택기는 이번 세션에서 후보를 찾지 못함. P61 `slot_management_inspected`·`slot_operation_returned` 0건은 기능 미사용이며 결함 재현은 아님.
+- P60은 공통 risk 중첩 UIScrollView를 선택할 때 `scroll.contentSize.height>=originalHeight+safeTop+25`를 요구하고, 실제 owner 레이아웃 적용 시에도 `contentSize>=originalHeight+delta+20`을 중복 요구함. 화면 높이 956, safeTop 62, 헤더 높이 50인 상황에서 이 조건은 스크롤 가능한 정상 콘텐츠가 오히려 원래 뷰포트보다 **추가로 훨씬 길어야** 한다는 불필요한 전제임. 로그 owner_content_height_pct=88은 P60 후보의 정확한 contentSize를 증명하지는 않으므로 선택 실패 원인은 가설이며 P62 시험으로 검증한다.
+- P62 새 실제 동작 수정 `ScarletIslandP62ShortContentViewportEligible`: **기존 viewport가 아니라 줄어든 viewport**를 기준으로 콘텐츠 크기를 평가하며 정상 콘텐츠 비율, offset/inset의 유한성, portrait에서 충분한 잔여 viewport와 원래 scrolling 활성 여부를 확인한다. 화면 아래 edge와 기존 contentSize/offset/inset, 원래 UIKit callback, 후속 두 번의 0 위험 readback, 원복, 원래 statusbar shield 해제 조건은 전부 유지한다. 레이아웃을 지탱하지 못하면 body 원복하고 P55 헤더 유지. 새 상태는 `guest_owner_content_reflow_staged(reason=p62_measured_short_content_native_scroll_owner)`로만 구분한다. 대안은 기존 P56 직접 sibling 후보 이동, viewport 전역 crop, 인셋 억지 변경이 아니다.
+- **성공 전제:** 다음 서명 P62에서 새로운 staged가 나타나고 두 readback `unsafe_controls=0`, `focusedUnsafe=0`, `guest_owner_content_reflow_retained`, `status_hidden=false`, 자연스러운 스크롤/가로·세로/홈재진입 및 화면 증명이 함께 있어야 한다. 후보 없이 staged가 없으면 P62의 콘텐츠 크기 가설은 충분하지 않으며 이전 P60 eligibility만 반복하지 말고 실제 owner hierarchy/bounds 재조사. `visible_unsafe_controls`가 6 유지되면 미해결. 실기기 iOS 설치·게스트 파일 교체·서명·멀티 계정 비활성화는 별개 검증이다.
 
 ## P60 / L107: GitHub macOS 네트워크 실패에 대한 제한된 자동 복구
 
