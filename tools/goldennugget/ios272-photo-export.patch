@@ -1,0 +1,224 @@
+diff --git a/Nugget/Views/PosterBoardView.swift b/Nugget/Views/PosterBoardView.swift
+index e97bcec..3cc820d 100755
+--- a/Nugget/Views/PosterBoardView.swift
++++ b/Nugget/Views/PosterBoardView.swift
+@@ -55,6 +55,10 @@ struct PosterBoardView: View {
+     @State private var showVideoImporter = false
+     @State private var showThumbnailImporter = false
+ 
++    @State private var exportImages: [PosterBoardPackImageExport.Item] = []
++    @State private var showExportImages = false
++    @State private var exportingPack = false
++
+     /// The apply mode, seeded from the setting and written back on change.
+     ///
+     /// `@AppStorage` would have been the shorter version, and the reason it is not
+@@ -115,6 +119,9 @@ struct PosterBoardView: View {
+                 deviceVersion: identity.version, buildVersion: identity.buildVersion)
+         }
+         .legacyConvertPrompt($legacyPrompt, answer: answerLegacyPrompt)
++        .sheet(isPresented: $showExportImages) {
++            PosterBoardImageExportGallery(images: exportImages)
++        }
+         .alert("HotLoad warning", isPresented: $showHotLoadWarning) {
+             Button("Cancel", role: .cancel) {}
+             Button("Continue anyway", role: .destructive) { applyViaAirlift() }
+@@ -323,6 +330,30 @@ struct PosterBoardView: View {
+                 .disabled(running)
+             }
+ 
++            Button {
++                exportingPack = true
++                let packURL = pack.url
++                Task {
++                    do {
++                        let images = try await Task.detached(priority: .userInitiated) {
++                            try PosterBoardPackImageExport.extractImages(from: packURL)
++                        }.value
++                        exportImages = images
++                        showExportImages = true
++                    } catch {
++                        pickError = error.localizedDescription
++                    }
++                    exportingPack = false
++                }
++            } label: {
++                HStack {
++                    Label("이미지로 내보내기 (iOS 27.2 대안)",
++                          systemImage: "square.and.arrow.up.on.square")
++                    if exportingPack { ProgressView().controlSize(.small) }
++                }
++            }
++            .disabled(running || exportingPack)
++
+             // Which extension this pack is injected under. A bare pack does not
+             // carry that, and picking the wrong one is silent: the descriptor
+             // lands in a folder the provider never reads and the wallpaper just
+diff --git a/Nugget/Core/PosterBoardPackImageExport.swift b/Nugget/Core/PosterBoardPackImageExport.swift
+new file mode 100644
+index 0000000..eb72bfb
+--- /dev/null
++++ b/Nugget/Core/PosterBoardPackImageExport.swift
+@@ -0,0 +1,78 @@
++import Foundation
++import UIKit
++import ZIPFoundation
++
++/// iOS 27.2 fallback: expose existing raster assets from a .tendies archive
++/// for the system share sheet. No private API, tunnel or device filesystem write.
++/// This does not reproduce PosterBoard layers, dynamic effects, or depth.
++enum PosterBoardPackImageExport {
++    struct Item: Identifiable {
++        let url: URL
++        let displayName: String
++        let portrait: Bool
++        var id: String { url.path }
++    }
++
++    static func extractImages(from packURL: URL) throws -> [Item] {
++        let archive = try Archive(url: packURL, accessMode: .read)
++        let fm = FileManager.default
++        let directory = fm.temporaryDirectory
++            .appendingPathComponent("goldennugget-photo-export-\(UUID().uuidString)",
++                                    isDirectory: true)
++        try fm.createDirectory(at: directory, withIntermediateDirectories: true)
++        // The user-supplied ZIP can contain arbitrary paths and huge files.
++        // Never use an archive path as the output path. Limit inflated bytes.
++        let maxCount = 24
++        let maxFileBytes: UInt64 = 16 * 1024 * 1024
++        let maxTotalBytes: UInt64 = 80 * 1024 * 1024
++        var total: UInt64 = 0
++        var results: [Item] = []
++        let imageExtensions: Set<String> = ["png", "jpg", "jpeg", "heic"]
++
++        for entry in archive {
++            guard entry.type == .file else { continue }
++            let fileExtension = URL(fileURLWithPath: entry.path).pathExtension.lowercased()
++            guard imageExtensions.contains(fileExtension) else { continue }
++            let size = UInt64(entry.uncompressedSize)
++            guard size > 0, size <= maxFileBytes,
++                  total <= maxTotalBytes - size else { continue }
++
++            // Explicitly generated filenames avoid ZIP path traversal and
++            // duplicate names; the downloaded pack stays unchanged.
++            let destination = directory.appendingPathComponent(
++                String(format: "wallpaper-%02d.%@", results.count + 1, fileExtension))
++            do {
++                _ = try archive.extract(entry, to: destination)
++                guard let image = UIImage(contentsOfFile: destination.path) else {
++                    try? fm.removeItem(at: destination)
++                    continue
++                }
++                // Do not export tiny thumbnails as a background selection.
++                guard image.size.width >= 400, image.size.height >= 400 else {
++                    try? fm.removeItem(at: destination)
++                    continue
++                }
++                let name = URL(fileURLWithPath: entry.path).lastPathComponent
++                results.append(Item(url: destination,
++                                    displayName: name,
++                                    portrait: image.size.height > image.size.width))
++                total += size
++                if results.count == maxCount { break }
++            } catch {
++                try? fm.removeItem(at: destination)
++            }
++        }
++
++        guard !results.isEmpty else {
++            throw NSError(domain: "GoldenNugget.PosterBoardExport", code: 1,
++                userInfo: [NSLocalizedDescriptionKey:
++                    "이 패키지에서는 저장할 수 있는 일반 사진(JPG/PNG/HEIC)을 찾지 못했습니다. "
++                    + "원본 PosterBoard 레이어만 포함된 패키지는 사진으로 내보낼 수 없습니다."])
++        }
++        // Portrait source images are easier to use as native phone wallpapers.
++        return results.sorted {
++            if $0.portrait != $1.portrait { return $0.portrait && !$1.portrait }
++            return $0.displayName.localizedStandardCompare($1.displayName) == .orderedAscending
++        }
++    }
++}
+diff --git a/Nugget/Views/PosterBoardImageExportGallery.swift b/Nugget/Views/PosterBoardImageExportGallery.swift
+new file mode 100644
+index 0000000..2da86c4
+--- /dev/null
++++ b/Nugget/Views/PosterBoardImageExportGallery.swift
+@@ -0,0 +1,78 @@
++import SwiftUI
++import UIKit
++
++/// The native share sheet receives UIImage (not a file URL), so iOS offers its
++/// ordinary "Save Image" action. This is a supported Photos handoff, not an
++/// attempt to write PosterBoard's protected store.
++struct PosterBoardImageExportGallery: View {
++    let images: [PosterBoardPackImageExport.Item]
++    @Environment(\.dismiss) private var dismiss
++    @State private var sharing: PosterBoardPackImageExport.Item?
++
++    var body: some View {
++        NavigationStack {
++            List {
++                Section {
++                    Text("원하는 이미지를 고른 다음 ‘이미지 저장·공유’를 누르고 "
++                        + "iOS 공유 메뉴에서 ‘이미지 저장’을 선택하세요. "
++                        + "그다음 iPhone 설정 → 배경화면 → 새로운 배경화면 추가에서 "
++                        + "저장한 사진을 선택하면 됩니다.")
++                        .font(.footnote)
++                    Text("주의: 이 방법은 원본 .tendies의 애니메이션, 깊이 효과 및 "
++                        + "여러 레이어의 합성을 그대로 복원하지 않습니다.")
++                        .font(.footnote)
++                        .foregroundStyle(.secondary)
++                }
++                Section("추출한 이미지 (\(images.count)개)") {
++                    ForEach(images) { asset in
++                        HStack(spacing: 12) {
++                            if let thumbnail = UIImage(contentsOfFile: asset.url.path) {
++                                Image(uiImage: thumbnail)
++                                    .resizable()
++                                    .scaledToFit()
++                                    .frame(width: 88, height: 128)
++                            }
++                            VStack(alignment: .leading, spacing: 8) {
++                                Text(asset.portrait ? "세로 이미지" : "가로·레이어 이미지")
++                                    .font(.headline)
++                                Text(asset.displayName)
++                                    .font(.caption2)
++                                    .lineLimit(2)
++                                    .foregroundStyle(.secondary)
++                                Button {
++                                    sharing = asset
++                                } label: {
++                                    Label("이미지 저장·공유", systemImage: "square.and.arrow.up")
++                                }
++                                .buttonStyle(.bordered)
++                            }
++                        }
++                        .padding(.vertical, 4)
++                    }
++                }
++            }
++            .navigationTitle("배경화면 이미지 내보내기")
++            .toolbar {
++                ToolbarItem(placement: .confirmationAction) {
++                    Button("닫기") { dismiss() }
++                }
++            }
++            .sheet(item: $sharing) { asset in
++                PosterBoardImageActivitySheet(imageURL: asset.url)
++            }
++        }
++    }
++}
++
++private struct PosterBoardImageActivitySheet: UIViewControllerRepresentable {
++    let imageURL: URL
++
++    func makeUIViewController(context: Context) -> UIActivityViewController {
++        let object: Any = UIImage(contentsOfFile: imageURL.path) ?? imageURL
++        let controller = UIActivityViewController(
++            activityItems: [object], applicationActivities: nil)
++        return controller
++    }
++
++    func updateUIViewController(_ controller: UIActivityViewController, context: Context) {}
++}
