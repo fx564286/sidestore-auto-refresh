@@ -716,10 +716,10 @@ index 032a355..a3b4c09 100644
  }
  
 diff --git a/Erosion/Helpers/Functions/FSHandlers.swift b/Erosion/Helpers/Functions/FSHandlers.swift
-index 5648c7b..288fc05 100644
+index 5648c7b..673f53e 100644
 --- a/Erosion/Helpers/Functions/FSHandlers.swift
 +++ b/Erosion/Helpers/Functions/FSHandlers.swift
-@@ -11,59 +11,160 @@ import UIKit
+@@ -11,59 +11,163 @@ import UIKit
  let fsHandlers = FSHandlers()
  
  class FSHandlers {
@@ -776,14 +776,15 @@ index 5648c7b..288fc05 100644
 -        
 -        if paths.count == 0 {
 -            print("(fs) got no paths! something went wrong.")
+-        }
+-        
+-        return paths
 +        print("(fs) pathleak start, inode bound \(baselineInode)")
 +        let primary = pathleak(path, baselineInode) ?? []
 +        if !primary.isEmpty {
 +            print("(fs) pathleak found \(primary.count) entries")
 +            return primary
-         }
--        
--        return paths
++        }
 +
 +        // Erosion 0.3 used a 10-million inode bound. 0.3.1 replaced it with a
 +        // freshly created guest file's inode, which may fall BELOW the system
@@ -833,7 +834,10 @@ index 5648c7b..288fc05 100644
 +            lastDiscovery = "LaunchServices 데이터베이스를 일관되게 읽지 못했습니다."
 +            return nil
 +        }
-+        let result = posterboard_lsstore_parse(bytes)
++        guard let result = posterboard_lsstore_parse(bytes) else {
++            lastDiscovery = "LaunchServices 데이터베이스 파서가 유효한 결과를 반환하지 않았습니다."
++            return nil
++        }
 +        let accepted = (result["verified"] as? Bool) ?? false
 +        let matches = (result["targetMatches"] as? NSNumber)?.intValue ?? 0
 +        let score = (result["layoutScore"] as? NSNumber)?.intValue ?? 0
