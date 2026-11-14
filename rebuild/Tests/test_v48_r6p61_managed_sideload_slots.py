@@ -60,6 +60,7 @@ class NativeSideloadSlotContract(unittest.TestCase):
         self.assertIn('ScarletSlotOperationGate.shared.claim()', WORKER)
         self.assertIn('ScarletSlotsListGate', SUPPORT)
         self.assertIn('ScarletSlotChangeGate', SUPPORT)
+        self.assertEqual(SUPPORT.count('CheckedContinuation<(apps: [ScarletSideloadSlot], reason: String), Never>'), 2)
     def test_fail_closed_on_unknown_stage_and_keep_device_unverified(self):
         for marker in (
             '"database_unavailable"', '"backup_or_deactivation_failed"',

@@ -674,8 +674,8 @@ public enum ScarletNativeSideloadSlots {
 
 private final class ScarletSlotsListGate: @unchecked Sendable {
     private let lock = NSLock()
-    private var continuation: CheckedContinuation<([ScarletSideloadSlot], String), Never>?
-    init(_ c: CheckedContinuation<([ScarletSideloadSlot], String), Never>) { continuation = c }
+    private var continuation: CheckedContinuation<(apps: [ScarletSideloadSlot], reason: String), Never>?
+    init(_ c: CheckedContinuation<(apps: [ScarletSideloadSlot], reason: String), Never>) { continuation = c }
     func finish(_ apps: [ScarletSideloadSlot], _ reason: String) {
         lock.lock(); let c = continuation; continuation = nil; lock.unlock()
         c?.resume(returning: (apps, reason))
