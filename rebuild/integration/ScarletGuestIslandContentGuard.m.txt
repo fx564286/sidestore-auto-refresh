@@ -3024,6 +3024,72 @@ static UIView *ScarletIslandP56UniqueNativeBody(
 }
 // R6P56_OWNER_CONTENT_REFLOW_END
 
+// R6P59_RESIDUAL_UNSAFE_OWNER_BEGIN
+// P56 signed 2026-11-14 04:53:47Z, PID1433: a geometry-only scroll
+// sibling was moved in a trial but all six non-header unsafe scroll controls
+// remained in the notch. The selected body did not prove it owned the actual
+// unsafe controls. This repair selects the direct parent child containing ALL
+// of those other controls, rather than merely the tallest scroll sibling.
+// It NEVER retries P56's identical candidate, and refuses multi-owner or
+// unproven nesting. The parent native layout and reversible P56 two-pass
+// geometry and hit checks below remain mandatory.
+static NSUInteger ScarletIslandP59VisibleRiskInSubtree(
+    UIView *view, UIWindow *window, CGFloat safeTop) {
+    if(!view || view.window!=window) return 0;
+    ScarletIslandViewMetrics m={0};
+    m.firstTopControlY=NSIntegerMax;
+    m.firstUnsafeControlY=NSIntegerMax;
+    m.firstUnsafeTextY=NSIntegerMax;
+    m.firstUnsafeImageY=NSIntegerMax;
+    m.firstTopScrollY=NSIntegerMax;
+    NSMutableDictionary *scrollOwners=[NSMutableDictionary dictionary];
+    ScarletIslandWalkViews(view,window,safeTop,0,&m,scrollOwners);
+    if(m.capped) return NSUIntegerMax; // Unknown coverage is a hard veto.
+    return m.visibleUnsafeControls;
+}
+static UIView *ScarletIslandP59UniqueRiskNativeBody(
+    UIView *parent, UIView *header, UIWindow *window, CGFloat safeTop,
+    NSUInteger totalBefore, UIView *p56Body) {
+    if(!parent || !header || !window || header.superview!=parent ||
+       safeTop<40 || safeTop>95 || totalBefore<5) return nil;
+    NSUInteger headerRisk=ScarletIslandP59VisibleRiskInSubtree(
+        header,window,safeTop);
+    if(headerRisk==NSUIntegerMax || headerRisk<2 ||
+       headerRisk>=totalBefore-2) return nil;
+    NSUInteger residual=totalBefore-headerRisk;
+    CGFloat width=CGRectGetWidth(parent.bounds);
+    CGFloat height=CGRectGetHeight(parent.bounds);
+    UIView *only=nil;
+    for(UIView *candidate in parent.subviews) {
+        if(candidate==header || candidate.hidden || candidate.alpha<0.5 ||
+           candidate.window!=window ||
+           !CGAffineTransformIsIdentity(candidate.transform) ||
+           [header isDescendantOfView:candidate]) continue;
+        NSUInteger risk=ScarletIslandP59VisibleRiskInSubtree(
+            candidate,window,safeTop);
+        if(risk==NSUIntegerMax) return nil;
+        if(risk==0) continue;
+        // Two risk-bearing siblings imply distinct layout owners. Never
+        // shift a guessed combined viewport, or expose the status bar.
+        if(risk!=residual || only) return nil;
+        CGRect rect=candidate.frame;
+        CGFloat oldTop=CGRectGetMinY(rect);
+        CGFloat headerBottom=CGRectGetMaxY(header.frame);
+        if((fabs(oldTop-headerBottom)>12 && fabs(oldTop)>4) ||
+           fabs(CGRectGetMinX(rect))>4 ||
+           fabs(CGRectGetWidth(rect)-width)>5 ||
+           CGRectGetHeight(rect)<height*0.60 ||
+           fabs(CGRectGetMaxY(rect)-height)>75 ||
+           (![candidate isKindOfClass:UIScrollView.class] &&
+            !ScarletIslandP56ContainsFeedScroll(candidate,5))) return nil;
+        only=candidate;
+    }
+    // P56 already failed on its own geometric candidate. Only a DIFFERENT
+    // owner with proof of the residual six controls authorizes a new trial.
+    return only && only!=p56Body ? only : nil;
+}
+// R6P59_RESIDUAL_UNSAFE_OWNER_END
+
 // R6P54_OWNER_LAYOUT_CONTRACT_BEGIN
 // R6P55 also accepts the signed P54 child UIViewController header owner.
 // Signed P53: the parent owns a custom viewDidLayoutSubviews. Changing the
@@ -3155,8 +3221,11 @@ static BOOL ScarletIslandP54InstallNativeOwnerContract(
     }
     NSHashTable *weakHeader=[NSHashTable weakObjectsHashTable];
     [weakHeader addObject:header];
-    UIView *nativeBody=childOwned ?
+    UIView *p56GeometryBody=childOwned ?
         ScarletIslandP56UniqueNativeBody(parent,header,window) : nil;
+    UIView *nativeBody=childOwned ?
+        ScarletIslandP59UniqueRiskNativeBody(
+            parent,header,window,safeTop,beforeControls,p56GeometryBody) : nil;
     NSHashTable *weakBody=[NSHashTable weakObjectsHashTable];
     if(nativeBody) [weakBody addObject:nativeBody];
     NSMutableDictionary *state=[@{
@@ -3189,7 +3258,7 @@ static BOOL ScarletIslandP54InstallNativeOwnerContract(
     [owner.view layoutIfNeeded];
     ScarletIslandP54AfterNativeOwnerLayout(owner);
     if(nativeBody) ScarletIslandDeepHeaderTrialReceipt(
-        @"guest_owner_content_reflow_staged",@"unique_parent_scroll_sibling",
+        @"guest_owner_content_reflow_staged",@"p59_unique_residual_unsafe_owner",
         safeTop,CGRectGetMinY([nativeBody convertRect:
             nativeBody.bounds toView:window]),
         CGRectGetMaxY([header convertRect:header.bounds toView:window]),
