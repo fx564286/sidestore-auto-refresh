@@ -19,6 +19,11 @@ protocol ScarletAppleSignInEngine: AnyObject {
 @available(iOS 17.0, *)
 struct ScarletAppleIDLoginSheet: View {
     let engine: any ScarletAppleSignInEngine
+    let startsWithAdditionalLogin: Bool
+    init(engine: any ScarletAppleSignInEngine, startsWithAdditionalLogin: Bool = false) {
+        self.engine = engine
+        self.startsWithAdditionalLogin = startsWithAdditionalLogin
+    }
     @Environment(\.dismiss) private var dismiss
 
     @State private var appleID = ""
@@ -278,6 +283,8 @@ struct ScarletAppleIDLoginSheet: View {
         .task {
             ScarletDiagnosticRecorder.shared.record("auth", "login_ui_opened",
                 fields: ["available": engine.isReady ? "true" : "false"])
+            // Settings owns switching. Add-login opens credentials directly.
+            explicitlyReauthenticating = startsWithAdditionalLogin
             transportChecking = true
             do {
                 ScarletDiagnosticRecorder.shared.record("auth", "transport_check_started")

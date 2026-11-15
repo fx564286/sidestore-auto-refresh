@@ -752,33 +752,125 @@ def attach_native_settings_diagnostics(engine: Path) -> dict:
         assert source.count(anchor)==1, "Pinned settings structure changed: "+repr(anchor)
     source=source.replace(state_anchor, state_anchor+
         '    @State private var scarletShowAppleLogin = false\n'
-        '    @State private var scarletLoginVerified: Bool? = nil\n')
+        '    @State private var scarletLoginVerified: Bool? = nil\n'
+        '''    @State private var scarletSavedAccounts: [ScarletStoredAppleAccount] = []
+    @State private var scarletAccountListStatus: String? = nil
+    @State private var scarletAccountSwitchError: String? = nil
+    @State private var scarletSwitchingAccountID: String? = nil
+    @State private var scarletAccountReadGeneration: UInt64 = 0
+
+    @MainActor
+    private func scarletReloadSavedAccounts() async {
+        guard #available(iOS 17.0, *) else { return }
+        scarletAccountReadGeneration &+= 1
+        let generation = scarletAccountReadGeneration
+        let result = await ScarletNativeSavedAccounts.list()
+        guard generation == scarletAccountReadGeneration,
+              scarletSwitchingAccountID == nil else { return }
+        if result.status == "ready" {
+            scarletSavedAccounts = result.accounts
+            scarletAccountListStatus = nil
+        } else {
+            // Preserve verified rows on transient XPC/Keychain failure.
+            scarletAccountListStatus = result.status
+        }
+    }
+
+    @MainActor
+    private func scarletSwitchToSavedAccount(_ id: String) {
+        guard #available(iOS 17.0, *), scarletSwitchingAccountID == nil,
+              scarletSavedAccounts.contains(where: { $0.id == id && !$0.active }) else { return }
+        scarletSwitchingAccountID = id
+        scarletAccountSwitchError = nil
+        scarletAccountReadGeneration &+= 1
+        ScarletDiagnosticRecorder.shared.record("auth", "settings_account_switch_requested")
+        Task { @MainActor in
+            let (ok, reason) = await ScarletNativeSavedAccounts.activate(id)
+            if ok {
+                // The worker checks Keychain/team. Verify the active row before
+                // committing the new checkmark in the native Settings view.
+                let readback = await ScarletNativeSavedAccounts.list()
+                if readback.status == "ready" &&
+                    readback.accounts.filter({ $0.active }).count == 1 &&
+                    readback.accounts.contains(where: { $0.id == id && $0.active }) {
+                    scarletSavedAccounts = readback.accounts
+                    scarletAccountListStatus = nil
+                    scarletLoginVerified = true
+                    ScarletDiagnosticRecorder.shared.record("auth",
+                        "settings_account_switch_verified", status: "success")
+                    NotificationCenter.default.post(
+                        name: Notification.Name("ScarletGuestAuthVerified"), object: nil)
+                } else {
+                    scarletAccountSwitchError = "전환 후 활성 계정을 확인하지 못했습니다. 다시 확인하세요."
+                    ScarletDiagnosticRecorder.shared.record("auth",
+                        "settings_account_switch_readback_failed", status: "warning")
+                }
+            } else {
+                scarletAccountSwitchError = "계정 전환 실패: " + reason
+                ScarletDiagnosticRecorder.shared.record("auth",
+                    "settings_account_switch_failed", status: "error",
+                    fields: ["reason": reason])
+            }
+            scarletSwitchingAccountID = nil
+            await scarletReloadSavedAccounts()
+        }
+    }
+''' + '\n')
     new_section="""        NavigationView {
             Form {
                 Section {
-                    if scarletLoginVerified == true {
+                    if !scarletSavedAccounts.isEmpty {
+                        ForEach(scarletSavedAccounts) { row in
+                            if row.active {
+                                HStack {
+                                    Text(row.id).lineLimit(1)
+                                    Spacer()
+                                    Label("사용 중", systemImage: "checkmark.circle.fill")
+                                        .font(.subheadline).foregroundStyle(.green)
+                                }
+                                .accessibilityIdentifier("SCARLET_SETTINGS_ACTIVE_APPLE_ID")
+                            } else {
+                                Button {
+                                    scarletSwitchToSavedAccount(row.id)
+                                } label: {
+                                    HStack {
+                                        Text(row.id).lineLimit(1)
+                                        Spacer()
+                                        if scarletSwitchingAccountID == row.id {
+                                            ProgressView()
+                                        } else {
+                                            Text("전환").foregroundStyle(.secondary)
+                                        }
+                                    }
+                                }
+                                .disabled(scarletSwitchingAccountID != nil)
+                                .accessibilityIdentifier("SCARLET_SETTINGS_SWITCH_APPLE_ID")
+                            }
+                        }
+                    } else if scarletLoginVerified == true {
                         Label("로그인됨", systemImage: "checkmark.seal.fill")
                             .foregroundStyle(.green)
                             .accessibilityIdentifier("SCARLET_SETTINGS_LOGIN_VERIFIED")
-                        Button {
-                            ScarletDiagnosticRecorder.shared.record("auth", "add_account_requested")
-                            scarletShowAppleLogin = true
-                        } label: {
-                            Label("추가 로그인", systemImage: "person.badge.plus")
-                        }
-                        .accessibilityIdentifier("SCARLET_SETTINGS_ADD_LOGIN")
-                    } else if scarletLoginVerified == nil {
-                        Label("로그인 상태 확인 중", systemImage: "clock")
-                            .foregroundStyle(.secondary)
-                    } else {
-                        Button {
-                            ScarletDiagnosticRecorder.shared.record("auth", "open_from_settings")
-                            scarletShowAppleLogin = true
-                        } label: {
-                            Label("로그인", systemImage: "person.crop.circle")
-                        }
-                        .accessibilityIdentifier("SCARLET_SETTINGS_NATIVE_APPLE_LOGIN")
+                    } else if scarletLoginVerified == nil && scarletAccountListStatus == nil {
+                        ProgressView("계정 확인 중")
                     }
+                    if let scarletAccountSwitchError {
+                        Text(scarletAccountSwitchError).font(.footnote).foregroundStyle(.red)
+                    } else if scarletAccountListStatus != nil {
+                        Button("저장된 계정 다시 확인") {
+                            Task { await scarletReloadSavedAccounts() }
+                        }
+                        .accessibilityIdentifier("SCARLET_SETTINGS_RETRY_APPLE_ID_LIST")
+                    }
+                    Button {
+                        ScarletDiagnosticRecorder.shared.record("auth", "add_account_requested")
+                        scarletShowAppleLogin = true
+                    } label: {
+                        Label(scarletLoginVerified == true || !scarletSavedAccounts.isEmpty
+                            ? "추가 로그인" : "로그인", systemImage: "person.badge.plus")
+                    }
+                    .disabled(scarletSwitchingAccountID != nil)
+                    .accessibilityIdentifier("SCARLET_SETTINGS_ADD_LOGIN")
                     if #available(iOS 16.0, *) {
                         NavigationLink {
                             ScarletDiagnosticLogView()
@@ -847,11 +939,12 @@ def attach_native_settings_diagnostics(engine: Path) -> dict:
         '        .sheet(isPresented: $scarletShowAppleLogin, onDismiss: {\n'
         '            Task { @MainActor in\n'
         '                if #available(iOS 17.0, *) {\n'
-        '                    scarletLoginVerified = await ScarletConnectedSideSignEngine().storedAuthenticated()\n'        '                }\n'
+        '                    scarletLoginVerified = await ScarletConnectedSideSignEngine().storedAuthenticated()\n'
+        '                    await scarletReloadSavedAccounts()\n'        '                }\n'
         '            }\n'
         '        }) {\n'
         '            if #available(iOS 17.0, *) {\n'
-        '                ScarletAppleIDLoginSheet(engine: ScarletConnectedSideSignEngine())\n'
+        '                ScarletAppleIDLoginSheet(engine: ScarletConnectedSideSignEngine(),\n                    startsWithAdditionalLogin: true)\n'
         '            } else {\n'
         '                Text("Apple 로그인은 iOS 17 이상에서 제공됩니다.")\n'
         '            }\n'
@@ -860,14 +953,16 @@ def attach_native_settings_diagnostics(engine: Path) -> dict:
         '            ScarletDiagnosticRecorder.shared.record("settings", "native_form_visible")\n'
         '            Task { @MainActor in\n'
         '                if #available(iOS 17.0, *) {\n'
-        '                    scarletLoginVerified = await ScarletConnectedSideSignEngine().storedAuthenticated()\n'        '                }\n'
+        '                    scarletLoginVerified = await ScarletConnectedSideSignEngine().storedAuthenticated()\n'
+        '                    await scarletReloadSavedAccounts()\n'        '                }\n'
         '            }\n'
         '        }\n'
         '        .onReceive(NotificationCenter.default.publisher(\n'
         '            for: Notification.Name("ScarletGuestAuthVerified"))) { _ in\n'
         '            Task { @MainActor in\n'
         '                if #available(iOS 17.0, *) {\n'
-        '                    scarletLoginVerified = await ScarletConnectedSideSignEngine().storedAuthenticated()\n'        '                }\n'
+        '                    scarletLoginVerified = await ScarletConnectedSideSignEngine().storedAuthenticated()\n'
+        '                    await scarletReloadSavedAccounts()\n'        '                }\n'
         '            }\n'
         '        }\n'
         '        .onChange(of: dynamicColors) { enabled in\n'

@@ -33,7 +33,7 @@ class SettingsParity(unittest.TestCase):
                   'ScarletActionRow(title: "진단 로그"'):
             self.assertNotIn(x,UI)
         INTEGRATOR=(ROOT/"integration/apply_scarlet_host.py").read_text()
-        self.assertIn("SCARLET_SETTINGS_NATIVE_APPLE_LOGIN",INTEGRATOR)
+        self.assertIn("SCARLET_SETTINGS_ADD_LOGIN",INTEGRATOR)
         self.assertIn("SCARLET_NATIVE_DIAGNOSTICS_ENTRY",INTEGRATOR)
         self.assertNotIn('Text("설정")',UI)
         self.assertNotIn("showConnectionDetails",UI)

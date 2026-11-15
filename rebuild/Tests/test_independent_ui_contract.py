@@ -105,7 +105,7 @@ class IndependentUIContractTests(unittest.TestCase):
                       "installationVerified: Bool","signingVerified: Bool"):
             self.assertIn(field,UI)
         INTEGRATOR=(ROOT/"integration/apply_scarlet_host.py").read_text()
-        self.assertIn("SCARLET_SETTINGS_NATIVE_APPLE_LOGIN",INTEGRATOR)
+        self.assertIn("SCARLET_SETTINGS_ADD_LOGIN",INTEGRATOR)
         self.assertIn("case .serviceBeginSignIn:",HOST)
         self.assertIn("ScarletDiagnosticLogView()",INTEGRATOR)
         self.assertNotIn('Text("설정")',UI)
