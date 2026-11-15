@@ -38500,6 +38500,156 @@
           "function": "ScarletGuestSignerRecovery"
         }
       ]
+    },
+    {
+      "date": "2026-11-16",
+      "source_verification": "git_patch_observed",
+      "device_verification": "not_verified",
+      "source_revisions": [
+        {
+          "sha": "dbc0730001d522b257c60044bfd8cdd9fa2f1dee",
+          "title": "fix(r6p79): recover queued IPA archive from mapped ZIP and refresh proven native statusbar",
+          "url": "https://github.com/fx564286/sidestore-auto-refresh/commit/dbc0730001d522b257c60044bfd8cdd9fa2f1dee"
+        }
+      ],
+      "rollback_commit": "8e5a83a80b429c2fc77c0fc5a47f71790284a49d",
+      "id": "L130",
+      "version": "Scarlet-V48-R6P79-Bounded-Mapped-ZIP-Import-Recovery",
+      "problem": "p78_signed_guest_ipa_import_four_immediate_swift_string_failures_before_signing",
+      "mechanism": "queued_ipa_native_archive_filename_failure_mapped_zip_stream_fallback_bounded_payload",
+      "novelty": {
+        "prior_excluded_ids": [
+          "L103",
+          "L104",
+          "L128"
+        ],
+        "causal_difference": "L103 P57 only addressed hidden same-bundle replacement UI and transactional pre-sign overwrite. P78 signed iPhone never reached even Payload/overwrite/sign; 4 import files staged and importer threw Swift.String code1 immediately. P79 adds actual alternative native ZIP data path **within the original archive reader failure boundary only**, using mmap/NSData with libarchive archive_read_open_memory rather than repeating replacement or certificates, protected Payload and data bounds, preserving original extractor for normal IPAs. The outcome is falsifiable and must be tested on the SAME failed IPA.",
+        "falsifiable_prediction": "When P78 failed because original native archive filename reader rejected otherwise intact ZIP, P79 mapped archive reader opens same file and LC importer proceeds to actual app installation and signer. Corrupt IPA or missing Payload remains rejected; no guest deletion/overwrite before successful signed transaction.",
+        "new_device_evidence": {
+          "source_commit": "8e5a83a80b429c2fc77c0fc5a47f71790284a49d",
+          "event": "guest_import file_staged/file_import_requested/import_pipeline_failed",
+          "observed_value": "Signed P78 a53ec2dc 4x file_staged then Swift.String error code1 2–3ms after import_requested, before any sign/overwrite; LC pre-sign archive `extract` is earliest localized throw. Certificate replaced same-team before 4th failure."
+        },
+        "why_prior_fix_failed": "P57 replacement handling applies AFTER archive unpack and Payload app recognition; P78 did not progress past the original import/unpack boundary. Previous signing repairs P78 also cannot change malformed input extraction."
+      },
+      "hypothesis": "Actual P78 repeated local file imports fail before signing/overwriting due original libarchive filename open/header path, and mapped ZIP reader may succeed for same content.",
+      "action": "Keep original LC extract and importer unchanged for normal IPAs; only when queued local scarlet-guest IPA original extract returns nonzero, retry same content using NSDataReadingMappedIfSafe + archive_read_open_memory. Validate ZIP entry paths, Payload app plist, no symlinks, limits, protect guest apps. Preserve original signing and P57 transactional overwrite.",
+      "observation": "P78 3.8.78 session a53ec2dc has 4x file_staged then 4x import_pipeline_failed within 2..3ms before any actual signing/overwrite. Local full regression 800 tests=797 pass 3 skip, pinned native LC source generator patched and verified; signed P79 iPhone import remains unverified.",
+      "evidence": "User uploaded P78 report generated 2026-11-15 16:53:47Z SourceCommit 8e5a83a80b42 session a53ec2dc, file_import_requested / import_pipeline_failed code1 Swift.String. GitHub source commit dbc0730001d522b257c60044bfd8cdd9fa2f1dee",
+      "status": "source_committed_797_tests_pass_3_skipped_native_ci_pending",
+      "next_executable_action": "Verify native macOS Xcode 27.2 integrated build, release IPA checksum, sign and install preserving existing data, then import SAME original IPA that failed four times on P78 and verify successful LC import and guest signing/launch. If error persists, prove original ZIP/Payload validity and identify failing installer stage without revoking P12.",
+      "repeat_policy": "no_repeat_p57_hidden_replacement_no_certificate_rerequest_for_pre_sign_import_failure_no_delete_existing_guest_data",
+      "code_locations": [
+        {
+          "file": "rebuild/integration/apply_scarlet_host.py",
+          "commit": "dbc0730001d522b257c60044bfd8cdd9fa2f1dee",
+          "function": "add_r6p79_mapped_archive_fallback",
+          "location": "@@ -369,0 +369,148 @@",
+          "before": [
+            "def hide_embedded_sidestore_guest_navigation(engine: Path) -> dict:"
+          ],
+          "after": [
+            "def add_r6p79_mapped_archive_fallback(engine: Path) -> dict:",
+            "int scarletExtractGuestIPAFromMappedData(NSString *ipaPath,",
+            "archive_read_open_memory(reader,mapped.bytes,mapped.length)",
+            "return fallback == 0 ? 0 : result"
+          ]
+        },
+        {
+          "file": ".github/workflows/scarlet-paired-engines-build.yml",
+          "commit": "dbc0730001d522b257c60044bfd8cdd9fa2f1dee",
+          "function": "r6p79 engine version and release",
+          "location": "@@ -4,1 +4,1 @@",
+          "before": [
+            "fix/scarlet-v48-r6p78-signer-recovery-20261116"
+          ],
+          "after": [
+            "fix/scarlet-v48-r6p79-import-archive-status-20261116"
+          ]
+        },
+        {
+          "file": "rebuild/Tests/test_v48_r6p79_actual_signed_import_and_status.py",
+          "commit": "dbc0730001d522b257c60044bfd8cdd9fa2f1dee",
+          "function": "P79 native fallback and P74 statusbar strict tests",
+          "location": "@@ -0,0 +1,62 @@",
+          "before": [],
+          "after": [
+            "class P79SignedDeviceFourImports(unittest.TestCase):"
+          ]
+        }
+      ],
+      "generated_runtime_targets": [
+        {
+          "source_template": "rebuild/integration/apply_scarlet_host.py",
+          "generated_file": "LiveContainerSwiftUI/Utilities/unarchive.m and unarchive.h and Views/AppList/LCAppListView.swift",
+          "source_generation_script": "rebuild/integration/apply_scarlet_host.py",
+          "function": "add_r6p79_mapped_archive_fallback"
+        }
+      ]
+    },
+    {
+      "date": "2026-11-16",
+      "source_verification": "git_patch_observed",
+      "device_verification": "not_verified",
+      "source_revisions": [
+        {
+          "sha": "dbc0730001d522b257c60044bfd8cdd9fa2f1dee",
+          "title": "fix(r6p79): recover queued IPA archive from mapped ZIP and refresh proven native statusbar",
+          "url": "https://github.com/fx564286/sidestore-auto-refresh/commit/dbc0730001d522b257c60044bfd8cdd9fa2f1dee"
+        }
+      ],
+      "rollback_commit": "8e5a83a80b429c2fc77c0fc5a47f71790284a49d",
+      "id": "L131",
+      "version": "Scarlet-V48-R6P79-Key-Host-Native-Statusbar-Invalidation",
+      "problem": "p78_native_statusbar_remains_hidden_after_two_verified_p74_zero_severe_samples",
+      "mechanism": "p74_qualified_native_key_host_statusbar_appearance_invalidation_after_release",
+      "novelty": {
+        "prior_excluded_ids": [
+          "L092",
+          "L094",
+          "L096",
+          "L123",
+          "L125",
+          "L127"
+        ],
+        "causal_difference": "Earlier statusbar L096/P51 and L123/P74 only set a SwiftUI collision-shield Boolean after actual P74 severe 0. P78 host already emitted both full-depth P74 proofs and status released, yet direct native statusbar readback still hidden true for ~15 seconds until unrelated tone change drove UIKit host appearance. P79 does not add a new geometry hypothesis, crop, text tone trick or bypass severe risk: it invokes actual UIKit setNeedsStatusBarAppearanceUpdate on the real normal key window root controller ONLY after both proven P74 samples for same active PID. This fixes missed UIKit invalidation, not collision policy.",
+        "falsifiable_prediction": "P78 native guest y60 near5/severe0 after the 3550ms P74 second proof should produce status_hidden=false in 350ms readback without changing tone or navigating. If UIKit still hidden, retain logged failure without fake success.",
+        "new_device_evidence": {
+          "source_commit": "8e5a83a80b429c2fc77c0fc5a47f71790284a49d",
+          "event": "guest_post_header_statusband_probe/resident_native_status_band_guard/resident_native_status_band_readback",
+          "observed_value": "PID1644 P78 session a53ec2dc P74 2850 near5 y60 severe0 complete; 3550 same; two_complete...status_released; readback remained true until host tone change later reported status_hidden=false."
+        },
+        "why_prior_fix_failed": "Previous status release changed only @Published Shield Boolean; real UIWindowScene host statusbar appearance was not re-evaluated until unrelated host trait/tone change."
+      },
+      "hypothesis": "The P78 statusbar has successfully released guest risk shield after two full P74 scans but UIKit continues old status hidden preference until unrelated tone change invalidates native hosting statusbar appearance.",
+      "action": "After same-PID verified native header two complete P74 near y60 severe0 and P74 shield release, enqueue setNeedsStatusBarAppearanceUpdate on actual normal-level key window root controller; preserves host colors and full FBScene, no direct guest window mutation.",
+      "observation": "P78 signed PID1644 2850 and 3550 P74 both complete severe0 firstNearY60, guard status released but native readback hidden true. Actual statusbar appeared only after new surface tone at 16:52:00. Python full regression 800 tests=797 pass 3 skip; signed P79 native statusbar impact not yet verified.",
+      "evidence": "User uploaded P78 report generated 2026-11-15 16:53:47Z session a53ec2dc P74 dual release and delayed host status readback; source commit dbc0730001d522b257c60044bfd8cdd9fa2f1dee",
+      "status": "source_committed_797_tests_pass_3_skipped_native_ci_pending",
+      "next_executable_action": "On same P78 failing guest after P79 native install, require severeNodes0, near y60, complete header and 2850/3550 native proofs, observe status_hidden=false within the 350ms release readback without scene-tone switching or app reentry; verify no cropping or touch/scroll regression.",
+      "repeat_policy": "no_guest_viewport_crop_no_synthetic_statusbar_no_unconditional_clear_before_dual_P74_safety_proof",
+      "code_locations": [
+        {
+          "file": "rebuild/HostApp/ScarletFullscreenSceneStack.swift",
+          "commit": "dbc0730001d522b257c60044bfd8cdd9fa2f1dee",
+          "function": "acceptVerifiedPostHeaderStatusband native key host invalidation",
+          "location": "@@ -449,0 +450,16 @@",
+          "before": [
+            "nativeStatusBarCollisionShield = false"
+          ],
+          "after": [
+            "host.setNeedsStatusBarAppearanceUpdate()"
+          ]
+        }
+      ],
+      "generated_runtime_targets": [
+        {
+          "source_template": "rebuild/HostApp/ScarletFullscreenSceneStack.swift",
+          "generated_file": "LiveContainerSwiftUI/ScarletFullscreenSceneStack.swift",
+          "source_generation_script": "rebuild/integration/apply_scarlet_host.py",
+          "function": "acceptVerifiedPostHeaderStatusband"
+        }
+      ]
     }
   ],
   "gate": {
