@@ -37966,7 +37966,8 @@
             "guard app.team?.identifier == selectedTeamID else {",
             "    reply(false, \"selected_team_app_mismatch\"); return",
             "}"
-          ]
+          ],
+          "commit": "04a3567187cf341743eb909f59b64f6dd86b2ba5"
         },
         {
           "file": "rebuild/Tests/test_v48_r6p75_team_scoped_slots.py",
@@ -37977,7 +37978,8 @@
             "class TeamScopedSlotManager(unittest.TestCase):",
             "    def test_list_is_team_scoped_and_switch_serialized(self):",
             "    def test_action_rechecks_team_before_any_upstream_operation(self):"
-          ]
+          ],
+          "commit": "04a3567187cf341743eb909f59b64f6dd86b2ba5"
         },
         {
           "file": ".github/workflows/scarlet-paired-engines-build.yml",
@@ -37990,7 +37992,8 @@
           "after": [
             "if [ \"$GITHUB_REF\" = \"refs/heads/fix/scarlet-v48-r6p75-team-slot-scope-20261115\" ]; then",
             "SCARLET_HOST_VERSION_ARGS=(--host-build-version 3.8.75)"
-          ]
+          ],
+          "commit": "04a3567187cf341743eb909f59b64f6dd86b2ba5"
         }
       ],
       "generated_runtime_targets": [
