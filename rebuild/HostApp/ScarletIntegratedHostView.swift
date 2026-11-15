@@ -80,6 +80,7 @@ final class ScarletGuestImportActivity: ObservableObject {
 // A crash-safe same-AppGroup rollback snapshot preserves the exact original
 // LC certificate/password/update date before temporary trial. All data is
 // removed from the snapshot on success/failure; no secrets enter logs.
+@available(iOS 17.0, *)
 @MainActor
 private enum ScarletGuestSignerRecovery {
     static private(set) var active = false

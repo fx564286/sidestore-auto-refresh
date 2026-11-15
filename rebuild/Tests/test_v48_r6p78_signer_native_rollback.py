@@ -18,6 +18,9 @@ class NativeSignerRecovery(unittest.TestCase):
             'guard prefs.synchronize() else',
             'LCUtils.validateJITLessSetup { valid, _ in'):
    self.assertIn(x,HOST,x)
+ def test_ios17_native_recovery_availability_contract(self):
+  self.assertIn('@available(iOS 17.0, *)\n@MainActor\nprivate enum ScarletGuestSignerRecovery {',HOST)
+  self.assertIn('ScarletSigningReadiness.inspect().canRequestNativeRefresh',P)
  def test_actual_team_is_signed_host_not_active_account_b(self):
   for x in ('SecTaskCopyValueForEntitlement(',
     'com.apple.developer.team-identifier',
