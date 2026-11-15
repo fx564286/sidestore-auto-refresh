@@ -46,6 +46,8 @@ enum ScarletRefreshFailureDiagnosis {
             return "현재 선택한 개발팀의 서명 인증서가 없습니다. 앱 설치의 설치팀 선택 화면에서 인증서를 준비하세요."
         case "selected_team_changed":
             return "요청 중 설치팀이 변경됐습니다. 선택한 계정을 확인하세요."
+        case "host_registration_failed":
+            return "SideStore가 설치된 Scarlet 호스트의 서명 원본을 관리 저장소에 등록하지 못했습니다. 기존 설치본은 유지됩니다."
         case "host_not_managed":
             return "내장 SideStore 데이터베이스에 현재 설치된 Scarlet 번들 ID가 등록되지 않았습니다. 다른 설치 프로그램의 앱은 자동으로 갱신 대상에 포함되지 않습니다."
         case "sidestore_certificate_missing":

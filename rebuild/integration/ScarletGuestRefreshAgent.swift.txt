@@ -1,3 +1,120 @@
+// R6P73: Original SideStore starts its CoreData in an app extension but
+// DatabaseManager.prepareDatabase() deliberately returns for extensions.
+// A Scarlet host installed externally is therefore not a managed app even
+// when its selected Apple account and saved RSD pairing are both valid.
+// Bootstrap ONLY the exact, on-disk, already signed Scarlet host, with its
+// actual provisioning team and upstream cached app payload. Never synthesize
+// a refreshedDate, treat an external IPA as installed, or touch credentials.
+private actor ScarletGuestHostManagedBootstrap {
+    static let shared = ScarletGuestHostManagedBootstrap()
+    private var active: Task<String, Never>?
+    private var registered = false
+
+    func ensure() async -> String {
+        if registered { return "already_registered" }
+        if let active { return await active.value }
+        let task = Task { await performRegistration() }
+        active = task
+        let result = await task.value
+        active = nil
+        if result == "registered" || result == "already_managed" {
+            registered = true
+        }
+        return result
+    }
+
+    private func performRegistration() async -> String {
+        // Use the *real executable path*, not Bundle.Info.activeBundleURL:
+        // LiveContainer can virtualize Bundle.main for its guest SideStore.
+        guard let executable = ProcessInfo.processInfo.arguments.first,
+              !executable.isEmpty else { return "host_executable_unknown" }
+        let extensionURL = URL(fileURLWithPath: executable)
+            .standardizedFileURL.deletingLastPathComponent()
+        guard extensionURL.lastPathComponent == "LiveProcess.appex",
+              extensionURL.deletingLastPathComponent().lastPathComponent == "PlugIns" else {
+            return "not_scarlet_liveprocess"
+        }
+        let hostURL = extensionURL.deletingLastPathComponent()
+            .deletingLastPathComponent()
+        guard hostURL.pathExtension == "app",
+              let signedHost = ALTApplication(fileURL: hostURL),
+              let profile = signedHost.provisioningProfile,
+              profile.expirationDate > Date() else {
+            return "host_signed_bundle_unavailable"
+        }
+        let bundleID = signedHost.bundleIdentifier
+        guard bundleID == "com.kdt.livecontainer.P8EZT3U5N4" ||
+              bundleID == "com.kdt.livecontainer.P8EZT3U5N4.P8EZT3U5N4" else {
+            return "host_identity_mismatch"
+        }
+        guard let currentTeamID = (await ScarletInstallTeamAuthority.activeTeam())?.identifier,
+              profile.teamIdentifier == currentTeamID else {
+            // Selected Apple ID B must never claim a host signed by A.
+            return "host_selected_team_mismatch"
+        }
+        guard await ScarletInstallTeamAuthority.matchingCertificate(
+            for: currentTeamID) != nil else {
+            return "host_selected_team_certificate_missing"
+        }
+        // Use upstream SideStore's own fingerprint cache; its native
+        // backgroundRefresh reads InstalledApp.fileURL from this exact cache.
+        let signature: String
+        do {
+            let cached = try CacheAppOperation.cachePayload(for: hostURL)
+            signature = cached.signature
+            guard let cachedHost = ALTApplication(fileURL: cached.targetFileURL),
+                  cachedHost.bundleIdentifier == bundleID,
+                  cachedHost.provisioningProfile?.teamIdentifier == currentTeamID else {
+                return "host_cached_bundle_mismatch"
+            }
+        } catch {
+            return "host_payload_cache_unavailable"
+        }
+        let certificateSerial = CertificateManager.shared
+            .getSigningCertificate(at: hostURL)?.serialNumber
+        let context = DatabaseManager.shared.persistentContainer.newBackgroundContext()
+        do {
+            return try await context.perform {
+                let duplicate = NSPredicate(
+                    format: "%K == %@", #keyPath(InstalledApp.resignedBundleIdentifier), bundleID)
+                if InstalledApp.first(satisfying: duplicate, in: context) != nil {
+                    return "already_managed"
+                }
+                let teamPredicate = NSPredicate(
+                    format: "%K == %@", #keyPath(Team.identifier), currentTeamID)
+                guard let team = Team.first(satisfying: teamPredicate, in: context),
+                      team.isActiveTeam else { return "host_team_record_missing" }
+                let record = try InstalledApp(
+                    resignedAppBundle: signedHost,
+                    originalBundleIdentifier: bundleID,
+                    certificateSerialNumber: certificateSerial,
+                    storeBuildVersion: nil, context: context)
+                record.team = team
+                record.isActive = true
+                // Do not collapse the four distinct Scarlet extensions into
+                // the host's provisioning profile when signing them later.
+                record.useMainProfile = false
+                record.appBundleFingerprint = signature
+                var extensions = Set<InstalledExtension>()
+                for extensionBundle in signedHost.appExtensions {
+                    let bundle = try InstalledExtension(
+                        resignedAppExtensionBundle: extensionBundle,
+                        originalBundleIdentifier: extensionBundle.bundleIdentifier,
+                        context: context)
+                    bundle.update(resignedAppExtensionBundle: extensionBundle)
+                    extensions.insert(bundle)
+                }
+                record.appExtensions = extensions
+                try context.save()
+                return "registered"
+            }
+        } catch {
+            await context.perform { context.rollback() }
+            return "host_registration_failed"
+        }
+    }
+}
+
 // Runs inside the REAL embedded SideStore LiveProcess, where SideStore's
 // CoreData database and CertificateManager live. Scarlet's host cannot infer
 // whether its SideInstaller-installed signed bundle is managed by this DB.
@@ -9,6 +126,7 @@ final class ScarletGuestRefreshAgent: NSObject {
                 // SideStore's original start() prepares/reconciles its own
                 // installed host record; this is not a fake copy of a DB.
                 try await DatabaseManager.shared.start()
+                let hostBootstrap = await ScarletGuestHostManagedBootstrap.shared.ensure()
                 let context = DatabaseManager.shared.persistentContainer.newBackgroundContext()
                 // Move an immutable, Sendable Team ID across CoreData's
                 // background closure; the ALTTeam is not a Sendable value.
@@ -40,7 +158,11 @@ final class ScarletGuestRefreshAgent: NSObject {
                 }
                 let reason: String
                 if targets.isEmpty {
-                    reason = "no_managed_apps_for_selected_team"
+                    reason = hostBootstrap == "host_payload_cache_unavailable" ||
+                        hostBootstrap == "host_registration_failed" ||
+                        hostBootstrap == "host_cached_bundle_mismatch"
+                        ? "host_registration_failed"
+                        : "no_managed_apps_for_selected_team"
                 } else if !signingReady {
                     reason = "selected_team_certificate_missing"
                 } else if managesHost {
@@ -336,6 +458,7 @@ extension ScarletGuestRefreshAgent {
             var stage = "database"
             do {
                 try await DatabaseManager.shared.start()
+                let hostBootstrap = await ScarletGuestHostManagedBootstrap.shared.ensure()
                 let context = DatabaseManager.shared.persistentContainer.newBackgroundContext()
                 stage = "team"
                 guard let selectedTeamID = (await ScarletInstallTeamAuthority.activeTeam())?.identifier else {

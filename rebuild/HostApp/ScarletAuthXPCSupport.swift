@@ -345,6 +345,7 @@ public enum ScarletNativeRefreshInspector {
                 let allowed = [
                     "ready", "ready_selected_team", "no_managed_apps",
                     "no_managed_apps_for_selected_team", "host_not_managed",
+                    "host_registration_failed",
                     "sidestore_certificate_missing", "selected_team_certificate_missing",
                     "sidestore_database_unavailable",
                     "refresh_worker_missing"
