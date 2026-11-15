@@ -2,9 +2,9 @@
   "schema": 2,
   "scope": "Scarlet Crystal guest top-screen overlap, touch access, rotation, remote guest render and related resident regressions",
   "updated_utc": "2026-11-15T00:00:00Z",
-  "current_baseline": "P66 GitHub run 43656279912 both native builds and packaging passed; Release failed only asset unbound. P67 source 6afcdfe3 fixes release and transactional rollback, 748 Python tests (3 skipped), native CI pending.",
-  "current_issue_status": "P67 account rollback and release asset binding patched but iPhone multi-account success unverified. P65 guest top/statusbar collision remains unresolved.",
-  "confidence_note": "P66 Xcode build/package observed. P67 source/tests verified only; no signed-device or release proof yet.",
+  "current_baseline": "P67 signed iPhone 3.8.67 shows 2FA success but team_mismatch install/refresh; P68 published source 41a7c3ba fixes A/B per-account install team, 754 Python tests 3 skipped; native Xcode CI and signed device pending.",
+  "current_issue_status": "P68 per-Apple-ID install team and local P12 selection source implemented; native device A→B IPA installation and refresh pending. Separate P65 top overlap/statusbar issue unresolved.",
+  "confidence_note": "P67 device log directly confirms install/refresh team mismatch after authenticated second ID. P68 source and static tests checked; no P68 native build/IPA or iPhone installation success yet.",
   "privacy": "No credentials, Apple ID, OTP, UDID, guest names or device identifiers are stored.",
   "entries": [
     {
@@ -34645,6 +34645,608 @@
           "generated_file": "GitHub Actions P67 artifact and release",
           "source_generation_script": "GitHub Actions macOS workflow",
           "function": "Publish public GitHub Release asset"
+        }
+      ]
+    },
+    {
+      "id": "L116",
+      "date": "2026-11-15",
+      "version": "Scarlet-V48-R6P68-two-account-native-install-team-selector",
+      "problem": "second_account_login_succeeds_but_install_refresh_team_mismatch",
+      "mechanism": "account_scoped_certificate_ou_binding_and_install_request_team_pin",
+      "novelty": {
+        "prior_excluded_ids": [
+          "L058",
+          "L108",
+          "L114",
+          "L115"
+        ],
+        "causal_difference": "P66/P67 fixed account token storage and UI switching, but the P67 signed device log proves installing an IPA after authenticating another Apple ID fails before AppManager at team_mismatch. Both the native install worker and refresh worker called ensureActiveTeamForRefresh() with its default requirement for the host team P8EZT3U5N4, even when the selected Apple account legitimately owns another team. P68 introduces a separate account-scoped install selector and binds the actual selected Team ID from UI through the existing XPC request to original SideStore installer, requiring a matching PKCS12 signer via leaf X509 Organizational Unit. For native refresh, only InstalledApp records for the selected Team are passed to the original AppManager, rather than forcing host A re-sign with team B.",
+        "falsifiable_prediction": "On a signed P68 device A and B are independently selectable for IPA installation, the selected Team ID survives the Files picker and is enforced by the guest worker. If a valid local certificate exists for team B, native AppManager.install must be reached without the P67 hard-coded sidestore_team_mismatch; otherwise the user should see selected_team_certificate_missing and may explicitly request that team certificate. Native refresh with B must exclude host A and update only managed B apps; switching to A restores host A refresh. No account tokens, P12, guest app data or previous certificate may be deleted."
+      },
+      "hypothesis": "The signing Team in the Apple-verified active SideStore account and the already installed Scarlet host entitlement Team are different identities; forcing host Team onto a second Apple account makes the feature unusable even after successful 2FA.",
+      "action": "Replaced host-Team-only install preflight with per-request expectedTeamID checked inside native SideStore; added explicit saved-account/install-team picker before Files, verified selected account and active Team, exact DER certificate Subject OU match, per-team local signing P12 selection and optional user-invoked certificate provisioning, serialization of login/team/signing/refresh, InstalledApp.team-scoped refresh and host-preserving self-update gate. Updated all obsolete tests and added P68 six acceptance checks. Existing V48 guest geometry remains untouched.",
+      "observation": "P67 signed CURRENT RUN 8236de81: Apple 2FA submitted and stored_session_verified; sidestore.install_failed reason=team_mismatch stage=team worker_stage=certificate_loaded; 2 manual refresh sidestore_team_mismatch and 1 automatic refresh failure. P68 local Python suite 754 tests, 751 pass 3 skipped; Xcode iOS CI and signed iPhone 2-account installation not verified yet.",
+      "evidence": "User-provided Scarlet P67 diagnostic 2026-11-15 00:27:25 UTC SourceCommit 1bc2e0b6bd85, explicit CURRENT RUN 8236de81; pinned SideStore AuthManager, CertificateManager, InstalledApp.team, native AppManager reviewed against local source. P68 report rebuild/reports/SCARLET_P68_TWO_ACCOUNT_INSTALL_TEAM_20261115.md.",
+      "status": "source_published_751_tests_pass_3_skipped_native_ci_pending",
+      "source_verification": "git_patch_observed",
+      "device_verification": "not_verified",
+      "next_executable_action": "Run GitHub P68 Xcode macOS SideStore+LiveContainer native integrated build; verify P68 IPA release and checksum. Sign and install on same iPhone without clearing existing app data, then A→B→A separate team IPA install/refresh tests, certificate portal quota and original guest/statusbar regression checks.",
+      "rollback_commit": "1bc2e0b6bd8590620b5f7d615d203110583a4b8a",
+      "repeat_policy": "do_not_force_host_team_for_second_account_device_install_or_fake_multi_team_signing_without_certificate_ou",
+      "source_revisions": [
+        {
+          "sha": "41a7c3ba25c4af08d97b46c30ade10a83a4c23d5",
+          "title": "fix(r6p68): select actual Apple team and matching certificate per account for IPA install and refresh",
+          "url": "https://github.com/fx564286/sidestore-auto-refresh/commit/41a7c3ba25c4af08d97b46c30ade10a83a4c23d5"
+        }
+      ],
+      "code_locations": [
+        {
+          "file": ".github/workflows/scarlet-paired-engines-build.yml",
+          "function": "P68 two-account install team selection, cert binding, signed-app refresh scope, CI and regression proof",
+          "location": "@@ -4,5 +4,5 @@ on:",
+          "before": [
+            "    branches: [rebuild/scarlet-from-zero-20261106, fix/scarlet-auth-status-rootcause-20261109, fix/scarlet-pr48-guest-overlay-no-resize-20261109, fix/scarlet-pr48-airpods-glass-guest-switch-v3-20261109, fix/scarlet-pr48-draggable-guest-tab-v4-20261109, fix/scarlet-pr48-v5-glass-drag-cert-recovery-20261109, fix/scarlet-pr48-v6-unified-cert-glass-20261109, fix/scarlet-pr48-v7-cert-jitless-unify-panel-rim-20261109, fix/scarlet-pr48-v8-flicker-certificate-menu-20261109, fix/scarlet-pr48-v9-single-glass-rim-20261109, fix/scarlet-pr48-v10-fixed-tab-cert-and-session-20261109, fix/scarlet-pr48-v11-module-settings-appid-20261109, fix/scarlet-pr48-v12-live-sessions-source-auto-refresh-20261109, fix/scarlet-pr48-v13-compact-settings-current-app-20261109, fix/scarlet-pr48-v14-guest-history-native-scenes-three-ids-20261109, fix/scarlet-pr48-v15-source-disclosure-icons-guest-handoff-20261109, fix/scarlet-pr48-v16-guest-switcher-icons-readback-20261110, fix/scarlet-v17-cold-switch-rotation-20261110, fix/scarlet-v18-refresh-diagnostics-native-glass-20261110, fix/scarlet-v19-active-session-switcher-20261110, fix/scarlet-v20-guest-switcher-trace-20261110, fix/scarlet-v21-hook-telemetry-persistence-20261110, fix/scarlet-v22-runtime-guest-identity-20261110, fix/scarlet-v23-session-only-switcher-20261110, fix/scarlet-v24-refresh-lifecycle-switch-receipt-20261110, fix/scarlet-v25-single-panel-outside-dismiss-20261110, fix/scarlet-v26-liquidglass-button-to-fixed-panel-morph-20261110, fix/scarlet-v27-sidestore-direct-native-refresh-20261110, fix/scarlet-v28-minimuxer-readiness-recovery-20261110, fix/scarlet-v29-inapp-rppairing-20261110, fix/scarlet-v30-restore-sidestore-active-team-20261110, fix/scarlet-v31-pairing-persistence-sheet-purple-20261110, fix/scarlet-v32-korean-copy-20261110, fix/scarlet-v33-log-rootcause-20261110, fix/scarlet-v34-iphone-virtual-resident-20261110, fix/scarlet-v35-restore-original-fullscreen-20261110, fix/scarlet-v36-remove-legacy-ui-20261110, fix/scarlet-v37-session-refresh-20261110, fix/scarlet-v38-current-launch-logs-20261110, fix/scarlet-v39-log-truth-20261110, fix/scarlet-v40-clean-work-session-20261110, fix/scarlet-v42-v40-safe-diagnostics-20261110, fix/scarlet-v43-install-rootcause-20261110, fix/scarlet-v44-rppairing-postsign-install-20261111, fix/scarlet-v45-single-viewport-liveprocess-20261111, fix/scarlet-v46-guard-provisional-guest-geometry-20261111, fix/scarlet-v47-resident-inplace-guest-switch-20261111, fix/scarlet-v48-guest-runtime-recovery-20261111, fix/scarlet-v48-restored-20261111, fix/scarlet-v48-r2-unified-switcher-20261111, fix/scarlet-v48-r3-original-pan-diagnostics-20261111, fix/scarlet-v48-r4-native-outside-remote-insets-20261111, fix/scarlet-v48-r5-attached-insets-shield-20261111, fix/scarlet-v48-r5-crash-recovery-20261111, fix/scarlet-v48-r5-recovery-r2-host-owner-20261111, fix/scarlet-v48-r5-recovery-r3-scene-authority-20261111, fix/scarlet-v48-r5-recovery-r4-native-ready-20261111, fix/scarlet-v48-r5-recovery-r5-compat-foreground-20261111, fix/scarlet-v48-r6-island-outside-audio-20261111, fix/scarlet-v48-r6p1-audio-home-focus-20261111, fix/scarlet-v48-r6p2-blocked-history-20261111, fix/scarlet-v48-r6p3-home-audio-gate-20261111, fix/scarlet-v48-r6p4-guest-audio-ack-20261112, fix/scarlet-v48-r6p7-launch-policy-rootcause-20261112, fix/scarlet-v48-r6p8-policy-field-relay-20261112, fix/scarlet-v48-r6p9-deferred-scene-boot-20261112, fix/scarlet-v48-r6p10-persistent-remediation-ledger-20261112, fix/scarlet-v48-r6p11-resident-guest-sdk-contract-20261112, fix/scarlet-v48-r6p12-instant-recent-switcher-20261112, fix/scarlet-v48-r6p14-switcher-reset-on-navigation-20261112, fix/scarlet-v48-r6p15-guest-root-island-pairing-recovery-20261112, fix/scarlet-v48-r6p16-audit-coverage-20261112, fix/scarlet-v48-r6p17-resident-optin-defaults-20261112, fix/scarlet-v48-r6p18-guest-content-geometry-20261112, fix/scarlet-v48-r6p19-entitlement-failclosed-network-recovery-20261112, fix/scarlet-v48-r6p20-auth-session-bg-id-20261112, fix/scarlet-v48-r6p21-depth-probe-cert-recheck-20261112, fix/scarlet-v48-r6p22-guest-scroll-content-inset-20261112, fix/scarlet-v48-r6p23-guest-owner-refresh-stage-20261112, fix/scarlet-v48-r6p24-keyboard-stage-relay-20261112, fix/scarlet-v48-r6p25-visibility-occlusion-20261112, fix/scarlet-v48-r6p26-recorder-field-contract-20261112, fix/scarlet-v48-r6p27-visible-scroll-owner-20261112, fix/scarlet-v48-r6p28-guest-local-scroll-inset-20261112, fix/scarlet-v48-r6p29-residual-auto-inset-20261112, fix/scarlet-v48-r6p30-inset-interference-isolation-20261112, fix/scarlet-v48-r6p31-nonvertical-always-safearea-20261112, fix/scarlet-v48-r6p32-nonscrolling-owner-stabilization-20261112, fix/scarlet-v48-r6p33-deferred-inset-anchor-20261112, fix/scarlet-v48-r6p34-constraint-native-error-proof-20261112, fix/scarlet-v48-r6p35-ancestor-layout-owner-20261112, fix/scarlet-v48-r6p36-lost-guest-probe-readback-20261112, fix/scarlet-v48-r6p37-nested-header-safe-guide-anchor-20261112, fix/scarlet-v48-r6p38-header-layout-owner-20261113, fix/scarlet-v48-r6p39-parent-safe-guide-constraint-20261113, fix/scarlet-v48-r6p40-transparent-chrome-slot-20261113, fix/scarlet-v48-r6p41-adaptive-chrome-stickiness-20261113, fix/scarlet-v48-r6p42-guest-matched-status-chrome-20261113, fix/scarlet-v48-r6p43-host-verified-native-slot-20261113, fix/scarlet-v48-r6p44-full-native-scroll-header-20261113, fix/scarlet-v48-r6p45-scroll-aware-header-proof-20261113, fix/scarlet-v48-r6p46-detached-header-full-scroll-20261113, fix/scarlet-v48-r6p47-lifecycle-statusbar-20261113, fix/scarlet-v48-r6p48-fresh-proof-crop-gate-20261113, fix/scarlet-v48-r6p49-key-host-statusbar-20261113, fix/scarlet-v48-r6p50-scroll-crop-veto-20261113, fix/scarlet-v48-r6p51-native-statusbar-collision-shield-20261113, fix/scarlet-v48-r6p52-restore-original-host-colors-20261113, fix/scarlet-v48-r6p53-current-log-followup-20261113, fix/scarlet-v48-r6p54-owning-layout-contract-20261114, fix/scarlet-v48-r6p55-child-controller-owner-layout-20261114, fix/scarlet-v48-r6p56-parent-feed-reflow-20261114, fix/scarlet-v48-r6p57-guest-overwrite-20261114, fix/scarlet-v48-r6p58-install-identity-20261114, fix/scarlet-v48-r6p59-unsafe-feed-owner-20261114, fix/scarlet-v48-r6p60-deep-owner-20261114, fix/scarlet-v48-r6p61-slot-manager-20261114, fix/scarlet-v48-r6p62-scroll-viewport-20261114, fix/scarlet-v48-r6p63-nested-parent-20261114, fix/scarlet-v48-r6p64-residual-viewport-20261115, fix/scarlet-v48-r6p65-inset-compensated-settle-20261115, fix/scarlet-v48-r6p66-multiaccount-rea-20261115, fix/scarlet-v48-r6p67-auth-rollback-20261115]",
+            "          if [ \"$GITHUB_REF\" = \"refs/heads/fix/scarlet-v48-r6p67-auth-rollback-20261115\" ]; then",
+            "    if: github.event_name == 'push' && (github.ref == 'refs/heads/rebuild/scarlet-from-zero-20261106' || github.ref == 'refs/heads/fix/scarlet-v31-pairing-persistence-sheet-purple-20261110' || github.ref == 'refs/heads/fix/scarlet-v32-korean-copy-20261110' || github.ref == 'refs/heads/fix/scarlet-v33-log-rootcause-20261110' || github.ref == 'refs/heads/fix/scarlet-v34-iphone-virtual-resident-20261110' || github.ref == 'refs/heads/fix/scarlet-v35-restore-original-fullscreen-20261110' || github.ref == 'refs/heads/fix/scarlet-v36-remove-legacy-ui-20261110' || github.ref == 'refs/heads/fix/scarlet-v37-session-refresh-20261110' || github.ref == 'refs/heads/fix/scarlet-v38-current-launch-logs-20261110' || github.ref == 'refs/heads/fix/scarlet-v39-log-truth-20261110' || github.ref == 'refs/heads/fix/scarlet-v40-clean-work-session-20261110' || github.ref == 'refs/heads/fix/scarlet-v42-v40-safe-diagnostics-20261110' || github.ref == 'refs/heads/fix/scarlet-v43-install-rootcause-20261110' || github.ref == 'refs/heads/fix/scarlet-v44-rppairing-postsign-install-20261111' || github.ref == 'refs/heads/fix/scarlet-v45-single-viewport-liveprocess-20261111' || github.ref == 'refs/heads/fix/scarlet-v46-guard-provisional-guest-geometry-20261111' || github.ref == 'refs/heads/fix/scarlet-v47-resident-inplace-guest-switch-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-guest-runtime-recovery-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-restored-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r2-unified-switcher-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r3-original-pan-diagnostics-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r4-native-outside-remote-insets-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r5-attached-insets-shield-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r5-crash-recovery-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r5-recovery-r2-host-owner-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r5-recovery-r3-scene-authority-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r5-recovery-r4-native-ready-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r5-recovery-r5-compat-foreground-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r6-island-outside-audio-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r6p1-audio-home-focus-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r6p2-blocked-history-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r6p3-home-audio-gate-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r6p4-guest-audio-ack-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p7-launch-policy-rootcause-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p8-policy-field-relay-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p9-deferred-scene-boot-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p10-persistent-remediation-ledger-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p11-resident-guest-sdk-contract-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p12-instant-recent-switcher-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p14-switcher-reset-on-navigation-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p15-guest-root-island-pairing-recovery-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p16-audit-coverage-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p17-resident-optin-defaults-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p18-guest-content-geometry-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p19-entitlement-failclosed-network-recovery-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p20-auth-session-bg-id-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p21-depth-probe-cert-recheck-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p22-guest-scroll-content-inset-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p23-guest-owner-refresh-stage-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p24-keyboard-stage-relay-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p25-visibility-occlusion-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p26-recorder-field-contract-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p27-visible-scroll-owner-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p28-guest-local-scroll-inset-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p29-residual-auto-inset-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p30-inset-interference-isolation-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p31-nonvertical-always-safearea-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p32-nonscrolling-owner-stabilization-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p33-deferred-inset-anchor-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p34-constraint-native-error-proof-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p35-ancestor-layout-owner-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p36-lost-guest-probe-readback-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p37-nested-header-safe-guide-anchor-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p38-header-layout-owner-20261113' || github.ref == 'refs/heads/fix/scarlet-v48-r6p39-parent-safe-guide-constraint-20261113' || github.ref == 'refs/heads/fix/scarlet-v48-r6p40-transparent-chrome-slot-20261113' || github.ref == 'refs/heads/fix/scarlet-v48-r6p41-adaptive-chrome-stickiness-20261113' || github.ref == 'refs/heads/fix/scarlet-v48-r6p42-guest-matched-status-chrome-20261113' || github.ref == 'refs/heads/fix/scarlet-v48-r6p43-host-verified-native-slot-20261113' || github.ref == 'refs/heads/fix/scarlet-v48-r6p44-full-native-scroll-header-20261113' || github.ref == 'refs/heads/fix/scarlet-v48-r6p45-scroll-aware-header-proof-20261113' || github.ref == 'refs/heads/fix/scarlet-v48-r6p46-detached-header-full-scroll-20261113' || github.ref == 'refs/heads/fix/scarlet-v48-r6p47-lifecycle-statusbar-20261113' || github.ref == 'refs/heads/fix/scarlet-v48-r6p48-fresh-proof-crop-gate-20261113' || github.ref == 'refs/heads/fix/scarlet-v48-r6p49-key-host-statusbar-20261113' || github.ref == 'refs/heads/fix/scarlet-v48-r6p50-scroll-crop-veto-20261113' || github.ref == 'refs/heads/fix/scarlet-v48-r6p51-native-statusbar-collision-shield-20261113' || github.ref == 'refs/heads/fix/scarlet-v48-r6p52-restore-original-host-colors-20261113' || github.ref == 'refs/heads/fix/scarlet-v48-r6p53-current-log-followup-20261113' || github.ref == 'refs/heads/fix/scarlet-v48-r6p54-owning-layout-contract-20261114' || github.ref == 'refs/heads/fix/scarlet-v48-r6p55-child-controller-owner-layout-20261114' || github.ref == 'refs/heads/fix/scarlet-v48-r6p56-parent-feed-reflow-20261114' || github.ref == 'refs/heads/fix/scarlet-v48-r6p57-guest-overwrite-20261114' || github.ref == 'refs/heads/fix/scarlet-v48-r6p58-install-identity-20261114' || github.ref == 'refs/heads/fix/scarlet-v48-r6p59-unsafe-feed-owner-20261114' || github.ref == 'refs/heads/fix/scarlet-v48-r6p60-deep-owner-20261114' || github.ref == 'refs/heads/fix/scarlet-v48-r6p61-slot-manager-20261114' || github.ref == 'refs/heads/fix/scarlet-v48-r6p63-nested-parent-20261114' || github.ref == 'refs/heads/fix/scarlet-v48-r6p64-residual-viewport-20261115' || github.ref == 'refs/heads/fix/scarlet-v48-r6p65-inset-compensated-settle-20261115' || github.ref == 'refs/heads/fix/scarlet-v48-r6p66-multiaccount-rea-20261115' || github.ref == 'refs/heads/fix/scarlet-v48-r6p67-auth-rollback-20261115')",
+            "              if any(x in __import__(\"os\").environ.get(\"GITHUB_REF\",\"\") for x in (\"r6p58\",\"r6p59\",\"r6p60\",\"r6p61\",\"r6p62\",\"r6p63\",\"r6p64\",\"r6p65\",\"r6p66\",\"r6p67\")):",
+            "          if [ \"$GITHUB_REF\" = \"refs/heads/fix/scarlet-v48-r6p67-auth-rollback-20261115\" ]; then",
+            "          if [ \"$GITHUB_REF\" = \"refs/heads/fix/scarlet-v48-r6p67-auth-rollback-20261115\" ]; then"
+          ],
+          "after": [
+            "    branches: [rebuild/scarlet-from-zero-20261106, fix/scarlet-auth-status-rootcause-20261109, fix/scarlet-pr48-guest-overlay-no-resize-20261109, fix/scarlet-pr48-airpods-glass-guest-switch-v3-20261109, fix/scarlet-pr48-draggable-guest-tab-v4-20261109, fix/scarlet-pr48-v5-glass-drag-cert-recovery-20261109, fix/scarlet-pr48-v6-unified-cert-glass-20261109, fix/scarlet-pr48-v7-cert-jitless-unify-panel-rim-20261109, fix/scarlet-pr48-v8-flicker-certificate-menu-20261109, fix/scarlet-pr48-v9-single-glass-rim-20261109, fix/scarlet-pr48-v10-fixed-tab-cert-and-session-20261109, fix/scarlet-pr48-v11-module-settings-appid-20261109, fix/scarlet-pr48-v12-live-sessions-source-auto-refresh-20261109, fix/scarlet-pr48-v13-compact-settings-current-app-20261109, fix/scarlet-pr48-v14-guest-history-native-scenes-three-ids-20261109, fix/scarlet-pr48-v15-source-disclosure-icons-guest-handoff-20261109, fix/scarlet-pr48-v16-guest-switcher-icons-readback-20261110, fix/scarlet-v17-cold-switch-rotation-20261110, fix/scarlet-v18-refresh-diagnostics-native-glass-20261110, fix/scarlet-v19-active-session-switcher-20261110, fix/scarlet-v20-guest-switcher-trace-20261110, fix/scarlet-v21-hook-telemetry-persistence-20261110, fix/scarlet-v22-runtime-guest-identity-20261110, fix/scarlet-v23-session-only-switcher-20261110, fix/scarlet-v24-refresh-lifecycle-switch-receipt-20261110, fix/scarlet-v25-single-panel-outside-dismiss-20261110, fix/scarlet-v26-liquidglass-button-to-fixed-panel-morph-20261110, fix/scarlet-v27-sidestore-direct-native-refresh-20261110, fix/scarlet-v28-minimuxer-readiness-recovery-20261110, fix/scarlet-v29-inapp-rppairing-20261110, fix/scarlet-v30-restore-sidestore-active-team-20261110, fix/scarlet-v31-pairing-persistence-sheet-purple-20261110, fix/scarlet-v32-korean-copy-20261110, fix/scarlet-v33-log-rootcause-20261110, fix/scarlet-v34-iphone-virtual-resident-20261110, fix/scarlet-v35-restore-original-fullscreen-20261110, fix/scarlet-v36-remove-legacy-ui-20261110, fix/scarlet-v37-session-refresh-20261110, fix/scarlet-v38-current-launch-logs-20261110, fix/scarlet-v39-log-truth-20261110, fix/scarlet-v40-clean-work-session-20261110, fix/scarlet-v42-v40-safe-diagnostics-20261110, fix/scarlet-v43-install-rootcause-20261110, fix/scarlet-v44-rppairing-postsign-install-20261111, fix/scarlet-v45-single-viewport-liveprocess-20261111, fix/scarlet-v46-guard-provisional-guest-geometry-20261111, fix/scarlet-v47-resident-inplace-guest-switch-20261111, fix/scarlet-v48-guest-runtime-recovery-20261111, fix/scarlet-v48-restored-20261111, fix/scarlet-v48-r2-unified-switcher-20261111, fix/scarlet-v48-r3-original-pan-diagnostics-20261111, fix/scarlet-v48-r4-native-outside-remote-insets-20261111, fix/scarlet-v48-r5-attached-insets-shield-20261111, fix/scarlet-v48-r5-crash-recovery-20261111, fix/scarlet-v48-r5-recovery-r2-host-owner-20261111, fix/scarlet-v48-r5-recovery-r3-scene-authority-20261111, fix/scarlet-v48-r5-recovery-r4-native-ready-20261111, fix/scarlet-v48-r5-recovery-r5-compat-foreground-20261111, fix/scarlet-v48-r6-island-outside-audio-20261111, fix/scarlet-v48-r6p1-audio-home-focus-20261111, fix/scarlet-v48-r6p2-blocked-history-20261111, fix/scarlet-v48-r6p3-home-audio-gate-20261111, fix/scarlet-v48-r6p4-guest-audio-ack-20261112, fix/scarlet-v48-r6p7-launch-policy-rootcause-20261112, fix/scarlet-v48-r6p8-policy-field-relay-20261112, fix/scarlet-v48-r6p9-deferred-scene-boot-20261112, fix/scarlet-v48-r6p10-persistent-remediation-ledger-20261112, fix/scarlet-v48-r6p11-resident-guest-sdk-contract-20261112, fix/scarlet-v48-r6p12-instant-recent-switcher-20261112, fix/scarlet-v48-r6p14-switcher-reset-on-navigation-20261112, fix/scarlet-v48-r6p15-guest-root-island-pairing-recovery-20261112, fix/scarlet-v48-r6p16-audit-coverage-20261112, fix/scarlet-v48-r6p17-resident-optin-defaults-20261112, fix/scarlet-v48-r6p18-guest-content-geometry-20261112, fix/scarlet-v48-r6p19-entitlement-failclosed-network-recovery-20261112, fix/scarlet-v48-r6p20-auth-session-bg-id-20261112, fix/scarlet-v48-r6p21-depth-probe-cert-recheck-20261112, fix/scarlet-v48-r6p22-guest-scroll-content-inset-20261112, fix/scarlet-v48-r6p23-guest-owner-refresh-stage-20261112, fix/scarlet-v48-r6p24-keyboard-stage-relay-20261112, fix/scarlet-v48-r6p25-visibility-occlusion-20261112, fix/scarlet-v48-r6p26-recorder-field-contract-20261112, fix/scarlet-v48-r6p27-visible-scroll-owner-20261112, fix/scarlet-v48-r6p28-guest-local-scroll-inset-20261112, fix/scarlet-v48-r6p29-residual-auto-inset-20261112, fix/scarlet-v48-r6p30-inset-interference-isolation-20261112, fix/scarlet-v48-r6p31-nonvertical-always-safearea-20261112, fix/scarlet-v48-r6p32-nonscrolling-owner-stabilization-20261112, fix/scarlet-v48-r6p33-deferred-inset-anchor-20261112, fix/scarlet-v48-r6p34-constraint-native-error-proof-20261112, fix/scarlet-v48-r6p35-ancestor-layout-owner-20261112, fix/scarlet-v48-r6p36-lost-guest-probe-readback-20261112, fix/scarlet-v48-r6p37-nested-header-safe-guide-anchor-20261112, fix/scarlet-v48-r6p38-header-layout-owner-20261113, fix/scarlet-v48-r6p39-parent-safe-guide-constraint-20261113, fix/scarlet-v48-r6p40-transparent-chrome-slot-20261113, fix/scarlet-v48-r6p41-adaptive-chrome-stickiness-20261113, fix/scarlet-v48-r6p42-guest-matched-status-chrome-20261113, fix/scarlet-v48-r6p43-host-verified-native-slot-20261113, fix/scarlet-v48-r6p44-full-native-scroll-header-20261113, fix/scarlet-v48-r6p45-scroll-aware-header-proof-20261113, fix/scarlet-v48-r6p46-detached-header-full-scroll-20261113, fix/scarlet-v48-r6p47-lifecycle-statusbar-20261113, fix/scarlet-v48-r6p48-fresh-proof-crop-gate-20261113, fix/scarlet-v48-r6p49-key-host-statusbar-20261113, fix/scarlet-v48-r6p50-scroll-crop-veto-20261113, fix/scarlet-v48-r6p51-native-statusbar-collision-shield-20261113, fix/scarlet-v48-r6p52-restore-original-host-colors-20261113, fix/scarlet-v48-r6p53-current-log-followup-20261113, fix/scarlet-v48-r6p54-owning-layout-contract-20261114, fix/scarlet-v48-r6p55-child-controller-owner-layout-20261114, fix/scarlet-v48-r6p56-parent-feed-reflow-20261114, fix/scarlet-v48-r6p57-guest-overwrite-20261114, fix/scarlet-v48-r6p58-install-identity-20261114, fix/scarlet-v48-r6p59-unsafe-feed-owner-20261114, fix/scarlet-v48-r6p60-deep-owner-20261114, fix/scarlet-v48-r6p61-slot-manager-20261114, fix/scarlet-v48-r6p62-scroll-viewport-20261114, fix/scarlet-v48-r6p63-nested-parent-20261114, fix/scarlet-v48-r6p64-residual-viewport-20261115, fix/scarlet-v48-r6p65-inset-compensated-settle-20261115, fix/scarlet-v48-r6p66-multiaccount-rea-20261115, fix/scarlet-v48-r6p67-auth-rollback-20261115, fix/scarlet-v48-r6p68-install-team-switch-20261115]",
+            "          if [ \"$GITHUB_REF\" = \"refs/heads/fix/scarlet-v48-r6p68-install-team-switch-20261115\" ]; then",
+            "            SCARLET_HOST_VERSION_ARGS=(--host-build-version 3.8.68)",
+            "          elif [ \"$GITHUB_REF\" = \"refs/heads/fix/scarlet-v48-r6p67-auth-rollback-20261115\" ]; then",
+            "    if: github.event_name == 'push' && (github.ref == 'refs/heads/rebuild/scarlet-from-zero-20261106' || github.ref == 'refs/heads/fix/scarlet-v31-pairing-persistence-sheet-purple-20261110' || github.ref == 'refs/heads/fix/scarlet-v32-korean-copy-20261110' || github.ref == 'refs/heads/fix/scarlet-v33-log-rootcause-20261110' || github.ref == 'refs/heads/fix/scarlet-v34-iphone-virtual-resident-20261110' || github.ref == 'refs/heads/fix/scarlet-v35-restore-original-fullscreen-20261110' || github.ref == 'refs/heads/fix/scarlet-v36-remove-legacy-ui-20261110' || github.ref == 'refs/heads/fix/scarlet-v37-session-refresh-20261110' || github.ref == 'refs/heads/fix/scarlet-v38-current-launch-logs-20261110' || github.ref == 'refs/heads/fix/scarlet-v39-log-truth-20261110' || github.ref == 'refs/heads/fix/scarlet-v40-clean-work-session-20261110' || github.ref == 'refs/heads/fix/scarlet-v42-v40-safe-diagnostics-20261110' || github.ref == 'refs/heads/fix/scarlet-v43-install-rootcause-20261110' || github.ref == 'refs/heads/fix/scarlet-v44-rppairing-postsign-install-20261111' || github.ref == 'refs/heads/fix/scarlet-v45-single-viewport-liveprocess-20261111' || github.ref == 'refs/heads/fix/scarlet-v46-guard-provisional-guest-geometry-20261111' || github.ref == 'refs/heads/fix/scarlet-v47-resident-inplace-guest-switch-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-guest-runtime-recovery-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-restored-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r2-unified-switcher-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r3-original-pan-diagnostics-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r4-native-outside-remote-insets-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r5-attached-insets-shield-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r5-crash-recovery-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r5-recovery-r2-host-owner-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r5-recovery-r3-scene-authority-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r5-recovery-r4-native-ready-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r5-recovery-r5-compat-foreground-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r6-island-outside-audio-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r6p1-audio-home-focus-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r6p2-blocked-history-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r6p3-home-audio-gate-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r6p4-guest-audio-ack-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p7-launch-policy-rootcause-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p8-policy-field-relay-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p9-deferred-scene-boot-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p10-persistent-remediation-ledger-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p11-resident-guest-sdk-contract-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p12-instant-recent-switcher-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p14-switcher-reset-on-navigation-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p15-guest-root-island-pairing-recovery-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p16-audit-coverage-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p17-resident-optin-defaults-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p18-guest-content-geometry-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p19-entitlement-failclosed-network-recovery-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p20-auth-session-bg-id-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p21-depth-probe-cert-recheck-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p22-guest-scroll-content-inset-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p23-guest-owner-refresh-stage-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p24-keyboard-stage-relay-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p25-visibility-occlusion-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p26-recorder-field-contract-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p27-visible-scroll-owner-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p28-guest-local-scroll-inset-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p29-residual-auto-inset-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p30-inset-interference-isolation-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p31-nonvertical-always-safearea-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p32-nonscrolling-owner-stabilization-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p33-deferred-inset-anchor-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p34-constraint-native-error-proof-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p35-ancestor-layout-owner-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p36-lost-guest-probe-readback-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p37-nested-header-safe-guide-anchor-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p38-header-layout-owner-20261113' || github.ref == 'refs/heads/fix/scarlet-v48-r6p39-parent-safe-guide-constraint-20261113' || github.ref == 'refs/heads/fix/scarlet-v48-r6p40-transparent-chrome-slot-20261113' || github.ref == 'refs/heads/fix/scarlet-v48-r6p41-adaptive-chrome-stickiness-20261113' || github.ref == 'refs/heads/fix/scarlet-v48-r6p42-guest-matched-status-chrome-20261113' || github.ref == 'refs/heads/fix/scarlet-v48-r6p43-host-verified-native-slot-20261113' || github.ref == 'refs/heads/fix/scarlet-v48-r6p44-full-native-scroll-header-20261113' || github.ref == 'refs/heads/fix/scarlet-v48-r6p45-scroll-aware-header-proof-20261113' || github.ref == 'refs/heads/fix/scarlet-v48-r6p46-detached-header-full-scroll-20261113' || github.ref == 'refs/heads/fix/scarlet-v48-r6p47-lifecycle-statusbar-20261113' || github.ref == 'refs/heads/fix/scarlet-v48-r6p48-fresh-proof-crop-gate-20261113' || github.ref == 'refs/heads/fix/scarlet-v48-r6p49-key-host-statusbar-20261113' || github.ref == 'refs/heads/fix/scarlet-v48-r6p50-scroll-crop-veto-20261113' || github.ref == 'refs/heads/fix/scarlet-v48-r6p51-native-statusbar-collision-shield-20261113' || github.ref == 'refs/heads/fix/scarlet-v48-r6p52-restore-original-host-colors-20261113' || github.ref == 'refs/heads/fix/scarlet-v48-r6p53-current-log-followup-20261113' || github.ref == 'refs/heads/fix/scarlet-v48-r6p54-owning-layout-contract-20261114' || github.ref == 'refs/heads/fix/scarlet-v48-r6p55-child-controller-owner-layout-20261114' || github.ref == 'refs/heads/fix/scarlet-v48-r6p56-parent-feed-reflow-20261114' || github.ref == 'refs/heads/fix/scarlet-v48-r6p57-guest-overwrite-20261114' || github.ref == 'refs/heads/fix/scarlet-v48-r6p58-install-identity-20261114' || github.ref == 'refs/heads/fix/scarlet-v48-r6p59-unsafe-feed-owner-20261114' || github.ref == 'refs/heads/fix/scarlet-v48-r6p60-deep-owner-20261114' || github.ref == 'refs/heads/fix/scarlet-v48-r6p61-slot-manager-20261114' || github.ref == 'refs/heads/fix/scarlet-v48-r6p63-nested-parent-20261114' || github.ref == 'refs/heads/fix/scarlet-v48-r6p64-residual-viewport-20261115' || github.ref == 'refs/heads/fix/scarlet-v48-r6p65-inset-compensated-settle-20261115' || github.ref == 'refs/heads/fix/scarlet-v48-r6p66-multiaccount-rea-20261115' || github.ref == 'refs/heads/fix/scarlet-v48-r6p67-auth-rollback-20261115' || github.ref == 'refs/heads/fix/scarlet-v48-r6p68-install-team-switch-20261115')",
+            "              if any(x in __import__(\"os\").environ.get(\"GITHUB_REF\",\"\") for x in (\"r6p58\",\"r6p59\",\"r6p60\",\"r6p61\",\"r6p62\",\"r6p63\",\"r6p64\",\"r6p65\",\"r6p66\",\"r6p67\",\"r6p68\")):",
+            "                  if \"r6p68\" in __import__(\"os\").environ.get(\"GITHUB_REF\", \"\"): version=\"3.8.68\"",
+            "          if [ \"$GITHUB_REF\" = \"refs/heads/fix/scarlet-v48-r6p68-install-team-switch-20261115\" ]; then",
+            "            asset=\"Scarlet-Crystal-V48-R6P68-INSTALL-TEAM-SWITCH-UNSIGNED.ipa\"",
+            "          elif [ \"$GITHUB_REF\" = \"refs/heads/fix/scarlet-v48-r6p67-auth-rollback-20261115\" ]; then",
+            "          if [ \"$GITHUB_REF\" = \"refs/heads/fix/scarlet-v48-r6p68-install-team-switch-20261115\" ]; then",
+            "            tag=scarlet-v48-r6p68-install-team-unsigned-20261115",
+            "            asset=Scarlet-Crystal-V48-R6P68-INSTALL-TEAM-SWITCH-UNSIGNED.ipa",
+            "          elif [ \"$GITHUB_REF\" = \"refs/heads/fix/scarlet-v48-r6p67-auth-rollback-20261115\" ]; then"
+          ],
+          "commit": "41a7c3ba25c4af08d97b46c30ade10a83a4c23d5"
+        },
+        {
+          "file": "rebuild/HostApp/ScarletAppleIDLoginSheet.swift",
+          "function": "P68 two-account install team selection, cert binding, signed-app refresh scope, CI and regression proof",
+          "location": "@@ -319,2 +319,126 @@ struct ScarletAppleIDLoginSheet: View {",
+          "before": [],
+          "after": [
+            "",
+            "// P68: choose the Apple account + Developer Team BEFORE opening Files.",
+            "// No private key, token, profile or certificate is sent to the host UI.",
+            "@available(iOS 17.0, *)",
+            "struct ScarletInstallTeamPicker: View {",
+            "    let onSelect: (String) -> Void",
+            "    @Environment(\\.dismiss) private var dismiss",
+            "    @State private var accounts: [ScarletStoredAppleAccount] = []",
+            "    @State private var loading = true",
+            "    @State private var busy = false",
+            "    @State private var lastReason: String?",
+            "    @State private var issueTeamID: String?",
+            "",
+            "    private func load() async {",
+            "        loading = true",
+            "        let state = await ScarletNativeSavedAccounts.list()",
+            "        accounts = state.accounts",
+            "        if state.status != \"ready\" { lastReason = state.status }"
+          ],
+          "commit": "41a7c3ba25c4af08d97b46c30ade10a83a4c23d5"
+        },
+        {
+          "file": "rebuild/HostApp/ScarletAuthXPCSupport.swift",
+          "function": "P68 two-account install team selection, cert binding, signed-app refresh scope, CI and regression proof",
+          "location": "@@ -294,4 +294,7 @@ public struct ScarletNativeRefreshInspection: Sendable {",
+          "before": [
+            "                    \"ready\", \"no_managed_apps\", \"host_not_managed\",",
+            "                    \"sidestore_certificate_missing\", \"sidestore_database_unavailable\",",
+            "            status == \"native_refresh_record_updated_install_unverified\"",
+            "                      accounts.allSatisfy({ $0.id.utf8.count <= 254 }) else {",
+            "                             \"account_worker_missing\", \"rollback_unverified\"]"
+          ],
+          "after": [
+            "    public var canRefreshSelectedTeam: Bool {",
+            "        signingReady && (reason == \"ready\" || reason == \"ready_selected_team\")",
+            "    }",
+            "                    \"ready\", \"ready_selected_team\", \"no_managed_apps\",",
+            "                    \"no_managed_apps_for_selected_team\", \"host_not_managed\",",
+            "                    \"sidestore_certificate_missing\", \"selected_team_certificate_missing\",",
+            "                    \"sidestore_database_unavailable\",",
+            "            \"native_selected_team_refresh_returned_install_unverified\",",
+            "            \"no_managed_apps_for_selected_team\", \"selected_team_not_in_refresh_results\",",
+            "            \"selected_team_changed\", \"selected_team_certificate_missing\",",
+            "            \"selected_team_certificate_activation_failed\",",
+            "            \"selected_team_certificate_readback_failed\",",
+            "            status == \"native_refresh_record_updated_install_unverified\" ||",
+            "            status == \"native_selected_team_refresh_returned_install_unverified\"",
+            "    public let teamID: String",
+            "    public let certificateReady: Bool",
+            "                      accounts.allSatisfy({",
+            "                          $0.id.utf8.count <= 254 && $0.teamID.utf8.count == 10"
+          ],
+          "commit": "41a7c3ba25c4af08d97b46c30ade10a83a4c23d5"
+        },
+        {
+          "file": "rebuild/HostApp/ScarletAutomaticRenewal.swift",
+          "function": "P68 two-account install team selection, cert binding, signed-app refresh scope, CI and regression proof",
+          "location": "@@ -41,4 +41,10 @@ enum ScarletRefreshFailureDiagnosis {",
+          "before": [
+            "            status: nativeState.canRefreshHost ? \"success\" : \"blocked\",",
+            "        guard nativeState.canRefreshHost else {"
+          ],
+          "after": [
+            "        case \"no_managed_apps_for_selected_team\":",
+            "            return \"현재 선택한 Apple 설치팀으로 등록된 관리 앱이 없습니다. 해당 팀으로 IPA를 설치한 뒤 갱신할 수 있습니다.\"",
+            "        case \"selected_team_certificate_missing\":",
+            "            return \"현재 선택한 개발팀의 서명 인증서가 없습니다. 앱 설치의 설치팀 선택 화면에서 인증서를 준비하세요.\"",
+            "        case \"selected_team_changed\":",
+            "            return \"요청 중 설치팀이 변경됐습니다. 선택한 계정을 확인하세요.\"",
+            "            status: nativeState.canRefreshSelectedTeam ? \"success\" : \"blocked\",",
+            "        guard nativeState.canRefreshSelectedTeam else {"
+          ],
+          "commit": "41a7c3ba25c4af08d97b46c30ade10a83a4c23d5"
+        },
+        {
+          "file": "rebuild/HostApp/ScarletIntegratedHostView.swift",
+          "function": "P68 two-account install team selection, cert binding, signed-app refresh scope, CI and regression proof",
+          "location": "@@ -105,4 +105,6 @@ struct ScarletIntegratedHostView: View {",
+          "before": [
+            "        guard !deviceInstallRunning, !guestImportActivity.isRunning,",
+            "                try await ScarletDeviceInstaller.install(stagedIPA: staged)",
+            "                          reason == \"team_mismatch\" || reason == \"auth_unavailable\" {",
+            "                case \"team_unavailable\", \"team_mismatch\", \"auth_unavailable\":",
+            "            ScarletDiagnosticRecorder.shared.record(\"sidestore\", \"file_picker_requested\")",
+            "            showGuestFilePicker = true"
+          ],
+          "after": [
+            "    @State private var showInstallTeamPicker = false",
+            "    @State private var selectedInstallTeamID: String?",
+            "        guard selectedInstallTeamID != nil,",
+            "              !deviceInstallRunning, !guestImportActivity.isRunning,",
+            "                guard let selectedTeamID = selectedInstallTeamID else {",
+            "                    deviceInstallStatus = \"설치팀이 선택되지 않았습니다.\"",
+            "                    return",
+            "                }",
+            "                try await ScarletDeviceInstaller.install(",
+            "                    stagedIPA: staged, teamID: selectedTeamID)",
+            "                    \"invalid_team\", \"selected_team_changed\",",
+            "                    \"team_operation_in_progress\",",
+            "                    \"selected_team_certificate_missing\",",
+            "                    \"selected_team_certificate_activation_failed\",",
+            "                    \"selected_team_certificate_readback_failed\",",
+            "                          reason == \"team_mismatch\" || reason == \"auth_unavailable\" ||",
+            "                          reason.hasPrefix(\"selected_team_\") || reason == \"invalid_team\" {",
+            "                case \"team_unavailable\", \"team_mismatch\", \"auth_unavailable\","
+          ],
+          "commit": "41a7c3ba25c4af08d97b46c30ade10a83a4c23d5"
+        },
+        {
+          "file": "rebuild/HostApp/ScarletSigningReadinessPanel.swift",
+          "function": "P68 two-account install team selection, cert binding, signed-app refresh scope, CI and regression proof",
+          "location": "@@ -210,10 +210,10 @@ struct ScarletSigningReadinessPanel: View {",
+          "before": [
+            "                status: nativeState.canRefreshHost ? \"success\" : \"blocked\",",
+            "            guard nativeState.canRefreshHost else {"
+          ],
+          "after": [
+            "                status: nativeState.canRefreshSelectedTeam ? \"success\" : \"blocked\",",
+            "            guard nativeState.canRefreshSelectedTeam else {"
+          ],
+          "commit": "41a7c3ba25c4af08d97b46c30ade10a83a4c23d5"
+        },
+        {
+          "file": "rebuild/Tests/test_sidestore_native_device_installer.py",
+          "function": "P68 two-account install team selection, cert binding, signed-app refresh scope, CI and regression proof",
+          "location": "@@ -37,6 +37,7 @@ class NativeDeviceInstallerContract(unittest.TestCase):",
+          "before": [
+            "        self.assertIn('CertificateManager.shared.loadActiveCertificate()',WORKER)",
+            "        self.assertIn('notify(\"certificate_missing\")',WORKER)",
+            "        self.assertIn('identifier: \"scarlet.install.ipa\"',WIRE)"
+          ],
+          "after": [
+            "        self.assertIn('ScarletInstallTeamAuthority.prepare(',WORKER)",
+            "        self.assertIn('notify(teamState)',WORKER)",
+            "        self.assertIn('selected_team_certificate_missing',HOST)",
+            "        self.assertIn('identifier: \"scarlet.install.ipa.\" + teamID',WIRE)"
+          ],
+          "commit": "41a7c3ba25c4af08d97b46c30ade10a83a4c23d5"
+        },
+        {
+          "file": "rebuild/Tests/test_single_home_dual_install.py",
+          "function": "P68 two-account install team selection, cert binding, signed-app refresh scope, CI and regression proof",
+          "location": "@@ -30,5 +30,5 @@ class DualInstallRoutes(unittest.TestCase):",
+          "before": [
+            "        self.assertIn(\"ScarletDeviceInstaller.install(stagedIPA: staged)\",HOST)"
+          ],
+          "after": [
+            "        self.assertIn(\"ScarletDeviceInstaller.install(\",HOST)"
+          ],
+          "commit": "41a7c3ba25c4af08d97b46c30ade10a83a4c23d5"
+        },
+        {
+          "file": "rebuild/Tests/test_v24_real_sidestore_refresh_registration.py",
+          "function": "P68 two-account install team selection, cert binding, signed-app refresh scope, CI and regression proof",
+          "location": "@@ -25,8 +25,8 @@ class V24RegistrationGate(unittest.TestCase):",
+          "before": [
+            "        self.assertIn('CertificateManager.shared.activeCertificate != nil',AGENT)",
+            "        self.assertIn('host_not_managed',AGENT)",
+            "        self.assertIn('sidestore_certificate_missing',AGENT)",
+            "        self.assertIn('guard nativeState.canRefreshHost else {',PANEL)",
+            "        self.assertLess(PANEL.index('guard nativeState.canRefreshHost else {'),",
+            "        self.assertIn('guard nativeState.canRefreshHost else {',AUTO)",
+            "        self.assertLess(AUTO.index('guard nativeState.canRefreshHost else {'),"
+          ],
+          "after": [
+            "        self.assertIn('ScarletInstallTeamAuthority.matchingCertificate(',AGENT)",
+            "        self.assertIn('ready_selected_team',AGENT)",
+            "        self.assertIn('selected_team_certificate_missing',AGENT)",
+            "        self.assertIn('guard nativeState.canRefreshSelectedTeam else {',PANEL)",
+            "        self.assertLess(PANEL.index('guard nativeState.canRefreshSelectedTeam else {'),",
+            "        self.assertIn('guard nativeState.canRefreshSelectedTeam else {',AUTO)",
+            "        self.assertLess(AUTO.index('guard nativeState.canRefreshSelectedTeam else {'),"
+          ],
+          "commit": "41a7c3ba25c4af08d97b46c30ade10a83a4c23d5"
+        },
+        {
+          "file": "rebuild/Tests/test_v27_real_sidestore_appmanager_refresh.py",
+          "function": "P68 two-account install team selection, cert binding, signed-app refresh scope, CI and regression proof",
+          "location": "@@ -30,5 +30,5 @@ class V27InProcessRefresh(unittest.TestCase):",
+          "before": [
+            "        self.assertIn('CertificateManager.shared.activeCertificate != nil',AGENT)"
+          ],
+          "after": [
+            "        self.assertIn('ScarletInstallTeamAuthority.prepare(',AGENT)"
+          ],
+          "commit": "41a7c3ba25c4af08d97b46c30ade10a83a4c23d5"
+        },
+        {
+          "file": "rebuild/Tests/test_v28_minimuxer_transport_recovery.py",
+          "function": "P68 two-account install team selection, cert binding, signed-app refresh scope, CI and regression proof",
+          "location": "@@ -38,6 +38,6 @@ class NativeDeviceTransportRecovery(unittest.TestCase):",
+          "before": [
+            "        self.assertIn('let managedHost = targets.first(where:',AGENT)",
+            "        self.assertIn('CertificateManager.shared.activeCertificate != nil',AGENT)"
+          ],
+          "after": [
+            "        self.assertIn('let managedHost = targets.first {',AGENT)",
+            "        self.assertIn('ScarletInstallTeamAuthority.prepare(',AGENT)"
+          ],
+          "commit": "41a7c3ba25c4af08d97b46c30ade10a83a4c23d5"
+        },
+        {
+          "file": "rebuild/Tests/test_v30_real_sidestore_team_reconciliation.py",
+          "function": "P68 two-account install team selection, cert binding, signed-app refresh scope, CI and regression proof",
+          "location": "@@ -55,7 +55,7 @@ class V30SideStoreTeamIntegration(unittest.TestCase):",
+          "before": [
+            "        self.assertIn('ScarletGuestSignInAgent', REFRESH)",
+            "        self.assertIn('.ensureActiveTeamForRefresh()', REFRESH)",
+            "        team = REFRESH.index('.ensureActiveTeamForRefresh()')"
+          ],
+          "after": [
+            "        self.assertIn('ScarletInstallTeamAuthority', REFRESH)",
+            "        self.assertIn('.prepare(', REFRESH)",
+            "        team = REFRESH.index('ScarletInstallTeamAuthority.prepare(')"
+          ],
+          "commit": "41a7c3ba25c4af08d97b46c30ade10a83a4c23d5"
+        },
+        {
+          "file": "rebuild/Tests/test_v33_log_rootcause_and_readback.py",
+          "function": "P68 two-account install team selection, cert binding, signed-app refresh scope, CI and regression proof",
+          "location": "@@ -30,5 +30,5 @@ class V33LogRootCauses(unittest.TestCase):",
+          "before": [
+            "        self.assertIn('after.0 > before.0',WORKER)",
+            "        self.assertLess(AUTO.index('guard nativeState.canRefreshHost else'),"
+          ],
+          "after": [
+            "        self.assertIn('after.0 > beforeDate',WORKER)",
+            "        self.assertLess(AUTO.index('guard nativeState.canRefreshSelectedTeam else'),"
+          ],
+          "commit": "41a7c3ba25c4af08d97b46c30ade10a83a4c23d5"
+        },
+        {
+          "file": "rebuild/Tests/test_v43_real_install_preflight_and_fresh_work.py",
+          "function": "P68 two-account install team selection, cert binding, signed-app refresh scope, CI and regression proof",
+          "location": "@@ -16,8 +16,8 @@ WORKFLOW=(ROOT.parent/'.github/workflows/scarlet-paired-engines-build.yml').read",
+          "before": [
+            "        self.assertIn('ScarletGuestSignInAgent\\n                    .ensureActiveTeamForRefresh()',AGENT)",
+            "        self.assertIn('teamState == \"ready\" || teamState == \"team_restored\"',AGENT)",
+            "        self.assertIn('notify(teamState == \"sidestore_team_mismatch\"',AGENT)",
+            "        self.assertIn('CertificateManager.shared.loadActiveCertificate()',AGENT)"
+          ],
+          "after": [
+            "        self.assertIn('ScarletInstallTeamAuthority.prepare(',AGENT)",
+            "        self.assertIn('teamState == \"ready\"',AGENT)",
+            "        self.assertIn('notify(teamState)',AGENT)",
+            "        self.assertIn('ScarletInstallTeamAuthority.prepare(',AGENT)"
+          ],
+          "commit": "41a7c3ba25c4af08d97b46c30ade10a83a4c23d5"
+        },
+        {
+          "file": "rebuild/Tests/test_v44_sideinstaller_success_path_comparison.py",
+          "function": "P68 two-account install team selection, cert binding, signed-app refresh scope, CI and regression proof",
+          "location": "@@ -45,6 +45,6 @@ class SideInstallerReferencePath(unittest.TestCase):",
+          "before": [
+            "        self.assertIn('CertificateManager.shared.loadActiveCertificate()',INSTALL)",
+            "        self.assertIn('ensureActiveTeamForRefresh()',INSTALL)"
+          ],
+          "after": [
+            "        self.assertIn('ScarletInstallTeamAuthority.prepare(',INSTALL)",
+            "        self.assertIn('ScarletInstallTeamAuthority.prepare(',INSTALL)"
+          ],
+          "commit": "41a7c3ba25c4af08d97b46c30ade10a83a4c23d5"
+        },
+        {
+          "file": "rebuild/Tests/test_v48_r6p23_guest_owner_refresh_stage.py",
+          "function": "P68 two-account install team selection, cert binding, signed-app refresh scope, CI and regression proof",
+          "location": "@@ -69,6 +69,6 @@ class R6P23(unittest.TestCase):",
+          "before": [
+            "        self.assertIn('CertificateManager.shared.activeCertificate != nil',N)",
+            "        self.assertIn('ensureActiveTeamForRefresh()',N)"
+          ],
+          "after": [
+            "        self.assertIn('ScarletInstallTeamAuthority.prepare(',N)",
+            "        self.assertIn('ScarletInstallTeamAuthority.prepare(',N)"
+          ],
+          "commit": "41a7c3ba25c4af08d97b46c30ade10a83a4c23d5"
+        },
+        {
+          "file": "rebuild/Tests/test_v48_r6p67_auth_rollback.py",
+          "function": "P68 two-account install team selection, cert binding, signed-app refresh scope, CI and regression proof",
+          "location": "@@ -18,5 +18,5 @@ class P67Rollback(unittest.TestCase):",
+          "before": [
+            "        self.assertIn('\"rollback_unverified\"]',H)"
+          ],
+          "after": [
+            "        self.assertIn('\"rollback_unverified\",',H)"
+          ],
+          "commit": "41a7c3ba25c4af08d97b46c30ade10a83a4c23d5"
+        },
+        {
+          "file": "rebuild/Tests/test_v48_r6p68_install_team_selection.py",
+          "function": "P68 two-account install team selection, cert binding, signed-app refresh scope, CI and regression proof",
+          "location": "@@ -0,0 +1,70 @@",
+          "before": [],
+          "after": [
+            "\"\"\"P68: signed iPhone logged team_mismatch on account B after successful 2FA.",
+            "These static proofs do not replace signed-device installation verification.",
+            "\"\"\"",
+            "from pathlib import Path",
+            "import unittest",
+            "ROOT=Path(__file__).resolve().parents[1]",
+            "VAULT=(ROOT/'integration/ScarletGuestSavedAccounts.swift.txt').read_text()",
+            "INSTALL=(ROOT/'integration/ScarletDeviceInstallAgent.swift.txt').read_text()",
+            "REFRESH=(ROOT/'integration/ScarletGuestRefreshAgent.swift.txt').read_text()",
+            "WIRE=(ROOT/'integration/wire_scarlet_auth.py').read_text()",
+            "SUPPORT=(ROOT/'HostApp/ScarletAuthXPCSupport.swift').read_text()",
+            "LOGIN=(ROOT/'HostApp/ScarletAppleIDLoginSheet.swift').read_text()",
+            "HOST=(ROOT/'HostApp/ScarletIntegratedHostView.swift').read_text()",
+            "AUTO=(ROOT/'HostApp/ScarletAutomaticRenewal.swift').read_text()",
+            "",
+            "class TeamAandB(unittest.TestCase):",
+            "    def test_user_selects_install_team_before_ipa_picker(self):",
+            "        self.assertIn('ScarletInstallTeamPicker',LOGIN)"
+          ],
+          "commit": "41a7c3ba25c4af08d97b46c30ade10a83a4c23d5"
+        },
+        {
+          "file": "rebuild/diagnostics/SCARLET_LOG_ONLY_HANDOFF_PROMPT.md",
+          "function": "P68 two-account install team selection, cert binding, signed-app refresh scope, CI and regression proof",
+          "location": "@@ -521,2 +521,10 @@ L051=R6P15 저장된 RSD 연결의 제한적 재검사다. 과거 항목에 `dev",
+          "before": [],
+          "after": [
+            "",
+            "## P68 / L116 — 로그인 2개면 설치 개발팀도 2개로 실제 분리",
+            "",
+            "- 실제 3.8.67 사용자 로그 `2026-11-15 00:27:25 UTC`, session `8236de81`, SourceCommit `1bc2e0b6bd85`: 두 번째 Apple ID의 `twofactor_code_submitted`와 `stored_session_verified` 성공 이후 `install_failed(reason=team_mismatch,stage=team,worker_stage=certificate_loaded)` 발생. 수동 갱신 2회·자동 갱신도 `sidestore_team_mismatch`로 실패. 증거는 계정 B의 실제 Team ID나 B 인증서 P12 존재까지 증명하지 않음.",
+            "- P67 ‘로그인만 다중화’에서 빠졌던 설치팀 연결이 문제의 본질임. P68은 설치 버튼→저장된 Apple 계정/각 계정의 실제 Team ID 선택→계정 token/Team 전환→일치하는 서명 P12 준비(또는 사용자가 명시적으로 인증서 발급)→IPA Files 선택→XPC `expectedTeamID` 검증→원본 SideStore AppManager 실제 설치로 연결.",
+            "- 기존 호스트의 서명팀 P8EZT3U5N4는 iOS entitlement/App Group을 증명하는 주체이지 Apple ID B의 일반 앱 설치팀이 아님. 이 두 개념을 섞어서 B 설치를 막지 말 것. 대신 B로 A의 이미 설치된 Scarlet 자체를 재서명하는 것도 금지. 앱 갱신은 원본 InstalledApp.team과 현재 선택 팀의 교집합만 사용.",
+            "- `ScarletInstallTeamAuthority`의 X.509 subject Organizational Unit 정확히 일치 검사, 만료확인, 기존 P12 보존, 선택 팀 readback, TeamOperationGate 직렬화를 유지. 인증서/OTP/Apple 암호/개인키는 XPC 응답/로그로 보내지 않음.",
+            "- 상세 파일·함수 diff는 L116 기록, 재현 로그 원인과 범위 및 서명된 실기기 수락 조건은 `rebuild/reports/SCARLET_P68_TWO_ACCOUNT_INSTALL_TEAM_20261115.md`. P67 UI 상단/상태표시줄 미해결을 P68 인증 작업의 성공으로 표기 금지. 별도 실제 iPhone A/B 설치 테스트 필요."
+          ],
+          "commit": "41a7c3ba25c4af08d97b46c30ade10a83a4c23d5"
+        },
+        {
+          "file": "rebuild/integration/ScarletDeviceInstallAgent.swift.txt",
+          "function": "P68 two-account install team selection, cert binding, signed-app refresh scope, CI and regression proof",
+          "location": "@@ -26,4 +26,9 @@ final class ScarletDeviceInstallAgent: NSObject {",
+          "before": [
+            "                guard (try? CertificateManager.shared.loadActiveCertificate()) != nil else {",
+            "                    notify(\"certificate_missing\")",
+            "                    return",
+            "                }",
+            "                mark(\"certificate_loaded\")",
+            "                // Refresh and install share the same original SideStore",
+            "                // identity/Minimuxer prerequisites. The old installer skipped",
+            "                // both of these and then collapsed the AppManager error to",
+            "                // native_install_failed. Fail at the precise missing stage.",
+            "                let teamState = await ScarletGuestSignInAgent",
+            "                    .ensureActiveTeamForRefresh()",
+            "                guard teamState == \"ready\" || teamState == \"team_restored\" else {",
+            "                    notify(teamState == \"sidestore_team_mismatch\"",
+            "                           ? \"team_mismatch\" : \"team_unavailable\")"
+          ],
+          "after": [
+            "              let expectedTeamID = payload[\"expectedTeamID\"] as? String,",
+            "              expectedTeamID.utf8.count == 10,",
+            "              expectedTeamID.allSatisfy({",
+            "                  $0.isASCII && ($0.isUppercase || $0.isNumber)",
+            "              }),",
+            "            guard await ScarletTeamOperationGate.shared.claim() else {",
+            "                notify(\"team_operation_in_progress\"); return",
+            "            }",
+            "            defer { Task { await ScarletTeamOperationGate.shared.release() } }",
+            "                // The iPhone host's signed team identifies its entitlement;",
+            "                // it is NOT the Apple team for every user-installed IPA.",
+            "                // Reject if account/team changed after file selection.",
+            "                let teamState = await ScarletInstallTeamAuthority.prepare(",
+            "                    teamID: expectedTeamID)",
+            "                guard teamState == \"ready\" else {",
+            "                    notify(teamState)",
+            "                mark(\"certificate_loaded\")"
+          ],
+          "commit": "41a7c3ba25c4af08d97b46c30ade10a83a4c23d5"
+        },
+        {
+          "file": "rebuild/integration/ScarletGuestRefreshAgent.swift.txt",
+          "function": "P68 two-account install team selection, cert binding, signed-app refresh scope, CI and regression proof",
+          "location": "@@ -11,6 +11,13 @@ final class ScarletGuestRefreshAgent: NSObject {",
+          "before": [
+            "                let signingReady = CertificateManager.shared.activeCertificate != nil",
+            "                if !managesHost {",
+            "                    reason = targets.isEmpty ? \"no_managed_apps\" : \"host_not_managed\"",
+            "                    reason = \"sidestore_certificate_missing\"",
+            "                } else {",
+            "                guard let managedHost = targets.first(where: {",
+            "                }) else {",
+            "                    reply(false, targets.isEmpty ? \"no_managed_apps\" : \"host_not_managed\")",
+            "                    return",
+            "                }",
+            "                guard CertificateManager.shared.activeCertificate != nil else {",
+            "                    reply(false, \"sidestore_certificate_missing\")",
+            "                    return",
+            "                // Save pre-refresh metadata before the original background",
+            "                // operation mutates its own CoreData record.",
+            "                    (managedHost.refreshedDate, managedHost.expirationDate)",
+            "                // V30: Authentic Apple token restoration is not equivalent",
+            "                // to SideStore's active Team record. The stock login pipeline"
+          ],
+          "after": [
+            "                let currentTeam = await ScarletInstallTeamAuthority.activeTeam()",
+            "                        .filter {",
+            "                            $0.team?.identifier == currentTeam?.identifier ||",
+            "                            (currentTeam?.identifier == \"P8EZT3U5N4\" &&",
+            "                             $0.resignedBundleIdentifier == Bundle.Info.activeBundleIdentifier &&",
+            "                             $0.team == nil)",
+            "                        }",
+            "                let signingReady = currentTeam.flatMap {",
+            "                    ScarletInstallTeamAuthority.matchingCertificate(for: $0.identifier)",
+            "                } != nil",
+            "                if targets.isEmpty {",
+            "                    reason = \"no_managed_apps_for_selected_team\"",
+            "                    reason = \"selected_team_certificate_missing\"",
+            "                } else if managesHost {",
+            "                } else {",
+            "                    reason = \"ready_selected_team\"",
+            "            guard await ScarletTeamOperationGate.shared.claim() else {",
+            "                reply(false, \"team_operation_in_progress\")"
+          ],
+          "commit": "41a7c3ba25c4af08d97b46c30ade10a83a4c23d5"
+        },
+        {
+          "file": "rebuild/integration/ScarletGuestSavedAccounts.swift.txt",
+          "function": "P68 two-account install team selection, cert binding, signed-app refresh scope, CI and regression proof",
+          "location": "@@ -14,4 +14,6 @@ private struct ScarletSavedAccountRow: Codable {",
+          "before": [
+            "        let rows = slots.map {",
+            "            ScarletSavedAccountRow(id: $0.email,",
+            "                active: identifier($0.email) == active &&",
+            "                    ScarletGuestSignInAgent.persistedState())"
+          ],
+          "after": [
+            "    let teamID: String",
+            "    let certificateReady: Bool",
+            "        let rows = slots.map { slot in",
+            "            ScarletSavedAccountRow(id: slot.email,",
+            "                active: identifier(slot.email) == active &&",
+            "                    ScarletGuestSignInAgent.persistedState(),",
+            "                teamID: slot.teamID,",
+            "                certificateReady: ScarletInstallTeamAuthority.matchingCertificate(",
+            "                    for: slot.teamID) != nil)",
+            "            guard await ScarletTeamOperationGate.shared.claim() else {",
+            "                reply(false, \"team_operation_in_progress\"); return",
+            "            }",
+            "            defer { Task { await ScarletTeamOperationGate.shared.release() } }",
+            "",
+            "// Serializes all operations that mutate the one native SideStore active",
+            "// account/team/certificate slot. Never allow an install to race a login.",
+            "private actor ScarletTeamOperationGate {",
+            "    static let shared = ScarletTeamOperationGate()"
+          ],
+          "commit": "41a7c3ba25c4af08d97b46c30ade10a83a4c23d5"
+        },
+        {
+          "file": "rebuild/integration/ScarletGuestSignInAgent.swift.txt",
+          "function": "P68 two-account install team selection, cert binding, signed-app refresh scope, CI and regression proof",
+          "location": "@@ -140,4 +140,9 @@ final class ScarletGuestSignInAgent: NSObject {",
+          "before": [],
+          "after": [
+            "            guard await ScarletTeamOperationGate.shared.claim() else {",
+            "                finish(id, code: -3454, domain: \"scarlet.auth.team_operation_in_progress\")",
+            "                return",
+            "            }",
+            "            defer { Task { await ScarletTeamOperationGate.shared.release() } }"
+          ],
+          "commit": "41a7c3ba25c4af08d97b46c30ade10a83a4c23d5"
+        },
+        {
+          "file": "rebuild/integration/wire_scarlet_auth.py",
+          "function": "P68 two-account install team selection, cert binding, signed-app refresh scope, CI and regression proof",
+          "location": "@@ -37,4 +37,6 @@ def patch_livecontainer(engine: Path) -> None:",
+          "before": [
+            "        '''    if ([identifier isEqualToString:@\"scarlet.install.ipa\"]) {",
+            "                                  @\"filename\": mangledTypeName ?: @\"\"};",
+            "    public static func install(stagedIPA: URL) async throws {",
+            "            identifier: \"scarlet.install.ipa\","
+          ],
+          "after": [
+            "- (void)scarletPrepareInstallTeam:(NSString*)teamID reply:(void (^)(BOOL ready, NSString *status))reply;",
+            "- (void)scarletIssueInstallTeamCertificate:(NSString*)teamID reply:(void (^)(BOOL ready, NSString *status))reply;",
+            "- (void)scarletPrepareInstallTeam:(NSString*)teamID",
+            "                             reply:(void (^)(BOOL, NSString *))reply {",
+            "    Class worker = NSClassFromString(@\"ScarletGuestSignInAgent\");",
+            "    SEL selector = @selector(prepareInstallTeam:reply:);",
+            "    if (!worker || ![worker respondsToSelector:selector]) {",
+            "        reply(NO, @\"account_worker_missing\"); return;",
+            "    }",
+            "    if (teamID.length != 10) { reply(NO, @\"invalid_team\"); return; }",
+            "    ((void (*)(id, SEL, id, id))objc_msgSend)(worker, selector, teamID, reply);",
+            "}",
+            "",
+            "- (void)scarletIssueInstallTeamCertificate:(NSString*)teamID",
+            "                                      reply:(void (^)(BOOL, NSString *))reply {",
+            "    Class worker = NSClassFromString(@\"ScarletGuestSignInAgent\");",
+            "    SEL selector = @selector(issueInstallTeamCertificate:reply:);",
+            "    if (!worker || ![worker respondsToSelector:selector]) {"
+          ],
+          "commit": "41a7c3ba25c4af08d97b46c30ade10a83a4c23d5"
+        }
+      ],
+      "generated_runtime_targets": [
+        {
+          "source_template": "rebuild/integration/ScarletGuestSavedAccounts.swift.txt",
+          "generated_file": "SideStore/Core/Auth/AuthManager.swift",
+          "source_generation_script": "rebuild/integration/wire_scarlet_auth.py",
+          "function": "ScarletInstallTeamAuthority.prepare/issue;ScarletTeamOperationGate;ScarletGuestSignInAgent.prepareInstallTeam/issueInstallTeamCertificate"
+        },
+        {
+          "source_template": "rebuild/integration/ScarletDeviceInstallAgent.swift.txt",
+          "generated_file": "SideStore/Core/Auth/AuthManager.swift",
+          "source_generation_script": "rebuild/integration/wire_scarlet_auth.py",
+          "function": "ScarletDeviceInstallAgent.install"
+        },
+        {
+          "source_template": "rebuild/integration/ScarletGuestRefreshAgent.swift.txt",
+          "generated_file": "SideStore/Core/Auth/AuthManager.swift",
+          "source_generation_script": "rebuild/integration/wire_scarlet_auth.py",
+          "function": "ScarletGuestRefreshAgent.inspect/perform"
+        },
+        {
+          "source_template": "rebuild/integration/wire_scarlet_auth.py",
+          "generated_file": "SideStoreSupport/XPCServer.h;SideStoreSupport/XPCClient.m;SideStoreSupport/SideStore.swift",
+          "source_generation_script": "rebuild/integration/wire_scarlet_auth.py",
+          "function": "scarletPrepareInstallTeam;scarletIssueInstallTeamCertificate;ScarletDeviceInstaller.install"
+        },
+        {
+          "source_template": "rebuild/HostApp/ScarletAppleIDLoginSheet.swift",
+          "generated_file": "LiveContainerSwiftUI/Views/Host/ScarletAppleIDLoginSheet.swift",
+          "source_generation_script": "rebuild/integration/apply_scarlet_host.py",
+          "function": "ScarletInstallTeamPicker"
         }
       ]
     }
