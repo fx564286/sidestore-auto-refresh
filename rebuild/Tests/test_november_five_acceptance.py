@@ -16,9 +16,9 @@ class FivePointNovemberAccept(unittest.TestCase):
         self.assertIn("scarletLoginVerified: Bool? = nil", PATCH)
         self.assertIn('Label("추가 로그인", systemImage:', PATCH)
         self.assertIn('SCARLET_SETTINGS_LOGIN_VERIFIED', PATCH)
-        self.assertIn('서명 준비됨', PATCH)
+        self.assertNotIn('서명 준비됨', PATCH)
         self.assertIn('ScarletConnectedSideSignEngine().storedAuthenticated()', PATCH)
-        self.assertIn("서명 확인 필요", PATCH)
+        self.assertNotIn("서명 확인 필요", PATCH)
         self.assertIn("onDismiss:", PATCH)
 
     def test_2_real_independent_four_column_guest_launcher(self):

@@ -43,7 +43,7 @@ class V32KoreanCopy(unittest.TestCase):
 
     def test_refresh_receipt_kept_honest_but_korean_plain(self):
         self.assertIn('Text("앱 갱신 중")', SETTINGS)
-        self.assertIn('LabeledContent("자동 갱신 대상"', SETTINGS)
+        self.assertNotIn('LabeledContent("자동 갱신 대상"', SETTINGS)
         self.assertIn('Text("서명 및 페어링")', SETTINGS)
         self.assertIn('"갱신 작업은 끝났지만, 실제 설치 완료는 확인되지 않았습니다."', SETTINGS)
         self.assertIn('native_operation_returned_unverified', WORKER)

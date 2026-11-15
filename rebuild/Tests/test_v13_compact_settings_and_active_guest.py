@@ -20,8 +20,8 @@ class V13(unittest.TestCase):
   self.assertIn('apps.filter { !$0.isCurrent }',GUEST)
  def test_compact_controls_preserve_function(self):
   self.assertNotIn('LabeledContent("LiveContainer 서명 인증서"',CAP)
-  self.assertIn('LabeledContent("서명 상태"',CAP)
-  self.assertIn('LabeledContent("자동 갱신"',CAP)
+  self.assertNotIn('LabeledContent("서명 상태"',CAP)
+  self.assertIn('LabeledContent("최근 갱신"',CAP)
   self.assertIn('SideStore 인증서 받기',CAP)
   self.assertIn('P12 파일 선택',CAP)
   self.assertIn('Toggle("멀티탭 전환 애니메이션"',MODULE)

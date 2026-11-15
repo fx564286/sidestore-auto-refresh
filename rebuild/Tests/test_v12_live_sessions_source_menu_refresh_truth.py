@@ -43,7 +43,7 @@ class V12LiveTruth(unittest.TestCase):
         self.assertIn('onAddSource: {',HOST)
 
     def test_refresh_does_not_claim_success_when_only_preflight(self):
-        self.assertIn('LabeledContent("자동 갱신",',CERT)
+        self.assertIn('LabeledContent("최근 갱신",',CERT)
         self.assertIn('"Scarlet.Refresh.LastAttemptOutcome"',CERT)
         self.assertIn('lastRefreshAttemptState',CERT)
         self.assertIn('"요청 반환 · 재설치 확인 안 됨"',CERT)

@@ -558,20 +558,13 @@ struct ScarletSigningReadinessPanel: View {
 
     var body: some View {
         Section {
-            LabeledContent("자동 갱신",
-                value: lastRefreshAttemptState == "기록 없음" ?
-                       "대기 중" : displayRefreshState)
-            if let refreshManagedAppCount {
-                LabeledContent("자동 갱신 대상", value: String(refreshManagedAppCount))
-                    .accessibilityIdentifier("SCARLET_MANAGED_REFRESH_APP_COUNT")
+            // Normal idle state needs no technical refresh label. Preserve
+            // the full managed-app/host-readback in diagnostics, not the UI.
+            if lastRefreshAttemptState != "기록 없음" {
+                LabeledContent("최근 갱신", value: displayRefreshState)
+                    .accessibilityIdentifier("SCARLET_REFRESH_VISIBLE_OUTCOME")
             }
-            if let refreshHostManaged {
-                LabeledContent("이 앱 자동 갱신",
-                               value: refreshHostManaged ? "등록됨" : "등록 안 됨")
-                    .accessibilityIdentifier("SCARLET_MANAGED_HOST_REGISTRATION")
-            }
-            if let lastRefreshFailureReason {
-                LabeledContent("갱신 문제", value: "확인 필요")
+            if let lastRefreshFailureReason, statusMessage == nil {
                 Text(ScarletRefreshFailureDiagnosis.nativeGuidance(lastRefreshFailureReason))
                     .font(.footnote)
                     .foregroundStyle(.secondary)
@@ -610,10 +603,6 @@ struct ScarletSigningReadinessPanel: View {
             }
             .disabled(refreshing || !readiness.canRequestNativeRefresh)
             .accessibilityIdentifier("SCARLET_NATIVE_REFRESH_NOW")
-            LabeledContent("서명 상태",
-                value: readiness.canRequestNativeRefresh &&
-                       readiness.liveContainerCertificatePresent &&
-                       readiness.liveContainerPasswordPresent ? "준비됨" : "확인 필요")
             Button(action: requestNativeCertificate) {
                 if isIssuingNativeCertificate || isRetrievingSideStoreCertificate {
                     HStack(spacing: 9) {

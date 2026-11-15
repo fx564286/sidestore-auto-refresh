@@ -22,7 +22,7 @@ class SignedRuntimeCapabilityGate(unittest.TestCase):
         self.assertIn('"false"', CAP)
 
     def test_2_automatic_refresh_not_falsely_reported(self):
-        self.assertIn('LabeledContent("자동 갱신",', CAP)
+        self.assertIn('LabeledContent("최근 갱신",', CAP)
         self.assertIn('case "기록 없음": return "대기 중"', CAP)
         self.assertIn("recommendedLeadTime: TimeInterval = 72 * 3600", POLICY)
 
@@ -47,7 +47,7 @@ class SignedRuntimeCapabilityGate(unittest.TestCase):
         self.assertIn("signedApplicationIdentifierMatches: signedIDMatches", CAP)
         self.assertIn("actualHostIdentity && signedApplicationIdentifierMatches", CAP)
         self.assertIn("signed_application_identifier_mismatch", CAP)
-        self.assertIn('"서명 상태"', CAP)
+        self.assertNotIn('"서명 상태"', CAP)
         self.assertIn("FileManager.default.containerURL(", CAP)
         self.assertNotIn("SecTaskCopyValueForEntitlement = ", CAP)
 
@@ -63,7 +63,7 @@ class SignedRuntimeCapabilityGate(unittest.TestCase):
     def test_5_native_settings_has_real_panel_not_dummy_toggle(self):
         self.assertIn("ScarletSigningReadinessPanel.swift", PATCH)
         self.assertIn("ScarletSigningReadinessPanel()", PATCH)
-        self.assertIn("SCARLET_CERTIFICATE_SEPARATE_FROM_LOGIN", PATCH)
+        self.assertNotIn("SCARLET_CERTIFICATE_SEPARATE_FROM_LOGIN", PATCH)
         self.assertIn("canRequestNativeRefresh", CAP)
         self.assertIn(".disabled(isIssuingNativeCertificate ||", CAP)
 

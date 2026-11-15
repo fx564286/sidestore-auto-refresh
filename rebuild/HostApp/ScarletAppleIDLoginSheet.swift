@@ -167,13 +167,10 @@ struct ScarletAppleIDLoginSheet: View {
             Form {
                 if retainedSession && !explicitlyReauthenticating {
                     Section("SideStore 로그인 상태") {
-                        Label("인증 정보 유지 확인됨", systemImage: "checkmark.shield.fill")
+                        Label("로그인됨", systemImage: "checkmark.shield.fill")
                             .foregroundStyle(.green)
                             .accessibilityIdentifier("SCARLET_STORED_LOGIN_VISIBLE")
-                        Text("SideStore 보안 저장소에서 Apple 인증 토큰을 확인했습니다. 서명 인증서와 활성 팀 설정은 별도로 검증됩니다.")
-                            .font(.footnote)
-                            .foregroundStyle(.secondary)
-                        Button("다른 Apple ID 추가") {
+                        Button("추가 로그인") {
                             explicitlyReauthenticating = true
                         }
                         .disabled(isSelectingAccount || isAuthenticating || accountListStatus != nil)
@@ -401,9 +398,11 @@ struct ScarletInstallTeamPicker: View {
                                 }
                                 Text("개발팀: " + row.teamID)
                                     .font(.footnote)
-                                Text(row.certificateReady ? "인증서 저장됨" : "인증서 준비 필요")
-                                    .font(.footnote)
-                                    .foregroundStyle(.secondary)
+                                if !row.certificateReady {
+                                    Label("인증서 필요", systemImage: "exclamationmark.circle")
+                                        .font(.footnote)
+                                        .foregroundStyle(.secondary)
+                                }
                             }
                         }
                         .disabled(busy || loading)

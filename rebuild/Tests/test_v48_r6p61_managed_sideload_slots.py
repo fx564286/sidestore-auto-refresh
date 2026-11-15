@@ -41,7 +41,7 @@ class NativeSideloadSlotContract(unittest.TestCase):
         self.assertIn('SideStore 원본 백업·복원 경로만 사용합니다', HOST)
         self.assertNotIn('AppManager.shared.deactivate(', HOST)
     def test_keep_guest_independent_from_device_install_and_privacy(self):
-        self.assertIn('기기에 직접 설치한 앱만 관리합니다. 컨테이너 게스트 앱은 제한 대상이 아닙니다', HOST)
+        self.assertNotIn('다른 계정을 등록해도 설치 팀이 자동 변경되지는 않습니다', HOST)
         self.assertIn('SCARLET_NATIVE_SLOT_MANAGER_SHEET', HOST)
         self.assertIn('SCARLET_NATIVE_SLOT_MANAGER_OPEN', HOST)
         self.assertIn('slot_management_inspected', HOST)

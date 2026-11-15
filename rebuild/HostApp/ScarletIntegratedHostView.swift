@@ -1200,12 +1200,8 @@ struct ScarletIntegratedHostView: View {
                         .safeAreaInset(edge: .top) {
                             VStack(spacing: 8) {
                             Toggle(isOn: $experimentalFullscreenResident) {
-                                VStack(alignment: .leading, spacing: 2) {
-                                    Text("실험적 전체화면 RAM 유지")
-                                        .font(.subheadline.weight(.medium))
-                                    Text("창 크기를 바꾸지 않는 LiveProcess 장면 전환 · 기기 검증 전")
-                                        .font(.caption2).foregroundStyle(.secondary)
-                                }
+                                Text("실험적 전체화면 RAM 유지")
+                                    .font(.subheadline.weight(.medium))
                             }
                             .padding(.horizontal, 14)
                             .padding(.vertical, 8)
@@ -1636,10 +1632,6 @@ struct ScarletIntegratedHostView: View {
                         .tint(Color(red: 0.72, green: 0.63, blue: 0.99))
                         .accessibilityLabel("소스 IPA 다운로드 중")
                 }
-                Text("다운로드 후 LiveContainer 가져오기와 서명 검증을 진행합니다.")
-                    .font(.caption)
-                    .multilineTextAlignment(.center)
-                    .foregroundStyle(Color(red: 0.68, green: 0.65, blue: 0.75))
                 HStack(spacing: 12) {
                     if sourceIsDownloading {
                         Button("다운로드 취소") {
@@ -1769,10 +1761,6 @@ private struct ScarletManagedSlotSheet: View {
     var body: some View {
         NavigationStack {
             List {
-                Section {
-                    Text("기기에 직접 설치한 앱만 관리합니다. 컨테이너 게스트 앱은 제한 대상이 아닙니다.")
-                    Text("무료 계정은 일반적으로 동시 활성 앱 3개(호스트 포함), 7일간 App ID 10개 제한이 적용됩니다. 다른 계정을 등록해도 설치 팀이 자동 변경되지는 않습니다.")
-                }
                 Section("SideStore 설치 기록") {
                     if rows.isEmpty {
                         Text(loading ? "SideStore 설치 기록 확인 중" : "관리 가능한 앱이 없거나 SideStore 데이터베이스에 접근할 수 없습니다.")

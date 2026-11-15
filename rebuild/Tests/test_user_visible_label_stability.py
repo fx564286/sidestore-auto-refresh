@@ -21,14 +21,12 @@ class UserVisibleLabelStability(unittest.TestCase):
         self.assertIn('SCARLET_SETTINGS_ADD_LOGIN',PATCH)
         self.assertNotIn('scarletShowAccountAdditionNotice',PATCH)
         self.assertNotIn('Label("Apple ID 로그인",',PATCH)
-        self.assertIn('서명 준비됨',PATCH)
+        self.assertNotIn('서명 준비됨',PATCH)
 
     def test_original_settings_and_manual_refresh_labels_are_preserved(self):
-        for label in (
-            'LabeledContent("서명 상태",',
-            'LabeledContent("자동 갱신",',
-        ):
-            self.assertIn(label,CAP)
+        self.assertIn('LabeledContent("최근 갱신",', CAP)
+        self.assertNotIn('LabeledContent("자동 갱신",', CAP)
+        self.assertNotIn('LabeledContent("서명 상태",', CAP)
         self.assertNotIn('LabeledContent("App Group 서명 권한",',CAP)
 
     def test_original_upstream_certificate_alert_not_overwritten(self):
