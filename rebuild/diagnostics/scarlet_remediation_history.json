@@ -2,9 +2,9 @@
   "schema": 2,
   "scope": "Scarlet Crystal guest top-screen overlap, touch access, rotation, remote guest render and related resident regressions",
   "updated_utc": "2026-11-15T00:00:00Z",
-  "current_baseline": "P67 signed iPhone 3.8.67 shows 2FA success but team_mismatch install/refresh; P68 published source 41a7c3ba fixes A/B per-account install team, 754 Python tests 3 skipped; native Xcode CI and signed device pending.",
-  "current_issue_status": "P68 per-Apple-ID install team and local P12 selection source implemented; native device A→B IPA installation and refresh pending. Separate P65 top overlap/statusbar issue unresolved.",
-  "confidence_note": "P67 device log directly confirms install/refresh team mismatch after authenticated second ID. P68 source and static tests checked; no P68 native build/IPA or iPhone installation success yet.",
+  "current_baseline": "P68 initial SideStore native CI run 43659977506 failed MainActor Swift compilation; P68 second source 0bee6451 fixes await/immutable Team ID; Python 754 tests 3 skipped, new native CI pending.",
+  "current_issue_status": "P68 per-team signing selection source + compile correction published; native build retest and signed iPhone A/B installs pending. Previous guest statusbar/top risk unresolved.",
+  "confidence_note": "Signed P67 device confirms B login but hardcoded team mismatch. P68 compiler failure source observed and patched, native retest still necessary.",
   "privacy": "No credentials, Apple ID, OTP, UDID, guest names or device identifiers are stored.",
   "entries": [
     {
@@ -35247,6 +35247,114 @@
           "generated_file": "LiveContainerSwiftUI/Views/Host/ScarletAppleIDLoginSheet.swift",
           "source_generation_script": "rebuild/integration/apply_scarlet_host.py",
           "function": "ScarletInstallTeamPicker"
+        }
+      ]
+    },
+    {
+      "id": "L117",
+      "date": "2026-11-15",
+      "version": "Scarlet-V48-R6P68-SideStore-MainActor-compile",
+      "problem": "sidestore_native_swift_actor_isolation_compile",
+      "mechanism": "mainactor_certificate_await_and_sendable_teamid_snapshot",
+      "novelty": {
+        "prior_excluded_ids": [
+          "L114",
+          "L116"
+        ],
+        "causal_difference": "P68 initial macOS/Xcode27.2 SideStore compilation failed because guest refresh inspect() used synchronous Optional.flatMap to call a @MainActor isolated static matchingCertificate(for:). At AuthManager.swift:1123:49 compiler rejected ActorIsolatedCall. The correction converts currentTeam to immutable String Team ID before capturing it in CoreData background callback and awaits certificate inspection on appropriate actor. The same immutable string snapshot is used in refresh perform() to avoid capturing a non-Sendable ALTTeam object.",
+        "falsifiable_prediction": "A native Xcode27.2 SideStore build of the amended P68 source must pass the explicit AuthManager.swift:1123 actor-isolation failure and compile the complete account-scoped team refresh pipeline; static tests must verify awaited matchingCertificate and identifier-only closures. If further native errors appear, inspect exact build artifact instead of reporting compiled."
+      },
+      "hypothesis": "The P68 team-selection source is structurally correct but one synchronous certificate query violated Swift 6 strict actor isolation; awaiting it and snapshotting the team ID should remove that compiler error.",
+      "action": "Rewrote inspect() to use currentTeamID (String) and awaited ScarletInstallTeamAuthority.matchingCertificate(for:); rewrote perform() to capture selectedTeamID as immutable String before CoreData background task; updated regression tests.",
+      "observation": "GitHub Actions run 43659977506 SideStore job 132646885378 failed exit 2; sidestore-build.log line ~7195: AuthManager.swift:1123:49 error call to main actor-isolated static method matchingCertificate(for:) in a synchronous nonisolated context. Exactly one unique compiler error observed. Local 754 tests passed 751+3 skipped; native retry pending.",
+      "evidence": "CI run https://github.com/fx564286/sidestore-auto-refresh/actions/runs/43659977506; failure archive Scarlet-SideStore-Failure-Logs-attempt-1, source AuthManager.swift:1123:49; source patch and exact diff below.",
+      "status": "source_committed_751_python_tests_pass_3_skipped_native_ci_retry_pending",
+      "source_verification": "git_patch_observed",
+      "device_verification": "not_verified",
+      "next_executable_action": "Run new P68 Xcode27.2 native SideStore CI on patched branch; inspect all compile errors and release IPA if native Xcode + package succeed; sign and test actual iPhone A/B team installation.",
+      "rollback_commit": "eee6956f23b7fe06b4c6e823acdc9ad4a441ae5b",
+      "repeat_policy": "do_not_call_mainactor_certificate_from_sync_optional_flatmap_or_capture_alteam_in_coredata_callback",
+      "source_revisions": [
+        {
+          "sha": "0bee6451a3390c66107d3481ffaf5950f9fe04f5",
+          "title": "fix(r6p68): await MainActor certificate inspection and send immutable team ID into CoreData",
+          "url": "https://github.com/fx564286/sidestore-auto-refresh/commit/0bee6451a3390c66107d3481ffaf5950f9fe04f5"
+        }
+      ],
+      "code_locations": [
+        {
+          "file": "rebuild/Tests/test_v24_real_sidestore_refresh_registration.py",
+          "function": "P68 MainActor certificate inspect and CoreData Sendable Team ID snapshot",
+          "location": "@@ -25,5 +25,5 @@ class V24RegistrationGate(unittest.TestCase):",
+          "before": [
+            "        self.assertIn('ScarletInstallTeamAuthority.matchingCertificate(',AGENT)"
+          ],
+          "after": [
+            "        self.assertIn('.matchingCertificate(for: currentTeamID) != nil',AGENT)"
+          ],
+          "commit": "0bee6451a3390c66107d3481ffaf5950f9fe04f5"
+        },
+        {
+          "file": "rebuild/Tests/test_v48_r6p68_install_team_selection.py",
+          "function": "P68 MainActor certificate inspect and CoreData Sendable Team ID snapshot",
+          "location": "@@ -54,5 +54,9 @@ class TeamAandB(unittest.TestCase):",
+          "before": [
+            "        self.assertIn('$0.team?.identifier == selectedTeam.identifier',REFRESH)"
+          ],
+          "after": [
+            "        self.assertIn('$0.team?.identifier == selectedTeamID',REFRESH)",
+            "        self.assertIn('let currentTeamID = (await ScarletInstallTeamAuthority.activeTeam())?.identifier',REFRESH)",
+            "        self.assertIn('signingReady = await ScarletInstallTeamAuthority',REFRESH)",
+            "        self.assertIn('.matchingCertificate(for: currentTeamID) != nil',REFRESH)",
+            "        self.assertNotIn('let signingReady = currentTeam.flatMap {',REFRESH)"
+          ],
+          "commit": "0bee6451a3390c66107d3481ffaf5950f9fe04f5"
+        },
+        {
+          "file": "rebuild/integration/ScarletGuestRefreshAgent.swift.txt",
+          "function": "P68 MainActor certificate inspect and CoreData Sendable Team ID snapshot",
+          "location": "@@ -11,10 +11,12 @@ final class ScarletGuestRefreshAgent: NSObject {",
+          "before": [
+            "                let currentTeam = await ScarletInstallTeamAuthority.activeTeam()",
+            "                            $0.team?.identifier == currentTeam?.identifier ||",
+            "                            (currentTeam?.identifier == \"P8EZT3U5N4\" &&",
+            "                let signingReady = currentTeam.flatMap {",
+            "                    ScarletInstallTeamAuthority.matchingCertificate(for: $0.identifier)",
+            "                } != nil",
+            "                guard let selectedTeam = await ScarletInstallTeamAuthority.activeTeam() else {",
+            "                            $0.team?.identifier == selectedTeam.identifier ||",
+            "                            (selectedTeam.identifier == \"P8EZT3U5N4\" &&",
+            "                    teamID: selectedTeam.identifier)"
+          ],
+          "after": [
+            "                // Move an immutable, Sendable Team ID across CoreData's",
+            "                // background closure; the ALTTeam is not a Sendable value.",
+            "                let currentTeamID = (await ScarletInstallTeamAuthority.activeTeam())?.identifier",
+            "                            $0.team?.identifier == currentTeamID ||",
+            "                            (currentTeamID == \"P8EZT3U5N4\" &&",
+            "                let signingReady: Bool",
+            "                if let currentTeamID {",
+            "                    // CertificateManager and its local P12 store live on the",
+            "                    // main actor, not this synchronous Optional.flatMap body.",
+            "                    signingReady = await ScarletInstallTeamAuthority",
+            "                        .matchingCertificate(for: currentTeamID) != nil",
+            "                } else {",
+            "                    signingReady = false",
+            "                }",
+            "                guard let selectedTeamID = (await ScarletInstallTeamAuthority.activeTeam())?.identifier else {",
+            "                            $0.team?.identifier == selectedTeamID ||",
+            "                            (selectedTeamID == \"P8EZT3U5N4\" &&",
+            "                    teamID: selectedTeamID)"
+          ],
+          "commit": "0bee6451a3390c66107d3481ffaf5950f9fe04f5"
+        }
+      ],
+      "generated_runtime_targets": [
+        {
+          "source_template": "rebuild/integration/ScarletGuestRefreshAgent.swift.txt",
+          "generated_file": "SideStore/Core/Auth/AuthManager.swift",
+          "source_generation_script": "rebuild/integration/wire_scarlet_auth.py",
+          "function": "ScarletGuestRefreshAgent.inspect/perform"
         }
       ]
     }
