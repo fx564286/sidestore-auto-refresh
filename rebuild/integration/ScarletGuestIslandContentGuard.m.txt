@@ -1770,6 +1770,106 @@ static void ScarletIslandTryDeepHeaderSafeGuideAnchor(
     });
 }
 
+// R6P74_STATUSBAND_EVIDENCE_BEGIN
+// P71 signed device: original y3 header overlap 8-> verified native header
+// retained -> five residual controls with first visible y60, safeTop62.
+// P51's ANY-pixel collision latch cannot distinguish a deep Island overlap
+// from a 2pt near-boundary scroll thumbnail after actual header reflow.
+// Never resize/crop/shift guest content or simply override statusBarHidden.
+// Inspect ALL visible UIKit descendants to depth56 with a 2400 node cap;
+// unknown, capped, transient or severe status-region content stays shielded.
+typedef struct {
+    NSUInteger visited;
+    NSUInteger nearControls;
+    NSUInteger severeNodes;
+    NSInteger firstNearControlY;
+    BOOL capped;
+} ScarletP74StatusbandRisk;
+static void ScarletP74WalkStatusband(
+    UIView *node, UIWindow *window, CGFloat safeTop, NSUInteger depth,
+    ScarletP74StatusbandRisk *risk) {
+    if(!node || risk->capped || node.window!=window || node.hidden ||
+       node.alpha<0.05) return;
+    if(depth>56 || ++risk->visited>2400) { risk->capped=YES; return; }
+    if(depth>0) {
+        CGRect full=[node convertRect:node.bounds toView:window];
+        CGFloat height=CGRectGetHeight(full);
+        if(isfinite(height) && height>2 && height<=160 &&
+           isfinite(CGRectGetMinY(full))) {
+            CGRect visible=ScarletIslandVisibleFrameInWindow(node,window);
+            if(!CGRectIsNull(visible) && !CGRectIsEmpty(visible) &&
+               CGRectGetMaxY(visible)>5) {
+                BOOL control=[node isKindOfClass:UIControl.class] ||
+                    (node.isAccessibilityElement &&
+                     (node.accessibilityTraits & UIAccessibilityTraitButton)!=0);
+                BOOL content=[node isKindOfClass:UILabel.class] ||
+                    [node isKindOfClass:UIImageView.class] ||
+                    [node isKindOfClass:UITextField.class] ||
+                    [node isKindOfClass:UITextView.class];
+                CGFloat y=CGRectGetMinY(visible);
+                if(control && y<safeTop-2) {
+                    risk->nearControls++;
+                    risk->firstNearControlY=MIN(
+                        risk->firstNearControlY,(NSInteger)lround(y));
+                }
+                // At safeTop62 the physical status text/Island region ends
+                // above y53. Controls/images at y60 have only a 2pt inset
+                // discrepancy, unlike the original severe y3 overlay.
+                if((control || content) && y<safeTop-9)
+                    risk->severeNodes++;
+            }
+        }
+    }
+    for(UIView *child in node.subviews) {
+        if(risk->capped) break;
+        ScarletP74WalkStatusband(child,window,safeTop,depth+1,risk);
+    }
+}
+static void ScarletP74PublishStatusband(
+    UIWindow *window, UIViewController *root, CGFloat safeTop,
+    NSUInteger sample) {
+    if(!window || window.hidden || window.windowLevel!=UIWindowLevelNormal ||
+       !root || window.rootViewController!=root || !root.isViewLoaded ||
+       root.view.window!=window ||
+       window.windowScene.activationState!=UISceneActivationStateForegroundActive ||
+       !UIInterfaceOrientationIsPortrait(window.windowScene.interfaceOrientation) ||
+       safeTop<40 || fabs(root.view.safeAreaInsets.top-safeTop)>3) return;
+    ScarletP74StatusbandRisk risk={0};
+    risk.firstNearControlY=NSIntegerMax;
+    ScarletP74WalkStatusband(root.view,window,safeTop,0,&risk);
+    ScarletIslandPublish(@{
+        @"receipt":NSUUID.UUID.UUIDString,
+        @"pid":@(getpid()),
+        @"epoch":@([[NSDate date] timeIntervalSince1970]),
+        @"result":@"guest_post_header_statusband_probe",
+        @"target":@((int)lround(safeTop)),
+        @"sample_index":@(sample),
+        @"near_controls":@(risk.nearControls),
+        @"severe_nodes":@(risk.severeNodes),
+        @"scan_complete":@(!risk.capped),
+        @"first_near_control_y":@(risk.firstNearControlY==NSIntegerMax ? -999 :
+            risk.firstNearControlY)
+    });
+}
+// P74 late scan scheduling is kept separate from P36's original single
+// 650/2600ms root-replacement probe. No old retry path is altered.
+static void ScarletP74ScheduleStatusbandProbes(
+    UIWindow *window, CGFloat expectedTop) {
+    __weak UIWindow *weakWindow=window;
+    // P74: two new, late READ-ONLY status-region scans after the native
+    // header contract has had time to settle. Do not invoke earlier inset,
+    // cropping, header transform or owner-selection functions from here.
+    for(NSNumber *late in @[@2850, @3550]) {
+        NSUInteger sample=late.unsignedIntegerValue;
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW,
+            (int64_t)sample*NSEC_PER_MSEC), dispatch_get_main_queue(), ^{
+            UIWindow *w=weakWindow;
+            UIViewController *r=w.rootViewController;
+            ScarletP74PublishStatusband(w,r,expectedTop,sample);
+        });
+    }
+}
+// R6P74_STATUSBAND_EVIDENCE_END
 // R6P36: P35 iPhone PID3252 receives a valid root-safe62 receipt but
 // emits no 650/2600 geometry packet, while PID3244 does. The original
 // scheduled reader silently returns on a lost/replaced/hidden root.
@@ -1809,6 +1909,7 @@ static void ScarletIslandScheduleContentProbe(UIWindow *window,
     __weak UIWindow *weakWindow = window;
     __weak UIViewController *weakRoot = root;
     ScarletIslandProbeStatus(@"scheduled", window, root, expectedTop, 0, NO);
+    ScarletP74ScheduleStatusbandProbes(window, expectedTop);
     // Preserve existing P35 650/2600ms read times: this is NOT a timer
     // retry nor another contentInset/frame/safe-area adjustment.
     for(NSNumber *delay in @[@650, @2600]) {

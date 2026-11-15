@@ -33,6 +33,9 @@ final class ScarletFullscreenSceneStack: NSObject, ObservableObject,
     @Published private(set) var nativeStatusBarCollisionShield = false
     private var nativeStatusBarUnsafePIDs: Set<Int32> = []
     private var nativeStatusBarSafePIDs: Set<Int32> = []
+    // P74: late severe-region risk must pass twice after the real header
+    // layout was retained. First proof alone never clears P51 shield.
+    private var nativeStatusBandFirstPassPIDs: Set<Int32> = []
     @Published private(set) var lastError: String?
     weak var viewport: ScarletFullscreenSceneViewport?
     // R5 recovery: observation only, no guest UIKit method interception.
@@ -401,6 +404,62 @@ final class ScarletFullscreenSceneStack: NSObject, ObservableObject,
         }
     }
 
+    // P74: explicitly distinguish a *severe* Island/status-text overlap
+    // from a residual 2pt near-safe-boundary thumbnail after a verified
+    // native guest header. Two FULL-depth, non-capped scans 700ms apart
+    // must agree. This changes only host status-icon policy, never guest
+    // geometry, hit testing, root safe area or other apps' appearance.
+    func acceptVerifiedPostHeaderStatusband(pid: Int32, sample: Int,
+        safeTop: Int, near: Int, severe: Int, complete: Bool,
+        firstNearY: Int, headerVerified: Bool, scene: UIWindowScene?) {
+        guard (sample == 2850 || sample == 3550), pid > 0,
+              let scene, scene.interfaceOrientation.isPortrait,
+              isVisible, let activeID,
+              slots.contains(where: {$0.id == activeID && $0.pid == pid}),
+              nativeStatusBarUnsafePIDs.contains(pid) else { return }
+        let valid = headerVerified && complete && severe == 0 && near > 0 &&
+            (40...130).contains(safeTop) &&
+            firstNearY >= safeTop - 9 && firstNearY <= safeTop - 2
+        if !valid {
+            nativeStatusBandFirstPassPIDs.remove(pid)
+            ScarletDiagnosticRecorder.shared.record(
+                "layout", "resident_native_status_band_guard",
+                fields: ["process_pid":String(pid),
+                         "sample_index":String(sample),
+                         "result":"severe_or_unproven_shield_retained"])
+            return
+        }
+        if sample == 2850 {
+            nativeStatusBandFirstPassPIDs.insert(pid)
+            ScarletDiagnosticRecorder.shared.record(
+                "layout", "resident_native_status_band_guard",
+                fields: ["process_pid":String(pid),
+                         "sample_index":String(sample),
+                         "result":"first_complete_near_boundary_proof"])
+            return
+        }
+        guard nativeStatusBandFirstPassPIDs.remove(pid) != nil else { return }
+        nativeStatusBarUnsafePIDs.remove(pid)
+        nativeStatusBarSafePIDs.insert(pid)
+        nativeStatusBarCollisionShield = false
+        ScarletDiagnosticRecorder.shared.record(
+            "layout", "resident_native_status_band_guard",
+            fields: ["process_pid":String(pid),
+                     "sample_index":String(sample),
+                     "result":"two_complete_near_boundary_proofs_status_released"])
+        DispatchQueue.main.asyncAfter(deadline: .now()+0.35) {
+            [weak self, weak scene] in
+            guard let self, self.isVisible, let scene,
+                  self.slots.contains(where: {$0.id==self.activeID && $0.pid==pid})
+            else {return}
+            ScarletDiagnosticRecorder.shared.record(
+                "layout", "resident_native_status_band_readback",
+                fields: ["process_pid":String(pid),
+                         "status_hidden":scene.statusBarManager?.isStatusBarHidden==true
+                             ? "true" : "false"])
+        }
+    }
+
     // R6P56: P51 intentionally held the first 650ms unsafe sample.
     // Only TWO native parent+feed frame and zero-control readbacks permit
     // clearing that old PID collision, never a transient scroll snapshot.
@@ -431,6 +490,7 @@ final class ScarletFullscreenSceneStack: NSObject, ObservableObject,
     func clearNativeStatusBarCollisionRisk(pid: Int32) {
         nativeStatusBarUnsafePIDs.remove(pid)
         nativeStatusBarSafePIDs.remove(pid)
+        nativeStatusBandFirstPassPIDs.remove(pid)
     }
 
     func syncKeyHostStatusBarTone(pid: Int32, tone: Int,
@@ -894,6 +954,7 @@ private final class ScarletGuestIslandReceiptObserver {
     var onSurfaceToneMeasured: ((Int32, Int) -> Void)?
     var onHeaderTransformVerified: ((Int32, Bool) -> Void)?
     var onContentReflowVerified: ((Int32) -> Void)?
+    var onPostHeaderStatusbandMeasured: ((Int32, Int, Int, Int, Int, Bool, Int) -> Void)?
 
     func observe(pid: Int32) {
         guard pid > 0 else { return }
@@ -1196,6 +1257,28 @@ private final class ScarletGuestIslandReceiptObserver {
                              "surface_tone": String(tone),
                              "result": "guest_native_uikit_background"])
                 onSurfaceToneMeasured?(pid, tone)
+                continue
+            }
+            if result == "guest_post_header_statusband_probe" {
+                let sample = (row["sample_index"] as? NSNumber)?.intValue ?? -1
+                let near = (row["near_controls"] as? NSNumber)?.intValue ?? 0
+                let severe = (row["severe_nodes"] as? NSNumber)?.intValue ?? -1
+                let first = (row["first_near_control_y"] as? NSNumber)?.intValue ?? -999
+                let complete = (row["scan_complete"] as? NSNumber)?.boolValue == true
+                guard [2850, 3550].contains(sample),
+                      (0...2400).contains(near), (0...2400).contains(severe)
+                else { continue }
+                ScarletDiagnosticRecorder.shared.record(
+                    "layout", "guest_post_header_statusband_probe",
+                    fields: ["process_pid":String(pid),
+                             "sample_index":String(sample),
+                             "safe_top_pt":String(target),
+                             "near_controls":String(near),
+                             "severe_nodes":String(severe),
+                             "first_near_control_y":String(first),
+                             "scan_complete":complete ? "true" : "false"])
+                onPostHeaderStatusbandMeasured?(
+                    pid, sample, target, near, severe, complete, first)
                 continue
             }
             if result == "guest_content_geometry_probe" {
@@ -2086,6 +2169,15 @@ final class ScarletFullscreenSceneViewport: UIViewController {
             self.onUnsafeGuestControls(pid: pid, unsafe: unsafe,
                 first: first, top: top, sample: sample,
                 inScroll: inScroll, outsideScroll: outside)
+        }
+        ScarletGuestIslandReceiptObserver.shared.onPostHeaderStatusbandMeasured = {
+            [weak self] pid, sample, safeTop, near, severe, complete, first in
+            guard let self else {return}
+            self.stack?.acceptVerifiedPostHeaderStatusband(
+                pid:pid, sample:sample, safeTop:safeTop, near:near,
+                severe:severe, complete:complete, firstNearY:first,
+                headerVerified:self.chromeHeaderProtectedPIDs.contains(pid),
+                scene:self.view.window?.windowScene)
         }
         ScarletGuestIslandReceiptObserver.shared.onHeaderTransformVerified = {
             [weak self] pid, retained in

@@ -87,6 +87,8 @@ final class ScarletDiagnosticRecorder: @unchecked Sendable {
         // counters, but the final recorder silently dropped all four.
         "visible_unsafe_controls", "clipped_unsafe_controls",
         "visible_unsafe_images", "clipped_unsafe_images",
+        // P74: bounded post-header full-depth collision proof, no UI names.
+        "near_controls", "severe_nodes", "first_near_control_y", "scan_complete",
         "unsafe_controls_under_zero_inset_child_owner",
         "unsafe_image_nodes_in_scroll", "unsafe_image_nodes_outside_scroll",
         "seen", "nested", "not_top_full_width", "not_vertical",
