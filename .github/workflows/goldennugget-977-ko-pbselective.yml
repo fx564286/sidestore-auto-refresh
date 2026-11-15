@@ -1,0 +1,171 @@
+name: GoldenNugget 9.7.7 Korean Experimental Backup Skip
+
+on:
+  push:
+    branches: [build/goldennugget-977-ko-pbselective-20261116]
+    paths: [.github/workflows/goldennugget-977-ko-skipbackup.yml]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: xcode-27
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Checkout exact GoldenNugget Mobile 9.7.7 upstream release
+        shell: bash
+        run: |
+          set -euo pipefail
+          git clone --filter=blob:none https://github.com/GoldensHQ/GoldenNugget-mobile.git "$RUNNER_TEMP/gn"
+          cd "$RUNNER_TEMP/gn"
+          git checkout --detach 7a552e47e67d051c86394ee691ec1fc210e25d4b
+          test "$(git rev-parse HEAD)" = "7a552e47e67d051c86394ee691ec1fc210e25d4b"
+          echo "UPSTREAM_TAG_977=$(git rev-parse HEAD)"
+
+      - name: Apply prior opt-in backup-skip and MB105 fixes
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/gn"
+          for p in mb105.patch tweak-ui-localize.patch ios27-skip-protective.patch ios27-977-compat.patch ios27-977-bypass-conflict-ko.patch ios27-977-pb-selective-space.patch ios27-977-runtime-ko.patch; do
+            git apply --check "$GITHUB_WORKSPACE/tools/goldennugget/$p"
+            git apply "$GITHUB_WORKSPACE/tools/goldennugget/$p"
+          done
+          git diff --check
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path("project.yml")
+          text=p.read_text()
+          assert "MARKETING_VERSION: 9.7.5" in text and "CURRENT_PROJECT_VERSION: 9" in text
+          text=text.replace("MARKETING_VERSION: 9.7.5","MARKETING_VERSION: 9.7.7")
+          text=text.replace("CURRENT_PROJECT_VERSION: 9","CURRENT_PROJECT_VERSION: 11")
+          p.write_text(text)
+          s=Path("Nugget/Core/DevSettings.swift").read_text()
+          e=Path("Nugget/Core/GoldenNuggetEngine.swift").read_text()
+          assert "var skipProtectiveBackup = false" in s
+          assert "UNSAFE OVERRIDE ACTIVE" in e
+          assert "filtered read-only device database fetch" in e
+          assert "EXPERIMENTAL: using device-supplied PosterBoard manifest" in e
+          gateway=Path("Vendor/MinimuxerGateway/idevice/IdeviceGateway.swift").read_text()
+          delegate=Path("Vendor/MinimuxerGateway/idevice/MobileBackup2Delegate.swift").read_text()
+          assert "applications?.count == 1" in gateway and "PosterBoardFetch" in gateway
+          assert "if c.selectivePosterBoardSpace" in delegate and "physicalAvailable" in delegate
+          assert e.count("try unprotectedIOS27Restore(udid: udid)") == 2
+          assert "case .posterBoard: return String(localized:" in Path("Nugget/Views/TweaksView.swift").read_text()
+          ui=Path("Nugget/Views/GoldenNuggetView.swift").read_text()
+          assert "prepareApply(excludingPosterBoard: true)" in ui
+          assert "let wallpapers = excludingPosterBoard ? PosterBoardSelection() : posterBoardSelection" in ui
+          assert "if succeeded && !excludingPosterBoard" in ui
+          print("PASS: 9.7.7 source, experimental skip opt-in only; PosterBoard still requires native fetch")
+          PY
+
+      - name: Verify Xcode toolchain
+        shell: bash
+        run: |
+          set -euo pipefail
+          xcodebuild -version
+          xcrun --sdk iphoneos --show-sdk-version
+          cd "$RUNNER_TEMP/gn"
+          bash scripts/check-xcode-toolchain.sh
+
+      - name: Install XcodeGen 2.46
+        shell: bash
+        run: |
+          set -euo pipefail
+          dest="$RUNNER_TEMP/xcodegen"
+          mkdir -p "$dest"
+          curl --retry 3 -fsSL -o "$RUNNER_TEMP/xcodegen.zip" https://github.com/yonaskolb/XcodeGen/releases/download/2.46.0/xcodegen.zip
+          unzip -q "$RUNNER_TEMP/xcodegen.zip" -d "$dest"
+          echo "$dest/xcodegen/bin" >> "$GITHUB_PATH"
+
+      - name: Generate Xcode project and run backup regression tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/gn"
+          xcodegen generate
+          python3 scripts/check-protective-filters.py
+
+      - name: Build 9.7.7 unsigned IPA
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/gn"
+          ./scripts/build-ipa.sh Release --clean
+          python3 - <<'PY'
+          import zipfile,plistlib
+          p="build/GoldenNuggetMobile.ipa"
+          with zipfile.ZipFile(p) as z:
+              assert z.testzip() is None
+              prefix="Payload/GoldenNuggetMobile.app/"
+              info=plistlib.loads(z.read(prefix+"Info.plist"))
+              assert info["CFBundleShortVersionString"] == "9.7.7",info
+              assert info["CFBundleVersion"] == "11",info
+              binary=z.read(prefix+"GoldenNuggetMobile")
+              assert b"Dev.SkipProtectiveBackup" in binary
+          print("PASS: genuine compiled 9.7.7 experimental binary")
+          PY
+
+      - name: Package Korean resources without changing executable
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p dist
+          python3 - <<'PY'
+          from pathlib import Path
+          import zipfile,plistlib,copy,hashlib
+          src=Path(__import__("os").environ["RUNNER_TEMP"]+"/gn/build/GoldenNuggetMobile.ipa")
+          target=Path("dist/GoldenNuggetMobile-9.7.7-Korean-PosterBoardSelective-b11.ipa")
+          prefix="Payload/GoldenNuggetMobile.app/"
+          lang=Path("tools/goldennugget/localization/ko.lproj")
+          with zipfile.ZipFile(src) as zin, zipfile.ZipFile(target,"w") as zout:
+              assert zin.testzip() is None
+              src_bin=zin.read(prefix+"GoldenNuggetMobile")
+              info=plistlib.loads(zin.read(prefix+"Info.plist"))
+              assert info["CFBundleShortVersionString"] == "9.7.7"
+              languages=set(info.get("CFBundleLocalizations",[]))|{"ko","en"}
+              info["CFBundleLocalizations"]=sorted(languages)
+              updates={prefix+"Info.plist":plistlib.dumps(info,fmt=plistlib.FMT_BINARY)}
+              for name in ("Localizable.strings","InfoPlist.strings"):
+                  data=(lang/name).read_bytes()
+                  assert len(data)>100
+                  updates[prefix+"ko.lproj/"+name]=data
+              assert updates[prefix+"ko.lproj/Localizable.strings"].count(b"\n")>=1150
+              for entry in zin.infolist():
+                  zout.writestr(copy.copy(entry),updates.pop(entry.filename,zin.read(entry.filename)))
+              for name,data in updates.items():
+                  zout.writestr(name,data,compress_type=zipfile.ZIP_DEFLATED,compresslevel=9)
+          with zipfile.ZipFile(target) as z:
+              assert z.testzip() is None
+              assert z.read(prefix+"GoldenNuggetMobile")==src_bin
+              assert "ko" in plistlib.loads(z.read(prefix+"Info.plist"))["CFBundleLocalizations"]
+          print("IPA",target, "bytes",target.stat().st_size)
+          print("SHA256",hashlib.sha256(target.read_bytes()).hexdigest())
+          PY
+          unzip -t dist/GoldenNuggetMobile-9.7.7-Korean-iOS27-GuidedSkipBackup.ipa | tail -2
+
+      - name: Upload verified IPA artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: GoldenNugget-977-Korean-PosterBoardSelective-b11-unsigned
+          path: dist/GoldenNuggetMobile-9.7.7-Korean-iOS27-GuidedSkipBackup.ipa
+          retention-days: 30
+          if-no-files-found: error
+
+      - name: Publish experimental GitHub release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          tag="goldennugget-ko-977-pbselective-b11-20261116"
+          file="dist/GoldenNuggetMobile-9.7.7-Korean-iOS27-GuidedSkipBackup.ipa"
+          gh release create "$tag" "$file" --repo "$GITHUB_REPOSITORY" \
+            --target "$GITHUB_SHA" --prerelease \
+            --title "GoldenNugget Mobile 9.7.7 Korean · Targeted PosterBoard Snapshot Experimental b11" \
+            --notes "Unsigned IPA, Korean UI resources. User opt-in under Settings > Developer Mode > iOS 27 high-risk skip. If wallpapers are selected with backup bypass, home Apply offers a targeted read-only PosterBoard database transfer as an experimental option alongside excluding the wallpaper selection. English PosterBoard bypass error and media button are localized to Korean. This experimental route attempts a partial restore without a protective backup. WARNING: device restore is unverified; data loss, refusal, or boot failure possible. PosterBoard wallpaper changes still REQUIRE a native database fetch and cannot bypass MBErrorDomain/105; AirLift is disabled on iOS 27.2 build 24B119."
+          gh release view "$tag" --repo "$GITHUB_REPOSITORY" --json assets --jq '.assets[] | "\(.name) \(.size) \(.browser_download_url)"'
