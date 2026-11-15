@@ -376,6 +376,152 @@ def apply_queued_guest_overwrite_source(source: str) -> str:
     return source
 
 
+def add_r6p79_mapped_archive_fallback(engine: Path) -> dict:
+    """P79: recover only actual queued IPA's failed libarchive filename reader.
+
+    P78 signed iPhone: Files copy complete 4/4; importer throws Swift.String
+    2..3ms after `file_import_requested`, before Payload/overwrite/sign phase.
+    Never delete installed guests, source IPA, signer or paired identities.
+    Distinct memory-mapped ZIP decoder only if original libarchive fails.
+    """
+    target=engine/"LiveContainerSwiftUI/Utilities/unarchive.m"
+    header=engine/"LiveContainerSwiftUI/Utilities/unarchive.h"
+    view=engine/"LiveContainerSwiftUI/Views/AppList/LCAppListView.swift"
+    assert all(x.is_file() for x in (target,header,view))
+    source=target.read_text()
+    assert "scarletExtractGuestIPAFromMappedData" not in source
+    function = r"""
+// R6P79_MAPPED_IPA_FALLBACK_BEGIN
+// This is a separate, bounded recovery reader for native iOS 27 archive
+// open/header failures. It does not replace the pinned upstream extractor.
+// NSData keeps the file bytes mapped while libarchive reads from memory.
+// Paths are accepted ONLY under Payload/ and must never traverse outside
+// the scratch extraction directory. This runs only for a queued IPA and
+// only after original extract(path,...) returns nonzero.
+int scarletExtractGuestIPAFromMappedData(NSString *ipaPath,
+    NSString *extractionPath, NSProgress *progress) {
+    NSDictionary *attributes=[[NSFileManager defaultManager]
+        attributesOfItemAtPath:ipaPath error:NULL];
+    unsigned long long size=[attributes[NSFileSize] unsignedLongLongValue];
+    if(size<64 || size>268435456ULL) return 1;
+    NSData *mapped=[NSData dataWithContentsOfFile:ipaPath
+        options:NSDataReadingMappedIfSafe error:NULL];
+    if(!mapped || mapped.length!=size) return 1;
+    struct archive *reader=archive_read_new();
+    archive_read_support_format_zip(reader);
+    archive_read_support_filter_all(reader);
+    if(archive_read_open_memory(reader,mapped.bytes,mapped.length)!=ARCHIVE_OK) {
+        archive_read_free(reader);
+        return 1;
+    }
+    // First pass: reject malformed ZIP, traversal, unbounded expansion,
+    // missing .app/Info.plist or absolute/symlink entries BEFORE writing.
+    struct archive_entry *entry;
+    BOOL hasAppPlist=NO;
+    unsigned long long total=0;
+    NSUInteger entries=0;
+    int r=ARCHIVE_OK;
+    while((r=archive_read_next_header(reader,&entry))!=ARCHIVE_EOF) {
+        if(r<ARCHIVE_WARN || ++entries>80000) break;
+        const char *raw=archive_entry_pathname(entry);
+        if(!raw) { r=ARCHIVE_FATAL;break; }
+        NSString *relative=[NSString stringWithUTF8String:raw];
+        if(!relative) { r=ARCHIVE_FATAL;break; }
+        NSArray<NSString *> *parts=[relative componentsSeparatedByString:@"/"];
+        if(relative.hasPrefix(@"/") ||
+           [parts containsObject:@".."] ||
+           [parts containsObject:@"."] ||
+           [relative containsString:@"\\"] ||
+           archive_entry_filetype(entry)==AE_IFLNK) {
+            r=ARCHIVE_FATAL;break;
+        }
+        if(![relative isEqualToString:@"Payload"] &&
+           ![relative hasPrefix:@"Payload/"]) continue;
+        if([relative hasSuffix:@".app/Info.plist"]) hasAppPlist=YES;
+        la_int64_t fileSize=archive_entry_size(entry);
+        if(fileSize<0 || (unsigned long long)fileSize>1610612736ULL ||
+           total+fileSize>1610612736ULL) {r=ARCHIVE_FATAL;break;}
+        total+=(unsigned long long)fileSize;
+    }
+    BOOL scanOK=r==ARCHIVE_EOF && hasAppPlist && entries<=80000;
+    archive_read_close(reader);
+    archive_read_free(reader);
+    if(!scanOK) return 1;
+    reader=archive_read_new();
+    archive_read_support_format_zip(reader);
+    archive_read_support_filter_all(reader);
+    if(archive_read_open_memory(reader,mapped.bytes,mapped.length)!=ARCHIVE_OK) {
+        archive_read_free(reader);return 1;
+    }
+    struct archive *writer=archive_write_disk_new();
+    archive_write_disk_set_options(writer,ARCHIVE_EXTRACT_TIME |
+        ARCHIVE_EXTRACT_PERM | ARCHIVE_EXTRACT_ACL | ARCHIVE_EXTRACT_FFLAGS);
+    archive_write_disk_set_standard_lookup(writer);
+    BOOL ok=YES;
+    BOOL wrote=NO;
+    while((r=archive_read_next_header(reader,&entry))!=ARCHIVE_EOF) {
+        if(r<ARCHIVE_WARN) {ok=NO;break;}
+        const char *raw=archive_entry_pathname(entry);
+        NSString *relative=raw ? [NSString stringWithUTF8String:raw]:nil;
+        if(!relative) {ok=NO;break;}
+        if(![relative isEqualToString:@"Payload"] &&
+           ![relative hasPrefix:@"Payload/"]) continue;
+        NSString *full=[extractionPath stringByAppendingPathComponent:relative];
+        archive_entry_set_pathname(entry,full.fileSystemRepresentation);
+        r=archive_write_header(writer,entry);
+        if(r<ARCHIVE_WARN) {ok=NO;break;}
+        if(archive_entry_size(entry)>0) {
+            r=copy_data(reader,writer,progress);
+            if(r<ARCHIVE_WARN) {ok=NO;break;}
+        }
+        r=archive_write_finish_entry(writer);
+        if(r<ARCHIVE_WARN) {ok=NO;break;}
+        wrote=YES;
+    }
+    if(r!=ARCHIVE_EOF) ok=NO;
+    archive_read_close(reader);
+    archive_read_free(reader);
+    archive_write_close(writer);
+    archive_write_free(writer);
+    return (ok && wrote) ? 0 : 1;
+}
+// R6P79_MAPPED_IPA_FALLBACK_END
+"""
+    # Append to same original unarchive translation unit; no new targets.
+    target.write_text(source+"\n"+function)
+    declarations=header.read_text()
+    assert 'extern int extract(' in declarations and 'scarletExtractGuestIPAFromMappedData' not in declarations
+    header.write_text(declarations+"\nextern int scarletExtractGuestIPAFromMappedData(NSString*, NSString*, NSProgress*);\n")
+    original="""    nonisolated func decompress(_ path: String, _ destination: String ,_ progress: Progress) async -> Int32 {
+        extract(path, destination, progress)
+    }
+"""
+    patched="""    nonisolated func decompress(_ path: String, _ destination: String ,_ progress: Progress) async -> Int32 {
+        let result = extract(path, destination, progress)
+        guard result != 0 else { return result }
+        // P78 signed iPhone: original libarchive file reader refused
+        // four security-scoped Files imports before Payload/signing.
+        // For the queued Scarlet path ONLY, retry the very SAME local IPA
+        // using a mapped libarchive reader, with strict Payload/ validation.
+        // Do not alter installed guest bundles or data during this retry.
+        let pending = FileManager.default.temporaryDirectory
+            .resolvingSymlinksInPath().standardizedFileURL
+        let staged = URL(fileURLWithPath: path)
+            .resolvingSymlinksInPath().standardizedFileURL
+        guard staged.deletingLastPathComponent().path == pending.path,
+              staged.lastPathComponent.hasPrefix("scarlet-guest-")
+        else { return result }
+        let fallback = scarletExtractGuestIPAFromMappedData(path, destination, progress)
+        return fallback == 0 ? 0 : result
+    }
+"""
+    existing=view.read_text()
+    assert existing.count(original)==1,'LC original decompress call changed'
+    view.write_text(existing.replace(original,patched,1))
+    return {'originalArchiveReaderPreserved':True,
+            'boundedMappedZIPPayloadFallback':True,
+            'sameLocalIPANoGuestMutation':True}
+
 def hide_embedded_sidestore_guest_navigation(engine: Path) -> dict:
     """Retain SideStore/SideSign engines, remove only its *guest UI* shortcuts.
 
@@ -2502,6 +2648,7 @@ static void ScarletGuestHookTrace(NSString *event) {
     guest_launch_policy = add_scarlet_guest_launch_policy_probe(engine)
     guest_signing=instrument_original_guest_signing(engine)
     guest_manager=hide_embedded_sidestore_guest_navigation(engine)
+    guest_archive_recovery=add_r6p79_mapped_archive_fallback(engine)
     native_settings=attach_native_settings_diagnostics(engine)
     native_tweaks_theme=apply_scarlet_native_tweaks_theme(engine)
     nested_diagnostic_layout=attach_jitless_diagnostic_scroll_margins(engine)
@@ -2527,6 +2674,7 @@ static void ScarletGuestHookTrace(NSString *event) {
         "embeddedSideStoreGuestUIEnabled":False,
         "embeddedSideStoreEnginePreserved":True,
         "nativeGuestManager":guest_manager,
+        "guestArchiveRecovery":guest_archive_recovery,
         "originalLCGuestSigningDiagnostics":guest_signing,
         "nativeSettingsDiagnostics":native_settings,
         "nativeTweaksTheme":native_tweaks_theme,

@@ -448,6 +448,22 @@ final class ScarletFullscreenSceneStack: NSObject, ObservableObject,
         nativeStatusBarUnsafePIDs.remove(pid)
         nativeStatusBarSafePIDs.insert(pid)
         nativeStatusBarCollisionShield = false
+        // P78 signed guest PID1644: both P74 severe=0/near=y60 readbacks
+        // released this shield but UIKit kept statusHidden=true until an
+        // unrelated guest tone change triggered another host appearance
+        // update. Ask the REAL normal-level key hosting controller to
+        // re-evaluate the existing SwiftUI .statusBarHidden(false) now.
+        // Do not show icons when proof fails or mutate any guest viewport.
+        DispatchQueue.main.async { [weak self, weak scene] in
+            guard let self, let scene, self.isVisible,
+                  self.activeID == activeID,
+                  self.slots.contains(where: { $0.id == activeID && $0.pid == pid }),
+                  !self.nativeStatusBarCollisionShield,
+                  let host = scene.windows.first(where: {
+                      $0.isKeyWindow && $0.windowLevel == .normal
+                  })?.rootViewController else { return }
+            host.setNeedsStatusBarAppearanceUpdate()
+        }
         ScarletDiagnosticRecorder.shared.record(
             "layout", "resident_native_status_band_guard",
             fields: ["process_pid":String(pid),
