@@ -2,7 +2,7 @@ name: GoldenNugget 9.7.7 Korean Experimental Backup Skip
 
 on:
   push:
-    branches: [build/goldennugget-977-ko-skipbackup-20261116]
+    branches: [build/goldennugget-977-ko-bypass-conflict-20261116]
     paths: [.github/workflows/goldennugget-977-ko-skipbackup.yml]
   workflow_dispatch:
 
@@ -31,7 +31,7 @@ jobs:
         run: |
           set -euo pipefail
           cd "$RUNNER_TEMP/gn"
-          for p in mb105.patch tweak-ui-localize.patch ios27-skip-protective.patch ios27-977-compat.patch; do
+          for p in mb105.patch tweak-ui-localize.patch ios27-skip-protective.patch ios27-977-compat.patch ios27-977-bypass-conflict-ko.patch; do
             git apply --check "$GITHUB_WORKSPACE/tools/goldennugget/$p"
             git apply "$GITHUB_WORKSPACE/tools/goldennugget/$p"
           done
@@ -51,6 +51,10 @@ jobs:
           assert "Backup bypass cannot fetch it." in e
           assert e.count("try unprotectedIOS27Restore(udid: udid)") == 2
           assert "case .posterBoard: return String(localized:" in Path("Nugget/Views/TweaksView.swift").read_text()
+          ui=Path("Nugget/Views/GoldenNuggetView.swift").read_text()
+          assert "prepareApply(excludingPosterBoard: true)" in ui
+          assert "let wallpapers = excludingPosterBoard ? PosterBoardSelection() : posterBoardSelection" in ui
+          assert "if succeeded && !excludingPosterBoard" in ui
           print("PASS: 9.7.7 source, experimental skip opt-in only; PosterBoard still requires native fetch")
           PY
 
@@ -110,7 +114,7 @@ jobs:
           from pathlib import Path
           import zipfile,plistlib,copy,hashlib
           src=Path(__import__("os").environ["RUNNER_TEMP"]+"/gn/build/GoldenNuggetMobile.ipa")
-          target=Path("dist/GoldenNuggetMobile-9.7.7-Korean-iOS27-Experimental-SkipBackup.ipa")
+          target=Path("dist/GoldenNuggetMobile-9.7.7-Korean-iOS27-GuidedSkipBackup.ipa")
           prefix="Payload/GoldenNuggetMobile.app/"
           lang=Path("tools/goldennugget/localization/ko.lproj")
           with zipfile.ZipFile(src) as zin, zipfile.ZipFile(target,"w") as zout:
@@ -137,13 +141,13 @@ jobs:
           print("IPA",target, "bytes",target.stat().st_size)
           print("SHA256",hashlib.sha256(target.read_bytes()).hexdigest())
           PY
-          unzip -t dist/GoldenNuggetMobile-9.7.7-Korean-iOS27-Experimental-SkipBackup.ipa | tail -2
+          unzip -t dist/GoldenNuggetMobile-9.7.7-Korean-iOS27-GuidedSkipBackup.ipa | tail -2
 
       - name: Upload verified IPA artifact
         uses: actions/upload-artifact@v4
         with:
-          name: GoldenNugget-977-Korean-Experimental-SkipBackup-unsigned
-          path: dist/GoldenNuggetMobile-9.7.7-Korean-iOS27-Experimental-SkipBackup.ipa
+          name: GoldenNugget-977-Korean-GuidedSkipBackup-unsigned
+          path: dist/GoldenNuggetMobile-9.7.7-Korean-iOS27-GuidedSkipBackup.ipa
           retention-days: 30
           if-no-files-found: error
 
@@ -153,10 +157,10 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          tag="goldennugget-ko-977-ios27-skipbackup-experimental-20261116"
-          file="dist/GoldenNuggetMobile-9.7.7-Korean-iOS27-Experimental-SkipBackup.ipa"
+          tag="goldennugget-ko-977-ios27-guided-skipbackup-20261116"
+          file="dist/GoldenNuggetMobile-9.7.7-Korean-iOS27-GuidedSkipBackup.ipa"
           gh release create "$tag" "$file" --repo "$GITHUB_REPOSITORY" \
             --target "$GITHUB_SHA" --prerelease \
-            --title "GoldenNugget Mobile 9.7.7 Korean · Experimental iOS 27 Backup Skip" \
-            --notes "Unsigned IPA, Korean UI resources. User opt-in under Settings > Developer Mode > iOS 27 high-risk skip. This experimental route attempts a partial restore without a protective backup. WARNING: device restore is unverified; data loss, refusal, or boot failure possible. PosterBoard wallpaper changes still REQUIRE a native database fetch and cannot bypass MBErrorDomain/105; AirLift is disabled on iOS 27.2 build 24B119."
+            --title "GoldenNugget Mobile 9.7.7 Korean · Guided iOS 27 Backup Skip" \
+            --notes "Unsigned IPA, Korean UI resources. User opt-in under Settings > Developer Mode > iOS 27 high-risk skip. If wallpapers are selected with backup bypass, home Apply gives an explicit choice to apply other tweaks only and retain the wallpaper selection. English PosterBoard bypass error and media button are localized to Korean. This experimental route attempts a partial restore without a protective backup. WARNING: device restore is unverified; data loss, refusal, or boot failure possible. PosterBoard wallpaper changes still REQUIRE a native database fetch and cannot bypass MBErrorDomain/105; AirLift is disabled on iOS 27.2 build 24B119."
           gh release view "$tag" --repo "$GITHUB_REPOSITORY" --json assets --jq '.assets[] | "\(.name) \(.size) \(.browser_download_url)"'
