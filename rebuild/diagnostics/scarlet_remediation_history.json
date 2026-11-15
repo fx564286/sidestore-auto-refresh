@@ -38317,6 +38317,113 @@
           "function": "ScarletIslandP77TrySevereNestedContent"
         }
       ]
+    },
+    {
+      "id": "L128",
+      "date": "2026-11-16",
+      "version": "Scarlet-V48-R6P78-CrashSafe-Native-Signer-Recovery",
+      "problem": "guest_jitless_launch_certificate_invalid_despite_saved_same_team_p12",
+      "mechanism": "real_kernel_jitless_postcheck_triggered_crashsafe_same_host_team_alternate_p12_trial_rollback",
+      "novelty": {
+        "prior_excluded_ids": [
+          "L026",
+          "L035",
+          "L056",
+          "L062",
+          "L099",
+          "L114",
+          "L115",
+          "L116",
+          "L117",
+          "L122",
+          "L126"
+        ],
+        "causal_difference": "Old LC bridge imports an existing SideStore P12 only when LC certificateData()==nil; signed P76 actually had P12+password+matching Team but zsign and temporary dylib native kernel postcheck both failed. P78 does not repeat SideStore certificate presence/readback or auth switching. It operates on the distinct invalid-BUT-PRESENT state after explicit LCUtils.validateJITLessSetup postcheck failure, records crash-persistent backup of original P12 in the same existing LC AppGroup, tries ONLY different same signed-host-Team SideStore P12 and validates by actual kernel signed dylib postcheck; restores original on native failure or interrupted launch, preserves concurrently selected third-party P12. New mechanism is transactional real signature verification, not label/error/category instrumentation.",
+        "falsifiable_prediction": "On signed P76 with invalid existing LC P12 and an accessible valid alternate host-Team SideStore P12, trial returns native success and previously blocked guest signs/launches; if alternate unavailable/invalid, original P12/password/update date remain preserved even after crash. Team B P12 cannot become an A host signer. No change to P77 island or RSD pairing.",
+        "new_device_evidence": {
+          "source_commit": "d27ea16059403d798d753a51d38ea750ca3138b1",
+          "event": "certificate_preflight/signing_reason/jitless_probe_failure_classified",
+          "observed_value": "P76 signed device session5def4d0b four certificate_invalid guest launches despite certificate_present/password_present/team_match=match; four native JITless signature_postcheck_invalid; SideStore managed count1 ready, but no signer validation receipt"
+        },
+        "why_prior_fix_failed": "Old bridge guarded `LCUtils.certificateData()==nil`, so stored P12 invalid state could never attempt even an existing different certificate; metadata Team match and SideStore ready do not constitute code signature verification."
+      },
+      "hypothesis": "LC saved signer exists and matches Team metadata but fails actual native JIT-less code signature kernel postcheck; old SideStore P12 bridge triggers only if LC P12 is missing, not invalid.",
+      "action": "Only when real JIT-less signature postcheck fails, try distinct existing candidate from original SideStore keychain whose PKCS#12 team matches actual signed host; preserve old P12/password/date in same AppGroup backup with restart rollback and candidate SHA, block guest launches, test candidate with native LCUtils validateJITLessSetup, commit on kernel pass or restore original on fail, preserve any user-selected third cert. No certificate revocation, account change or new issuance.",
+      "observation": "Signed P76 iPhone 4 times guest certificate_invalid, 4 JIT-Less signature_postcheck_invalid while preflight cert and Team match. Python 795 tests=792 pass 3 skip. P78 signed iPhone alternate cert and guest launch unverified.",
+      "evidence": "User-provided signed 3.8.76 SourceCommit d27ea1605940, CurrentSession 5def4d0b, four repeated JITless postcheck failures; P78 source commit 176e90ef6f3361050533d48c7629a9cd0ef36e5f",
+      "status": "source_committed_792_python_tests_pass_3_skipped_native_ci_pending",
+      "source_verification": "git_patch_observed",
+      "device_verification": "not_verified",
+      "next_executable_action": "Verify Xcode27.2 P78 native pipeline and IPA checksum. Sign and install without uninstall or data wipe; launch previously failing JIT-less guest; confirm actual alternate signer trial native code signature verified or original reverted; check P77 same guest Island near/severe and clock; revalidate RSD transport on manual refresh and Apple Team A/B separation.",
+      "rollback_commit": "08a604081d46342c50eccfa7f5830f8196ee5728",
+      "repeat_policy": "no_unverified_cert_overwrite_no_revoke_no_false_preflight_team_success_no_repeat_missing_p12_bridge",
+      "source_revisions": [
+        {
+          "sha": "176e90ef6f3361050533d48c7629a9cd0ef36e5f",
+          "title": "fix(r6p78): recover invalid-but-present LC signer via real kernel postcheck with crash rollback",
+          "url": "https://github.com/fx564286/sidestore-auto-refresh/commit/176e90ef6f3361050533d48c7629a9cd0ef36e5f"
+        }
+      ],
+      "code_locations": [
+        {
+          "file": "rebuild/HostApp/ScarletIntegratedHostView.swift",
+          "commit": "176e90ef6f3361050533d48c7629a9cd0ef36e5f",
+          "function": "ScarletGuestSignerRecovery trial, crash safe rollback, actual JIT-less validator, protected guest launch",
+          "location": "@@ -71,0 +71,251 @@",
+          "before": [
+            "struct ScarletIntegratedHostView: View {"
+          ],
+          "after": [
+            "// R6P78_SIGNER_SELF_RECOVERY_BEGIN",
+            "static func trialExistingSideStoreCertificate() {",
+            "LCUtils.validateJITLessSetup { valid, _ in",
+            "static func restoreInterruptedTrial() {"
+          ]
+        },
+        {
+          "file": ".github/workflows/scarlet-paired-engines-build.yml",
+          "commit": "176e90ef6f3361050533d48c7629a9cd0ef36e5f",
+          "function": "P78 iOS native build and release",
+          "location": "@@ -6,1 +6,1 @@",
+          "before": [
+            "fix/scarlet-v48-r6p77-severe-scroll-owner-20261116"
+          ],
+          "after": [
+            "fix/scarlet-v48-r6p78-signer-recovery-20261116",
+            "SCARLET_HOST_VERSION_ARGS=(--host-build-version 3.8.78)"
+          ]
+        },
+        {
+          "file": "rebuild/Tests/test_v48_r6p78_signer_native_rollback.py",
+          "commit": "176e90ef6f3361050533d48c7629a9cd0ef36e5f",
+          "function": "P78 same-Team P12 trial source contracts, crash proof, concurrency guard",
+          "location": "@@ -0,0 +1,60 @@",
+          "before": [],
+          "after": [
+            "class NativeSignerRecovery(unittest.TestCase):",
+            "def test_crash_safe_rollback_and_concurrent_user_choice(self):"
+          ]
+        },
+        {
+          "file": "rebuild/reports/SCARLET_P78_JITLESS_SIGNER_RECOVERY_20261116.md",
+          "commit": "176e90ef6f3361050533d48c7629a9cd0ef36e5f",
+          "function": "P76 signed device signing failure and P78 actual runtime acceptance",
+          "location": "@@ -0,0 +1,25 @@",
+          "before": [],
+          "after": [
+            "# Scarlet Crystal P78",
+            "LCUtils.validateJITLessSetup"
+          ]
+        }
+      ],
+      "generated_runtime_targets": [
+        {
+          "source_template": "rebuild/HostApp/ScarletIntegratedHostView.swift",
+          "generated_file": "LiveContainerSwiftUI/ScarletIntegratedHostView.swift",
+          "source_generation_script": "rebuild/integration/apply_scarlet_host.py",
+          "function": "ScarletGuestSignerRecovery.trialExistingSideStoreCertificate"
+        }
+      ]
     }
   ],
   "gate": {
