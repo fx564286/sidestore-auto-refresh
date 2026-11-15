@@ -1,10 +1,10 @@
 {
   "schema": 2,
   "scope": "Scarlet Crystal guest top-screen overlap, touch access, rotation, remote guest render and related resident regressions",
-  "updated_utc": "2026-11-15T01:31:29.359364+00:00",
-  "current_baseline": "P69 UI cleanup including first-frame idle refresh fix published 0481fe35debd; local 758 tests (755 pass + 3 skipped), native iOS CI pending.",
-  "current_issue_status": "P68 signed device observed redundant UI labels and certificate worker code0; P69 removes UI duplicates only; actual team A/B IPA install and clock/battery status bar still not device-verified.",
-  "confidence_note": "Signed P67 device confirms B login but hardcoded team mismatch. P68 compiler failure source observed and patched, native retest still necessary.",
+  "updated_utc": "2026-11-15T06:05:10+00:00",
+  "current_baseline": "P70 native Settings inline saved Apple ID switch source 40460e56f739, 762 Python tests (759 pass, 3 skipped), iOS Xcode CI pending.",
+  "current_issue_status": "P69 signed iPhone account switch succeeded twice via Add Login sheet; P70 lifts account selection to Settings. Signed P70 on-device visual/switch unverified. Clock/battery status_hidden=true and guest top unsafe controls remain separate unresolved issues; certificate native_provider_failed(code=0) previously observed.",
+  "confidence_note": "The P69 auth event timeline proves the user-reported extra-click route; P70 static/source tests pass but UI on-device verification and native build pending.",
   "privacy": "No credentials, Apple ID, OTP, UDID, guest names or device identifiers are stored.",
   "entries": [
     {
@@ -35975,6 +35975,506 @@
             "        self.assertIn('@State private var lastRefreshAttemptState: String = \"기록 없음\"', PANEL)"
           ],
           "commit": "0481fe35debdeb55568beeaa36daff18c760f275"
+        }
+      ],
+      "generated_runtime_targets": [
+        {
+          "source_template": "rebuild/integration/apply_scarlet_host.py",
+          "generated_file": "LiveContainerSwiftUI/Views/Settings/LCSettingsView.swift",
+          "source_generation_script": "rebuild/integration/apply_scarlet_host.py",
+          "function": "attach_native_settings_diagnostics"
+        }
+      ]
+    },
+    {
+      "id": "L119",
+      "date": "2026-11-15",
+      "version": "Scarlet-V48-R6P70-Inline-Saved-Apple-ID-Settings",
+      "problem": "saved_apple_id_switch_hidden_in_add_login_sheet",
+      "mechanism": "native_settings_inline_keychain_account_list_with_post_activation_active_row_readback",
+      "novelty": {
+        "prior_excluded_ids": [
+          "L114",
+          "L116",
+          "L118"
+        ],
+        "causal_difference": "P66 created multi-account slots but only the nested login sheet listed them. P68 added a separate device-install team picker. P69 removed duplicated passive status labels but still displayed only generic login state before entering the sheet. P70 mounts the existing authenticated XPC account list directly in the native LCSettingsView account section, separates adding from switching, and requires active-row readback before UI checkmark. Unlike any earlier attempt it makes saved account identities actionable on the settings landing page without new authentication or certificate mutation.",
+        "falsifiable_prediction": "On P70 signed iPhone open Settings without tapping Add Login: both saved Apple IDs appear, exactly one shows active. Tap the other ID once: active marker follows verified SideStore XPC activation, no credentials prompt. Add Login immediately shows email/password fields; native multi-team install remains intact.",
+        "new_device_evidence": {
+          "source_commit": "06de0eba6b18",
+          "event": "add_account_requested -> saved_account_activated",
+          "observed_value": "2026-11-15 06:03:47 and 06:03:53 P69 session ac63db05; both activations occurred only after opening additional-login sheet"
+        },
+        "why_prior_fix_failed": "The previous P66 account switching implementation was functional but its ForEach appeared only inside ScarletAppleIDLoginSheet, which is inaccessible before pressing Add Login; P69 only changed labels, not the native LCSettingsView account-row data source."
+      },
+      "hypothesis": "The accounts have Keychain-backed accessible names and activation XPC methods, but LCSettingsView presents only one Boolean login label; showing the same vetted DTO rows in its account section removes the extra navigation step.",
+      "action": "Inject @State-backed saved Apple ID rows into pinned native LCSettingsView using the existing ScarletNativeSavedAccounts.list() and activate(id) XPC, show active marker and single-tap inactive account row, re-read exact active/team state before changing checkmark, retry failed list without discarding previous verified rows, update rows on login dismissal, initial Settings appearance and ScarletGuestAuthVerified. Route Add Login directly to credentials without a second button press. Preserve original LC controls, iOS host palette, SideStore original Keychain and certificate paths. Add P70 unique 3.8.70 CI/IPA and dedicated regression tests.",
+      "observation": "P69 device log user-provided 2026-11-15 06:05:06 UTC: App3.8.11 build3.8.69 SHA06de0eba6b18, session ac63db05. At 06:03:47/06:03:53 add_account_requested and subsequent saved_account_activated success. P70 Python suite 762 run, 759 pass and 3 skipped; YAML parse pass. GitHub published P70 source 40460e56f739. Actual native Xcode iOS build and signed two-Apple-ID settings interaction not yet verified.",
+      "evidence": "P69 user-attached real iPhone report (saved_account_activated after add_account_requested); GitHub P70 source commit 40460e56f7391ed939e59d2f2c7a1cce7014c3e7",
+      "status": "source_committed_759_python_tests_pass_3_skipped_native_ci_pending",
+      "source_verification": "git_patch_observed",
+      "device_verification": "not_verified",
+      "next_executable_action": "Run P70 native SideStore+LiveContainer Xcode GitHub CI, package and publish unique 3.8.70 IPA, then sign and confirm saved A/B rows and one-tap team state on iPhone. Do not claim statusbar overlap or certificate portal error fixed.",
+      "rollback_commit": "06de0eba6b180251ad2f7765c3ecd66b9f91ac9f",
+      "repeat_policy": "do_not_hide_saved_ids_inside_add_login_or_create_second_account_switcher_backend_without_new_proof",
+      "source_revisions": [
+        {
+          "sha": "40460e56f7391ed939e59d2f2c7a1cce7014c3e7",
+          "title": "fix(r6p70): list and switch saved Apple IDs inline in native settings",
+          "url": "https://github.com/fx564286/sidestore-auto-refresh/commit/40460e56f7391ed939e59d2f2c7a1cce7014c3e7"
+        }
+      ],
+      "code_locations": [
+        {
+          "file": ".github/workflows/scarlet-paired-engines-build.yml",
+          "function": "P70 native saved Apple ID rows, one-tap active account selection, original SideStore readback and regression coverage",
+          "location": "@@ -5,3 +5,3 @@ on:",
+          "before": [
+            "    branches: [rebuild/scarlet-from-zero-20261106, fix/scarlet-auth-status-rootcause-20261109, fix/scarlet-pr48-guest-overlay-no-resize-20261109, fix/scarlet-pr48-airpods-glass-guest-switch-v3-20261109, fix/scarlet-pr48-draggable-guest-tab-v4-20261109, fix/scarlet-pr48-v5-glass-drag-cert-recovery-20261109, fix/scarlet-pr48-v6-unified-cert-glass-20261109, fix/scarlet-pr48-v7-cert-jitless-unify-panel-rim-20261109, fix/scarlet-pr48-v8-flicker-certificate-menu-20261109, fix/scarlet-pr48-v9-single-glass-rim-20261109, fix/scarlet-pr48-v10-fixed-tab-cert-and-session-20261109, fix/scarlet-pr48-v11-module-settings-appid-20261109, fix/scarlet-pr48-v12-live-sessions-source-auto-refresh-20261109, fix/scarlet-pr48-v13-compact-settings-current-app-20261109, fix/scarlet-pr48-v14-guest-history-native-scenes-three-ids-20261109, fix/scarlet-pr48-v15-source-disclosure-icons-guest-handoff-20261109, fix/scarlet-pr48-v16-guest-switcher-icons-readback-20261110, fix/scarlet-v17-cold-switch-rotation-20261110, fix/scarlet-v18-refresh-diagnostics-native-glass-20261110, fix/scarlet-v19-active-session-switcher-20261110, fix/scarlet-v20-guest-switcher-trace-20261110, fix/scarlet-v21-hook-telemetry-persistence-20261110, fix/scarlet-v22-runtime-guest-identity-20261110, fix/scarlet-v23-session-only-switcher-20261110, fix/scarlet-v24-refresh-lifecycle-switch-receipt-20261110, fix/scarlet-v25-single-panel-outside-dismiss-20261110, fix/scarlet-v26-liquidglass-button-to-fixed-panel-morph-20261110, fix/scarlet-v27-sidestore-direct-native-refresh-20261110, fix/scarlet-v28-minimuxer-readiness-recovery-20261110, fix/scarlet-v29-inapp-rppairing-20261110, fix/scarlet-v30-restore-sidestore-active-team-20261110, fix/scarlet-v31-pairing-persistence-sheet-purple-20261110, fix/scarlet-v32-korean-copy-20261110, fix/scarlet-v33-log-rootcause-20261110, fix/scarlet-v34-iphone-virtual-resident-20261110, fix/scarlet-v35-restore-original-fullscreen-20261110, fix/scarlet-v36-remove-legacy-ui-20261110, fix/scarlet-v37-session-refresh-20261110, fix/scarlet-v38-current-launch-logs-20261110, fix/scarlet-v39-log-truth-20261110, fix/scarlet-v40-clean-work-session-20261110, fix/scarlet-v42-v40-safe-diagnostics-20261110, fix/scarlet-v43-install-rootcause-20261110, fix/scarlet-v44-rppairing-postsign-install-20261111, fix/scarlet-v45-single-viewport-liveprocess-20261111, fix/scarlet-v46-guard-provisional-guest-geometry-20261111, fix/scarlet-v47-resident-inplace-guest-switch-20261111, fix/scarlet-v48-guest-runtime-recovery-20261111, fix/scarlet-v48-restored-20261111, fix/scarlet-v48-r2-unified-switcher-20261111, fix/scarlet-v48-r3-original-pan-diagnostics-20261111, fix/scarlet-v48-r4-native-outside-remote-insets-20261111, fix/scarlet-v48-r5-attached-insets-shield-20261111, fix/scarlet-v48-r5-crash-recovery-20261111, fix/scarlet-v48-r5-recovery-r2-host-owner-20261111, fix/scarlet-v48-r5-recovery-r3-scene-authority-20261111, fix/scarlet-v48-r5-recovery-r4-native-ready-20261111, fix/scarlet-v48-r5-recovery-r5-compat-foreground-20261111, fix/scarlet-v48-r6-island-outside-audio-20261111, fix/scarlet-v48-r6p1-audio-home-focus-20261111, fix/scarlet-v48-r6p2-blocked-history-20261111, fix/scarlet-v48-r6p3-home-audio-gate-20261111, fix/scarlet-v48-r6p4-guest-audio-ack-20261112, fix/scarlet-v48-r6p7-launch-policy-rootcause-20261112, fix/scarlet-v48-r6p8-policy-field-relay-20261112, fix/scarlet-v48-r6p9-deferred-scene-boot-20261112, fix/scarlet-v48-r6p10-persistent-remediation-ledger-20261112, fix/scarlet-v48-r6p11-resident-guest-sdk-contract-20261112, fix/scarlet-v48-r6p12-instant-recent-switcher-20261112, fix/scarlet-v48-r6p14-switcher-reset-on-navigation-20261112, fix/scarlet-v48-r6p15-guest-root-island-pairing-recovery-20261112, fix/scarlet-v48-r6p16-audit-coverage-20261112, fix/scarlet-v48-r6p17-resident-optin-defaults-20261112, fix/scarlet-v48-r6p18-guest-content-geometry-20261112, fix/scarlet-v48-r6p19-entitlement-failclosed-network-recovery-20261112, fix/scarlet-v48-r6p20-auth-session-bg-id-20261112, fix/scarlet-v48-r6p21-depth-probe-cert-recheck-20261112, fix/scarlet-v48-r6p22-guest-scroll-content-inset-20261112, fix/scarlet-v48-r6p23-guest-owner-refresh-stage-20261112, fix/scarlet-v48-r6p24-keyboard-stage-relay-20261112, fix/scarlet-v48-r6p25-visibility-occlusion-20261112, fix/scarlet-v48-r6p26-recorder-field-contract-20261112, fix/scarlet-v48-r6p27-visible-scroll-owner-20261112, fix/scarlet-v48-r6p28-guest-local-scroll-inset-20261112, fix/scarlet-v48-r6p29-residual-auto-inset-20261112, fix/scarlet-v48-r6p30-inset-interference-isolation-20261112, fix/scarlet-v48-r6p31-nonvertical-always-safearea-20261112, fix/scarlet-v48-r6p32-nonscrolling-owner-stabilization-20261112, fix/scarlet-v48-r6p33-deferred-inset-anchor-20261112, fix/scarlet-v48-r6p34-constraint-native-error-proof-20261112, fix/scarlet-v48-r6p35-ancestor-layout-owner-20261112, fix/scarlet-v48-r6p36-lost-guest-probe-readback-20261112, fix/scarlet-v48-r6p37-nested-header-safe-guide-anchor-20261112, fix/scarlet-v48-r6p38-header-layout-owner-20261113, fix/scarlet-v48-r6p39-parent-safe-guide-constraint-20261113, fix/scarlet-v48-r6p40-transparent-chrome-slot-20261113, fix/scarlet-v48-r6p41-adaptive-chrome-stickiness-20261113, fix/scarlet-v48-r6p42-guest-matched-status-chrome-20261113, fix/scarlet-v48-r6p43-host-verified-native-slot-20261113, fix/scarlet-v48-r6p44-full-native-scroll-header-20261113, fix/scarlet-v48-r6p45-scroll-aware-header-proof-20261113, fix/scarlet-v48-r6p46-detached-header-full-scroll-20261113, fix/scarlet-v48-r6p47-lifecycle-statusbar-20261113, fix/scarlet-v48-r6p48-fresh-proof-crop-gate-20261113, fix/scarlet-v48-r6p49-key-host-statusbar-20261113, fix/scarlet-v48-r6p50-scroll-crop-veto-20261113, fix/scarlet-v48-r6p51-native-statusbar-collision-shield-20261113, fix/scarlet-v48-r6p52-restore-original-host-colors-20261113, fix/scarlet-v48-r6p53-current-log-followup-20261113, fix/scarlet-v48-r6p54-owning-layout-contract-20261114, fix/scarlet-v48-r6p55-child-controller-owner-layout-20261114, fix/scarlet-v48-r6p56-parent-feed-reflow-20261114, fix/scarlet-v48-r6p57-guest-overwrite-20261114, fix/scarlet-v48-r6p58-install-identity-20261114, fix/scarlet-v48-r6p59-unsafe-feed-owner-20261114, fix/scarlet-v48-r6p60-deep-owner-20261114, fix/scarlet-v48-r6p61-slot-manager-20261114, fix/scarlet-v48-r6p62-scroll-viewport-20261114, fix/scarlet-v48-r6p63-nested-parent-20261114, fix/scarlet-v48-r6p64-residual-viewport-20261115, fix/scarlet-v48-r6p65-inset-compensated-settle-20261115, fix/scarlet-v48-r6p66-multiaccount-rea-20261115, fix/scarlet-v48-r6p67-auth-rollback-20261115, fix/scarlet-v48-r6p68-install-team-switch-20261115, fix/scarlet-v48-r6p69-settings-debloat-20261115]"
+          ],
+          "after": [
+            "    branches: [rebuild/scarlet-from-zero-20261106, fix/scarlet-auth-status-rootcause-20261109, fix/scarlet-pr48-guest-overlay-no-resize-20261109, fix/scarlet-pr48-airpods-glass-guest-switch-v3-20261109, fix/scarlet-pr48-draggable-guest-tab-v4-20261109, fix/scarlet-pr48-v5-glass-drag-cert-recovery-20261109, fix/scarlet-pr48-v6-unified-cert-glass-20261109, fix/scarlet-pr48-v7-cert-jitless-unify-panel-rim-20261109, fix/scarlet-pr48-v8-flicker-certificate-menu-20261109, fix/scarlet-pr48-v9-single-glass-rim-20261109, fix/scarlet-pr48-v10-fixed-tab-cert-and-session-20261109, fix/scarlet-pr48-v11-module-settings-appid-20261109, fix/scarlet-pr48-v12-live-sessions-source-auto-refresh-20261109, fix/scarlet-pr48-v13-compact-settings-current-app-20261109, fix/scarlet-pr48-v14-guest-history-native-scenes-three-ids-20261109, fix/scarlet-pr48-v15-source-disclosure-icons-guest-handoff-20261109, fix/scarlet-pr48-v16-guest-switcher-icons-readback-20261110, fix/scarlet-v17-cold-switch-rotation-20261110, fix/scarlet-v18-refresh-diagnostics-native-glass-20261110, fix/scarlet-v19-active-session-switcher-20261110, fix/scarlet-v20-guest-switcher-trace-20261110, fix/scarlet-v21-hook-telemetry-persistence-20261110, fix/scarlet-v22-runtime-guest-identity-20261110, fix/scarlet-v23-session-only-switcher-20261110, fix/scarlet-v24-refresh-lifecycle-switch-receipt-20261110, fix/scarlet-v25-single-panel-outside-dismiss-20261110, fix/scarlet-v26-liquidglass-button-to-fixed-panel-morph-20261110, fix/scarlet-v27-sidestore-direct-native-refresh-20261110, fix/scarlet-v28-minimuxer-readiness-recovery-20261110, fix/scarlet-v29-inapp-rppairing-20261110, fix/scarlet-v30-restore-sidestore-active-team-20261110, fix/scarlet-v31-pairing-persistence-sheet-purple-20261110, fix/scarlet-v32-korean-copy-20261110, fix/scarlet-v33-log-rootcause-20261110, fix/scarlet-v34-iphone-virtual-resident-20261110, fix/scarlet-v35-restore-original-fullscreen-20261110, fix/scarlet-v36-remove-legacy-ui-20261110, fix/scarlet-v37-session-refresh-20261110, fix/scarlet-v38-current-launch-logs-20261110, fix/scarlet-v39-log-truth-20261110, fix/scarlet-v40-clean-work-session-20261110, fix/scarlet-v42-v40-safe-diagnostics-20261110, fix/scarlet-v43-install-rootcause-20261110, fix/scarlet-v44-rppairing-postsign-install-20261111, fix/scarlet-v45-single-viewport-liveprocess-20261111, fix/scarlet-v46-guard-provisional-guest-geometry-20261111, fix/scarlet-v47-resident-inplace-guest-switch-20261111, fix/scarlet-v48-guest-runtime-recovery-20261111, fix/scarlet-v48-restored-20261111, fix/scarlet-v48-r2-unified-switcher-20261111, fix/scarlet-v48-r3-original-pan-diagnostics-20261111, fix/scarlet-v48-r4-native-outside-remote-insets-20261111, fix/scarlet-v48-r5-attached-insets-shield-20261111, fix/scarlet-v48-r5-crash-recovery-20261111, fix/scarlet-v48-r5-recovery-r2-host-owner-20261111, fix/scarlet-v48-r5-recovery-r3-scene-authority-20261111, fix/scarlet-v48-r5-recovery-r4-native-ready-20261111, fix/scarlet-v48-r5-recovery-r5-compat-foreground-20261111, fix/scarlet-v48-r6-island-outside-audio-20261111, fix/scarlet-v48-r6p1-audio-home-focus-20261111, fix/scarlet-v48-r6p2-blocked-history-20261111, fix/scarlet-v48-r6p3-home-audio-gate-20261111, fix/scarlet-v48-r6p4-guest-audio-ack-20261112, fix/scarlet-v48-r6p7-launch-policy-rootcause-20261112, fix/scarlet-v48-r6p8-policy-field-relay-20261112, fix/scarlet-v48-r6p9-deferred-scene-boot-20261112, fix/scarlet-v48-r6p10-persistent-remediation-ledger-20261112, fix/scarlet-v48-r6p11-resident-guest-sdk-contract-20261112, fix/scarlet-v48-r6p12-instant-recent-switcher-20261112, fix/scarlet-v48-r6p14-switcher-reset-on-navigation-20261112, fix/scarlet-v48-r6p15-guest-root-island-pairing-recovery-20261112, fix/scarlet-v48-r6p16-audit-coverage-20261112, fix/scarlet-v48-r6p17-resident-optin-defaults-20261112, fix/scarlet-v48-r6p18-guest-content-geometry-20261112, fix/scarlet-v48-r6p19-entitlement-failclosed-network-recovery-20261112, fix/scarlet-v48-r6p20-auth-session-bg-id-20261112, fix/scarlet-v48-r6p21-depth-probe-cert-recheck-20261112, fix/scarlet-v48-r6p22-guest-scroll-content-inset-20261112, fix/scarlet-v48-r6p23-guest-owner-refresh-stage-20261112, fix/scarlet-v48-r6p24-keyboard-stage-relay-20261112, fix/scarlet-v48-r6p25-visibility-occlusion-20261112, fix/scarlet-v48-r6p26-recorder-field-contract-20261112, fix/scarlet-v48-r6p27-visible-scroll-owner-20261112, fix/scarlet-v48-r6p28-guest-local-scroll-inset-20261112, fix/scarlet-v48-r6p29-residual-auto-inset-20261112, fix/scarlet-v48-r6p30-inset-interference-isolation-20261112, fix/scarlet-v48-r6p31-nonvertical-always-safearea-20261112, fix/scarlet-v48-r6p32-nonscrolling-owner-stabilization-20261112, fix/scarlet-v48-r6p33-deferred-inset-anchor-20261112, fix/scarlet-v48-r6p34-constraint-native-error-proof-20261112, fix/scarlet-v48-r6p35-ancestor-layout-owner-20261112, fix/scarlet-v48-r6p36-lost-guest-probe-readback-20261112, fix/scarlet-v48-r6p37-nested-header-safe-guide-anchor-20261112, fix/scarlet-v48-r6p38-header-layout-owner-20261113, fix/scarlet-v48-r6p39-parent-safe-guide-constraint-20261113, fix/scarlet-v48-r6p40-transparent-chrome-slot-20261113, fix/scarlet-v48-r6p41-adaptive-chrome-stickiness-20261113, fix/scarlet-v48-r6p42-guest-matched-status-chrome-20261113, fix/scarlet-v48-r6p43-host-verified-native-slot-20261113, fix/scarlet-v48-r6p44-full-native-scroll-header-20261113, fix/scarlet-v48-r6p45-scroll-aware-header-proof-20261113, fix/scarlet-v48-r6p46-detached-header-full-scroll-20261113, fix/scarlet-v48-r6p47-lifecycle-statusbar-20261113, fix/scarlet-v48-r6p48-fresh-proof-crop-gate-20261113, fix/scarlet-v48-r6p49-key-host-statusbar-20261113, fix/scarlet-v48-r6p50-scroll-crop-veto-20261113, fix/scarlet-v48-r6p51-native-statusbar-collision-shield-20261113, fix/scarlet-v48-r6p52-restore-original-host-colors-20261113, fix/scarlet-v48-r6p53-current-log-followup-20261113, fix/scarlet-v48-r6p54-owning-layout-contract-20261114, fix/scarlet-v48-r6p55-child-controller-owner-layout-20261114, fix/scarlet-v48-r6p56-parent-feed-reflow-20261114, fix/scarlet-v48-r6p57-guest-overwrite-20261114, fix/scarlet-v48-r6p58-install-identity-20261114, fix/scarlet-v48-r6p59-unsafe-feed-owner-20261114, fix/scarlet-v48-r6p60-deep-owner-20261114, fix/scarlet-v48-r6p61-slot-manager-20261114, fix/scarlet-v48-r6p62-scroll-viewport-20261114, fix/scarlet-v48-r6p63-nested-parent-20261114, fix/scarlet-v48-r6p64-residual-viewport-20261115, fix/scarlet-v48-r6p65-inset-compensated-settle-20261115, fix/scarlet-v48-r6p66-multiaccount-rea-20261115, fix/scarlet-v48-r6p67-auth-rollback-20261115, fix/scarlet-v48-r6p68-install-team-switch-20261115, fix/scarlet-v48-r6p69-settings-debloat-20261115, fix/scarlet-v48-r6p70-settings-account-list-20261115]"
+          ],
+          "commit": "40460e56f7391ed939e59d2f2c7a1cce7014c3e7"
+        },
+        {
+          "file": ".github/workflows/scarlet-paired-engines-build.yml",
+          "function": "P70 native saved Apple ID rows, one-tap active account selection, original SideStore readback and regression coverage",
+          "location": "@@ -328,3 +328,5 @@ jobs:",
+          "before": [
+            "          if [ \"$GITHUB_REF\" = \"refs/heads/fix/scarlet-v48-r6p69-settings-debloat-20261115\" ]; then"
+          ],
+          "after": [
+            "          if [ \"$GITHUB_REF\" = \"refs/heads/fix/scarlet-v48-r6p70-settings-account-list-20261115\" ]; then",
+            "            SCARLET_HOST_VERSION_ARGS=(--host-build-version 3.8.70)",
+            "          elif [ \"$GITHUB_REF\" = \"refs/heads/fix/scarlet-v48-r6p69-settings-debloat-20261115\" ]; then"
+          ],
+          "commit": "40460e56f7391ed939e59d2f2c7a1cce7014c3e7"
+        },
+        {
+          "file": ".github/workflows/scarlet-paired-engines-build.yml",
+          "function": "P70 native saved Apple ID rows, one-tap active account selection, original SideStore readback and regression coverage",
+          "location": "@@ -382,3 +384,3 @@ jobs:",
+          "before": [
+            "    if: github.event_name == 'push' && (github.ref == 'refs/heads/rebuild/scarlet-from-zero-20261106' || github.ref == 'refs/heads/fix/scarlet-v31-pairing-persistence-sheet-purple-20261110' || github.ref == 'refs/heads/fix/scarlet-v32-korean-copy-20261110' || github.ref == 'refs/heads/fix/scarlet-v33-log-rootcause-20261110' || github.ref == 'refs/heads/fix/scarlet-v34-iphone-virtual-resident-20261110' || github.ref == 'refs/heads/fix/scarlet-v35-restore-original-fullscreen-20261110' || github.ref == 'refs/heads/fix/scarlet-v36-remove-legacy-ui-20261110' || github.ref == 'refs/heads/fix/scarlet-v37-session-refresh-20261110' || github.ref == 'refs/heads/fix/scarlet-v38-current-launch-logs-20261110' || github.ref == 'refs/heads/fix/scarlet-v39-log-truth-20261110' || github.ref == 'refs/heads/fix/scarlet-v40-clean-work-session-20261110' || github.ref == 'refs/heads/fix/scarlet-v42-v40-safe-diagnostics-20261110' || github.ref == 'refs/heads/fix/scarlet-v43-install-rootcause-20261110' || github.ref == 'refs/heads/fix/scarlet-v44-rppairing-postsign-install-20261111' || github.ref == 'refs/heads/fix/scarlet-v45-single-viewport-liveprocess-20261111' || github.ref == 'refs/heads/fix/scarlet-v46-guard-provisional-guest-geometry-20261111' || github.ref == 'refs/heads/fix/scarlet-v47-resident-inplace-guest-switch-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-guest-runtime-recovery-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-restored-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r2-unified-switcher-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r3-original-pan-diagnostics-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r4-native-outside-remote-insets-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r5-attached-insets-shield-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r5-crash-recovery-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r5-recovery-r2-host-owner-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r5-recovery-r3-scene-authority-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r5-recovery-r4-native-ready-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r5-recovery-r5-compat-foreground-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r6-island-outside-audio-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r6p1-audio-home-focus-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r6p2-blocked-history-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r6p3-home-audio-gate-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r6p4-guest-audio-ack-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p7-launch-policy-rootcause-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p8-policy-field-relay-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p9-deferred-scene-boot-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p10-persistent-remediation-ledger-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p11-resident-guest-sdk-contract-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p12-instant-recent-switcher-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p14-switcher-reset-on-navigation-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p15-guest-root-island-pairing-recovery-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p16-audit-coverage-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p17-resident-optin-defaults-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p18-guest-content-geometry-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p19-entitlement-failclosed-network-recovery-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p20-auth-session-bg-id-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p21-depth-probe-cert-recheck-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p22-guest-scroll-content-inset-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p23-guest-owner-refresh-stage-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p24-keyboard-stage-relay-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p25-visibility-occlusion-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p26-recorder-field-contract-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p27-visible-scroll-owner-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p28-guest-local-scroll-inset-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p29-residual-auto-inset-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p30-inset-interference-isolation-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p31-nonvertical-always-safearea-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p32-nonscrolling-owner-stabilization-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p33-deferred-inset-anchor-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p34-constraint-native-error-proof-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p35-ancestor-layout-owner-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p36-lost-guest-probe-readback-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p37-nested-header-safe-guide-anchor-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p38-header-layout-owner-20261113' || github.ref == 'refs/heads/fix/scarlet-v48-r6p39-parent-safe-guide-constraint-20261113' || github.ref == 'refs/heads/fix/scarlet-v48-r6p40-transparent-chrome-slot-20261113' || github.ref == 'refs/heads/fix/scarlet-v48-r6p41-adaptive-chrome-stickiness-20261113' || github.ref == 'refs/heads/fix/scarlet-v48-r6p42-guest-matched-status-chrome-20261113' || github.ref == 'refs/heads/fix/scarlet-v48-r6p43-host-verified-native-slot-20261113' || github.ref == 'refs/heads/fix/scarlet-v48-r6p44-full-native-scroll-header-20261113' || github.ref == 'refs/heads/fix/scarlet-v48-r6p45-scroll-aware-header-proof-20261113' || github.ref == 'refs/heads/fix/scarlet-v48-r6p46-detached-header-full-scroll-20261113' || github.ref == 'refs/heads/fix/scarlet-v48-r6p47-lifecycle-statusbar-20261113' || github.ref == 'refs/heads/fix/scarlet-v48-r6p48-fresh-proof-crop-gate-20261113' || github.ref == 'refs/heads/fix/scarlet-v48-r6p49-key-host-statusbar-20261113' || github.ref == 'refs/heads/fix/scarlet-v48-r6p50-scroll-crop-veto-20261113' || github.ref == 'refs/heads/fix/scarlet-v48-r6p51-native-statusbar-collision-shield-20261113' || github.ref == 'refs/heads/fix/scarlet-v48-r6p52-restore-original-host-colors-20261113' || github.ref == 'refs/heads/fix/scarlet-v48-r6p53-current-log-followup-20261113' || github.ref == 'refs/heads/fix/scarlet-v48-r6p54-owning-layout-contract-20261114' || github.ref == 'refs/heads/fix/scarlet-v48-r6p55-child-controller-owner-layout-20261114' || github.ref == 'refs/heads/fix/scarlet-v48-r6p56-parent-feed-reflow-20261114' || github.ref == 'refs/heads/fix/scarlet-v48-r6p57-guest-overwrite-20261114' || github.ref == 'refs/heads/fix/scarlet-v48-r6p58-install-identity-20261114' || github.ref == 'refs/heads/fix/scarlet-v48-r6p59-unsafe-feed-owner-20261114' || github.ref == 'refs/heads/fix/scarlet-v48-r6p60-deep-owner-20261114' || github.ref == 'refs/heads/fix/scarlet-v48-r6p61-slot-manager-20261114' || github.ref == 'refs/heads/fix/scarlet-v48-r6p63-nested-parent-20261114' || github.ref == 'refs/heads/fix/scarlet-v48-r6p64-residual-viewport-20261115' || github.ref == 'refs/heads/fix/scarlet-v48-r6p65-inset-compensated-settle-20261115' || github.ref == 'refs/heads/fix/scarlet-v48-r6p66-multiaccount-rea-20261115' || github.ref == 'refs/heads/fix/scarlet-v48-r6p67-auth-rollback-20261115' || github.ref == 'refs/heads/fix/scarlet-v48-r6p68-install-team-switch-20261115' || github.ref == 'refs/heads/fix/scarlet-v48-r6p69-settings-debloat-20261115')"
+          ],
+          "after": [
+            "    if: github.event_name == 'push' && (github.ref == 'refs/heads/rebuild/scarlet-from-zero-20261106' || github.ref == 'refs/heads/fix/scarlet-v31-pairing-persistence-sheet-purple-20261110' || github.ref == 'refs/heads/fix/scarlet-v32-korean-copy-20261110' || github.ref == 'refs/heads/fix/scarlet-v33-log-rootcause-20261110' || github.ref == 'refs/heads/fix/scarlet-v34-iphone-virtual-resident-20261110' || github.ref == 'refs/heads/fix/scarlet-v35-restore-original-fullscreen-20261110' || github.ref == 'refs/heads/fix/scarlet-v36-remove-legacy-ui-20261110' || github.ref == 'refs/heads/fix/scarlet-v37-session-refresh-20261110' || github.ref == 'refs/heads/fix/scarlet-v38-current-launch-logs-20261110' || github.ref == 'refs/heads/fix/scarlet-v39-log-truth-20261110' || github.ref == 'refs/heads/fix/scarlet-v40-clean-work-session-20261110' || github.ref == 'refs/heads/fix/scarlet-v42-v40-safe-diagnostics-20261110' || github.ref == 'refs/heads/fix/scarlet-v43-install-rootcause-20261110' || github.ref == 'refs/heads/fix/scarlet-v44-rppairing-postsign-install-20261111' || github.ref == 'refs/heads/fix/scarlet-v45-single-viewport-liveprocess-20261111' || github.ref == 'refs/heads/fix/scarlet-v46-guard-provisional-guest-geometry-20261111' || github.ref == 'refs/heads/fix/scarlet-v47-resident-inplace-guest-switch-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-guest-runtime-recovery-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-restored-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r2-unified-switcher-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r3-original-pan-diagnostics-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r4-native-outside-remote-insets-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r5-attached-insets-shield-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r5-crash-recovery-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r5-recovery-r2-host-owner-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r5-recovery-r3-scene-authority-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r5-recovery-r4-native-ready-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r5-recovery-r5-compat-foreground-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r6-island-outside-audio-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r6p1-audio-home-focus-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r6p2-blocked-history-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r6p3-home-audio-gate-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r6p4-guest-audio-ack-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p7-launch-policy-rootcause-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p8-policy-field-relay-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p9-deferred-scene-boot-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p10-persistent-remediation-ledger-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p11-resident-guest-sdk-contract-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p12-instant-recent-switcher-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p14-switcher-reset-on-navigation-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p15-guest-root-island-pairing-recovery-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p16-audit-coverage-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p17-resident-optin-defaults-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p18-guest-content-geometry-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p19-entitlement-failclosed-network-recovery-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p20-auth-session-bg-id-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p21-depth-probe-cert-recheck-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p22-guest-scroll-content-inset-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p23-guest-owner-refresh-stage-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p24-keyboard-stage-relay-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p25-visibility-occlusion-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p26-recorder-field-contract-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p27-visible-scroll-owner-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p28-guest-local-scroll-inset-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p29-residual-auto-inset-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p30-inset-interference-isolation-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p31-nonvertical-always-safearea-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p32-nonscrolling-owner-stabilization-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p33-deferred-inset-anchor-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p34-constraint-native-error-proof-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p35-ancestor-layout-owner-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p36-lost-guest-probe-readback-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p37-nested-header-safe-guide-anchor-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p38-header-layout-owner-20261113' || github.ref == 'refs/heads/fix/scarlet-v48-r6p39-parent-safe-guide-constraint-20261113' || github.ref == 'refs/heads/fix/scarlet-v48-r6p40-transparent-chrome-slot-20261113' || github.ref == 'refs/heads/fix/scarlet-v48-r6p41-adaptive-chrome-stickiness-20261113' || github.ref == 'refs/heads/fix/scarlet-v48-r6p42-guest-matched-status-chrome-20261113' || github.ref == 'refs/heads/fix/scarlet-v48-r6p43-host-verified-native-slot-20261113' || github.ref == 'refs/heads/fix/scarlet-v48-r6p44-full-native-scroll-header-20261113' || github.ref == 'refs/heads/fix/scarlet-v48-r6p45-scroll-aware-header-proof-20261113' || github.ref == 'refs/heads/fix/scarlet-v48-r6p46-detached-header-full-scroll-20261113' || github.ref == 'refs/heads/fix/scarlet-v48-r6p47-lifecycle-statusbar-20261113' || github.ref == 'refs/heads/fix/scarlet-v48-r6p48-fresh-proof-crop-gate-20261113' || github.ref == 'refs/heads/fix/scarlet-v48-r6p49-key-host-statusbar-20261113' || github.ref == 'refs/heads/fix/scarlet-v48-r6p50-scroll-crop-veto-20261113' || github.ref == 'refs/heads/fix/scarlet-v48-r6p51-native-statusbar-collision-shield-20261113' || github.ref == 'refs/heads/fix/scarlet-v48-r6p52-restore-original-host-colors-20261113' || github.ref == 'refs/heads/fix/scarlet-v48-r6p53-current-log-followup-20261113' || github.ref == 'refs/heads/fix/scarlet-v48-r6p54-owning-layout-contract-20261114' || github.ref == 'refs/heads/fix/scarlet-v48-r6p55-child-controller-owner-layout-20261114' || github.ref == 'refs/heads/fix/scarlet-v48-r6p56-parent-feed-reflow-20261114' || github.ref == 'refs/heads/fix/scarlet-v48-r6p57-guest-overwrite-20261114' || github.ref == 'refs/heads/fix/scarlet-v48-r6p58-install-identity-20261114' || github.ref == 'refs/heads/fix/scarlet-v48-r6p59-unsafe-feed-owner-20261114' || github.ref == 'refs/heads/fix/scarlet-v48-r6p60-deep-owner-20261114' || github.ref == 'refs/heads/fix/scarlet-v48-r6p61-slot-manager-20261114' || github.ref == 'refs/heads/fix/scarlet-v48-r6p63-nested-parent-20261114' || github.ref == 'refs/heads/fix/scarlet-v48-r6p64-residual-viewport-20261115' || github.ref == 'refs/heads/fix/scarlet-v48-r6p65-inset-compensated-settle-20261115' || github.ref == 'refs/heads/fix/scarlet-v48-r6p66-multiaccount-rea-20261115' || github.ref == 'refs/heads/fix/scarlet-v48-r6p67-auth-rollback-20261115' || github.ref == 'refs/heads/fix/scarlet-v48-r6p68-install-team-switch-20261115' || github.ref == 'refs/heads/fix/scarlet-v48-r6p69-settings-debloat-20261115' || github.ref == 'refs/heads/fix/scarlet-v48-r6p70-settings-account-list-20261115')"
+          ],
+          "commit": "40460e56f7391ed939e59d2f2c7a1cce7014c3e7"
+        },
+        {
+          "file": ".github/workflows/scarlet-paired-engines-build.yml",
+          "function": "P70 native saved Apple ID rows, one-tap active account selection, original SideStore readback and regression coverage",
+          "location": "@@ -409,3 +411,3 @@ jobs:",
+          "before": [
+            "              if any(x in __import__(\"os\").environ.get(\"GITHUB_REF\",\"\") for x in (\"r6p58\",\"r6p59\",\"r6p60\",\"r6p61\",\"r6p62\",\"r6p63\",\"r6p64\",\"r6p65\",\"r6p66\",\"r6p67\",\"r6p68\",\"r6p69\")):"
+          ],
+          "after": [
+            "              if any(x in __import__(\"os\").environ.get(\"GITHUB_REF\",\"\") for x in (\"r6p58\",\"r6p59\",\"r6p60\",\"r6p61\",\"r6p62\",\"r6p63\",\"r6p64\",\"r6p65\",\"r6p66\",\"r6p67\",\"r6p68\",\"r6p69\",\"r6p70\")):"
+          ],
+          "commit": "40460e56f7391ed939e59d2f2c7a1cce7014c3e7"
+        },
+        {
+          "file": ".github/workflows/scarlet-paired-engines-build.yml",
+          "function": "P70 native saved Apple ID rows, one-tap active account selection, original SideStore readback and regression coverage",
+          "location": "@@ -418,2 +420,3 @@ jobs:",
+          "before": [],
+          "after": [
+            "                  if \"r6p70\" in __import__(\"os\").environ.get(\"GITHUB_REF\", \"\"): version=\"3.8.70\""
+          ],
+          "commit": "40460e56f7391ed939e59d2f2c7a1cce7014c3e7"
+        },
+        {
+          "file": ".github/workflows/scarlet-paired-engines-build.yml",
+          "function": "P70 native saved Apple ID rows, one-tap active account selection, original SideStore readback and regression coverage",
+          "location": "@@ -425,3 +428,5 @@ jobs:",
+          "before": [
+            "          if [ \"$GITHUB_REF\" = \"refs/heads/fix/scarlet-v48-r6p69-settings-debloat-20261115\" ]; then"
+          ],
+          "after": [
+            "          if [ \"$GITHUB_REF\" = \"refs/heads/fix/scarlet-v48-r6p70-settings-account-list-20261115\" ]; then",
+            "            asset=\"Scarlet-Crystal-V48-R6P70-ACCOUNT-SWITCH-UNSIGNED.ipa\"",
+            "          elif [ \"$GITHUB_REF\" = \"refs/heads/fix/scarlet-v48-r6p69-settings-debloat-20261115\" ]; then"
+          ],
+          "commit": "40460e56f7391ed939e59d2f2c7a1cce7014c3e7"
+        },
+        {
+          "file": ".github/workflows/scarlet-paired-engines-build.yml",
+          "function": "P70 native saved Apple ID rows, one-tap active account selection, original SideStore readback and regression coverage",
+          "location": "@@ -637,3 +642,6 @@ jobs:",
+          "before": [
+            "          if [ \"$GITHUB_REF\" = \"refs/heads/fix/scarlet-v48-r6p69-settings-debloat-20261115\" ]; then"
+          ],
+          "after": [
+            "          if [ \"$GITHUB_REF\" = \"refs/heads/fix/scarlet-v48-r6p70-settings-account-list-20261115\" ]; then",
+            "            tag=scarlet-v48-r6p70-settings-account-switch-unsigned-20261115",
+            "            asset=Scarlet-Crystal-V48-R6P70-ACCOUNT-SWITCH-UNSIGNED.ipa",
+            "          elif [ \"$GITHUB_REF\" = \"refs/heads/fix/scarlet-v48-r6p69-settings-debloat-20261115\" ]; then"
+          ],
+          "commit": "40460e56f7391ed939e59d2f2c7a1cce7014c3e7"
+        },
+        {
+          "file": "rebuild/HostApp/ScarletAppleIDLoginSheet.swift",
+          "function": "P70 native saved Apple ID rows, one-tap active account selection, original SideStore readback and regression coverage",
+          "location": "@@ -21,2 +21,7 @@ struct ScarletAppleIDLoginSheet: View {",
+          "before": [],
+          "after": [
+            "    let startsWithAdditionalLogin: Bool",
+            "    init(engine: any ScarletAppleSignInEngine, startsWithAdditionalLogin: Bool = false) {",
+            "        self.engine = engine",
+            "        self.startsWithAdditionalLogin = startsWithAdditionalLogin",
+            "    }"
+          ],
+          "commit": "40460e56f7391ed939e59d2f2c7a1cce7014c3e7"
+        },
+        {
+          "file": "rebuild/HostApp/ScarletAppleIDLoginSheet.swift",
+          "function": "P70 native saved Apple ID rows, one-tap active account selection, original SideStore readback and regression coverage",
+          "location": "@@ -280,2 +285,4 @@ struct ScarletAppleIDLoginSheet: View {",
+          "before": [],
+          "after": [
+            "            // Settings owns switching. Add-login opens credentials directly.",
+            "            explicitlyReauthenticating = startsWithAdditionalLogin"
+          ],
+          "commit": "40460e56f7391ed939e59d2f2c7a1cce7014c3e7"
+        },
+        {
+          "file": "rebuild/Tests/test_independent_ui_contract.py",
+          "function": "P70 native saved Apple ID rows, one-tap active account selection, original SideStore readback and regression coverage",
+          "location": "@@ -107,3 +107,3 @@ class IndependentUIContractTests(unittest.TestCase):",
+          "before": [
+            "        self.assertIn(\"SCARLET_SETTINGS_NATIVE_APPLE_LOGIN\",INTEGRATOR)"
+          ],
+          "after": [
+            "        self.assertIn(\"SCARLET_SETTINGS_ADD_LOGIN\",INTEGRATOR)"
+          ],
+          "commit": "40460e56f7391ed939e59d2f2c7a1cce7014c3e7"
+        },
+        {
+          "file": "rebuild/Tests/test_native_sidestore_login_route.py",
+          "function": "P70 native saved Apple ID rows, one-tap active account selection, original SideStore readback and regression coverage",
+          "location": "@@ -53,3 +53,3 @@ class NativeScarletLoginContract(unittest.TestCase):",
+          "before": [
+            "        self.assertIn(\"SCARLET_SETTINGS_NATIVE_APPLE_LOGIN\",INTEGRATOR)"
+          ],
+          "after": [
+            "        self.assertIn(\"SCARLET_SETTINGS_ADD_LOGIN\",INTEGRATOR)"
+          ],
+          "commit": "40460e56f7391ed939e59d2f2c7a1cce7014c3e7"
+        },
+        {
+          "file": "rebuild/Tests/test_november_five_acceptance.py",
+          "function": "P70 native saved Apple ID rows, one-tap active account selection, original SideStore readback and regression coverage",
+          "location": "@@ -16,3 +16,3 @@ class FivePointNovemberAccept(unittest.TestCase):",
+          "before": [
+            "        self.assertIn('Label(\"추가 로그인\", systemImage:', PATCH)"
+          ],
+          "after": [
+            "        self.assertIn('Label(scarletLoginVerified == true || !scarletSavedAccounts.isEmpty', PATCH)"
+          ],
+          "commit": "40460e56f7391ed939e59d2f2c7a1cce7014c3e7"
+        },
+        {
+          "file": "rebuild/Tests/test_settings_alignment_parity.py",
+          "function": "P70 native saved Apple ID rows, one-tap active account selection, original SideStore readback and regression coverage",
+          "location": "@@ -35,3 +35,3 @@ class SettingsParity(unittest.TestCase):",
+          "before": [
+            "        self.assertIn(\"SCARLET_SETTINGS_NATIVE_APPLE_LOGIN\",INTEGRATOR)"
+          ],
+          "after": [
+            "        self.assertIn(\"SCARLET_SETTINGS_ADD_LOGIN\",INTEGRATOR)"
+          ],
+          "commit": "40460e56f7391ed939e59d2f2c7a1cce7014c3e7"
+        },
+        {
+          "file": "rebuild/Tests/test_user_visible_label_stability.py",
+          "function": "P70 native saved Apple ID rows, one-tap active account selection, original SideStore readback and regression coverage",
+          "location": "@@ -16,6 +16,6 @@ class UserVisibleLabelStability(unittest.TestCase):",
+          "before": [
+            "        self.assertIn('if scarletLoginVerified == true {',PATCH)",
+            "        self.assertIn('Label(\"추가 로그인\", systemImage:',PATCH)",
+            "        self.assertIn('Label(\"로그인\", systemImage:',PATCH)"
+          ],
+          "after": [
+            "        self.assertIn('if !scarletSavedAccounts.isEmpty {',PATCH)",
+            "        self.assertIn('Label(scarletLoginVerified == true || !scarletSavedAccounts.isEmpty',PATCH)",
+            "        self.assertIn('SCARLET_SETTINGS_SWITCH_APPLE_ID',PATCH)"
+          ],
+          "commit": "40460e56f7391ed939e59d2f2c7a1cce7014c3e7"
+        },
+        {
+          "file": "rebuild/Tests/test_v48_r6p66_multiaccount_rea.py",
+          "function": "P70 native saved Apple ID rows, one-tap active account selection, original SideStore readback and regression coverage",
+          "location": "@@ -18,3 +18,4 @@ class VerifiedAccountRoutes(unittest.TestCase):",
+          "before": [
+            "        self.assertIn('Label(\"추가 로그인\", systemImage:', LC)"
+          ],
+          "after": [
+            "        self.assertIn('SCARLET_SETTINGS_ADD_LOGIN', LC)",
+            "        self.assertIn('Label(scarletLoginVerified == true || !scarletSavedAccounts.isEmpty', LC)"
+          ],
+          "commit": "40460e56f7391ed939e59d2f2c7a1cce7014c3e7"
+        },
+        {
+          "file": "rebuild/Tests/test_v48_r6p70_inline_account_switch.py",
+          "function": "P70 native saved Apple ID rows, one-tap active account selection, original SideStore readback and regression coverage",
+          "location": "@@ -0,0 +1,40 @@",
+          "before": [],
+          "after": [
+            "\"\"\"P70: native Settings must expose each stored Apple ID without an extra login sheet.\"\"\"",
+            "from pathlib import Path",
+            "import unittest",
+            "R=Path(__file__).resolve().parents[1]",
+            "PATCH=(R/'integration/apply_scarlet_host.py').read_text()",
+            "SHEET=(R/'HostApp/ScarletAppleIDLoginSheet.swift').read_text()",
+            "XPC=(R/'HostApp/ScarletAuthXPCSupport.swift').read_text()",
+            "WORKFLOW=(R.parent/'.github/workflows/scarlet-paired-engines-build.yml').read_text()",
+            "class InlineAccountSwitch(unittest.TestCase):",
+            "    def test_settings_reads_keychain_backed_account_rows(self):",
+            "        for key in ('@State private var scarletSavedAccounts:',",
+            "                    'ForEach(scarletSavedAccounts)', 'Text(row.id).lineLimit(1)',",
+            "                    'SCARLET_SETTINGS_ACTIVE_APPLE_ID',",
+            "                    'SCARLET_SETTINGS_SWITCH_APPLE_ID',",
+            "                    'await ScarletNativeSavedAccounts.list()',",
+            "                    'scarletReloadSavedAccounts()',",
+            "                    'SCARLET_SETTINGS_ADD_LOGIN'):",
+            "            self.assertIn(key, PATCH)",
+            "    def test_switch_calls_existing_verified_worker_and_checks_readback(self):",
+            "        for key in ('await ScarletNativeSavedAccounts.activate(id)',",
+            "                    'readback.accounts.filter({ $0.active }).count == 1',",
+            "                    '$0.id == id && $0.active',",
+            "                    'settings_account_switch_verified',",
+            "                    'settings_account_switch_readback_failed',",
+            "                    'scarletSwitchingAccountID != nil',",
+            "                    'scarletAccountReadGeneration'):",
+            "            self.assertIn(key, PATCH)",
+            "        self.assertIn('client.scarletSelectAuthAccount(id)', XPC)",
+            "    def test_add_login_opens_credential_form_without_second_click(self):",
+            "        self.assertIn('startsWithAdditionalLogin: true', PATCH)",
+            "        self.assertIn('explicitlyReauthenticating = startsWithAdditionalLogin', SHEET)",
+            "        self.assertIn('SCARLET_APPLE_ID_FIELD', SHEET)",
+            "        self.assertIn('SCARLET_ADD_SECOND_APPLE_ID', SHEET)",
+            "    def test_preserve_existing_native_settings_and_unique_ipa(self):",
+            "        self.assertIn('LCSettingsView()', (R/'HostApp/ScarletIntegratedHostView.swift').read_text())",
+            "        self.assertIn('ScarletSigningReadinessPanel()', PATCH)",
+            "        self.assertIn('SCARLET_NATIVE_DIAGNOSTICS_ENTRY', PATCH)",
+            "        self.assertIn('3.8.70', WORKFLOW)",
+            "        self.assertIn('Scarlet-Crystal-V48-R6P70-ACCOUNT-SWITCH-UNSIGNED.ipa', WORKFLOW)",
+            "if __name__ == '__main__':unittest.main()"
+          ],
+          "commit": "40460e56f7391ed939e59d2f2c7a1cce7014c3e7"
+        },
+        {
+          "file": "rebuild/integration/apply_scarlet_host.py",
+          "function": "P70 native saved Apple ID rows, one-tap active account selection, original SideStore readback and regression coverage",
+          "location": "@@ -754,3 +754,66 @@ def attach_native_settings_diagnostics(engine: Path) -> dict:",
+          "before": [
+            "        '    @State private var scarletLoginVerified: Bool? = nil\\n')"
+          ],
+          "after": [
+            "        '    @State private var scarletLoginVerified: Bool? = nil\\n'",
+            "        '''    @State private var scarletSavedAccounts: [ScarletStoredAppleAccount] = []",
+            "    @State private var scarletAccountListStatus: String? = nil",
+            "    @State private var scarletAccountSwitchError: String? = nil",
+            "    @State private var scarletSwitchingAccountID: String? = nil",
+            "    @State private var scarletAccountReadGeneration: UInt64 = 0",
+            "",
+            "    @MainActor",
+            "    private func scarletReloadSavedAccounts() async {",
+            "        guard #available(iOS 17.0, *) else { return }",
+            "        scarletAccountReadGeneration &+= 1",
+            "        let generation = scarletAccountReadGeneration",
+            "        let result = await ScarletNativeSavedAccounts.list()",
+            "        guard generation == scarletAccountReadGeneration,",
+            "              scarletSwitchingAccountID == nil else { return }",
+            "        if result.status == \"ready\" {",
+            "            scarletSavedAccounts = result.accounts",
+            "            scarletAccountListStatus = nil",
+            "        } else {",
+            "            // Preserve verified rows on transient XPC/Keychain failure.",
+            "            scarletAccountListStatus = result.status",
+            "        }",
+            "    }",
+            "",
+            "    @MainActor",
+            "    private func scarletSwitchToSavedAccount(_ id: String) {",
+            "        guard #available(iOS 17.0, *), scarletSwitchingAccountID == nil,",
+            "              scarletSavedAccounts.contains(where: { $0.id == id && !$0.active }) else { return }",
+            "        scarletSwitchingAccountID = id",
+            "        scarletAccountSwitchError = nil",
+            "        scarletAccountReadGeneration &+= 1",
+            "        ScarletDiagnosticRecorder.shared.record(\"auth\", \"settings_account_switch_requested\")",
+            "        Task { @MainActor in",
+            "            let (ok, reason) = await ScarletNativeSavedAccounts.activate(id)",
+            "            if ok {",
+            "                // The worker checks Keychain/team. Verify the active row before",
+            "                // committing the new checkmark in the native Settings view.",
+            "                let readback = await ScarletNativeSavedAccounts.list()",
+            "                if readback.status == \"ready\" &&",
+            "                    readback.accounts.filter({ $0.active }).count == 1 &&",
+            "                    readback.accounts.contains(where: { $0.id == id && $0.active }) {",
+            "                    scarletSavedAccounts = readback.accounts",
+            "                    scarletAccountListStatus = nil",
+            "                    scarletLoginVerified = true",
+            "                    ScarletDiagnosticRecorder.shared.record(\"auth\",",
+            "                        \"settings_account_switch_verified\", status: \"success\")",
+            "                    NotificationCenter.default.post(",
+            "                        name: Notification.Name(\"ScarletGuestAuthVerified\"), object: nil)",
+            "                } else {",
+            "                    scarletAccountSwitchError = \"전환 후 활성 계정을 확인하지 못했습니다. 다시 확인하세요.\"",
+            "                    ScarletDiagnosticRecorder.shared.record(\"auth\",",
+            "                        \"settings_account_switch_readback_failed\", status: \"warning\")",
+            "                }",
+            "            } else {",
+            "                scarletAccountSwitchError = \"계정 전환 실패: \" + reason",
+            "                ScarletDiagnosticRecorder.shared.record(\"auth\",",
+            "                    \"settings_account_switch_failed\", status: \"error\",",
+            "                    fields: [\"reason\": reason])",
+            "            }",
+            "            scarletSwitchingAccountID = nil",
+            "            await scarletReloadSavedAccounts()",
+            "        }",
+            "    }",
+            "''' + '\\n')"
+          ],
+          "commit": "40460e56f7391ed939e59d2f2c7a1cce7014c3e7"
+        },
+        {
+          "file": "rebuild/integration/apply_scarlet_host.py",
+          "function": "P70 native saved Apple ID rows, one-tap active account selection, original SideStore readback and regression coverage",
+          "location": "@@ -758,3 +821,31 @@ def attach_native_settings_diagnostics(engine: Path) -> dict:",
+          "before": [
+            "                    if scarletLoginVerified == true {"
+          ],
+          "after": [
+            "                    if !scarletSavedAccounts.isEmpty {",
+            "                        ForEach(scarletSavedAccounts) { row in",
+            "                            if row.active {",
+            "                                HStack {",
+            "                                    Text(row.id).lineLimit(1)",
+            "                                    Spacer()",
+            "                                    Label(\"사용 중\", systemImage: \"checkmark.circle.fill\")",
+            "                                        .font(.subheadline).foregroundStyle(.green)",
+            "                                }",
+            "                                .accessibilityIdentifier(\"SCARLET_SETTINGS_ACTIVE_APPLE_ID\")",
+            "                            } else {",
+            "                                Button {",
+            "                                    scarletSwitchToSavedAccount(row.id)",
+            "                                } label: {",
+            "                                    HStack {",
+            "                                        Text(row.id).lineLimit(1)",
+            "                                        Spacer()",
+            "                                        if scarletSwitchingAccountID == row.id {",
+            "                                            ProgressView()",
+            "                                        } else {",
+            "                                            Text(\"전환\").foregroundStyle(.secondary)",
+            "                                        }",
+            "                                    }",
+            "                                }",
+            "                                .disabled(scarletSwitchingAccountID != nil)",
+            "                                .accessibilityIdentifier(\"SCARLET_SETTINGS_SWITCH_APPLE_ID\")",
+            "                            }",
+            "                        }",
+            "                    } else if scarletLoginVerified == true {"
+          ],
+          "commit": "40460e56f7391ed939e59d2f2c7a1cce7014c3e7"
+        },
+        {
+          "file": "rebuild/integration/apply_scarlet_host.py",
+          "function": "P70 native saved Apple ID rows, one-tap active account selection, original SideStore readback and regression coverage",
+          "location": "@@ -762,21 +853,22 @@ def attach_native_settings_diagnostics(engine: Path) -> dict:",
+          "before": [
+            "                        Button {",
+            "                            ScarletDiagnosticRecorder.shared.record(\"auth\", \"add_account_requested\")",
+            "                            scarletShowAppleLogin = true",
+            "                        } label: {",
+            "                            Label(\"추가 로그인\", systemImage: \"person.badge.plus\")",
+            "                        }",
+            "                        .accessibilityIdentifier(\"SCARLET_SETTINGS_ADD_LOGIN\")",
+            "                    } else if scarletLoginVerified == nil {",
+            "                        Label(\"로그인 상태 확인 중\", systemImage: \"clock\")",
+            "                            .foregroundStyle(.secondary)",
+            "                    } else {",
+            "                        Button {",
+            "                            ScarletDiagnosticRecorder.shared.record(\"auth\", \"open_from_settings\")",
+            "                            scarletShowAppleLogin = true",
+            "                        } label: {",
+            "                            Label(\"로그인\", systemImage: \"person.crop.circle\")",
+            "                        .accessibilityIdentifier(\"SCARLET_SETTINGS_NATIVE_APPLE_LOGIN\")"
+          ],
+          "after": [
+            "                    } else if scarletLoginVerified == nil && scarletAccountListStatus == nil {",
+            "                        ProgressView(\"계정 확인 중\")",
+            "                    }",
+            "                    if let scarletAccountSwitchError {",
+            "                        Text(scarletAccountSwitchError).font(.footnote).foregroundStyle(.red)",
+            "                    } else if scarletAccountListStatus != nil {",
+            "                        Button(\"저장된 계정 다시 확인\") {",
+            "                            Task { await scarletReloadSavedAccounts() }",
+            "                        .accessibilityIdentifier(\"SCARLET_SETTINGS_RETRY_APPLE_ID_LIST\")",
+            "                    }",
+            "                    Button {",
+            "                        ScarletDiagnosticRecorder.shared.record(\"auth\", \"add_account_requested\")",
+            "                        scarletShowAppleLogin = true",
+            "                    } label: {",
+            "                        Label(scarletLoginVerified == true || !scarletSavedAccounts.isEmpty",
+            "                            ? \"추가 로그인\" : \"로그인\", systemImage: \"person.badge.plus\")",
+            "                    .disabled(scarletSwitchingAccountID != nil)",
+            "                    .accessibilityIdentifier(\"SCARLET_SETTINGS_ADD_LOGIN\")"
+          ],
+          "commit": "40460e56f7391ed939e59d2f2c7a1cce7014c3e7"
+        },
+        {
+          "file": "rebuild/integration/apply_scarlet_host.py",
+          "function": "P70 native saved Apple ID rows, one-tap active account selection, original SideStore readback and regression coverage",
+          "location": "@@ -849,3 +941,4 @@ def attach_native_settings_diagnostics(engine: Path) -> dict:",
+          "before": [
+            "        '                    scarletLoginVerified = await ScarletConnectedSideSignEngine().storedAuthenticated()\\n'        '                }\\n'"
+          ],
+          "after": [
+            "        '                    scarletLoginVerified = await ScarletConnectedSideSignEngine().storedAuthenticated()\\n'",
+            "        '                    await scarletReloadSavedAccounts()\\n'        '                }\\n'"
+          ],
+          "commit": "40460e56f7391ed939e59d2f2c7a1cce7014c3e7"
+        },
+        {
+          "file": "rebuild/integration/apply_scarlet_host.py",
+          "function": "P70 native saved Apple ID rows, one-tap active account selection, original SideStore readback and regression coverage",
+          "location": "@@ -853,3 +946,3 @@ def attach_native_settings_diagnostics(engine: Path) -> dict:",
+          "before": [
+            "        '                ScarletAppleIDLoginSheet(engine: ScarletConnectedSideSignEngine())\\n'"
+          ],
+          "after": [
+            "        '                ScarletAppleIDLoginSheet(engine: ScarletConnectedSideSignEngine(),\\n                    startsWithAdditionalLogin: true)\\n'"
+          ],
+          "commit": "40460e56f7391ed939e59d2f2c7a1cce7014c3e7"
+        },
+        {
+          "file": "rebuild/integration/apply_scarlet_host.py",
+          "function": "P70 native saved Apple ID rows, one-tap active account selection, original SideStore readback and regression coverage",
+          "location": "@@ -862,3 +955,4 @@ def attach_native_settings_diagnostics(engine: Path) -> dict:",
+          "before": [
+            "        '                    scarletLoginVerified = await ScarletConnectedSideSignEngine().storedAuthenticated()\\n'        '                }\\n'"
+          ],
+          "after": [
+            "        '                    scarletLoginVerified = await ScarletConnectedSideSignEngine().storedAuthenticated()\\n'",
+            "        '                    await scarletReloadSavedAccounts()\\n'        '                }\\n'"
+          ],
+          "commit": "40460e56f7391ed939e59d2f2c7a1cce7014c3e7"
+        },
+        {
+          "file": "rebuild/integration/apply_scarlet_host.py",
+          "function": "P70 native saved Apple ID rows, one-tap active account selection, original SideStore readback and regression coverage",
+          "location": "@@ -869,3 +963,4 @@ def attach_native_settings_diagnostics(engine: Path) -> dict:",
+          "before": [
+            "        '                    scarletLoginVerified = await ScarletConnectedSideSignEngine().storedAuthenticated()\\n'        '                }\\n'"
+          ],
+          "after": [
+            "        '                    scarletLoginVerified = await ScarletConnectedSideSignEngine().storedAuthenticated()\\n'",
+            "        '                    await scarletReloadSavedAccounts()\\n'        '                }\\n'"
+          ],
+          "commit": "40460e56f7391ed939e59d2f2c7a1cce7014c3e7"
         }
       ],
       "generated_runtime_targets": [
