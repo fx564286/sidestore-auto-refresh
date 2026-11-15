@@ -3,7 +3,7 @@ name: GoldenNugget 9.7.7 Korean Experimental Backup Skip
 on:
   push:
     branches: [build/goldennugget-977-ko-pbselective-20261116]
-    paths: [.github/workflows/goldennugget-977-ko-skipbackup.yml]
+    paths: [.github/workflows/goldennugget-977-ko-pbselective.yml]
   workflow_dispatch:
 
 permissions:
