@@ -1,9 +1,9 @@
 {
   "schema": 2,
   "scope": "Scarlet Crystal guest top-screen overlap, touch access, rotation, remote guest render and related resident regressions",
-  "updated_utc": "2026-11-15T08:04:59+00:00",
-  "current_baseline": "P73 native CI and IPA complete; latest source commit 744eb58b818a P74 status band 2-pass host icon policy, 773 local tests pass 3 skipped; P74 iPhone and CI outcomes pending.",
-  "current_issue_status": "P71 native guest original severe y3 and after header retained 5 near-safe y60 from safeTop62; P51 status hidden despite no deep hazard in capped depth24. P74 tests strictly scan depth56 twice, then release only if verified. P73 automatic refresh actual reinstall unverified.",
+  "updated_utc": "2026-11-16T06:42:00+09:00",
+  "current_baseline": "P79 real iPhone installed Build3.8.79 commit448a6e583403 shows guest import failed Swift.String, severe island 8 after failed native header, Settings overlay; P80 runtime fixes committed e4b148e84461 805 tests/802 pass 3 skipped, native CI and phone pending.",
+  "current_issue_status": "P80 not yet signed-device verified. P79 single IPA import failed after staging at 10ms, host account switch 2/2 succeeded; guest severe nodes8 at 2850/3550 after P54 reversion, statusbar hidden; settings controls outside Form and tab underlap observed in two images. Test real iPhone before success claims.",
   "confidence_note": "P74 policy compiles unverified until Xcode native CI; visual clock/battery and guest layout/touch remain device-unverified, and read-only scan budget may still prohibit release for complex guests.",
   "privacy": "No credentials, Apple ID, OTP, UDID, guest names or device identifiers are stored.",
   "entries": [
@@ -38718,6 +38718,285 @@
           "generated_file": "LiveContainerSwiftUI/Utilities/unarchive.m",
           "source_generation_script": "rebuild/integration/apply_scarlet_host.py",
           "function": "scarletExtractGuestIPAFromMappedData"
+        }
+      ]
+    },
+    {
+      "id": "L133",
+      "date": "2026-11-16",
+      "version": "Scarlet-V48-R6P80-Native-Form-owned-experimental-switch-and-managed-slot-manager",
+      "source_verification": "git_patch_observed",
+      "device_verification": "not_verified",
+      "source_revisions": [
+        {
+          "sha": "e4b148e84461b3995bc4a47f1ad50eba27d7e2f7",
+          "title": "fix(r6p80): native settings Form, silent IPA Payload retry and header rollback",
+          "url": "https://github.com/fx564286/sidestore-auto-refresh/commit/e4b148e84461b3995bc4a47f1ad50eba27d7e2f7"
+        }
+      ],
+      "rollback_commit": "448a6e58340373d7e27d9f2a6f803e1a421958fe",
+      "problem": "p79_settings_pilot_toggle_slot_manager_outside_navigation_form_and_system_tabbar_underlap",
+      "mechanism": "move_pilot_and_managed_action_into_single_original_lcsettings_form_section_shared_appstorage",
+      "novelty": {
+        "prior_excluded_ids": [
+          "L118",
+          "L119",
+          "L108"
+        ],
+        "causal_difference": "L118 L119 installed inline accounts, but P79 screenshots show host-supplied .safeAreaInset(.top) controls separated above a nested NavigationView and covering large title; new fix moves exact preexisting toggle and manager action into a native Form section and keeps same AppStorage toggle, using one notification to present original host sheet; no new duplicate owner or altered Apple account routes.",
+        "falsifiable_prediction": "Two saved accounts still switch successfully; title and actions appear in original scrollable LC Form, with no outer top overlay.",
+        "new_device_evidence": {
+          "source_commit": "448a6e58340373d7e27d9f2a6f803e1a421958fe",
+          "event": "settings_account_switch_verified; guest_import import_pipeline_failed; guest_owner_layout_contract_reverted; guest_post_header_statusband_probe",
+          "observed_value": "Signed P79 f2e80feb account switch verified twice; one IPA staged then Swift.String code1 at 10ms; guest PID3809 pretrial unsafe8 first y3, after rollback unsafe8 y-25, two P74 severe8, statusbar hidden"
+        },
+        "why_prior_fix_failed": "L118 L119 installed inline accounts, but P79 screenshots show host-supplied .safeAreaInset(.top) controls separated above a nested NavigationView and covering large title; new fix moves exact preexisting toggle and manager action into a native Form section and keeps same AppStorage toggle, using one notification to present original host sheet; no new duplicate owner or altered Apple account routes."
+      },
+      "hypothesis": "L118 L119 installed inline accounts, but P79 screenshots show host-supplied .safeAreaInset(.top) controls separated above a nested NavigationView and covering large title; new fix moves exact preexisting toggle and manager action into a native Form section and keeps same AppStorage toggle, using one notification to present original host sheet; no new duplicate owner or altered Apple account routes.",
+      "action": "Native Form-owned experimental switch and managed slot manager",
+      "observation": "Signed P79 f2e80feb account switch verified twice; one IPA staged then Swift.String code1 at 10ms; guest PID3809 pretrial unsafe8 first y3, after rollback unsafe8 y-25, two P74 severe8, statusbar hidden",
+      "evidence": "Signed P79 current-only session f2e80feb, source 448a6e58, user 2 screenshots and diagnostic 2026-11-15 21:16:12Z",
+      "status": "source_committed_802_tests_pass_3_skipped_native_ci_pending",
+      "next_executable_action": "Xcode27.2 paired engines/IPA CI then verify signed iPhone same failing IPA, settings screen and severe Island guest before claiming fixed",
+      "repeat_policy": "only_new_p79_device_evidence_no_repeating_prior_geometry_or_signer_without_proof",
+      "code_locations": [
+        {
+          "file": "rebuild/integration/apply_scarlet_host.py",
+          "location": "@@ -0,1 +1,2 @@",
+          "before": [
+            "LCSettingsView().safeAreaInset(.top)"
+          ],
+          "after": [
+            "Native LCSettingsView Form Section with same pilot AppStorage and manager sheet Notification"
+          ],
+          "commit": "e4b148e84461b3995bc4a47f1ad50eba27d7e2f7",
+          "function": "attach_native_settings_diagnostics"
+        },
+        {
+          "file": "rebuild/HostApp/ScarletIntegratedHostView.swift",
+          "location": "@@ -0,1 +1,2 @@",
+          "before": [
+            "LCSettingsView().safeAreaInset(.top)"
+          ],
+          "after": [
+            "Native LCSettingsView Form Section with same pilot AppStorage and manager sheet Notification"
+          ],
+          "commit": "e4b148e84461b3995bc4a47f1ad50eba27d7e2f7",
+          "function": "attach_native_settings_diagnostics"
+        },
+        {
+          "file": ".github/workflows/scarlet-paired-engines-build.yml",
+          "commit": "e4b148e84461b3995bc4a47f1ad50eba27d7e2f7",
+          "function": "P80 native UI + workflow",
+          "location": "@@ -1,1 +1,2 @@",
+          "before": [
+            "r6p79"
+          ],
+          "after": [
+            "r6p80"
+          ]
+        },
+        {
+          "file": "rebuild/HostApp/ScarletNativeGlass.swift",
+          "commit": "e4b148e84461b3995bc4a47f1ad50eba27d7e2f7",
+          "function": "P80 native UI + workflow",
+          "location": "@@ -1,1 +1,2 @@",
+          "before": [
+            "self"
+          ],
+          "after": [
+            "self.contentMargins(.bottom, 56, for: .scrollContent)"
+          ]
+        },
+        {
+          "file": "rebuild/Tests/test_native_diagnostic_export.py",
+          "commit": "e4b148e84461b3995bc4a47f1ad50eba27d7e2f7",
+          "function": "P80 native UI + workflow",
+          "location": "@@ -1,1 +1,2 @@",
+          "before": [
+            "styledSections,16"
+          ],
+          "after": [
+            "styledSections,17"
+          ]
+        },
+        {
+          "file": "rebuild/Tests/test_settings_max_scroll_limit.py",
+          "commit": "e4b148e84461b3995bc4a47f1ad50eba27d7e2f7",
+          "function": "P80 native UI + workflow",
+          "location": "@@ -1,1 +1,2 @@",
+          "before": [
+            "if #available(iOS 26.0, *) {\\n            self"
+          ],
+          "after": [
+            "self.contentMargins(.bottom, 56, for: .scrollContent)"
+          ]
+        },
+        {
+          "file": "rebuild/Tests/test_v48_r6p61_managed_sideload_slots.py",
+          "commit": "e4b148e84461b3995bc4a47f1ad50eba27d7e2f7",
+          "function": "P80 native UI + workflow",
+          "location": "@@ -1,1 +1,2 @@",
+          "before": [
+            "SCARLET_NATIVE_SLOT_MANAGER_OPEN in host"
+          ],
+          "after": [
+            "SCARLET_NATIVE_SLOT_MANAGER_OPEN in native settings integration"
+          ]
+        },
+        {
+          "file": "rebuild/Tests/test_v48_r6p69_settings_debloat.py",
+          "commit": "e4b148e84461b3995bc4a47f1ad50eba27d7e2f7",
+          "function": "P80 native UI + workflow",
+          "location": "@@ -1,1 +1,2 @@",
+          "before": [
+            "SCARLET_NATIVE_SLOT_MANAGER_OPEN in host"
+          ],
+          "after": [
+            "SCARLET_NATIVE_SLOT_MANAGER_OPEN in native settings integration"
+          ]
+        }
+      ],
+      "generated_runtime_targets": [
+        {
+          "source_template": "rebuild/integration/apply_scarlet_host.py",
+          "generated_file": "LiveContainerSwiftUI/Views/Settings/LCSettingsView.swift",
+          "source_generation_script": "rebuild/integration/apply_scarlet_host.py",
+          "function": "attach_native_settings_diagnostics"
+        }
+      ]
+    },
+    {
+      "id": "L134",
+      "date": "2026-11-16",
+      "version": "Scarlet-V48-R6P80-Silent-success-native-IPA-archive-Payload-recovery",
+      "source_verification": "git_patch_observed",
+      "device_verification": "not_verified",
+      "source_revisions": [
+        {
+          "sha": "e4b148e84461b3995bc4a47f1ad50eba27d7e2f7",
+          "title": "fix(r6p80): native settings Form, silent IPA Payload retry and header rollback",
+          "url": "https://github.com/fx564286/sidestore-auto-refresh/commit/e4b148e84461b3995bc4a47f1ad50eba27d7e2f7"
+        }
+      ],
+      "rollback_commit": "448a6e58340373d7e27d9f2a6f803e1a421958fe",
+      "problem": "p79_guest_import_original_archive_reports_false_success_without_payload_app",
+      "mechanism": "verify_post_extraction_payload_and_retry_mapped_archive_if_original_returned_zero_but_app_missing",
+      "novelty": {
+        "prior_excluded_ids": [
+          "L103",
+          "L130",
+          "L132"
+        ],
+        "causal_difference": "L130 P79 introduced memory ZIP retry only after extract returned nonzero. Real upstream unarchive.m second pass breaks on header/write errors but ends return 0 even when no Payload app was produced; signed P79 once again failed Swift.String code1 at 10ms before signer, proving earlier fallback gate was insufficient. P80 adds post-extraction app-present check and reuses the already separate memory ZIP decoder on an exactly staged temporary file, rejects after fallback with categorized native error, never changes existing guest.",
+        "falsifiable_prediction": "If IPA is valid but original reader silently truncated or omitted Payload, mapped ZIP produces a top-level app and import advances; malformed IPA is rejected with ScarletGuestArchive code80; old guest untouched.",
+        "new_device_evidence": {
+          "source_commit": "448a6e58340373d7e27d9f2a6f803e1a421958fe",
+          "event": "settings_account_switch_verified; guest_import import_pipeline_failed; guest_owner_layout_contract_reverted; guest_post_header_statusband_probe",
+          "observed_value": "Signed P79 f2e80feb account switch verified twice; one IPA staged then Swift.String code1 at 10ms; guest PID3809 pretrial unsafe8 first y3, after rollback unsafe8 y-25, two P74 severe8, statusbar hidden"
+        },
+        "why_prior_fix_failed": "L130 P79 introduced memory ZIP retry only after extract returned nonzero. Real upstream unarchive.m second pass breaks on header/write errors but ends return 0 even when no Payload app was produced; signed P79 once again failed Swift.String code1 at 10ms before signer, proving earlier fallback gate was insufficient. P80 adds post-extraction app-present check and reuses the already separate memory ZIP decoder on an exactly staged temporary file, rejects after fallback with categorized native error, never changes existing guest."
+      },
+      "hypothesis": "L130 P79 introduced memory ZIP retry only after extract returned nonzero. Real upstream unarchive.m second pass breaks on header/write errors but ends return 0 even when no Payload app was produced; signed P79 once again failed Swift.String code1 at 10ms before signer, proving earlier fallback gate was insufficient. P80 adds post-extraction app-present check and reuses the already separate memory ZIP decoder on an exactly staged temporary file, rejects after fallback with categorized native error, never changes existing guest.",
+      "action": "Silent-success native IPA archive Payload recovery",
+      "observation": "Signed P79 f2e80feb account switch verified twice; one IPA staged then Swift.String code1 at 10ms; guest PID3809 pretrial unsafe8 first y3, after rollback unsafe8 y-25, two P74 severe8, statusbar hidden",
+      "evidence": "Signed P79 current-only session f2e80feb, source 448a6e58, user 2 screenshots and diagnostic 2026-11-15 21:16:12Z",
+      "status": "source_committed_802_tests_pass_3_skipped_native_ci_pending",
+      "next_executable_action": "Xcode27.2 paired engines/IPA CI then verify signed iPhone same failing IPA, settings screen and severe Island guest before claiming fixed",
+      "repeat_policy": "only_new_p79_device_evidence_no_repeating_prior_geometry_or_signer_without_proof",
+      "code_locations": [
+        {
+          "file": "rebuild/integration/apply_scarlet_host.py",
+          "location": "@@ -0,1 +1,2 @@",
+          "before": [
+            "let payloadContents = try fm.contentsOfDirectory(atPath: payloadPath.path)"
+          ],
+          "after": [
+            "original_archive_payload_unreadable -> scarletExtractGuestIPAFromMappedData -> mapped_archive_payload_recovered"
+          ],
+          "commit": "e4b148e84461b3995bc4a47f1ad50eba27d7e2f7",
+          "function": "hide_embedded_sidestore_guest_navigation"
+        },
+        {
+          "file": "rebuild/Tests/test_v48_r6p80_p79_device_regressions.py",
+          "commit": "e4b148e84461b3995bc4a47f1ad50eba27d7e2f7",
+          "function": "P80 actual signed device acceptance contracts",
+          "location": "@@ -1,1 +1,2 @@",
+          "before": [],
+          "after": [
+            "class P80NativeSignedDevice(unittest.TestCase):"
+          ]
+        }
+      ],
+      "generated_runtime_targets": [
+        {
+          "source_template": "rebuild/integration/apply_scarlet_host.py",
+          "generated_file": "LiveContainerSwiftUI/Views/AppList/LCAppListView.swift",
+          "source_generation_script": "rebuild/integration/apply_scarlet_host.py",
+          "function": "hide_embedded_sidestore_guest_navigation"
+        }
+      ]
+    },
+    {
+      "id": "L135",
+      "date": "2026-11-16",
+      "version": "Scarlet-V48-R6P80-Failed-header-layout-restoration-containment",
+      "source_verification": "git_patch_observed",
+      "device_verification": "not_verified",
+      "source_revisions": [
+        {
+          "sha": "e4b148e84461b3995bc4a47f1ad50eba27d7e2f7",
+          "title": "fix(r6p80): native settings Form, silent IPA Payload retry and header rollback",
+          "url": "https://github.com/fx564286/sidestore-auto-refresh/commit/e4b148e84461b3995bc4a47f1ad50eba27d7e2f7"
+        }
+      ],
+      "rollback_commit": "448a6e58340373d7e27d9f2a6f803e1a421958fe",
+      "problem": "p79_guest_native_header_layout_attempt_rollback_moves_first_control_y_minus25",
+      "mechanism": "restore_original_header_frame_by_owned_instance_geometry_before_owner_original_layout",
+      "novelty": {
+        "prior_excluded_ids": [
+          "L100",
+          "L102",
+          "L123",
+          "L127",
+          "L131"
+        ],
+        "causal_difference": "Prior L100 P54 guard restored trial header only while its current Y was within 3pt of safeTop62; signed P79 guest P54 first-pass y3->5 near improvement then failed trial reverted to unsafe first control y-25 (8 severe) instead of pretrial y3, evidence that rollback condition can miss guest-native layout migration. P80 preserves scoped object and same recorded x/size/transform, restores its recorded original header frame regardless of intermediate y, restores original isa class, requests one original UIKit layout. No new global inset, scene crop, statusbar bypass or duplicate P77 body shift.",
+        "falsifiable_prediction": "On P79 failing guest after P54 rejected trial, guest_original_owner_layout_restored receipt and first unsafe control no worse than pretrial y3; two P74 probes must still prove severe0 before statusbar appears.",
+        "new_device_evidence": {
+          "source_commit": "448a6e58340373d7e27d9f2a6f803e1a421958fe",
+          "event": "settings_account_switch_verified; guest_import import_pipeline_failed; guest_owner_layout_contract_reverted; guest_post_header_statusband_probe",
+          "observed_value": "Signed P79 f2e80feb account switch verified twice; one IPA staged then Swift.String code1 at 10ms; guest PID3809 pretrial unsafe8 first y3, after rollback unsafe8 y-25, two P74 severe8, statusbar hidden"
+        },
+        "why_prior_fix_failed": "Prior L100 P54 guard restored trial header only while its current Y was within 3pt of safeTop62; signed P79 guest P54 first-pass y3->5 near improvement then failed trial reverted to unsafe first control y-25 (8 severe) instead of pretrial y3, evidence that rollback condition can miss guest-native layout migration. P80 preserves scoped object and same recorded x/size/transform, restores its recorded original header frame regardless of intermediate y, restores original isa class, requests one original UIKit layout. No new global inset, scene crop, statusbar bypass or duplicate P77 body shift."
+      },
+      "hypothesis": "Prior L100 P54 guard restored trial header only while its current Y was within 3pt of safeTop62; signed P79 guest P54 first-pass y3->5 near improvement then failed trial reverted to unsafe first control y-25 (8 severe) instead of pretrial y3, evidence that rollback condition can miss guest-native layout migration. P80 preserves scoped object and same recorded x/size/transform, restores its recorded original header frame regardless of intermediate y, restores original isa class, requests one original UIKit layout. No new global inset, scene crop, statusbar bypass or duplicate P77 body shift.",
+      "action": "Failed header layout restoration containment",
+      "observation": "Signed P79 f2e80feb account switch verified twice; one IPA staged then Swift.String code1 at 10ms; guest PID3809 pretrial unsafe8 first y3, after rollback unsafe8 y-25, two P74 severe8, statusbar hidden",
+      "evidence": "Signed P79 current-only session f2e80feb, source 448a6e58, user 2 screenshots and diagnostic 2026-11-15 21:16:12Z",
+      "status": "source_committed_802_tests_pass_3_skipped_native_ci_pending",
+      "next_executable_action": "Xcode27.2 paired engines/IPA CI then verify signed iPhone same failing IPA, settings screen and severe Island guest before claiming fixed",
+      "repeat_policy": "only_new_p79_device_evidence_no_repeating_prior_geometry_or_signer_without_proof",
+      "code_locations": [
+        {
+          "file": "rebuild/integration/ScarletGuestIslandContentGuard.m.txt",
+          "location": "@@ -0,1 +1,2 @@",
+          "before": [
+            "if(fabs(head.frame.origin.y-safeTop)<3) head.frame=desired;"
+          ],
+          "after": [
+            "originalSize + owner/transform check -> head.frame=desired; native.view setNeedsLayout"
+          ],
+          "commit": "e4b148e84461b3995bc4a47f1ad50eba27d7e2f7",
+          "function": "ScarletIslandP54InstallNativeOwnerContract"
+        }
+      ],
+      "generated_runtime_targets": [
+        {
+          "source_template": "rebuild/integration/ScarletGuestIslandContentGuard.m.txt",
+          "generated_file": "Tweaks/ScarletGuestIslandContentGuard.m",
+          "source_generation_script": "rebuild/integration/apply_scarlet_host.py",
+          "function": "ScarletIslandP54InstallNativeOwnerContract"
         }
       ]
     }
