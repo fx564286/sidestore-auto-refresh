@@ -1156,3 +1156,16 @@
 "Service operation failed: " = "서비스 오류: ";
 "The device refused the backup: " = "기기 백업 거부: ";
 "Copied automatically at setup and on every launch; this writes every kept photo and video back to the device's Media folder." = "실행 때마다 자동 복사합니다. 저장된 사진과 영상은 기기 미디어 폴더로 다시 전송됩니다.";
+/* 9.7.7 source catalog additions (verified against upstream .xcstrings) */
+"%@ will be copied into this app's container. Free space there: %@. Once removed, the copy in the container is the only one -- and the container is deleted if the app is." = "%@ 항목을 앱 저장 공간에 복사합니다. 사용 가능한 공간: %@. 원본을 지우면 앱 내부 복사본만 남고, 앱 삭제 시 그 복사본도 삭제됩니다.";
+"Clear tint" = "색상 효과 제거";
+"Disabled" = "비활성화됨";
+"Edit fields… (%lld selected)" = "필드 편집… (%lld개 선택됨)";
+"Edit values…" = "값 편집…";
+"Enabled" = "활성화됨";
+"Icon tint color" = "아이콘 색조";
+"Off" = "끔";
+"On" = "켬";
+"Originals are removed after the verified copy is saved for recovery." = "복구용 사본이 저장·검증된 후에만 원본을 삭제합니다.";
+"Use" = "사용";
+"Wallpaper presets" = "배경화면 프리셋";
