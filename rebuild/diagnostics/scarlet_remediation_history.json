@@ -2,7 +2,7 @@
   "schema": 2,
   "scope": "Scarlet Crystal guest top-screen overlap, touch access, rotation, remote guest render and related resident regressions",
   "updated_utc": "2026-11-15T01:31:29.359364+00:00",
-  "current_baseline": "P69 settings UI de-dup source 4b1808a75a36 published; 758 Python tests (755 pass,3 skip); iOS Xcode CI pending. P68 native CI and unsigned release succeeded; P69 iPhone not verified.",
+  "current_baseline": "P69 UI cleanup including first-frame idle refresh fix published 0481fe35debd; local 758 tests (755 pass + 3 skipped), native iOS CI pending.",
   "current_issue_status": "P68 signed device observed redundant UI labels and certificate worker code0; P69 removes UI duplicates only; actual team A/B IPA install and clock/battery status bar still not device-verified.",
   "confidence_note": "Signed P67 device confirms B login but hardcoded team mismatch. P68 compiler failure source observed and patched, native retest still necessary.",
   "privacy": "No credentials, Apple ID, OTP, UDID, guest names or device identifiers are stored.",
@@ -35377,9 +35377,9 @@
       },
       "hypothesis": "The unnecessary text originates from redundant SwiftUI LabeledContent and status-label construction, not repeated backend install/refresh operations; removing only those views simplifies UX without breaking engine behavior.",
       "action": "Removed passive auto refresh count/host-registration and duplicate signing status labels, coalesced failure text, removed account certificate badge and verbose session explanation, hid per-team certificate-success copy, removed inaccurate P68-obsolete slot footnotes and redundant download/experimental-mode descriptions; kept SideStore native action and auth/pairing/slot/selected-team handlers and diagnostic events. Adapted older stale UI tests and added P69 source invariants; added 3.8.69/IPA-specific GitHub packaging.",
-      "observation": "P68 user-supplied signed launch cb9cabf6 (3.8.68 SourceCommit f6dae87d7943) shows host_session_restored, pairing_restored and native_provider_failed(domain=scarlet.certificate.worker,code=0) followed by native_provider_same_certificate; automatic_attempt_deferred retry_interval_not_elapsed; status_hidden=true. Does not show successful team A/B installation. Post-P69 source-only Python suite 758 total (755 passed,3 skipped); YAML parsed; source diff published. Xcode native CI and signed P69 iPhone UI not verified yet. P69 initial full audit GitHub run 43663662366 failed before Xcode because source revision coverage did not list its own separate audit commit dcf7fe7b change to log-only handoff file. This third ledger-only correction records that exact handoff commit/file; native Xcode build remains pending.",
+      "observation": "P68 user-supplied signed launch cb9cabf6 (3.8.68 SourceCommit f6dae87d7943) shows host_session_restored, pairing_restored and native_provider_failed(domain=scarlet.certificate.worker,code=0) followed by native_provider_same_certificate; automatic_attempt_deferred retry_interval_not_elapsed; status_hidden=true. Does not show successful team A/B installation. Post-P69 source-only Python suite 758 total (755 passed,3 skipped); YAML parsed; source diff published. Xcode native CI and signed P69 iPhone UI not verified yet. P69 initial full audit GitHub run 43663662366 failed before Xcode because source revision coverage did not list its own separate audit commit dcf7fe7b change to log-only handoff file. This third ledger-only correction records that exact handoff commit/file; native Xcode build remains pending. Source review found initial lastRefreshAttemptState=\"없음\" would render a transient recent-refresh row before onAppear inspect; follow-up commit 0481fe35debd initializes \"기록 없음\" and adds source assertion; 758 local tests still pass (755 + 3 skipped).",
       "evidence": "GitHub published source https://github.com/fx564286/sidestore-auto-refresh/commit/4b1808a75a363654d84060d528b559f2114bd3e9; log received 2026-11-15 01:19 UTC; detailed changed source spans in code_locations below.",
-      "status": "source_committed_python_tests_pass_ci_initial_audit_failed_second_coverage_correction_pending",
+      "status": "source_committed_755_python_tests_pass_3_skipped_native_ci_final_source_pending",
       "source_verification": "git_patch_observed",
       "device_verification": "not_verified",
       "next_executable_action": "Run native SideStore+LiveContainer Xcode iOS CI on P69, package 3.8.69 unique unsigned IPA, publish release, then sign and verify screenshot/account A→B/refresh failure once/clock and battery on iPhone.",
@@ -35395,6 +35395,11 @@
           "sha": "dcf7fe7b38f939d34b14566051d93c03bff9614d",
           "title": "audit(r6p69): preserve exact 16-file UX cleanup in L118 no-repeat ledger",
           "url": "https://github.com/fx564286/sidestore-auto-refresh/commit/dcf7fe7b38f939d34b14566051d93c03bff9614d"
+        },
+        {
+          "sha": "0481fe35debdeb55568beeaa36daff18c760f275",
+          "title": "fix(r6p69): suppress first-frame idle renewal label",
+          "url": "https://github.com/fx564286/sidestore-auto-refresh/commit/0481fe35debdeb55568beeaa36daff18c760f275"
         }
       ],
       "code_locations": [
@@ -35948,6 +35953,28 @@
             "- Important: **do not** reintroduce deleted passive status labels to satisfy old source-string tests. Maintain one owner for every action and keep runtime failures in one visible place, full JSONL diagnostics. Do not treat `certificate code0` or `status_hidden` as fixed by this UI change."
           ],
           "commit": "dcf7fe7b38f939d34b14566051d93c03bff9614d"
+        },
+        {
+          "file": "rebuild/HostApp/ScarletSigningReadinessPanel.swift",
+          "function": "P69 suppress transient initial idle refresh state",
+          "location": "@@ -92 +92 @@ struct ScarletSigningReadinessPanel: View {",
+          "before": [
+            "    @State private var lastRefreshAttemptState: String = \"없음\""
+          ],
+          "after": [
+            "    @State private var lastRefreshAttemptState: String = \"기록 없음\""
+          ],
+          "commit": "0481fe35debdeb55568beeaa36daff18c760f275"
+        },
+        {
+          "file": "rebuild/Tests/test_v48_r6p69_settings_debloat.py",
+          "function": "P69 suppress transient initial idle refresh state",
+          "location": "@@ -13,0 +14 @@ class SettingsDebloat(unittest.TestCase):",
+          "before": [],
+          "after": [
+            "        self.assertIn('@State private var lastRefreshAttemptState: String = \"기록 없음\"', PANEL)"
+          ],
+          "commit": "0481fe35debdeb55568beeaa36daff18c760f275"
         }
       ],
       "generated_runtime_targets": [
