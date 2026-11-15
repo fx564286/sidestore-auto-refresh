@@ -504,3 +504,12 @@ L051=R6P15 저장된 RSD 연결의 제한적 재검사다. 과거 항목에 `dev
   if selected, optional P65 settled compensation receipts, clip/scroll
   touch behavior, orientation, A/B switcher, clock and battery.
   No icon release without TWO zero-risk proofs.
+
+## P66 / L114 — 로그인 안내창 제거 및 SideStore 다중 계정 실사용 경로
+
+- P65 설정의 `추가 로그인`은 실제 로그인 대신 `scarletShowAccountAdditionNotice`만 열었음. P66에서 `scarletShowAppleLogin`으로 교체함. 로그인 시트에는 별도 Apple ID 추가 및 저장 계정 목록/명시적 활성 전환 기능을 연결함.
+- 원본 SideStore `AuthManager` 단일 활성 Keychain은 유지. `ScarletGuestSavedAccounts.swift.txt`를 *원본 AuthManager.swift 같은 파일*에 주입하여 기기 전용 Keychain에 개별 인증 슬롯을 저장하고, 원본 CoreData 계정/팀과 완전 일치할 때에만 전환. 실패하면 이전 슬롯 복원.
+- 추가 계정은 Apple 포털에서 실제 소유한 Team을 허용. 반면 기존 Scarlet 호스트의 앱 재서명/자동 갱신은 `requireHostTeam=true`로 P8EZT3U5N4 유지. 인증 토큰, OTP, 비밀번호는 로그, UserDefaults, XPC 계정 목록에 복사하지 않음.
+- SideInstaller.ipa(v2.0.1)와 LCSign-1.4-7.ipa(v1.4/7)를 정적 REA해 AccountStore/PairingManager, CertificateStore/IPAInstaller/BackupRestore 기능을 확인함. 바이너리 또는 사유 코드를 Scarlet에 복사하지 않았음. 자세한 증거와 해시: `rebuild/reports/SCARLET_P66_REA_AND_FUNCTION_AUDIT_20261115.md`.
+- P66 코드 변경 커밋은 L114 source_revisions에 정확한 GitHub SHA로 기록. 전체 Python 테스트 744 실행(741 통과·3 skip). GitHub CI Xcode native compile 및 iPhone 실기기 2FA/계정 A→B→A/서명 및 전환 후 재진입 결과는 미검증. P65 상단 잘림/상태바 문제를 해결했다고 기록하지 말 것.
+- 중복 금지: 버튼 활성화/안내창 문구만 변경하거나 CoreData 계정 row만 추가하고 보안 토큰·활성 팀 XPC 스위치를 빠뜨리는 작업. 추가 로그인 실패 시 기존 활성 계정, 인증서, 게스트 데이터 삭제 금지.

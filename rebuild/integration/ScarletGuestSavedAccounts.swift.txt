@@ -1,0 +1,218 @@
+// P66: per-Apple-ID credential slots inside the embedded SideStore LiveProcess.
+// Credentials never traverse the account-list XPC response or leave the iOS Keychain.
+// The existing SideStore active Keychain fields remain the native signing source of truth.
+private struct ScarletSavedAccount: Codable {
+    let email: String
+    let password: String?
+    let adsid: String
+    let xcodeToken: String
+    let teamID: String
+    let anisetteProfile: String
+}
+
+private struct ScarletSavedAccountRow: Codable {
+    let id: String
+    let active: Bool
+}
+
+@MainActor
+private enum ScarletAccountVault {
+    private static let service = "com.kdt.scarlet.sidestore.account.v1"
+    private static let maxAccounts = 8
+
+    private static func identifier(_ email: String) -> String {
+        email.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+    }
+
+    static func save(_ slot: ScarletSavedAccount) -> Bool {
+        let accountID = identifier(slot.email)
+        guard accountID.utf8.count > 3, accountID.utf8.count <= 254,
+              !slot.adsid.isEmpty, !slot.xcodeToken.isEmpty,
+              !slot.teamID.isEmpty,
+              let encoded = try? JSONEncoder().encode(slot),
+              encoded.count < 16384 else { return false }
+        let query: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: service,
+            kSecAttrAccount as String: accountID
+        ]
+        let update = SecItemUpdate(query as CFDictionary,
+            [kSecValueData as String: encoded] as CFDictionary)
+        if update == errSecSuccess { return true }
+        guard update == errSecItemNotFound,
+              let existing = readAll(), existing.count < maxAccounts else { return false }
+        let insert: [String: Any] = query.merging([
+            kSecValueData as String: encoded,
+            kSecAttrAccessible as String: kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
+        ]) { _, new in new }
+        return SecItemAdd(insert as CFDictionary, nil) == errSecSuccess
+    }
+
+    static func readAll() -> [ScarletSavedAccount]? {
+        let query: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: service,
+            kSecMatchLimit as String: kSecMatchLimitAll,
+            kSecReturnData as String: true,
+            kSecReturnAttributes as String: true
+        ]
+        var value: CFTypeRef?
+        let status = SecItemCopyMatching(query as CFDictionary, &value)
+        if status == errSecItemNotFound { return [] }
+        guard status == errSecSuccess,
+              let items = value as? [[String: Any]],
+              items.count <= maxAccounts else { return nil }
+        var found: [ScarletSavedAccount] = []
+        for item in items {
+            guard let data = item[kSecValueData as String] as? Data,
+                  let storedID = item[kSecAttrAccount as String] as? String,
+                  let slot = try? JSONDecoder().decode(ScarletSavedAccount.self, from: data),
+                  identifier(slot.email) == storedID,
+                  !slot.xcodeToken.isEmpty, !slot.adsid.isEmpty else { return nil }
+            found.append(slot)
+        }
+        return found.sorted { identifier($0.email) < identifier($1.email) }
+    }
+
+    static func captureCurrent() async -> ScarletSavedAccount? {
+        let auth = AuthManager.shared
+        guard ScarletGuestSignInAgent.persistedState(),
+              let email = auth.currentAppleID,
+              let adsid = auth.adsid,
+              let token = auth.xcodeToken else { return nil }
+        do {
+            try await DatabaseManager.shared.start()
+            guard let team = try? await auth.getAuthenticatedTeam(),
+                  !team.identifier.isEmpty else { return nil }
+            let profile = UserDefaults.standard.string(
+                forKey: "scarlet.auth.lastSuccessfulAnisetteProfile") ?? "default"
+            return ScarletSavedAccount(email: email, password: auth.password,
+                adsid: adsid, xcodeToken: token, teamID: team.identifier,
+                anisetteProfile: profile)
+        } catch { return nil }
+    }
+
+    static func activate(_ slot: ScarletSavedAccount) async -> Bool {
+        guard !slot.email.isEmpty, !slot.adsid.isEmpty, !slot.xcodeToken.isEmpty,
+              !slot.teamID.isEmpty else { return false }
+        let auth = AuthManager.shared
+        do {
+            try await DatabaseManager.shared.start()
+            let context = DatabaseManager.shared.persistentContainer.newBackgroundContext()
+            // A persisted slot is usable only with the exact account/team
+            // rows originally verified against Apple's portal at sign-in.
+            let valid = await context.perform { () -> Bool in
+                let accounts = (try? context.fetch(
+                    Account.fetchRequest() as NSFetchRequest<Account>)) ?? []
+                let teams = (try? context.fetch(
+                    Team.fetchRequest() as NSFetchRequest<Team>)) ?? []
+                guard let account = accounts.first(where: {
+                    $0.appleID.caseInsensitiveCompare(slot.email) == .orderedSame
+                }),
+                let team = teams.first(where: {
+                    $0.identifier == slot.teamID &&
+                    $0.account?.objectID == account.objectID
+                }) else { return false }
+                for item in accounts {
+                    item.isActiveAccount = item.objectID == account.objectID
+                }
+                for item in teams {
+                    item.isActiveTeam = item.objectID == team.objectID
+                }
+                return (try? context.save()) != nil
+            }
+            guard valid else { return false }
+            auth.scarletInvalidateActiveCaches()
+            auth.currentAppleID = slot.email
+            auth.password = slot.password
+            auth.adsid = slot.adsid
+            auth.xcodeToken = slot.xcodeToken
+            UserDefaults.standard.set(slot.anisetteProfile,
+                forKey: "scarlet.auth.lastSuccessfulAnisetteProfile")
+            guard ScarletGuestSignInAgent.persistedState(),
+                  (try? await auth.getAuthenticatedTeam())?.identifier == slot.teamID else {
+                return false
+            }
+            return true
+        } catch { return false }
+    }
+
+    static func savedRows() async -> (String, String) {
+        // Migrate the original active SideStore login without deleting it.
+        if let current = await captureCurrent(), !save(current) {
+            return ("[]", "keychain_write_failed")
+        }
+        guard let slots = readAll() else { return ("[]", "keychain_read_failed") }
+        let active = identifier(AuthManager.shared.currentAppleID ?? "")
+        let rows = slots.map {
+            ScarletSavedAccountRow(id: $0.email,
+                active: identifier($0.email) == active &&
+                    ScarletGuestSignInAgent.persistedState())
+        }
+        guard let data = try? JSONEncoder().encode(rows),
+              let json = String(data: data, encoding: .utf8),
+              json.utf8.count <= 8192 else {
+            return ("[]", "response_invalid")
+        }
+        return (json, "ready")
+    }
+
+    static func switchTo(_ id: String) async -> (Bool, String) {
+        guard id.utf8.count <= 254, let slots = readAll() else {
+            return (false, "keychain_unavailable")
+        }
+        guard let selected = slots.first(where: {
+            identifier($0.email) == identifier(id)
+        }) else { return (false, "account_not_found") }
+        // Never overwrite the current original SideStore credentials until
+        // that account has a durable recoverable slot.
+        let previous = await captureCurrent()
+        if ScarletGuestSignInAgent.persistedState() && previous == nil {
+            return (false, "current_session_unverified")
+        }
+        if let previous, !save(previous) {
+            return (false, "keychain_write_failed")
+        }
+        if await activate(selected) { return (true, "active_team_verified") }
+        if let previous { _ = await activate(previous) }
+        return (false, "account_activation_unverified")
+    }
+}
+
+extension AuthManager {
+    fileprivate func scarletInvalidateActiveCaches() {
+        team = nil
+        session = nil
+    }
+    fileprivate func scarletInvalidateCachedTeam() {
+        team = nil
+    }
+}
+
+extension ScarletGuestSignInAgent {
+    @objc(listAccounts:)
+    static func listAccounts(_ reply: @escaping (String, String) -> Void) {
+        Task { @MainActor in
+            let (json, state) = await ScarletAccountVault.savedRows()
+            reply(json, state)
+        }
+    }
+
+    @objc(selectAccount:reply:)
+    static func selectAccount(_ payload: NSDictionary,
+                              reply: @escaping (Bool, String) -> Void) {
+        guard let id = payload["accountID"] as? String,
+              id.utf8.count > 3, id.utf8.count <= 254 else {
+            reply(false, "invalid_request"); return
+        }
+        Task { @MainActor in
+            guard activeRequest == nil else {
+                reply(false, "authentication_in_progress"); return
+            }
+            activeRequest = UUID().uuidString
+            defer { activeRequest = nil }
+            let (ok, reason) = await ScarletAccountVault.switchTo(id)
+            reply(ok, reason)
+        }
+    }
+}

@@ -3,6 +3,7 @@
 // embedded SideStore AuthenticationViewController or serializes secrets to
 // launch URLs, UserDefaults, files, diagnostics, or App Groups.
 import SwiftUI
+import SideStoreSupport
 
 @MainActor
 protocol ScarletAppleSignInEngine: AnyObject {
@@ -34,9 +35,12 @@ struct ScarletAppleIDLoginSheet: View {
     @State private var transportChecking = true
     @State private var signInTask: Task<Void, Never>?
     @State private var pendingCode: CheckedContinuation<String, Error>?
+    @State private var savedAccounts: [ScarletStoredAppleAccount] = []
+    @State private var isSelectingAccount = false
+    @State private var accountListStatus: String?
 
     private var readyToSubmit: Bool {
-        !isAuthenticating
+        !isAuthenticating && !isSelectingAccount
             && (!retainedSession || explicitlyReauthenticating)
             && transportReady
             && !appleID.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
@@ -128,6 +132,36 @@ struct ScarletAppleIDLoginSheet: View {
         }
     }
 
+    private func loadAccounts() async {
+        let result = await ScarletNativeSavedAccounts.list()
+        savedAccounts = result.accounts
+        accountListStatus = result.status == "ready" ? nil : result.status
+    }
+
+    private func selectSavedAccount(_ id: String) {
+        guard !isSelectingAccount && !isAuthenticating else { return }
+        isSelectingAccount = true
+        errorMessage = nil
+        Task { @MainActor in
+            defer { isSelectingAccount = false }
+            let (ok, status) = await ScarletNativeSavedAccounts.activate(id)
+            if ok {
+                retainedSession = true
+                explicitlyReauthenticating = false
+                ScarletDiagnosticRecorder.shared.record("auth", "saved_account_activated",
+                    status: "success")
+                NotificationCenter.default.post(
+                    name: Notification.Name("ScarletGuestAuthVerified"), object: nil)
+                dismiss()
+            } else {
+                ScarletDiagnosticRecorder.shared.record("auth", "saved_account_activation_failed",
+                    status: "error", fields: ["reason": status])
+                errorMessage = "계정 활성화 실패: " + status
+                await loadAccounts()
+            }
+        }
+    }
+
     var body: some View {
         NavigationStack {
             Form {
@@ -139,11 +173,11 @@ struct ScarletAppleIDLoginSheet: View {
                         Text("SideStore 보안 저장소에서 Apple 인증 토큰을 확인했습니다. 서명 인증서와 활성 팀 설정은 별도로 검증됩니다.")
                             .font(.footnote)
                             .foregroundStyle(.secondary)
-                        Button("계정 전환 (기존 세션 교체)") {
-                            // Pinned SideStore has one active token slot; label must not
-                            // imply multi-account retention before worker support exists.
+                        Button("다른 Apple ID 추가") {
                             explicitlyReauthenticating = true
                         }
+                        .disabled(isSelectingAccount || isAuthenticating || accountListStatus != nil)
+                        .accessibilityIdentifier("SCARLET_ADD_SECOND_APPLE_ID")
                     }
                 } else if requiresTwoFactorCode {
                     Section("Apple 2단계 인증") {
@@ -182,10 +216,36 @@ struct ScarletAppleIDLoginSheet: View {
                         }
                     }
                     Section {
-                        Button("로그인", action: beginSignIn)
+                        Button(retainedSession ? "추가 로그인" : "로그인", action: beginSignIn)
                             .frame(maxWidth: .infinity)
                             .disabled(!readyToSubmit)
                             .accessibilityIdentifier("SCARLET_OWN_LOGIN_SUBMIT")
+                    }
+                }
+                if !savedAccounts.isEmpty && !explicitlyReauthenticating {
+                    Section("저장된 Apple ID") {
+                        ForEach(savedAccounts) { slot in
+                            HStack {
+                                Text(slot.id)
+                                    .lineLimit(1)
+                                Spacer()
+                                if slot.active {
+                                    Label("사용 중", systemImage: "checkmark.circle.fill")
+                                        .foregroundStyle(.green)
+                                } else {
+                                    Button("전환") { selectSavedAccount(slot.id) }
+                                        .disabled(isSelectingAccount || isAuthenticating)
+                                }
+                            }
+                        }
+                    }
+                }
+                if let accountListStatus {
+                    Section {
+                        Text("저장된 계정 확인 실패: " + accountListStatus)
+                            .font(.footnote)
+                            .foregroundStyle(.orange)
+                        Button("다시 확인") { Task { await loadAccounts() } }
                     }
                 }
                 if let errorMessage {
@@ -229,6 +289,7 @@ struct ScarletAppleIDLoginSheet: View {
                 if transportReady {
                     ScarletDiagnosticRecorder.shared.record("auth", "transport_ready", status: "success")
                     retainedSession = await engine.storedAuthenticated()
+                    await loadAccounts()
                     ScarletDiagnosticRecorder.shared.record("auth",
                         retainedSession ? "stored_session_restored" : "stored_session_absent",
                         status: retainedSession ? "success" : "info")

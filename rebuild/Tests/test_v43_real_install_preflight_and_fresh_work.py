@@ -16,7 +16,7 @@ WORKFLOW=(ROOT.parent/'.github/workflows/scarlet-paired-engines-build.yml').read
 class V43Installer(unittest.TestCase):
     def test_reuses_original_refresh_team_recovery_without_creating_cert(self):
         self.assertIn('ScarletGuestSignInAgent\n                    .ensureActiveTeamForRefresh()',AGENT)
-        self.assertIn('static func ensureActiveTeamForRefresh() async -> String',AUTH)
+        self.assertIn('static func ensureActiveTeamForRefresh(requireHostTeam: Bool = true) async -> String',AUTH)
         self.assertIn('teamState == "ready" || teamState == "team_restored"',AGENT)
         self.assertIn('notify(teamState == "sidestore_team_mismatch"',AGENT)
         self.assertIn('ScarletGuestDeviceTransport.ensureReady()',AGENT)

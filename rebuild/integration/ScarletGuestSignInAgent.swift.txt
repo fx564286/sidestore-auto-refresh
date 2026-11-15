@@ -38,7 +38,7 @@ final class ScarletGuestSignInAgent: NSObject {
     // Reconcile only the host's EXISTING Apple team, never infer or create
     // a different account, team, signing certificate, or provisioning profile.
     @MainActor
-    static func ensureActiveTeamForRefresh() async -> String {
+    static func ensureActiveTeamForRefresh(requireHostTeam: Bool = true) async -> String {
         guard persistedState(),
               let email = AuthManager.shared.currentAppleID,
               let dsid = AuthManager.shared.adsid else {
@@ -47,8 +47,20 @@ final class ScarletGuestSignInAgent: NSObject {
         let expectedTeamID = "P8EZT3U5N4"
         do {
             try await DatabaseManager.shared.start()
-            if let stored = try? await AuthManager.shared.getAuthenticatedTeam() {
-                return stored.identifier == expectedTeamID
+            // An active team is valid only for the CURRENT Apple account.
+            // Pinned SideStore holds one active Keychain token but multiple
+            // CoreData accounts; the old test incorrectly rejected every
+            // second Apple ID signed by a different team.
+            let currentTeamID = await DatabaseManager.shared.persistentContainer
+                .performBackgroundTask { context -> String? in
+                    guard let account = DatabaseManager.shared.activeAccount(in: context),
+                          let team = DatabaseManager.shared.activeTeam(in: context),
+                          account.appleID.caseInsensitiveCompare(email) == .orderedSame,
+                          team.account?.objectID == account.objectID else { return nil }
+                    return team.identifier
+                }
+            if let currentTeamID {
+                return (!requireHostTeam || currentTeamID == expectedTeamID)
                     ? "ready" : "sidestore_team_mismatch"
             }
             // Match by the actual authenticated Apple portal result, not a
@@ -56,10 +68,13 @@ final class ScarletGuestSignInAgent: NSObject {
             let portalAccount = ALTAccount(appleID: email, identifier: dsid)
             let portalTeams = try await DeveloperPortalProxy.shared.fetchTeams(
                 for: portalAccount)
+            // Prefer the host's signing team only when Apple actually
+            // assigns it to this account. A second Apple ID may have its
+            // own valid Personal Team; do not fabricate team membership.
             guard let team = portalTeams.first(where: {
                 $0.identifier == expectedTeamID
-            }) else {
-                return "sidestore_team_mismatch"
+            }) ?? portalTeams.first else {
+                return "sidestore_team_missing"
             }
             let context = DatabaseManager.shared.persistentContainer
                 .newBackgroundContext()
@@ -102,8 +117,10 @@ final class ScarletGuestSignInAgent: NSObject {
                 }
                 try context.save()
             }
+            AuthManager.shared.scarletInvalidateCachedTeam()
             let verified = try await AuthManager.shared.getAuthenticatedTeam()
-            return verified.identifier == expectedTeamID
+            return verified.identifier == team.identifier &&
+                (!requireHostTeam || verified.identifier == expectedTeamID)
                 ? "team_restored" : "sidestore_team_mismatch"
         } catch {
             // No Apple payload, identifiers or Keychain data in XPC/logs.
@@ -130,6 +147,18 @@ final class ScarletGuestSignInAgent: NSObject {
                 cancelled = false
             }
             do {
+                let previousSlot = await ScarletAccountVault.captureCurrent()
+                // Prevent losing the original SideStore session if its team
+                // cannot be backed up and restored transactionally.
+                if persistedState() && previousSlot == nil {
+                    finish(id, code: -3451, domain: "scarlet.auth.current_session_unverified")
+                    return
+                }
+                if let previousSlot, !ScarletAccountVault.save(previousSlot) {
+                    finish(id, code: -3452, domain: "scarlet.auth.keychain_write_failed")
+                    return
+                }
+                do {
                 let (anisette, pendingAdiBlob) = try await fetchAuthAnisette(profile: profile)
                 let xcodeVersion = await AnisetteConfigManager.shared.resolvedXcodeVersion()
                 let (_, session) = try await AuthManager.shared.signIn(
@@ -176,6 +205,7 @@ final class ScarletGuestSignInAgent: NSObject {
                 // successful 2FA. Reuse only this already authenticated,
                 // Keychain-readback-verified session in the SAME process.
                 // Never cache the password, OTP, or raw identity in logs.
+                AuthManager.shared.scarletInvalidateActiveCaches()
                 AuthManager.shared.scarletCacheVerifiedAuthSession(session)
                 // Non-secret successful Anisette route for token restoration.
                 // Only commit the chosen route after a verified Keychain save.
@@ -183,13 +213,21 @@ final class ScarletGuestSignInAgent: NSObject {
                     forKey: "scarlet.auth.lastSuccessfulAnisetteProfile")
                 // Apple 2FA/token success is not yet SideStore refresh-ready:
                 // its original native pipeline also needs an active Team row.
-                let teamState = await ensureActiveTeamForRefresh()
+                // Additional Apple IDs may have different valid teams.
+                // Host install/refresh continues to require its signed team.
+                let teamState = await ensureActiveTeamForRefresh(requireHostTeam: false)
                 guard teamState == "ready" || teamState == "team_restored" else {
-                    finish(id, code: -3402,
-                           domain: "scarlet.auth." + teamState)
-                    return
+                    throw NSError(domain: "scarlet.auth." + teamState, code: -3402)
+                }
+                guard let added = await ScarletAccountVault.captureCurrent(),
+                      ScarletAccountVault.save(added) else {
+                    throw NSError(domain: "scarlet.auth.keychain_write_failed", code: -3452)
                 }
                 finish(id, code: 0, domain: "success")
+                } catch {
+                    if let previousSlot { _ = await ScarletAccountVault.activate(previousSlot) }
+                    throw error
+                }
             } catch let error as ServerError {
                 // A Swift enum NSError code (3 here) is the enum case index,
                 // NOT Apple's GrandSlam status. Preserve the real status

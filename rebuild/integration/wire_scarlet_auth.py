@@ -34,6 +34,8 @@ def patch_livecontainer(engine: Path) -> None:
 - (void)scarletAuthReady:(void (^)(BOOL isReady))reply;
 - (void)scarletAuthStored:(void (^)(BOOL hasStoredSession))reply;
 - (void)scarletAuthStoredState:(void (^)(NSInteger state))reply;
+- (void)scarletAuthAccounts:(void (^)(NSString *json, NSString *status))reply;
+- (void)scarletSelectAuthAccount:(NSString*)accountID reply:(void (^)(BOOL success, NSString *status))reply;
 - (void)scarletRefreshReadiness:(void (^)(NSInteger managedCount, BOOL hostManaged, BOOL signingReady, NSString *status))reply;
 - (void)scarletPerformNativeRefresh:(void (^)(BOOL operationReturned, NSString *status))reply;
 - (void)scarletInstallPairingRecord:(NSData*)record reply:(void (^)(BOOL verified, NSString *status))reply;
@@ -185,6 +187,29 @@ def patch_livecontainer(engine: Path) -> None:
     BOOL authenticated = ((BOOL (*)(id, SEL))objc_msgSend)(worker,
                                                          @selector(persistedState));
     reply(authenticated ? 1 : 0);
+}
+
+- (void)scarletAuthAccounts:(void (^)(NSString *, NSString *))reply {
+    Class worker = NSClassFromString(@"ScarletGuestSignInAgent");
+    SEL selector = @selector(listAccounts:);
+    if (!worker || ![worker respondsToSelector:selector]) {
+        reply(@"[]", @"account_worker_missing"); return;
+    }
+    ((void (*)(id, SEL, id))objc_msgSend)(worker, selector, reply);
+}
+
+- (void)scarletSelectAuthAccount:(NSString*)accountID
+                          reply:(void (^)(BOOL, NSString *))reply {
+    Class worker = NSClassFromString(@"ScarletGuestSignInAgent");
+    SEL selector = @selector(selectAccount:reply:);
+    if (!worker || ![worker respondsToSelector:selector]) {
+        reply(NO, @"account_worker_missing"); return;
+    }
+    if (accountID.length == 0 || accountID.length > 254) {
+        reply(NO, @"invalid_request"); return;
+    }
+    NSDictionary *request = @{@"accountID": accountID};
+    ((void (*)(id, SEL, id, id))objc_msgSend)(worker, selector, request, reply);
 }
 
 - (void)scarletBeginAuth:(NSString*)requestID email:(NSString*)email password:(NSString*)password profile:(NSString*)profile {
@@ -409,7 +434,7 @@ def patch_sidestore(engine: Path) -> None:
     # Scarlet's injected RPPairing route calls the public Minimuxer types.
     # The original AuthManager file imported only SideSign/CoreData.
     source = replace_one(source, "import CoreData\n",
-                         "import CoreData\nimport Minimuxer\nimport MinimuxerCommon\n",
+                         "import CoreData\nimport Security\nimport Minimuxer\nimport MinimuxerCommon\n",
                          "V44 native RPPairing import")
     original = "            let anisetteData = try await AnisetteProvider.fetch()"
     assert source.count(original) == 1, "Pinned SideStore token restoration changed"
@@ -420,9 +445,10 @@ def patch_sidestore(engine: Path) -> None:
     target.write_text(source.rstrip() + "\n\n" + extra + "\n\n" + installer)
     cert_agent = (ROOT / "rebuild/integration/ScarletGuestCertificateAgent.swift.txt").read_text()
     assert "ScarletGuestCertificateAgent" not in source
+    saved_accounts = (ROOT / "rebuild/integration/ScarletGuestSavedAccounts.swift.txt").read_text()
     refresh_agent = (ROOT / "rebuild/integration/ScarletGuestRefreshAgent.swift.txt").read_text()
     target.write_text(source.rstrip() + "\n\n" + extra + "\n\n" +
-                      installer + "\n\n" + cert_agent + "\n\n" + refresh_agent)
+                      installer + "\n\n" + cert_agent + "\n\n" + refresh_agent + "\n\n" + saved_accounts)
     # V44 surgical patch: SideInstaller proved RPPairing was REOPENED after
     # signing, immediately before AFC/installation_proxy on iOS 27.2.
     # The unmodified upstream SideStore install worker lacked that boundary.

@@ -208,6 +208,10 @@ public final class ScarletNativeAuthTransport {
         }
     }
 
+    public func scarletAccountWasSwitched() {
+        storedAuthReads.invalidate()
+    }
+
     public func cancel() {
         guard let id = requestID else { return }
         RefreshHandler.shared.client?.scarletCancelAuth(id)
@@ -691,3 +695,99 @@ private final class ScarletSlotChangeGate: @unchecked Sendable {
     }
 }
 // R6P61_SLOT_MANAGER_END
+
+
+// R6P66_MULTI_ACCOUNT_TRANSPORT_BEGIN
+// Account identities travel only over the authenticated on-device anonymous
+// SideStore XPC channel. No password/token is included in these DTOs.
+public struct ScarletStoredAppleAccount: Identifiable, Decodable, Sendable {
+    public let id: String
+    public let active: Bool
+}
+
+@available(iOS 17.0, *)
+@MainActor
+public enum ScarletNativeSavedAccounts {
+    public static func list() async -> (accounts: [ScarletStoredAppleAccount], status: String) {
+        do { try await ScarletNativeAuthTransport.shared.prepare() }
+        catch { return ([], "transport_unavailable") }
+        guard let client = RefreshHandler.shared.client else {
+            return ([], "transport_unavailable")
+        }
+        return await withCheckedContinuation { c in
+            let gate = ScarletAccountListGate(c)
+            DispatchQueue.main.asyncAfter(deadline: .now() + 15) {
+                gate.finish([], "timeout")
+            }
+            client.scarletAuthAccounts { json, reason in
+                guard let value = json,
+                      value.utf8.count <= 8192,
+                      let data = value.data(using: .utf8),
+                      let accounts = try? JSONDecoder().decode(
+                        [ScarletStoredAppleAccount].self, from: data),
+                      accounts.count <= 8,
+                      accounts.allSatisfy({ $0.id.utf8.count <= 254 }) else {
+                    gate.finish([], "response_invalid"); return
+                }
+                let known = ["ready", "keychain_write_failed", "keychain_read_failed",
+                             "response_invalid", "account_worker_missing"]
+                let reason = reason ?? "worker_unknown"
+                gate.finish(accounts, known.contains(reason) ? reason : "worker_unknown")
+            }
+        }
+    }
+
+    public static func activate(_ id: String) async -> (Bool, String) {
+        guard id.utf8.count > 3 && id.utf8.count <= 254 else {
+            return (false, "invalid_request")
+        }
+        do { try await ScarletNativeAuthTransport.shared.prepare() }
+        catch { return (false, "transport_unavailable") }
+        guard let client = RefreshHandler.shared.client else {
+            return (false, "transport_unavailable")
+        }
+        let result = await withCheckedContinuation {
+            (c: CheckedContinuation<(Bool, String), Never>) in
+            let gate = ScarletAccountActivationGate(c)
+            DispatchQueue.main.asyncAfter(deadline: .now() + 30) {
+                gate.finish(false, "timeout_state_unknown")
+            }
+            client.scarletSelectAuthAccount(id) { ok, reason in
+                let known = ["active_team_verified", "keychain_unavailable",
+                             "keychain_write_failed", "account_not_found",
+                             "current_session_unverified", "account_activation_unverified",
+                             "invalid_request", "authentication_in_progress",
+                             "account_worker_missing"]
+                let status = reason ?? "worker_unknown"
+                gate.finish(ok && status == "active_team_verified",
+                    known.contains(status) ? status : "worker_unknown")
+            }
+        }
+        if result.0 { ScarletNativeAuthTransport.shared.scarletAccountWasSwitched() }
+        return result
+    }
+}
+
+private final class ScarletAccountListGate: @unchecked Sendable {
+    private let lock = NSLock()
+    private var continuation: CheckedContinuation<
+        (accounts: [ScarletStoredAppleAccount], status: String), Never>?
+    init(_ c: CheckedContinuation<
+        (accounts: [ScarletStoredAppleAccount], status: String), Never>) {
+        continuation = c
+    }
+    func finish(_ rows: [ScarletStoredAppleAccount], _ status: String) {
+        lock.lock(); let c = continuation; continuation = nil; lock.unlock()
+        c?.resume(returning: (rows, status))
+    }
+}
+private final class ScarletAccountActivationGate: @unchecked Sendable {
+    private let lock = NSLock()
+    private var continuation: CheckedContinuation<(Bool, String), Never>?
+    init(_ c: CheckedContinuation<(Bool, String), Never>) { continuation = c }
+    func finish(_ ok: Bool, _ status: String) {
+        lock.lock(); let c = continuation; continuation = nil; lock.unlock()
+        c?.resume(returning: (ok, status))
+    }
+}
+// R6P66_MULTI_ACCOUNT_TRANSPORT_END

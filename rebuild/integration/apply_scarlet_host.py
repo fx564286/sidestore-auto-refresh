@@ -752,7 +752,6 @@ def attach_native_settings_diagnostics(engine: Path) -> dict:
         assert source.count(anchor)==1, "Pinned settings structure changed: "+repr(anchor)
     source=source.replace(state_anchor, state_anchor+
         '    @State private var scarletShowAppleLogin = false\n'
-        '    @State private var scarletShowAccountAdditionNotice = false\n'
         '    @State private var scarletLoginVerified: Bool? = nil\n'
         '    @State private var scarletSigningCertAvailable = false\n')
     new_section="""        NavigationView {
@@ -764,7 +763,7 @@ def attach_native_settings_diagnostics(engine: Path) -> dict:
                             .accessibilityIdentifier("SCARLET_SETTINGS_LOGIN_VERIFIED")
                         Button {
                             ScarletDiagnosticRecorder.shared.record("auth", "add_account_requested")
-                            scarletShowAccountAdditionNotice = true
+                            scarletShowAppleLogin = true
                         } label: {
                             Label("추가 로그인", systemImage: "person.badge.plus")
                         }
@@ -850,11 +849,6 @@ def attach_native_settings_diagnostics(engine: Path) -> dict:
     # Preserve upstream localized certificate alerts verbatim.
     # Supplemental verification status is shown by Scarlet separately.
     source=source.replace(style_anchor,style_anchor+
-        '        .alert("추가 로그인", isPresented: $scarletShowAccountAdditionNotice) {\n'
-        '            Button("확인", role: .cancel) { }\n'
-        '        } message: {\n'
-        '            Text("현재 연결된 SideStore 인증 엔진은 단일 활성 계정만 유지합니다. 이 상태에서 다른 Apple ID로 로그인하면 기존 계정이 교체될 수 있어 자동 추가를 제한합니다. 다중 계정은 계정별 보안 저장소와 서명 팀 전환을 연결해야 합니다.")\n'
-        '        }\n'
         '        .sheet(isPresented: $scarletShowAppleLogin, onDismiss: {\n'
         '            Task { @MainActor in\n'
         '                if #available(iOS 17.0, *) {\n'

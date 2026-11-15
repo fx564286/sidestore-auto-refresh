@@ -13,11 +13,11 @@ class RealSignInSessionAndSignedIdentifierTests(unittest.TestCase):
         self.assertIn('let (_, session) = try await AuthManager.shared.signIn(',AUTH)
         verified=AUTH.index('guard persistedState() else {',AUTH.index('@objc(begin:)'))
         cached=AUTH.index('AuthManager.shared.scarletCacheVerifiedAuthSession(session)',verified)
-        active=AUTH.index('let teamState = await ensureActiveTeamForRefresh()',cached)
+        active=AUTH.index('let teamState = await ensureActiveTeamForRefresh(requireHostTeam: false)',cached)
         self.assertLess(verified,cached)
         self.assertLess(cached,active)
         self.assertIn('finish(id, code: -3401',AUTH[verified:cached])
-        self.assertIn('finish(id, code: -3402',AUTH[active:])
+        self.assertIn('throw NSError(domain: "scarlet.auth." + teamState, code: -3402)',AUTH[active:])
     def test_authmanager_private_session_is_only_written_in_its_same_file_extension(self):
         self.assertIn('extension AuthManager {', AUTH)
         self.assertIn('fileprivate func scarletCacheVerifiedAuthSession(',AUTH)

@@ -19,7 +19,7 @@ class UserVisibleLabelStability(unittest.TestCase):
         self.assertIn('Label("추가 로그인", systemImage:',PATCH)
         self.assertIn('Label("로그인", systemImage:',PATCH)
         self.assertIn('SCARLET_SETTINGS_ADD_LOGIN',PATCH)
-        self.assertIn('scarletShowAccountAdditionNotice',PATCH)
+        self.assertNotIn('scarletShowAccountAdditionNotice',PATCH)
         self.assertNotIn('Label("Apple ID 로그인",',PATCH)
         self.assertIn('서명 준비됨',PATCH)
 

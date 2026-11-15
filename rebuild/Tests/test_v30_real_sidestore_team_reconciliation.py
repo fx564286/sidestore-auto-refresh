@@ -18,11 +18,13 @@ BUILD = (ROOT.parent / ".github/workflows/scarlet-paired-engines-build.yml").rea
 
 
 class V30SideStoreTeamIntegration(unittest.TestCase):
-    def test_original_signed_team_only_and_portal_verified(self):
+    def test_actual_apple_account_team_verified_without_host_team_lock(self):
         self.assertIn('let expectedTeamID = "P8EZT3U5N4"', SIGNIN)
         self.assertIn('DeveloperPortalProxy.shared.fetchTeams(', SIGNIN)
         self.assertIn('$0.identifier == expectedTeamID', SIGNIN)
-        self.assertIn('return "sidestore_team_mismatch"', SIGNIN)
+        self.assertIn('}) ?? portalTeams.first else', SIGNIN)
+        self.assertIn('return "sidestore_team_missing"', SIGNIN)
+        self.assertIn('team.account?.objectID == account.objectID', SIGNIN)
         self.assertNotIn('teams.first!', SIGNIN)
         self.assertNotIn('team = ALTTeam(identifier:', SIGNIN)
 
@@ -45,9 +47,9 @@ class V30SideStoreTeamIntegration(unittest.TestCase):
 
     def test_login_ack_waits_for_team_and_uses_existing_token(self):
         self.assertIn('guard persistedState()', SIGNIN)
-        self.assertIn('let teamState = await ensureActiveTeamForRefresh()', SIGNIN)
+        self.assertIn('let teamState = await ensureActiveTeamForRefresh(requireHostTeam: false)', SIGNIN)
         self.assertIn('teamState == "ready" || teamState == "team_restored"', SIGNIN)
-        self.assertLess(SIGNIN.index('let teamState = await ensureActiveTeamForRefresh()'),
+        self.assertLess(SIGNIN.index('let teamState = await ensureActiveTeamForRefresh(requireHostTeam: false)'),
                         SIGNIN.index('finish(id, code: 0, domain: "success")'))
         self.assertIn('forKey: "scarlet.auth.lastSuccessfulAnisetteProfile"', SIGNIN)
 
