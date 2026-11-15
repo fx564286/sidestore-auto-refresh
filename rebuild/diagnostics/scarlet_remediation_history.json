@@ -38424,6 +38424,82 @@
           "function": "ScarletGuestSignerRecovery.trialExistingSideStoreCertificate"
         }
       ]
+    },
+    {
+      "id": "L129",
+      "date": "2026-11-16",
+      "version": "Scarlet-V48-R6P78-iOS17-Native-Availability-Compile",
+      "problem": "P78_Xcode27_2_native_availability_error_in_new_signer_recovery",
+      "mechanism": "ios17_availability_annotation_on_new_mainactor_signer_type",
+      "novelty": {
+        "prior_excluded_ids": [
+          "L057",
+          "L060",
+          "L117",
+          "L128"
+        ],
+        "causal_difference": "New P78 top-level @MainActor enum ScarletGuestSignerRecovery was missing the iOS17 availability contract of ScarletSigningReadiness.inspect(). This is a genuine swift compiler error in the NEW signer recovery type, unrelated to prior Foundation, Sidestore MainActor or account DTO compile errors. Bind the existing host deployment contract @available(iOS 17.0, *) to the exact P78 enum; do not alter its recovery behavior or target SDK.",
+        "falsifiable_prediction": "On Xcode27.2 the previously reported compile error ScarletIntegratedHostView.swift:167:15 ScarletSigningReadiness only available iOS17 must disappear. Actual native build and unsigned IPA packaging should succeed unless another independent compiler error surfaces.",
+        "new_device_evidence": {
+          "source_commit": "4f0a81d5ee725edeeb9aa1dd9e5584844a1a8bee",
+          "event": "GitHub Actions run 43735013629 Xcode27.2 Build LiveContainer",
+          "observed_value": "Archive failed exit65; native build log line ScarletIntegratedHostView.swift:167:15 error ScarletSigningReadiness is only available iOS17 or newer; compiler suggests add @available on enclosing enum."
+        },
+        "why_prior_fix_failed": "P78 had only @MainActor and inherited no iOS17 availability at file scope; interpreter/static tests did not compile native SDK."
+      },
+      "hypothesis": "Correct native iOS availability on the new signer enum will make the actual previously failing iOS17 guard valid.",
+      "action": "Placed @available(iOS 17.0, *) immediately above @MainActor on ScarletGuestSignerRecovery in host source, regression test for exact annotation. Retained signer data, auth, team and rollback semantics.",
+      "observation": "Actual P78 Xcode27.2 compiler failure exit65 at source line167 was captured from GitHub native artifact report/livecontainer-build.log; source compile fix committed and native retry pending.",
+      "evidence": "GitHub Actions 43735013629 artifact 14170197789 original compile report; fix commit 7e65796d683debe9934add7b1989e3cde50d13bc",
+      "status": "source_committed_native_ci_retry_pending",
+      "source_verification": "git_patch_observed",
+      "device_verification": "not_verified",
+      "next_executable_action": "Re-run both native Xcode27.2 engines and verify P78 IPA version+checksum, then signed iPhone two separate signer and P77 island acceptance proofs.",
+      "rollback_commit": "4f0a81d5ee725edeeb9aa1dd9e5584844a1a8bee",
+      "repeat_policy": "do_not_downgrade_sdk_or_bypass_native_build; use proper availability annotations only",
+      "source_revisions": [
+        {
+          "sha": "7e65796d683debe9934add7b1989e3cde50d13bc",
+          "title": "fix(r6p78): mark native signer recovery iOS17 availability for Xcode27.2",
+          "url": "https://github.com/fx564286/sidestore-auto-refresh/commit/7e65796d683debe9934add7b1989e3cde50d13bc"
+        }
+      ],
+      "code_locations": [
+        {
+          "file": "rebuild/HostApp/ScarletIntegratedHostView.swift",
+          "commit": "7e65796d683debe9934add7b1989e3cde50d13bc",
+          "function": "ScarletGuestSignerRecovery availability",
+          "location": "@@ -82,1 +82,2 @@",
+          "before": [
+            "@MainActor",
+            "private enum ScarletGuestSignerRecovery {"
+          ],
+          "after": [
+            "@available(iOS 17.0, *)",
+            "@MainActor",
+            "private enum ScarletGuestSignerRecovery {"
+          ]
+        },
+        {
+          "file": "rebuild/Tests/test_v48_r6p78_signer_native_rollback.py",
+          "commit": "7e65796d683debe9934add7b1989e3cde50d13bc",
+          "function": "P78 native availability test",
+          "location": "@@ -9,0 +10,3 @@",
+          "before": [],
+          "after": [
+            "def test_ios17_native_recovery_availability_contract(self):",
+            "@available(iOS 17.0, *)"
+          ]
+        }
+      ],
+      "generated_runtime_targets": [
+        {
+          "source_template": "rebuild/HostApp/ScarletIntegratedHostView.swift",
+          "generated_file": "LiveContainerSwiftUI/ScarletIntegratedHostView.swift",
+          "source_generation_script": "rebuild/integration/apply_scarlet_host.py",
+          "function": "ScarletGuestSignerRecovery"
+        }
+      ]
     }
   ],
   "gate": {
