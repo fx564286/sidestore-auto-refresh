@@ -37911,6 +37911,96 @@
           "function": "acceptVerifiedPostHeaderStatusband"
         }
       ]
+    },
+    {
+      "id": "L124",
+      "date": "2026-11-15",
+      "version": "Scarlet-V48-R6P75-Team-Scoped-Managed-Slot-Authorization",
+      "problem": "sidestore_slot_manager_cross_account_team_leak",
+      "mechanism": "team_scoped_native_slot_listing_and_change_gate",
+      "novelty": {
+        "prior_excluded_ids": [
+          "L108",
+          "L114",
+          "L116",
+          "L122"
+        ],
+        "causal_difference": "P61 original slot manager enumerates and mutates every InstalledApp regardless of its Apple signing team. P68 restricted IPA install and refresh only, not P61 slot manager. P75 limits both listing and activate/deactivate to the currently Apple-authenticated team and serializes those operations with the same team-operation gate used by login/install/refresh.",
+        "falsifiable_prediction": "When A is selected, A's managed apps appear and B's rows are absent. A fabricated B bundleID request is rejected with selected_team_app_mismatch without invoking AppManager; changing to B reverses the visibility and action eligibility. A team switch during a mutation is blocked, original host and SideStore remain protected."
+      },
+      "hypothesis": "P61 registered SideStore apps shared one database across several Apple accounts; P68 limited install/refresh but did not gate app-slot manager, making cross-team slot operations possible despite correct saved-Apple-ID switching.",
+      "action": "Scoped P61 list and change operations to the active authenticated Apple Team in original SideStore InstalledApp.team, used the shared team-operation actor gate against switch/install/refresh race, preserved upstream backup-based activate/deactivate and host protection. Versioned native P75 CI and release.",
+      "observation": "P71 signed iPhone account-switch verified 4x; P61 code directly listed all teams and changed by bundleID only. P75 local full unittest 780 run 777 pass 3 skipped; signed P75 device effect not verified.",
+      "evidence": "P71 current user diagnostic session 216bfa28; native P61/P68/P74 source audit; P75 git tree source commit 04a3567187cf341743eb909f59b64f6dd86b2ba5",
+      "status": "source_committed_777_python_tests_pass_3_skipped_native_ci_pending",
+      "source_verification": "git_patch_observed",
+      "device_verification": "not_verified",
+      "next_executable_action": "Verify native Xcode27.2 paired P75 CI run, IPA ZIP checksum, then sign for iPhone and test A->B->A slot listing, cross-team forged bundle reject, original activate/deactivate backup and unchanged guest top/status-bar regression. Do not claim P74 island resolved until signed device status and visual.",
+      "rollback_commit": "350394b515115e4a1d8d6c0cc975f6ae51f3045f",
+      "repeat_policy": "do_not_confuse_team_scoped_IPA_install_or_refresh_with_slot_manager_list_and_change_authorization",
+      "source_revisions": [
+        {
+          "sha": "04a3567187cf341743eb909f59b64f6dd86b2ba5",
+          "title": "fix(r6p75): isolate native managed slot list and actions to the authenticated Apple Team",
+          "url": "https://github.com/fx564286/sidestore-auto-refresh/commit/04a3567187cf341743eb909f59b64f6dd86b2ba5"
+        }
+      ],
+      "code_locations": [
+        {
+          "file": "rebuild/integration/ScarletDeviceInstallAgent.swift.txt",
+          "function": "listManagedSlots + setManagedSlot",
+          "location": "@@ -196,21 +196,32 @@ extension ScarletDeviceInstallAgent {",
+          "before": [
+            "let apps = InstalledApp.all(in: context)",
+            "let rows = apps.map { app in",
+            "let matches = InstalledApp.all(in: context).filter {",
+            "    $0.resignedBundleIdentifier == bundle",
+            "}"
+          ],
+          "after": [
+            "guard await ScarletTeamOperationGate.shared.claim() else {",
+            "    reply(\"[]\", \"team_operation_in_progress\"); return",
+            "}",
+            "let selectedTeamID = (await ScarletInstallTeamAuthority.activeTeam())?.identifier",
+            "let apps = InstalledApp.all(in: context).filter { $0.team?.identifier == selectedTeamID }",
+            "guard app.team?.identifier == selectedTeamID else {",
+            "    reply(false, \"selected_team_app_mismatch\"); return",
+            "}"
+          ]
+        },
+        {
+          "file": "rebuild/Tests/test_v48_r6p75_team_scoped_slots.py",
+          "function": "TeamScopedSlotManager native static contract",
+          "location": "@@ -0,0 +1,46 @@",
+          "before": [],
+          "after": [
+            "class TeamScopedSlotManager(unittest.TestCase):",
+            "    def test_list_is_team_scoped_and_switch_serialized(self):",
+            "    def test_action_rechecks_team_before_any_upstream_operation(self):"
+          ]
+        },
+        {
+          "file": ".github/workflows/scarlet-paired-engines-build.yml",
+          "function": "P75 branch native Xcode27.2 CI, 3.8.75 unsigned release and checksum",
+          "location": "@@ -329,2 +329,4 @@",
+          "before": [
+            "if [ \"$GITHUB_REF\" = \"refs/heads/fix/scarlet-v48-r6p74-statusband-proof-20261115\" ]; then",
+            "SCARLET_HOST_VERSION_ARGS=(--host-build-version 3.8.74)"
+          ],
+          "after": [
+            "if [ \"$GITHUB_REF\" = \"refs/heads/fix/scarlet-v48-r6p75-team-slot-scope-20261115\" ]; then",
+            "SCARLET_HOST_VERSION_ARGS=(--host-build-version 3.8.75)"
+          ]
+        }
+      ],
+      "generated_runtime_targets": [
+        {
+          "source_template": "rebuild/integration/ScarletDeviceInstallAgent.swift.txt",
+          "generated_file": "SideStore/Core/Auth/AuthManager.swift",
+          "source_generation_script": "rebuild/integration/wire_scarlet_auth.py",
+          "function": "ScarletDeviceInstallAgent.listManagedSlots / setManagedSlot"
+        }
+      ]
     }
   ],
   "gate": {
