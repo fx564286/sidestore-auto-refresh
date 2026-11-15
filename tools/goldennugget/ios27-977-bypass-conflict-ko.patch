@@ -137,26 +137,28 @@ diff --git a/Nugget/Views/GoldenNuggetView.swift b/Nugget/Views/GoldenNuggetView
              showApplyConfirm = true
          } catch {
              errorText = error.localizedDescription
-@@ -1167,10 +1224,15 @@
+@@ -1167,10 +1224,17 @@
          runStarted = Date()
          RunLog.shared.clear()
          showStatus("Applying…", .accent, autoHide: false)
 -        let snapshot = tweakSelection
 -        let wallpapers = posterBoardSelection
 +        let excludingPosterBoard = excludePosterBoardForNextApply
-+        var snapshot = tweakSelection
++        var tweakSnapshot = tweakSelection
 +        if excludingPosterBoard, let spec = TweakCatalog.byID["PosterKitOverrides"] {
-+            snapshot.setOn(false, for: spec)
++            tweakSnapshot.setOn(false, for: spec)
 +        }
++        let snapshot = tweakSnapshot
 +        let wallpapers = excludingPosterBoard ? PosterBoardSelection() : posterBoardSelection
          let statusBar = statusBarSelection
 -        let templates = templateSelection
-+        var templates = templateSelection
-+        if excludingPosterBoard { templates.templates.removeAll { $0.isPosterBoard } }
++        var templateSnapshot = templateSelection
++        if excludingPosterBoard { templateSnapshot.templates.removeAll { $0.isPosterBoard } }
++        let templates = templateSnapshot
          let device = identity
          Task {
              var text = ""
-@@ -1178,6 +1240,9 @@
+@@ -1178,6 +1242,9 @@
              var succeeded = false
              var recordedError = ""
              do {
@@ -166,7 +168,7 @@ diff --git a/Nugget/Views/GoldenNuggetView.swift b/Nugget/Views/GoldenNuggetView
                  try await GoldenNuggetEngine.shared.applyTweaks(selection: snapshot,
                                                                  posterBoard: wallpapers,
                                                                  statusBar: statusBar,
-@@ -1216,11 +1281,12 @@
+@@ -1216,11 +1283,12 @@
                  runStarted = nil
                  showStatus(text, tone)
                  showRebootNotice = succeeded
