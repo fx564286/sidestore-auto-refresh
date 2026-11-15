@@ -15,10 +15,10 @@ WORKFLOW=(ROOT.parent/'.github/workflows/scarlet-paired-engines-build.yml').read
 
 class V43Installer(unittest.TestCase):
     def test_reuses_original_refresh_team_recovery_without_creating_cert(self):
-        self.assertIn('ScarletGuestSignInAgent\n                    .ensureActiveTeamForRefresh()',AGENT)
+        self.assertIn('ScarletInstallTeamAuthority.prepare(',AGENT)
         self.assertIn('static func ensureActiveTeamForRefresh(requireHostTeam: Bool = true) async -> String',AUTH)
-        self.assertIn('teamState == "ready" || teamState == "team_restored"',AGENT)
-        self.assertIn('notify(teamState == "sidestore_team_mismatch"',AGENT)
+        self.assertIn('teamState == "ready"',AGENT)
+        self.assertIn('notify(teamState)',AGENT)
         self.assertIn('ScarletGuestDeviceTransport.ensureReady()',AGENT)
         self.assertIn('enum ScarletGuestDeviceTransport',REFRESH)
         self.assertIn('AppBootManager.shared.startMinimuxer(pairingFile: pairing)',REFRESH)
@@ -26,7 +26,7 @@ class V43Installer(unittest.TestCase):
         self.assertNotIn('requestCertificate(',AGENT)
 
     def test_works_through_original_appmanager_callback(self):
-        self.assertIn('CertificateManager.shared.loadActiveCertificate()',AGENT)
+        self.assertIn('ScarletInstallTeamAuthority.prepare(',AGENT)
         self.assertIn('AppManager.shared.install(.url(fileURL))',AGENT)
         self.assertIn('continuation.resume(with: result)',AGENT)
         self.assertIn('notify("installed")',AGENT)

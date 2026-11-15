@@ -29,7 +29,7 @@ class V27InProcessRefresh(unittest.TestCase):
         self.assertNotIn('try? AppManager.shared.backgroundRefresh(',AGENT)
         self.assertIn('let signedHostID = Bundle.Info.activeBundleIdentifier',AGENT)
         self.assertIn('$0.resignedBundleIdentifier == signedHostID',AGENT)
-        self.assertIn('CertificateManager.shared.activeCertificate != nil',AGENT)
+        self.assertIn('ScarletInstallTeamAuthority.prepare(',AGENT)
         self.assertIn('native_operation_returned_unverified',AGENT)
         self.assertIn('host_not_in_refresh_results',AGENT)
         self.assertIn('let hostResult = results[managedHost.bundleIdentifier]',AGENT)

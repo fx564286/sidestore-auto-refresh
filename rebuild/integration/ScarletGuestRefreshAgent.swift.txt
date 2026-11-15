@@ -10,8 +10,15 @@ final class ScarletGuestRefreshAgent: NSObject {
                 // installed host record; this is not a fake copy of a DB.
                 try await DatabaseManager.shared.start()
                 let context = DatabaseManager.shared.persistentContainer.newBackgroundContext()
+                let currentTeam = await ScarletInstallTeamAuthority.activeTeam()
                 let targets = await context.perform {
                     InstalledApp.fetchAppsForRefreshingAll(in: context)
+                        .filter {
+                            $0.team?.identifier == currentTeam?.identifier ||
+                            (currentTeam?.identifier == "P8EZT3U5N4" &&
+                             $0.resignedBundleIdentifier == Bundle.Info.activeBundleIdentifier &&
+                             $0.team == nil)
+                        }
                 }
                 // A Personal Team signer may suffix the original bundle ID.
                 // Compare the actual signed bundle, NOT the hard-coded
@@ -20,14 +27,18 @@ final class ScarletGuestRefreshAgent: NSObject {
                 let managesHost = targets.contains {
                     $0.resignedBundleIdentifier == realHostID
                 }
-                let signingReady = CertificateManager.shared.activeCertificate != nil
+                let signingReady = currentTeam.flatMap {
+                    ScarletInstallTeamAuthority.matchingCertificate(for: $0.identifier)
+                } != nil
                 let reason: String
-                if !managesHost {
-                    reason = targets.isEmpty ? "no_managed_apps" : "host_not_managed"
+                if targets.isEmpty {
+                    reason = "no_managed_apps_for_selected_team"
                 } else if !signingReady {
-                    reason = "sidestore_certificate_missing"
-                } else {
+                    reason = "selected_team_certificate_missing"
+                } else if managesHost {
                     reason = "ready"
+                } else {
+                    reason = "ready_selected_team"
                 }
                 reply(min(targets.count, 99), managesHost, signingReady, reason)
             } catch {
@@ -309,40 +320,45 @@ extension ScarletGuestRefreshAgent {
                 return
             }
             defer { Task { await gate.release() } }
+            guard await ScarletTeamOperationGate.shared.claim() else {
+                reply(false, "team_operation_in_progress")
+                return
+            }
+            defer { Task { await ScarletTeamOperationGate.shared.release() } }
             var stage = "database"
             do {
                 try await DatabaseManager.shared.start()
                 let context = DatabaseManager.shared.persistentContainer.newBackgroundContext()
+                stage = "team"
+                guard let selectedTeam = await ScarletInstallTeamAuthority.activeTeam() else {
+                    reply(false, "sidestore_auth_missing"); return
+                }
+                // Native SideStore keeps each InstalledApp associated with the
+                // Apple team that signed it. Refresh ONLY the selected team;
+                // never re-sign the already installed host using another team.
                 let targets = await context.perform {
                     InstalledApp.fetchAppsForRefreshingAll(in: context)
+                        .filter {
+                            $0.team?.identifier == selectedTeam.identifier ||
+                            (selectedTeam.identifier == "P8EZT3U5N4" &&
+                             $0.resignedBundleIdentifier == Bundle.Info.activeBundleIdentifier &&
+                             $0.team == nil)
+                        }
+                }
+                guard !targets.isEmpty else {
+                    reply(false, "no_managed_apps_for_selected_team"); return
                 }
                 let signedHostID = Bundle.Info.activeBundleIdentifier
-                guard let managedHost = targets.first(where: {
+                let managedHost = targets.first {
                     $0.resignedBundleIdentifier == signedHostID
-                }) else {
-                    reply(false, targets.isEmpty ? "no_managed_apps" : "host_not_managed")
-                    return
                 }
-                guard CertificateManager.shared.activeCertificate != nil else {
-                    reply(false, "sidestore_certificate_missing")
-                    return
-                }
-                // Save pre-refresh metadata before the original background
-                // operation mutates its own CoreData record.
                 let before = await context.perform {
-                    (managedHost.refreshedDate, managedHost.expirationDate)
+                    (managedHost?.refreshedDate, managedHost?.expirationDate)
                 }
-                // V30: Authentic Apple token restoration is not equivalent
-                // to SideStore's active Team record. The stock login pipeline
-                // writes that record, but Scarlet's headless login previously
-                // did not. Recover only the exact Apple-verified existing
-                // signed team before running original PreflightChecksOperation.
-                stage = "team"
-                let teamState = await ScarletGuestSignInAgent
-                    .ensureActiveTeamForRefresh()
-                guard teamState == "ready" || teamState == "team_restored" else {
-                    reply(false, teamState)
-                    return
+                let teamState = await ScarletInstallTeamAuthority.prepare(
+                    teamID: selectedTeam.identifier)
+                guard teamState == "ready" else {
+                    reply(false, teamState); return
                 }
                 // SideStore's original AppBootManager starts Minimuxer using
                 // its already-imported pairing. Embedded LiveProcess may
@@ -378,29 +394,35 @@ extension ScarletGuestRefreshAgent {
                 // Original SideStore skips apps it sees as running. A
                 // completed operation may contain results for other apps,
                 // or no results at all. Never call that a Scarlet refresh.
-                guard let hostResult = results[managedHost.bundleIdentifier] else {
-                    reply(false, "host_not_in_refresh_results")
-                    return
-                }
-                // SideStore returns success for the host, but that does not
-                // prove iOS SpringBoard switched to a renewed installation.
-                // Read its own post-operation CoreData record in the owning
-                // context. Never return a false "installed" receipt.
-                if case let .success(refreshedHost) = hostResult,
-                   let resultContext = refreshedHost.managedObjectContext {
-                    let after = await resultContext.perform {
-                        (refreshedHost.refreshedDate, refreshedHost.expirationDate)
-                    }
-                    if after.0 > before.0 {
-                        reply(true, after.1 > before.1
-                            ? "native_profile_date_advanced_install_unverified"
-                            : "native_refresh_record_updated_install_unverified")
+                // A selected team B must not attempt to re-sign Scarlet's
+                // host A. For the host team, preserve the stricter readback.
+                if let managedHost {
+                    guard let hostResult = results[managedHost.bundleIdentifier] else {
+                        reply(false, "host_not_in_refresh_results")
                         return
                     }
+                    if case let .success(refreshedHost) = hostResult,
+                       let resultContext = refreshedHost.managedObjectContext {
+                        let after = await resultContext.perform {
+                            (refreshedHost.refreshedDate, refreshedHost.expirationDate)
+                        }
+                        if let beforeDate = before.0, let beforeExpiry = before.1,
+                           after.0 > beforeDate {
+                            reply(true, after.1 > beforeExpiry
+                                ? "native_profile_date_advanced_install_unverified"
+                                : "native_refresh_record_updated_install_unverified")
+                            return
+                        }
+                    }
+                    reply(true, recoveredTransport
+                        ? "native_operation_returned_unverified_transport_recovered"
+                        : "native_operation_returned_unverified")
+                } else {
+                    guard !results.isEmpty else {
+                        reply(false, "selected_team_not_in_refresh_results"); return
+                    }
+                    reply(true, "native_selected_team_refresh_returned_install_unverified")
                 }
-                reply(true, recoveredTransport
-                    ? "native_operation_returned_unverified_transport_recovered"
-                    : "native_operation_returned_unverified")
             } catch {
                 reply(false, failureReceipt(error, stage: stage))
             }

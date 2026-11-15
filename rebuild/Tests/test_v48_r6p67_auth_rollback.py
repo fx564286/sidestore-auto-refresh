@@ -17,7 +17,7 @@ class P67Rollback(unittest.TestCase):
     def test_vault_reports_failed_rollback_without_claiming_success(self):
         self.assertIn('if let previous, !(await activate(previous))',V)
         self.assertIn('return (false, "rollback_unverified")',V)
-        self.assertIn('"rollback_unverified"]',H)
+        self.assertIn('"rollback_unverified",',H)
     def test_remote_failure_is_categorical_and_korean(self):
         self.assertIn('allowlisted.contains(failure.domain)',A)
         self.assertIn('case "scarlet.auth.rollback_unverified":',H)

@@ -209,12 +209,12 @@ struct ScarletSigningReadinessPanel: View {
             refreshHostManaged = nativeState.hostManaged
             ScarletDiagnosticRecorder.shared.record(
                 "refresh", "sidestore_managed_apps_inspected",
-                status: nativeState.canRefreshHost ? "success" : "blocked",
+                status: nativeState.canRefreshSelectedTeam ? "success" : "blocked",
                 fields: ["count": String(nativeState.count),
                          "host_managed": nativeState.hostManaged ? "true" : "false",
                          "signing_ready": nativeState.signingReady ? "true" : "false",
                          "reason": nativeState.reason])
-            guard nativeState.canRefreshHost else {
+            guard nativeState.canRefreshSelectedTeam else {
                 let message = ScarletRefreshFailureDiagnosis.nativeGuidance(nativeState.reason)
                 statusMessage = message
                 lastRefreshAttemptState = "차단 · SideStore 갱신 사전검사 실패"

@@ -139,6 +139,11 @@ final class ScarletGuestSignInAgent: NSObject {
                 finish(id, code: -3, domain: "scarlet.auth.busy")
                 return
             }
+            guard await ScarletTeamOperationGate.shared.claim() else {
+                finish(id, code: -3454, domain: "scarlet.auth.team_operation_in_progress")
+                return
+            }
+            defer { Task { await ScarletTeamOperationGate.shared.release() } }
             activeRequest = id
             cancelled = false
             defer {

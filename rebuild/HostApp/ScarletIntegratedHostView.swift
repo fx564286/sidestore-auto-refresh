@@ -104,6 +104,8 @@ struct ScarletIntegratedHostView: View {
     @State private var deviceInstallRunning = false
     @State private var deviceInstallStatus: String?
     @State private var showDeviceInstallSheet = false
+    @State private var showInstallTeamPicker = false
+    @State private var selectedInstallTeamID: String?
     @State private var showManagedSlotSheet = false
     @State private var sourceInputError: String?
     @State private var showScarletAppleIDLogin = false
@@ -688,7 +690,8 @@ struct ScarletIntegratedHostView: View {
             showOriginalError = "기기 직접 설치에는 .ipa 파일이 필요합니다. .tipa는 게스트 앱으로 가져올 수 있습니다."
             return
         }
-        guard !deviceInstallRunning, !guestImportActivity.isRunning,
+        guard selectedInstallTeamID != nil,
+              !deviceInstallRunning, !guestImportActivity.isRunning,
               !sourceIsDownloading else {
             showOriginalError = "다른 앱 설치가 진행 중입니다."
             return
@@ -760,7 +763,12 @@ struct ScarletIntegratedHostView: View {
                 deviceInstallStatus = "내장 SideStore에서 서명·설치 중"
                 // Original SideStore AppManager installs through its own
                 // signing/provisioning/pairing engine. No SideInstaller UI.
-                try await ScarletDeviceInstaller.install(stagedIPA: staged)
+                guard let selectedTeamID = selectedInstallTeamID else {
+                    deviceInstallStatus = "설치팀이 선택되지 않았습니다."
+                    return
+                }
+                try await ScarletDeviceInstaller.install(
+                    stagedIPA: staged, teamID: selectedTeamID)
                 deviceInstallStatus = "설치 엔진 반환 · 실제 iPhone 설치 결과 확인 필요"
                 let finalStage = stageDefaults?.string(forKey: stageKey) ??
                     "stage_not_reported"
@@ -781,6 +789,11 @@ struct ScarletIntegratedHostView: View {
                     "rppairing_record_invalid", "profile_unavailable",
                     "app_group_unavailable", "staged_ipa_missing", "staged_ipa_invalid",
                     "worker_missing", "team_unavailable", "team_mismatch",
+                    "invalid_team", "selected_team_changed",
+                    "team_operation_in_progress",
+                    "selected_team_certificate_missing",
+                    "selected_team_certificate_activation_failed",
+                    "selected_team_certificate_readback_failed",
                     "auth_unavailable", "vpn_unavailable", "network_unavailable",
                     "device_network_unavailable", "device_endpoint_unavailable",
                     "device_identifier_unavailable", "minimuxer_not_started",
@@ -814,7 +827,8 @@ struct ScarletIntegratedHostView: View {
                    reason == "profile_unavailable" {
                     stage = "appmanager"
                 } else if reason == "team_unavailable" ||
-                          reason == "team_mismatch" || reason == "auth_unavailable" {
+                          reason == "team_mismatch" || reason == "auth_unavailable" ||
+                          reason.hasPrefix("selected_team_") || reason == "invalid_team" {
                     stage = "team"
                 } else if reason == "certificate_missing" ||
                           reason == "certificate_unavailable" {
@@ -830,7 +844,8 @@ struct ScarletIntegratedHostView: View {
                              "worker_stage": lastWorkerStage,
                              "installation_verified": "false"])
                 switch reason {
-                case "team_unavailable", "team_mismatch", "auth_unavailable":
+                case "team_unavailable", "team_mismatch", "auth_unavailable",
+                     "selected_team_changed", "invalid_team":
                     deviceInstallStatus = "SideStore 활성 개발팀 또는 로그인 복원이 필요합니다."
                 case "minimuxer_not_started", "transport_unclassified",
                      "device_network_unavailable", "device_endpoint_unavailable",
@@ -838,6 +853,10 @@ struct ScarletIntegratedHostView: View {
                     deviceInstallStatus = "기기 연결 엔진을 준비하지 못했습니다. 페어링·전송 상태를 확인해야 합니다."
                 case "network_unavailable":
                     deviceInstallStatus = "SideStore 네트워크 요청에 실패했습니다."
+                case "selected_team_certificate_missing",
+                     "selected_team_certificate_activation_failed",
+                     "selected_team_certificate_readback_failed":
+                    deviceInstallStatus = "선택한 Apple 개발팀의 인증서가 없습니다. 설치팀 선택에서 해당 계정 인증서를 확인하세요."
                 case "certificate_missing", "certificate_unavailable":
                     deviceInstallStatus = "기존 서명 인증서를 찾을 수 없습니다. 인증서 발급·동기화가 필요합니다."
                 case "rppairing_file_missing", "pairing_file_missing":
@@ -1083,9 +1102,14 @@ struct ScarletIntegratedHostView: View {
             ScarletDiagnosticRecorder.shared.record("auth", "login_sheet_requested")
             showScarletAppleIDLogin = true
         case .serviceInstallIPA:
+            guard !deviceInstallRunning else {
+                showDeviceInstallSheet = true
+                return
+            }
             pendingIPAInstallRoute = .device
-            ScarletDiagnosticRecorder.shared.record("sidestore", "file_picker_requested")
-            showGuestFilePicker = true
+            selectedInstallTeamID = nil
+            ScarletDiagnosticRecorder.shared.record("sidestore", "install_team_picker_requested")
+            showInstallTeamPicker = true
         case .localOpenEmbeddedSideStore,
              .serviceRefreshApp, .serviceSyncAppIDs,
              .serviceSetSettings, .serviceReadSettings:
@@ -1412,6 +1436,20 @@ struct ScarletIntegratedHostView: View {
             // Credentials remain in a Scarlet-owned ephemeral view.
             // The embedded SideStore guest authentication UI is NOT opened.
             ScarletAppleIDLoginSheet(engine: ScarletConnectedSideSignEngine())
+        }
+        .sheet(isPresented: $showInstallTeamPicker) {
+            ScarletInstallTeamPicker { teamID in
+                selectedInstallTeamID = teamID
+                showInstallTeamPicker = false
+                // Files picker must not race the closing presentation.
+                Task { @MainActor in
+                    try? await Task.sleep(for: .milliseconds(300))
+                    guard selectedInstallTeamID == teamID else { return }
+                    ScarletDiagnosticRecorder.shared.record("sidestore",
+                        "install_team_selected", fields: ["result": "verified_worker_selection"])
+                    showGuestFilePicker = true
+                }
+            }
         }
         .fileImporter(isPresented: $showGuestFilePicker,
                       allowedContentTypes: [.ipa, .tipa],

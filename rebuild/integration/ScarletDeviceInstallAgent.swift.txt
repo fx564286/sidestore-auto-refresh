@@ -25,6 +25,11 @@ final class ScarletDeviceInstallAgent: NSObject {
     static func install(_ payload: NSDictionary) {
         guard let requestID = payload["requestID"] as? String,
               UUID(uuidString: requestID) != nil,
+              let expectedTeamID = payload["expectedTeamID"] as? String,
+              expectedTeamID.utf8.count == 10,
+              expectedTeamID.allSatisfy({
+                  $0.isASCII && ($0.isUppercase || $0.isNumber)
+              }),
               let filename = payload["filename"] as? String,
               filename.hasSuffix(".ipa"),
               filename == URL(fileURLWithPath: filename).lastPathComponent,
@@ -33,6 +38,10 @@ final class ScarletDeviceInstallAgent: NSObject {
             return
         }
         Task {
+            guard await ScarletTeamOperationGate.shared.claim() else {
+                notify("team_operation_in_progress"); return
+            }
+            defer { Task { await ScarletTeamOperationGate.shared.release() } }
             mark("request_received")
             do {
                 // The host and SideStore LiveProcess must possess the same
@@ -61,23 +70,17 @@ final class ScarletDeviceInstallAgent: NSObject {
                 // Free Personal Teams should reuse their EXISTING valid
                 // certificate. Never silently revoke/replace it just to
                 // satisfy an installation request from Scarlet.
-                guard (try? CertificateManager.shared.loadActiveCertificate()) != nil else {
-                    notify("certificate_missing")
-                    return
-                }
-                mark("certificate_loaded")
-                // Refresh and install share the same original SideStore
-                // identity/Minimuxer prerequisites. The old installer skipped
-                // both of these and then collapsed the AppManager error to
-                // native_install_failed. Fail at the precise missing stage.
-                let teamState = await ScarletGuestSignInAgent
-                    .ensureActiveTeamForRefresh()
-                guard teamState == "ready" || teamState == "team_restored" else {
-                    notify(teamState == "sidestore_team_mismatch"
-                           ? "team_mismatch" : "team_unavailable")
+                // The iPhone host's signed team identifies its entitlement;
+                // it is NOT the Apple team for every user-installed IPA.
+                // Reject if account/team changed after file selection.
+                let teamState = await ScarletInstallTeamAuthority.prepare(
+                    teamID: expectedTeamID)
+                guard teamState == "ready" else {
+                    notify(teamState)
                     return
                 }
                 mark("team_verified")
+                mark("certificate_loaded")
                 do {
                     _ = try await ScarletGuestDeviceTransport.ensureReady()
                 } catch {

@@ -24,10 +24,10 @@ class V24RegistrationGate(unittest.TestCase):
         self.assertIn('InstalledApp.fetchAppsForRefreshingAll(in: context)',AGENT)
         self.assertIn('Bundle.Info.activeBundleIdentifier',AGENT)
         self.assertIn('$0.resignedBundleIdentifier == realHostID',AGENT)
-        self.assertIn('CertificateManager.shared.activeCertificate != nil',AGENT)
-        self.assertIn('host_not_managed',AGENT)
+        self.assertIn('ScarletInstallTeamAuthority.matchingCertificate(',AGENT)
+        self.assertIn('ready_selected_team',AGENT)
         self.assertIn('no_managed_apps',AGENT)
-        self.assertIn('sidestore_certificate_missing',AGENT)
+        self.assertIn('selected_team_certificate_missing',AGENT)
         self.assertNotIn('password',AGENT.lower())
         self.assertNotIn('revokeCertificate(',AGENT)
         self.assertNotIn('revokeCertificates(',AGENT)
@@ -53,7 +53,7 @@ class V24RegistrationGate(unittest.TestCase):
 
     def test_manual_and_automatic_refresh_prove_managed_self_first(self):
         self.assertIn('let nativeState = await ScarletNativeRefreshInspector.inspect()',PANEL)
-        self.assertIn('guard nativeState.canRefreshHost else {',PANEL)
+        self.assertIn('guard nativeState.canRefreshSelectedTeam else {',PANEL)
         self.assertIn('sidestore_managed_apps_inspected',PANEL)
         self.assertIn('SCARLET_MANAGED_REFRESH_APP_COUNT',PANEL)
         self.assertIn('SCARLET_MANAGED_HOST_REGISTRATION',PANEL)
@@ -61,11 +61,11 @@ class V24RegistrationGate(unittest.TestCase):
         self.assertIn('SCARLET_NATIVE_REFRESH_NOW',PANEL)
         self.assertIn('Label("지금 갱신"',PANEL)
         self.assertNotIn('Label("SideStore 수동 새로고침"',PANEL)
-        self.assertLess(PANEL.index('guard nativeState.canRefreshHost else {'),
+        self.assertLess(PANEL.index('guard nativeState.canRefreshSelectedTeam else {'),
                         PANEL.index('ScarletNativeRefreshExecutor.execute()'))
         self.assertIn('automatic_managed_apps_inspected',AUTO)
-        self.assertIn('guard nativeState.canRefreshHost else {',AUTO)
-        self.assertLess(AUTO.index('guard nativeState.canRefreshHost else {'),
+        self.assertIn('guard nativeState.canRefreshSelectedTeam else {',AUTO)
+        self.assertLess(AUTO.index('guard nativeState.canRefreshSelectedTeam else {'),
                         AUTO.index('ScarletNativeRefreshExecutor.execute()'))
         self.assertIn('nativeGuidance',AUTO)
 

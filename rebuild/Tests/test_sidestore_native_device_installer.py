@@ -36,8 +36,9 @@ class NativeDeviceInstallerContract(unittest.TestCase):
         self.assertIn('!filename.contains("..")',WORKER)
 
     def test_hardened_existing_certificate_policy(self):
-        self.assertIn('CertificateManager.shared.loadActiveCertificate()',WORKER)
-        self.assertIn('notify("certificate_missing")',WORKER)
+        self.assertIn('ScarletInstallTeamAuthority.prepare(',WORKER)
+        self.assertIn('notify(teamState)',WORKER)
+        self.assertIn('selected_team_certificate_missing',HOST)
         self.assertNotIn('revokeCertificate(',WORKER)
         self.assertNotIn('requestCertificate(',WORKER)
         self.assertIn('ScarletSigningReadiness.inspect()',HOST)
@@ -45,7 +46,7 @@ class NativeDeviceInstallerContract(unittest.TestCase):
         self.assertIn('storedAuthenticated()',HOST)
 
     def test_worker_xpc_finish_is_an_actual_appmanager_result(self):
-        self.assertIn('identifier: "scarlet.install.ipa"',WIRE)
+        self.assertIn('identifier: "scarlet.install.ipa." + teamID',WIRE)
         self.assertIn('name:@"ScarletDeviceInstallCompleted"',WIRE)
         self.assertIn('handler.server finish:nil',WIRE)
         self.assertIn('handler.server finish:[@"scarlet.install."',WIRE)

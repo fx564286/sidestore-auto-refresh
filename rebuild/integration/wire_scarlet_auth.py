@@ -36,6 +36,8 @@ def patch_livecontainer(engine: Path) -> None:
 - (void)scarletAuthStoredState:(void (^)(NSInteger state))reply;
 - (void)scarletAuthAccounts:(void (^)(NSString *json, NSString *status))reply;
 - (void)scarletSelectAuthAccount:(NSString*)accountID reply:(void (^)(BOOL success, NSString *status))reply;
+- (void)scarletPrepareInstallTeam:(NSString*)teamID reply:(void (^)(BOOL ready, NSString *status))reply;
+- (void)scarletIssueInstallTeamCertificate:(NSString*)teamID reply:(void (^)(BOOL ready, NSString *status))reply;
 - (void)scarletRefreshReadiness:(void (^)(NSInteger managedCount, BOOL hostManaged, BOOL signingReady, NSString *status))reply;
 - (void)scarletPerformNativeRefresh:(void (^)(BOOL operationReturned, NSString *status))reply;
 - (void)scarletInstallPairingRecord:(NSData*)record reply:(void (^)(BOOL verified, NSString *status))reply;
@@ -212,6 +214,28 @@ def patch_livecontainer(engine: Path) -> None:
     ((void (*)(id, SEL, id, id))objc_msgSend)(worker, selector, request, reply);
 }
 
+- (void)scarletPrepareInstallTeam:(NSString*)teamID
+                             reply:(void (^)(BOOL, NSString *))reply {
+    Class worker = NSClassFromString(@"ScarletGuestSignInAgent");
+    SEL selector = @selector(prepareInstallTeam:reply:);
+    if (!worker || ![worker respondsToSelector:selector]) {
+        reply(NO, @"account_worker_missing"); return;
+    }
+    if (teamID.length != 10) { reply(NO, @"invalid_team"); return; }
+    ((void (*)(id, SEL, id, id))objc_msgSend)(worker, selector, teamID, reply);
+}
+
+- (void)scarletIssueInstallTeamCertificate:(NSString*)teamID
+                                      reply:(void (^)(BOOL, NSString *))reply {
+    Class worker = NSClassFromString(@"ScarletGuestSignInAgent");
+    SEL selector = @selector(issueInstallTeamCertificate:reply:);
+    if (!worker || ![worker respondsToSelector:selector]) {
+        reply(NO, @"account_worker_missing"); return;
+    }
+    if (teamID.length != 10) { reply(NO, @"invalid_team"); return; }
+    ((void (*)(id, SEL, id, id))objc_msgSend)(worker, selector, teamID, reply);
+}
+
 - (void)scarletBeginAuth:(NSString*)requestID email:(NSString*)email password:(NSString*)password profile:(NSString*)profile {
     Class worker = NSClassFromString(@"ScarletGuestSignInAgent");
     if (![worker respondsToSelector:@selector(begin:)]) {
@@ -239,15 +263,17 @@ def patch_livecontainer(engine: Path) -> None:
 """
     s = replace_one(s,
         '    [self performRefreshForRealWithIdentifier:identifier mangledTypeName:mangledTypeName server:handler.server];',
-        '''    if ([identifier isEqualToString:@"scarlet.install.ipa"]) {
+        '''    if ([identifier hasPrefix:@"scarlet.install.ipa."]) {
         Class worker = NSClassFromString(@"ScarletDeviceInstallAgent");
         if (!worker || ![worker respondsToSelector:@selector(install:)]) {
             [handler.server finish:@"scarlet.install.worker_missing"];
             return;
         }
         NSString* requestID = [[NSUUID UUID] UUIDString];
+        NSString* teamID = [identifier substringFromIndex:[@"scarlet.install.ipa." length]];
         NSDictionary* payload = @{@"requestID": requestID,
-                                  @"filename": mangledTypeName ?: @""};
+                                  @"filename": mangledTypeName ?: @"",
+                                  @"expectedTeamID": teamID};
         ((void (*)(id, SEL, id))objc_msgSend)(worker, @selector(install:), payload);
         return;
     }
@@ -301,7 +327,10 @@ def patch_livecontainer(engine: Path) -> None:
     support_source += """
 @available(iOS 17.0, *)
 public enum ScarletDeviceInstaller {
-    public static func install(stagedIPA: URL) async throws {
+    public static func install(stagedIPA: URL, teamID: String) async throws {
+        guard teamID.utf8.count == 10 && teamID.allSatisfy({
+            $0.isASCII && ($0.isUppercase || $0.isNumber)
+        }) else { throw NSError(domain: "scarlet.install.invalid_team", code: 3) }
         let groupID = "group.com.SideStore.SideStore.P8EZT3U5N4"
         guard let root = FileManager.default.containerURL(
                   forSecurityApplicationGroupIdentifier: groupID) else {
@@ -316,7 +345,7 @@ public enum ScarletDeviceInstaller {
             throw NSError(domain: "scarlet.install.staged_ipa_invalid", code: 2)
         }
         try await RefreshHandler.shared.startRefresh(
-            identifier: "scarlet.install.ipa",
+            identifier: "scarlet.install.ipa." + teamID,
             mangledName: resolved.lastPathComponent)
     }
 }

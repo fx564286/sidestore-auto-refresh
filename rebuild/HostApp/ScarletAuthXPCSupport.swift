@@ -293,6 +293,9 @@ public struct ScarletNativeRefreshInspection: Sendable {
     public var canRefreshHost: Bool {
         hostManaged && signingReady && reason == "ready"
     }
+    public var canRefreshSelectedTeam: Bool {
+        signingReady && (reason == "ready" || reason == "ready_selected_team")
+    }
 }
 
 @available(iOS 17.0, *)
@@ -340,8 +343,10 @@ public enum ScarletNativeRefreshInspector {
                 // Allowlist classifications; never transfer DB, Apple ID,
                 // P12 or user-supplied error strings.
                 let allowed = [
-                    "ready", "no_managed_apps", "host_not_managed",
-                    "sidestore_certificate_missing", "sidestore_database_unavailable",
+                    "ready", "ready_selected_team", "no_managed_apps",
+                    "no_managed_apps_for_selected_team", "host_not_managed",
+                    "sidestore_certificate_missing", "selected_team_certificate_missing",
+                    "sidestore_database_unavailable",
                     "refresh_worker_missing"
                 ]
                 let status = rawStatus ?? "worker_unknown"
@@ -463,12 +468,17 @@ public enum ScarletNativeRefreshExecutor {
             "native_operation_returned_unverified_transport_recovered",
             "native_profile_date_advanced_install_unverified",
             "native_refresh_record_updated_install_unverified",
+            "native_selected_team_refresh_returned_install_unverified",
             "already_running",
             "anisette_unavailable", "vpn_unavailable", "signing_failed",
             "profile_refresh_failed", "server_unavailable",
             "installation_failed", "sidestore_native_operation_failed",
             "sidestore_database_unavailable", "no_managed_apps",
             "host_not_managed", "host_not_in_refresh_results",
+            "no_managed_apps_for_selected_team", "selected_team_not_in_refresh_results",
+            "selected_team_changed", "selected_team_certificate_missing",
+            "selected_team_certificate_activation_failed",
+            "selected_team_certificate_readback_failed",
             "sidestore_certificate_missing", "refresh_worker_missing", "transport_unavailable",
             "worker_unresponsive", "pairing_file_missing", "pairing_invalid",
             "minimuxer_not_started", "device_network_unavailable",
@@ -491,7 +501,8 @@ public enum ScarletNativeRefreshExecutor {
             status == "native_operation_returned_unverified" ||
             status == "native_operation_returned_unverified_transport_recovered" ||
             status == "native_profile_date_advanced_install_unverified" ||
-            status == "native_refresh_record_updated_install_unverified"
+            status == "native_refresh_record_updated_install_unverified" ||
+            status == "native_selected_team_refresh_returned_install_unverified"
         ) else {
             throw ScarletNativeRefreshFailure(reason: status,
                 nativeEvidence: allowed.contains(candidateReason) ? nativeEvidence : nil)
@@ -712,6 +723,8 @@ private final class ScarletSlotChangeGate: @unchecked Sendable {
 public struct ScarletStoredAppleAccount: Identifiable, Decodable, Sendable {
     public let id: String
     public let active: Bool
+    public let teamID: String
+    public let certificateReady: Bool
 }
 
 @available(iOS 17.0, *)
@@ -735,13 +748,61 @@ public enum ScarletNativeSavedAccounts {
                       let accounts = try? JSONDecoder().decode(
                         [ScarletStoredAppleAccount].self, from: data),
                       accounts.count <= 8,
-                      accounts.allSatisfy({ $0.id.utf8.count <= 254 }) else {
+                      accounts.allSatisfy({
+                          $0.id.utf8.count <= 254 && $0.teamID.utf8.count == 10
+                      }) else {
                     gate.finish([], "response_invalid"); return
                 }
                 let known = ["ready", "keychain_write_failed", "keychain_read_failed",
                              "response_invalid", "account_worker_missing"]
                 let reason = reason ?? "worker_unknown"
                 gate.finish(accounts, known.contains(reason) ? reason : "worker_unknown")
+            }
+        }
+    }
+
+    public static func prepareInstallTeam(_ teamID: String) async -> (Bool, String) {
+        await teamOperation(teamID, issue: false)
+    }
+
+    public static func issueInstallCertificate(_ teamID: String) async -> (Bool, String) {
+        await teamOperation(teamID, issue: true)
+    }
+
+    private static func teamOperation(_ teamID: String, issue: Bool) async -> (Bool, String) {
+        guard teamID.utf8.count == 10 && teamID.allSatisfy({
+            $0.isASCII && ($0.isUppercase || $0.isNumber)
+        }) else { return (false, "invalid_team") }
+        do { try await ScarletNativeAuthTransport.shared.prepare() }
+        catch { return (false, "transport_unavailable") }
+        guard let client = RefreshHandler.shared.client else {
+            return (false, "transport_unavailable")
+        }
+        return await withCheckedContinuation {
+            (c: CheckedContinuation<(Bool, String), Never>) in
+            let gate = ScarletAccountActivationGate(c)
+            DispatchQueue.main.asyncAfter(deadline: .now() + (issue ? 180 : 30)) {
+                gate.finish(false, "timeout_state_unknown")
+            }
+            let callback: (Bool, String?) -> Void = { ok, status in
+                let known = ["ready", "selected_team_changed", "invalid_team",
+                             "authentication_in_progress", "account_worker_missing",
+                             "selected_team_certificate_missing",
+                             "selected_team_certificate_activation_failed",
+                             "selected_team_certificate_readback_failed",
+                             "selected_team_certificate_unverified",
+                             "selected_team_certificate_portal_failed",
+                             "sidestore_team_mismatch", "sidestore_team_recovery_failed",
+                             "sidestore_auth_missing", "transport_unavailable",
+                             "team_operation_in_progress"]
+                let reason = status ?? "worker_unknown"
+                gate.finish(ok && reason == "ready",
+                    known.contains(reason) ? reason : "worker_unknown")
+            }
+            if issue {
+                client.scarletIssueInstallTeamCertificate(teamID, reply: callback)
+            } else {
+                client.scarletPrepareInstallTeam(teamID, reply: callback)
             }
         }
     }
@@ -766,7 +827,8 @@ public enum ScarletNativeSavedAccounts {
                              "keychain_write_failed", "account_not_found",
                              "current_session_unverified", "account_activation_unverified",
                              "invalid_request", "authentication_in_progress",
-                             "account_worker_missing", "rollback_unverified"]
+                             "account_worker_missing", "rollback_unverified",
+                             "team_operation_in_progress"]
                 let status = reason ?? "worker_unknown"
                 gate.finish(ok && status == "active_team_verified",
                     known.contains(status) ? status : "worker_unknown")

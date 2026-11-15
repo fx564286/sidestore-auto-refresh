@@ -40,6 +40,12 @@ enum ScarletRefreshFailureDiagnosis {
         switch reason {
         case "no_managed_apps":
             return "내장 SideStore에 관리 앱이 없습니다. 현재 Scarlet은 갱신 대상으로 등록되지 않았습니다."
+        case "no_managed_apps_for_selected_team":
+            return "현재 선택한 Apple 설치팀으로 등록된 관리 앱이 없습니다. 해당 팀으로 IPA를 설치한 뒤 갱신할 수 있습니다."
+        case "selected_team_certificate_missing":
+            return "현재 선택한 개발팀의 서명 인증서가 없습니다. 앱 설치의 설치팀 선택 화면에서 인증서를 준비하세요."
+        case "selected_team_changed":
+            return "요청 중 설치팀이 변경됐습니다. 선택한 계정을 확인하세요."
         case "host_not_managed":
             return "내장 SideStore 데이터베이스에 현재 설치된 Scarlet 번들 ID가 등록되지 않았습니다. 다른 설치 프로그램의 앱은 자동으로 갱신 대상에 포함되지 않습니다."
         case "sidestore_certificate_missing":
@@ -339,12 +345,12 @@ final class ScarletAutomaticRenewal {
         let nativeState = await ScarletNativeRefreshInspector.inspect()
         ScarletDiagnosticRecorder.shared.record(
             "refresh", "automatic_managed_apps_inspected",
-            status: nativeState.canRefreshHost ? "success" : "blocked",
+            status: nativeState.canRefreshSelectedTeam ? "success" : "blocked",
             fields: ["count": String(nativeState.count),
                      "host_managed": nativeState.hostManaged ? "true" : "false",
                      "signing_ready": nativeState.signingReady ? "true" : "false",
                      "reason": nativeState.reason])
-        guard nativeState.canRefreshHost else {
+        guard nativeState.canRefreshSelectedTeam else {
             prefs.set("차단 · 내장 SideStore 관리 앱·인증서 확인 필요",
                       forKey: outcomeKey)
             prefs.set(nativeState.reason, forKey: failureReasonKey)

@@ -520,3 +520,11 @@ L051=R6P15 저장된 RSD 연결의 제한적 재검사다. 과거 항목에 `dev
 - 계정 전환 후 이전 계정의 Keychain/CoreData 복원도 실패하면 `rollback_unverified`로 상태를 구분. 복원 성공이라고 허위 표시하지 않고 사용자에게 다시 계정을 점검하도록 알림. 원본 토큰, 인증서 삭제 금지.
 - P66 native CI GitHub Actions run `43656279912`: SideStore/native LiveContainer/package-paired 3개 작업은 각각 성공. 릴리스만 실패: `line 283: asset: unbound variable`, P66 tag 분기에 `asset` 미할당. P67은 P66/P67 릴리스 분기 각각에 실제 IPA 파일명을 지정하고 3.8.67 별도 CFBundleVersion/tag를 사용. 이 수정은 실사용 로그인·설치 테스트를 대체하지 않음.
 - P67 새 소스/정확한 diff와 SHA, CI 검증은 L115 `source_revisions`, `code_locations`에서 참조. P66의 게스트 상단/시계·배터리/오디오 미해결 문제는 별도 검증 대상으로 유지.
+
+## P68 / L116 — 로그인 2개면 설치 개발팀도 2개로 실제 분리
+
+- 실제 3.8.67 사용자 로그 `2026-11-15 00:27:25 UTC`, session `8236de81`, SourceCommit `1bc2e0b6bd85`: 두 번째 Apple ID의 `twofactor_code_submitted`와 `stored_session_verified` 성공 이후 `install_failed(reason=team_mismatch,stage=team,worker_stage=certificate_loaded)` 발생. 수동 갱신 2회·자동 갱신도 `sidestore_team_mismatch`로 실패. 증거는 계정 B의 실제 Team ID나 B 인증서 P12 존재까지 증명하지 않음.
+- P67 ‘로그인만 다중화’에서 빠졌던 설치팀 연결이 문제의 본질임. P68은 설치 버튼→저장된 Apple 계정/각 계정의 실제 Team ID 선택→계정 token/Team 전환→일치하는 서명 P12 준비(또는 사용자가 명시적으로 인증서 발급)→IPA Files 선택→XPC `expectedTeamID` 검증→원본 SideStore AppManager 실제 설치로 연결.
+- 기존 호스트의 서명팀 P8EZT3U5N4는 iOS entitlement/App Group을 증명하는 주체이지 Apple ID B의 일반 앱 설치팀이 아님. 이 두 개념을 섞어서 B 설치를 막지 말 것. 대신 B로 A의 이미 설치된 Scarlet 자체를 재서명하는 것도 금지. 앱 갱신은 원본 InstalledApp.team과 현재 선택 팀의 교집합만 사용.
+- `ScarletInstallTeamAuthority`의 X.509 subject Organizational Unit 정확히 일치 검사, 만료확인, 기존 P12 보존, 선택 팀 readback, TeamOperationGate 직렬화를 유지. 인증서/OTP/Apple 암호/개인키는 XPC 응답/로그로 보내지 않음.
+- 상세 파일·함수 diff는 L116 기록, 재현 로그 원인과 범위 및 서명된 실기기 수락 조건은 `rebuild/reports/SCARLET_P68_TWO_ACCOUNT_INSTALL_TEAM_20261115.md`. P67 UI 상단/상태표시줄 미해결을 P68 인증 작업의 성공으로 표기 금지. 별도 실제 iPhone A/B 설치 테스트 필요.

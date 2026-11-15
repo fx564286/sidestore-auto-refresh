@@ -68,8 +68,8 @@ class R6P23(unittest.TestCase):
     def test_existing_pairing_data_signing_and_install_preflight_untouched(self):
         self.assertIn('ScarletGuestDeviceTransport.ensureReady()',N)
         self.assertIn('AppManager.shared.backgroundRefresh(',N)
-        self.assertIn('CertificateManager.shared.activeCertificate != nil',N)
-        self.assertIn('ensureActiveTeamForRefresh()',N)
+        self.assertIn('ScarletInstallTeamAuthority.prepare(',N)
+        self.assertIn('ScarletInstallTeamAuthority.prepare(',N)
         self.assertNotIn('revokeCertificate(',N)
         self.assertNotIn('deletePairing',N)
 

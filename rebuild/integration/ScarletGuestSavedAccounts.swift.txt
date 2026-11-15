@@ -13,6 +13,8 @@ private struct ScarletSavedAccount: Codable {
 private struct ScarletSavedAccountRow: Codable {
     let id: String
     let active: Bool
+    let teamID: String
+    let certificateReady: Bool
 }
 
 @MainActor
@@ -144,10 +146,13 @@ private enum ScarletAccountVault {
         }
         guard let slots = readAll() else { return ("[]", "keychain_read_failed") }
         let active = identifier(AuthManager.shared.currentAppleID ?? "")
-        let rows = slots.map {
-            ScarletSavedAccountRow(id: $0.email,
-                active: identifier($0.email) == active &&
-                    ScarletGuestSignInAgent.persistedState())
+        let rows = slots.map { slot in
+            ScarletSavedAccountRow(id: slot.email,
+                active: identifier(slot.email) == active &&
+                    ScarletGuestSignInAgent.persistedState(),
+                teamID: slot.teamID,
+                certificateReady: ScarletInstallTeamAuthority.matchingCertificate(
+                    for: slot.teamID) != nil)
         }
         guard let data = try? JSONEncoder().encode(rows),
               let json = String(data: data, encoding: .utf8),
@@ -211,10 +216,150 @@ extension ScarletGuestSignInAgent {
             guard activeRequest == nil else {
                 reply(false, "authentication_in_progress"); return
             }
+            guard await ScarletTeamOperationGate.shared.claim() else {
+                reply(false, "team_operation_in_progress"); return
+            }
+            defer { Task { await ScarletTeamOperationGate.shared.release() } }
             activeRequest = UUID().uuidString
             defer { activeRequest = nil }
             let (ok, reason) = await ScarletAccountVault.switchTo(id)
             reply(ok, reason)
+        }
+    }
+}
+
+// Serializes all operations that mutate the one native SideStore active
+// account/team/certificate slot. Never allow an install to race a login.
+private actor ScarletTeamOperationGate {
+    static let shared = ScarletTeamOperationGate()
+    private var running = false
+    func claim() -> Bool {
+        guard !running else { return false }
+        running = true
+        return true
+    }
+    func release() { running = false }
+}
+
+// R6P68: separate native signing identity from the host's signed entitlement.
+// Original SideStore uses ONE active certificate; retain all existing P12s
+// and choose a locally saved, matching-key certificate for each Apple Team.
+@MainActor
+enum ScarletInstallTeamAuthority {
+    static func validTeam(_ value: String) -> Bool {
+        value.utf8.count == 10 && value.allSatisfy {
+            $0.isASCII && ($0.isUppercase || $0.isNumber)
+        }
+    }
+
+    static func certificateBelongsToTeam(_ cert: ALTCertificate,
+                                         teamID: String) -> Bool {
+        guard validTeam(teamID), let der = cert.data else { return false }
+        let subject = parseCertificate(derData: der).subject
+        // Compare the exact ASN.1 Organizational Unit value. A substring
+        // elsewhere in a certificate is NOT evidence of team ownership.
+        let fields = subject.split(separator: ",")
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+        return fields.contains("Organizational Unit=" + teamID)
+    }
+
+    static func matchingCertificate(for teamID: String) -> ALTCertificate? {
+        let manager = CertificateManager.shared
+        if let active = manager.activeCertificate?.certificate,
+           certificateBelongsToTeam(active, teamID: teamID) { return active }
+        return manager.getAllLocalCertificates().first {
+            certificateBelongsToTeam($0, teamID: teamID)
+        }
+    }
+
+    static func activeTeam() async -> ALTTeam? {
+        guard ScarletGuestSignInAgent.persistedState(),
+              let team = try? await AuthManager.shared.getAuthenticatedTeam(),
+              validTeam(team.identifier) else { return nil }
+        return team
+    }
+
+    static func prepare(teamID: String) async -> String {
+        guard validTeam(teamID) else { return "invalid_team" }
+        guard let team = await activeTeam(), team.identifier == teamID else {
+            return "selected_team_changed"
+        }
+        let teamStatus = await ScarletGuestSignInAgent
+            .ensureActiveTeamForRefresh(requireHostTeam: false)
+        guard teamStatus == "ready" || teamStatus == "team_restored" else {
+            return teamStatus
+        }
+        guard let cert = matchingCertificate(for: teamID),
+              cert.x509.expiryDate > Date() else {
+            return "selected_team_certificate_missing"
+        }
+        let manager = CertificateManager.shared
+        if manager.activeCertificate?.serialNumber != cert.serialNumber {
+            do { try manager.setActiveCertificate(cert) }
+            catch { return "selected_team_certificate_activation_failed" }
+        }
+        guard let active = manager.activeCertificate,
+              active.serialNumber == cert.serialNumber,
+              certificateBelongsToTeam(active.certificate, teamID: teamID) else {
+            return "selected_team_certificate_readback_failed"
+        }
+        return "ready"
+    }
+
+    // Explicit user gesture only. Native provisioning can reuse an existing
+    // signing key or create a new cert within Apple's actual quota; nil
+    // handler must not revoke another team's certificate silently.
+    static func issue(teamID: String) async -> String {
+        guard let team = await activeTeam(), team.identifier == teamID else {
+            return "selected_team_changed"
+        }
+        let teamStatus = await ScarletGuestSignInAgent
+            .ensureActiveTeamForRefresh(requireHostTeam: false)
+        guard teamStatus == "ready" || teamStatus == "team_restored" else {
+            return teamStatus
+        }
+        if matchingCertificate(for: teamID) != nil { return await prepare(teamID: teamID) }
+        do {
+            let flow = CertificateProvisioningFlow(handler: nil)
+            guard let issued = try await flow.resolveCertificate(for: team),
+                  certificateBelongsToTeam(issued, teamID: teamID) else {
+                return "selected_team_certificate_unverified"
+            }
+            return await prepare(teamID: teamID)
+        } catch { return "selected_team_certificate_portal_failed" }
+    }
+}
+
+extension ScarletGuestSignInAgent {
+    @objc(prepareInstallTeam:reply:)
+    static func prepareInstallTeam(_ id: String,
+                                   reply: @escaping (Bool, String) -> Void) {
+        Task { @MainActor in
+            guard activeRequest == nil else {
+                reply(false, "authentication_in_progress"); return
+            }
+            guard await ScarletTeamOperationGate.shared.claim() else {
+                reply(false, "team_operation_in_progress"); return
+            }
+            defer { Task { await ScarletTeamOperationGate.shared.release() } }
+            let status = await ScarletInstallTeamAuthority.prepare(teamID: id)
+            reply(status == "ready", status)
+        }
+    }
+
+    @objc(issueInstallTeamCertificate:reply:)
+    static func issueInstallTeamCertificate(_ id: String,
+                                            reply: @escaping (Bool, String) -> Void) {
+        Task { @MainActor in
+            guard activeRequest == nil else {
+                reply(false, "authentication_in_progress"); return
+            }
+            guard await ScarletTeamOperationGate.shared.claim() else {
+                reply(false, "team_operation_in_progress"); return
+            }
+            defer { Task { await ScarletTeamOperationGate.shared.release() } }
+            let status = await ScarletInstallTeamAuthority.issue(teamID: id)
+            reply(status == "ready", status)
         }
     }
 }

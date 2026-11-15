@@ -54,9 +54,9 @@ class V30SideStoreTeamIntegration(unittest.TestCase):
         self.assertIn('forKey: "scarlet.auth.lastSuccessfulAnisetteProfile"', SIGNIN)
 
     def test_native_refresh_repairs_team_before_minimuxer_and_appmanager(self):
-        self.assertIn('ScarletGuestSignInAgent', REFRESH)
-        self.assertIn('.ensureActiveTeamForRefresh()', REFRESH)
-        team = REFRESH.index('.ensureActiveTeamForRefresh()')
+        self.assertIn('ScarletInstallTeamAuthority', REFRESH)
+        self.assertIn('.prepare(', REFRESH)
+        team = REFRESH.index('ScarletInstallTeamAuthority.prepare(')
         minimuxer = REFRESH.index('ScarletGuestDeviceTransport.ensureReady()', team)
         operation = REFRESH.index('AppManager.shared.backgroundRefresh(', minimuxer)
         self.assertLess(team, minimuxer)

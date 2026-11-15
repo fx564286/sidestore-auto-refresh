@@ -29,7 +29,7 @@ class V33LogRootCauses(unittest.TestCase):
         self.assertIn('let before = await context.perform', WORKER)
         self.assertIn('let hostResult = results[managedHost.bundleIdentifier]',WORKER)
         self.assertIn('refreshedHost.managedObjectContext',WORKER)
-        self.assertIn('after.0 > before.0',WORKER)
+        self.assertIn('after.0 > beforeDate',WORKER)
         self.assertIn('native_refresh_record_updated_install_unverified',WORKER)
         self.assertIn('native_profile_date_advanced_install_unverified',WORKER)
         self.assertIn('native_operation_returned_unverified',WORKER)
@@ -50,7 +50,7 @@ class V33LogRootCauses(unittest.TestCase):
                         AUTO.index('ScarletNativeRefreshExecutor.execute()'))
         self.assertIn('storedAuthenticationState()', AUTO)
         self.assertIn('guard authState.isAuthenticated else', AUTO)
-        self.assertLess(AUTO.index('guard nativeState.canRefreshHost else'),
+        self.assertLess(AUTO.index('guard nativeState.canRefreshSelectedTeam else'),
                         AUTO.index('prefs.set(Date(), forKey: attemptKey)'))
         self.assertIn('ScarletSigningReadiness.inspect()',AUTO)
 
