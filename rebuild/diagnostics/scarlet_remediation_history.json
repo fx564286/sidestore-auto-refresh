@@ -38209,6 +38209,114 @@
           "function": "ScarletGuestHostManagedBootstrap.verifiedHostBundleURL"
         }
       ]
+    },
+    {
+      "id": "L127",
+      "date": "2026-11-16",
+      "version": "Scarlet-V48-R6P77-Severe-Only-Nested-Scroll-Ownership",
+      "problem": "guest_top_signed_p76_mixed_scroll_cohort_no_p76_attempt",
+      "mechanism": "late_native_header_proven_split_severe_owner_inset_only_with_near_owner_exclusion",
+      "novelty": {
+        "prior_excluded_ids": [
+          "L063",
+          "L071",
+          "L072",
+          "L073",
+          "L102",
+          "L105",
+          "L106",
+          "L110",
+          "L113",
+          "L123",
+          "L125"
+        ],
+        "causal_difference": "P76 assumed all 6 visible controls are at y42..55 AND share a full-height scroll with top inset<=32, a condition mathematically contradicted by P76 device PID754: one true severe y50 scroll_slot14 with inset/offset~50 versus 5 near-boundary controls at y60 in scroll_slot6. P77 does not re-run P76 selector or recalculate global scroll insets: it selects a separate severe-only descendant scroll that contains no near buttons, with original native offset/inset around 50, after proven P54 header and failed P60, then validates both real severe control movement AND P74 media nodes before P74 releases status bar. No entire scene or common-scroll shift.",
+        "falsifiable_prediction": "For signed P76 guest PID754, P77 selects exactly the y50 severe-only native scroll distinct from y60 near scroll if available; shifts it 14pt, P74 sees near controls with no severe nodes, and native clock/battery return after double proof. If severe owner lacks native top50/offset-50 or original content cannot move, P77 will not mutate and still report unverified. Existing PID671 stays unchanged.",
+        "new_device_evidence": {
+          "source_commit": "d27ea16059403d798d753a51d38ea750ca3138b1",
+          "event": "guest_content_geometry_probe/guest_post_header_statusband_probe/guest_constraint_owner_probe",
+          "observed_value": "Signed P76 session5def4d0b PID754 at 2600ms unsafeControls6 firstY50; P74 near6 severe2 y50; P76 did not produce any p76 receipt; constraint probe y50 scroll_slot14 offset−50 versus y60 nodes scroll_slot6 offset−3; native header retained."
+        },
+        "why_prior_fix_failed": "P76 selector all controls must pass y<safeTop−7 and all share one full-height scroll; live data showed 1 severe and 5 near in two scroll ownerships. P77 uses new disjoint severe-scroll ownership gate and never shifts near-scroll owner."
+      },
+      "hypothesis": "Signed P76 failure is not an inset-size issue but mixed ownership: one truly severe y50 scrolling node is a different scroll owner from y60 near-safe nodes, and P76 incorrectly gates all six as a single all-severe full-scene scroll.",
+      "action": "P77 adds a disjoint subscroll selection only after verified native P54 header and P60 body rollback and failed P76 selection, moves only the actual severe nested scrolling content by measured delta; keeps near owner, scene/root/window/switcher untouched, with two visual/media checks and original scroll rollback.",
+      "observation": "P76 signed iPhone PID754 severe x1 y50, five near y60, near6/severe2 on both P74 scans; P76 never staged, native statusbar withheld. Python 790 tests=787 pass 3 skip; signed P77 actual iPhone outcome not verified.",
+      "evidence": "User-provided 3.8.76 signed iPhone diagnostics Generated 2026-11-15T15:57:04Z, session 5def4d0b, P76 SHA d27ea1605940, PID754. GitHub P77 source commit 0169ccf9da90fcdf660f6769ad04ecfadd659838",
+      "status": "source_committed_787_python_tests_pass_3_skipped_native_ci_pending",
+      "source_verification": "git_patch_observed",
+      "device_verification": "not_verified",
+      "next_executable_action": "Verify Xcode27.2 P77 CI, artifact checksum and native profiles, sign IPA using existing certificate preserving data, then measure same failing guest P77 first/second retained, P74 severe=0 both, native status_hidden=false and scroll/touch/rotation; independently remediate LC signer check and RSD transport without revoking certs or deleting pair files.",
+      "rollback_commit": "d27ea16059403d798d753a51d38ea750ca3138b1",
+      "repeat_policy": "do_not_expand_p76_all_risk_selector_do_not_move_near_safe_scroll_do_not_unmask_native_status_without_two_proofs",
+      "source_revisions": [
+        {
+          "sha": "0169ccf9da90fcdf660f6769ad04ecfadd659838",
+          "title": "fix(r6p77): isolate severe y50 nested scroll owner from safe y60 controls",
+          "url": "https://github.com/fx564286/sidestore-auto-refresh/commit/0169ccf9da90fcdf660f6769ad04ecfadd659838"
+        }
+      ],
+      "code_locations": [
+        {
+          "file": "rebuild/integration/ScarletGuestIslandContentGuard.m.txt",
+          "commit": "0169ccf9da90fcdf660f6769ad04ecfadd659838",
+          "function": "ScarletIslandP77FindSevereScroll/ScarletIslandP77TrySevereNestedContent",
+          "location": "@@ -3941,0 +3941,198 @@",
+          "before": [
+            "// R6P54_OWNER_LAYOUT_CONTRACT_BEGIN"
+          ],
+          "after": [
+            "// R6P77_SEVERE_SPLIT_OWNER_NATIVE_CONTENT_BEGIN",
+            "if(y>=top-18 && y<top-9)",
+            "if(v==scroll || [v isDescendantOfView:scroll])",
+            "scroll.contentInset=applied;",
+            "scroll.contentOffset=CGPointMake(oldOffset.x,oldOffset.y-delta);"
+          ]
+        },
+        {
+          "file": ".github/workflows/scarlet-paired-engines-build.yml",
+          "commit": "0169ccf9da90fcdf660f6769ad04ecfadd659838",
+          "function": "P77 branch 3.8.77 signed native iOS Xcode release",
+          "location": "@@ -4,3 +4,3 @@",
+          "before": [
+            "fix/scarlet-v48-r6p76-postheader-scroll-20261115"
+          ],
+          "after": [
+            "fix/scarlet-v48-r6p77-severe-scroll-owner-20261116",
+            "SCARLET_HOST_VERSION_ARGS=(--host-build-version 3.8.77)"
+          ]
+        },
+        {
+          "file": "rebuild/Tests/test_v48_r6p77_severe_split_owner.py",
+          "commit": "0169ccf9da90fcdf660f6769ad04ecfadd659838",
+          "function": "P77 mathematical signed-P76 mixed cohort and native severe-only regression",
+          "location": "@@ -0,0 +1,70 @@",
+          "before": [],
+          "after": [
+            "class P77ActualDeviceFailureFix(unittest.TestCase):",
+            "self.assertEqual((len(severe),len(near)),(1,5))"
+          ]
+        },
+        {
+          "file": "rebuild/reports/SCARLET_P77_SEVERE_SPLIT_OWNER_20261116.md",
+          "commit": "0169ccf9da90fcdf660f6769ad04ecfadd659838",
+          "function": "P76 signed iPhone failure proof and P77 native acceptance contract",
+          "location": "@@ -0,0 +1,25 @@",
+          "before": [],
+          "after": [
+            "# Scarlet Crystal P77",
+            "P76 algorithmic exclusion"
+          ]
+        }
+      ],
+      "generated_runtime_targets": [
+        {
+          "source_template": "rebuild/integration/ScarletGuestIslandContentGuard.m.txt",
+          "generated_file": "LiveContainer/Tweaks/ScarletGuestIslandContentGuard.m",
+          "source_generation_script": "rebuild/integration/apply_scarlet_host.py",
+          "function": "ScarletIslandP77TrySevereNestedContent"
+        }
+      ]
     }
   ],
   "gate": {
