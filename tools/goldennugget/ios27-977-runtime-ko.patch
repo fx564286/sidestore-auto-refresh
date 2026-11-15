@@ -1,0 +1,87 @@
+--- a/Nugget/Views/SettingsView.swift
++++ b/Nugget/Views/SettingsView.swift
+@@ -320,7 +320,7 @@
+                     Text(historyRowText(record))
+                         .font(.subheadline)
+                     if !record.error.isEmpty {
+-                        Text(record.error)
++                        Text(Self.koreanHistoryError(record.error))
+                             .font(.caption)
+                             .foregroundStyle(record.success ? Color.secondary : Color.red)
+                             .fixedSize(horizontal: false, vertical: true)
+@@ -362,10 +362,10 @@
+     private var historyCountLine: String {
+         let matches = matchingHistory.count
+         if matches > visibleHistory.count {
+-            return String(localized: "Showing \(visibleHistory.count) of \(matches) operations")
++            return "전체 \(matches)개 중 \(visibleHistory.count)개 표시"
+         }
+         if matches > 0 {
+-            return String(localized: "\(matches) operations found")
++            return "작업 \(matches)개"
+         }
+         let filtered = !historySearch.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+             || historyMode != "all" || historyResult != "all"
+@@ -376,6 +376,21 @@
+ 
+     /// One row's line, in the reference's own vocabulary
+     /// (`settings.py:823`): `when • mode • device • iOS version • result`.
++    /// Keep raw technical evidence in operations.json; translate only the UI.
++    private static func koreanHistoryError(_ raw: String) -> String {
++        let lower = raw.lowercased()
++        if lower.contains("mberrordomain/105") || lower.contains("insufficient free disk space") {
++            return "MBErrorDomain/105: 기기 저장 공간이 부족해 백업이 거부됐습니다. 디스크 공간 확인 후 다시 시도하세요."
++        }
++        if lower.contains("minimuxer is not ready") {
++            return "기기 연결이 준비되지 않았습니다. Wi-Fi·VPN 터널과 페어링 파일을 확인하세요."
++        }
++        if raw.contains("PosterBoard wallpaper edits require a native device snapshot") {
++            return "배경화면 변경에는 기기 데이터베이스가 필요합니다. 현재 적용 경로를 변경하세요."
++        }
++        return raw
++    }
++
+     private func historyRowText(_ record: ApplyHistory.Record) -> String {
+         let mode = record.mode == "apply" ? String(localized: "Apply") : String(localized: "Reset")
+         let result = record.success ? String(localized: "Success") : String(localized: "Failed")
+--- a/Nugget/Views/RunLog.swift
++++ b/Nugget/Views/RunLog.swift
+@@ -134,7 +134,7 @@
+             ScrollView {
+                 LazyVStack(alignment: .leading, spacing: 4) {
+                     ForEach(rows, id: \.id) { row in
+-                        Text(row.text)
++                        Text(Self.koreanLogLine(row.text))
+                             .font(.caption2.monospaced())
+                             .foregroundStyle(.secondary)
+                             .frame(maxWidth: .infinity, alignment: .leading)
+@@ -200,6 +200,29 @@
+         }
+     }
+ 
++    /// Present common runtime diagnostics in Korean without corrupting the
++    /// original log file, which retains exact technical strings for debugging.
++    private static func koreanLogLine(_ line: String) -> String {
++        if line.hasPrefix("Tweaks: ") {
++            return line.replacingOccurrences(of: "Tweaks: ", with: "기능 변경: ")
++                .replacingOccurrences(of: " file(s) from ", with: "개 파일 / ")
++                .replacingOccurrences(of: " plist(s)", with: "개 설정 파일")
++        }
++        if line.hasPrefix("PosterBoard: ") {
++            return "배경화면: " + String(line.dropFirst("PosterBoard: ".count))
++        }
++        if line.hasPrefix("UNSAFE OVERRIDE ACTIVE:") {
++            return "주의: 실험적 백업 생략 모드 실행 중 (복원 검증 전)"
++        }
++        if line.hasPrefix("Apply succeeded:") {
++            return "적용 성공 응답: " + String(line.dropFirst("Apply succeeded:".count))
++        }
++        if line.hasPrefix("Backup bypass: ") {
++            return "백업 생략: " + String(line.dropFirst("Backup bypass: ".count))
++        }
++        return line
++    }
++
+     /// Row identity is `firstLineId + offset`, the stable key the store exposes,
+     /// rather than the array offset — see `RunLog.firstLineId`.
+     private var rows: [(id: Int, text: String)] {
