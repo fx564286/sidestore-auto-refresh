@@ -38650,6 +38650,76 @@
           "function": "acceptVerifiedPostHeaderStatusband"
         }
       ]
+    },
+    {
+      "id": "L132",
+      "date": "2026-11-16",
+      "version": "Scarlet-V48-R6P79-ObjectiveC-Native-ZIP-Compile-Repair",
+      "problem": "P79_native_archive_build_error_nsstring_hasPrefix_property",
+      "mechanism": "objc_nsstring_hasPrefix_explicit_message_send_in_native_archive_fallback",
+      "novelty": {
+        "prior_excluded_ids": [
+          "L129",
+          "L130"
+        ],
+        "causal_difference": "L130 introduced actual new Objective-C memory ZIP extractor in unarchive.m with Swift-style `relative.hasPrefix(@\"/\")`, which is not an Objective-C property and fails native clang at generated unarchive.m:151:21. Unlike L129 iOS Swift API availability, L132 is narrowly converting the unsupported property syntax into the true Objective-C `[relative hasPrefix:@\"/\"]` selector without changing IPA decoding, keychain, installation path or archive constraints.",
+        "falsifiable_prediction": "On the next Xcode27.2 native archive, unarchive.m:151 clang property error must be gone; build must compile P79 archive and original SideStore in CI. User-signed P79 import result still requires actual device.",
+        "new_device_evidence": {
+          "source_commit": "8abe8a327577f1c87af96ece06c1e4906013f3f4",
+          "event": "GitHub Actions 43740158827 native Xcode compile error",
+          "observed_value": "LiveContainer native Archive failed exit65; generated Utilities/unarchive.m:151:21 error: property hasPrefix not found on object of type NSString *. Real Xcode build artifact 14171179656 livecontainer-build.log."
+        },
+        "why_prior_fix_failed": "Python tests were textual/structural; actual Objective-C clang rejects Swift-style property use."
+      },
+      "hypothesis": "Explicit Objective-C method call resolves the only newly introduced fatal Objective-C compiler error in P79 mapped archive extractor.",
+      "action": "Replaced `relative.hasPrefix(@\"/\")` with `[relative hasPrefix:@\"/\"]` in generated Objective-C source; added source regression assertion rejecting invalid syntax. Original archived IPA, guest and P74 release unchanged.",
+      "observation": "P79 run 43740158827 native LiveContainer failed exit65 at unarchive.m:151; user-signed P79 behavior not verified; targeted P79 tests four passing.",
+      "evidence": "GitHub Actions run 43740158827 artifact 14171179656 native `livecontainer-build.log`, code patch 3f2a2b21fe597cc238d39154ffa74edfecb2fb2b",
+      "status": "native_compile_fix_source_committed_ci_retry_pending",
+      "source_verification": "git_patch_observed",
+      "device_verification": "not_verified",
+      "next_executable_action": "Retry real Xcode27.2 macOS LiveContainer+SideStore archive, inspect native compiler log, validate version 3.8.79 IPA exact SHA and embedded LiveProcess, then signed iPhone same failing IPA import and statusbar immediate-reappearance readback.",
+      "rollback_commit": "8abe8a327577f1c87af96ece06c1e4906013f3f4",
+      "repeat_policy": "do_not_replace_original_extractor_or_skip_native_build; direct ObjC selector call only",
+      "source_revisions": [
+        {
+          "sha": "3f2a2b21fe597cc238d39154ffa74edfecb2fb2b",
+          "title": "fix(r6p79): use Objective-C NSString hasPrefix selector in native memory ZIP fallback",
+          "url": "https://github.com/fx564286/sidestore-auto-refresh/commit/3f2a2b21fe597cc238d39154ffa74edfecb2fb2b"
+        }
+      ],
+      "code_locations": [
+        {
+          "file": "rebuild/integration/apply_scarlet_host.py",
+          "commit": "3f2a2b21fe597cc238d39154ffa74edfecb2fb2b",
+          "function": "add_r6p79_mapped_archive_fallback generated .m Objective-C selector",
+          "location": "@@ -423,1 +423,1 @@",
+          "before": [
+            "if(relative.hasPrefix(@\"/\") ||"
+          ],
+          "after": [
+            "if([relative hasPrefix:@\"/\"] ||"
+          ]
+        },
+        {
+          "file": "rebuild/Tests/test_v48_r6p79_actual_signed_import_and_status.py",
+          "commit": "3f2a2b21fe597cc238d39154ffa74edfecb2fb2b",
+          "function": "P79 clang syntax assertion",
+          "location": "@@ -25,0 +25,2 @@",
+          "before": [],
+          "after": [
+            "self.assertNotIn('relative.hasPrefix(@\"/\")', P)"
+          ]
+        }
+      ],
+      "generated_runtime_targets": [
+        {
+          "source_template": "rebuild/integration/apply_scarlet_host.py",
+          "generated_file": "LiveContainerSwiftUI/Utilities/unarchive.m",
+          "source_generation_script": "rebuild/integration/apply_scarlet_host.py",
+          "function": "scarletExtractGuestIPAFromMappedData"
+        }
+      ]
     }
   ],
   "gate": {
