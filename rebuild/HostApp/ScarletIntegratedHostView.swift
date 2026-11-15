@@ -6,6 +6,7 @@ import SwiftUI
 import UIKit
 import UniformTypeIdentifiers
 import Security
+import CryptoKit
 import SideStoreSupport
 
 // Host-owned task state survives dismissing or reopening a progress sheet.
@@ -67,6 +68,233 @@ final class ScarletGuestImportActivity: ObservableObject {
                 (signingUnverified ? "imported_signing_unverified" : "imported_launch_unverified")])
     }
 }
+
+// R6P78_SIGNER_SELF_RECOVERY_BEGIN
+// Signed P76 guest: LC preflight P12+password+Team all matched, but four
+// actual guest zsign attempts failed certificate_invalid, and a *separate*
+// LCUtils.validateJITLessSetup temporary code signature postcheck returned
+// signature_postcheck_invalid. The old bridge returned immediately when ANY
+// P12 existed, so an invalid saved same-team P12 could never be repaired.
+// Try an ALTERNATE existing SideStore certificate ONLY after the native
+// JIT-less signature check failed; never revoke, synthesize or issue keys.
+// A crash-safe same-AppGroup rollback snapshot preserves the exact original
+// LC certificate/password/update date before temporary trial. All data is
+// removed from the snapshot on success/failure; no secrets enter logs.
+@MainActor
+private enum ScarletGuestSignerRecovery {
+    static private(set) var active = false
+    private static let pending = "Scarlet.Signer.RepairPending"
+    private static let backupCert = "Scarlet.Signer.OriginalCertificate"
+    private static let backupPassword = "Scarlet.Signer.OriginalPassword"
+    private static let backupDate = "Scarlet.Signer.OriginalUpdateDate"
+    private static let candidateFingerprint = "Scarlet.Signer.TrialFingerprint"
+    private static let certKey = "LCCertificateData"
+    private static let passwordKey = "LCCertificatePassword"
+    private static let updateKey = "LCCertificateUpdateDate"
+
+    private static func clearBackup(_ prefs: UserDefaults) {
+        for key in [pending, backupCert, backupPassword, backupDate,
+                    candidateFingerprint] {
+            prefs.removeObject(forKey: key)
+        }
+    }
+
+    private static func digest(_ data: Data) -> String {
+        SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined()
+    }
+
+    private static func restoreOriginal(_ prefs: UserDefaults) -> Bool {
+        // Restoration of only the keys actually owned by the original LC.
+        // No Keychain or stored SideStore credentials are ever touched.
+        guard let cert = prefs.data(forKey: backupCert),
+              let password = prefs.string(forKey: backupPassword) else {
+            return false
+        }
+        prefs.set(cert, forKey: certKey)
+        prefs.set(password, forKey: passwordKey)
+        if let oldDate = prefs.object(forKey: backupDate) {
+            prefs.set(oldDate, forKey: updateKey)
+        } else {
+            prefs.removeObject(forKey: updateKey)
+        }
+        return LCUtils.certificateData() == cert &&
+            LCSharedUtils.certificatePassword() == password
+    }
+
+    static func restoreInterruptedTrial() {
+        // Called BEFORE any default cert auto-import or guest launch after
+        // returning to the host. Never race a current in-memory validation.
+        guard !active else { return }
+        let prefs = LCUtils.appGroupUserDefault
+        guard prefs.bool(forKey: pending) else {
+            if prefs.object(forKey: backupCert) != nil {
+                clearBackup(prefs)
+            }
+            return
+        }
+        // A user may have deliberately selected a third signer while the
+        // first recovery was interrupted. Never restore over that newer
+        // certificate; the SHA only identifies our last trial candidate.
+        if let current = LCUtils.certificateData(),
+           let expected = prefs.string(forKey: candidateFingerprint),
+           digest(current) != expected {
+            clearBackup(prefs)
+            ScarletDiagnosticRecorder.shared.record(
+                "guest", "signer_recovery_interrupted_user_override",
+                fields: ["result": "kept_explicit_new_certificate"])
+            return
+        }
+        let restored = restoreOriginal(prefs)
+        // Keep backup if original readback failed; it might be recoverable
+        // on the next launch and deleting it would lose signing material.
+        if restored { clearBackup(prefs) }
+        ScarletDiagnosticRecorder.shared.record(
+            "guest", "signer_recovery_interrupted_restored",
+            status: restored ? "warning" : "error",
+            fields: ["result": restored ? "original_p12_preserved" :
+                                      "restore_readback_failed"])
+    }
+
+    static func trialExistingSideStoreCertificate() {
+        guard !active else { return }
+        let prefs = LCUtils.appGroupUserDefault
+        if prefs.bool(forKey: pending) {
+            restoreInterruptedTrial()
+            guard !prefs.bool(forKey: pending) else { return }
+        }
+        guard let original = LCUtils.certificateData(),
+              let originalPassword = LCSharedUtils.certificatePassword(),
+              ScarletSigningReadiness.inspect().canRequestNativeRefresh else {
+            return
+        }
+        let task = SecTaskCreateFromSelf(nil)
+        guard let signedValue = SecTaskCopyValueForEntitlement(
+            task, "com.apple.developer.team-identifier" as CFString, nil),
+              let signedHostTeam = signedValue.takeRetainedValue() as? String,
+              !signedHostTeam.isEmpty else { return }
+        let services = ["com.SideStore.SideStore", "com.kdt.livecontainer"]
+        var alternate: Data?
+        var alternatePassword: String?
+        for service in services {
+            let query: [String: Any] = [
+                kSecClass as String: kSecClassGenericPassword,
+                kSecAttrAccount as String: "signingCertificate",
+                kSecReturnData as String: true,
+                kSecMatchLimit as String: kSecMatchLimitOne,
+                kSecAttrService as String: service,
+                kSecAttrSynchronizable as String: kSecAttrSynchronizableAny
+            ]
+            var dataRef: CFTypeRef?
+            guard SecItemCopyMatching(query as CFDictionary, &dataRef) == errSecSuccess,
+                  let candidate = dataRef as? Data,
+                  !candidate.isEmpty, candidate != original else { continue }
+            let passwordQuery: [String: Any] = [
+                kSecClass as String: kSecClassGenericPassword,
+                kSecAttrAccount as String: "signingCertificatePassword",
+                kSecReturnData as String: true,
+                kSecMatchLimit as String: kSecMatchLimitOne,
+                kSecAttrService as String: service,
+                kSecAttrSynchronizable as String: kSecAttrSynchronizableAny
+            ]
+            var pwdRef: CFTypeRef?
+            let status = SecItemCopyMatching(passwordQuery as CFDictionary, &pwdRef)
+            guard status == errSecSuccess || status == errSecItemNotFound else {
+                continue
+            }
+            let password = (pwdRef as? Data).flatMap {
+                String(data: $0, encoding: .utf8)
+            } ?? ""
+            guard LCUtils.getCertTeamId(withKeyData: candidate,
+                                         password: password) == signedHostTeam else {
+                continue // never use Apple account B's unrelated signer
+            }
+            alternate = candidate
+            alternatePassword = password
+            break
+        }
+        guard let candidate = alternate,
+              let candidatePassword = alternatePassword else {
+            ScarletDiagnosticRecorder.shared.record(
+                "guest", "signer_recovery_candidate_unavailable",
+                fields: ["result": "no_distinct_same_host_team_p12"])
+            return
+        }
+        // Persist a reversible snapshot in the very SAME already entitled
+        // LC AppGroup as the original P12. On next host launch, pending=true
+        // is restored BEFORE importing or starting any guest. Never use a
+        // different AppGroup, server, or Keychain ACL than the original.
+        prefs.set(original, forKey: backupCert)
+        prefs.set(originalPassword, forKey: backupPassword)
+        prefs.set(digest(candidate), forKey: candidateFingerprint)
+        if let originalDate = prefs.object(forKey: updateKey) {
+            prefs.set(originalDate, forKey: backupDate)
+        }
+        prefs.set(true, forKey: pending)
+        guard prefs.synchronize() else {
+            // Do not swap the live signer if backup persistence failed.
+            _ = restoreOriginal(prefs)
+            clearBackup(prefs)
+            return
+        }
+        active = true
+        prefs.set(candidate, forKey: certKey)
+        prefs.set(candidatePassword, forKey: passwordKey)
+        prefs.set(Date(), forKey: updateKey)
+        guard LCUtils.certificateData() == candidate,
+              LCSharedUtils.certificatePassword() == candidatePassword else {
+            _ = restoreOriginal(prefs)
+            clearBackup(prefs)
+            active = false
+            return
+        }
+        ScarletDiagnosticRecorder.shared.record(
+            "guest", "signer_recovery_trial_started",
+            fields: ["result": "distinct_verified_host_team_p12"])
+        // Run an actual code-signature POSTCHECK, not a keychain presence,
+        // OU/team metadata match, or zsign return-code approximation.
+        DispatchQueue.global(qos: .utility).async {
+            LCUtils.validateJITLessSetup { valid, _ in
+                Task { @MainActor in
+                    finishTrial(candidate: candidate, success: valid)
+                }
+            }
+        }
+    }
+
+    private static func finishTrial(candidate: Data, success: Bool) {
+        guard active else { return }
+        active = false
+        let prefs = LCUtils.appGroupUserDefault
+        guard prefs.bool(forKey: pending) else { return }
+        // The user can import another P12 from Settings while the async
+        // native probe runs; never overwrite their newer explicit choice.
+        guard prefs.data(forKey: certKey) == candidate else {
+            clearBackup(prefs)
+            ScarletDiagnosticRecorder.shared.record(
+                "guest", "signer_recovery_concurrent_change",
+                fields: ["result": "kept_user_selected_signer"])
+            return
+        }
+        if success {
+            clearBackup(prefs)
+            ScarletDiagnosticRecorder.shared.record(
+                "guest", "signer_recovery_verified",
+                status: "success",
+                fields: ["result": "kernel_signature_postcheck_passed"])
+            NotificationCenter.default.post(name: Notification.Name(
+                "ScarletGuestSignerRecoveryVerified"), object: nil)
+        } else {
+            let restored = restoreOriginal(prefs)
+            if restored { clearBackup(prefs) }
+            ScarletDiagnosticRecorder.shared.record(
+                "guest", "signer_recovery_rolled_back",
+                status: "warning",
+                fields: ["result": restored ? "original_p12_preserved" :
+                                           "restore_readback_failed"])
+        }
+    }
+}
+// R6P78_SIGNER_SELF_RECOVERY_END
 
 @available(iOS 17.0, *)
 struct ScarletIntegratedHostView: View {
@@ -266,6 +494,14 @@ struct ScarletIntegratedHostView: View {
                     ScarletDiagnosticRecorder.shared.recordError(
                         "guest", "jitless_probe_underlying_error",
                         error: validationError)
+                    // P78: an existing P12/Team match was insufficient in
+                    // the P76 signed device. Try one REAL kernel-verified
+                    // alternate same-host-team SideStore P12 with rollback.
+                    if category == "signature_postcheck_invalid" {
+                        Task { @MainActor in
+                            ScarletGuestSignerRecovery.trialExistingSideStoreCertificate()
+                        }
+                    }
                 }
             }
         }
@@ -424,6 +660,15 @@ struct ScarletIntegratedHostView: View {
                     ScarletDiagnosticRecorder.shared.record("guest", "jit_delegate_unavailable",
                         status: "blocked", fields: ["reason": "original_ui_not_mounted"])
                     showOriginalError = "이 게스트 앱은 JIT 지원이 필요합니다. 현재 런처의 JIT 연결이 준비되지 않아 실행을 중단했습니다."
+                    return
+                }
+                guard !ScarletGuestSignerRecovery.active &&
+                      !LCUtils.appGroupUserDefault.bool(
+                        forKey: "Scarlet.Signer.RepairPending") else {
+                    ScarletDiagnosticRecorder.shared.record(
+                        "guest", "launch_blocked", status: "blocked",
+                        fields: ["reason": "signer_recovery_validation_in_progress"])
+                    showOriginalError = "서명 인증서의 실제 유효성을 확인 중입니다. 검증 결과가 나올 때까지 기존 인증서를 보존합니다."
                     return
                 }
                 bridgeExistingSideStoreCertificateIfSafe()
@@ -1306,6 +1551,7 @@ struct ScarletIntegratedHostView: View {
             }
         }
         .onAppear {
+            ScarletGuestSignerRecovery.restoreInterruptedTrial()
             // A new host entry must NOT display tabs from a previous user
             // session. A guest->Scarlet app-list return carries a short
             // one-use continuation ticket, so A->host->B still shows A,B.
@@ -1378,6 +1624,11 @@ struct ScarletIntegratedHostView: View {
             refreshStoredLoginState()
             ScarletDiagnosticRecorder.shared.record("auth",
                 "verified_login_recheck_requested")
+        }
+        .onReceive(NotificationCenter.default.publisher(
+            for: Notification.Name("ScarletGuestSignerRecoveryVerified"))) { _ in
+            signingRecoveryNeeded = false
+            showOriginalError = nil
         }
         .onReceive(NotificationCenter.default.publisher(
             for: Notification.Name("ScarletGuestCertificateInvalid"))) { _ in
