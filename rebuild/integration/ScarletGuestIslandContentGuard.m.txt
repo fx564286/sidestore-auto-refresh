@@ -3939,6 +3939,201 @@ static void ScarletIslandP76TryPostHeaderContentOrigin(
 }
 // R6P76_POST_HEADER_SCOPED_SCROLL_CONTENT_ORIGIN_END
 
+// R6P77_SEVERE_SPLIT_OWNER_NATIVE_CONTENT_BEGIN
+// P76 signed guest PID754: after native header verified, 6 unsafe controls
+// were NOT a single cohort. One severe scrolling control starts at y50,
+// while other near-boundary controls start at y~60 (safeTop62).
+// P76's all-six-y<55 and all-six-same-scroll/fullscreen criteria cannot
+// select this measured hierarchy. P77 acts on the severe SUBTREE only:
+// its own native scrolling owner has a real 50pt top inset/offset, distinct
+// from the unaffected 60pt horizontal content. No virtual window, zoom,
+// status-bar masking or whole-screen geometry. Always roll back unless
+// the original severe content AND its images leave the physical status band.
+static char scarletIslandP77SevereOwnerKey;
+static UIScrollView *ScarletIslandP77FindSevereScroll(
+    UIWindow *w, UIView *root, UIView *header, CGFloat top,
+    CGFloat *shiftOut, UIView **severeControlOut, NSUInteger *riskCountOut) {
+    if(!w || !root || !header || header.window!=w ||
+       fabs(root.safeAreaInsets.top-top)>3 || top<40 || top>95) return nil;
+    NSUInteger visited=0; BOOL capped=NO;
+    NSMutableArray<UIView *> *all=[NSMutableArray array];
+    ScarletIslandP60GatherRiskControls(root,header,w,top,0,
+                                     &visited,&capped,all);
+    if(capped || all.count<4 || all.count>12) return nil;
+    NSMutableArray<UIView *> *severe=[NSMutableArray array];
+    NSMutableArray<UIView *> *near=[NSMutableArray array];
+    CGFloat firstY=CGFLOAT_MAX;
+    for(UIView *v in all) {
+        CGRect bounds=ScarletIslandVisibleFrameInWindow(v,w);
+        if(CGRectIsNull(bounds) || CGRectIsEmpty(bounds)) return nil;
+        CGFloat y=CGRectGetMinY(bounds);
+        if(y>=top-18 && y<top-9) {
+            [severe addObject:v]; firstY=MIN(firstY,y);
+        } else if(y>=top-9 && y<top-2) {
+            [near addObject:v];
+        } else return nil; // never move deep y3 or unknown layout
+    }
+    // The signed PID754 evidence has one y50 severe control and five y60
+    // neighbors; P77 must not change scroll geometry of those neighbors.
+    if(severe.count<1 || severe.count>2 || near.count<3) return nil;
+    CGFloat delta=ceil(top-firstY+2);
+    if(!isfinite(delta) || delta<10 || delta>20) return nil;
+    UIView *severeFirst=severe.firstObject;
+    for(UIView *cursor=severeFirst;cursor && cursor!=root;
+        cursor=cursor.superview) {
+        if(![cursor isKindOfClass:UIScrollView.class] ||
+           !cursor.superview || cursor.superview.window!=w ||
+           !CGAffineTransformIsIdentity(cursor.transform)) continue;
+        UIScrollView *scroll=(UIScrollView *)cursor;
+        BOOL allSevereHere=YES;
+        for(UIView *v in severe)
+            if(v!=scroll && ![v isDescendantOfView:scroll]) {
+                allSevereHere=NO;break;
+            }
+        if(!allSevereHere) continue;
+        BOOL nearHere=NO;
+        for(UIView *v in near)
+            if(v==scroll || [v isDescendantOfView:scroll]) {
+                nearHere=YES;break;
+            }
+        // This distinguishes P77's actual severe nested owner from P76's
+        // failed common-owner requirement, and protects nearby media.
+        if(nearHere || !scroll.scrollEnabled || scroll.tracking ||
+           scroll.dragging || scroll.decelerating ||
+           scroll.hidden || scroll.alpha<0.5 ||
+           fabs(scroll.zoomScale-1)>0.01 ||
+           objc_getAssociatedObject(scroll,&scarletIslandP77SevereOwnerKey))
+            continue;
+        CGRect frame=[scroll convertRect:scroll.bounds toView:w];
+        if(fabs(CGRectGetMinX(frame))>22 ||
+           CGRectGetWidth(frame)<CGRectGetWidth(w.bounds)*0.85 ||
+           CGRectGetHeight(frame)<50 ||
+           CGRectGetHeight(frame)>CGRectGetHeight(w.bounds)+4 ||
+           fabs(CGRectGetMinY(frame))>top+7 ||
+           !isfinite(scroll.contentSize.height) ||
+           scroll.contentSize.height<=0) continue;
+        CGFloat inset=scroll.adjustedContentInset.top;
+        // Signed P76 native owner y50: offset -50, original inset 50.
+        // Reject P76's unrelated owner inset3 and any mid-scroll position.
+        if(!isfinite(inset) || inset<top-22 || inset>top+8 ||
+           fabs(inset-scroll.contentInset.top)>2 ||
+           fabs(scroll.contentOffset.y+inset)>3) continue;
+        if(shiftOut) *shiftOut=delta;
+        if(severeControlOut) *severeControlOut=severeFirst;
+        if(riskCountOut) *riskCountOut=all.count;
+        return scroll;
+    }
+    return nil;
+}
+static void ScarletIslandP77TrySevereNestedContent(
+    UIWindow *window, UIViewController *owner, CGFloat safeTop) {
+    if(!window || !owner || !owner.isViewLoaded ||
+       window.rootViewController!=owner ||
+       window.windowScene.activationState!=UISceneActivationStateForegroundActive ||
+       !UIInterfaceOrientationIsPortrait(window.windowScene.interfaceOrientation))
+        return;
+    NSMutableDictionary *state=objc_getAssociatedObject(
+        owner,&scarletIslandP54OwnerLayoutContractKey);
+    if(!state || [state[@"disabled"] boolValue] ||
+       ![state[@"body_disabled"] boolValue] ||
+       [state[@"p76_attempted"] boolValue] ||
+       [state[@"p77_attempted"] boolValue]) return;
+    UIView *root=owner.view;
+    UIView *header=[state[@"headers"] anyObject];
+    if(!header || header.superview!=root || header.window!=window ||
+       fabs(CGRectGetMinY([header convertRect:header.bounds
+                        toView:window])-safeTop)>2) return;
+    CGFloat delta=0;
+    UIView *riskView=nil;
+    NSUInteger priorRisk=0;
+    UIScrollView *scroll=ScarletIslandP77FindSevereScroll(
+        window,root,header,safeTop,&delta,&riskView,&priorRisk);
+    if(!scroll || !riskView) return;
+    state[@"p77_attempted"]=@YES;
+    UIEdgeInsets oldInset=scroll.contentInset;
+    CGPoint oldOffset=scroll.contentOffset;
+    CGSize oldContent=scroll.contentSize;
+    CGRect oldFrame=scroll.frame;
+    CGRect before=ScarletIslandVisibleFrameInWindow(riskView,window);
+    if(CGRectIsNull(before) || CGRectIsEmpty(before)) return;
+    UIEdgeInsets applied=oldInset;
+    applied.top+=delta;
+    objc_setAssociatedObject(scroll,&scarletIslandP77SevereOwnerKey,
+                             @YES,OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+    scroll.contentInset=applied;
+    scroll.contentOffset=CGPointMake(oldOffset.x,oldOffset.y-delta);
+    __weak UIWindow *weakWindow=window;
+    __weak UIViewController *weakOwner=owner;
+    __weak UIScrollView *weakScroll=scroll;
+    __weak UIView *weakRisk=riskView;
+    __block void (^verify)(BOOL)=nil;
+    verify=^(BOOL late) {
+        UIWindow *w=weakWindow;
+        UIViewController *vc=weakOwner;
+        UIScrollView *sc=weakScroll;
+        UIView *v=weakRisk;
+        UIView *rootNow=vc.isViewLoaded ? vc.view:nil;
+        BOOL stable=w && vc && sc && v && rootNow &&
+            objc_getAssociatedObject(vc,&scarletIslandP54OwnerLayoutContractKey)==state &&
+            ![state[@"disabled"] boolValue] &&
+            w.rootViewController==vc && v.window==w &&
+            w.windowScene.activationState==UISceneActivationStateForegroundActive &&
+            UIInterfaceOrientationIsPortrait(w.windowScene.interfaceOrientation) &&
+            !sc.tracking && !sc.dragging && !sc.decelerating &&
+            CGRectEqualToRect(sc.frame,oldFrame) &&
+            CGSizeEqualToSize(sc.contentSize,oldContent) &&
+            UIEdgeInsetsEqualToEdgeInsets(sc.contentInset,applied) &&
+            fabs(sc.adjustedContentInset.top-(oldInset.top+delta))<3 &&
+            fabs(sc.contentOffset.y-(oldOffset.y-delta))<3;
+        CGRect after=stable ? ScarletIslandVisibleFrameInWindow(v,w):CGRectNull;
+        ScarletP74StatusbandRisk band={0};
+        band.firstNearControlY=NSIntegerMax;
+        if(stable) ScarletP74WalkStatusband(rootNow,w,safeTop,0,&band);
+        BOOL pass=stable && !band.capped && band.severeNodes==0 &&
+            !CGRectIsNull(after) && !CGRectIsEmpty(after) &&
+            CGRectGetMinY(after)>=safeTop-2 &&
+            CGRectGetMinY(after)-CGRectGetMinY(before)>=delta-3 &&
+            (band.nearControls==0 ||
+             band.firstNearControlY>=safeTop-9);
+        if(!pass) {
+            if(sc) {
+                // Restore only what P77 owns, preserving a user's scroll
+                // gesture that may have started during readback.
+                if(UIEdgeInsetsEqualToEdgeInsets(sc.contentInset,applied)) {
+                    CGPoint live=sc.contentOffset;
+                    sc.contentInset=oldInset;
+                    sc.contentOffset=CGPointMake(live.x,live.y+delta);
+                }
+                objc_setAssociatedObject(sc,&scarletIslandP77SevereOwnerKey,
+                    nil,OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+            }
+            state[@"p77_reverted"]=@YES;
+        } else if(late) {
+            state[@"p77_proven"]=@YES;
+        }
+        ScarletIslandDeepHeaderTrialReceipt(
+            pass ? (late ? @"guest_owner_content_reflow_retained" :
+                           @"guest_owner_content_reflow_first_pass") :
+                   @"guest_owner_content_reflow_reverted",
+            pass ? @"p77_severe_nested_content_zero_collision" :
+                   @"p77_severe_native_scroll_rolled_back",
+            safeTop,CGRectGetMinY(before),
+            CGRectIsNull(after)?-999:CGRectGetMinY(after),
+            priorRisk,band.nearControls,band.severeNodes,late&&pass);
+        if(pass && !late) {
+            dispatch_after(dispatch_time(DISPATCH_TIME_NOW,
+                (int64_t)350*NSEC_PER_MSEC),dispatch_get_main_queue(),^{
+                if(verify) verify(YES);
+            });
+        } else verify=nil;
+    };
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW,
+        (int64_t)160*NSEC_PER_MSEC),dispatch_get_main_queue(),^{
+        if(verify) verify(NO);
+    });
+}
+// R6P77_SEVERE_SPLIT_OWNER_NATIVE_CONTENT_END
+
 // R6P54_OWNER_LAYOUT_CONTRACT_BEGIN
 // R6P55 also accepts the signed P54 child UIViewController header owner.
 // Signed P53: the parent owns a custom viewDidLayoutSubviews. Changing the
@@ -4380,6 +4575,9 @@ static BOOL ScarletIslandP54InstallNativeOwnerContract(
             // full-scene viewport reflow has reverted. Try measured native
             // scroll content-origin correction instead, with two rollbacks.
             ScarletIslandP76TryPostHeaderContentOrigin(w,vc,safeTop);
+            // The P76 all-risk/fullscreen selector cannot own the signed
+            // P77 mixed y50/y60 cohort. Try ONLY its severe nested owner.
+            ScarletIslandP77TrySevereNestedContent(w,vc,safeTop);
         }
         if(reduced && !late) {
             dispatch_after(dispatch_time(DISPATCH_TIME_NOW,
