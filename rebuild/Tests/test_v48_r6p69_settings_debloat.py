@@ -11,6 +11,7 @@ LOGIN=(R/'HostApp/ScarletAppleIDLoginSheet.swift').read_text()
 
 class SettingsDebloat(unittest.TestCase):
     def test_refresh_status_is_single_recent_receipt_when_present(self):
+        self.assertIn('@State private var lastRefreshAttemptState: String = "기록 없음"', PANEL)
         self.assertIn('if lastRefreshAttemptState != "기록 없음"', PANEL)
         self.assertIn('LabeledContent("최근 갱신", value: displayRefreshState)', PANEL)
         for redundant in ('LabeledContent("자동 갱신",', 'LabeledContent("자동 갱신 대상",',

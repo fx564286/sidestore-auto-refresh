@@ -89,7 +89,7 @@ struct ScarletSigningReadinessPanel: View {
     @State private var readiness = ScarletSigningReadiness.inspect()
     @State private var authenticated: Bool? = nil
     @State private var refreshing = false
-    @State private var lastRefreshAttemptState: String = "없음"
+    @State private var lastRefreshAttemptState: String = "기록 없음"
     @State private var lastRefreshFailureReason: String?
     @State private var refreshManagedAppCount: Int?
     @State private var refreshHostManaged: Bool?
