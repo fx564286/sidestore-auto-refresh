@@ -4552,14 +4552,53 @@ static BOOL ScarletIslandP54InstallNativeOwnerContract(
                 if(deep) ScarletIslandP63UnbindNestedParent(bodyParent,state);
                 feed.frame=oldFeed;
             }
-            if(head && head.superview==par) {
+            if(head && head.superview==par &&
+               vc && vc.view==par && w && par.window==w &&
+               CGAffineTransformIsIdentity(head.transform)) {
+                // P80 signed P79 regression: after P54's failed native body
+                // trial the real header/scroll controls migrated y3 -> -25.
+                // P54's old rollback only restored the prior frame IF the
+                // guest still happened to be near `safeTop`; once its own
+                // layout changed that frame again, the failed trial could
+                // leave the guest in an even worse position. We still own
+                // this exact instance + original frame recorded BEFORE the
+                // trial; restore it regardless of its transient y, but only
+                // when its x/size remain the recorded native frame.
                 CGRect desired=[state[@"original_frame"] CGRectValue];
-                if(fabs(head.frame.origin.y-safeTop)<3)
+                CGRect actual=head.frame;
+                BOOL originalSize=isfinite(desired.origin.y) &&
+                    fabs(actual.origin.x-desired.origin.x)<2 &&
+                    fabs(actual.size.width-desired.size.width)<2 &&
+                    fabs(actual.size.height-desired.size.height)<2;
+                if(originalSize && fabs(actual.origin.y-desired.origin.y)>1)
                     head.frame=desired;
             }
             if(vc) objc_setAssociatedObject(
                 vc,&scarletIslandP54OwnerLayoutContractKey,
                 nil,OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+            // The guest's ORIGINAL owner implementation has been restored.
+            // Request one normal UIKit layout on the same view controller,
+            // without changing scene/window scale, contentOffset or insets.
+            // Never treat this as a passed Island collision proof.
+            __weak UIViewController *restoreOwner=vc;
+            __weak UIWindow *restoreWindow=w;
+            dispatch_async(dispatch_get_main_queue(), ^{
+                UIViewController *native=restoreOwner;
+                UIWindow *window=restoreWindow;
+                if(!native || !window || !native.isViewLoaded ||
+                   native.view.window!=window ||
+                   window.windowScene.activationState!=UISceneActivationStateForegroundActive)
+                    return;
+                [native.view setNeedsLayout];
+                [native.view layoutIfNeeded];
+                ScarletIslandPublish(@{
+                    @"receipt":NSUUID.UUID.UUIDString,
+                    @"pid":@(getpid()),
+                    @"epoch":@([[NSDate date] timeIntervalSince1970]),
+                    @"result":@"guest_original_owner_layout_restored",
+                    @"target":@(ScarletIslandMetric(safeTop))
+                });
+            });
         }
         ScarletIslandDeepHeaderTrialReceipt(
             reduced ? (late ? @"guest_owner_layout_contract_retained"

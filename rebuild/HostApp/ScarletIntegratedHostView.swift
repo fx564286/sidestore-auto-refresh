@@ -1443,40 +1443,27 @@ struct ScarletIntegratedHostView: View {
                 // The bottom tab is NOT inside a second presentation.
                 AnyView(
                     LCSettingsView()
-                        .safeAreaInset(edge: .top) {
-                            VStack(spacing: 8) {
-                            Toggle(isOn: $experimentalFullscreenResident) {
-                                Text("실험적 전체화면 RAM 유지")
-                                    .font(.subheadline.weight(.medium))
-                            }
-                            .padding(.horizontal, 14)
-                            .padding(.vertical, 8)
-                            .background(.regularMaterial)
-                            // Always allow OFF without restarting Scarlet.
-                            // Preserve existing LiveProcess objects; only stop
-                            // new pilot dispatch and hide its UI on OFF.
-                            .onChange(of: experimentalFullscreenResident) { oldMode, newMode in
+                        // P80: native Form, not an external top safeAreaInset,
+                        // owns BOTH settings actions; no overlaid title/chrome.
+                        // Shared AppStorage propagates actual pilot switch here.
+                        .onChange(of: experimentalFullscreenResident) { oldMode, newMode in
+                            ScarletDiagnosticRecorder.shared.record(
+                                "guest", "pilot_setting_changed",
+                                fields: ["old_mode": oldMode ? "on" : "off",
+                                         "new_mode": newMode ? "on" : "off",
+                                         "live_session": fullscreenStack.hasResidentSession ? "true" : "false",
+                                         "result": "setting_applied_without_restart"])
+                            if !newMode {
+                                fullscreenStack.goHome()
                                 ScarletDiagnosticRecorder.shared.record(
-                                    "guest", "pilot_setting_changed",
-                                    fields: ["old_mode": oldMode ? "on" : "off",
-                                             "new_mode": newMode ? "on" : "off",
-                                             "live_session": fullscreenStack.hasResidentSession ? "true" : "false",
-                                             "result": "setting_applied_without_restart"])
-                                if !newMode {
-                                    fullscreenStack.goHome()
-                                    ScarletDiagnosticRecorder.shared.record(
-                                        "guest", "pilot_mode_disabled_immediately",
-                                        fields: ["result": "classic_launch_selected_next",
-                                                 "memory": "existing_liveprocess_not_terminated"])
-                                }
+                                    "guest", "pilot_mode_disabled_immediately",
+                                    fields: ["result": "classic_launch_selected_next",
+                                             "memory": "existing_liveprocess_not_terminated"])
                             }
-                            .accessibilityHint("실험 모드는 앱 재실행 없이 켜거나 끌 수 있습니다.")
-                            Button("기기 설치 앱 활성화 관리") {
-                                showManagedSlotSheet = true
-                            }
-                            .buttonStyle(.bordered)
-                            .accessibilityIdentifier("SCARLET_NATIVE_SLOT_MANAGER_OPEN")
-                            } // settings controls
+                        }
+                        .onReceive(NotificationCenter.default.publisher(
+                            for: Notification.Name("ScarletOpenNativeManagedApps"))) { _ in
+                            showManagedSlotSheet = true
                         }
                         .environmentObject(sharedModel)
                         .environmentObject(LCAppSortManager.shared)

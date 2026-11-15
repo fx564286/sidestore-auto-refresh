@@ -40,7 +40,7 @@ class SettingsDebloat(unittest.TestCase):
     def test_no_false_multiteam_information_and_preserve_slot_manager(self):
         self.assertNotIn('다른 계정을 등록해도 설치 팀이 자동 변경되지는 않습니다', HOST)
         self.assertNotIn('기기 검증 전', HOST)
-        self.assertIn('SCARLET_NATIVE_SLOT_MANAGER_OPEN', HOST)
+        self.assertIn('SCARLET_NATIVE_SLOT_MANAGER_OPEN', Path(__file__).resolve().parents[1].joinpath('integration/apply_scarlet_host.py').read_text())
         self.assertIn('SCARLET_NATIVE_SLOT_MANAGER_SHEET', HOST)
         self.assertIn('showInstallTeamPicker = true', HOST)
 

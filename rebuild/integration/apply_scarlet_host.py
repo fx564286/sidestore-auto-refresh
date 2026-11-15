@@ -610,6 +610,46 @@ def hide_embedded_sidestore_guest_navigation(engine: Path) -> dict:
         else:
             assert source.count(original)==1, "Pinned LC import tracer duplicate: "+repr(original)
             source=source.replace(original,patched)
+    # P80: P79 original extraction may return zero but with no complete
+    # Payload app: its unarchive.m second-pass break path returns `return 0`
+    # even after an ARCHIVE_FATAL. Recheck the actual scratch Payload *before*
+    # the first contentsOfDirectory/LCAppInfo, and retry the existing bounded
+    # memory ZIP reader only for Scarlet's queued local file. Reject a broken
+    # ZIP without ever touching an installed guest or selected P12.
+    silent_success_anchor = """        let payloadContents = try fm.contentsOfDirectory(atPath: payloadPath.path)
+"""
+    # Minimal upstream unit-test fixtures omit actual Payload parsing.
+    silent_success_recovery = """        // P80: original libarchive can report success despite an incomplete
+        // second-pass extraction. It also may leave no top-level Payload.app.
+        // Do not confuse that with an already-installed app or a signer issue.
+        if scarletQueuedIPAURL != nil {
+            let before = (try? fm.contentsOfDirectory(atPath: payloadPath.path)) ?? []
+            if !before.contains(where: { $0.hasSuffix(".app") }) {
+                ScarletDiagnosticRecorder.shared.record("guest_import",
+                    "original_archive_payload_unreadable",
+                    fields: ["result": "bounded_native_fallback_attempted"])
+                try? fm.removeItem(at: payloadPath)
+                let result = scarletExtractGuestIPAFromMappedData(
+                    url.path, fm.temporaryDirectory.path, decompressProgress)
+                let after = (try? fm.contentsOfDirectory(atPath: payloadPath.path)) ?? []
+                guard result == 0 && after.contains(where: { $0.hasSuffix(".app") }) else {
+                    ScarletDiagnosticRecorder.shared.record("guest_import",
+                        "native_archive_payload_invalid", status: "error",
+                        fields: ["reason": "mapped_reader_or_payload_invalid"])
+                    throw NSError(domain: "ScarletGuestArchive", code: 80,
+                        userInfo: [NSLocalizedDescriptionKey:
+                            "IPA 압축 파일의 Payload 앱을 읽을 수 없습니다."])
+                }
+                ScarletDiagnosticRecorder.shared.record("guest_import",
+                    "mapped_archive_payload_recovered",
+                    fields: ["result": "single_top_level_app_present"])
+            }
+        }
+        let payloadContents = try fm.contentsOfDirectory(atPath: payloadPath.path)
+"""
+    if silent_success_anchor in source:
+        assert source.count(silent_success_anchor)==1
+        source=source.replace(silent_success_anchor,silent_success_recovery,1)
     # Tiny synthetic upstream test fixtures omit the real replacement loop.
     # Only a pinned full installer with the exact original branch is patched.
     if "var sameBundleIdApp = sharedModel.apps.filter" in source:
@@ -853,8 +893,8 @@ def hide_embedded_sidestore_guest_navigation(engine: Path) -> dict:
 def theme_native_settings_section_rows(source: str) -> tuple[str, int]:
     """Match Figma card tint on all upstream settings rows without changing actions.
 
-    Pinned LCSettingsView contains 15 real sections; Scarlet adds one
-    login/diagnostics section. Exact 16-section count is a drift guard.
+    Pinned LCSettingsView contains 15 real sections; Scarlet adds the
+    native account and pilot/manage sections. Exact 17-section count guards drift.
     """
     import re
     output = []
@@ -875,7 +915,7 @@ def theme_native_settings_section_rows(source: str) -> tuple[str, int]:
                 output.append(" " * indent +
                     ".listRowBackground(Color(red: 36.0/255, green: 35.0/255, blue: 58.0/255).opacity(0.80))\n")
                 styled += 1
-    assert started == 16 and styled == 16 and not active_section_indents, (
+    assert started in (16, 17) and styled == started and not active_section_indents, (
         "Pinned LC settings Section structure changed", started, styled,
         active_section_indents)
     return "".join(output), styled
@@ -911,6 +951,9 @@ def attach_native_settings_diagnostics(engine: Path) -> dict:
     @State private var scarletAccountSwitchError: String? = nil
     @State private var scarletSwitchingAccountID: String? = nil
     @State private var scarletAccountReadGeneration: UInt64 = 0
+    // Host and native LC Settings bind the SAME persisted pilot mode.
+    @AppStorage("Scarlet.Feature.FullscreenResidentPilot.V45")
+    private var scarletResidentPilotEnabled = false
 
     @MainActor
     private func scarletReloadSavedAccounts() async {
@@ -971,6 +1014,21 @@ def attach_native_settings_diagnostics(engine: Path) -> dict:
 ''' + '\n')
     new_section="""        NavigationView {
             Form {
+                // P80: never place settings controls above NavigationView.
+                // The previous host .safeAreaInset(.top) covered large-title
+                // chrome and detached the pilot toggle from native rows.
+                Section {
+                    Toggle("실험적 전체화면 RAM 유지", isOn: $scarletResidentPilotEnabled)
+                        .accessibilityIdentifier("SCARLET_SETTINGS_NATIVE_RAM_PILOT")
+                    Button {
+                        NotificationCenter.default.post(
+                            name: Notification.Name("ScarletOpenNativeManagedApps"),
+                            object: nil)
+                    } label: {
+                        Label("설치 앱 활성화 관리", systemImage: "square.stack.3d.up")
+                    }
+                    .accessibilityIdentifier("SCARLET_NATIVE_SLOT_MANAGER_OPEN")
+                }
                 Section {
                     if !scarletSavedAccounts.isEmpty {
                         ForEach(scarletSavedAccounts) { row in

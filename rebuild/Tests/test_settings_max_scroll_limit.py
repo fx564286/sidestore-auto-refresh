@@ -18,7 +18,7 @@ class SettingsMaxScrollRegression(unittest.TestCase):
         self.assertIn('func scarletSettingsScrollLimit() -> some View',GLASS)
         part=GLASS.split('func scarletSettingsScrollLimit() -> some View {',1)[1].split(
             '// The nested JIT-Less diagnostics',1)[0]
-        self.assertIn('if #available(iOS 26.0, *) {\n            self',part)
+        self.assertIn('self.contentMargins(.bottom, 56, for: .scrollContent)',part)
         self.assertNotIn('height: 140',part)
         self.assertNotIn('.contentMargins(.bottom, 140',part)
         self.assertIn('height: 72',part)

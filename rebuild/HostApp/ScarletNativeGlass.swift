@@ -196,7 +196,10 @@ extension View {
     @ViewBuilder
     func scarletSettingsScrollLimit() -> some View {
         if #available(iOS 26.0, *) {
-            self
+            // P80: screenshot showed the next native settings section partly
+            // beneath the floating system tab bar. Reserve 56pt of *scroll
+            // content* only, not a second 140pt safe-area blank footer.
+            self.contentMargins(.bottom, 56, for: .scrollContent)
         } else {
             self.safeAreaInset(edge: .bottom, spacing: 0) {
                 Color.clear.frame(height: 72).accessibilityHidden(true)
