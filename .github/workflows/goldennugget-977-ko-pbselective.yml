@@ -104,7 +104,7 @@ jobs:
               prefix="Payload/GoldenNuggetMobile.app/"
               info=plistlib.loads(z.read(prefix+"Info.plist"))
               assert info["CFBundleShortVersionString"] == "9.7.7",info
-              assert info["CFBundleVersion"] == "11",info
+              assert info["CFBundleVersion"] == "10",info
               binary=z.read(prefix+"GoldenNuggetMobile")
               assert b"Dev.SkipProtectiveBackup" in binary
           print("PASS: genuine compiled 9.7.7 experimental binary")
@@ -127,6 +127,7 @@ jobs:
               src_bin=zin.read(prefix+"GoldenNuggetMobile")
               info=plistlib.loads(zin.read(prefix+"Info.plist"))
               assert info["CFBundleShortVersionString"] == "9.7.7"
+              info["CFBundleVersion"] = "11"
               languages=set(info.get("CFBundleLocalizations",[]))|{"ko","en"}
               info["CFBundleLocalizations"]=sorted(languages)
               updates={prefix+"Info.plist":plistlib.dumps(info,fmt=plistlib.FMT_BINARY)}
@@ -143,16 +144,17 @@ jobs:
               assert z.testzip() is None
               assert z.read(prefix+"GoldenNuggetMobile")==src_bin
               assert "ko" in plistlib.loads(z.read(prefix+"Info.plist"))["CFBundleLocalizations"]
+              assert plistlib.loads(z.read(prefix+"Info.plist"))["CFBundleVersion"] == "11"
           print("IPA",target, "bytes",target.stat().st_size)
           print("SHA256",hashlib.sha256(target.read_bytes()).hexdigest())
           PY
-          unzip -t dist/GoldenNuggetMobile-9.7.7-Korean-iOS27-GuidedSkipBackup.ipa | tail -2
+          unzip -t dist/GoldenNuggetMobile-9.7.7-Korean-PosterBoardSelective-b11.ipa | tail -2
 
       - name: Upload verified IPA artifact
         uses: actions/upload-artifact@v4
         with:
           name: GoldenNugget-977-Korean-PosterBoardSelective-b11-unsigned
-          path: dist/GoldenNuggetMobile-9.7.7-Korean-iOS27-GuidedSkipBackup.ipa
+          path: dist/GoldenNuggetMobile-9.7.7-Korean-PosterBoardSelective-b11.ipa
           retention-days: 30
           if-no-files-found: error
 
@@ -163,9 +165,9 @@ jobs:
         run: |
           set -euo pipefail
           tag="goldennugget-ko-977-pbselective-b11-20261116"
-          file="dist/GoldenNuggetMobile-9.7.7-Korean-iOS27-GuidedSkipBackup.ipa"
+          file="dist/GoldenNuggetMobile-9.7.7-Korean-PosterBoardSelective-b11.ipa"
           gh release create "$tag" "$file" --repo "$GITHUB_REPOSITORY" \
             --target "$GITHUB_SHA" --prerelease \
             --title "GoldenNugget Mobile 9.7.7 Korean · Targeted PosterBoard Snapshot Experimental b11" \
-            --notes "Unsigned IPA, Korean UI resources. User opt-in under Settings > Developer Mode > iOS 27 high-risk skip. If wallpapers are selected with backup bypass, home Apply offers a targeted read-only PosterBoard database transfer as an experimental option alongside excluding the wallpaper selection. English PosterBoard bypass error and media button are localized to Korean. This experimental route attempts a partial restore without a protective backup. WARNING: device restore is unverified; data loss, refusal, or boot failure possible. PosterBoard wallpaper changes still REQUIRE a native database fetch and cannot bypass MBErrorDomain/105; AirLift is disabled on iOS 27.2 build 24B119."
+            --notes "Unsigned IPA, Korean UI resources. User opt-in under Settings > Developer Mode > iOS 27 high-risk skip. If wallpapers are selected with backup bypass, home Apply offers a targeted read-only PosterBoard database transfer as an experimental option alongside excluding the wallpaper selection. English PosterBoard bypass error and media button are localized to Korean. This experimental route attempts a partial restore without a protective backup. WARNING: device restore is unverified; data loss, refusal, or boot failure possible. PosterBoard native database capture uses selective streamed disk-space accounting only for a targeted read-only fetch, with 5 GiB preflight and a real 4 GiB per-write safety reserve. This is unverified on iOS 27.2 build 24B119. AirLift remains disabled."
           gh release view "$tag" --repo "$GITHUB_REPOSITORY" --json assets --jq '.assets[] | "\(.name) \(.size) \(.browser_download_url)"'
