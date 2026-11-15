@@ -195,8 +195,11 @@ final class ScarletGuestSignInAgent: NSObject {
                 // Do not acknowledge success until all SideStore credentials
                 // can be read back from its own Keychain, in the worker.
                 guard persistedState() else {
-                    finish(id, code: -3401, domain: "scarlet.auth.keychain_roundtrip_failed")
-                    return
+                    // All post-auth failures MUST enter the inner rollback.
+                    // An early return here used to leave the previous Apple
+                    // identity displaced by an unverified new credential.
+                    throw NSError(domain: "scarlet.auth.keychain_roundtrip_failed",
+                                  code: -3401)
                 }
                 // R6P20: original AuthManager.signIn returns a verified
                 // ALTAppleAPISession but does NOT populate `self.session`.
@@ -225,7 +228,13 @@ final class ScarletGuestSignInAgent: NSObject {
                 }
                 finish(id, code: 0, domain: "success")
                 } catch {
-                    if let previousSlot { _ = await ScarletAccountVault.activate(previousSlot) }
+                    if let previousSlot,
+                       !(await ScarletAccountVault.activate(previousSlot)) {
+                        // Do not say the original Apple ID is restored when
+                        // the Keychain/CoreData transaction also failed.
+                        throw NSError(domain: "scarlet.auth.rollback_unverified",
+                                      code: -3453)
+                    }
                     throw error
                 }
             } catch let error as ServerError {
@@ -272,8 +281,17 @@ final class ScarletGuestSignInAgent: NSObject {
                 let failure = error as NSError
                 // Preserve only the error namespace and numeric code. The
                 // diagnostic recorder also redacts identifiers and secrets.
+                let allowlisted: Set<String> = [
+                    "scarlet.auth.keychain_roundtrip_failed",
+                    "scarlet.auth.keychain_write_failed",
+                    "scarlet.auth.rollback_unverified",
+                    "scarlet.auth.sidestore_team_missing",
+                    "scarlet.auth.sidestore_team_mismatch",
+                    "scarlet.auth.sidestore_team_recovery_failed"
+                ]
                 finish(id, code: failure.code == 0 ? -3300 : failure.code,
-                       domain: "scarlet.auth.unclassified")
+                       domain: allowlisted.contains(failure.domain)
+                           ? failure.domain : "scarlet.auth.unclassified")
             }
         }
     }

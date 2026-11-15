@@ -16,7 +16,7 @@ class RealSignInSessionAndSignedIdentifierTests(unittest.TestCase):
         active=AUTH.index('let teamState = await ensureActiveTeamForRefresh(requireHostTeam: false)',cached)
         self.assertLess(verified,cached)
         self.assertLess(cached,active)
-        self.assertIn('finish(id, code: -3401',AUTH[verified:cached])
+        self.assertIn('throw NSError(domain: "scarlet.auth.keychain_roundtrip_failed"',AUTH[verified:cached])
         self.assertIn('throw NSError(domain: "scarlet.auth." + teamState, code: -3402)',AUTH[active:])
     def test_authmanager_private_session_is_only_written_in_its_same_file_extension(self):
         self.assertIn('extension AuthManager {', AUTH)

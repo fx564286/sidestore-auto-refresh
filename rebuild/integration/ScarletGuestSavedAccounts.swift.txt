@@ -174,7 +174,9 @@ private enum ScarletAccountVault {
             return (false, "keychain_write_failed")
         }
         if await activate(selected) { return (true, "active_team_verified") }
-        if let previous { _ = await activate(previous) }
+        if let previous, !(await activate(previous)) {
+            return (false, "rollback_unverified")
+        }
         return (false, "account_activation_unverified")
     }
 }

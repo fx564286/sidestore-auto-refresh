@@ -513,3 +513,10 @@ L051=R6P15 저장된 RSD 연결의 제한적 재검사다. 과거 항목에 `dev
 - SideInstaller.ipa(v2.0.1)와 LCSign-1.4-7.ipa(v1.4/7)를 정적 REA해 AccountStore/PairingManager, CertificateStore/IPAInstaller/BackupRestore 기능을 확인함. 바이너리 또는 사유 코드를 Scarlet에 복사하지 않았음. 자세한 증거와 해시: `rebuild/reports/SCARLET_P66_REA_AND_FUNCTION_AUDIT_20261115.md`.
 - P66 코드 변경 커밋은 L114 source_revisions에 정확한 GitHub SHA로 기록. 전체 Python 테스트 744 실행(741 통과·3 skip). GitHub CI Xcode native compile 및 iPhone 실기기 2FA/계정 A→B→A/서명 및 전환 후 재진입 결과는 미검증. P65 상단 잘림/상태바 문제를 해결했다고 기록하지 말 것.
 - 중복 금지: 버튼 활성화/안내창 문구만 변경하거나 CoreData 계정 row만 추가하고 보안 토큰·활성 팀 XPC 스위치를 빠뜨리는 작업. 추가 로그인 실패 시 기존 활성 계정, 인증서, 게스트 데이터 삭제 금지.
+
+## P67 / L115 — 로그인 실패 롤백 보장 및 실제 릴리스 배포 변수 복구
+
+- P66 signed-device 검증 이전 코드 재감사에서 새 Apple ID의 Keychain round-trip 검증 실패 경로가 `finish(...); return`으로 안쪽 트랜잭션 catch를 건너뛰어, 이전 활성 계정 복원 자체가 실행되지 않는 명확한 버그를 확인함. P67은 해당 실패를 `throw NSError(...,-3401)`로 바꿔 기존 catch에 도달하도록 수정.
+- 계정 전환 후 이전 계정의 Keychain/CoreData 복원도 실패하면 `rollback_unverified`로 상태를 구분. 복원 성공이라고 허위 표시하지 않고 사용자에게 다시 계정을 점검하도록 알림. 원본 토큰, 인증서 삭제 금지.
+- P66 native CI GitHub Actions run `43656279912`: SideStore/native LiveContainer/package-paired 3개 작업은 각각 성공. 릴리스만 실패: `line 283: asset: unbound variable`, P66 tag 분기에 `asset` 미할당. P67은 P66/P67 릴리스 분기 각각에 실제 IPA 파일명을 지정하고 3.8.67 별도 CFBundleVersion/tag를 사용. 이 수정은 실사용 로그인·설치 테스트를 대체하지 않음.
+- P67 새 소스/정확한 diff와 SHA, CI 검증은 L115 `source_revisions`, `code_locations`에서 참조. P66의 게스트 상단/시계·배터리/오디오 미해결 문제는 별도 검증 대상으로 유지.

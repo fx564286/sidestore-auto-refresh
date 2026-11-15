@@ -36,7 +36,10 @@ class VerifiedAccountRoutes(unittest.TestCase):
     def test_cannot_replace_authenticated_session_without_backup(self):
         self.assertIn('if persistedState() && previousSlot == nil',AGENT)
         self.assertIn('ScarletAccountVault.save(previousSlot)',AGENT)
-        self.assertIn('if let previousSlot { _ = await ScarletAccountVault.activate(previousSlot) }',AGENT)
+        self.assertIn('await ScarletAccountVault.activate(previousSlot)',AGENT)
+        self.assertIn('scarlet.auth.rollback_unverified',AGENT)
+        self.assertIn('throw NSError(domain: "scarlet.auth.keychain_roundtrip_failed"',AGENT)
+        self.assertNotIn('finish(id, code: -3401, domain:',AGENT)
         self.assertIn('ScarletAccountVault.save(added)',AGENT)
         self.assertIn('current_session_unverified', VAULT)
         self.assertIn('existing.count < maxAccounts',VAULT)

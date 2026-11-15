@@ -18,7 +18,16 @@ public enum ScarletNativeAuthError: LocalizedError {
         case .alreadyRunning: return "다른 Apple 인증 작업이 진행 중입니다."
         case .timedOut: return "SideStore 인증 통신 시간이 초과되었습니다."
         case .remoteFailure(let domain, let code):
-            return "Apple 인증 실패: " + domain + " (" + String(code) + ")"
+            switch domain {
+            case "scarlet.auth.keychain_roundtrip_failed":
+                return "새 Apple ID 인증 정보 확인에 실패했습니다. 이전 계정 복원 결과를 확인하세요. (" + String(code) + ")"
+            case "scarlet.auth.keychain_write_failed":
+                return "계정별 보안 저장이 실패했습니다. 기존 계정 인증 정보는 삭제하지 않았습니다. (" + String(code) + ")"
+            case "scarlet.auth.rollback_unverified":
+                return "이전 계정 복원 결과를 확인하지 못했습니다. 추가 로그인이나 서명 작업을 진행하기 전에 저장된 계정을 다시 확인하세요. (" + String(code) + ")"
+            default:
+                return "Apple 인증 실패: " + domain + " (" + String(code) + ")"
+            }
         }
     }
 }
@@ -757,7 +766,7 @@ public enum ScarletNativeSavedAccounts {
                              "keychain_write_failed", "account_not_found",
                              "current_session_unverified", "account_activation_unverified",
                              "invalid_request", "authentication_in_progress",
-                             "account_worker_missing"]
+                             "account_worker_missing", "rollback_unverified"]
                 let status = reason ?? "worker_unknown"
                 gate.finish(ok && status == "active_team_verified",
                     known.contains(status) ? status : "worker_unknown")
