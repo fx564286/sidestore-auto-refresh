@@ -1,13 +1,8 @@
 diff --git a/Nugget/Views/TweaksView.swift b/Nugget/Views/TweaksView.swift
 --- a/Nugget/Views/TweaksView.swift
 +++ b/Nugget/Views/TweaksView.swift
-@@ -258,8 +258,9 @@
-     /// Translate only the visible header, never the registry section value.
+@@ -259,3 +259,4 @@
      private func localizedSectionTitle(_ section: TweakSection) -> String {
          switch section {
 +        case .posterBoard: return String(localized: "PosterBoard")
          case .liquidGlass: return String(localized: "Liquid Glass")
-         case .springboard: return String(localized: "SpringBoard")
-         case .internalOptions: return String(localized: "Internal Options")
-         case .daemons: return String(localized: "Daemons")
-     }
