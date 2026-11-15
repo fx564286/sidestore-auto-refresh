@@ -23,6 +23,7 @@ class P79SignedDeviceFourImports(unittest.TestCase):
              'archive_read_support_format_zip(reader)',
              'archive_write_disk_new()',
              'archive_entry_filetype(entry)==AE_IFLNK',
+             '[relative hasPrefix:@"/"]',
              '[parts containsObject:@".."]',
              'hasAppPlist && entries<=80000',
              'return (ok && wrote) ? 0 : 1;',
@@ -30,6 +31,7 @@ class P79SignedDeviceFourImports(unittest.TestCase):
 ):
    self.assertIn(x,P,x)
   self.assertIn('guest_archive_recovery=add_r6p79_mapped_archive_fallback(engine)',G)
+  self.assertNotIn('relative.hasPrefix(@"/")', P)
   for forbidden in ('removeItem(at: outputFolder)', 'SecItemDelete',
                     'deleteCertificate', 'removeItem(at: fileUrl)'):
    self.assertNotIn(forbidden,P)

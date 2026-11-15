@@ -428,7 +428,7 @@ int scarletExtractGuestIPAFromMappedData(NSString *ipaPath,
         NSString *relative=[NSString stringWithUTF8String:raw];
         if(!relative) { r=ARCHIVE_FATAL;break; }
         NSArray<NSString *> *parts=[relative componentsSeparatedByString:@"/"];
-        if(relative.hasPrefix(@"/") ||
+        if([relative hasPrefix:@"/"] ||
            [parts containsObject:@".."] ||
            [parts containsObject:@"."] ||
            [relative containsString:@"\\"] ||
