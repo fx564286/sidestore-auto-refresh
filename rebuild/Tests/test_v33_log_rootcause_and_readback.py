@@ -45,7 +45,12 @@ class V33LogRootCauses(unittest.TestCase):
     def test_auto_refresh_checks_live_pairing_not_only_saved_login(self):
         self.assertIn('ScarletNativePairingInstaller.inspectForAutomaticRefresh()',AUTO)
         self.assertIn('automatic_deferred_pairing',AUTO)
-        self.assertIn('guard paired else',AUTO)
+        # P72: a timed-out redundant UI preflight is inconclusive, not an
+        # authorization failure. Only SideStore's real worker can make that
+        # determination; explicit absent/invalid pairing stays blocked.
+        self.assertIn('guard paired || pairingProbeInconclusive else',AUTO)
+        self.assertIn('pairingReason == "pairing_state_read_timeout"',AUTO)
+        self.assertIn('automatic_pairing_preflight_inconclusive',AUTO)
         self.assertLess(AUTO.index('inspectForAutomaticRefresh()'),
                         AUTO.index('ScarletNativeRefreshExecutor.execute()'))
         self.assertIn('storedAuthenticationState()', AUTO)

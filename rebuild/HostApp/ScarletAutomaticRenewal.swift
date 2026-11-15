@@ -332,7 +332,23 @@ final class ScarletAutomaticRenewal {
         // checkmark or Apple login alone cannot satisfy this prerequisite.
         let (paired, pairingReason) =
             await ScarletNativePairingInstaller.inspectForAutomaticRefresh()
-        guard paired else {
+        // P72: a 20s read timeout in the redundant UI/host preflight does
+        // not prove the SideStore RSD pairing was revoked. The real native
+        // AppManager/installation worker still revalidates pairing and
+        // transport before any device mutation (and can reconnect RSD).
+        // Only this inconclusive probe result may continue; an explicit
+        // invalid/missing pairing outcome still blocks the refresh.
+        let pairingProbeInconclusive = !paired &&
+            pairingReason == "pairing_state_read_timeout"
+        if pairingProbeInconclusive {
+            ScarletDiagnosticRecorder.shared.record(
+                "refresh", "automatic_pairing_preflight_inconclusive",
+                status: "warning", fields: [
+                    "reason": pairingReason,
+                    "next_gate": "native_sidestore_worker",
+                    "installation_verified": "false"])
+        }
+        guard paired || pairingProbeInconclusive else {
             // Timeout/unresponsive transport is not evidence that the saved
             // pairing was revoked. The next 15-minute BG slot or foreground
             // activation may retry without deleting the original record.
