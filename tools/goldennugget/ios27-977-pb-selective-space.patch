@@ -1,0 +1,228 @@
+--- a/Vendor/MinimuxerGateway/idevice/MobileBackup2Delegate.swift
++++ b/Vendor/MinimuxerGateway/idevice/MobileBackup2Delegate.swift
+@@ -55,6 +55,10 @@
+     /// Needed to resolve a rejected payload back to the path the device will
+     /// later look for.  `nil` disables placeholder materialisation.
+     let backupRoot: String?
++    /// Only the read-only PosterBoard database fetch may announce logical
++    /// streaming capacity: its callback drains unwanted files to /dev/null.
++    /// Every retained write is still subject to a real physical-space guard.
++    let selectivePosterBoardSpace: Bool
+     var isCancelled = false
+ 
+     private let handlesLock = NSLock()
+@@ -182,12 +186,14 @@
+         onProgress: (@Sendable (Double) -> Void)? = nil,
+         shouldPreserve: (@Sendable (String, String) -> Bool)? = nil,
+         onEvent: (@Sendable (String) -> Void)? = nil,
+-        backupRoot: String? = nil
++        backupRoot: String? = nil,
++        selectivePosterBoardSpace: Bool = false
+     ) {
+         self.onProgress = onProgress
+         self.shouldPreserve = shouldPreserve
+         self.onEvent = onEvent
+         self.backupRoot = backupRoot
++        self.selectivePosterBoardSpace = selectivePosterBoardSpace
+     }
+ 
+     // MARK: - Rejected-payload placeholders
+@@ -456,6 +462,18 @@
+ /// redirect guest Documents independently of NSHomeDirectory().
+ /// Never report an invented free-space value if the query fails.
+ private enum BackupVolumeSpace {
++    static func physicalAvailable(at rawPath: String) -> UInt64? {
++        guard rawPath.hasPrefix("/") else { return nil }
++        let fileManager = FileManager.default
++        var directory = URL(fileURLWithPath: rawPath, isDirectory: true).standardizedFileURL
++        while !fileManager.fileExists(atPath: directory.path) {
++            let parent = directory.deletingLastPathComponent()
++            guard parent != directory else { return nil }
++            directory = parent
++        }
++        let attributes = try? fileManager.attributesOfFileSystem(forPath: directory.path)
++        return (attributes?[.systemFreeSize] as? NSNumber)?.uint64Value
++    }
+     static func available(at rawPath: String) -> (bytes: UInt64, source: String)? {
+         guard !rawPath.isEmpty, rawPath.hasPrefix("/") else { return nil }
+         let fm = FileManager.default
+@@ -494,6 +512,26 @@
+         c.reportEvent("backup volume capacity probe FAILED; storage path unavailable or unreadable")
+         c.reportDiskSpaceOnce(0, source: "probe-failed")
+         return 0
++    }
++    // The backup agent checks its hypothetical *unfiltered* upload against the
++    // callback's number BEFORE the host's shouldPreserve filter can reject any
++    // payload.  On the very same device this yields MBErrorDomain/105 even when
++    // the accepted PosterBoard database is small.  This is NOT used for full or
++    // protective backups: only the explicit read-only targeted fetch, with a
++    // verified streaming filter and real free-space limits on every write.
++    if c.selectivePosterBoardSpace {
++        let minFree: UInt64 = 5 * 1024 * 1024 * 1024
++        guard let physicallyFree = BackupVolumeSpace.physicalAvailable(at: root),
++              capacity.bytes >= minFree, physicallyFree >= minFree else {
++            c.reportEvent("PosterBoard selective read refused: less than 5 GiB real physical headroom")
++            c.reportDiskSpaceOnce(capacity.bytes, source: "physical-space-gate")
++            return capacity.bytes
++        }
++        let advertised: UInt64 = 1 << 40  // logical streamed/discarded space, not actual disk
++        c.reportEvent("PosterBoard selective fetch: logical streamed capacity (not physical) enabled; "
++            + "physical guard active; actual free=\(physicallyFree) bytes")
++        c.reportDiskSpaceOnce(advertised, source: "read-only-filtered-stream")
++        return advertised
+     }
+     c.reportDiskSpaceOnce(capacity.bytes, source: capacity.source)
+     return capacity.bytes
+@@ -604,6 +642,16 @@
+     }
+     let f = rawHandle.assumingMemoryBound(to: FILE.self)
+     let want = Int(len)
++    if c.selectivePosterBoardSpace {
++        // No speculative capacity is ever used for an actual write. Leave 4 GiB
++        // unallocated even when the device's own backup planner overestimates
++        // what our filter will retain. Fail rather than silently truncate.
++        let reserve: UInt64 = 4 * 1024 * 1024 * 1024
++        guard let free = BackupVolumeSpace.physicalAvailable(at: pathStr),
++              free > reserve, UInt64(want) < free - reserve else {
++            return fail(c, "selective_space", "PosterBoard selective write stopped: insufficient physical free space")
++        }
++    }
+     let wrote = fwrite(data, 1, want, f)
+     if wrote != want {
+         // A short write used to be dropped on the floor: the payload ended up
+--- a/Vendor/MinimuxerGateway/idevice/IdeviceGateway.swift
++++ b/Vendor/MinimuxerGateway/idevice/IdeviceGateway.swift
+@@ -3411,7 +3411,8 @@
+         factoryInfo: plist_t?,
+         shouldPreserve: (@Sendable (String, String) -> Bool)? = nil,
+         onProgress: (@Sendable (Double) -> Void)? = nil,
+-        delegateLog: (@Sendable (String) -> Void)? = nil
++        delegateLog: (@Sendable (String) -> Void)? = nil,
++        selectivePosterBoardSpace: Bool = false
+     ) throws -> [String: Any] {
+         debugLog("[IdeviceGateway] syncBackupBackup() called, backupRoot: \(backupRoot)")
+         return try performWithService(
+@@ -3423,7 +3424,8 @@
+                 onProgress: onProgress,
+                 shouldPreserve: shouldPreserve,
+                 onEvent: delegateLog,
+-                backupRoot: backupRoot
++                backupRoot: backupRoot,
++                selectivePosterBoardSpace: selectivePosterBoardSpace
+             )
+             var delegate = makeRestoreDelegate(context: ctx)
+             defer { withExtendedLifetime(ctx) {} }
+@@ -3776,13 +3778,20 @@
+             defer {
+                 if let factoryInfo { plist_free(factoryInfo) }
+             }
++            // Strictly scoped to the database-reading PosterBoard stage. An
++            // actual protective backup must NEVER claim non-existent capacity.
++            let selectivePosterBoard = applications?.count == 1 &&
++                applications?["com.apple.PosterBoard"] != nil &&
++                (backupRoot as NSString).lastPathComponent == "PosterBoardFetch" &&
++                shouldPreserve != nil
+             return try self.syncBackupBackup(
+                 backupRoot: backupRoot,
+                 sourceIdentifier: sourceIdentifier,
+                 factoryInfo: factoryInfo,
+                 shouldPreserve: shouldPreserve,
+                 onProgress: onProgress,
+-                delegateLog: delegateLog
++                delegateLog: delegateLog,
++                selectivePosterBoardSpace: selectivePosterBoard
+             )
+         }
+     }
+--- a/Nugget/Core/GoldenNuggetEngine.swift
++++ b/Nugget/Core/GoldenNuggetEngine.swift
+@@ -507,9 +507,8 @@
+                 log("PosterBoard: reset only — no database is needed, and none is fetched.")
+             } else {
+                 if DevSettings.effective.skipProtectiveBackup {
+-                    throw GoldenNuggetError("iOS 27.2에서는 백업을 생략하고 PosterBoard 배경화면을 적용할 수 없습니다. "
+-                        + "기기 고유 데이터베이스를 가져올 수 없으므로 해당 작업을 중단했습니다. "
+-                        + "홈에서 다른 설정만 적용하거나 백업 생략을 해제하세요.")
++                    log("PosterBoard: filtered read-only device database fetch requested; "
++                        + "full protective backup remains off (experimental)")
+                 }
+                 let fetched = try await PosterBoardBackup.fetch(
+                     backupRoot: AppPaths.posterBoardFetchRoot, udid: udid,
+@@ -798,8 +797,22 @@
+         let prune: Bool
+         if ios27 {
+             if unsafeSkipBackup {
+-                log("UNSAFE OVERRIDE ACTIVE: using iOS 27 SQLite without protective backup")
+-                backupRoot = try unprotectedIOS27Restore(udid: udid)
++                if let nativeSnapshot = posterBoardSnapshot,
++                   nativeSnapshot.deletingLastPathComponent().standardizedFileURL ==
++                       AppPaths.posterBoardFetchRoot.standardizedFileURL,
++                   FileManager.default.fileExists(atPath:
++                       nativeSnapshot.appendingPathComponent("Manifest.db").path) {
++                    // The targeted read-only fetch returned an actual device
++                    // manifest.  Use that device-produced native schema instead
++                    // of fabricating one; the later prune removes all absent
++                    // rows before injecting and restoring only the intended files.
++                    log("EXPERIMENTAL: using device-supplied PosterBoard manifest as restore base; "
++                        + "full protective backup skipped")
++                    backupRoot = AppPaths.posterBoardFetchRoot
++                } else {
++                    log("UNSAFE OVERRIDE ACTIVE: no native snapshot; using synthetic iOS 27 restore")
++                    backupRoot = try unprotectedIOS27Restore(udid: udid)
++                }
+             } else {
+                 log("Manifest format: sqlite (iOS 27+ path), protective backup pulled")
+                 backupRoot = try await protectiveBackup(udid: udid)
+@@ -812,7 +825,9 @@
+                     throw GoldenNuggetError("Siri AI overrides require a confirmed unencrypted protective backup. Disable local backup encryption in Finder/iTunes and retry.")
+                 }
+             }
+-            prune = !unsafeSkipBackup
++            prune = !unsafeSkipBackup ||
++                (unsafeSkipBackup && backupRoot.standardizedFileURL ==
++                    AppPaths.posterBoardFetchRoot.standardizedFileURL)
+             // Media over AFC, after the backup and before the prune: the backup
+             // filter rejects the media domains, so this is the only thing that
+             // collects them, and doing it here means an apply is the one action
+@@ -843,7 +858,8 @@
+             backupRoot: backupRoot,
+             udid: udid,
+             tweakPayloads: payloads,
+-            posterBoardSnapshot: posterBoardSnapshot,
++            posterBoardSnapshot: (unsafeSkipBackup && backupRoot.standardizedFileURL ==
++                AppPaths.posterBoardFetchRoot.standardizedFileURL) ? nil : posterBoardSnapshot,
+             prune: prune,
+             ios27: ios27
+         )
+--- a/Nugget/Views/GoldenNuggetView.swift
++++ b/Nugget/Views/GoldenNuggetView.swift
+@@ -286,15 +286,18 @@
+         } message: {
+             Text("Reboot the target device so the injected preferences take effect.")
+         }
+-        .confirmationDialog("배경화면 적용은 현재 사용할 수 없습니다", isPresented: $showBackupBypassConflict,
++        .confirmationDialog("배경화면 적용 방식 선택", isPresented: $showBackupBypassConflict,
+                             titleVisibility: .visible) {
++            Button("기기 DB 가져와 배경화면 포함 적용 시도 (실험적)") {
++                prepareApply(excludingPosterBoard: false)
++            }
+             Button("배경화면 제외하고 다른 설정만 적용") {
+                 prepareApply(excludingPosterBoard: true)
+             }
+             .disabled(!hasOtherWorkForBackupBypass)
+             Button("취소", role: .cancel) {}
+         } message: {
+-            Text("iOS 27.2에서 백업 생략을 사용하면 PosterBoard 데이터베이스를 가져올 수 없습니다. 배경화면과 관련 템플릿은 선택 상태로 유지됩니다. 다른 설정만 적용해도 실험적 복원은 기기 데이터 손실 위험이 있습니다.")
++            Text("전체 보호 백업 대신 배경화면 데이터베이스만 기기에서 선택적으로 가져와 적용을 시도할 수 있습니다. iOS 27.2 실기기 복원 결과는 검증되지 않았으며 데이터 손실이나 부팅 오류가 발생할 수 있습니다. 배경화면만 제외하는 선택지도 있습니다.")
+         }
+         .sheet(isPresented: $showResetSheet) {
+             ResetPagesSheet(deviceVersion: identity.version,
+@@ -888,7 +891,7 @@
+     private var applyNote: String {
+         var lines = [String(localized: "One pass: every enabled tweak, plus the wallpapers and templates picked on their own pages. Reboot the device afterwards — the injected preferences are read at boot.")]
+         if DevSettings.effective.skipProtectiveBackup && bypassRequiresSnapshot {
+-            lines.append("⚠️ 백업 생략 모드에서는 iOS 27.2 배경화면 및 PosterKit 적용이 불가능합니다. 적용 버튼을 누르면 다른 설정만 적용할지 선택할 수 있습니다.")
++            lines.append("⚠️ iOS 27.2 백업 생략 모드: 배경화면 DB만 읽는 실험적 경로를 선택하거나, 해당 변경을 제외하고 다른 설정만 적용할 수 있습니다.")
+         }
+         if posterBoardSelection.fullReset || !posterBoardSelection.resetModes.isEmpty {
+             lines.append(String(localized: "⚠️ A PosterBoard reset is armed (\(posterBoardSelection.describe)). A reset run clears the store and installs no wallpapers, so with wallpapers selected as well Apply refuses until one of the two is turned off."))
