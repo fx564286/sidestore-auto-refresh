@@ -24,7 +24,7 @@ class V24RegistrationGate(unittest.TestCase):
         self.assertIn('InstalledApp.fetchAppsForRefreshingAll(in: context)',AGENT)
         self.assertIn('Bundle.Info.activeBundleIdentifier',AGENT)
         self.assertIn('$0.resignedBundleIdentifier == realHostID',AGENT)
-        self.assertIn('ScarletInstallTeamAuthority.matchingCertificate(',AGENT)
+        self.assertIn('.matchingCertificate(for: currentTeamID) != nil',AGENT)
         self.assertIn('ready_selected_team',AGENT)
         self.assertIn('no_managed_apps',AGENT)
         self.assertIn('selected_team_certificate_missing',AGENT)

@@ -53,7 +53,11 @@ class TeamAandB(unittest.TestCase):
         self.assertIn('ScarletInstallTeamAuthority.issue(teamID:',VAULT)
         self.assertNotIn('certificateData',LOGIN)
     def test_refresh_scoped_to_native_installedapp_team_not_other_account_host(self):
-        self.assertIn('$0.team?.identifier == selectedTeam.identifier',REFRESH)
+        self.assertIn('$0.team?.identifier == selectedTeamID',REFRESH)
+        self.assertIn('let currentTeamID = (await ScarletInstallTeamAuthority.activeTeam())?.identifier',REFRESH)
+        self.assertIn('signingReady = await ScarletInstallTeamAuthority',REFRESH)
+        self.assertIn('.matchingCertificate(for: currentTeamID) != nil',REFRESH)
+        self.assertNotIn('let signingReady = currentTeam.flatMap {',REFRESH)
         self.assertIn('let managedHost = targets.first',REFRESH)
         self.assertIn('if let managedHost {',REFRESH)
         self.assertIn('native_selected_team_refresh_returned_install_unverified',REFRESH)

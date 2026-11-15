@@ -10,12 +10,14 @@ final class ScarletGuestRefreshAgent: NSObject {
                 // installed host record; this is not a fake copy of a DB.
                 try await DatabaseManager.shared.start()
                 let context = DatabaseManager.shared.persistentContainer.newBackgroundContext()
-                let currentTeam = await ScarletInstallTeamAuthority.activeTeam()
+                // Move an immutable, Sendable Team ID across CoreData's
+                // background closure; the ALTTeam is not a Sendable value.
+                let currentTeamID = (await ScarletInstallTeamAuthority.activeTeam())?.identifier
                 let targets = await context.perform {
                     InstalledApp.fetchAppsForRefreshingAll(in: context)
                         .filter {
-                            $0.team?.identifier == currentTeam?.identifier ||
-                            (currentTeam?.identifier == "P8EZT3U5N4" &&
+                            $0.team?.identifier == currentTeamID ||
+                            (currentTeamID == "P8EZT3U5N4" &&
                              $0.resignedBundleIdentifier == Bundle.Info.activeBundleIdentifier &&
                              $0.team == nil)
                         }
@@ -27,9 +29,15 @@ final class ScarletGuestRefreshAgent: NSObject {
                 let managesHost = targets.contains {
                     $0.resignedBundleIdentifier == realHostID
                 }
-                let signingReady = currentTeam.flatMap {
-                    ScarletInstallTeamAuthority.matchingCertificate(for: $0.identifier)
-                } != nil
+                let signingReady: Bool
+                if let currentTeamID {
+                    // CertificateManager and its local P12 store live on the
+                    // main actor, not this synchronous Optional.flatMap body.
+                    signingReady = await ScarletInstallTeamAuthority
+                        .matchingCertificate(for: currentTeamID) != nil
+                } else {
+                    signingReady = false
+                }
                 let reason: String
                 if targets.isEmpty {
                     reason = "no_managed_apps_for_selected_team"
@@ -330,7 +338,7 @@ extension ScarletGuestRefreshAgent {
                 try await DatabaseManager.shared.start()
                 let context = DatabaseManager.shared.persistentContainer.newBackgroundContext()
                 stage = "team"
-                guard let selectedTeam = await ScarletInstallTeamAuthority.activeTeam() else {
+                guard let selectedTeamID = (await ScarletInstallTeamAuthority.activeTeam())?.identifier else {
                     reply(false, "sidestore_auth_missing"); return
                 }
                 // Native SideStore keeps each InstalledApp associated with the
@@ -339,8 +347,8 @@ extension ScarletGuestRefreshAgent {
                 let targets = await context.perform {
                     InstalledApp.fetchAppsForRefreshingAll(in: context)
                         .filter {
-                            $0.team?.identifier == selectedTeam.identifier ||
-                            (selectedTeam.identifier == "P8EZT3U5N4" &&
+                            $0.team?.identifier == selectedTeamID ||
+                            (selectedTeamID == "P8EZT3U5N4" &&
                              $0.resignedBundleIdentifier == Bundle.Info.activeBundleIdentifier &&
                              $0.team == nil)
                         }
@@ -356,7 +364,7 @@ extension ScarletGuestRefreshAgent {
                     (managedHost?.refreshedDate, managedHost?.expirationDate)
                 }
                 let teamState = await ScarletInstallTeamAuthority.prepare(
-                    teamID: selectedTeam.identifier)
+                    teamID: selectedTeamID)
                 guard teamState == "ready" else {
                     reply(false, teamState); return
                 }
