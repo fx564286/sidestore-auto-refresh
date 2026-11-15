@@ -197,11 +197,22 @@ extension ScarletDeviceInstallAgent {
     @objc(listManagedSlots:)
     static func listManagedSlots(_ reply: @escaping (String, String) -> Void) {
         Task { @MainActor in
+            // Listing must reflect one authenticated Apple Team and must not
+            // expose another account's managed apps during a team switch.
+            guard await ScarletTeamOperationGate.shared.claim() else {
+                reply("[]", "team_operation_in_progress"); return
+            }
+            defer { Task { await ScarletTeamOperationGate.shared.release() } }
+            guard let selectedTeamID = (await ScarletInstallTeamAuthority.activeTeam())?.identifier else {
+                reply("[]", "sidestore_auth_missing"); return
+            }
             do {
                 try await DatabaseManager.shared.start()
                 let context = DatabaseManager.shared.viewContext
                 let hostBundle = Bundle.Info.activeBundleIdentifier
-                let apps = InstalledApp.all(in: context)
+                let apps = InstalledApp.all(in: context).filter {
+                    $0.team?.identifier == selectedTeamID
+                }
                 let rows = apps.map { app in
                     let protected = app.resignedBundleIdentifier == hostBundle ||
                         app.bundleIdentifier == StoreApp.altstoreAppID
@@ -236,6 +247,15 @@ extension ScarletDeviceInstallAgent {
                 reply(false, "operation_in_progress"); return
             }
             defer { Task { await ScarletSlotOperationGate.shared.release() } }
+            // Use the same gate as account switching, IPA install and refresh:
+            // otherwise a user's team could change between lookup and action.
+            guard await ScarletTeamOperationGate.shared.claim() else {
+                reply(false, "team_operation_in_progress"); return
+            }
+            defer { Task { await ScarletTeamOperationGate.shared.release() } }
+            guard let selectedTeamID = (await ScarletInstallTeamAuthority.activeTeam())?.identifier else {
+                reply(false, "sidestore_auth_missing"); return
+            }
             do {
                 try await DatabaseManager.shared.start()
                 let context = DatabaseManager.shared.viewContext
@@ -244,6 +264,11 @@ extension ScarletDeviceInstallAgent {
                 }
                 guard matches.count == 1, let app = matches.first else {
                     reply(false, "app_not_managed"); return
+                }
+                // Fail closed if a stale UI row or forged bundleID refers to
+                // another Apple ID's team; no cross-team AppManager calls.
+                guard app.team?.identifier == selectedTeamID else {
+                    reply(false, "selected_team_app_mismatch"); return
                 }
                 // Never unload the resident Scarlet host or upstream self app.
                 guard app.resignedBundleIdentifier != Bundle.Info.activeBundleIdentifier,
