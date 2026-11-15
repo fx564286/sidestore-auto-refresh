@@ -48,7 +48,7 @@ jobs:
           e=Path("Nugget/Core/GoldenNuggetEngine.swift").read_text()
           assert "var skipProtectiveBackup = false" in s
           assert "UNSAFE OVERRIDE ACTIVE" in e
-          assert "Backup bypass cannot fetch it." in e
+          assert "홈에서 다른 설정만 적용하거나" in e
           assert e.count("try unprotectedIOS27Restore(udid: udid)") == 2
           assert "case .posterBoard: return String(localized:" in Path("Nugget/Views/TweaksView.swift").read_text()
           ui=Path("Nugget/Views/GoldenNuggetView.swift").read_text()
