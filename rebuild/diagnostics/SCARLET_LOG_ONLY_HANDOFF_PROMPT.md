@@ -528,3 +528,10 @@ L051=R6P15 저장된 RSD 연결의 제한적 재검사다. 과거 항목에 `dev
 - 기존 호스트의 서명팀 P8EZT3U5N4는 iOS entitlement/App Group을 증명하는 주체이지 Apple ID B의 일반 앱 설치팀이 아님. 이 두 개념을 섞어서 B 설치를 막지 말 것. 대신 B로 A의 이미 설치된 Scarlet 자체를 재서명하는 것도 금지. 앱 갱신은 원본 InstalledApp.team과 현재 선택 팀의 교집합만 사용.
 - `ScarletInstallTeamAuthority`의 X.509 subject Organizational Unit 정확히 일치 검사, 만료확인, 기존 P12 보존, 선택 팀 readback, TeamOperationGate 직렬화를 유지. 인증서/OTP/Apple 암호/개인키는 XPC 응답/로그로 보내지 않음.
 - 상세 파일·함수 diff는 L116 기록, 재현 로그 원인과 범위 및 서명된 실기기 수락 조건은 `rebuild/reports/SCARLET_P68_TWO_ACCOUNT_INSTALL_TEAM_20261115.md`. P67 UI 상단/상태표시줄 미해결을 P68 인증 작업의 성공으로 표기 금지. 별도 실제 iPhone A/B 설치 테스트 필요.
+
+## P69 / L118 — 중복 기능/상태 라벨 제거, 실제 동작 유지
+
+- Signed P68 session cb9cabf6 shows login/pairing restore, `native_provider_failed` code0 and fallback `native_provider_same_certificate`; refresh deferred, `status_hidden=true`, A/B actual IPA install unproven. The previously exported log's NEXT ENGINEERING ACTION block was generated before P68 native CI passed; treat current CI independently.
+- P69 modifies **visible SwiftUI labels only** (and unique 3.8.69 native CI release routing). Settings removes independent signer-ready caption, automatic-refresh count/registration rows and redundant signer-ready line; only shows `최근 갱신` following a real attempt and one failure message. Keeps manual refresh, certificate issue/import, pairing, original settings and stored-account selection XPC untouched. Removes false P68 slot warning; account picker only warns when P12 missing.
+- Source commit `4b1808a75a363654d84060d528b559f2114bd3e9`. All 16 changed source paths/byte-for-byte before and after are recorded as L118 code_locations. Local 758 Python tests (755 passed,3 skipped), YAML parse passed. Real P69 iPhone and native Xcode are not yet evidenced in this record.
+- Important: **do not** reintroduce deleted passive status labels to satisfy old source-string tests. Maintain one owner for every action and keep runtime failures in one visible place, full JSONL diagnostics. Do not treat `certificate code0` or `status_hidden` as fixed by this UI change.
