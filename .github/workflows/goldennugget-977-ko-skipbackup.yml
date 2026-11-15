@@ -31,7 +31,7 @@ jobs:
         run: |
           set -euo pipefail
           cd "$RUNNER_TEMP/gn"
-          for p in mb105.patch tweak-ui-localize.patch ios27-skip-protective.patch; do
+          for p in mb105.patch tweak-ui-localize.patch ios27-skip-protective.patch ios27-977-compat.patch; do
             git apply --check "$GITHUB_WORKSPACE/tools/goldennugget/$p"
             git apply "$GITHUB_WORKSPACE/tools/goldennugget/$p"
           done
@@ -50,6 +50,7 @@ jobs:
           assert "UNSAFE OVERRIDE ACTIVE" in e
           assert "Backup bypass cannot fetch it." in e
           assert e.count("try unprotectedIOS27Restore(udid: udid)") == 2
+          assert "case .posterBoard: return String(localized:" in Path("Nugget/Views/TweaksView.swift").read_text()
           print("PASS: 9.7.7 source, experimental skip opt-in only; PosterBoard still requires native fetch")
           PY
 
