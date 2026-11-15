@@ -38004,6 +38004,211 @@
           "function": "ScarletDeviceInstallAgent.listManagedSlots / setManagedSlot"
         }
       ]
+    },
+    {
+      "id": "L125",
+      "date": "2026-11-15",
+      "version": "Scarlet-V48-R6P76-Safe-Native-Content-Origin",
+      "problem": "guest_top",
+      "mechanism": "after_verified_native_header_single_scroll_top_content_origin_compensated_offset",
+      "novelty": {
+        "prior_excluded_ids": [
+          "L063",
+          "L071",
+          "L072",
+          "L073",
+          "L102",
+          "L105",
+          "L106",
+          "L113",
+          "L123"
+        ],
+        "causal_difference": "Earlier P28/P29 touched an unproved pre-header scroll inset; P60/P62/P65 shifted an entire viewport frame, rolled back on iPhone P75 even after header retention. P76 runs only AFTER the P54 second retained native header proof and P60 body rollback, identifies the actual six residual unsafe controls at y50 and one common full-screen scroll, applies a measured synchronized native inset/offset delta to content origin without changing viewport or scene, then reverts unless two complete visual/control scans pass. P74 also releases icons for stronger two complete ZERO-risk post-header reads, not only near-boundary reads.",
+        "falsifiable_prediction": "On P75 guest PID1226 with safeTop62 and six controls near y50, P76 raises first visible control to >=60, zero controls and severe media under native status band in two scans; native host status_hidden becomes false on P76 after verified P74 two pass; scroll access/size and contentSize unaffected. If any invariant fails only sc content inset offset restores and P74 shield stays, unlike P65 repeated full viewport relayout.",
+        "new_device_evidence": {
+          "source_commit": "d551e0996dfbea0985f2948c598d889518c30629",
+          "event": "guest_owner_content_reflow_reverted/guest_post_header_statusband_probe",
+          "observed_value": "2026-11-15 P75 signed CURRENT RUN 30b0a2ea PID1226 original native header 8->1; content reflow reverted; 2600ms 6 unsafe controls at y50, P74 2850/3550 near6 severe2 firstNearY50 scan_complete true, status_hidden true"
+        },
+        "why_prior_fix_failed": "Original P60/P65 viewport moving changed full native scrolling viewport geometry and was reverted by real nested guest layout or failed zero-risk gates; P75 demonstrates native header retained but actual content origin is still y50, so a direct measured scroll-content origin correction after header proof tests a different cause without moving frame."
+      },
+      "hypothesis": "Residual scroll-owned content can stay above native safe guide after verified header layout and previous viewport attempts were undone.",
+      "action": "P76 unique measured content owner applied equal positive contentInset.top + negative contentOffset.y delta after header readback, verified zero unsafe controls and severe content twice, restored on fail. Host P74 safe zero-risk two-stage release allowed.",
+      "observation": "P75 signed real phone P60 full-viewport body reverted; 6 scroll controls y50, severe2, safeTop62, native statusbar hidden; local regression tests 785 total, 782 pass 3 skipped; P76 signed iPhone effect not verified.",
+      "evidence": "User uploaded P75 diagnostic 2026-11-15 09:38:19Z SourceCommit d551e0996dfb, current session 30b0a2ea; source GitHub commit 85a4067a16bdadf963d337b7eb7a40a1718fa5be",
+      "status": "source_committed_782_tests_pass_3_skipped_native_ci_pending",
+      "source_verification": "git_patch_observed",
+      "device_verification": "not_verified",
+      "next_executable_action": "Verify GitHub Xcode27.2 native build, release IPA SHA, sign same iPhone without deleting data; P76 statusband two complete scans and actual native status restored; signed Apple A/B team refresh count and true AppManager readback. If P76 body rollback, change causal route rather than repeating P60/P65.",
+      "rollback_commit": "d551e0996dfbea0985f2948c598d889518c30629",
+      "repeat_policy": "no_repeated_global_safearea_or_full_viewport_shift_and_no_cross_team_host_registration",
+      "source_revisions": [
+        {
+          "sha": "85a4067a16bdadf963d337b7eb7a40a1718fa5be",
+          "title": "fix(r6p76): target proven residual guest scroll content, restore status icons and native host discovery",
+          "url": "https://github.com/fx564286/sidestore-auto-refresh/commit/85a4067a16bdadf963d337b7eb7a40a1718fa5be"
+        }
+      ],
+      "code_locations": [
+        {
+          "file": ".github/workflows/scarlet-paired-engines-build.yml",
+          "commit": "85a4067a16bdadf963d337b7eb7a40a1718fa5be",
+          "function": "P76 Xcode and signed IPA release integration",
+          "location": "@@ -4,3 +4,3 @@ on:",
+          "before": [
+            "branches: [...r6p75]"
+          ],
+          "after": [
+            "branches: [...r6p75, r6p76]"
+          ]
+        },
+        {
+          "file": "rebuild/integration/ScarletGuestIslandContentGuard.m.txt",
+          "commit": "85a4067a16bdadf963d337b7eb7a40a1718fa5be",
+          "function": "ScarletIslandP76TryPostHeaderContentOrigin native UIKit measured single scroll owner",
+          "location": "@@ -3750,0 +3751,196 @@",
+          "before": [
+            "// R6P54_OWNER_LAYOUT_CONTRACT_BEGIN"
+          ],
+          "after": [
+            "// R6P76_POST_HEADER_SCOPED_SCROLL_CONTENT_ORIGIN_BEGIN",
+            "scroll.contentInset=applied;",
+            "scroll.contentOffset=CGPointMake(originalOffset.x,originalOffset.y-shift);"
+          ]
+        },
+        {
+          "file": "rebuild/HostApp/ScarletFullscreenSceneStack.swift",
+          "commit": "85a4067a16bdadf963d337b7eb7a40a1718fa5be",
+          "function": "P74+P76 two safe statusband complete proof",
+          "location": "@@ -420,3 +420,9 @@ acceptVerifiedPostHeaderStatusband",
+          "before": [
+            "let valid = headerVerified && complete && severe == 0 && near > 0 &&"
+          ],
+          "after": [
+            "let noNear = near == 0",
+            "let nearBoundary = near > 0 &&",
+            "(noNear || nearBoundary)"
+          ]
+        },
+        {
+          "file": "rebuild/Tests/test_v48_r6p76_postheader_native_content.py",
+          "commit": "85a4067a16bdadf963d337b7eb7a40a1718fa5be",
+          "function": "P76 end-to-end static/source regression contracts",
+          "location": "@@ -0,0 +1,71 @@",
+          "before": [],
+          "after": [
+            "class PostHeaderContentOrigin(unittest.TestCase):",
+            "def test_measured_post_header_cohort_only(self):",
+            "def test_same_native_content_inset_and_offset_delta(self):"
+          ]
+        }
+      ],
+      "generated_runtime_targets": [
+        {
+          "source_template": "rebuild/integration/ScarletGuestIslandContentGuard.m.txt",
+          "generated_file": "LiveContainer/Tweaks/ScarletGuestIslandContentGuard.m",
+          "source_generation_script": "rebuild/integration/apply_scarlet_host.py",
+          "function": "ScarletIslandP76TryPostHeaderContentOrigin"
+        }
+      ]
+    },
+    {
+      "id": "L126",
+      "date": "2026-11-15",
+      "version": "Scarlet-V48-R6P76-Code-Module-Signed-Host-Bootstrap",
+      "problem": "side_store_managed_scarlet_host_missing_after_external_signed_install",
+      "mechanism": "class_code_bundle_verified_liveprocess_host_discovery_with_team_preserving_bootstrap",
+      "novelty": {
+        "prior_excluded_ids": [
+          "L116",
+          "L121",
+          "L122",
+          "L124"
+        ],
+        "causal_difference": "P73 already creates a real native SideStore managed record, but resolves installed host only from ProcessInfo.processInfo.arguments.first, which is not guaranteed to be the executable of the currently loaded LiveProcess under virtual guest bundle swapping. P76 adds a separate signed code-module Bundle(for: ScarletGuestRefreshAgent.self) traversal constrained to the actual LiveProcess.appex/PlugIns/host.app hierarchy and retains all existing profile/team/cert validations; safe host-bootstrap failure reasons now survive XPC so a selected team B cannot be misidentified as a broken team A host.",
+        "falsifiable_prediction": "Under a launched embedded SideStore whose argv[0] is not LiveProcess.appex, verified side-store support module path resolves actual signed host .app. Selected signing team A can register installed host in original InstalledApp DB and refresh count increases from 0 when a usable signer and cache are present; selected B never registers/resigns A host and receives precise team mismatch. A missing genuine module or profile returns safe category, no phantom success."
+      },
+      "hypothesis": "The host .app discovery from argv[0] can be invalid while the SideStoreSupport native code bundle still resolves the actual LiveProcess.appex.",
+      "action": "P76 registered host from strictly verified actual class code bundle LiveProcess.appex ancestry; retained Apple profile-team, cert and CoreData protections; native readiness XPC safely distinguishes exact failures and team B mismatch.",
+      "observation": "P75 signed phone `automatic_managed_apps_inspected count=0` despite RSD restored; P73 original bootstrap uses only argv0 and hides distinct failed identity categories; local regression tests 785 total, 782 pass 3 skipped; P76 signed iPhone effect not verified.",
+      "evidence": "User uploaded P75 diagnostic 2026-11-15 09:38:19Z SourceCommit d551e0996dfb, current session 30b0a2ea; source GitHub commit 85a4067a16bdadf963d337b7eb7a40a1718fa5be",
+      "status": "source_committed_782_tests_pass_3_skipped_native_ci_pending",
+      "source_verification": "git_patch_observed",
+      "device_verification": "not_verified",
+      "next_executable_action": "Verify GitHub Xcode27.2 native build, release IPA SHA, sign same iPhone without deleting data; P76 statusband two complete scans and actual native status restored; signed Apple A/B team refresh count and true AppManager readback. If P76 body rollback, change causal route rather than repeating P60/P65.",
+      "rollback_commit": "d551e0996dfbea0985f2948c598d889518c30629",
+      "repeat_policy": "no_repeated_global_safearea_or_full_viewport_shift_and_no_cross_team_host_registration",
+      "source_revisions": [
+        {
+          "sha": "85a4067a16bdadf963d337b7eb7a40a1718fa5be",
+          "title": "fix(r6p76): target proven residual guest scroll content, restore status icons and native host discovery",
+          "url": "https://github.com/fx564286/sidestore-auto-refresh/commit/85a4067a16bdadf963d337b7eb7a40a1718fa5be"
+        }
+      ],
+      "code_locations": [
+        {
+          "file": "rebuild/integration/ScarletGuestRefreshAgent.swift.txt",
+          "commit": "85a4067a16bdadf963d337b7eb7a40a1718fa5be",
+          "function": "ScarletGuestHostManagedBootstrap verified original class-module .appex ancestry",
+          "location": "@@ -22,24 +22,52 @@ private actor ScarletGuestHostManagedBootstrap",
+          "before": [
+            "let extensionURL = URL(fileURLWithPath: executable)",
+            "guard extensionURL.lastPathComponent == \"LiveProcess.appex\""
+          ],
+          "after": [
+            "private func verifiedHostBundleURL() -> URL? {",
+            "let codeBundle = Bundle(for: ScarletGuestRefreshAgent.self)",
+            "guard let hostURL = verifiedHostBundleURL() else {"
+          ]
+        },
+        {
+          "file": "rebuild/HostApp/ScarletAuthXPCSupport.swift",
+          "commit": "85a4067a16bdadf963d337b7eb7a40a1718fa5be",
+          "function": "ScarletRefreshReadiness XPC categorical reason binding",
+          "location": "@@ -347,1 +347,7 @@",
+          "before": [
+            "\"host_registration_failed\","
+          ],
+          "after": [
+            "\"host_registration_failed\", \"host_bundle_path_unavailable\",",
+            "\"host_selected_team_mismatch\","
+          ]
+        },
+        {
+          "file": "rebuild/HostApp/ScarletAutomaticRenewal.swift",
+          "commit": "85a4067a16bdadf963d337b7eb7a40a1718fa5be",
+          "function": "ScarletRefreshFailureDiagnosis recognized native host registration branch",
+          "location": "@@ -49,2 +49,14 @@",
+          "before": [
+            "case \"host_registration_failed\":"
+          ],
+          "after": [
+            "case \"host_registration_failed\", \"host_payload_cache_unavailable\",",
+            "case \"host_selected_team_mismatch\":"
+          ]
+        },
+        {
+          "file": "rebuild/Tests/test_v48_r6p73_original_sidestore_host_registration.py",
+          "commit": "85a4067a16bdadf963d337b7eb7a40a1718fa5be",
+          "function": "P73 signed class-bound-host test updated to exact safe code route",
+          "location": "@@ -11,3 +11,5 @@",
+          "before": [
+            "extensionURL.lastPathComponent == \"LiveProcess.appex\""
+          ],
+          "after": [
+            "directory.lastPathComponent == \"LiveProcess.appex\"",
+            "Bundle(for: ScarletGuestRefreshAgent.self)"
+          ]
+        }
+      ],
+      "generated_runtime_targets": [
+        {
+          "source_template": "rebuild/integration/ScarletGuestRefreshAgent.swift.txt",
+          "generated_file": "SideStore/Core/Auth/AuthManager.swift",
+          "source_generation_script": "rebuild/integration/wire_scarlet_auth.py",
+          "function": "ScarletGuestHostManagedBootstrap.verifiedHostBundleURL"
+        }
+      ]
     }
   ],
   "gate": {
