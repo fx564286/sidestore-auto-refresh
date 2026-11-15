@@ -1,0 +1,209 @@
+diff --git a/Nugget/Views/GoldenNuggetView.swift b/Nugget/Views/GoldenNuggetView.swift
+--- a/Nugget/Views/GoldenNuggetView.swift
++++ b/Nugget/Views/GoldenNuggetView.swift
+@@ -110,6 +110,10 @@
+     /// through a summary the user confirms, and only then opens the device.
+     @State private var applyPreview: ApplyPreview?
+     @State private var showApplyConfirm = false
++    /// The bypass cannot load PosterBoard's device-owned database. Offer a
++    /// separate, explicit apply plan rather than failing the whole action.
++    @State private var showBackupBypassConflict = false
++    @State private var excludePosterBoardForNextApply = false
+     /// The pages the reset sheet has open, and whether a reset is in flight.
+     ///
+     /// Separate from `running`, which is the *apply* run: the two never overlap
+@@ -282,6 +286,16 @@
+         } message: {
+             Text("Reboot the target device so the injected preferences take effect.")
+         }
++        .confirmationDialog("배경화면 적용은 현재 사용할 수 없습니다", isPresented: $showBackupBypassConflict,
++                            titleVisibility: .visible) {
++            Button("배경화면 제외하고 다른 설정만 적용") {
++                prepareApply(excludingPosterBoard: true)
++            }
++            .disabled(!hasOtherWorkForBackupBypass)
++            Button("취소", role: .cancel) {}
++        } message: {
++            Text("iOS 27.2에서 백업 생략을 사용하면 PosterBoard 데이터베이스를 가져올 수 없습니다. 배경화면과 관련 템플릿은 선택 상태로 유지됩니다. 다른 설정만 적용해도 실험적 복원은 기기 데이터 손실 위험이 있습니다.")
++        }
+         .sheet(isPresented: $showResetSheet) {
+             ResetPagesSheet(deviceVersion: identity.version,
+                             isRunning: resetting,
+@@ -475,14 +489,14 @@
+     private var mediaCard: some View {
+         Section("Media") {
+             if let totals = mediaTotals, totals.files > 0 {
+-                Text("\(totals.files) photo(s) and video(s) — \(ByteCountFormatter.string(fromByteCount: totals.bytes, countStyle: .file)) kept in the app")
++                Text("앱에 보관된 사진·동영상 \(totals.files)개 · \(ByteCountFormatter.string(fromByteCount: totals.bytes, countStyle: .file))")
+                     .font(.subheadline)
+             } else {
+                 Text("No photos or videos copied yet")
+                     .font(.subheadline)
+                     .foregroundStyle(.secondary)
+             }
+-            NativePrimaryButton(title: restoringMedia ? "Restoring…" : "Restore media",
++            NativePrimaryButton(title: restoringMedia ? "미디어 복원 중…" : "미디어 복원",
+                                 systemImage: "arrow.uturn.backward.circle",
+                                 running: restoringMedia,
+                                 disabled: !canRestoreMedia) {
+@@ -852,8 +866,30 @@
+     /// content is one button.  The warnings stayed: a run that will refuse, or
+     /// that will drop part of the selection, is something to read *before* the
+     /// tap, not in the failure afterwards.
++    private var bypassRequiresSnapshot: Bool {
++        posterBoardSelection.isActive ||
++        templateSelection.templates.contains { $0.isPosterBoard && !$0.requiresSparserestore } ||
++        (TweakCatalog.byID["PosterKitOverrides"].map { tweakSelection.isOn($0) } ?? false)
++    }
++
++    /// Exclude only wallpaper-dependent inputs; everything stays selected for a
++    /// later run and nothing is discarded silently.
++    private var hasOtherWorkForBackupBypass: Bool {
++        let otherTweaks = TweakCatalog.all.contains {
++            $0.id != "PosterKitOverrides" && tweakSelection.isOn($0)
++        }
++        return otherTweaks || tweakSelection.daemonModificationsEnabled ||
++            !hotload.currentPolicy.forcedDaemonKeys.isEmpty ||
++            statusBarSelection.isActive || SkipSetupSettings.shared.skipSetupEnabled ||
++            templateSelection.templates.contains { !$0.isPosterBoard && !$0.requiresSparserestore } ||
++            !community.templates.isEmpty
++    }
++
+     private var applyNote: String {
+         var lines = [String(localized: "One pass: every enabled tweak, plus the wallpapers and templates picked on their own pages. Reboot the device afterwards — the injected preferences are read at boot.")]
++        if DevSettings.effective.skipProtectiveBackup && bypassRequiresSnapshot {
++            lines.append("⚠️ 백업 생략 모드에서는 iOS 27.2 배경화면 및 PosterKit 적용이 불가능합니다. 적용 버튼을 누르면 다른 설정만 적용할지 선택할 수 있습니다.")
++        }
+         if posterBoardSelection.fullReset || !posterBoardSelection.resetModes.isEmpty {
+             lines.append(String(localized: "⚠️ A PosterBoard reset is armed (\(posterBoardSelection.describe)). A reset run clears the store and installs no wallpapers, so with wallpapers selected as well Apply refuses until one of the two is turned off."))
+         }
+@@ -1130,22 +1166,41 @@
+     }
+ 
+     private func applyTweaks() {
+-        // The reference confirms before it restores: build the plan the engine
+-        // would run (the same compile, so it cannot drift), then show the
+-        // summary.  A status-bar payload that cannot be built fails here, before
+-        // a confirmation the apply would then refuse.
++        // Resolve the incompatible selection *before* opening the confirmation
++        // sheet, rather than discovering it after touching a real device.
++        if DevSettings.effective.skipProtectiveBackup && bypassRequiresSnapshot {
++            showBackupBypassConflict = true
++            return
++        }
++        prepareApply(excludingPosterBoard: false)
++    }
++
++    private func prepareApply(excludingPosterBoard: Bool) {
++        guard !excludingPosterBoard || hasOtherWorkForBackupBypass else {
++            errorText = "적용 가능한 다른 설정이 없습니다. 배경화면 적용에는 기기 데이터베이스가 필요합니다."
++            return
++        }
+         do {
+             let safety = HotLoadService.shared.currentPolicy
+             var features: Set<String> = []
+-            if posterBoardSelection.isActive { features.insert("PosterBoard") }
++            if !excludingPosterBoard && posterBoardSelection.isActive { features.insert("PosterBoard") }
+             if statusBarSelection.isActive { features.insert("Status Bar") }
+-            if templateSelection.isActive { features.insert("Templates") }
++            if templateSelection.templates.contains(where: { !$0.isPosterBoard || !excludingPosterBoard }) {
++                features.insert("Templates")
++            }
+             try safety.requireAllowed(features: features)
+             let community = try CommunityTemplateStore.shared.compile(version: identity.version)
+             if !community.isEmpty { try safety.requireAllowed(features: ["Templates"]) }
+             try safety.validateCommunity(community)
++            var effectiveTweaks = tweakSelection
++            if excludingPosterBoard, let spec = TweakCatalog.byID["PosterKitOverrides"] {
++                effectiveTweaks.setOn(false, for: spec)
++            }
++            let notes = excludingPosterBoard
++                ? ["백업 생략 모드: 배경화면·PosterKit·관련 템플릿은 제외하고 다른 설정만 시도합니다. 해당 선택은 삭제되지 않습니다. 실험적 복원은 데이터 손실 위험이 있습니다."]
++                : []
+             applyPreview = try ApplyPreview.build(
+-                selection: tweakSelection,
++                selection: effectiveTweaks,
+                 statusBar: statusBarSelection,
+                 skipSetupEnabled: SkipSetupSettings.shared.skipSetupEnabled,
+                 deviceVersion: identity.version,
+@@ -1153,7 +1208,9 @@
+                 communityPayloads: community,
+                 hiddenTweakIDs: safety.hiddenTweakIDs,
+                 forcedDaemonKeys: safety.forcedDaemonKeys,
+-                safetyWarnings: safety.warnings(for: tweakSelection) + safety.warnings(forFeatures: features))
++                safetyWarnings: safety.warnings(for: effectiveTweaks) +
++                    safety.warnings(forFeatures: features) + notes)
++            excludePosterBoardForNextApply = excludingPosterBoard
+             showApplyConfirm = true
+         } catch {
+             errorText = error.localizedDescription
+@@ -1167,10 +1224,15 @@
+         runStarted = Date()
+         RunLog.shared.clear()
+         showStatus("Applying…", .accent, autoHide: false)
+-        let snapshot = tweakSelection
+-        let wallpapers = posterBoardSelection
++        let excludingPosterBoard = excludePosterBoardForNextApply
++        var snapshot = tweakSelection
++        if excludingPosterBoard, let spec = TweakCatalog.byID["PosterKitOverrides"] {
++            snapshot.setOn(false, for: spec)
++        }
++        let wallpapers = excludingPosterBoard ? PosterBoardSelection() : posterBoardSelection
+         let statusBar = statusBarSelection
+-        let templates = templateSelection
++        var templates = templateSelection
++        if excludingPosterBoard { templates.templates.removeAll { $0.isPosterBoard } }
+         let device = identity
+         Task {
+             var text = ""
+@@ -1178,6 +1240,9 @@
+             var succeeded = false
+             var recordedError = ""
+             do {
++                if excludingPosterBoard {
++                    GoldenNuggetEngine.shared.log("Backup bypass: wallpaper, PosterKit and PosterBoard templates excluded by user confirmation; selections retained")
++                }
+                 try await GoldenNuggetEngine.shared.applyTweaks(selection: snapshot,
+                                                                 posterBoard: wallpapers,
+                                                                 statusBar: statusBar,
+@@ -1216,11 +1281,12 @@
+                 runStarted = nil
+                 showStatus(text, tone)
+                 showRebootNotice = succeeded
++                excludePosterBoardForNextApply = false
+                 // The reset is spent. It is deliberately not persisted, and it must not
+                 // survive its own delivery either — the next run would clear the store
+                 // again. (The page that used to apply it did this; the Apply lives here
+                 // now, so the clearing does too.)
+-                if succeeded {
++                if succeeded && !excludingPosterBoard {
+                     posterBoardSelection.resetModes = []
+                     posterBoardSelection.fullReset = false
+                 }
+diff --git a/Nugget/Core/GoldenNuggetEngine.swift b/Nugget/Core/GoldenNuggetEngine.swift
+--- a/Nugget/Core/GoldenNuggetEngine.swift
++++ b/Nugget/Core/GoldenNuggetEngine.swift
+@@ -507,9 +507,9 @@
+                 log("PosterBoard: reset only — no database is needed, and none is fetched.")
+             } else {
+                 if DevSettings.effective.skipProtectiveBackup {
+-                    throw GoldenNuggetError("PosterBoard wallpaper edits require a native device snapshot. "
+-                        + "Backup bypass cannot fetch it. Select AirLift when supported, disable "
+-                        + "PosterBoard changes, or turn the bypass off.")
++                    throw GoldenNuggetError("iOS 27.2에서는 백업을 생략하고 PosterBoard 배경화면을 적용할 수 없습니다. "
++                        + "기기 고유 데이터베이스를 가져올 수 없으므로 해당 작업을 중단했습니다. "
++                        + "홈에서 다른 설정만 적용하거나 백업 생략을 해제하세요.")
+                 }
+                 let fetched = try await PosterBoardBackup.fetch(
+                     backupRoot: AppPaths.posterBoardFetchRoot, udid: udid,
+@@ -548,6 +548,10 @@
+         // what turns the pull into the relativePath↔file pairs `stage` walks.
+         var posterKitPayloads: [TweakPayload] = []
+         if !posterKitOptions.isEmpty {
++            if DevSettings.effective.skipProtectiveBackup {
++                throw GoldenNuggetError("PosterKit 설정은 기기 배경화면 파일을 읽어야 합니다. "
++                    + "백업 생략 모드에서는 적용할 수 없습니다.")
++            }
+             log("PosterKit: fetching current wallpaper configurations…")
+             let fetched = try await PosterBoardBackup.fetch(
+                 backupRoot: AppPaths.posterBoardFetchRoot, udid: udid,
