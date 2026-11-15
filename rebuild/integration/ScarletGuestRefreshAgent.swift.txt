@@ -23,19 +23,47 @@ private actor ScarletGuestHostManagedBootstrap {
         return result
     }
 
-    private func performRegistration() async -> String {
-        // Use the *real executable path*, not Bundle.Info.activeBundleURL:
-        // LiveContainer can virtualize Bundle.main for its guest SideStore.
-        guard let executable = ProcessInfo.processInfo.arguments.first,
-              !executable.isEmpty else { return "host_executable_unknown" }
-        let extensionURL = URL(fileURLWithPath: executable)
-            .standardizedFileURL.deletingLastPathComponent()
-        guard extensionURL.lastPathComponent == "LiveProcess.appex",
-              extensionURL.deletingLastPathComponent().lastPathComponent == "PlugIns" else {
-            return "not_scarlet_liveprocess"
+    // The original iOS executable path can be virtualized or hidden from
+    // ProcessInfo when LiveContainer swaps guest process/bundle context.
+    // Resolve ONLY the loaded real SideStoreSupport class bundle and its
+    // actual LiveProcess.appex ancestor; never trust guest Bundle.main or a
+    // user-provided path. This unlocks P73's native signed-host registration
+    // when argv[0] is not the .appex executable path.
+    private func verifiedHostBundleURL() -> URL? {
+        let codeBundle = Bundle(for: ScarletGuestRefreshAgent.self)
+        var sources = [codeBundle.bundleURL]
+        if let executableURL = codeBundle.executableURL {
+            sources.append(executableURL)
         }
-        let hostURL = extensionURL.deletingLastPathComponent()
-            .deletingLastPathComponent()
+        if let executable = ProcessInfo.processInfo.arguments.first,
+           !executable.isEmpty, executable.hasPrefix("/") {
+            sources.append(URL(fileURLWithPath: executable))
+        }
+        for source in sources {
+            var directory = source.standardizedFileURL
+            for _ in 0..<9 {
+                if directory.pathExtension == "appex" &&
+                   directory.lastPathComponent == "LiveProcess.appex" &&
+                   directory.deletingLastPathComponent().lastPathComponent == "PlugIns" {
+                    let hostURL = directory.deletingLastPathComponent()
+                        .deletingLastPathComponent().standardizedFileURL
+                    if hostURL.pathExtension == "app" &&
+                       FileManager.default.fileExists(atPath: hostURL.path) {
+                        return hostURL
+                    }
+                }
+                let parent = directory.deletingLastPathComponent()
+                if parent.path == directory.path { break }
+                directory = parent
+            }
+        }
+        return nil
+    }
+
+    private func performRegistration() async -> String {
+        guard let hostURL = verifiedHostBundleURL() else {
+            return "host_bundle_path_unavailable"
+        }
         guard hostURL.pathExtension == "app",
               let signedHost = ALTApplication(fileURL: hostURL),
               let profile = signedHost.provisioningProfile,
@@ -158,11 +186,20 @@ final class ScarletGuestRefreshAgent: NSObject {
                 }
                 let reason: String
                 if targets.isEmpty {
-                    reason = hostBootstrap == "host_payload_cache_unavailable" ||
-                        hostBootstrap == "host_registration_failed" ||
-                        hostBootstrap == "host_cached_bundle_mismatch"
-                        ? "host_registration_failed"
-                        : "no_managed_apps_for_selected_team"
+                    // A zero-target result is not sufficient to infer the
+                    // reason the native host failed to register. Preserve
+                    // the exact safe categorical result of the real P73
+                    // bootstrap, allowing the host or selected team's
+                    // login to be corrected without force-re-signing B as A.
+                    let registrationFailures: Set<String> = [
+                        "host_bundle_path_unavailable", "host_signed_bundle_unavailable",
+                        "host_identity_mismatch", "host_selected_team_mismatch",
+                        "host_selected_team_certificate_missing",
+                        "host_payload_cache_unavailable", "host_cached_bundle_mismatch",
+                        "host_team_record_missing", "host_registration_failed"
+                    ]
+                    reason = registrationFailures.contains(hostBootstrap)
+                        ? hostBootstrap : "no_managed_apps_for_selected_team"
                 } else if !signingReady {
                     reason = "selected_team_certificate_missing"
                 } else if managesHost {

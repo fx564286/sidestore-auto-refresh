@@ -10,8 +10,10 @@ class SideStoreEmbeddedHostBootstrap(unittest.TestCase):
  def test_original_db_skips_extension_but_bridge_uses_actual_executable_host(self):
   p=E.split('private actor ScarletGuestHostManagedBootstrap {',1)[1].split('// Runs inside the REAL embedded',1)[0]
   for marker in ('ProcessInfo.processInfo.arguments.first',
-                 'extensionURL.lastPathComponent == "LiveProcess.appex"',
-                 'extensionURL.deletingLastPathComponent().lastPathComponent == "PlugIns"',
+                 'Bundle(for: ScarletGuestRefreshAgent.self)',
+                 'verifiedHostBundleURL()',
+                 'directory.lastPathComponent == "LiveProcess.appex"',
+                 'directory.deletingLastPathComponent().lastPathComponent == "PlugIns"',
                  'profile.expirationDate > Date()',
                  'profile.teamIdentifier == currentTeamID',
                  'ScarletInstallTeamAuthority.matchingCertificate(',
@@ -36,7 +38,7 @@ class SideStoreEmbeddedHostBootstrap(unittest.TestCase):
   self.assertIn('AppManager.shared.backgroundRefresh(',E)
   self.assertIn('no_managed_apps_for_selected_team',E)
   self.assertIn('host_registration_failed',A)
-  self.assertIn('case "host_registration_failed":',B)
+  self.assertIn('case "host_registration_failed", "host_payload_cache_unavailable"',B)
  def test_release(self):
   for marker in ('fix/scarlet-v48-r6p73-native-managed-host-20261115',
                  '--host-build-version 3.8.73',

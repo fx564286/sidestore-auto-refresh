@@ -417,9 +417,15 @@ final class ScarletFullscreenSceneStack: NSObject, ObservableObject,
               isVisible, let activeID,
               slots.contains(where: {$0.id == activeID && $0.pid == pid}),
               nativeStatusBarUnsafePIDs.contains(pid) else { return }
-        let valid = headerVerified && complete && severe == 0 && near > 0 &&
-            (40...130).contains(safeTop) &&
+        // P76: a real post-header content-start correction can resolve ALL
+        // residual nodes. A fully scanned ZERO-risk status band is stronger
+        // proof than P74's near-boundary allowance, not a reason to stay
+        // permanently hidden. Keep the two independent samples mandatory.
+        let noNear = near == 0
+        let nearBoundary = near > 0 &&
             firstNearY >= safeTop - 9 && firstNearY <= safeTop - 2
+        let valid = headerVerified && complete && severe == 0 &&
+            (40...130).contains(safeTop) && (noNear || nearBoundary)
         if !valid {
             nativeStatusBandFirstPassPIDs.remove(pid)
             ScarletDiagnosticRecorder.shared.record(

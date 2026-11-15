@@ -46,8 +46,16 @@ enum ScarletRefreshFailureDiagnosis {
             return "현재 선택한 개발팀의 서명 인증서가 없습니다. 앱 설치의 설치팀 선택 화면에서 인증서를 준비하세요."
         case "selected_team_changed":
             return "요청 중 설치팀이 변경됐습니다. 선택한 계정을 확인하세요."
-        case "host_registration_failed":
-            return "SideStore가 설치된 Scarlet 호스트의 서명 원본을 관리 저장소에 등록하지 못했습니다. 기존 설치본은 유지됩니다."
+        case "host_registration_failed", "host_payload_cache_unavailable",
+             "host_cached_bundle_mismatch", "host_team_record_missing":
+            return "설치된 Scarlet 호스트를 SideStore 관리 저장소에 등록하지 못했습니다. 기존 설치본은 유지됩니다."
+        case "host_bundle_path_unavailable", "host_signed_bundle_unavailable",
+             "host_identity_mismatch":
+            return "서명된 Scarlet 호스트 파일을 확인하지 못했습니다. 실제 설치된 앱과 서명 상태를 확인해야 합니다."
+        case "host_selected_team_mismatch":
+            return "현재 Apple 설치팀과 Scarlet 호스트의 기존 서명팀이 다릅니다. 호스트를 다른 팀으로 재서명하지 않습니다."
+        case "host_selected_team_certificate_missing":
+            return "호스트를 서명한 Apple 팀의 인증서가 현재 SideStore에 없습니다."
         case "host_not_managed":
             return "내장 SideStore 데이터베이스에 현재 설치된 Scarlet 번들 ID가 등록되지 않았습니다. 다른 설치 프로그램의 앱은 자동으로 갱신 대상에 포함되지 않습니다."
         case "sidestore_certificate_missing":

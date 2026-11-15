@@ -3749,6 +3749,196 @@ static void ScarletIslandP65TrySettledNativeViewport(
 }
 // R6P65_SETTLED_NATIVE_INSET_COMPENSATION_END
 
+// R6P76_POST_HEADER_SCOPED_SCROLL_CONTENT_ORIGIN_BEGIN
+// P75 signed iPhone PID1226: native header retained (8 -> 1), but the
+// P60 full-height viewport trial rolled back. Six scroll-owned controls
+// remained at window y50 while native safeTop was 62; P74 full-depth
+// status-band scan independently found two severe content nodes.
+// Unlike P28/P29's pre-header guessed inset or P60/P65's frame shifts,
+// adjust only the verified top-of-content of a single native fullscreen
+// scroll AFTER the owning header's second successful layout readback.
+// Preserve viewport, contentSize, bottom reachability and UIKit scroll
+// behavior: increase native top contentInset and decrease top contentOffset
+// by the SAME measured deficit; no crop, hidden mask, transform or root move.
+// If actual UIKit readbacks fail, restore only the original scroll state.
+static char scarletIslandP76ScrollProofKey;
+static UIScrollView *ScarletIslandP76UniqueResidualScroll(
+    UIWindow *window, UIView *root, UIView *header, CGFloat top,
+    CGFloat *requiredShift, UIView **firstRisk) {
+    if(!window || !root || !header || header.window!=window ||
+       fabs(root.safeAreaInsets.top-top)>3 || top<40 || top>95) return nil;
+    NSUInteger visited=0; BOOL capped=NO;
+    NSMutableArray<UIView *> *risk=[NSMutableArray array];
+    ScarletIslandP60GatherRiskControls(root,header,window,top,0,
+                                     &visited,&capped,risk);
+    // The actual P75 cohort has six, not the 1..3 from the P65 gate.
+    if(capped || risk.count<4 || risk.count>12) return nil;
+    CGFloat firstY=CGFLOAT_MAX;
+    for(UIView *item in risk) {
+        CGRect visible=ScarletIslandVisibleFrameInWindow(item,window);
+        if(CGRectIsNull(visible) || CGRectIsEmpty(visible)) return nil;
+        CGFloat y=CGRectGetMinY(visible);
+        // Only y46..55 for a 62pt guide is eligible; no profound y0
+        // overlap can be disguised as a minor native content-start error.
+        if(y<top-20 || y>=top-7) return nil;
+        firstY=MIN(firstY,y);
+    }
+    CGFloat shift=ceil(top-firstY+2);
+    if(!isfinite(shift) || shift<9 || shift>22) return nil;
+    // Find the nearest full-height scroll ancestor COMMON to all residual
+    // buttons, skipping small horizontal carousels and unrelated views.
+    for(UIView *cursor=risk.firstObject;cursor && cursor!=root;
+        cursor=cursor.superview) {
+        if(![cursor isKindOfClass:UIScrollView.class] ||
+           !cursor.superview || cursor.superview.window!=window ||
+           !CGAffineTransformIsIdentity(cursor.transform)) continue;
+        UIScrollView *scroll=(UIScrollView *)cursor;
+        BOOL common=YES;
+        for(UIView *node in risk) {
+            if(node!=scroll && ![node isDescendantOfView:scroll]) {
+                common=NO;break;
+            }
+        }
+        if(!common || !scroll.scrollEnabled || scroll.dragging ||
+           scroll.tracking || scroll.decelerating ||
+           fabs(scroll.zoomScale-1)>0.01 ||
+           objc_getAssociatedObject(scroll,&scarletIslandP76ScrollProofKey))
+            continue;
+        CGRect frame=[scroll convertRect:scroll.bounds toView:window];
+        if(fabs(CGRectGetMinY(frame))>5 ||
+           fabs(CGRectGetMinX(frame))>12 ||
+           fabs(CGRectGetWidth(frame)-CGRectGetWidth(window.bounds))>12 ||
+           CGRectGetHeight(frame)<CGRectGetHeight(window.bounds)*0.76 ||
+           fabs(CGRectGetMaxY(frame)-CGRectGetHeight(window.bounds))>75 ||
+           !isfinite(scroll.contentSize.height) ||
+           scroll.contentSize.height<=0) continue;
+        CGFloat nativeTop=scroll.adjustedContentInset.top;
+        if(!isfinite(nativeTop) || nativeTop<0 || nativeTop>32 ||
+           fabs(nativeTop-scroll.contentInset.top)>2 ||
+           fabs(scroll.contentOffset.y+nativeTop)>3) continue;
+        // The entire content's top can be extended without dropping its
+        // original last item: UIScrollView enlarges its legal top range.
+        if(requiredShift) *requiredShift=shift;
+        if(firstRisk) *firstRisk=risk.firstObject;
+        return scroll;
+    }
+    return nil;
+}
+static void ScarletIslandP76TryPostHeaderContentOrigin(
+    UIWindow *window, UIViewController *owner, CGFloat safeTop) {
+    if(!window || !owner || !owner.isViewLoaded ||
+       window.rootViewController!=owner ||
+       window.windowScene.activationState!=UISceneActivationStateForegroundActive ||
+       !UIInterfaceOrientationIsPortrait(window.windowScene.interfaceOrientation))
+        return;
+    NSMutableDictionary *state=objc_getAssociatedObject(
+        owner,&scarletIslandP54OwnerLayoutContractKey);
+    if(!state || [state[@"disabled"] boolValue] ||
+       ![state[@"body_disabled"] boolValue] ||
+       [state[@"p76_attempted"] boolValue]) return;
+    UIView *root=owner.view;
+    UIView *header=[state[@"headers"] anyObject];
+    if(!header || header.superview!=root ||
+       fabs(CGRectGetMinY([header convertRect:header.bounds
+                        toView:window])-safeTop)>2) return;
+    CGFloat shift=0;
+    UIView *firstRisk=nil;
+    UIScrollView *scroll=ScarletIslandP76UniqueResidualScroll(
+        window,root,header,safeTop,&shift,&firstRisk);
+    if(!scroll || !firstRisk) return;
+    state[@"p76_attempted"]=@YES;
+    UIEdgeInsets originalInset=scroll.contentInset;
+    CGPoint originalOffset=scroll.contentOffset;
+    CGSize originalContent=scroll.contentSize;
+    CGRect originalFrame=scroll.frame;
+    CGRect before=[firstRisk convertRect:firstRisk.bounds toView:window];
+    UIEdgeInsets applied=originalInset;
+    applied.top+=shift;
+    objc_setAssociatedObject(scroll,&scarletIslandP76ScrollProofKey,
+                             @YES,OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+    scroll.contentInset=applied;
+    scroll.contentOffset=CGPointMake(originalOffset.x,originalOffset.y-shift);
+    __weak UIWindow *weakWindow=window;
+    __weak UIViewController *weakOwner=owner;
+    __weak UIScrollView *weakScroll=scroll;
+    __weak UIView *weakRisk=firstRisk;
+    __block void (^verify)(BOOL)=nil;
+    verify=^(BOOL late) {
+        UIWindow *w=weakWindow;
+        UIViewController *vc=weakOwner;
+        UIScrollView *sc=weakScroll;
+        UIView *item=weakRisk;
+        UIView *rt=vc.isViewLoaded ? vc.view : nil;
+        NSMutableDictionary *current=vc ? objc_getAssociatedObject(
+            vc,&scarletIslandP54OwnerLayoutContractKey) : nil;
+        BOOL ready=w && vc && sc && rt && item && current==state &&
+            ![state[@"disabled"] boolValue] &&
+            w.rootViewController==vc && item.window==w &&
+            w.windowScene.activationState==UISceneActivationStateForegroundActive &&
+            UIInterfaceOrientationIsPortrait(w.windowScene.interfaceOrientation) &&
+            !sc.tracking && !sc.dragging && !sc.decelerating &&
+            CGRectEqualToRect(sc.frame,originalFrame) &&
+            CGSizeEqualToSize(sc.contentSize,originalContent) &&
+            UIEdgeInsetsEqualToEdgeInsets(sc.contentInset,applied) &&
+            fabs(sc.adjustedContentInset.top-(originalInset.top+shift))<3 &&
+            fabs(sc.contentOffset.y-(originalOffset.y-shift))<3;
+        CGRect after=ready ? [item convertRect:item.bounds toView:w]:CGRectNull;
+        BOOL complete=NO;
+        NSUInteger remaining=ready ?
+            ScarletIslandP60FocusedUnsafe(rt,w,safeTop,&complete) : 999;
+        ScarletP74StatusbandRisk band={0};
+        band.firstNearControlY=NSIntegerMax;
+        if(ready) ScarletP74WalkStatusband(rt,w,safeTop,0,&band);
+        BOOL pass=ready && complete && !band.capped &&
+            remaining==0 && band.severeNodes==0 &&
+            !CGRectIsNull(after) &&
+            CGRectGetMinY(after)>=safeTop-2 &&
+            CGRectGetMinY(after)-CGRectGetMinY(before)>=shift-3;
+        if(!pass) {
+            if(sc) {
+                // Native scroll gestures can begin between both readbacks.
+                // Undo our delta while preserving the CURRENT visible item
+                // instead of snapping a user gesture back to the old top.
+                if(UIEdgeInsetsEqualToEdgeInsets(sc.contentInset,applied)) {
+                    CGPoint live=sc.contentOffset;
+                    sc.contentInset=originalInset;
+                    sc.contentOffset=CGPointMake(live.x,live.y+shift);
+                } else if(UIEdgeInsetsEqualToEdgeInsets(sc.contentInset,
+                                                         originalInset) &&
+                          fabs(sc.contentOffset.y-(originalOffset.y-shift))<3) {
+                    sc.contentOffset=originalOffset;
+                }
+            }
+            state[@"p76_rolled_back"]=@YES;
+            objc_setAssociatedObject(sc,&scarletIslandP76ScrollProofKey,
+                                     nil,OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+        } else if(late) {
+            state[@"p76_proven"]=@YES;
+        }
+        ScarletIslandDeepHeaderTrialReceipt(
+            pass ? (late ? @"guest_owner_content_reflow_retained" :
+                           @"guest_owner_content_reflow_first_pass") :
+                   @"guest_owner_content_reflow_reverted",
+            pass ? @"p76_post_header_content_origin_native_safe" :
+                   @"p76_native_content_origin_rollback",
+            safeTop,CGRectGetMinY(before),
+            CGRectIsNull(after) ? -999:CGRectGetMinY(after),
+            6,remaining,band.severeNodes,late&&pass);
+        if(pass && !late) {
+            dispatch_after(dispatch_time(DISPATCH_TIME_NOW,
+                (int64_t)380*NSEC_PER_MSEC),dispatch_get_main_queue(),^{
+                if(verify) verify(YES);
+            });
+        } else verify=nil;
+    };
+    // Verify before the existing P74 2850/3550ms dual status-band checks.
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW,
+        (int64_t)180*NSEC_PER_MSEC),dispatch_get_main_queue(),^{
+        if(verify) verify(NO);
+    });
+}
+// R6P76_POST_HEADER_SCOPED_SCROLL_CONTENT_ORIGIN_END
+
 // R6P54_OWNER_LAYOUT_CONTRACT_BEGIN
 // R6P55 also accepts the signed P54 child UIViewController header owner.
 // Signed P53: the parent owns a custom viewDidLayoutSubviews. Changing the
@@ -4185,6 +4375,12 @@ static BOOL ScarletIslandP54InstallNativeOwnerContract(
             safeTop,CGRectGetMinY(originalWindow),
             CGRectIsNull(topRect) ? -999:CGRectGetMinY(topRect),
             beforeControls,unsafe,images,late&&reduced);
+        if(reduced && late) {
+            // P75 signed evidence: native header is proven, but P60's
+            // full-scene viewport reflow has reverted. Try measured native
+            // scroll content-origin correction instead, with two rollbacks.
+            ScarletIslandP76TryPostHeaderContentOrigin(w,vc,safeTop);
+        }
         if(reduced && !late) {
             dispatch_after(dispatch_time(DISPATCH_TIME_NOW,
                 (int64_t)1100*NSEC_PER_MSEC),dispatch_get_main_queue(),^{
