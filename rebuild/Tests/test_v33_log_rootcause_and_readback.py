@@ -43,10 +43,10 @@ class V33LogRootCauses(unittest.TestCase):
         self.assertIn('installation_verified": "false"',AUTO)
 
     def test_auto_refresh_checks_live_pairing_not_only_saved_login(self):
-        self.assertIn('ScarletNativePairingInstaller.inspectPersistedState()',AUTO)
+        self.assertIn('ScarletNativePairingInstaller.inspectForAutomaticRefresh()',AUTO)
         self.assertIn('automatic_deferred_pairing',AUTO)
         self.assertIn('guard paired else',AUTO)
-        self.assertLess(AUTO.index('inspectPersistedState()'),
+        self.assertLess(AUTO.index('inspectForAutomaticRefresh()'),
                         AUTO.index('ScarletNativeRefreshExecutor.execute()'))
         self.assertIn('storedAuthenticationState()', AUTO)
         self.assertIn('guard authState.isAuthenticated else', AUTO)

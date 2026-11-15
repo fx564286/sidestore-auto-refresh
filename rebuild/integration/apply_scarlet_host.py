@@ -745,6 +745,13 @@ def attach_native_settings_diagnostics(engine: Path) -> dict:
     target=engine/"LiveContainerSwiftUI/Views/Settings/LCSettingsView.swift"
     assert target.is_file(), "Pinned LC settings view missing"
     source=target.read_text()
+    # P71 compile: P70 introduced public Keychain-backed account DTOs from
+    # the separately built SideStoreSupport target into LCSettingsView.
+    # Import the real module in the generated native Settings source.
+    if "import SideStoreSupport\n" not in source:
+        assert source.count("import SwiftUI\n") == 1, "Pinned SwiftUI import moved"
+        source = source.replace("import SwiftUI\n",
+                                "import SwiftUI\nimport SideStoreSupport\n", 1)
     state_anchor="struct LCSettingsView: View {\n"
     form_anchor="        NavigationView {\n            Form {\n"
     style_anchor="        .navigationViewStyle(StackNavigationViewStyle())\n"

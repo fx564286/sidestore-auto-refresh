@@ -533,7 +533,44 @@ private final class ScarletPairingCommitGate: @unchecked Sendable {
 @available(iOS 17.0, *)
 @MainActor
 public enum ScarletNativePairingInstaller {
+    // P71: P69 boot restored the original SideStore RPPairing at 06:01:24,
+    // then a redundant automatic-refresh inspection timed out at 06:01:44.
+    // Reuse only a fresh verified, in-process RSD transport result. The
+    // actual refresh worker still validates transport again before install.
+    private static var lastVerifiedAt: Date?
+    private static var inspectionTask: Task<(Bool, String), Never>?
+
+    public static func invalidateInspectionHint() {
+        lastVerifiedAt = nil
+    }
+
+    public static func inspectForAutomaticRefresh() async -> (Bool, String) {
+        if let at = lastVerifiedAt,
+           Date().timeIntervalSince(at) >= 0,
+           Date().timeIntervalSince(at) < 30 {
+            return (true, "pairing_saved_and_transport_ready")
+        }
+        return await inspectPersistedState()
+    }
+
     public static func inspectPersistedState() async -> (Bool, String) {
+        // Settings' initial state check and the foreground renewal check
+        // should not occupy the single embedded SideStore worker twice.
+        if let inspectionTask { return await inspectionTask.value }
+        let task = Task { @MainActor in await inspectFreshPersistedState() }
+        inspectionTask = task
+        let result = await task.value
+        inspectionTask = nil
+        if result.0 && result.1 == "pairing_saved_and_transport_ready" {
+            lastVerifiedAt = Date()
+        } else if result.1 != "pairing_state_read_timeout" &&
+                  result.1 != "transport_unavailable" {
+            lastVerifiedAt = nil
+        }
+        return result
+    }
+
+    private static func inspectFreshPersistedState() async -> (Bool, String) {
         do { try await ScarletNativeAuthTransport.shared.prepare() }
         catch { return (false, "transport_unavailable") }
         guard let client = RefreshHandler.shared.client else {
@@ -562,6 +599,8 @@ public enum ScarletNativePairingInstaller {
     }
 
     public static func install(candidate: Data) async -> (Bool, String) {
+        // New pairing data invalidates a recently successful old transport.
+        invalidateInspectionHint()
         guard candidate.count > 128 && candidate.count <= 1024 * 1024 else {
             return (false, "pairing_file_invalid")
         }

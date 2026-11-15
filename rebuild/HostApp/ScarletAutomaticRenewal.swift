@@ -331,9 +331,16 @@ final class ScarletAutomaticRenewal {
         // pairing record/Minimuxer transport is unavailable. A remembered
         // checkmark or Apple login alone cannot satisfy this prerequisite.
         let (paired, pairingReason) =
-            await ScarletNativePairingInstaller.inspectPersistedState()
+            await ScarletNativePairingInstaller.inspectForAutomaticRefresh()
         guard paired else {
-            prefs.set("차단 · 페어링 연결 확인 필요", forKey: outcomeKey)
+            // Timeout/unresponsive transport is not evidence that the saved
+            // pairing was revoked. The next 15-minute BG slot or foreground
+            // activation may retry without deleting the original record.
+            let transient = pairingReason == "pairing_state_read_timeout" ||
+                pairingReason == "transport_unavailable" ||
+                pairingReason == "pairing_saved_transport_unavailable"
+            prefs.set(transient ? "보류 · 기기 연결 재확인 예정"
+                                : "차단 · 페어링 연결 확인 필요", forKey: outcomeKey)
             prefs.set(pairingReason, forKey: failureReasonKey)
             ScarletDiagnosticRecorder.shared.record(
                 "refresh", "automatic_deferred_pairing",

@@ -33,6 +33,7 @@ class InlineAccountSwitch(unittest.TestCase):
         self.assertIn('SCARLET_ADD_SECOND_APPLE_ID', SHEET)
     def test_preserve_existing_native_settings_and_unique_ipa(self):
         self.assertIn('LCSettingsView()', (R/'HostApp/ScarletIntegratedHostView.swift').read_text())
+        self.assertIn('import SwiftUI\\nimport SideStoreSupport\\n', PATCH)
         self.assertIn('ScarletSigningReadinessPanel()', PATCH)
         self.assertIn('SCARLET_NATIVE_DIAGNOSTICS_ENTRY', PATCH)
         self.assertIn('3.8.70', WORKFLOW)

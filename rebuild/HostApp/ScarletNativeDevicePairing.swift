@@ -110,6 +110,7 @@ final class ScarletDevicePairingModel: NSObject, ObservableObject, @preconcurren
 
     func begin() {
         guard !active else { return }
+        ScarletNativePairingInstaller.invalidateInspectionHint()
         stateReadGeneration &+= 1 // stale readbacks cannot undo a new pairing
         active = true
         verified = false
