@@ -2623,7 +2623,16 @@ def main():
     # recover old JSONL files (rotated) or fetching external URLs on iPhone.
     history_path = root/"rebuild/diagnostics/scarlet_remediation_history.json"
     handoff_path = root/"rebuild/diagnostics/SCARLET_LOG_ONLY_HANDOFF_PROMPT.md"
-    audit = json.loads(history_path.read_text(encoding="utf-8"))
+    # P90: old immutable 4MB audit remains in its original Git file.
+    # Merge the small, append-only segment into ONE complete iPhone report.
+    history_bytes = history_path.read_bytes()
+    audit = json.loads(history_bytes)
+    appendix_path = history_path.with_name("scarlet_remediation_history_appendix.json")
+    if appendix_path.exists():
+        appendix = json.loads(appendix_path.read_text(encoding="utf-8"))
+        assert appendix["base_entry_count"] == len(audit["entries"]), "Audit appendix must not rewrite frozen history"
+        audit["entries"].extend(appendix["entries"])
+        history_bytes = json.dumps(audit, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
     assert audit["schema"] >= 2 and len(audit["entries"]) >= 45, "Repair ledger unexpectedly truncated"
     ids = [e["id"] for e in audit["entries"]]
     assert len(ids) == len(set(ids)), "Repair history contains duplicate IDs"
@@ -2639,7 +2648,7 @@ def main():
                     "Before/after source missing: " + item["id"])
     r = recorder.read_text(encoding="utf-8")
     for token, source_bytes in (
-        ("__SCARLET_REMEDIATION_HISTORY_B64__", history_path.read_bytes()),
+        ("__SCARLET_REMEDIATION_HISTORY_B64__", history_bytes),
         ("__SCARLET_HANDOFF_PROMPT_B64__", handoff_path.read_bytes()),
     ):
         assert r.count(token) == 1, "Diagnostic ledger embed anchor changed: " + token
