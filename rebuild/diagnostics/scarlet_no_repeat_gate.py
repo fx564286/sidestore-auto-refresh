@@ -14,6 +14,7 @@ import sys
 from pathlib import Path
 
 HISTORY = Path(__file__).with_name("scarlet_remediation_history.json")
+APPENDIX = Path(__file__).with_name("scarlet_remediation_history_appendix.json")
 FIRST_GATED_ID = 48
 FAILURE_STATES = {
     "device_unresolved", "diagnostic_failure", "rollback",
@@ -174,6 +175,14 @@ def main(argv: list[str] | None = None) -> int:
                         help="Pre-edit proposal. Reject duplicate causal mechanisms.")
     args = parser.parse_args(argv)
     data = json.loads(args.history.read_text(encoding="utf-8"))
+    # P90: append-only L149+ segments preserve the immutable 4MB base file
+    # without truncating its history. CI and diagnostics validate the MERGED
+    # sequence; never skip history checks because a segment is unreadable.
+    if args.history.resolve() == HISTORY.resolve() and APPENDIX.exists():
+        extra = json.loads(APPENDIX.read_text(encoding="utf-8"))
+        if extra.get("base_entry_count") != len(data["entries"]):
+            raise ValueError("History appendix base count mismatched")
+        data["entries"].extend(extra["entries"])
     proposal = (json.loads(args.proposal.read_text(encoding="utf-8"))
                 if args.proposal else None)
     issues = validate(data, proposal)
