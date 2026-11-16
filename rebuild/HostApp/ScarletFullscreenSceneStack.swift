@@ -377,6 +377,10 @@ final class ScarletFullscreenSceneStack: NSObject, ObservableObject,
         let shield = nativeStatusBarUnsafePIDs.contains(pid) ||
             !nativeStatusBarSafePIDs.contains(pid)
         nativeStatusBarCollisionShield = shield
+        if let scene {
+            ScarletFullscreenGuestTabInstaller.syncResidentStatusBarHidden(
+                shield, scene: scene)
+        }
         ScarletDiagnosticRecorder.shared.record(
             "layout", "resident_native_status_bar_collision_policy",
             fields: ["process_pid": String(pid),
@@ -448,6 +452,8 @@ final class ScarletFullscreenSceneStack: NSObject, ObservableObject,
         nativeStatusBarUnsafePIDs.remove(pid)
         nativeStatusBarSafePIDs.insert(pid)
         nativeStatusBarCollisionShield = false
+        ScarletFullscreenGuestTabInstaller.syncResidentStatusBarHidden(
+            false, scene: scene)
         // P78 signed guest PID1644: both P74 severe=0/near=y60 readbacks
         // released this shield but UIKit kept statusHidden=true until an
         // unrelated guest tone change triggered another host appearance
@@ -492,6 +498,8 @@ final class ScarletFullscreenSceneStack: NSObject, ObservableObject,
         nativeStatusBarUnsafePIDs.remove(pid)
         nativeStatusBarSafePIDs.insert(pid)
         nativeStatusBarCollisionShield=false
+        ScarletFullscreenGuestTabInstaller.syncResidentStatusBarHidden(
+            false, scene: scene)
         ScarletDiagnosticRecorder.shared.record(
             "layout", "resident_native_status_bar_verified_reflow_release",
             fields: ["process_pid":String(pid),
@@ -1648,7 +1656,8 @@ final class ScarletFullscreenSceneViewport: UIViewController {
            let scene = view.window?.windowScene {
             applyNativeChromeAppearance(for: guest, scene: scene)
             ScarletFullscreenGuestTabInstaller.updateResidentStatusBar(
-                chromeStatusBarPreference, scene: scene)
+                chromeStatusBarPreference, scene: scene,
+                hidden: stack?.nativeStatusBarCollisionShield == true)
             stack?.syncKeyHostStatusBarTone(pid: pid, tone: tone, scene: scene)
         }
     }
@@ -1661,6 +1670,8 @@ final class ScarletFullscreenSceneViewport: UIViewController {
         stack.syncKeyHostStatusBarTone(
             pid: guest.pid, tone: chromeSurfaceToneByPID[guest.pid] ?? 0,
             scene: scene)
+        ScarletFullscreenGuestTabInstaller.syncResidentStatusBarHidden(
+            stack.nativeStatusBarCollisionShield, scene: scene)
     }
 
     private func publishNativeChromeVerifiedPIDs(_ scene: UIWindowScene) {
@@ -1794,7 +1805,8 @@ final class ScarletFullscreenSceneViewport: UIViewController {
             // previous guest's black host background across A->B.
             applyNativeChromeAppearance(for: guest, scene: scene)
             ScarletFullscreenGuestTabInstaller.updateResidentStatusBar(
-                chromeStatusBarPreference, scene: scene)
+                chromeStatusBarPreference, scene: scene,
+                hidden: stack?.nativeStatusBarCollisionShield == true)
             stack?.syncKeyHostStatusBarTone(
                 pid: guest.pid, tone: chromeSurfaceToneByPID[guest.pid] ?? 0,
                 scene: scene)

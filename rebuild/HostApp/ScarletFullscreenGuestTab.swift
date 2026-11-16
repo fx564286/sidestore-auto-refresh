@@ -622,13 +622,17 @@ final class ScarletFullscreenGuestTabInstaller: NSObject {
     // Keep real native clock/battery/signal above the resident overlay.
     // The classic original LC switcher code path remains unchanged.
     static func updateResidentStatusBar(_ style: UIStatusBarStyle,
-                                        scene: UIWindowScene) {
+                                        scene: UIWindowScene, hidden: Bool) {
         guard let window=floatingWindow, !window.isHidden,
               window.residentHostOwnsOutsideTaps,
               window.windowScene === scene,
               let owner=window.rootViewController as?
                   ScarletResidentStatusBarHostingController<ScarletFullscreenGuestFloatingTab>
               else { return }
+        // The nonkey (or transiently key) overlay mirrors the host's
+        // single per-PID status visibility decision, never votes 'show'
+        // against the root's collision shield.
+        owner.residentBarHidden = hidden
         owner.residentBarStyle = style
         owner.setNeedsStatusBarAppearanceUpdate()
         // Verify actual UIKit, rather than claiming that a preference
@@ -646,6 +650,18 @@ final class ScarletFullscreenGuestTabInstaller: NSObject {
                          "overlay_window_level":
                     String(Int(window.windowLevel.rawValue)),
                          "overlay_is_key": window.isKeyWindow ? "true" : "false"])
+        }
+    }
+    static func syncResidentStatusBarHidden(_ hidden: Bool, scene: UIWindowScene) {
+        guard let window = floatingWindow, !window.isHidden,
+              window.residentHostOwnsOutsideTaps,
+              window.windowScene === scene,
+              let owner = window.rootViewController as?
+                  ScarletResidentStatusBarHostingController<ScarletFullscreenGuestFloatingTab>
+        else { return }
+        if owner.residentBarHidden != hidden {
+            owner.residentBarHidden = hidden
+            owner.setNeedsStatusBarAppearanceUpdate()
         }
     }
     private static weak var guestWindow: UIWindow?
@@ -1425,7 +1441,15 @@ final class ScarletResidentStatusBarHostingController<Content: View>:
     var residentBarStyle: UIStatusBarStyle = .default {
         didSet { setNeedsStatusBarAppearanceUpdate() }
     }
-    override var prefersStatusBarHidden: Bool { false }
+    // P83: default remains visible for the original nonresident host.
+    // The active resident host owns the dynamic safety policy; this
+    // window mirrors it even if UIKit temporarily assigns it key status.
+    var residentBarHidden: Bool = false {
+        didSet { if oldValue != residentBarHidden {
+            setNeedsStatusBarAppearanceUpdate()
+        } }
+    }
+    override var prefersStatusBarHidden: Bool { residentBarHidden }
     override var preferredStatusBarStyle: UIStatusBarStyle { residentBarStyle }
     override var childForStatusBarHidden: UIViewController? { nil }
     override var childForStatusBarStyle: UIViewController? { nil }

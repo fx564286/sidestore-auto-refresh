@@ -16,7 +16,7 @@ class P51NativeCollisionShield(unittest.TestCase):
   self.assertIn('resident_native_status_bar_collision_readback',method)
   self.assertIn('scene.statusBarManager?.isStatusBarHidden',method)
  def test_host_real_statusbar_hidden_not_guest_geometry(self):
-  self.assertEqual(UI.count('.statusBarHidden(fullscreenStack.isVisible &&'),2)
+  self.assertEqual(UI.count('.statusBarHidden(fullscreenStack.isVisible &&'),1)
   self.assertIn('fullscreenStack.nativeStatusBarCollisionShield',UI)
   self.assertNotIn('.preferredColorScheme(',UI)  # P52 restores original host palette
   self.assertIn('let top = reserved ? chromeTop(in: scene) : 0',H)

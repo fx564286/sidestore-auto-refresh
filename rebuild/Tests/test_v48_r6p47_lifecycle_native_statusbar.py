@@ -53,7 +53,7 @@ class P47LifecycleHeaderProof(unittest.TestCase):
 
     def test_real_native_statusbar_visibility_and_contrast(self):
         cls=UI.split('final class ScarletResidentStatusBarHostingController<Content: View>',1)[1]
-        self.assertIn('override var prefersStatusBarHidden: Bool { false }',cls)
+        self.assertIn('override var prefersStatusBarHidden: Bool { residentBarHidden }',cls)
         self.assertIn('override var preferredStatusBarStyle: UIStatusBarStyle { residentBarStyle }',cls)
         self.assertIn('override var childForStatusBarHidden: UIViewController? { nil }',cls)
         self.assertIn('scene.statusBarManager?.isStatusBarHidden',UI)

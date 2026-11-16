@@ -1556,8 +1556,9 @@ struct ScarletIntegratedHostView: View {
                 ScarletFullscreenSceneViewportRepresentable(
                     stack: fullscreenStack, installedApps: sharedModel.apps)
                     .ignoresSafeArea(.all, edges: .all)
-                    .statusBarHidden(fullscreenStack.isVisible &&
-                        fullscreenStack.nativeStatusBarCollisionShield)
+                    // P83: status visibility belongs to the host root only;
+                    // a second child preference can conflict when the
+                    // resident switcher UIWindow temporarily becomes key.
                     .opacity(fullscreenStack.isVisible ? 1 : 0)
                     .allowsHitTesting(fullscreenStack.isVisible)
                     .accessibilityIdentifier("SCARLET_V45_NATIVE_FULLSCREEN_VIEWPORT")
