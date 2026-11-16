@@ -483,14 +483,31 @@ struct ScarletSigningReadinessPanel: View {
             clearStagedCertificate()
             return
         }
-        guard let hostTeam = LCSharedUtils.teamIdentifier(),
-              let archiveTeam = LCUtils.getCertTeamId(
-                  withKeyData: archive, password: p12Password),
-              hostTeam == archiveTeam else {
-            certificateRecoveryStatus = "P12 암호 오류 또는 현재 개발 팀과 불일치합니다."
+        // This legacy LC archive is HOST-scoped, not the currently selected
+        // Apple ID's SideStore Keychain. Never overwrite it with another
+        // team's p12: doing so would invalidate existing guest signing.
+        guard let archiveTeam = LCUtils.getCertTeamId(
+            withKeyData: archive, password: p12Password) else {
+            certificateRecoveryStatus = "P12를 해독하지 못했습니다. 파일 또는 비밀번호를 확인하세요."
             ScarletDiagnosticRecorder.shared.record(
                 "certificate", "import_blocked", status: "blocked",
-                fields: ["reason": "password_or_team_mismatch"])
+                fields: ["reason": "p12_decode_or_password_invalid"])
+            clearStagedCertificate()
+            return
+        }
+        guard let hostTeam = LCSharedUtils.teamIdentifier() else {
+            certificateRecoveryStatus = "설치된 Scarlet 앱의 서명 팀을 확인할 수 없습니다."
+            ScarletDiagnosticRecorder.shared.record(
+                "certificate", "import_blocked", status: "blocked",
+                fields: ["reason": "signed_host_team_unavailable"])
+            clearStagedCertificate()
+            return
+        }
+        guard hostTeam == archiveTeam else {
+            certificateRecoveryStatus = "이 P12는 다른 Apple 개발팀의 인증서입니다. 이 화면은 Scarlet 호스트 인증서만 저장합니다. 계정별 인증서는 선택한 계정의 Apple 인증서 발급 경로에서 관리해야 합니다."
+            ScarletDiagnosticRecorder.shared.record(
+                "certificate", "import_blocked", status: "blocked",
+                fields: ["reason": "archive_team_differs_from_signed_host"])
             clearStagedCertificate()
             return
         }
