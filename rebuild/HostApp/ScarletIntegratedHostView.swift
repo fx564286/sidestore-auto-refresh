@@ -333,7 +333,9 @@ struct ScarletIntegratedHostView: View {
     @State private var deviceInstallRunning = false
     @State private var deviceInstallStatus: String?
     @State private var showDeviceInstallSheet = false
-    @State private var showInstallTeamPicker = false
+    // The verified Settings account is the only account-selection owner.
+    @State private var deviceInstallAccountPreflightRunning = false
+    @State private var selectedInstallAccountID: String?
     @State private var selectedInstallTeamID: String?
     @State private var showManagedSlotSheet = false
     @State private var sourceInputError: String?
@@ -936,8 +938,12 @@ struct ScarletIntegratedHostView: View {
             showOriginalError = "기기 직접 설치에는 .ipa 파일이 필요합니다. .tipa는 게스트 앱으로 가져올 수 있습니다."
             return
         }
-        guard selectedInstallTeamID != nil,
-              !deviceInstallRunning, !guestImportActivity.isRunning,
+        guard let pinnedAccountID = selectedInstallAccountID,
+              let pinnedTeamID = selectedInstallTeamID else {
+            showOriginalError = "설정에서 사용할 Apple ID를 먼저 선택하세요."
+            return
+        }
+        guard !deviceInstallRunning, !guestImportActivity.isRunning,
               !sourceIsDownloading else {
             showOriginalError = "다른 앱 설치가 진행 중입니다."
             return
@@ -1009,12 +1015,23 @@ struct ScarletIntegratedHostView: View {
                 deviceInstallStatus = "내장 SideStore에서 서명·설치 중"
                 // Original SideStore AppManager installs through its own
                 // signing/provisioning/pairing engine. No SideInstaller UI.
-                guard let selectedTeamID = selectedInstallTeamID else {
-                    deviceInstallStatus = "설치팀이 선택되지 않았습니다."
+                // Files can remain open while the Settings account changes.
+                // Re-read the native Keychain-backed account immediately
+                // before dispatch; never silently install with another ID.
+                let accountState = await ScarletNativeSavedAccounts.list()
+                let activeAccounts = accountState.accounts.filter { $0.active }
+                guard accountState.status == "ready",
+                      activeAccounts.count == 1,
+                      activeAccounts[0].id == pinnedAccountID,
+                      activeAccounts[0].teamID == pinnedTeamID else {
+                    deviceInstallStatus = "설치 중 사용 계정이 변경됐습니다. 설정에서 계정을 확인하고 다시 시도하세요."
+                    ScarletDiagnosticRecorder.shared.record("sidestore",
+                        "install_blocked", status: "blocked",
+                        fields: ["reason": "active_account_changed_before_install"])
                     return
                 }
                 try await ScarletDeviceInstaller.install(
-                    stagedIPA: staged, teamID: selectedTeamID)
+                    stagedIPA: staged, teamID: pinnedTeamID)
                 deviceInstallStatus = "설치 엔진 반환 · 실제 iPhone 설치 결과 확인 필요"
                 let finalStage = stageDefaults?.string(forKey: stageKey) ??
                     "stage_not_reported"
@@ -1352,10 +1369,57 @@ struct ScarletIntegratedHostView: View {
                 showDeviceInstallSheet = true
                 return
             }
+            // One in-flight request; no second account picker or duplicate Files sheet.
+            guard !deviceInstallAccountPreflightRunning else { return }
             pendingIPAInstallRoute = .device
+            selectedInstallAccountID = nil
             selectedInstallTeamID = nil
-            ScarletDiagnosticRecorder.shared.record("sidestore", "install_team_picker_requested")
-            showInstallTeamPicker = true
+            deviceInstallAccountPreflightRunning = true
+            Task { @MainActor in
+                defer { deviceInstallAccountPreflightRunning = false }
+                let snapshot = await ScarletNativeSavedAccounts.list()
+                let active = snapshot.accounts.filter { $0.active }
+                guard snapshot.status == "ready", active.count == 1 else {
+                    ScarletDiagnosticRecorder.shared.record("sidestore",
+                        "install_active_account_unavailable", status: "blocked",
+                        fields: ["reason": snapshot.status == "ready"
+                            ? "active_account_count_invalid" : "account_readback_unavailable"])
+                    showOriginalError = "설정에서 사용할 Apple ID를 선택하고 다시 시도하세요."
+                    return
+                }
+                let account = active[0]
+                let (ready, reason) = await ScarletNativeSavedAccounts
+                    .prepareInstallTeam(account.teamID)
+                guard ready else {
+                    ScarletDiagnosticRecorder.shared.record("sidestore",
+                        "install_active_team_blocked", status: "blocked",
+                        fields: ["reason": reason])
+                    showOriginalError = reason == "selected_team_certificate_missing"
+                        ? "현재 Apple ID의 서명 인증서가 없습니다. 설정에서 인증서를 받아주세요."
+                        : "현재 Apple ID의 개발팀으로 설치할 수 없습니다. 설정에서 로그인·인증서를 확인하세요."
+                    return
+                }
+                // A Settings switch during the async certificate preflight must
+                // not be overwritten by an install-time account activation.
+                let readback = await ScarletNativeSavedAccounts.list()
+                let verified = readback.accounts.filter { $0.active }
+                guard readback.status == "ready", verified.count == 1,
+                      verified[0].id == account.id,
+                      verified[0].teamID == account.teamID else {
+                    ScarletDiagnosticRecorder.shared.record("sidestore",
+                        "install_active_account_changed", status: "blocked",
+                        fields: ["reason": "post_preflight_readback_mismatch"])
+                    showOriginalError = "계정이 변경됐습니다. 설정에서 현재 Apple ID를 확인하고 다시 시도하세요."
+                    return
+                }
+                selectedInstallAccountID = account.id
+                selectedInstallTeamID = account.teamID
+                ScarletDiagnosticRecorder.shared.record("sidestore",
+                    "install_active_team_prepared", status: "success",
+                    fields: ["source": "settings_active_account",
+                             "certificate": "native_team_preflight_verified"])
+                showGuestFilePicker = true
+            }
         case .localOpenEmbeddedSideStore,
              .serviceRefreshApp, .serviceSyncAppIDs,
              .serviceSetSettings, .serviceReadSettings:
@@ -1671,20 +1735,6 @@ struct ScarletIntegratedHostView: View {
             // Credentials remain in a Scarlet-owned ephemeral view.
             // The embedded SideStore guest authentication UI is NOT opened.
             ScarletAppleIDLoginSheet(engine: ScarletConnectedSideSignEngine())
-        }
-        .sheet(isPresented: $showInstallTeamPicker) {
-            ScarletInstallTeamPicker { teamID in
-                selectedInstallTeamID = teamID
-                showInstallTeamPicker = false
-                // Files picker must not race the closing presentation.
-                Task { @MainActor in
-                    try? await Task.sleep(for: .milliseconds(300))
-                    guard selectedInstallTeamID == teamID else { return }
-                    ScarletDiagnosticRecorder.shared.record("sidestore",
-                        "install_team_selected", fields: ["result": "verified_worker_selection"])
-                    showGuestFilePicker = true
-                }
-            }
         }
         .fileImporter(isPresented: $showGuestFilePicker,
                       allowedContentTypes: [.ipa, .tipa],

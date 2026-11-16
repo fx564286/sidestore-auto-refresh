@@ -14,16 +14,15 @@ HOST=(ROOT/'HostApp/ScarletIntegratedHostView.swift').read_text()
 AUTO=(ROOT/'HostApp/ScarletAutomaticRenewal.swift').read_text()
 
 class TeamAandB(unittest.TestCase):
-    def test_user_selects_install_team_before_ipa_picker(self):
-        self.assertIn('ScarletInstallTeamPicker',LOGIN)
-        self.assertIn('SCARLET_INSTALL_TEAM_PICKER',LOGIN)
-        self.assertIn('SCARLET_SELECT_INSTALL_TEAM',LOGIN)
-        self.assertIn('SCARLET_ISSUE_SELECTED_TEAM_CERT',LOGIN)
-        self.assertIn('showInstallTeamPicker = true',HOST)
-        self.assertIn('selectedInstallTeamID = teamID',HOST)
-        self.assertIn('teamID: selectedTeamID',HOST)
-        self.assertIn('ScarletNativeSavedAccounts.activate(row.id)',LOGIN)
-        self.assertIn('.prepareInstallTeam(row.teamID)',LOGIN)
+    def test_settings_selected_account_drives_install_team_before_ipa_picker(self):
+        # P82: P68's team verifier/pin remains, but P70 Settings now owns selection.
+        self.assertNotIn('ScarletInstallTeamPicker', LOGIN)
+        self.assertNotIn('showInstallTeamPicker', HOST)
+        self.assertIn('ScarletNativeSavedAccounts.list()', HOST)
+        self.assertIn('.prepareInstallTeam(account.teamID)', HOST)
+        self.assertIn('selectedInstallTeamID = account.teamID', HOST)
+        self.assertIn('teamID: pinnedTeamID', HOST)
+        self.assertIn('ScarletNativeSavedAccounts.activate(id)', LOGIN)
     def test_worker_receives_exact_selected_team_not_signed_host_team(self):
         self.assertIn('expectedTeamID',WIRE)
         self.assertIn('expectedTeamID',INSTALL)
@@ -48,7 +47,7 @@ class TeamAandB(unittest.TestCase):
             self.assertNotIn(forbidden,VAULT)
     def test_selected_team_certificate_issuance_is_explicit(self):
         self.assertIn('client.scarletIssueInstallTeamCertificate',SUPPORT)
-        self.assertIn('issueInstallCertificate(teamID)',LOGIN)
+        self.assertIn('issueInstallCertificate(_ teamID:',SUPPORT)
         self.assertIn('CertificateProvisioningFlow(handler: nil)',VAULT)
         self.assertIn('ScarletInstallTeamAuthority.issue(teamID:',VAULT)
         self.assertNotIn('certificateData',LOGIN)
