@@ -1388,15 +1388,22 @@ struct ScarletIntegratedHostView: View {
                     return
                 }
                 let account = active[0]
+                ScarletDiagnosticRecorder.shared.record("certificate",
+                    "install_selected_team_preflight_started",
+                    fields: ["source": "settings_active_account"])
                 let (ready, reason) = await ScarletNativeSavedAccounts
-                    .prepareInstallTeam(account.teamID)
+                    .ensureSelectedTeamCertificate(account.teamID)
+                ScarletDiagnosticRecorder.shared.record("certificate",
+                    "install_selected_team_certificate_result",
+                    status: ready ? "success" : "blocked",
+                    fields: ["reason": reason])
                 guard ready else {
                     ScarletDiagnosticRecorder.shared.record("sidestore",
                         "install_active_team_blocked", status: "blocked",
                         fields: ["reason": reason])
-                    showOriginalError = reason == "selected_team_certificate_missing"
-                        ? "현재 Apple ID의 서명 인증서가 없습니다. 설정에서 인증서를 받아주세요."
-                        : "현재 Apple ID의 개발팀으로 설치할 수 없습니다. 설정에서 로그인·인증서를 확인하세요."
+                    showOriginalError = reason == "selected_team_certificate_quota_reached"
+                        ? "이 Apple 개발팀의 인증서 발급 한도에 도달했습니다. 기존 인증서는 유지됩니다."
+                        : "현재 Apple ID의 개발팀 인증서 확인 또는 Apple 발급에 실패했습니다. 진단 로그에서 원인을 확인하세요."
                     return
                 }
                 // A Settings switch during the async certificate preflight must

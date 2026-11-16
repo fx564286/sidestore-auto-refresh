@@ -991,6 +991,7 @@ def attach_native_settings_diagnostics(engine: Path) -> dict:
     @State private var scarletAccountSwitchError: String? = nil
     @State private var scarletSwitchingAccountID: String? = nil
     @State private var scarletAccountReadGeneration: UInt64 = 0
+    @State private var scarletCertificateProvisionInFlight = false
     // Host and native LC Settings bind the SAME persisted pilot mode.
     @AppStorage("Scarlet.Feature.FullscreenResidentPilot.V45")
     private var scarletResidentPilotEnabled = false
@@ -1012,9 +1013,57 @@ def attach_native_settings_diagnostics(engine: Path) -> dict:
         }
     }
 
+    // P86: the user explicitly requested account activation/new login.
+    // Prepare its own team certificate from the Apple portal if absent.
+    // The native worker serializes all Keychain/team mutations. Keep raw
+    // emails, portal responses and certificate bytes outside diagnostics.
+    @MainActor
+    private func scarletEnsureCertificateForActiveAccount() async {
+        guard !scarletCertificateProvisionInFlight else { return }
+        scarletCertificateProvisionInFlight = true
+        defer { scarletCertificateProvisionInFlight = false }
+        let snapshot = await ScarletNativeSavedAccounts.list()
+        let active = snapshot.accounts.filter { $0.active }
+        guard snapshot.status == "ready", active.count == 1 else {
+            ScarletDiagnosticRecorder.shared.record("certificate",
+                "account_certificate_preflight_failed", status: "blocked",
+                fields: ["reason": "active_account_unverified"])
+            return
+        }
+        let teamID = active[0].teamID
+        ScarletDiagnosticRecorder.shared.record("certificate",
+            "account_certificate_preflight_started",
+            fields: ["source": "explicit_account_action",
+                     "certificate_present": active[0].certificateReady ? "true" : "false"])
+        let (ready, result) = await ScarletNativeSavedAccounts
+            .ensureSelectedTeamCertificate(teamID)
+        let readback = await ScarletNativeSavedAccounts.list()
+        let checked = readback.status == "ready" &&
+            readback.accounts.filter({ $0.active }).count == 1 &&
+            readback.accounts.contains(where: {
+                $0.teamID == teamID && $0.active && $0.certificateReady
+            })
+        if ready && checked {
+            scarletSavedAccounts = readback.accounts
+            scarletAccountSwitchError = nil
+        } else if result == "selected_team_certificate_quota_reached" {
+            scarletAccountSwitchError =
+                "이 계정의 Apple 인증서 발급 한도에 도달했습니다. 기존 인증서는 유지됩니다."
+        } else {
+            scarletAccountSwitchError =
+                "이 계정의 서명 인증서가 준비되지 않았습니다. 진단 로그에서 원인을 확인하세요."
+        }
+        ScarletDiagnosticRecorder.shared.record("certificate",
+            "account_certificate_team_readback",
+            status: ready && checked ? "success" : "blocked",
+            fields: ["reason": result,
+                     "signing_ready": ready && checked ? "true" : "false"])
+    }
+
     @MainActor
     private func scarletSwitchToSavedAccount(_ id: String) {
         guard #available(iOS 17.0, *), scarletSwitchingAccountID == nil,
+              !scarletCertificateProvisionInFlight,
               scarletSavedAccounts.contains(where: { $0.id == id && !$0.active }) else { return }
         scarletSwitchingAccountID = id
         scarletAccountSwitchError = nil
@@ -1101,7 +1150,8 @@ def attach_native_settings_diagnostics(engine: Path) -> dict:
                                         }
                                         .frame(minHeight: 44)
                                     }
-                                    .disabled(scarletSwitchingAccountID != nil)
+                                    .disabled(scarletSwitchingAccountID != nil ||
+                                              scarletCertificateProvisionInFlight)
                                     .accessibilityIdentifier("SCARLET_SETTINGS_SWITCH_APPLE_ID")
                                 }
                                 if row.id != scarletSavedAccounts.last?.id {
@@ -1133,7 +1183,8 @@ def attach_native_settings_diagnostics(engine: Path) -> dict:
                         Label(scarletLoginVerified == true || !scarletSavedAccounts.isEmpty
                             ? "추가 로그인" : "로그인", systemImage: "person.badge.plus")
                     }
-                    .disabled(scarletSwitchingAccountID != nil)
+                    .disabled(scarletSwitchingAccountID != nil ||
+                                              scarletCertificateProvisionInFlight)
                     .accessibilityIdentifier("SCARLET_SETTINGS_ADD_LOGIN")
                     if #available(iOS 16.0, *) {
                         NavigationLink {
@@ -1226,7 +1277,8 @@ def attach_native_settings_diagnostics(engine: Path) -> dict:
         '            Task { @MainActor in\n'
         '                if #available(iOS 17.0, *) {\n'
         '                    scarletLoginVerified = await ScarletConnectedSideSignEngine().storedAuthenticated()\n'
-        '                    await scarletReloadSavedAccounts()\n'        '                }\n'
+        '                    await scarletReloadSavedAccounts()\n'
+        '                    await scarletEnsureCertificateForActiveAccount()\n'        '                }\n'
         '            }\n'
         '        }\n'
         '        .onChange(of: dynamicColors) { enabled in\n'

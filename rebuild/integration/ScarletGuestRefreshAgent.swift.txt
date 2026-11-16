@@ -203,7 +203,7 @@ final class ScarletGuestRefreshAgent: NSObject {
                     // CertificateManager and its local P12 store live on the
                     // main actor, not this synchronous Optional.flatMap body.
                     signingReady = await ScarletInstallTeamAuthority
-                        .matchingCertificate(for: currentTeamID) != nil
+                        .hasValidSigningCertificate(for: currentTeamID)
                 } else {
                     signingReady = false
                 }

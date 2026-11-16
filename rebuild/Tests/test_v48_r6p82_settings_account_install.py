@@ -23,7 +23,7 @@ class P82InstallAccountOwner(unittest.TestCase):
         for key in ('guard !deviceInstallAccountPreflightRunning else { return }',
             'ScarletNativeSavedAccounts.list()',
             'snapshot.status == "ready", active.count == 1',
-            '.prepareInstallTeam(account.teamID)',
+            '.ensureSelectedTeamCertificate(account.teamID)',
             'verified.count == 1', 'verified[0].id == account.id',
             'verified[0].teamID == account.teamID',
             'selectedInstallAccountID = account.id',

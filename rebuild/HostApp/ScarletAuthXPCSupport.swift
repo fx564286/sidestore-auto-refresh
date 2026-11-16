@@ -814,6 +814,19 @@ public enum ScarletNativeSavedAccounts {
         await teamOperation(teamID, issue: true)
     }
 
+    // This call never selects a second Apple ID. It obtains a cert only on
+    // an explicit account activation/login/install action, then re-reads
+    // the authoritative SideStore Keychain and active team.
+    public static func ensureSelectedTeamCertificate(_ teamID: String) async -> (Bool, String) {
+        let initial = await prepareInstallTeam(teamID)
+        if initial.0 { return (true, "ready_existing") }
+        guard initial.1 == "selected_team_certificate_missing" else { return initial }
+        let issued = await issueInstallCertificate(teamID)
+        guard issued.0 else { return issued }
+        let confirmed = await prepareInstallTeam(teamID)
+        return confirmed.0 ? issued : (false, "selected_team_certificate_readback_failed")
+    }
+
     private static func teamOperation(_ teamID: String, issue: Bool) async -> (Bool, String) {
         guard teamID.utf8.count == 10 && teamID.allSatisfy({
             $0.isASCII && ($0.isUppercase || $0.isNumber)
@@ -837,11 +850,17 @@ public enum ScarletNativeSavedAccounts {
                              "selected_team_certificate_readback_failed",
                              "selected_team_certificate_unverified",
                              "selected_team_certificate_portal_failed",
+                             "selected_team_certificate_quota_reached",
+                             "selected_team_certificate_storage_failed",
+                             "ready_existing_portal", "ready_issued_apple",
                              "sidestore_team_mismatch", "sidestore_team_recovery_failed",
                              "sidestore_auth_missing", "transport_unavailable",
                              "team_operation_in_progress"]
                 let reason = status ?? "worker_unknown"
-                gate.finish(ok && reason == "ready",
+                let success = reason == "ready" ||
+                    (issue && (reason == "ready_existing_portal" ||
+                               reason == "ready_issued_apple"))
+                gate.finish(ok && success,
                     known.contains(reason) ? reason : "worker_unknown")
             }
             if issue {
