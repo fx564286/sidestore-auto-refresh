@@ -1124,42 +1124,36 @@ def attach_native_settings_diagnostics(engine: Path) -> dict:
                 }
                 Section {
                     if !scarletSavedAccounts.isEmpty {
-                        // Keep one native Form cell and space account rows.
-                        // A manual Divider under a conditional trailing label
-                        // looked like a broken separator on iOS 27.
-                        VStack(alignment: .leading, spacing: 10) {
-                            ForEach(scarletSavedAccounts) { row in
+                        // P88: Native Form rows, NOT a VStack nested in a Form
+                        // row. A nested cell plus conditional trailing labels
+                        // produces a one-sided/short native separator on iOS 27.
+                        ForEach(scarletSavedAccounts) { row in
+                            HStack(spacing: 8) {
+                                Text(row.id)
+                                    .lineLimit(1)
+                                    .foregroundStyle(.primary)
+                                Spacer(minLength: 8)
                                 if row.active {
-                                    HStack {
-                                        Text(row.id).lineLimit(1)
-                                        Spacer(minLength: 8)
-                                        Label("사용 중", systemImage: "checkmark.circle.fill")
-                                            .font(.subheadline).foregroundStyle(.green)
-                                    }
-                                    .frame(minHeight: 44)
-                                    .accessibilityIdentifier("SCARLET_SETTINGS_ACTIVE_APPLE_ID")
+                                    Label("사용 중", systemImage: "checkmark.circle.fill")
+                                        .font(.subheadline)
+                                        .foregroundStyle(.green)
+                                        .accessibilityIdentifier("SCARLET_SETTINGS_ACTIVE_APPLE_ID")
                                 } else {
-                                    Button {
-                                        scarletSwitchToSavedAccount(row.id)
-                                    } label: {
-                                        HStack {
-                                            Text(row.id).lineLimit(1)
-                                            Spacer(minLength: 8)
-                                            if scarletSwitchingAccountID == row.id {
-                                                ProgressView()
-                                            } else {
-                                                Text("전환").foregroundStyle(.secondary)
-                                            }
-                                        }
-                                        .frame(minHeight: 44)
-                                    }
-                                    .disabled(scarletSwitchingAccountID != nil ||
-                                              scarletCertificateProvisionInFlight)
-                                    .accessibilityIdentifier("SCARLET_SETTINGS_SWITCH_APPLE_ID")
+                                    Button("전환") { scarletSwitchToSavedAccount(row.id) }
+                                        .foregroundStyle(.secondary)
+                                        .buttonStyle(.borderless)
+                                        .allowsHitTesting(scarletSwitchingAccountID == nil &&
+                                            !scarletCertificateProvisionInFlight)
+                                        .accessibilityIdentifier("SCARLET_SETTINGS_SWITCH_APPLE_ID")
                                 }
                             }
+                            .frame(minHeight: 44)
+                            // A Form's native separator is inset by its row
+                            // contents and became a short line below the
+                            // right-hand status. Hide it, not the row.
+                            .listRowSeparator(.hidden)
+                            .accessibilityIdentifier("SCARLET_SETTINGS_SAVED_ACCOUNT_ROW")
                         }
-                        .accessibilityIdentifier("SCARLET_SETTINGS_SAVED_ACCOUNTS_GROUP")
                     } else if scarletLoginVerified == true {
                         Label("로그인됨", systemImage: "checkmark.seal.fill")
                             .foregroundStyle(.green)
@@ -1176,14 +1170,18 @@ def attach_native_settings_diagnostics(engine: Path) -> dict:
                         .accessibilityIdentifier("SCARLET_SETTINGS_RETRY_APPLE_ID_LIST")
                     }
                     Button {
+                        // Guard the operation without dimming/redrawing the
+                        // button whenever a Team certificate preflight starts.
+                        guard scarletSwitchingAccountID == nil &&
+                              !scarletCertificateProvisionInFlight else { return }
                         ScarletDiagnosticRecorder.shared.record("auth", "add_account_requested")
                         scarletShowAppleLogin = true
                     } label: {
-                        Label(scarletLoginVerified == true || !scarletSavedAccounts.isEmpty
-                            ? "추가 로그인" : "로그인", systemImage: "person.badge.plus")
+                        Label(scarletSavedAccounts.isEmpty && scarletLoginVerified != true
+                            ? "로그인" : "추가 로그인", systemImage: "person.badge.plus")
                     }
-                    .disabled(scarletSwitchingAccountID != nil ||
-                                              scarletCertificateProvisionInFlight)
+                    .allowsHitTesting(scarletSwitchingAccountID == nil &&
+                        !scarletCertificateProvisionInFlight)
                     .accessibilityIdentifier("SCARLET_SETTINGS_ADD_LOGIN")
                     if #available(iOS 16.0, *) {
                         NavigationLink {
