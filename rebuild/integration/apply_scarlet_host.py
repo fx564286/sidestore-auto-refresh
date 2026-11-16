@@ -390,6 +390,25 @@ def add_r6p79_mapped_archive_fallback(engine: Path) -> dict:
     assert all(x.is_file() for x in (target,header,view))
     source=target.read_text()
     assert "scarletExtractGuestIPAFromMappedData" not in source
+    # P81: the exact pinned LiveContainer original is reused; change only
+    # its false-success return on a partial extraction. Reader/writer behavior,
+    # format recognition, progress and the original install contract remain.
+    original_completion = ("    archive_read_close(a);\n"
+        "    archive_read_free(a);\n"
+        "    archive_write_close(ext);\n"
+        "    archive_write_free(ext);\n"
+        "    \n"
+        "    return 0;\n}")
+    checked_completion = ("    int scarletArchiveReadResult = r;\n"
+        "    archive_read_close(a);\n"
+        "    archive_read_free(a);\n"
+        "    int scarletArchiveWriteCloseResult = archive_write_close(ext);\n"
+        "    archive_write_free(ext);\n"
+        "    return (scarletArchiveReadResult == ARCHIVE_EOF &&\n"
+        "            scarletArchiveWriteCloseResult >= ARCHIVE_WARN) ? 0 : 1;\n}")
+    assert source.count(original_completion) == 1, (
+        "Pinned LiveContainer archive completion contract drifted")
+    source = source.replace(original_completion, checked_completion, 1)
     function = r"""
 // R6P79_MAPPED_IPA_FALLBACK_BEGIN
 // This is a separate, bounded recovery reader for native iOS 27 archive
@@ -508,9 +527,20 @@ int scarletExtractGuestIPAFromMappedData(NSString *ipaPath,
             .resolvingSymlinksInPath().standardizedFileURL
         let staged = URL(fileURLWithPath: path)
             .resolvingSymlinksInPath().standardizedFileURL
+        let scratch = URL(fileURLWithPath: destination)
+            .resolvingSymlinksInPath().standardizedFileURL
         guard staged.deletingLastPathComponent().path == pending.path,
+              scratch.path == pending.path,
               staged.lastPathComponent.hasPrefix("scarlet-guest-")
         else { return result }
+        // Never merge files from the failed extraction into the recovery.
+        // Payload is temporary-only; installed apps and shared containers
+        // are not affected. If cleanup fails, return the original error.
+        let partialPayload = scratch.appendingPathComponent("Payload", isDirectory: true)
+        if FileManager.default.fileExists(atPath: partialPayload.path) {
+            do { try FileManager.default.removeItem(at: partialPayload) }
+            catch { return result }
+        }
         let fallback = scarletExtractGuestIPAFromMappedData(path, destination, progress)
         return fallback == 0 ? 0 : result
     }
@@ -518,7 +548,7 @@ int scarletExtractGuestIPAFromMappedData(NSString *ipaPath,
     existing=view.read_text()
     assert existing.count(original)==1,'LC original decompress call changed'
     view.write_text(existing.replace(original,patched,1))
-    return {'originalArchiveReaderPreserved':True,
+    return {'pinnedOriginalArchiveReaderPreservedWithAccurateEOF':True,
             'boundedMappedZIPPayloadFallback':True,
             'sameLocalIPANoGuestMutation':True}
 
@@ -624,7 +654,12 @@ def hide_embedded_sidestore_guest_navigation(engine: Path) -> dict:
         // Do not confuse that with an already-installed app or a signer issue.
         if scarletQueuedIPAURL != nil {
             let before = (try? fm.contentsOfDirectory(atPath: payloadPath.path)) ?? []
-            if !before.contains(where: { $0.hasSuffix(".app") }) {
+            let originalAppComplete = before.contains(where: { name in
+                name.hasSuffix(".app") && fm.fileExists(atPath:
+                    payloadPath.appendingPathComponent(name)
+                        .appendingPathComponent("Info.plist").path)
+            })
+            if !originalAppComplete {
                 ScarletDiagnosticRecorder.shared.record("guest_import",
                     "original_archive_payload_unreadable",
                     fields: ["result": "bounded_native_fallback_attempted"])
@@ -632,7 +667,12 @@ def hide_embedded_sidestore_guest_navigation(engine: Path) -> dict:
                 let result = scarletExtractGuestIPAFromMappedData(
                     url.path, fm.temporaryDirectory.path, decompressProgress)
                 let after = (try? fm.contentsOfDirectory(atPath: payloadPath.path)) ?? []
-                guard result == 0 && after.contains(where: { $0.hasSuffix(".app") }) else {
+                let recoveredAppComplete = after.contains(where: { name in
+                    name.hasSuffix(".app") && fm.fileExists(atPath:
+                        payloadPath.appendingPathComponent(name)
+                            .appendingPathComponent("Info.plist").path)
+                })
+                guard result == 0 && recoveredAppComplete else {
                     ScarletDiagnosticRecorder.shared.record("guest_import",
                         "native_archive_payload_invalid", status: "error",
                         fields: ["reason": "mapped_reader_or_payload_invalid"])

@@ -13,7 +13,10 @@ class P80NativeSignedDevice(unittest.TestCase):
   end=G.index('# Tiny synthetic upstream test fixtures',start)
   part=G[start:end]
   for token in ('scarletQueuedIPAURL != nil',
-       'before.contains(where: { $0.hasSuffix(".app") })',
+       'originalAppComplete = before.contains(where: { name in',
+       'payloadPath.appendingPathComponent(name)',
+       'appendingPathComponent("Info.plist")',
+       'recoveredAppComplete = after.contains(where: { name in',
        'scarletExtractGuestIPAFromMappedData(',
        '"native_archive_payload_invalid"',
        'throw NSError(domain: "ScarletGuestArchive", code: 80',
