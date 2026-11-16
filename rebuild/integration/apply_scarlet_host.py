@@ -1084,8 +1084,10 @@ def attach_native_settings_diagnostics(engine: Path) -> dict:
                     scarletLoginVerified = true
                     ScarletDiagnosticRecorder.shared.record("auth",
                         "settings_account_switch_verified", status: "success")
-                    NotificationCenter.default.post(
-                        name: Notification.Name("ScarletGuestAuthVerified"), object: nil)
+                    // Settings already owns the verified account snapshot.
+                    // Posting the generic login notification here caused an
+                    // overlapping Keychain read and a visible row redraw.
+                    await scarletEnsureCertificateForActiveAccount()
                 } else {
                     scarletAccountSwitchError = "전환 후 활성 계정을 확인하지 못했습니다. 다시 확인하세요."
                     ScarletDiagnosticRecorder.shared.record("auth",
@@ -1098,7 +1100,8 @@ def attach_native_settings_diagnostics(engine: Path) -> dict:
                     fields: ["reason": reason])
             }
             scarletSwitchingAccountID = nil
-            await scarletReloadSavedAccounts()
+            // The verified result is already committed above. On failed
+            // activation keep the last known rows instead of flashing them.
         }
     }
 ''' + '\n')
@@ -1121,11 +1124,10 @@ def attach_native_settings_diagnostics(engine: Path) -> dict:
                 }
                 Section {
                     if !scarletSavedAccounts.isEmpty {
-                        // P85: one native Form cell owns all account rows.
-                        // iOS 27 conditional list rows previously produced a
-                        // trailing-only short separator under "사용 중".
-                        // Draw exactly one full-width divider per account pair.
-                        VStack(alignment: .leading, spacing: 0) {
+                        // Keep one native Form cell and space account rows.
+                        // A manual Divider under a conditional trailing label
+                        // looked like a broken separator on iOS 27.
+                        VStack(alignment: .leading, spacing: 10) {
                             ForEach(scarletSavedAccounts) { row in
                                 if row.active {
                                     HStack {
@@ -1154,10 +1156,6 @@ def attach_native_settings_diagnostics(engine: Path) -> dict:
                                     .disabled(scarletSwitchingAccountID != nil ||
                                               scarletCertificateProvisionInFlight)
                                     .accessibilityIdentifier("SCARLET_SETTINGS_SWITCH_APPLE_ID")
-                                }
-                                if row.id != scarletSavedAccounts.last?.id {
-                                    Divider()
-                                        .frame(maxWidth: .infinity)
                                 }
                             }
                         }
