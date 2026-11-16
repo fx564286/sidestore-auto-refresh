@@ -18,3 +18,11 @@
 **미해결 / 다음 조치**: P81 유효한 게스트 내부 safeTop62에도 3550ms에 y50 상단 요소가 다시 등장함. 본 조치는 상태바 표시 '정책 소유권'에 한정되어, 그 내용을 safe guide 아래로 재배치하는 별도 네이티브 레이아웃 해결이 필요. 컨테이너 전체 크기 변경, 절단, 임의 안전 영역 62pt 추가, 상태바 강제 은폐로 해결을 주장하면 안 됨.
 
 **P83 source commit**: `40e7e8c03dd25ff9afaa1c5dcdc1d6fdde45f699`; **branch**: `fix/scarlet-v48-r6p83-single-statusbar-authority-20261116`.
+
+## L139 / 동일 P83 릴리스 게시 조건 결함
+
+- GitHub Actions run `43806370645`: `livecontainer`, `sidestore`, `package-paired` 모두 success. `publish-unsigned-github-release`는 skipped.
+- 원인: `publish-unsigned-github-release.if`가 P81까지만 포함. P83 브랜치가 빠져 자동 게시 작업이 실행되지 않음.
+- P83 브랜치만 기존 허용 목록에 추가. 기존 3.8.83 IPA, 4개 확장, 동작, 인증서, 서명 경로 변경 없음.
+- 정적/회귀 테스트 **822개, 3 infra skips, 실패 0**. 릴리스의 공개 URL은 asset 실제 존재 확인 후 제공해야 함.
+- P81 게스트 상단 배치 문제와 L139 배포조건은 완전히 독립적임.
