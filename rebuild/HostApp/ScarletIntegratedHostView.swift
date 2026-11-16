@@ -156,7 +156,68 @@ private enum ScarletGuestSignerRecovery {
                                       "restore_readback_failed"])
     }
 
-    static func trialExistingSideStoreCertificate() {
+    // P91: the original SideStore CertificateManager is NOT the legacy
+    // generic Keychain service that P78 searched. The native archive is
+    // fetched only for one unambiguous active Apple ID that owns the signed
+    // host team, never for an arbitrary selected second account.
+    private static var nativeRecoveryInProgress = false
+
+    private static func trialNativeManagedHostCertificate() async {
+        guard !active, !nativeRecoveryInProgress,
+              ScarletSigningReadiness.inspect().canRequestNativeRefresh else { return }
+        nativeRecoveryInProgress = true
+        defer { nativeRecoveryInProgress = false }
+        let task = SecTaskCreateFromSelf(nil)
+        guard let entitlement = SecTaskCopyValueForEntitlement(
+            task, "com.apple.developer.team-identifier" as CFString, nil),
+              let hostTeam = entitlement.takeRetainedValue() as? String,
+              !hostTeam.isEmpty else { return }
+
+        // A and B remain independent even when Apple assigned the SAME
+        // Developer Team. Without a unique owner we cannot infer who owns
+        // this installed host from its Team entitlement alone.
+        let (before, status) = await ScarletNativeSavedAccounts.list()
+        guard status == "ready",
+              before.filter({ $0.active }).count == 1,
+              before.filter({ $0.teamID == hostTeam }).count == 1,
+              let owner = before.first(where: { $0.active && $0.teamID == hostTeam }) else {
+            ScarletDiagnosticRecorder.shared.record(
+                "guest", "native_signer_recovery_blocked",
+                fields: ["reason": "host_account_owner_unverified"])
+            return
+        }
+        do {
+            // Read the REAL SideStore active CertificateManager archive via
+            // existing on-device XPC; do not create/revoke Apple certificates.
+            let (archive, password) = try await ScarletNativeCertificateTransport
+                .shared.retrieveSideStoreCertificate()
+            let (after, readback) = await ScarletNativeSavedAccounts.list()
+            guard readback == "ready", after.filter({ $0.active }).count == 1,
+                  after.filter({ $0.teamID == hostTeam }).count == 1,
+                  after.contains(where: {
+                      $0.active && $0.id == owner.id && $0.teamID == hostTeam
+                  }),
+                  let original = LCUtils.certificateData(), archive != original,
+                  LCUtils.getCertTeamId(withKeyData: archive,
+                                        password: password) == hostTeam else {
+                ScarletDiagnosticRecorder.shared.record(
+                    "guest", "native_signer_recovery_blocked",
+                    fields: ["reason": "candidate_or_owner_not_verified"])
+                return
+            }
+            // Reuse P78's transaction, kernel readback and exact rollback;
+            // only the certificate origin is different, not the sign method.
+            trialExistingSideStoreCertificate(nativeCandidate:
+                (archive: archive, password: password))
+        } catch {
+            ScarletDiagnosticRecorder.shared.record(
+                "guest", "native_signer_recovery_blocked",
+                fields: ["reason": "native_certificate_transport_unavailable"])
+        }
+    }
+
+    static func trialExistingSideStoreCertificate(
+        nativeCandidate: (archive: Data, password: String)? = nil) {
         guard !active else { return }
         let prefs = LCUtils.appGroupUserDefault
         if prefs.bool(forKey: pending) {
@@ -174,8 +235,9 @@ private enum ScarletGuestSignerRecovery {
               let signedHostTeam = signedValue.takeRetainedValue() as? String,
               !signedHostTeam.isEmpty else { return }
         let services = ["com.SideStore.SideStore", "com.kdt.livecontainer"]
-        var alternate: Data?
-        var alternatePassword: String?
+        var alternate: Data? = nativeCandidate?.archive
+        var alternatePassword: String? = nativeCandidate?.password
+        if nativeCandidate == nil {
         for service in services {
             let query: [String: Any] = [
                 kSecClass as String: kSecClassGenericPassword,
@@ -213,11 +275,17 @@ private enum ScarletGuestSignerRecovery {
             alternatePassword = password
             break
         }
+        }
         guard let candidate = alternate,
               let candidatePassword = alternatePassword else {
             ScarletDiagnosticRecorder.shared.record(
                 "guest", "signer_recovery_candidate_unavailable",
                 fields: ["result": "no_distinct_same_host_team_p12"])
+            if nativeCandidate == nil {
+                Task { @MainActor in
+                    await trialNativeManagedHostCertificate()
+                }
+            }
             return
         }
         // Persist a reversible snapshot in the very SAME already entitled
@@ -250,7 +318,9 @@ private enum ScarletGuestSignerRecovery {
         }
         ScarletDiagnosticRecorder.shared.record(
             "guest", "signer_recovery_trial_started",
-            fields: ["result": "distinct_verified_host_team_p12"])
+            fields: ["result": nativeCandidate == nil ?
+                     "distinct_verified_host_team_p12" :
+                     "native_owned_host_team_p12"])
         // Run an actual code-signature POSTCHECK, not a keychain presence,
         // OU/team metadata match, or zsign return-code approximation.
         DispatchQueue.global(qos: .utility).async {
