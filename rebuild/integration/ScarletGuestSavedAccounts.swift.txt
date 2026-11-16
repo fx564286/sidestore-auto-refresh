@@ -252,6 +252,32 @@ private actor ScarletTeamOperationGate {
 // and choose a locally saved, matching-key certificate for each Apple Team.
 @MainActor
 enum ScarletInstallTeamAuthority {
+    // P90: The native SideStore Team -> Account relationship is authoritative.
+    // Team ID alone is insufficient when two saved Apple IDs are members of
+    // the same Apple Developer team. Do not alter account/team ownership.
+    static func activeOwnership() async -> (appleID: String, teamID: String)? {
+        guard let team = await activeTeam(),
+              let account = AuthManager.shared.currentAppleID?
+                .trimmingCharacters(in: .whitespacesAndNewlines).lowercased(),
+              !account.isEmpty else { return nil }
+        do { try await DatabaseManager.shared.start() }
+        catch { return nil }
+        let context = DatabaseManager.shared.viewContext
+        let teams = (try? context.fetch(Team.fetchRequest())) ?? []
+        guard teams.contains(where: {
+            $0.identifier == team.identifier && $0.isActiveTeam &&
+            $0.account?.isActiveAccount == true &&
+            $0.account?.appleID.caseInsensitiveCompare(account) == .orderedSame
+        }) else { return nil }
+        return (account, team.identifier)
+    }
+
+    static func appBelongsToOwner(_ app: InstalledApp,
+        owner: (appleID: String, teamID: String)) -> Bool {
+        app.team?.identifier == owner.teamID &&
+        app.team?.account?.appleID.caseInsensitiveCompare(owner.appleID) == .orderedSame
+    }
+
     static func validTeam(_ value: String) -> Bool {
         value.utf8.count == 10 && value.allSatisfy {
             $0.isASCII && ($0.isUppercase || $0.isNumber)
