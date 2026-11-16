@@ -9,7 +9,7 @@ WORKFLOW=(R.parent/'.github/workflows/scarlet-paired-engines-build.yml').read_te
 class InlineAccountSwitch(unittest.TestCase):
     def test_settings_reads_keychain_backed_account_rows(self):
         for key in ('@State private var scarletSavedAccounts:',
-                    'ForEach(scarletSavedAccounts)', 'Text(row.id).lineLimit(1)',
+                    'ForEach(scarletSavedAccounts) { row in', 'Text(row.id)', '.lineLimit(1)',
                     'SCARLET_SETTINGS_ACTIVE_APPLE_ID',
                     'SCARLET_SETTINGS_SWITCH_APPLE_ID',
                     'await ScarletNativeSavedAccounts.list()',
@@ -22,7 +22,7 @@ class InlineAccountSwitch(unittest.TestCase):
                     '$0.id == id && $0.active',
                     'settings_account_switch_verified',
                     'settings_account_switch_readback_failed',
-                    'scarletSwitchingAccountID != nil',
+                    'scarletSwitchingAccountID == nil',
                     'scarletAccountReadGeneration'):
             self.assertIn(key, PATCH)
         self.assertIn('client.scarletSelectAuthAccount(id)', XPC)
