@@ -15,7 +15,7 @@ class SideStoreEmbeddedHostBootstrap(unittest.TestCase):
                  'directory.lastPathComponent == "LiveProcess.appex"',
                  'directory.deletingLastPathComponent().lastPathComponent == "PlugIns"',
                  'profile.expirationDate > Date()',
-                 'profile.teamIdentifier == currentTeamID',
+                 'profile.teamIdentifier == owner.teamID',
                  'ScarletInstallTeamAuthority.matchingCertificate(',
                  'CacheAppOperation.cachePayload(for: hostURL)',
                  'cachedHost.provisioningProfile?.teamIdentifier == currentTeamID'):
@@ -25,7 +25,7 @@ class SideStoreEmbeddedHostBootstrap(unittest.TestCase):
   p=E.split('private actor ScarletGuestHostManagedBootstrap {',1)[1].split('// Runs inside the REAL embedded',1)[0]
   for marker in ('private var active: Task<String, Never>?',
                  'InstalledApp.first(satisfying: duplicate, in: context)',
-                 'team.isActiveTeam',
+                 '$0.isActiveTeam',
                  'InstalledApp(', 'record.team = team',
                  'record.isActive = true',
                  'record.useMainProfile = false',
