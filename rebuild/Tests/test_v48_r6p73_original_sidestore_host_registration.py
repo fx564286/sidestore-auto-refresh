@@ -11,7 +11,7 @@ class SideStoreEmbeddedHostBootstrap(unittest.TestCase):
   p=E.split('private actor ScarletGuestHostManagedBootstrap {',1)[1].split('// Runs inside the REAL embedded',1)[0]
   for marker in ('ProcessInfo.processInfo.arguments.first',
                  'Bundle(for: ScarletGuestRefreshAgent.self)',
-                 'verifiedHostBundleURL()',
+                 'verifiedHostBundleURL(hostBundlePath: hostBundlePath)',
                  'directory.lastPathComponent == "LiveProcess.appex"',
                  'directory.deletingLastPathComponent().lastPathComponent == "PlugIns"',
                  'profile.expirationDate > Date()',
@@ -34,7 +34,7 @@ class SideStoreEmbeddedHostBootstrap(unittest.TestCase):
                  'try context.save()',
                  'await context.perform { context.rollback() }'):
    self.assertIn(marker,p)
-  self.assertEqual(E.count('ScarletGuestHostManagedBootstrap.shared.ensure()'),2)
+  self.assertEqual(E.count('ScarletGuestHostManagedBootstrap.shared.ensure(hostBundlePath: hostBundlePath)'),2)
   self.assertIn('AppManager.shared.backgroundRefresh(',E)
   self.assertIn('no_managed_apps_for_selected_team',E)
   self.assertIn('host_registration_failed',A)

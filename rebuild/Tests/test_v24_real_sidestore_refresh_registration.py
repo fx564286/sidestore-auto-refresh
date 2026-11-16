@@ -44,7 +44,8 @@ class V24RegistrationGate(unittest.TestCase):
 
     def test_native_xpc_protocol_and_callback_not_ui_fake(self):
         self.assertIn('scarletRefreshReadiness:',WIRE)
-        self.assertIn('@selector(inspect:)',WIRE)
+        self.assertIn('inspectHostBundle:reply:',WIRE)
+        self.assertIn('hostBundlePath',WIRE)
         self.assertIn('ScarletNativeRefreshInspector',SUPPORT)
         self.assertIn('ScarletNativeAuthTransport.shared.prepare()',SUPPORT)
         self.assertIn('client.scarletRefreshReadiness',SUPPORT)

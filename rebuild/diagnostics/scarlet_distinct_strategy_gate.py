@@ -36,6 +36,8 @@ OTHER_ALLOWED_METHODS = {
     "source_history_strict_strategy_gate",
     "independent_guest_import_transaction_repair",
     "account_auth_team_selection_repair",
+    "host_origin_verified_xpc_bundle_authority",
+    "native_settings_account_group_divider_owner",
 }
 
 # This catches a candidate that claims a novel family but still ADDS the same

@@ -38,8 +38,8 @@ def patch_livecontainer(engine: Path) -> None:
 - (void)scarletSelectAuthAccount:(NSString*)accountID reply:(void (^)(BOOL success, NSString *status))reply;
 - (void)scarletPrepareInstallTeam:(NSString*)teamID reply:(void (^)(BOOL ready, NSString *status))reply;
 - (void)scarletIssueInstallTeamCertificate:(NSString*)teamID reply:(void (^)(BOOL ready, NSString *status))reply;
-- (void)scarletRefreshReadiness:(void (^)(NSInteger managedCount, BOOL hostManaged, BOOL signingReady, NSString *status))reply;
-- (void)scarletPerformNativeRefresh:(void (^)(BOOL operationReturned, NSString *status))reply;
+- (void)scarletRefreshReadiness:(NSString*)hostBundlePath reply:(void (^)(NSInteger managedCount, BOOL hostManaged, BOOL signingReady, NSString *status))reply;
+- (void)scarletPerformNativeRefresh:(NSString*)hostBundlePath reply:(void (^)(BOOL operationReturned, NSString *status))reply;
 - (void)scarletInstallPairingRecord:(NSData*)record reply:(void (^)(BOOL verified, NSString *status))reply;
 - (void)scarletInspectDevicePairing:(void (^)(BOOL ready, NSString *status))reply;
 - (void)scarletManagedSlots:(void (^)(NSString *json, NSString *status))reply;
@@ -102,28 +102,33 @@ def patch_livecontainer(engine: Path) -> None:
     reply(worker && [worker respondsToSelector:@selector(begin:)]);
 }
 
-- (void)scarletRefreshReadiness:(void (^)(NSInteger, BOOL, BOOL, NSString *))reply {
-    // The real SideStore worker owns its install DB and signing Keychain.
-    // Missing worker must never look like a successful refresh.
+- (void)scarletRefreshReadiness:(NSString*)hostBundlePath
+                            reply:(void (^)(NSInteger, BOOL, BOOL, NSString *))reply {
+    // P85: bind the signed host pathname from original LC host Bundle.main
+    // to the real embedded SideStore worker. Never infer the external host
+    // from the virtualized guest Bundle.main or trust it without profiles.
     Class worker = NSClassFromString(@"ScarletGuestRefreshAgent");
-    if (!worker || ![worker respondsToSelector:@selector(inspect:)]) {
+    SEL selector = NSSelectorFromString(@"inspectHostBundle:reply:");
+    if (!worker || ![worker respondsToSelector:selector]) {
         reply(0, NO, NO, @"refresh_worker_missing");
         return;
     }
-    ((void (*)(id, SEL, id))objc_msgSend)(worker, @selector(inspect:), reply);
+    ((void (*)(id, SEL, id, id))objc_msgSend)(worker, selector,
+        hostBundlePath ?: @"", reply);
 }
 
-- (void)scarletPerformNativeRefresh:(void (^)(BOOL, NSString *))reply {
-    // This executes original SideStore AppManager directly in its guest
-    // worker (where the registered apps + signing Keychain actually live).
-    // RefreshAllAppsIntent in the LC host was proxying through an iOS
-    // PrivateIntentRunner and reducing failures to SideStore(1).
+- (void)scarletPerformNativeRefresh:(NSString*)hostBundlePath
+                               reply:(void (^)(BOOL, NSString *))reply {
+    // SideStore's original AppManager still owns renewal; only its native
+    // host identity input now comes from original LC process, not guesswork.
     Class worker = NSClassFromString(@"ScarletGuestRefreshAgent");
-    if (!worker || ![worker respondsToSelector:@selector(perform:)]) {
+    SEL selector = NSSelectorFromString(@"performHostBundle:reply:");
+    if (!worker || ![worker respondsToSelector:selector]) {
         reply(NO, @"refresh_worker_missing");
         return;
     }
-    ((void (*)(id, SEL, id))objc_msgSend)(worker, @selector(perform:), reply);
+    ((void (*)(id, SEL, id, id))objc_msgSend)(worker, selector,
+        hostBundlePath ?: @"", reply);
 }
 
 - (void)scarletInstallPairingRecord:(NSData*)record

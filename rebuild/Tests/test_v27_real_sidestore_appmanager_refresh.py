@@ -50,7 +50,8 @@ class V27InProcessRefresh(unittest.TestCase):
     def test_xpc_sends_small_result_into_real_worker(self):
         self.assertIn('scarletPerformNativeRefresh:',WIRE)
         self.assertIn('NSClassFromString(@"ScarletGuestRefreshAgent")',WIRE)
-        self.assertIn('respondsToSelector:@selector(perform:)',WIRE)
+        self.assertIn('performHostBundle:reply:',WIRE)
+        self.assertIn('hostBundlePath',WIRE)
         self.assertIn('scarletPerformNativeRefresh',XPC)
         self.assertIn('private final class ScarletRefreshExecutionGate',XPC)
         self.assertIn('ScarletNativeAuthTransport.shared.prepare()',XPC)

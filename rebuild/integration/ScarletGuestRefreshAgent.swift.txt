@@ -10,10 +10,10 @@ private actor ScarletGuestHostManagedBootstrap {
     private var active: Task<String, Never>?
     private var registered = false
 
-    func ensure() async -> String {
+    func ensure(hostBundlePath: String) async -> String {
         if registered { return "already_registered" }
         if let active { return await active.value }
-        let task = Task { await performRegistration() }
+        let task = Task { await performRegistration(hostBundlePath: hostBundlePath) }
         active = task
         let result = await task.value
         active = nil
@@ -29,7 +29,25 @@ private actor ScarletGuestHostManagedBootstrap {
     // actual LiveProcess.appex ancestor; never trust guest Bundle.main or a
     // user-provided path. This unlocks P73's native signed-host registration
     // when argv[0] is not the .appex executable path.
-    private func verifiedHostBundleURL() -> URL? {
+    private func verifiedHostBundleURL(hostBundlePath: String) -> URL? {
+        // P85: Original host process sends ITS installed Bundle.main.bundleURL
+        // via the existing authenticated LiveProcess XPC channel. The guest
+        // extension cannot reliably infer that host from its class bundle.
+        // Reject a guest .app, user-provided IPA, or misplaced unsigned folder.
+        if hostBundlePath.hasPrefix("/") {
+            let candidate = URL(fileURLWithPath: hostBundlePath)
+                .resolvingSymlinksInPath().standardizedFileURL
+            let actual = candidate.appendingPathComponent("PlugIns/LiveProcess.appex")
+            if candidate.pathExtension == "app" &&
+                FileManager.default.fileExists(atPath: actual.path) &&
+                FileManager.default.fileExists(atPath: candidate.appendingPathComponent(
+                    "embedded.mobileprovision").path) {
+                return candidate
+            }
+        }
+        // Compatibility only: older XPC callers can still try the old
+        // extension-bundle route. Never use the guest's Bundle.main for trust.
+
         let codeBundle = Bundle(for: ScarletGuestRefreshAgent.self)
         var sources = [codeBundle.bundleURL]
         if let executableURL = codeBundle.executableURL {
@@ -60,8 +78,8 @@ private actor ScarletGuestHostManagedBootstrap {
         return nil
     }
 
-    private func performRegistration() async -> String {
-        guard let hostURL = verifiedHostBundleURL() else {
+    private func performRegistration(hostBundlePath: String) async -> String {
+        guard let hostURL = verifiedHostBundleURL(hostBundlePath: hostBundlePath) else {
             return "host_bundle_path_unavailable"
         }
         guard hostURL.pathExtension == "app",
@@ -149,12 +167,17 @@ private actor ScarletGuestHostManagedBootstrap {
 @objc(ScarletGuestRefreshAgent)
 final class ScarletGuestRefreshAgent: NSObject {
     @objc static func inspect(_ reply: @escaping (Int, Bool, Bool, String) -> Void) {
+        inspectHostBundle("", reply: reply)
+    }
+
+    @objc static func inspectHostBundle(_ hostBundlePath: String,
+                                       reply: @escaping (Int, Bool, Bool, String) -> Void) {
         Task {
             do {
                 // SideStore's original start() prepares/reconciles its own
                 // installed host record; this is not a fake copy of a DB.
                 try await DatabaseManager.shared.start()
-                let hostBootstrap = await ScarletGuestHostManagedBootstrap.shared.ensure()
+                let hostBootstrap = await ScarletGuestHostManagedBootstrap.shared.ensure(hostBundlePath: hostBundlePath)
                 let context = DatabaseManager.shared.persistentContainer.newBackgroundContext()
                 // Move an immutable, Sendable Team ID across CoreData's
                 // background closure; the ALTTeam is not a Sendable value.
@@ -480,6 +503,11 @@ extension ScarletGuestRefreshAgent {
     }
 
     @objc static func perform(_ reply: @escaping (Bool, String) -> Void) {
+        performHostBundle("", reply: reply)
+    }
+
+    @objc static func performHostBundle(_ hostBundlePath: String,
+                                       reply: @escaping (Bool, String) -> Void) {
         Task {
             let gate = ScarletGuestNativeRefreshGate.shared
             guard await gate.claim() else {
@@ -495,7 +523,7 @@ extension ScarletGuestRefreshAgent {
             var stage = "database"
             do {
                 try await DatabaseManager.shared.start()
-                let hostBootstrap = await ScarletGuestHostManagedBootstrap.shared.ensure()
+                let hostBootstrap = await ScarletGuestHostManagedBootstrap.shared.ensure(hostBundlePath: hostBundlePath)
                 let context = DatabaseManager.shared.persistentContainer.newBackgroundContext()
                 stage = "team"
                 guard let selectedTeamID = (await ScarletInstallTeamAuthority.activeTeam())?.identifier else {

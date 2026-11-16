@@ -1071,33 +1071,46 @@ def attach_native_settings_diagnostics(engine: Path) -> dict:
                 }
                 Section {
                     if !scarletSavedAccounts.isEmpty {
-                        ForEach(scarletSavedAccounts) { row in
-                            if row.active {
-                                HStack {
-                                    Text(row.id).lineLimit(1)
-                                    Spacer()
-                                    Label("사용 중", systemImage: "checkmark.circle.fill")
-                                        .font(.subheadline).foregroundStyle(.green)
-                                }
-                                .accessibilityIdentifier("SCARLET_SETTINGS_ACTIVE_APPLE_ID")
-                            } else {
-                                Button {
-                                    scarletSwitchToSavedAccount(row.id)
-                                } label: {
+                        // P85: one native Form cell owns all account rows.
+                        // iOS 27 conditional list rows previously produced a
+                        // trailing-only short separator under "사용 중".
+                        // Draw exactly one full-width divider per account pair.
+                        VStack(alignment: .leading, spacing: 0) {
+                            ForEach(scarletSavedAccounts) { row in
+                                if row.active {
                                     HStack {
                                         Text(row.id).lineLimit(1)
-                                        Spacer()
-                                        if scarletSwitchingAccountID == row.id {
-                                            ProgressView()
-                                        } else {
-                                            Text("전환").foregroundStyle(.secondary)
-                                        }
+                                        Spacer(minLength: 8)
+                                        Label("사용 중", systemImage: "checkmark.circle.fill")
+                                            .font(.subheadline).foregroundStyle(.green)
                                     }
+                                    .frame(minHeight: 44)
+                                    .accessibilityIdentifier("SCARLET_SETTINGS_ACTIVE_APPLE_ID")
+                                } else {
+                                    Button {
+                                        scarletSwitchToSavedAccount(row.id)
+                                    } label: {
+                                        HStack {
+                                            Text(row.id).lineLimit(1)
+                                            Spacer(minLength: 8)
+                                            if scarletSwitchingAccountID == row.id {
+                                                ProgressView()
+                                            } else {
+                                                Text("전환").foregroundStyle(.secondary)
+                                            }
+                                        }
+                                        .frame(minHeight: 44)
+                                    }
+                                    .disabled(scarletSwitchingAccountID != nil)
+                                    .accessibilityIdentifier("SCARLET_SETTINGS_SWITCH_APPLE_ID")
                                 }
-                                .disabled(scarletSwitchingAccountID != nil)
-                                .accessibilityIdentifier("SCARLET_SETTINGS_SWITCH_APPLE_ID")
+                                if row.id != scarletSavedAccounts.last?.id {
+                                    Divider()
+                                        .frame(maxWidth: .infinity)
+                                }
                             }
                         }
+                        .accessibilityIdentifier("SCARLET_SETTINGS_SAVED_ACCOUNTS_GROUP")
                     } else if scarletLoginVerified == true {
                         Label("로그인됨", systemImage: "checkmark.seal.fill")
                             .foregroundStyle(.green)

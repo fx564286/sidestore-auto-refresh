@@ -339,7 +339,7 @@ public enum ScarletNativeRefreshInspector {
                     hostManaged: false, signingReady: false,
                     reason: "transport_unresponsive"))
             }
-            client.scarletRefreshReadiness { count, managed, cert, rawStatus in
+            client.scarletRefreshReadiness(Bundle.main.bundleURL.path) { count, managed, cert, rawStatus in
                 // Allowlist classifications; never transfer DB, Apple ID,
                 // P12 or user-supplied error strings.
                 let allowed = [
@@ -465,7 +465,7 @@ public enum ScarletNativeRefreshExecutor {
             DispatchQueue.main.asyncAfter(deadline: .now() + 600) {
                 gate.finish(false, "worker_unresponsive")
             }
-            client.scarletPerformNativeRefresh { completed, reason in
+            client.scarletPerformNativeRefresh(Bundle.main.bundleURL.path) { completed, reason in
                 gate.finish(completed, reason ?? "sidestore_native_operation_failed")
             }
         }

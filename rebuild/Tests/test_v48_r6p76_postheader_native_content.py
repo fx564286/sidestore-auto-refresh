@@ -44,15 +44,16 @@ class PostHeaderContentOrigin(unittest.TestCase):
   self.assertIn('headerVerified && complete && severe == 0',H)
   self.assertIn('guard nativeStatusBandFirstPassPIDs.remove(pid)',H)
  def test_actual_signed_host_bundle_path_fallback_not_guest_bundle_main(self):
-  a=F.split('private func verifiedHostBundleURL()',1)[1].split('private func performRegistration()',1)[0]
+  a=F.split('private func verifiedHostBundleURL(hostBundlePath: String)',1)[1].split('private func performRegistration(hostBundlePath: String)',1)[0]
   for key in ('Bundle(for: ScarletGuestRefreshAgent.self)',
     'ProcessInfo.processInfo.arguments.first',
     'directory.lastPathComponent == "LiveProcess.appex"',
     'directory.deletingLastPathComponent().lastPathComponent == "PlugIns"',
     'hostURL.pathExtension == "app"'):
    self.assertIn(key,a)
-  self.assertNotIn('Bundle.main',a)
-  self.assertIn('guard let hostURL = verifiedHostBundleURL()',F)
+  self.assertNotIn('let codeBundle = Bundle.main',a)
+  self.assertIn('hostBundlePath.hasPrefix("/")',a)
+  self.assertIn('guard let hostURL = verifiedHostBundleURL(hostBundlePath: hostBundlePath)',F)
   self.assertIn('"host_selected_team_mismatch"',F)
  def test_p76_ci_release(self):
   for x in ('fix/scarlet-v48-r6p76-postheader-scroll-20261115',
