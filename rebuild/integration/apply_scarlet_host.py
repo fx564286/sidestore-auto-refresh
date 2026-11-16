@@ -1017,6 +1017,7 @@ def attach_native_settings_diagnostics(engine: Path) -> dict:
     // Prepare its own team certificate from the Apple portal if absent.
     // The native worker serializes all Keychain/team mutations. Keep raw
     // emails, portal responses and certificate bytes outside diagnostics.
+    @available(iOS 17.0, *)
     @MainActor
     private func scarletEnsureCertificateForActiveAccount() async {
         guard !scarletCertificateProvisionInFlight else { return }

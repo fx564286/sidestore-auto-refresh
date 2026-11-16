@@ -25,6 +25,11 @@ class P86CertificatePortal(unittest.TestCase):
                  'clearActiveCertificate()', 'setActiveCertificate(nil)',
                  'signOut()', 'removeItem('):
    self.assertNotIn(unsafe,part)
+ def test_xcode_ios_deployment_availability_for_embedded_settings_helper(self):
+  # Xcode27.2 CI run 43858961897: LCSettingsView has an iOS<17 deployment
+  # floor; helper directly references an iOS17-only native transport.
+  self.assertIn('@available(iOS 17.0, *)\n    @MainActor\n    private func scarletEnsureCertificateForActiveAccount() async',SETTINGS)
+  self.assertIn('if #available(iOS 17.0, *) {',SETTINGS)
  def test_user_login_switch_triggers_one_native_certificate_preflight(self):
   self.assertIn('private func scarletEnsureCertificateForActiveAccount() async',SETTINGS)
   self.assertIn('guard !scarletCertificateProvisionInFlight else { return }',SETTINGS)
