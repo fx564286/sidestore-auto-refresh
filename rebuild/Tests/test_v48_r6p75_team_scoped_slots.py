@@ -12,26 +12,26 @@ class TeamScopedSlotManager(unittest.TestCase):
         listing=WORKER.split('static func listManagedSlots(',1)[1].split('@objc(setManagedSlot:',1)[0]
         self.assertIn('ScarletTeamOperationGate.shared.claim()',listing)
         self.assertIn('ScarletTeamOperationGate.shared.release()',listing)
-        self.assertIn('ScarletInstallTeamAuthority.activeTeam()',listing)
+        self.assertIn('ScarletInstallTeamAuthority.activeOwnership()',listing)
         self.assertIn('InstalledApp.all(in: context).filter {',listing)
-        self.assertIn('$0.team?.identifier == selectedTeamID',listing)
-        self.assertIn('reply("[]", "sidestore_auth_missing")',listing)
+        self.assertIn('ScarletInstallTeamAuthority.appBelongsToOwner($0, owner: owner)',listing)
+        self.assertIn('reply("[]", "selected_account_owner_unverified")',listing)
         self.assertNotIn('let apps = InstalledApp.all(in: context)\n',listing)
     def test_action_rechecks_team_before_any_upstream_operation(self):
         action=WORKER.split('static func setManagedSlot(',1)[1]
         for marker in ('ScarletSlotOperationGate.shared.claim()',
           'ScarletTeamOperationGate.shared.claim()',
-          'ScarletInstallTeamAuthority.activeTeam()',
-          'guard app.team?.identifier == selectedTeamID else {',
-          'reply(false, "selected_team_app_mismatch")',
+          'ScarletInstallTeamAuthority.activeOwnership()',
+          'guard ScarletInstallTeamAuthority.appBelongsToOwner(app,',
+          'reply(false, "selected_account_app_mismatch")',
           'app.resignedBundleIdentifier != Bundle.Info.activeBundleIdentifier',
           'app.bundleIdentifier != StoreApp.altstoreAppID'):
             self.assertIn(marker,action)
-        self.assertLess(action.index('selected_team_app_mismatch'),
+        self.assertLess(action.index('selected_account_app_mismatch'),
           action.index('AppManager.shared.appsToDeactivate(for: app)'))
-        self.assertLess(action.index('selected_team_app_mismatch'),
+        self.assertLess(action.index('selected_account_app_mismatch'),
           action.index('AppManager.shared.activate(app,'))
-        self.assertLess(action.index('selected_team_app_mismatch'),
+        self.assertLess(action.index('selected_account_app_mismatch'),
           action.index('AppManager.shared.deactivate(app,'))
         self.assertIn('AppManager.shared.activate(app, presentingViewController: nil)', action)
         self.assertIn('AppManager.shared.deactivate(app, presentingViewController: nil)', action)
