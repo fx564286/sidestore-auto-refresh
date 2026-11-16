@@ -17,7 +17,7 @@ LC=(ROOT/'integration/apply_scarlet_host.py').read_text()
 class VerifiedAccountRoutes(unittest.TestCase):
     def test_native_settings_add_account_is_real_sheet(self):
         self.assertIn('SCARLET_SETTINGS_ADD_LOGIN', LC)
-        self.assertIn('Label(scarletLoginVerified == true || !scarletSavedAccounts.isEmpty', LC)
+        self.assertIn('Label(scarletSavedAccounts.isEmpty && scarletLoginVerified != true', LC)
         self.assertIn('scarletShowAppleLogin = true',LC)
         self.assertNotIn('scarletShowAccountAdditionNotice', LC)
         self.assertNotIn('단일 활성 계정만 유지합니다', LC)
