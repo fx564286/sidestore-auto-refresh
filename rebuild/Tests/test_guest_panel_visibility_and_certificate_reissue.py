@@ -30,15 +30,14 @@ class V5Contracts(unittest.TestCase):
         self.assertNotIn('DragGesture(minimumDistance: 12, coordinateSpace: .global)', UI)
         self.assertIn("try await app.runApp()", HOST)
 
-    def test_certificate_reissue_requires_consent_and_rollback(self):
-        for fragment in ("SideStore 인증서 받기",
-                         "isConfirmingCertReplacement = true",
-                         "importExportedP12(replaceExisting: true)",
-                         "existingCert", "existingPassword", "existingDate",
-                         "replacement_readback_failed", "manual_request_underlying_error",
-                         "p12_stored_verified"):
+    def test_certificate_reissue_requires_account_team_and_no_host_overwrite(self):
+        for fragment in ('SideStore 인증서 받기',
+            'ScarletNativeSavedAccounts.importSelectedTeamCertificate(',
+            'active.teamID == team', 'p12_decode_or_password_invalid',
+            'account_p12_import_failed', 'manual_request_underlying_error'):
             self.assertIn(fragment, SIGN)
-        self.assertNotIn("if !readiness.liveContainerCertificatePresent", SIGN)
+        self.assertNotIn('defaults.set(archive, forKey: "LCCertificateData")',SIGN)
+        self.assertNotIn('revokeCertificate(',SIGN)
 
 if __name__ == "__main__":
     unittest.main()

@@ -318,6 +318,69 @@ enum ScarletInstallTeamAuthority {
         return "ready"
     }
 
+    // P89: SideInstaller's CertManager.performImport verifies the P12 against
+    // the currently selected Apple account/team before changing its key.
+    // SideStore uses its own CertificateManager Keychain, NEVER the signed
+    // LiveContainer host's global LCCertificateData/Password storage.
+    static func importArchive(_ archive: Data, password: String,
+                              teamID: String) async -> String {
+        guard validTeam(teamID), archive.count > 0, archive.count <= 10_000_000,
+              password.utf8.count <= 1024 else { return "invalid_p12_import_request" }
+        guard let team = await activeTeam(), team.identifier == teamID else {
+            return "selected_team_changed"
+        }
+        let teamStatus = await ScarletGuestSignInAgent
+            .ensureActiveTeamForRefresh(requireHostTeam: false)
+        guard teamStatus == "ready" || teamStatus == "team_restored" else {
+            return teamStatus
+        }
+        let certificate: ALTCertificate
+        do {
+            certificate = try CertificateManager.parse(archive, password: password)
+        } catch {
+            return "p12_decode_or_password_invalid"
+        }
+        guard certificateBelongsToTeam(certificate, teamID: teamID),
+              certificate.x509.expiryDate > Date() else {
+            return "p12_wrong_team_or_expired"
+        }
+        // SideInstaller checks the imported certificate serial against
+        // certificates Apple actually registered to the chosen account.
+        // Matching ASN.1 OU alone does not authorize an otherwise unknown key.
+        do {
+            let portalCertificates = try await DeveloperPortalProxy.shared
+                .fetchCertificates(team: team)
+            guard portalCertificates.contains(where: {
+                $0.serialNumber.caseInsensitiveCompare(certificate.serialNumber) == .orderedSame &&
+                $0.expiryDate > Date()
+            }) else { return "p12_not_registered_with_selected_team" }
+        } catch {
+            return "selected_team_certificate_portal_failed"
+        }
+        guard (await activeTeam())?.identifier == teamID else {
+            return "selected_team_changed"
+        }
+        let manager = CertificateManager.shared
+        if manager.activeCertificate?.serialNumber == certificate.serialNumber {
+            return await prepare(teamID: teamID) == "ready"
+                ? "ready_existing" : "selected_team_certificate_readback_failed"
+        }
+        let original = manager.activeCertificate?.certificate
+        do {
+            try manager.setActiveCertificate(certificate)
+        } catch {
+            if let original { try? manager.setActiveCertificate(original) }
+            return "selected_team_certificate_storage_failed"
+        }
+        guard (await activeTeam())?.identifier == teamID,
+              manager.activeCertificate?.serialNumber == certificate.serialNumber,
+              await prepare(teamID: teamID) == "ready" else {
+            if let original { try? manager.setActiveCertificate(original) }
+            return "selected_team_certificate_readback_failed"
+        }
+        return "imported_selected_team"
+    }
+
     // P86: explicitly initiated login/account-switch/IPA install certificate
     // provisioning for this team's *own* Apple portal identity. Original
     // CertificateProvisioningFlow checks isCustomCert and returns the prior
@@ -391,6 +454,30 @@ enum ScarletInstallTeamAuthority {
             return "ready_issued_apple"
         } catch {
             return "selected_team_certificate_portal_failed"
+        }
+    }
+}
+
+extension ScarletGuestSignInAgent {
+    @objc(importInstallCertificate:reply:)
+    static func importInstallCertificate(_ request: NSDictionary,
+        reply: @escaping (Bool, String) -> Void) {
+        guard let archive = request["archive"] as? Data,
+              let password = request["password"] as? String,
+              let teamID = request["teamID"] as? String else {
+            reply(false, "invalid_p12_import_request"); return
+        }
+        Task { @MainActor in
+            guard activeRequest == nil else {
+                reply(false, "authentication_in_progress"); return
+            }
+            guard await ScarletTeamOperationGate.shared.claim() else {
+                reply(false, "team_operation_in_progress"); return
+            }
+            let status = await ScarletInstallTeamAuthority.importArchive(
+                archive, password: password, teamID: teamID)
+            await ScarletTeamOperationGate.shared.release()
+            reply(status == "imported_selected_team" || status == "ready_existing", status)
         }
     }
 }

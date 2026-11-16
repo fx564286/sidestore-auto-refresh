@@ -38,6 +38,7 @@ def patch_livecontainer(engine: Path) -> None:
 - (void)scarletSelectAuthAccount:(NSString*)accountID reply:(void (^)(BOOL success, NSString *status))reply;
 - (void)scarletPrepareInstallTeam:(NSString*)teamID reply:(void (^)(BOOL ready, NSString *status))reply;
 - (void)scarletIssueInstallTeamCertificate:(NSString*)teamID reply:(void (^)(BOOL ready, NSString *status))reply;
+- (void)scarletImportInstallCertificate:(NSData*)archive password:(NSString*)password teamID:(NSString*)teamID reply:(void (^)(BOOL ok, NSString *status))reply;
 - (void)scarletRefreshReadiness:(NSString*)hostBundlePath reply:(void (^)(NSInteger managedCount, BOOL hostManaged, BOOL signingReady, NSString *status))reply;
 - (void)scarletPerformNativeRefresh:(NSString*)hostBundlePath reply:(void (^)(BOOL operationReturned, NSString *status))reply;
 - (void)scarletInstallPairingRecord:(NSData*)record reply:(void (^)(BOOL verified, NSString *status))reply;
@@ -239,6 +240,25 @@ def patch_livecontainer(engine: Path) -> None:
     }
     if (teamID.length != 10) { reply(NO, @"invalid_team"); return; }
     ((void (*)(id, SEL, id, id))objc_msgSend)(worker, selector, teamID, reply);
+}
+
+- (void)scarletImportInstallCertificate:(NSData*)archive password:(NSString*)password
+                                  teamID:(NSString*)teamID
+                                   reply:(void (^)(BOOL, NSString *))reply {
+    // Only existing authenticated on-device SideStore XPC can receive the
+    // archive. Never store it in host-wide LiveContainer certificate defaults.
+    if (!archive || archive.length == 0 || archive.length > 10000000 ||
+        password.length > 1024 || teamID.length != 10) {
+        reply(NO, @"invalid_p12_import_request"); return;
+    }
+    Class worker = NSClassFromString(@"ScarletGuestSignInAgent");
+    SEL action = @selector(importInstallCertificate:reply:);
+    if (!worker || ![worker respondsToSelector:action]) {
+        reply(NO, @"account_worker_missing"); return;
+    }
+    NSDictionary *args = @{@"archive": archive, @"password": password ?: @"",
+                           @"teamID": teamID};
+    ((void (*)(id, SEL, id, id))objc_msgSend)(worker, action, args, reply);
 }
 
 - (void)scarletBeginAuth:(NSString*)requestID email:(NSString*)email password:(NSString*)password profile:(NSString*)profile {

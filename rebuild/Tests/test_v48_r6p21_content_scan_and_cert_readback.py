@@ -69,6 +69,7 @@ class DepthTruncationAndNativeSigningReadback(unittest.TestCase):
         self.assertIn('if !nativeState.signingReady {',func)
         self.assertNotIn('installation_verified": "true"',func)
         self.assertIn('team_validation_pending_or_passed',func)
-        self.assertIn('native_provider_same_certificate',PANEL)
+        self.assertIn('account_p12_imported',PANEL)
+        self.assertIn('await importExportedP12()',PANEL)
 
 if __name__=='__main__':unittest.main()

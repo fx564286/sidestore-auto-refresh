@@ -72,7 +72,9 @@ class PersistedSideStoreLogin(unittest.TestCase):
         self.assertNotIn(".scrollEdgeEffectStyle(.hard", GLASS)
         self.assertNotIn(".scrollEdgeEffectStyle(.hard", SHELL)
         self.assertIn("scarletDiagnosticScrollMargins", GLASS)
-        self.assertIn("nativeSettings()\n                    .scarletIndependentScrollEdge()", SHELL)
+        settings = SHELL.split("if tab == .settings {",1)[1].split("} else if tab == .tweaks",1)[0]
+        self.assertIn("nativeSettings()", settings)
+        self.assertNotIn(".scarletIndependentScrollEdge()", settings)
         self.assertIn("nativeTweaks()\n                    .scarletIndependentScrollEdge()", SHELL)
 
 if __name__ == "__main__":

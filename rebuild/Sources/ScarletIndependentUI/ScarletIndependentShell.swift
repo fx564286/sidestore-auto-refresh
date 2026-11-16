@@ -445,8 +445,11 @@ public struct ScarletIndependentShell: View {
     private func screen(for tab: Tab) -> some View {
         Group {
             if tab == .settings {
+                // SideInstaller SettingsView uses the native NavigationStack
+                // scroll edge. Keep Settings' top navigation chrome native;
+                // the forced hidden edge let account rows and large titles
+                // paint over the iOS 27 status bar in P88.
                 nativeSettings()
-                    .scarletIndependentScrollEdge()
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                     .accessibilityIdentifier("SCARLET_INLINE_NATIVE_LC_SETTINGS")
             } else if tab == .tweaks {

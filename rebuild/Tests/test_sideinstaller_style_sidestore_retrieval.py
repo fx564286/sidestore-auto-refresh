@@ -39,8 +39,9 @@ class SideInstallerStyleRetrieval(unittest.TestCase):
 
     def test_validation_and_sideinstaller_in_lc_fallback(self):
         self.assertIn('importExportedP12()',UI)
-        self.assertIn('hostTeam == archiveTeam',UI)
-        self.assertIn('isConfirmingCertReplacement',UI)
+        self.assertIn('active.teamID == team',UI)
+        self.assertIn('ScarletNativeSavedAccounts.importSelectedTeamCertificate(',UI)
+        self.assertNotIn('isConfirmingCertReplacement',UI)
         self.assertIn('LCUtils.certificateData()',UI)
         self.assertIn('sideinstaller_style_local_fallback',UI)
         self.assertIn('sideinstaller_style_retrieval_missing',UI)

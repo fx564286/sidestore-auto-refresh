@@ -806,6 +806,50 @@ public enum ScarletNativeSavedAccounts {
         }
     }
 
+    // Per-Team SideInstaller-style P12 import: only the selected Apple ID's
+    // active Team can receive this archive in the embedded SideStore Keychain.
+    // The host certificate and unrelated Apple Team certificates stay intact.
+    public static func importSelectedTeamCertificate(
+        _ archive: Data, password: String, teamID: String) async -> (Bool, String) {
+        guard archive.count > 0 && archive.count <= 10_000_000,
+              password.utf8.count <= 1024 else {
+            return (false, "invalid_p12_import_request")
+        }
+        let (accounts, status) = await list()
+        guard status == "ready", accounts.filter({ $0.active }).count == 1,
+              accounts.contains(where: { $0.active && $0.teamID == teamID }) else {
+            return (false, "selected_team_changed")
+        }
+        do { try await ScarletNativeAuthTransport.shared.prepare() }
+        catch { return (false, "transport_unavailable") }
+        guard let client = RefreshHandler.shared.client else {
+            return (false, "transport_unavailable")
+        }
+        return await withCheckedContinuation { c in
+            let gate = ScarletAccountActivationGate(c)
+            DispatchQueue.main.asyncAfter(deadline: .now() + 90) {
+                gate.finish(false, "timeout_state_unknown")
+            }
+            client.scarletImportInstallCertificate(
+                archive, password: password, teamID: teamID) { ok, reason in
+                let known = ["imported_selected_team", "ready_existing",
+                    "invalid_p12_import_request", "selected_team_changed",
+                    "authentication_in_progress", "team_operation_in_progress",
+                    "account_worker_missing", "p12_decode_or_password_invalid",
+                    "p12_wrong_team_or_expired", "p12_not_registered_with_selected_team",
+                    "selected_team_certificate_portal_failed",
+                    "selected_team_certificate_storage_failed",
+                    "selected_team_certificate_readback_failed",
+                    "sidestore_team_mismatch", "sidestore_team_recovery_failed",
+                    "sidestore_auth_missing"]
+                let result = reason ?? "worker_unknown"
+                gate.finish(ok && (result == "imported_selected_team" ||
+                    result == "ready_existing"),
+                    known.contains(result) ? result : "worker_unknown")
+            }
+        }
+    }
+
     public static func prepareInstallTeam(_ teamID: String) async -> (Bool, String) {
         await teamOperation(teamID, issue: false)
     }

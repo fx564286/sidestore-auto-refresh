@@ -221,8 +221,15 @@ final class ScarletGuestRefreshAgent: NSObject {
                         "host_payload_cache_unavailable", "host_cached_bundle_mismatch",
                         "host_team_record_missing", "host_registration_failed"
                     ]
-                    reason = registrationFailures.contains(hostBootstrap)
-                        ? hostBootstrap : "no_managed_apps_for_selected_team"
+                    // SideInstaller's account switch affects future signings,
+                    // not the host's already-installed signed Team. On B,
+                    // absence of B-managed apps is not a host signing error.
+                    // Keep the host mismatch diagnostic inside the bootstrap,
+                    // but report the selected Team's actual empty app set.
+                    reason = hostBootstrap == "host_selected_team_mismatch"
+                        ? "no_managed_apps_for_selected_team"
+                        : (registrationFailures.contains(hostBootstrap)
+                            ? hostBootstrap : "no_managed_apps_for_selected_team")
                 } else if !signingReady {
                     reason = "selected_team_certificate_missing"
                 } else if managesHost {

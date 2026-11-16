@@ -16,19 +16,16 @@ class CertificateRecoveryContract(unittest.TestCase):
         self.assertIn("certificate_bridge_skipped",HOST)
 
     def test_import_checks_identity_before_mutation_and_reads_back(self):
-        for s in ("readiness.canRequestNativeRefresh",
-                  "LCSharedUtils.teamIdentifier()",
-                  "LCUtils.getCertTeamId(",
-                  "hostTeam == archiveTeam",
-                  "let existingCert = LCUtils.certificateData()",
-                  'defaults.set(archive, forKey: "LCCertificateData")',
-                  'LCUtils.certificateData() == archive',
-                  'LCSharedUtils.certificatePassword() == password',
+        for s in ("LCUtils.getCertTeamId(",
+                  "active.teamID == team",
+                  "ScarletNativeSavedAccounts.importSelectedTeamCertificate(",
                   'UTType(filenameExtension: "p12")',
                   "startAccessingSecurityScopedResource",
                   "pendingP12 = nil",
                   "p12Password = \"\""):
             self.assertIn(s,PANEL)
+        self.assertNotIn('defaults.set(archive, forKey: "LCCertificateData")', PANEL)
+        self.assertNotIn('hostTeam == archiveTeam', PANEL)
 
     def test_no_silent_revoke_or_p12_exfiltration(self):
         for forbidden in ("revokeCertificate", "revokeDevelopmentCert",

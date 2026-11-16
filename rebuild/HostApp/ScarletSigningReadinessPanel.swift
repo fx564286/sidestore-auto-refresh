@@ -100,9 +100,9 @@ struct ScarletSigningReadinessPanel: View {
     // Safe enum only, never serial/key/password. Preserve through explicit
     // P12 replacement confirmation so success copy matches the real source.
     @State private var pendingCertificateOrigin = "unknown"
+    @State private var isImportingSelectedTeamP12 = false
     @State private var isAskingP12Password = false
     @State private var p12Password = ""
-    @State private var isConfirmingCertReplacement = false
     @State private var hadCertificateBeforeBridge = false
     @State private var isIssuingNativeCertificate = false
     @State private var isRetrievingSideStoreCertificate = false
@@ -338,10 +338,12 @@ struct ScarletSigningReadinessPanel: View {
                 pendingP12 = archive
                 pendingCertificateOrigin = source
                 p12Password = password
-                importExportedP12()
+                await importExportedP12()
                 ScarletDiagnosticRecorder.shared.record(
                     "certificate", "native_provider_returned",
                     fields: ["result": "team_validation_pending_or_passed"])
+                // Awaited selected-Team import above; only now read signing
+                // state. No false positive from a delayed XPC callback.
                 // R6P21: LC P12 equality does NOT prove SideStore's signing
                 // Keychain is populated. R6P20 read it BEFORE this provider,
                 // then never again. Re-read the real SideStore worker NOW.
@@ -396,10 +398,10 @@ struct ScarletSigningReadinessPanel: View {
                 pendingP12 = archive
                 pendingCertificateOrigin = "existing_stored"
                 p12Password = password
-                importExportedP12()
+                await importExportedP12()
                 ScarletDiagnosticRecorder.shared.record(
                     "certificate", "sideinstaller_style_retrieval_finished",
-                    fields: ["result": "host_team_check_applied"])
+                    fields: ["result": "selected_account_team_check_applied"])
             } catch {
                 // SideInstaller in LiveContainer reads LC's already-held
                 // certificate when SideStore cannot provide a callback.
@@ -471,105 +473,56 @@ struct ScarletSigningReadinessPanel: View {
         pendingCertificateOrigin = "unknown"
     }
 
-    private func importExportedP12(replaceExisting: Bool = false) {
-        inspect()
-        guard readiness.canRequestNativeRefresh else {
-            certificateRecoveryStatus = "App Group 또는 서명 팀 권한 불일치로 적용하지 않았습니다."
-            clearStagedCertificate()
-            return
-        }
+    @MainActor
+    private func importExportedP12() async {
+        // Original LC host signing is NOT the selected account's SideStore
+        // signing identity. SideInstaller's CertManager verifies by active
+        // account, not by the host Team identifier.
+        guard !isImportingSelectedTeamP12 else { return }
         guard let archive = pendingP12, !archive.isEmpty else {
             certificateRecoveryStatus = "선택한 P12가 없습니다."
-            clearStagedCertificate()
             return
         }
-        // This legacy LC archive is HOST-scoped, not the currently selected
-        // Apple ID's SideStore Keychain. Never overwrite it with another
-        // team's p12: doing so would invalidate existing guest signing.
-        guard let archiveTeam = LCUtils.getCertTeamId(
-            withKeyData: archive, password: p12Password) else {
-            certificateRecoveryStatus = "P12를 해독하지 못했습니다. 파일 또는 비밀번호를 확인하세요."
-            ScarletDiagnosticRecorder.shared.record(
-                "certificate", "import_blocked", status: "blocked",
-                fields: ["reason": "p12_decode_or_password_invalid"])
-            clearStagedCertificate()
-            return
-        }
-        guard let hostTeam = LCSharedUtils.teamIdentifier() else {
-            certificateRecoveryStatus = "설치된 Scarlet 앱의 서명 팀을 확인할 수 없습니다."
-            ScarletDiagnosticRecorder.shared.record(
-                "certificate", "import_blocked", status: "blocked",
-                fields: ["reason": "signed_host_team_unavailable"])
-            clearStagedCertificate()
-            return
-        }
-        guard hostTeam == archiveTeam else {
-            certificateRecoveryStatus = "이 P12는 다른 Apple 개발팀의 인증서입니다. 이 화면은 Scarlet 호스트 인증서만 저장합니다. 계정별 인증서는 선택한 계정의 Apple 인증서 발급 경로에서 관리해야 합니다."
-            ScarletDiagnosticRecorder.shared.record(
-                "certificate", "import_blocked", status: "blocked",
-                fields: ["reason": "archive_team_differs_from_signed_host"])
-            clearStagedCertificate()
-            return
-        }
-        let existingCert = LCUtils.certificateData()
-        let existingPassword = LCSharedUtils.certificatePassword()
-        if existingCert == archive && existingPassword == p12Password {
-            certificateRecoveryStatus = "기존 P12와 동일합니다. 신규 발급·갱신은 발생하지 않았습니다."
-            ScarletDiagnosticRecorder.shared.record(
-                "certificate", "native_provider_same_certificate",
-                fields: ["reason": "unchanged"])
-            clearStagedCertificate()
-            return
-        }
-        let existingDate = LCUtils.appGroupUserDefault.object(
-            forKey: "LCCertificateUpdateDate")
-        if existingCert != nil && !replaceExisting {
-            certificateRecoveryStatus = "새 P12의 팀 일치 검증을 통과했습니다. 기존 인증서를 교체하려면 확인이 필요합니다."
-            isConfirmingCertReplacement = true
-            return
-        }
-
         let password = p12Password
-        let defaults = LCUtils.appGroupUserDefault
-        defaults.set(archive, forKey: "LCCertificateData")
-        defaults.set(password, forKey: "LCCertificatePassword")
-        let stored = LCUtils.certificateData() == archive &&
-            LCSharedUtils.certificatePassword() == password
-        if !stored {
-            // Restore the previously working signing material on any error.
-            if let existingCert { defaults.set(existingCert, forKey: "LCCertificateData") }
-            else { defaults.removeObject(forKey: "LCCertificateData") }
-            if let existingPassword {
-                defaults.set(existingPassword, forKey: "LCCertificatePassword")
-            } else { defaults.removeObject(forKey: "LCCertificatePassword") }
-            if let existingDate { defaults.set(existingDate, forKey: "LCCertificateUpdateDate") }
-            else { defaults.removeObject(forKey: "LCCertificateUpdateDate") }
-            certificateRecoveryStatus = "새 P12 저장·읽기 검증 실패. 이전 인증서를 복원했습니다."
-            ScarletDiagnosticRecorder.shared.record(
-                "certificate", "replacement_readback_failed", status: "error")
+        guard let team = LCUtils.getCertTeamId(
+            withKeyData: archive, password: password) else {
+            certificateRecoveryStatus = "P12 파일 또는 비밀번호가 올바르지 않습니다."
+            ScarletDiagnosticRecorder.shared.record("certificate", "import_blocked",
+                status: "blocked", fields: ["reason": "p12_decode_or_password_invalid"])
             clearStagedCertificate()
             return
         }
-        defaults.set(Date(), forKey: "LCCertificateUpdateDate")
-        switch pendingCertificateOrigin {
-        case "new_apple_portal":
-            certificateRecoveryStatus = "Apple 포털 신규 발급 확인 · P12 팀 일치 및 저장 검증 완료. 실제 앱 재설치는 별도 확인이 필요합니다."
-        case "existing_active", "existing_portal", "existing_stored":
-            certificateRecoveryStatus = "SideStore 기존 인증서 가져오기·저장 완료. Apple에서 새 인증서가 발급된 것은 아닙니다."
-        case "external_file":
-            certificateRecoveryStatus = "선택한 P12 저장 검증 완료. Apple 신규 발급 여부는 파일만으로 확인할 수 없습니다."
-        default:
-            certificateRecoveryStatus = "P12 팀 일치 및 저장 검증 완료. 신규 발급 여부는 확인되지 않았습니다."
+        isImportingSelectedTeamP12 = true
+        defer {
+            isImportingSelectedTeamP12 = false
+            clearStagedCertificate()
         }
-        ScarletDiagnosticRecorder.shared.record(
-            "certificate", "p12_origin_at_storage",
-            fields: ["source": pendingCertificateOrigin])
-        ScarletDiagnosticRecorder.shared.record(
-            "certificate", "p12_stored_verified",
-            status: "success",
-            fields: ["reason": existingCert == nil ? "new_same_team_readback"
-                                                 : "explicit_replacement_same_team"])
-        clearStagedCertificate()
+        let rows = await ScarletNativeSavedAccounts.list()
+        guard rows.status == "ready",
+              rows.accounts.filter({ $0.active }).count == 1,
+              let active = rows.accounts.first(where: { $0.active }) else {
+            certificateRecoveryStatus = "활성 Apple ID를 확인하지 못했습니다."
+            ScarletDiagnosticRecorder.shared.record("certificate", "import_blocked",
+                status: "blocked", fields: ["reason": "active_account_unavailable"])
+            return
+        }
+        guard active.teamID == team else {
+            certificateRecoveryStatus = "선택한 Apple ID의 개발팀과 P12 인증서의 개발팀이 다릅니다."
+            ScarletDiagnosticRecorder.shared.record("certificate", "import_blocked",
+                status: "blocked", fields: ["reason": "p12_selected_account_team_mismatch"])
+            return
+        }
+        let result = await ScarletNativeSavedAccounts.importSelectedTeamCertificate(
+            archive, password: password, teamID: active.teamID)
+        if result.0 {
+            certificateRecoveryStatus = "선택한 계정의 인증서가 등록되었습니다."
+            ScarletDiagnosticRecorder.shared.record("certificate", "account_p12_imported",
+                status: "success", fields: ["result": result.1])
+        } else {
+            certificateRecoveryStatus = "계정 인증서 등록 실패: " + result.1
+            ScarletDiagnosticRecorder.shared.record("certificate", "account_p12_import_failed",
+                status: "blocked", fields: ["reason": result.1])
+        }
         inspect()
     }
 
@@ -681,25 +634,15 @@ struct ScarletSigningReadinessPanel: View {
         }
         .alert("P12 인증서 암호", isPresented: $isAskingP12Password) {
             SecureField("암호가 없으면 비워 두세요", text: $p12Password)
-            Button("검증 후 가져오기") { importExportedP12() }
+            Button("검증 후 가져오기") {
+                Task { @MainActor in await importExportedP12() }
+            }
             Button("취소", role: .cancel) {
                 clearStagedCertificate()
             }
         } message: {
-            Text("기기 파일에 저장된 P12/PFX를 선택하면 팀 ID를 검사합니다. 기존 서명 인증서 교체에는 별도 확인이 필요합니다.")
+            Text("선택한 Apple ID의 개발팀과 P12를 대조한 뒤 인증서를 등록합니다.")
         }
-        .confirmationDialog(
-            "기존 서명 인증서를 교체하시겠습니까?",
-            isPresented: $isConfirmingCertReplacement,
-            titleVisibility: .visible) {
-                Button("팀 일치 검증된 P12로 교체") {
-                    importExportedP12(replaceExisting: true)
-                }
-                Button("기존 인증서 유지", role: .cancel) {
-                    clearStagedCertificate()
-                }
-            } message: {
-                Text("교체 후에도 SideStore 로그인·서명·설치 프로파일의 갱신은 별도 검증이 필요합니다. 실패 시 기존 인증서를 복원합니다.")
-            }
+
     }
 }

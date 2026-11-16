@@ -1124,34 +1124,48 @@ def attach_native_settings_diagnostics(engine: Path) -> dict:
                 }
                 Section {
                     if !scarletSavedAccounts.isEmpty {
-                        // P88: Native Form rows, NOT a VStack nested in a Form
-                        // row. A nested cell plus conditional trailing labels
-                        // produces a one-sided/short native separator on iOS 27.
+                        // P89: SideInstaller SettingsView.accountSection is a
+                        // native Form with one plain Button per saved account.
+                        // No manual row heights/insets, embedded VStack of rows,
+                        // or forced separator geometry. Navigation owns layout.
                         ForEach(scarletSavedAccounts) { row in
-                            HStack(spacing: 8) {
-                                Text(row.id)
-                                    .lineLimit(1)
-                                    .foregroundStyle(.primary)
-                                Spacer(minLength: 8)
-                                if row.active {
-                                    Label("사용 중", systemImage: "checkmark.circle.fill")
-                                        .font(.subheadline)
-                                        .foregroundStyle(.green)
-                                        .accessibilityIdentifier("SCARLET_SETTINGS_ACTIVE_APPLE_ID")
-                                } else {
-                                    Button("전환") { scarletSwitchToSavedAccount(row.id) }
+                            Button {
+                                guard !row.active,
+                                      scarletSwitchingAccountID == nil,
+                                      !scarletCertificateProvisionInFlight else { return }
+                                scarletSwitchToSavedAccount(row.id)
+                            } label: {
+                                HStack(spacing: 12) {
+                                    Image(systemName: "person.crop.circle")
+                                        .font(.title3)
                                         .foregroundStyle(.secondary)
-                                        .buttonStyle(.borderless)
-                                        .allowsHitTesting(scarletSwitchingAccountID == nil &&
-                                            !scarletCertificateProvisionInFlight)
-                                        .accessibilityIdentifier("SCARLET_SETTINGS_SWITCH_APPLE_ID")
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        Text(row.id)
+                                            .font(.subheadline.weight(row.active ? .medium : .regular))
+                                            .lineLimit(1)
+                                            .truncationMode(.middle)
+                                        if row.active {
+                                            Text("사용 중")
+                                                .font(.caption)
+                                                .foregroundStyle(.secondary)
+                                                .accessibilityIdentifier("SCARLET_SETTINGS_ACTIVE_APPLE_ID")
+                                        }
+                                    }
+                                    Spacer(minLength: 8)
+                                    if row.active {
+                                        Image(systemName: "checkmark.circle.fill")
+                                            .foregroundStyle(.green)
+                                    } else {
+                                        Text("전환")
+                                            .font(.subheadline)
+                                            .foregroundStyle(.secondary)
+                                            .accessibilityIdentifier("SCARLET_SETTINGS_SWITCH_APPLE_ID")
+                                    }
                                 }
+                                .foregroundStyle(.primary)
+                                .contentShape(Rectangle())
                             }
-                            .frame(minHeight: 44)
-                            // A Form's native separator is inset by its row
-                            // contents and became a short line below the
-                            // right-hand status. Hide it, not the row.
-                            .listRowSeparator(.hidden)
+                            .buttonStyle(.plain)
                             .accessibilityIdentifier("SCARLET_SETTINGS_SAVED_ACCOUNT_ROW")
                         }
                     } else if scarletLoginVerified == true {
@@ -1296,7 +1310,8 @@ def attach_native_settings_diagnostics(engine: Path) -> dict:
         '            .scarletNativeListTheme()\n'
         '            .scarletSettingsPurplePalette()\n'
         '            .scarletSettingsScrollLimit()\n'
-        '            .navigationBarTitle("lc.tabView.settings".loc)\n')
+        '            .navigationBarTitle("lc.tabView.settings".loc)\n'
+        '            .navigationBarTitleDisplayMode(.inline)\n')
     # The original LC settings action only searches the legacy Keychain
     # service. Pinned SideStore uses com.SideStore.SideStore. Add a guarded
     # same-team read before the untouched original fallback; keep its label.

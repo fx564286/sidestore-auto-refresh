@@ -38,7 +38,8 @@ class P85OriginPathAndSettings(unittest.TestCase):
  def test_account_rows_have_native_list_cell_without_broken_separator(self):
   sec=S.split('Section {\n                    if !scarletSavedAccounts.isEmpty',1)[1].split('} header: {\n                    Text("계정")',1)[0]
   self.assertNotIn('VStack(alignment: .leading, spacing: 10)',sec)
-  self.assertIn('.listRowSeparator(.hidden)',sec)
+  self.assertIn('.buttonStyle(.plain)',sec)
+  self.assertNotIn('.listRowSeparator(.hidden)',sec)
   self.assertIn('ForEach(scarletSavedAccounts)',sec)
   self.assertNotIn('Divider()',sec)
   self.assertIn('SCARLET_SETTINGS_SAVED_ACCOUNT_ROW',sec)
