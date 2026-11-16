@@ -35,12 +35,13 @@ class P85OriginPathAndSettings(unittest.TestCase):
    # allow comments discussing Bundle.main, not executable guest code
    body='\n'.join(x for x in part.splitlines() if not x.lstrip().startswith('//'))
    self.assertNotIn(forbidden,body)
- def test_account_rows_share_single_form_cell_without_broken_separator(self):
+ def test_account_rows_have_native_list_cell_without_broken_separator(self):
   sec=S.split('Section {\n                    if !scarletSavedAccounts.isEmpty',1)[1].split('} header: {\n                    Text("계정")',1)[0]
-  self.assertIn('VStack(alignment: .leading, spacing: 10)',sec)
+  self.assertNotIn('VStack(alignment: .leading, spacing: 10)',sec)
+  self.assertIn('.listRowSeparator(.hidden)',sec)
   self.assertIn('ForEach(scarletSavedAccounts)',sec)
   self.assertNotIn('Divider()',sec)
-  self.assertIn('SCARLET_SETTINGS_SAVED_ACCOUNTS_GROUP',sec)
+  self.assertIn('SCARLET_SETTINGS_SAVED_ACCOUNT_ROW',sec)
   self.assertIn('SCARLET_SETTINGS_ACTIVE_APPLE_ID',sec)
   self.assertIn('SCARLET_SETTINGS_SWITCH_APPLE_ID',sec)
   self.assertIn('ScarletNativeSavedAccounts.activate(id)',S)
