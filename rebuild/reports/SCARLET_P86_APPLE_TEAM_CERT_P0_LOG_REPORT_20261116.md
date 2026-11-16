@@ -25,3 +25,11 @@
 Python 843개 실행(3개 infra skip), 0 실패; no-repeat proposal passed. Xcode27.2 네이티브 컴파일 및 Apple 포털 신규 발급·실기기 설치 결과는 미확인. 원래 V48 레이아웃, P85 계정 구분선 소스, 계정 분리, SideStore AppManager 설치 엔진 유지. **서명팀이 다른 원래 Scarlet 호스트의 자동 갱신, 다이나믹 아일랜드, 상태바 복원은 별도 미해결**.
 
 Source commit `0e2d913ea23138e0839dec2475e2858981f53804`.
+
+## L144 — P86 Xcode27.2 실제 빌드 오류 수정
+
+- 실제 GitHub run `43858961897`: SideStore native success; LiveContainer native archive failed exit65; package/release skipped.
+- 실패 job `133270450463`의 아티팩트 `14222927153`에서 `livecontainer-build.log`를 직접 확인. 생성 `LCSettingsView.swift:75,88,90`: `ScarletNativeSavedAccounts is only available in iOS 17.0 or newer`. 원인: P86 `scarletEnsureCertificateForActiveAccount` helper가 SwiftUI Settings의 오래된 deployment floor에서 `@available` 없이 iOS17 API를 사용.
+- `apply_scarlet_host.py`에 생성되는 helper의 `@available(iOS 17.0, *)` 추가, 호출부에 기존 존재하는 `if #available` 유지, 단위 테스트 1개 추가. 기존 인증서/인증/팀/설치 코드 수정 없음.
+- 로컬 844 테스트 실행, 3 infrastructure skip, 실패 0. **새 Xcode native archive와 실제 Apple 포털 동작은 재검증 필요**.
+- 수정 코드 SHA: `4c422670ab42b1f8dc1d4115443a584c4e78f5a4`.
