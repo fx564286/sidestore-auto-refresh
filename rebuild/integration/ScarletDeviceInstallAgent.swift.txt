@@ -73,8 +73,15 @@ final class ScarletDeviceInstallAgent: NSObject {
                 // The iPhone host's signed team identifies its entitlement;
                 // it is NOT the Apple team for every user-installed IPA.
                 // Reject if account/team changed after file selection.
+                // Pin BOTH the Apple ID and Team while the shared native
+                // active account is locked; a matching Team alone is not an
+                // authorization to install for another Apple account.
+                guard let owner = await ScarletInstallTeamAuthority.activeOwnership(),
+                      owner.teamID == expectedTeamID else {
+                    notify("selected_account_team_mismatch"); return
+                }
                 let teamState = await ScarletInstallTeamAuthority.prepare(
-                    teamID: expectedTeamID)
+                    teamID: owner.teamID)
                 guard teamState == "ready" else {
                     notify(teamState)
                     return
@@ -90,11 +97,15 @@ final class ScarletDeviceInstallAgent: NSObject {
                 mark("rppairing_rsd_checked")
                 mark("appmanager_processing")
                 do {
-                    _ = try await withCheckedThrowingContinuation {
+                    let installed = try await withCheckedThrowingContinuation {
                         (continuation: CheckedContinuation<InstalledApp, Error>) in
                         _ = AppManager.shared.install(.url(fileURL)) { result in
                             continuation.resume(with: result)
                         }
+                    }
+                    guard await ScarletInstallTeamAuthority.appBelongsToOwner(
+                        installed, owner: owner) else {
+                        notify("installed_app_owner_unverified"); return
                     }
                     // AppManager's callback is NOT an iOS SpringBoard
                     // installed-version readback. Record request return only.
@@ -203,15 +214,15 @@ extension ScarletDeviceInstallAgent {
                 reply("[]", "team_operation_in_progress"); return
             }
             defer { Task { await ScarletTeamOperationGate.shared.release() } }
-            guard let selectedTeamID = (await ScarletInstallTeamAuthority.activeTeam())?.identifier else {
-                reply("[]", "sidestore_auth_missing"); return
+            guard let owner = await ScarletInstallTeamAuthority.activeOwnership() else {
+                reply("[]", "selected_account_owner_unverified"); return
             }
             do {
                 try await DatabaseManager.shared.start()
                 let context = DatabaseManager.shared.viewContext
                 let hostBundle = Bundle.Info.activeBundleIdentifier
                 let apps = InstalledApp.all(in: context).filter {
-                    $0.team?.identifier == selectedTeamID
+                    ScarletInstallTeamAuthority.appBelongsToOwner($0, owner: owner)
                 }
                 let rows = apps.map { app in
                     let protected = app.resignedBundleIdentifier == hostBundle ||
@@ -253,8 +264,8 @@ extension ScarletDeviceInstallAgent {
                 reply(false, "team_operation_in_progress"); return
             }
             defer { Task { await ScarletTeamOperationGate.shared.release() } }
-            guard let selectedTeamID = (await ScarletInstallTeamAuthority.activeTeam())?.identifier else {
-                reply(false, "sidestore_auth_missing"); return
+            guard let owner = await ScarletInstallTeamAuthority.activeOwnership() else {
+                reply(false, "selected_account_owner_unverified"); return
             }
             do {
                 try await DatabaseManager.shared.start()
@@ -267,8 +278,9 @@ extension ScarletDeviceInstallAgent {
                 }
                 // Fail closed if a stale UI row or forged bundleID refers to
                 // another Apple ID's team; no cross-team AppManager calls.
-                guard app.team?.identifier == selectedTeamID else {
-                    reply(false, "selected_team_app_mismatch"); return
+                guard ScarletInstallTeamAuthority.appBelongsToOwner(app,
+                    owner: owner) else {
+                    reply(false, "selected_account_app_mismatch"); return
                 }
                 // Never unload the resident Scarlet host or upstream self app.
                 guard app.resignedBundleIdentifier != Bundle.Info.activeBundleIdentifier,
@@ -298,7 +310,8 @@ extension ScarletDeviceInstallAgent {
                     // A successful callback can precede iOS device readback.
                     // Also refuse to report success if the original database
                     // did not transition to the requested active state.
-                    if updated.isActive == active {
+                    if updated.isActive == active &&
+                        ScarletInstallTeamAuthority.appBelongsToOwner(updated, owner: owner) {
                         reply(true, "side_store_pipeline_returned_device_unverified")
                     } else {
                         reply(false, "coredata_state_unverified")
