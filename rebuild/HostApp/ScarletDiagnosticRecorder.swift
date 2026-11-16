@@ -397,6 +397,23 @@ final class ScarletDiagnosticRecorder: @unchecked Sendable {
         """
         body += "\n===== NEXT ENGINEERING ACTION · IMPLEMENT SOLUTION =====\n"
         body += Self.nextEngineeringAction()
+        // P84: this goes before every CURRENT RUN and the multi-MB history.
+        // It survives cut-off previews of a long user-shared text report.
+        body += "\n===== P84 STRICT METHOD-FAMILY BAN · NO EXCEPTIONS =====\n"
+        body += """
+        SAME EFFECT = SAME METHOD, even in a different file/function/version.
+        HARD-BLOCK: safe-area/inset, status-bar masking/style, header frame/constraint,
+        scroll inset/offset/viewport, FBScene crop/scale, timing/retry,
+        overlay/chrome masking, and parent-layout post-hook reflow as Island fixes.
+        New phone evidence does NOT waive a failed method family.
+        BEFORE EDIT: compare default-mode vs resident-mode source + receipts;
+        model three DISTINCT causes; select an independently falsifiable source fix.
+        PRE-EDIT COMMAND: python3 rebuild/diagnostics/scarlet_no_repeat_gate.py --proposal proposal.json
+        CI COMMAND: python3 rebuild/diagnostics/scarlet_no_repeat_gate.py --repository-check
+        The complete P84 Korean handoff prompt, source diffs and Lxxx decisions
+        are embedded BELOW. Never label CI/test success as iPhone visual success.
+
+        """
         body += "\n===== NO-REPEAT DECISION INDEX · READ BEFORE EDIT =====\n"
         body += Self.remediationDecisionIndex()
         let indices = includeHistory

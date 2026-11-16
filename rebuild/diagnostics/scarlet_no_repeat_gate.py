@@ -152,8 +152,16 @@ def validate(history: dict, proposal: dict | None = None) -> list[str]:
                 errors.append(f"L{n:03d}: code locations missing")
     if len(entries) < FIRST_GATED_ID - 1:
         errors.append("Historical attempts L001-L047 missing")
+    # P84: immutable L001-L139 history is validated by its original gate.
+    # Every NEW L140+ source entry and every --proposal must additionally
+    # pass the strict operational FAMILY ban, with no device-log exception.
+    from scarlet_distinct_strategy_gate import check_distinct_method
+    for index, entry in enumerate(entries):
+        if _entry_number(entry) >= 140:
+            errors.extend(check_distinct_method(entry, entries[:index]))
     if proposal is not None:
         errors.extend(check_candidate(proposal, entries))
+        errors.extend(check_distinct_method(proposal, entries))
     return errors
 
 
