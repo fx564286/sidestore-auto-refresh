@@ -16,6 +16,7 @@ ANCHOR = "a3eedc4174c9db698065ecfee7c7da6a9ac316b8"
 FROZEN_ENTRIES = 51
 FROZEN_SHA256 = "d8edebeff255e193eb6a3eb4d783630c5d4bf89872129b8e9ffc5cae2ddf6e04"
 AUDIT_HISTORY = "rebuild/diagnostics/scarlet_remediation_history.json"
+AUDIT_APPENDIX = "rebuild/diagnostics/scarlet_remediation_history_appendix.json"
 WATCH_PREFIXES = (
     "rebuild/HostApp/", "rebuild/Sources/", "rebuild/integration/",
     "rebuild/Tests/", "rebuild/diagnostics/", "rebuild/scripts/",
@@ -24,7 +25,7 @@ WATCH_EXACT = {".github/workflows/scarlet-paired-engines-build.yml"}
 
 
 def watched(path: str) -> bool:
-    return (path != AUDIT_HISTORY and
+    return (path not in {AUDIT_HISTORY, AUDIT_APPENDIX} and
             (path in WATCH_EXACT or path.startswith(WATCH_PREFIXES)))
 
 
