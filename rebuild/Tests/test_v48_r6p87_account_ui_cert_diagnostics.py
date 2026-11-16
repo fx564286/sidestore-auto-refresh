@@ -13,7 +13,8 @@ class P87Accounts(unittest.TestCase):
         self.assertNotIn('await scarletReloadSavedAccounts()', body)
     def test_account_cell_no_unnatural_divider(self):
         body=UI.split('Section {\n                    if !scarletSavedAccounts.isEmpty',1)[1].split('} header: {\n                    Text("계정")',1)[0]
-        self.assertIn('VStack(alignment: .leading, spacing: 10)',body)
+        self.assertNotIn('VStack(alignment: .leading, spacing: 10)',body)
+        self.assertIn('.listRowSeparator(.hidden)',body)
         self.assertNotIn('Divider()',body)
         self.assertIn('SCARLET_SETTINGS_ADD_LOGIN',body)
     def test_p12_import_fails_closed_with_distinct_error_reasons(self):
