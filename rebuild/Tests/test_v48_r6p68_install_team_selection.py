@@ -54,7 +54,8 @@ class TeamAandB(unittest.TestCase):
         self.assertNotIn('certificateData',LOGIN)
     def test_refresh_scoped_to_native_installedapp_team_not_other_account_host(self):
         self.assertIn('$0.team?.identifier == selectedTeamID',REFRESH)
-        self.assertIn('let currentTeamID = (await ScarletInstallTeamAuthority.activeTeam())?.identifier',REFRESH)
+        self.assertIn('$0.team?.account?.appleID.caseInsensitiveCompare(',REFRESH)
+        self.assertIn('let owner = await ScarletInstallTeamAuthority.activeOwnership()',REFRESH)
         self.assertIn('signingReady = await ScarletInstallTeamAuthority',REFRESH)
         self.assertIn('.hasValidSigningCertificate(for: currentTeamID)',REFRESH)
         self.assertNotIn('let signingReady = currentTeam.flatMap {',REFRESH)
