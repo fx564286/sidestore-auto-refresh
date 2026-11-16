@@ -63,7 +63,30 @@ def _git(repo: Path, *args: str) -> str:
                           capture_output=True, text=True, check=True).stdout.strip()
 
 
+def merge_appendix(history: dict, repo: Path) -> dict:
+    # A caller may still supply the frozen base history (e.g. original P16
+    # tests), while the current CI gate already passes the combined entries.
+    # Both must verify exactly the same immutable append-only source receipts.
+    path = repo / AUDIT_APPENDIX
+    if not path.is_file():
+        return history
+    appendix = json.loads(path.read_text(encoding="utf-8"))
+    base_count = appendix["base_entry_count"]
+    original = history.get("entries", [])
+    if len(original) == base_count:
+        result = dict(history)
+        result["entries"] = original + appendix["entries"]
+        return result
+    if len(original) == base_count + len(appendix["entries"]) and (
+        [e["id"] for e in original[base_count:]] ==
+        [e["id"] for e in appendix["entries"]]
+    ):
+        return history
+    raise ValueError("Remediation source-history appendix does not match base")
+
+
 def verify_repo(history: dict, repo: Path, base: str = ANCHOR) -> list[str]:
+    history = merge_appendix(history, repo)
     errors = inspect_frozen_history(history)
     if errors:
         return errors
