@@ -8,6 +8,8 @@ R=Path(__file__).resolve().parents[1]
 S=(R/'integration/ScarletGuestSavedAccounts.swift.txt').read_text()
 I=(R/'integration/ScarletDeviceInstallAgent.swift.txt').read_text()
 F=(R/'integration/ScarletGuestRefreshAgent.swift.txt').read_text()
+G=(R/'diagnostics/scarlet_no_repeat_gate.py').read_text()
+B=(R/'integration/apply_scarlet_host.py').read_text()
 class AccountOwnership(unittest.TestCase):
  def test_side_store_original_account_relation_is_required(self):
   a=S.split('static func activeOwnership()',1)[1].split('static func validTeam(',1)[0]
@@ -38,6 +40,11 @@ class AccountOwnership(unittest.TestCase):
   self.assertNotIn('$0.team == nil',F)
   self.assertIn('profile.teamIdentifier == owner.teamID',F)
   self.assertIn('record.team = team',F)
+ def test_append_history_is_verified_and_embedded_as_full_diagnostics(self):
+  self.assertIn('scarlet_remediation_history_appendix.json', G)
+  self.assertIn('data["entries"].extend(extra["entries"])', G)
+  self.assertIn('audit["entries"].extend(appendix["entries"])', B)
+  self.assertIn('history_bytes = json.dumps(audit', B)
  def test_no_destructive_cross_account_reset(self):
   for forbidden in ('SecItemDelete(', 'revokeCertificate(',
    'removeItem(at: hostURL)', 'app.isActive = active'):
