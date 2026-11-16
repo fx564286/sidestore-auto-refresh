@@ -14,7 +14,7 @@ PATCH=(ROOT/"integration/apply_scarlet_host.py").read_text()
 class FivePointNovemberAccept(unittest.TestCase):
     def test_1_verified_auth_session_drives_account_state(self):
         self.assertIn("scarletLoginVerified: Bool? = nil", PATCH)
-        self.assertIn('Label(scarletLoginVerified == true || !scarletSavedAccounts.isEmpty', PATCH)
+        self.assertIn('Label(scarletSavedAccounts.isEmpty && scarletLoginVerified != true', PATCH)
         self.assertIn('SCARLET_SETTINGS_LOGIN_VERIFIED', PATCH)
         self.assertNotIn('서명 준비됨', PATCH)
         self.assertIn('ScarletConnectedSideSignEngine().storedAuthenticated()', PATCH)
