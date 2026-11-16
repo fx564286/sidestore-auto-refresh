@@ -25,7 +25,7 @@ class P85OriginPathAndSettings(unittest.TestCase):
             '"PlugIns/LiveProcess.appex"','"embedded.mobileprovision"',
             'hostURL.pathExtension == "app"','ALTApplication(fileURL: hostURL)',
             'profile.expirationDate > Date()',
-            'profile.teamIdentifier == currentTeamID',
+            'profile.teamIdentifier == owner.teamID',
             'matchingCertificate(', 'CacheAppOperation.cachePayload(for: hostURL)',
             'record.useMainProfile = false','record.appExtensions = extensions',
             'try context.save()'):
