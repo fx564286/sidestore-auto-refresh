@@ -16,7 +16,7 @@ class UserVisibleLabelStability(unittest.TestCase):
     def test_login_button_reflects_verified_state(self):
         self.assertIn('if !scarletSavedAccounts.isEmpty {',PATCH)
         self.assertIn('Label("로그인됨", systemImage:',PATCH)
-        self.assertIn('Label(scarletLoginVerified == true || !scarletSavedAccounts.isEmpty',PATCH)
+        self.assertIn('Label(scarletSavedAccounts.isEmpty && scarletLoginVerified != true',PATCH)
         self.assertIn('SCARLET_SETTINGS_SWITCH_APPLE_ID',PATCH)
         self.assertIn('SCARLET_SETTINGS_ADD_LOGIN',PATCH)
         self.assertNotIn('scarletShowAccountAdditionNotice',PATCH)
