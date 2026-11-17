@@ -22,8 +22,9 @@ class NativeSignerRecovery(unittest.TestCase):
   self.assertIn('@available(iOS 17.0, *)\n@MainActor\nenum ScarletGuestSignerRecovery {',HOST)
   self.assertIn('guard readiness.canAttemptLocalGuestSignerRecovery else {',P)
  def test_actual_team_is_signed_host_not_active_account_b(self):
-  for x in ('SecTaskCopyValueForEntitlement(',
-    'com.apple.developer.team-identifier',
+  for x in ('ScarletHostProvisioningSigner',
+    '.verifiedInstalledHostTeam() else {',
+    'installed_host_team_unverified',
     'LCUtils.getCertTeamId(withKeyData: candidate,',
     'password: password) == signedHostTeam',
     'candidate != original',
