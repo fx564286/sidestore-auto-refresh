@@ -8,6 +8,13 @@ G = (R/'HostApp/ScarletIntegratedHostView.swift').read_text()
 W = (R.parent/'.github/workflows/scarlet-paired-engines-build.yml').read_text()
 
 class P93SignedHostProfile(unittest.TestCase):
+    def test_xcode27_swift_corefoundation_identity_cast_compile_contract(self):
+        # Xcode 27 rejects optional 'as? SecIdentity' even after a valid
+        # Security.framework PKCS12 decode; require an existing object first.
+        self.assertIn('let identityObject = items.first?[kSecImportItemIdentity as String]', G)
+        self.assertIn('let identity = identityObject as! SecIdentity', G)
+        self.assertNotIn('let identity = items.first?[kSecImportItemIdentity as String] as? SecIdentity', G)
+
     def test_signed_host_actual_developer_cert_der_required(self):
         self.assertIn('embedded.mobileprovision', G)
         self.assertIn('profile["DeveloperCertificates"] as? [Data]', G)
