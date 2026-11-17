@@ -354,6 +354,11 @@ struct ScarletSigningReadinessPanel: View {
                 }
                 let result = await ScarletNativeSavedAccounts
                     .issueFreshInstallCertificate(owner.teamID)
+                if let evidence = ScarletNativeSavedAccounts.takePortalEvidence() {
+                    ScarletDiagnosticRecorder.shared.record(
+                        "certificate", "native_issue_portal_error_evidence",
+                        status: "error", fields: evidence.safeLogFields)
+                }
                 ScarletDiagnosticRecorder.shared.record(
                     "certificate", "native_account_issue_result",
                     status: result.0 ? "success" : "blocked",
@@ -585,6 +590,11 @@ struct ScarletSigningReadinessPanel: View {
         }
         let result = await ScarletNativeSavedAccounts.importSelectedTeamCertificate(
             archive, password: password, teamID: active.teamID)
+        if let evidence = ScarletNativeSavedAccounts.takePortalEvidence() {
+            ScarletDiagnosticRecorder.shared.record(
+                "certificate", "native_import_portal_error_evidence",
+                status: "error", fields: evidence.safeLogFields)
+        }
         if result.0 {
             certificateRecoveryStatus = "선택한 계정 인증서가 등록됐습니다. 게스트 서명은 별도 검증 중입니다."
             ScarletDiagnosticRecorder.shared.record("certificate", "account_p12_imported",

@@ -41,7 +41,13 @@ class P102PortalAndRefresh(unittest.TestCase):
 
     def test_host_logs_structured_error_without_unbounded_strings(self):
         self.assertIn("ScarletCertificatePortalEvidence.decode(raw)", HOST)
-        self.assertIn('"native_issue_portal_error_evidence"', HOST)
+        self.assertIn('pendingPortalEvidence', HOST)
+        self.assertIn('takePortalEvidence()', HOST)
+        self.assertNotIn('ScarletDiagnosticRecorder.shared', HOST)
+        self.assertIn('"native_issue_portal_error_evidence"',
+                      (ROOT / "rebuild/HostApp/ScarletSigningReadinessPanel.swift").read_text())
+        self.assertIn('"native_import_portal_error_evidence"',
+                      (ROOT / "rebuild/HostApp/ScarletSigningReadinessPanel.swift").read_text())
         self.assertIn("known.contains(reason) ? reason : \"worker_unknown\"", HOST)
         self.assertIn("allowedReasons.contains(item.reason)", HOST)
         self.assertIn("domains.contains(item.underlyingDomain)", HOST)

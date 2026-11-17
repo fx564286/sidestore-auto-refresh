@@ -1051,6 +1051,11 @@ def attach_native_settings_diagnostics(engine: Path) -> dict:
                      "certificate_present": active[0].certificateReady ? "true" : "false"])
         let (ready, result) = await ScarletNativeSavedAccounts
             .ensureSelectedTeamCertificate(teamID)
+        if let evidence = ScarletNativeSavedAccounts.takePortalEvidence() {
+            ScarletDiagnosticRecorder.shared.record(
+                "certificate", "native_issue_portal_error_evidence",
+                status: "error", fields: evidence.safeLogFields)
+        }
         let readback = await ScarletNativeSavedAccounts.list()
         let checked = readback.status == "ready" &&
             readback.accounts.filter({ $0.active }).count == 1 &&

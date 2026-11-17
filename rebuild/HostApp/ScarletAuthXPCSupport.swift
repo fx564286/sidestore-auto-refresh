@@ -919,6 +919,20 @@ public struct ScarletStoredAppleAccount: Identifiable, Decodable, Sendable {
 @available(iOS 17.0, *)
 @MainActor
 public enum ScarletNativeSavedAccounts {
+    // P102 CI repair: this framework cannot import LiveContainerSwiftUI's
+    // ScarletDiagnosticRecorder. Return only bounded diagnostics to its host.
+    private static var pendingPortalEvidence: ScarletCertificatePortalEvidence?
+
+    public static func takePortalEvidence() -> ScarletCertificatePortalEvidence? {
+        let value = pendingPortalEvidence
+        pendingPortalEvidence = nil
+        return value
+    }
+
+    private static func retainPortalEvidence(_ value: ScarletCertificatePortalEvidence) {
+        pendingPortalEvidence = value
+    }
+
     public static func list() async -> (accounts: [ScarletStoredAppleAccount], status: String) {
         do { try await ScarletNativeAuthTransport.shared.prepare() }
         catch { return ([], "transport_unavailable") }
@@ -956,6 +970,7 @@ public enum ScarletNativeSavedAccounts {
     // The host certificate and unrelated Apple Team certificates stay intact.
     public static func importSelectedTeamCertificate(
         _ archive: Data, password: String, teamID: String) async -> (Bool, String) {
+        pendingPortalEvidence = nil
         guard archive.count > 0 && archive.count <= 10_000_000,
               password.utf8.count <= 1024 else {
             return (false, "invalid_p12_import_request")
@@ -995,15 +1010,18 @@ public enum ScarletNativeSavedAccounts {
                     "sidestore_auth_missing"]
                 let raw = reason ?? "worker_unknown"
                 let evidence = ok ? nil : ScarletCertificatePortalEvidence.decode(raw)
-                if let evidence {
-                    ScarletDiagnosticRecorder.shared.record(
-                        "certificate", "native_import_portal_error_evidence",
-                        status: "error", fields: evidence.safeLogFields)
-                }
                 let result = evidence?.reason ?? raw
-                gate.finish(ok && (result == "imported_selected_team" ||
-                    result == "ready_existing"),
-                    known.contains(result) ? result : "worker_unknown")
+                let accepted = ok && (result == "imported_selected_team" ||
+                    result == "ready_existing")
+                let outcome = known.contains(result) ? result : "worker_unknown"
+                if let evidence {
+                    Task { @MainActor in
+                        retainPortalEvidence(evidence)
+                        gate.finish(accepted, outcome)
+                    }
+                } else {
+                    gate.finish(accepted, outcome)
+                }
             }
         }
     }
@@ -1036,6 +1054,7 @@ public enum ScarletNativeSavedAccounts {
 
     private static func teamOperation(_ teamID: String, issue: Bool,
                                       forceFresh: Bool = false) async -> (Bool, String) {
+        pendingPortalEvidence = nil
         guard teamID.utf8.count == 10 && teamID.allSatisfy({
             $0.isASCII && ($0.isUppercase || $0.isNumber)
         }) else { return (false, "invalid_team") }
@@ -1074,19 +1093,22 @@ public enum ScarletNativeSavedAccounts {
                              "team_operation_in_progress"]
                 let raw = status ?? "worker_unknown"
                 let evidence = ok ? nil : ScarletCertificatePortalEvidence.decode(raw)
-                if let evidence {
-                    ScarletDiagnosticRecorder.shared.record(
-                        "certificate", "native_issue_portal_error_evidence",
-                        status: "error", fields: evidence.safeLogFields)
-                }
                 let reason = evidence?.reason ?? raw
                 let success = forceFresh
                     ? reason == "ready_issued_apple"
                     : (reason == "ready" ||
                        (issue && (reason == "ready_existing_portal" ||
                                   reason == "ready_issued_apple")))
-                gate.finish(ok && success,
-                    known.contains(reason) ? reason : "worker_unknown")
+                let accepted = ok && success
+                let outcome = known.contains(reason) ? reason : "worker_unknown"
+                if let evidence {
+                    Task { @MainActor in
+                        retainPortalEvidence(evidence)
+                        gate.finish(accepted, outcome)
+                    }
+                } else {
+                    gate.finish(accepted, outcome)
+                }
             }
             if forceFresh {
                 client.scarletIssueFreshInstallTeamCertificate(teamID, reply: callback)
