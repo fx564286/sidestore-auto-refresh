@@ -136,20 +136,55 @@ public final class ScarletNativeAuthTransport {
     private var requestID: String?
     private var completion: CheckedContinuation<Void, Error>?
     private var codeProvider: (() async throws -> String)?
+    // One LIVE worker handshake at a time. Concurrent account/refresh calls
+    // must not tear each other's native XPC session down.
+    private var preparingWorker: Task<Void, Error>?
     private init() {}
 
     public func prepare() async throws {
+        if let preparingWorker {
+            try await preparingWorker.value
+            return
+        }
+        let operation = Task { @MainActor in
+            try await self.prepareConnectedWorker()
+        }
+        preparingWorker = operation
+        defer { preparingWorker = nil }
+        try await operation.value
+    }
+
+    private func workerResponds(_ remote: RefreshClient) async -> Bool {
+        await withCheckedContinuation { (c: CheckedContinuation<Bool, Never>) in
+            let gate = ScarletBoolGate(c)
+            DispatchQueue.main.asyncAfter(deadline: .now() + 15) {
+                gate.finish(false)
+            }
+            remote.scarletAuthReady { ready in gate.finish(ready) }
+        }
+    }
+
+    private func prepareConnectedWorker() async throws {
         isReady = false
         try await RefreshHandler.shared.scarletEnsureAuthGuest()
         guard let remote = RefreshHandler.shared.client else {
             throw ScarletNativeAuthError.guestUnavailable
         }
-        let verified = await withCheckedContinuation { (c: CheckedContinuation<Bool, Never>) in
-            let gate = ScarletBoolGate(c)
-            DispatchQueue.main.asyncAfter(deadline: .now() + 15) { gate.finish(false) }
-            remote.scarletAuthReady { ready in gate.finish(ready) }
+        if await workerResponds(remote) {
+            isReady = true
+            return
         }
-        guard verified else { throw ScarletNativeAuthError.workerUnavailable }
+        // A cached NSXPC proxy is not evidence of a live SideStore worker.
+        // Retire only that exact failed proxy, only when native refresh and
+        // extension startup are idle. Preserve the selected Apple ID/P12.
+        guard RefreshHandler.shared.scarletRetireFailedAuthGuest(expected: remote) else {
+            throw ScarletNativeAuthError.workerUnavailable
+        }
+        try await RefreshHandler.shared.scarletEnsureAuthGuest()
+        guard let recovered = RefreshHandler.shared.client,
+              await workerResponds(recovered) else {
+            throw ScarletNativeAuthError.workerUnavailable
+        }
         isReady = true
     }
 
@@ -642,8 +677,36 @@ public enum ScarletNativePairingInstaller {
 
 @available(iOS 17.0, *)
 extension RefreshHandler {
+    // Replaces a PROVEN dead cached proxy, never an active native refresh.
+    // Keep the listener and account/Keychain vault intact: only our owned
+    // SideStore LiveProcess and its XPC client are disposed.
+    @discardableResult
+    func scarletRetireFailedAuthGuest(expected: RefreshClient) -> Bool {
+        guard c == nil, launchContinuation == nil,
+              let connected = client,
+              (connected as AnyObject) === (expected as AnyObject) else {
+            return false
+        }
+        NSLog("[SCARLET_XPC] stale_worker_retired_after_readiness_failure")
+        if let ownedExtension = ext { ownedExtension._kill(9) }
+        client = nil
+        sideStorePid = 0
+        ext = nil
+        return true
+    }
+
     func scarletEnsureAuthGuest() async throws {
-        if client != nil { return }
+        try await scarletEnsureAuthGuest(allowOrphanRebind: true)
+    }
+
+    private func scarletEnsureAuthGuest(allowOrphanRebind: Bool) async throws {
+        if let existing = client {
+            if sideStorePid > 0 && getpgid(sideStorePid) > 0 { return }
+            // An interrupted child may leave a non-nil remoteObjectProxy.
+            guard scarletRetireFailedAuthGuest(expected: existing) else {
+                throw ScarletNativeAuthError.workerUnavailable
+            }
+        }
         if listener == nil {
             guard let activeListener = startAnonymousListener(self) else {
                 throw ScarletNativeAuthError.guestUnavailable
@@ -669,8 +732,15 @@ extension RefreshHandler {
                                 "endpoint": endpoint]
             let process = try NSExtension(identifier: extensionBundle.bundleIdentifier)
             ext = process
-            process.setRequestInterruptionBlock { _ in
-                Task { @MainActor in ScarletNativeAuthTransport.shared.cancel() }
+            process.setRequestInterruptionBlock { [weak process] _ in
+                Task { @MainActor in
+                    guard let interrupted = process,
+                          self.ext === interrupted else { return }
+                    self.client = nil
+                    self.sideStorePid = 0
+                    self.ext = nil
+                    ScarletNativeAuthTransport.shared.cancel()
+                }
             }
             let identifier = await process.beginRequest(withInputItems: [request])
             sideStorePid = process.pid(forRequestIdentifier: identifier)
@@ -678,6 +748,19 @@ extension RefreshHandler {
         for _ in 0..<80 {
             if client != nil { return }
             try await Task.sleep(for: .milliseconds(250))
+        }
+        // The process may still have a PID but never connect to this
+        // authenticated XPC listener. Retire this single orphaned native
+        // worker only after the full handshake window expired and no native
+        // signing/refresh or launch continuation is in progress.
+        if allowOrphanRebind, c == nil, launchContinuation == nil,
+           client == nil, sideStorePid > 0, getpgid(sideStorePid) > 0 {
+            NSLog("[SCARLET_XPC] orphan_worker_rebound_after_no_connection")
+            if let orphan = ext { orphan._kill(9) }
+            sideStorePid = 0
+            ext = nil
+            try await scarletEnsureAuthGuest(allowOrphanRebind: false)
+            return
         }
         throw ScarletNativeAuthError.guestUnavailable
     }

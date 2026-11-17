@@ -47,6 +47,7 @@ OTHER_ALLOWED_METHODS = {
     # P99: two independently built P98 sources shared a CFBundleVersion,
     # making it impossible for one published IPA to contain both repairs.
     "release_branch_convergence_unique_build_identity",
+    "xpc_auth_guest_lifecycle_rebind_after_confirmed_disconnect",
 }
 
 # This catches a candidate that claims a novel family but still ADDS the same
