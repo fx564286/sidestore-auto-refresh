@@ -9,18 +9,15 @@ W = (R.parent/'.github/workflows/scarlet-paired-engines-build.yml').read_text()
 
 class P93SignedHostProfile(unittest.TestCase):
     def test_xcode27_swift_corefoundation_identity_cast_compile_contract(self):
-        # Xcode 27 rejects optional 'as? SecIdentity' even after a valid
-        # Security.framework PKCS12 decode; require an existing object first.
-        self.assertIn('let identityObject = items.first?[kSecImportItemIdentity as String]', G)
-        self.assertIn('let identity = identityObject as! SecIdentity', G)
-        self.assertNotIn('let identity = items.first?[kSecImportItemIdentity as String] as? SecIdentity', G)
+        # P94 uses the same OpenSSL PKCS12 parser as the original signer:
+        # P93 iPhone recorded a SecPKCS12Import decode failure despite Team match.
+        self.assertIn('LCUtils.scarletCertificateDER(', G)
+        self.assertNotIn('as? SecIdentity', G)
 
     def test_signed_host_actual_developer_cert_der_required(self):
         self.assertIn('embedded.mobileprovision', G)
         self.assertIn('profile["DeveloperCertificates"] as? [Data]', G)
-        self.assertIn('SecPKCS12Import(archive as CFData', G)
-        self.assertIn('SecIdentityCopyCertificate(identity, &cert)', G)
-        self.assertIn('SecCertificateCopyData(cert) as Data', G)
+        self.assertIn('LCUtils.scarletCertificateDER(', G)
         self.assertIn('allowed.contains(candidateDER) ? .matched : .different', G)
         self.assertIn('entitlements["get-task-allow"] as? Bool == true', G)
         self.assertNotIn('Unmanaged.passRetained', G)

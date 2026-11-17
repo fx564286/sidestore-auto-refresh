@@ -41,6 +41,9 @@ OTHER_ALLOWED_METHODS = {
     # P92 restores a removed native JIT-less route and separates guest-local
     # signing eligibility from stronger SideStore device refresh eligibility.
     "original_jitless_diag_navigation_guest_scoped_recovery",
+    # P94: explicit selected-account P12 (validated by host profile DER) is
+    # bridged to original LC guest signer only via reversible kernel check.
+    "user_approved_account_p12_to_lc_signed_host_verified_bridge",
 }
 
 # This catches a candidate that claims a novel family but still ADDS the same

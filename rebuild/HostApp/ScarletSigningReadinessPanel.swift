@@ -525,9 +525,37 @@ struct ScarletSigningReadinessPanel: View {
         let result = await ScarletNativeSavedAccounts.importSelectedTeamCertificate(
             archive, password: password, teamID: active.teamID)
         if result.0 {
-            certificateRecoveryStatus = "선택한 계정의 인증서가 등록되었습니다."
+            certificateRecoveryStatus = "선택한 계정 인증서가 등록됐습니다. 게스트 서명은 별도 검증 중입니다."
             ScarletDiagnosticRecorder.shared.record("certificate", "account_p12_imported",
                 status: "success", fields: ["result": result.1])
+            // P94: a successful SideStore import changes only its native
+            // certificate store; LC guest signs with a separate AppGroup P12.
+            // Revalidate the exact active Apple-ID+Team owner after await.
+            let readback = await ScarletNativeSavedAccounts.list()
+            if readback.status == "ready",
+               readback.accounts.filter({ $0.active }).count == 1,
+               readback.accounts.contains(where: {
+                   $0.active && $0.id == active.id && $0.teamID == active.teamID
+               }) {
+                if LCUtils.certificateData() == archive &&
+                   LCSharedUtils.certificatePassword() == password {
+                    ScarletDiagnosticRecorder.shared.record(
+                        "certificate", "account_p12_guest_signer_unchanged",
+                        fields: ["reason": "already_active_lc_archive"])
+                } else {
+                    ScarletDiagnosticRecorder.shared.record(
+                        "certificate", "account_p12_guest_signer_trial_requested",
+                        fields: ["result": "host_profile_and_kernel_check_required"])
+                    // P78 checks actual installed host profile + reversibly
+                    // restores the LC signer if kernel JIT-less postcheck fails.
+                    ScarletGuestSignerRecovery.trialExistingSideStoreCertificate(
+                        nativeCandidate: (archive: archive, password: password))
+                }
+            } else {
+                ScarletDiagnosticRecorder.shared.record(
+                    "certificate", "account_p12_guest_signer_blocked",
+                    status: "blocked", fields: ["reason": "active_owner_changed"])
+            }
         } else {
             certificateRecoveryStatus = "계정 인증서 등록 실패: " + result.1
             ScarletDiagnosticRecorder.shared.record("certificate", "account_p12_import_failed",

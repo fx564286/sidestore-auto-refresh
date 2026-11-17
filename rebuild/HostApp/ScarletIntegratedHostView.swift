@@ -99,21 +99,12 @@ private enum ScarletHostProvisioningSigner {
               entitlements["get-task-allow"] as? Bool == true else {
             return .developmentProfileRequired
         }
-        let options: [String: Any] = [kSecImportExportPassphrase as String: password]
-        var decoded: CFArray?
-        guard SecPKCS12Import(archive as CFData, options as CFDictionary, &decoded)
-                == errSecSuccess,
-              let items = decoded as? [[String: Any]],
-              let identityObject = items.first?[kSecImportItemIdentity as String]
-        else { return .archiveUnreadable }
-        // Security.framework guarantees kSecImportItemIdentity is a
-        // SecIdentity on successful SecPKCS12Import. Swift 6 / Xcode 27
-        // rejects 'as? SecIdentity' for CoreFoundation reference types.
-        let identity = identityObject as! SecIdentity
-        var cert: SecCertificate?
-        guard SecIdentityCopyCertificate(identity, &cert) == errSecSuccess,
-              let cert else { return .archiveUnreadable }
-        let candidateDER = SecCertificateCopyData(cert) as Data
+        // P94: extract public DER using LC's original ZSigner OpenSSL parser.
+        // P93's Security.framework parser failed for an archive the existing
+        // ZSigner successfully identified by Team ID on the signed device.
+        guard let candidateDER = LCUtils.scarletCertificateDER(
+            withKeyData: archive, password: password),
+              !candidateDER.isEmpty else { return .archiveUnreadable }
         return allowed.contains(candidateDER) ? .matched : .different
     }
 }
@@ -131,7 +122,7 @@ private enum ScarletHostProvisioningSigner {
 // removed from the snapshot on success/failure; no secrets enter logs.
 @available(iOS 17.0, *)
 @MainActor
-private enum ScarletGuestSignerRecovery {
+enum ScarletGuestSignerRecovery {
     static private(set) var active = false
     private static let pending = "Scarlet.Signer.RepairPending"
     private static let backupCert = "Scarlet.Signer.OriginalCertificate"

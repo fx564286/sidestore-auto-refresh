@@ -16,6 +16,14 @@ import shutil
 import struct
 import subprocess
 import tempfile
+# Also works for tests loading this file directly via importlib.spec_from_file_location.
+import importlib.util
+_p94_path = Path(__file__).with_name("scarlet_p94_zsign_der.py")
+_p94_spec = importlib.util.spec_from_file_location("scarlet_p94_zsign_der", _p94_path)
+assert _p94_spec is not None and _p94_spec.loader is not None
+_p94_module = importlib.util.module_from_spec(_p94_spec)
+_p94_spec.loader.exec_module(_p94_module)
+attach_p94_zsign_public_der = _p94_module.attach_p94_zsign_public_der
 
 def file_sha(path):
     return hashlib.sha256(path.read_bytes()).hexdigest()
@@ -2863,6 +2871,7 @@ static void ScarletGuestHookTrace(NSString *event) {
     island_content = add_scarlet_guest_island_content_guard(engine)
     keyboard_handoff = add_scarlet_guest_keyboard_handoff(engine)
     guest_launch_policy = add_scarlet_guest_launch_policy_probe(engine)
+    signer_cert_der=attach_p94_zsign_public_der(engine)
     guest_signing=instrument_original_guest_signing(engine)
     guest_manager=hide_embedded_sidestore_guest_navigation(engine)
     guest_archive_recovery=add_r6p79_mapped_archive_fallback(engine)
@@ -2893,6 +2902,7 @@ static void ScarletGuestHookTrace(NSString *event) {
         "nativeGuestManager":guest_manager,
         "guestArchiveRecovery":guest_archive_recovery,
         "originalLCGuestSigningDiagnostics":guest_signing,
+        "hostSignerPublicDERFromOriginalZSigner":signer_cert_der,
         "nativeSettingsDiagnostics":native_settings,
         "nativeTweaksTheme":native_tweaks_theme,
         "nativeJITLessDiagnosticScroll":nested_diagnostic_layout,
