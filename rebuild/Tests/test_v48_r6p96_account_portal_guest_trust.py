@@ -10,11 +10,11 @@ HOST=(ROOT/'rebuild/HostApp/ScarletIntegratedHostView.swift').read_text()
 class AccountPortalTrustContract(unittest.TestCase):
     def test_button_runs_explicit_portal_issuing_not_quick_local_ready(self):
         body=UI.split('private func requestNativeCertificate()',1)[1].split('private func retrieveSideInstallerStyleCertificate()',1)[0]
-        self.assertIn('issueInstallCertificate(owner.teamID)',body)
+        self.assertIn('issueFreshInstallCertificate(owner.teamID)',body)
         self.assertNotIn('ensureSelectedTeamCertificate(owner.teamID)',body)
         self.assertIn('native_account_issue_result',body)
         self.assertIn('"ready_issued_apple"',body)
-        self.assertIn('"existing_portal"',body)
+        self.assertNotIn('"existing_portal"',body)
 
     def test_explicit_issue_checks_apple_portal_serial_and_owner(self):
         body=SIDE.split('static func issue(teamID: String)',1)[1].split('extension ScarletGuestSignInAgent',1)[0]

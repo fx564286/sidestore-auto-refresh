@@ -20,7 +20,7 @@ class InAppCertAndGlassContracts(unittest.TestCase):
         self.assertIn('sideinstaller_style_local_fallback',SIGN)
         self.assertIn('sideinstaller_style_retrieval_missing',SIGN)
         self.assertIn("ScarletNativeSavedAccounts",SIGN)
-        self.assertIn("issueInstallCertificate(owner.teamID)",SIGN)
+        self.assertIn("issueFreshInstallCertificate(owner.teamID)",SIGN)
         self.assertIn("retrieveSideStoreCertificate()",SIGN)
         self.assertNotIn('UIApplication.shared.open(',SIGN)
         self.assertNotIn("sideinstaller://",SIGN)

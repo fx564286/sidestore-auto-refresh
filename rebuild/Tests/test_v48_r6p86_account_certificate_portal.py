@@ -55,7 +55,9 @@ class P86CertificatePortal(unittest.TestCase):
   self.assertIn('ready_issued_apple',XPC)
   self.assertIn('let confirmed = await prepareInstallTeam(teamID)',XPC)
   self.assertIn('selected_team_certificate_readback_failed',XPC)
-  self.assertIn('let success = reason == "ready" ||',XPC)
+  self.assertIn('let success = forceFresh',XPC)
+  self.assertIn('reason == "ready_issued_apple"',XPC)
+  self.assertIn('client.scarletIssueFreshInstallTeamCertificate(teamID, reply: callback)',XPC)
  def test_real_apple_issuance_upstream_matching_behavior(self):
   if UPSTREAM.exists():
    src=UPSTREAM.read_text()

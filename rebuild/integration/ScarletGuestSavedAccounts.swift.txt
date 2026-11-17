@@ -486,6 +486,10 @@ enum ScarletInstallTeamAuthority {
     // Do not clear an existing A team cert, silently revoke Apple certs, or
     // infer that account B owns host A's provisioning profile.
     static func issue(teamID: String) async -> String {
+        await issue(teamID: teamID, forceNew: false)
+    }
+
+    static func issue(teamID: String, forceNew: Bool) async -> String {
         guard validTeam(teamID) else { return "invalid_team" }
         guard let team = await activeTeam(), team.identifier == teamID else {
             return "selected_team_changed"
@@ -511,6 +515,9 @@ enum ScarletInstallTeamAuthority {
             let manager = CertificateManager.shared
             // Existing certificate + private key is reusable ONLY when
             // Apple still recognizes that exact unexpired certificate.
+            // The explicit "new certificate" UI must bypass both reuse
+            // paths. Preserve them for normal install/account activation.
+            if !forceNew {
             if let current = matchingCertificate(for: teamID),
                current.x509.expiryDate > Date(),
                portal.contains(where: {
@@ -520,8 +527,7 @@ enum ScarletInstallTeamAuthority {
                 return await prepare(teamID: teamID) == "ready"
                     ? "ready_existing_portal" : "selected_team_certificate_readback_failed"
             }
-            // The original SideStore keychain may retain an alternate
-            // registered signable certificate. Reuse it before issuing anew.
+            // Original native signing reuse for the non-manual install path.
             for remote in portal where remote.expiryDate > Date() {
                 guard let signable = manager.getSignableCertificate(
                         for: remote.serialNumber,
@@ -544,6 +550,7 @@ enum ScarletInstallTeamAuthority {
                 }
                 return "ready_existing_portal"
             }
+            } // Explicit new issuance must not complete via a cached P12.
             // No valid matching private key exists: SideInstaller's CSR
             // request and SideStore's native requestCertificate both issue
             // directly at Apple. createCertificate returns the matching key.
@@ -554,6 +561,9 @@ enum ScarletInstallTeamAuthority {
                 return "selected_account_owner_changed"
             }
             let originalActive = manager.activeCertificate?.certificate
+            let previouslyRegistered = Set(portal.map {
+                $0.serialNumber.lowercased()
+            })
             let newlyIssued: ALTCertificate
             do {
                 newlyIssued = try await DeveloperPortalProxy.shared.createCertificate(
@@ -566,6 +576,12 @@ enum ScarletInstallTeamAuthority {
             guard certificateBelongsToTeam(newlyIssued, teamID: teamID),
                   newlyIssued.x509.expiryDate > Date() else {
                 return "selected_team_certificate_unverified"
+            }
+            // A user-requested new certificate must have a distinct serial,
+            // not a provider response that silently reused an old key.
+            if forceNew && previouslyRegistered.contains(
+                newlyIssued.serialNumber.lowercased()) {
+                return "selected_team_certificate_new_issue_not_created"
             }
             do {
                 try manager.setActiveCertificate(newlyIssued)
@@ -583,6 +599,25 @@ enum ScarletInstallTeamAuthority {
                   await prepare(teamID: teamID) == "ready",
                   manager.activeCertificate?.serialNumber == newlyIssued.serialNumber else {
                 return "selected_team_certificate_readback_failed"
+            }
+            if forceNew {
+                // Keep the new P12 in the authenticated account vault first.
+                // If Apple readback fails, never present it as verified; the
+                // key is still retained for recovery instead of being lost.
+                guard let readbackOwner = await activeOwnership(),
+                      readbackOwner.appleID == owner.appleID,
+                      readbackOwner.teamID == owner.teamID else {
+                    return "selected_account_owner_changed"
+                }
+                let registered = try? await DeveloperPortalProxy.shared
+                    .fetchCertificates(team: team)
+                guard registered?.contains(where: {
+                    $0.serialNumber.caseInsensitiveCompare(
+                        newlyIssued.serialNumber) == .orderedSame &&
+                    $0.expiryDate > Date()
+                }) == true else {
+                    return "selected_team_certificate_new_issue_unconfirmed"
+                }
             }
             return "ready_issued_apple"
         } catch {
@@ -631,6 +666,24 @@ extension ScarletGuestSignInAgent {
             // reply. Release the gate synchronously BEFORE replying.
             await ScarletTeamOperationGate.shared.release()
             reply(status == "ready", status)
+        }
+    }
+
+    // Explicit new Apple certificate: never resolves to ready_existing_portal.
+    @objc(issueFreshInstallTeamCertificate:reply:)
+    static func issueFreshInstallTeamCertificate(_ id: String,
+        reply: @escaping (Bool, String) -> Void) {
+        Task { @MainActor in
+            guard activeRequest == nil else {
+                reply(false, "authentication_in_progress"); return
+            }
+            guard await ScarletTeamOperationGate.shared.claim() else {
+                reply(false, "team_operation_in_progress"); return
+            }
+            let status = await ScarletInstallTeamAuthority.issue(
+                teamID: id, forceNew: true)
+            await ScarletTeamOperationGate.shared.release()
+            reply(status == "ready_issued_apple", status)
         }
     }
 

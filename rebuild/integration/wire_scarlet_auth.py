@@ -38,6 +38,7 @@ def patch_livecontainer(engine: Path) -> None:
 - (void)scarletSelectAuthAccount:(NSString*)accountID reply:(void (^)(BOOL success, NSString *status))reply;
 - (void)scarletPrepareInstallTeam:(NSString*)teamID reply:(void (^)(BOOL ready, NSString *status))reply;
 - (void)scarletIssueInstallTeamCertificate:(NSString*)teamID reply:(void (^)(BOOL ready, NSString *status))reply;
+- (void)scarletIssueFreshInstallTeamCertificate:(NSString*)teamID reply:(void (^)(BOOL issued, NSString *status))reply;
 - (void)scarletImportInstallCertificate:(NSData*)archive password:(NSString*)password teamID:(NSString*)teamID reply:(void (^)(BOOL ok, NSString *status))reply;
 - (void)scarletRefreshReadiness:(NSString*)hostBundlePath reply:(void (^)(NSInteger managedCount, BOOL hostManaged, BOOL signingReady, NSString *status))reply;
 - (void)scarletPerformNativeRefresh:(NSString*)hostBundlePath reply:(void (^)(BOOL operationReturned, NSString *status))reply;
@@ -235,6 +236,18 @@ def patch_livecontainer(engine: Path) -> None:
                                       reply:(void (^)(BOOL, NSString *))reply {
     Class worker = NSClassFromString(@"ScarletGuestSignInAgent");
     SEL selector = @selector(issueInstallTeamCertificate:reply:);
+    if (!worker || ![worker respondsToSelector:selector]) {
+        reply(NO, @"account_worker_missing"); return;
+    }
+    if (teamID.length != 10) { reply(NO, @"invalid_team"); return; }
+    ((void (*)(id, SEL, id, id))objc_msgSend)(worker, selector, teamID, reply);
+}
+
+// Explicit user-requested fresh Apple issuance; distinct from normal reuse.
+- (void)scarletIssueFreshInstallTeamCertificate:(NSString*)teamID
+                                      reply:(void (^)(BOOL, NSString *))reply {
+    Class worker = NSClassFromString(@"ScarletGuestSignInAgent");
+    SEL selector = @selector(issueFreshInstallTeamCertificate:reply:);
     if (!worker || ![worker respondsToSelector:selector]) {
         reply(NO, @"account_worker_missing"); return;
     }

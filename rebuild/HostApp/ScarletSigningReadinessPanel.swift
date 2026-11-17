@@ -333,7 +333,7 @@ struct ScarletSigningReadinessPanel: View {
             return
         }
         isIssuingNativeCertificate = true
-        certificateRecoveryStatus = "SideStore 인증서를 앱 내부에서 확인·발급하는 중입니다."
+        certificateRecoveryStatus = "선택한 Apple ID로 Apple에 새 개발 인증서를 발급 요청하는 중입니다."
         ScarletDiagnosticRecorder.shared.record(
             "certificate", "native_provider_started")
         Task { @MainActor in
@@ -353,17 +353,21 @@ struct ScarletSigningReadinessPanel: View {
                     return
                 }
                 let result = await ScarletNativeSavedAccounts
-                    .issueInstallCertificate(owner.teamID)
+                    .issueFreshInstallCertificate(owner.teamID)
                 ScarletDiagnosticRecorder.shared.record(
                     "certificate", "native_account_issue_result",
                     status: result.0 ? "success" : "blocked",
                     fields: ["result": result.1])
-                guard result.0 else {
+                guard result.0 && result.1 == "ready_issued_apple" else {
                     switch result.1 {
                     case "selected_team_certificate_quota_reached":
                         certificateRecoveryStatus = "Apple 인증서 발급 한도에 도달했습니다. 기존 인증서는 유지됩니다."
-                    case "selected_team_changed":
+                    case "selected_team_changed", "selected_account_owner_changed":
                         certificateRecoveryStatus = "인증서 처리 중 활성 Apple ID가 변경됐습니다."
+                    case "selected_team_certificate_new_issue_unconfirmed":
+                        certificateRecoveryStatus = "신규 인증서의 키는 보관됐지만 Apple 등록 확인에 실패했습니다. 발급 성공으로 표시하지 않습니다."
+                    case "selected_team_certificate_new_issue_not_created":
+                        certificateRecoveryStatus = "Apple이 새로운 인증서를 발급하지 않았습니다. 기존 인증서 재사용으로 처리하지 않습니다."
                     default:
                         certificateRecoveryStatus = "선택한 계정 인증서 발급 실패: " + result.1
                     }
@@ -387,8 +391,7 @@ struct ScarletSigningReadinessPanel: View {
                 // by installed-host profile + P78 kernel rollback check.
                 let (archive, password) = try await ScarletNativeCertificateTransport
                     .shared.retrieveSideStoreCertificate()
-                let source = result.1 == "ready_issued_apple"
-                    ? "new_apple_portal" : "existing_portal"
+                let source = "new_apple_portal"
                 ScarletDiagnosticRecorder.shared.record(
                     "certificate", "provider_origin_checked",
                     fields: ["source": source])
@@ -404,9 +407,7 @@ struct ScarletSigningReadinessPanel: View {
                 }
                 if certificateRecoveryStatus ==
                     "선택한 계정 인증서가 등록됐습니다. 게스트 서명은 별도 검증 중입니다." {
-                    certificateRecoveryStatus = source == "new_apple_portal"
-                        ? "Apple에서 새 인증서를 발급받았습니다. 게스트 서명 검증은 별도입니다."
-                        : "기존 유효 인증서를 사용했습니다. 신규 발급은 없으며 게스트 서명은 별도 검증 중입니다."
+                    certificateRecoveryStatus = "Apple에서 새 인증서를 발급받았습니다. 게스트 서명 검증은 별도입니다."
                 }
                 ScarletDiagnosticRecorder.shared.record(
                     "certificate", "native_provider_returned",
@@ -428,8 +429,9 @@ struct ScarletSigningReadinessPanel: View {
                              "host_managed": nativeState.hostManaged ? "true" : "false",
                              "signing_ready": nativeState.signingReady ? "true" : "false",
                              "reason": nativeState.reason])
-                if !nativeState.signingReady {
-                    certificateRecoveryStatus = "기존 LC 인증서는 유지됩니다. SideStore 내부 서명 인증서 준비는 아직 확인되지 않았습니다."
+                if !nativeState.signingReady && certificateRecoveryStatus ==
+                    "Apple에서 새 인증서를 발급받았습니다. 게스트 서명 검증은 별도입니다." {
+                    certificateRecoveryStatus = "Apple 신규 발급은 확인됐지만 SideStore 내부 서명 준비는 아직 확인되지 않았습니다."
                 }
             } catch {
                 let failure = error as NSError
@@ -586,7 +588,10 @@ struct ScarletSigningReadinessPanel: View {
         if result.0 {
             certificateRecoveryStatus = "선택한 계정 인증서가 등록됐습니다. 게스트 서명은 별도 검증 중입니다."
             ScarletDiagnosticRecorder.shared.record("certificate", "account_p12_imported",
-                status: "success", fields: ["result": result.1])
+                status: "success", fields: ["result":
+                    pendingCertificateOrigin == "new_apple_portal" &&
+                    result.1 == "ready_existing"
+                    ? "new_apple_p12_already_active_in_native_store" : result.1])
             // P94: a successful SideStore import changes only its native
             // certificate store; LC guest signs with a separate AppGroup P12.
             // Revalidate the exact active Apple-ID+Team owner after await.

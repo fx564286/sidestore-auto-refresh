@@ -861,6 +861,11 @@ public enum ScarletNativeSavedAccounts {
         await teamOperation(teamID, issue: true)
     }
 
+    // UI-only manual fresh issuance: never accepts a reused portal P12.
+    public static func issueFreshInstallCertificate(_ teamID: String) async -> (Bool, String) {
+        await teamOperation(teamID, issue: true, forceFresh: true)
+    }
+
     // This call never selects a second Apple ID. It obtains a cert only on
     // an explicit account activation/login/install action, then re-reads
     // the authoritative SideStore Keychain and active team.
@@ -874,7 +879,8 @@ public enum ScarletNativeSavedAccounts {
         return confirmed.0 ? issued : (false, "selected_team_certificate_readback_failed")
     }
 
-    private static func teamOperation(_ teamID: String, issue: Bool) async -> (Bool, String) {
+    private static func teamOperation(_ teamID: String, issue: Bool,
+                                      forceFresh: Bool = false) async -> (Bool, String) {
         guard teamID.utf8.count == 10 && teamID.allSatisfy({
             $0.isASCII && ($0.isUppercase || $0.isNumber)
         }) else { return (false, "invalid_team") }
@@ -902,18 +908,24 @@ public enum ScarletNativeSavedAccounts {
                              "selected_account_owner_unverified",
                              "selected_account_owner_changed",
                              "selected_account_signer_binding_failed",
+                             "selected_team_certificate_new_issue_not_created",
+                             "selected_team_certificate_new_issue_unconfirmed",
                              "ready_existing_portal", "ready_issued_apple",
                              "sidestore_team_mismatch", "sidestore_team_recovery_failed",
                              "sidestore_auth_missing", "transport_unavailable",
                              "team_operation_in_progress"]
                 let reason = status ?? "worker_unknown"
-                let success = reason == "ready" ||
-                    (issue && (reason == "ready_existing_portal" ||
-                               reason == "ready_issued_apple"))
+                let success = forceFresh
+                    ? reason == "ready_issued_apple"
+                    : (reason == "ready" ||
+                       (issue && (reason == "ready_existing_portal" ||
+                                  reason == "ready_issued_apple")))
                 gate.finish(ok && success,
                     known.contains(reason) ? reason : "worker_unknown")
             }
-            if issue {
+            if forceFresh {
+                client.scarletIssueFreshInstallTeamCertificate(teamID, reply: callback)
+            } else if issue {
                 client.scarletIssueInstallTeamCertificate(teamID, reply: callback)
             } else {
                 client.scarletPrepareInstallTeam(teamID, reply: callback)
