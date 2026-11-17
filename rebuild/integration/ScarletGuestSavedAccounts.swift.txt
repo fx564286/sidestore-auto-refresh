@@ -20,10 +20,62 @@ private struct ScarletSavedAccountRow: Codable {
 @MainActor
 private enum ScarletAccountVault {
     private static let service = "com.kdt.scarlet.sidestore.account.v1"
+    // Certificate selection must be pinned to Apple ID + Team, never Team OU.
+    private static let signerService = "com.kdt.scarlet.sidestore.signer.v1"
     private static let maxAccounts = 8
 
     private static func identifier(_ email: String) -> String {
         email.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+    }
+
+    static func pinnedSignerSerial(appleID: String, teamID: String) -> String? {
+        let id = identifier(appleID)
+        guard id.utf8.count > 3, id.utf8.count <= 254,
+              teamID.utf8.count == 10 else { return nil }
+        let query: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: signerService,
+            kSecAttrAccount as String: id + "|" + teamID,
+            kSecMatchLimit as String: kSecMatchLimitOne,
+            kSecReturnData as String: true
+        ]
+        var value: CFTypeRef?
+        guard SecItemCopyMatching(query as CFDictionary, &value) == errSecSuccess,
+              let data = value as? Data,
+              let serial = String(data: data, encoding: .utf8),
+              !serial.isEmpty, serial.utf8.count <= 128 else { return nil }
+        return serial.lowercased()
+    }
+
+    // Only call after verifying the same active Apple ID, Apple portal serial,
+    // locally signable private key, and exact Team membership. Never delete
+    // another account's key or revoke any Apple certificate.
+    static func bindSignerSerial(_ serial: String, appleID: String,
+                                 teamID: String) -> Bool {
+        let id = identifier(appleID)
+        let normalized = serial.lowercased()
+        guard id.utf8.count > 3, id.utf8.count <= 254,
+              teamID.utf8.count == 10,
+              !normalized.isEmpty, normalized.utf8.count <= 128,
+              let data = normalized.data(using: .utf8) else { return false }
+        let query: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: signerService,
+            kSecAttrAccount as String: id + "|" + teamID
+        ]
+        let update = SecItemUpdate(query as CFDictionary,
+            [kSecValueData as String: data] as CFDictionary)
+        if update != errSecSuccess {
+            guard update == errSecItemNotFound else { return false }
+            let insert = query.merging([
+                kSecValueData as String: data,
+                kSecAttrAccessible as String: kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
+            ]) { _, new in new }
+            guard SecItemAdd(insert as CFDictionary, nil) == errSecSuccess else {
+                return false
+            }
+        }
+        return pinnedSignerSerial(appleID: id, teamID: teamID) == normalized
     }
 
     static func save(_ slot: ScarletSavedAccount) -> Bool {
@@ -152,7 +204,8 @@ private enum ScarletAccountVault {
                     ScarletGuestSignInAgent.persistedState(),
                 teamID: slot.teamID,
                 certificateReady: ScarletInstallTeamAuthority.matchingCertificate(
-                    for: slot.teamID).map { $0.x509.expiryDate > Date() } ?? false)
+                    for: slot.teamID, appleID: slot.email)
+                    .map { $0.x509.expiryDate > Date() } ?? false)
         }
         guard let data = try? JSONEncoder().encode(rows),
               let json = String(data: data, encoding: .utf8),
@@ -295,11 +348,19 @@ enum ScarletInstallTeamAuthority {
         return fields.contains("Organizational Unit=" + teamID)
     }
 
-    static func matchingCertificate(for teamID: String) -> ALTCertificate? {
+    static func matchingCertificate(for teamID: String,
+                                    appleID: String? = nil) -> ALTCertificate? {
+        // A previous selected account's global active certificate is NOT
+        // evidence that the current Apple ID owns its signing key.
+        let owner = appleID ?? AuthManager.shared.currentAppleID ?? ""
+        guard let pinned = ScarletAccountVault.pinnedSignerSerial(
+            appleID: owner, teamID: teamID) else { return nil }
         let manager = CertificateManager.shared
         if let active = manager.activeCertificate?.certificate,
+           active.serialNumber.lowercased() == pinned,
            certificateBelongsToTeam(active, teamID: teamID) { return active }
         return manager.getAllLocalCertificates().first {
+            $0.serialNumber.lowercased() == pinned &&
             certificateBelongsToTeam($0, teamID: teamID)
         }
     }
@@ -387,7 +448,13 @@ enum ScarletInstallTeamAuthority {
             return "selected_team_changed"
         }
         let manager = CertificateManager.shared
+        guard let owner = await activeOwnership(), owner.teamID == teamID else {
+            return "selected_account_owner_unverified"
+        }
         if manager.activeCertificate?.serialNumber == certificate.serialNumber {
+            guard ScarletAccountVault.bindSignerSerial(
+                certificate.serialNumber, appleID: owner.appleID,
+                teamID: teamID) else { return "selected_account_signer_binding_failed" }
             return await prepare(teamID: teamID) == "ready"
                 ? "ready_existing" : "selected_team_certificate_readback_failed"
         }
@@ -398,8 +465,13 @@ enum ScarletInstallTeamAuthority {
             if let original { try? manager.setActiveCertificate(original) }
             return "selected_team_certificate_storage_failed"
         }
-        guard (await activeTeam())?.identifier == teamID,
+        guard let afterOwner = await activeOwnership(),
+              afterOwner.appleID == owner.appleID,
+              afterOwner.teamID == owner.teamID,
               manager.activeCertificate?.serialNumber == certificate.serialNumber,
+              ScarletAccountVault.bindSignerSerial(
+                  certificate.serialNumber, appleID: owner.appleID,
+                  teamID: teamID),
               await prepare(teamID: teamID) == "ready" else {
             if let original { try? manager.setActiveCertificate(original) }
             return "selected_team_certificate_readback_failed"
@@ -461,8 +533,13 @@ enum ScarletInstallTeamAuthority {
                       currentOwner.teamID == owner.teamID else {
                     return "selected_account_owner_changed"
                 }
+                let previous = manager.activeCertificate?.certificate
                 try manager.setActiveCertificate(signable)
-                guard await prepare(teamID: teamID) == "ready" else {
+                guard ScarletAccountVault.bindSignerSerial(
+                          signable.serialNumber, appleID: owner.appleID,
+                          teamID: teamID),
+                      await prepare(teamID: teamID) == "ready" else {
+                    if let previous { try? manager.setActiveCertificate(previous) }
                     return "selected_team_certificate_readback_failed"
                 }
                 return "ready_existing_portal"
@@ -497,7 +574,13 @@ enum ScarletInstallTeamAuthority {
                 if let originalActive { try? manager.setActiveCertificate(originalActive) }
                 return "selected_team_certificate_storage_failed"
             }
-            guard await prepare(teamID: teamID) == "ready",
+            guard let confirmedOwner = await activeOwnership(),
+                  confirmedOwner.appleID == owner.appleID,
+                  confirmedOwner.teamID == owner.teamID,
+                  ScarletAccountVault.bindSignerSerial(
+                      newlyIssued.serialNumber, appleID: owner.appleID,
+                      teamID: teamID),
+                  await prepare(teamID: teamID) == "ready",
                   manager.activeCertificate?.serialNumber == newlyIssued.serialNumber else {
                 return "selected_team_certificate_readback_failed"
             }
