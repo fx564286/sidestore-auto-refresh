@@ -44,6 +44,9 @@ OTHER_ALLOWED_METHODS = {
     # P94: explicit selected-account P12 (validated by host profile DER) is
     # bridged to original LC guest signer only via reversible kernel check.
     "user_approved_account_p12_to_lc_signed_host_verified_bridge",
+    # P99: two independently built P98 sources shared a CFBundleVersion,
+    # making it impossible for one published IPA to contain both repairs.
+    "release_branch_convergence_unique_build_identity",
 }
 
 # This catches a candidate that claims a novel family but still ADDS the same

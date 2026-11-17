@@ -84,6 +84,46 @@ enum ScarletHostProvisioningSigner {
         case developmentProfileRequired = "host_development_profile_required"
     }
 
+    // P98: SecTask team entitlement can be absent while the installed
+    // development profile remains readable. Avoid a silent return BEFORE
+    // checking candidate DER or entering P78's reversible kernel validation.
+    // This fallback only authenticates the currently installed host identity;
+    // it does not trust the selected Apple account or authorize a new signer.
+    static func verifiedInstalledHostTeam() -> (team: String, source: String)? {
+        let task = SecTaskCreateFromSelf(nil)
+        if let value = SecTaskCopyValueForEntitlement(
+            task, "com.apple.developer.team-identifier" as CFString, nil),
+           let team = value.takeRetainedValue() as? String,
+           team.utf8.count == 10,
+           team.allSatisfy({ $0.isASCII && ($0.isUppercase || $0.isNumber) }) {
+            return (team, "runtime_entitlement")
+        }
+        let path = Bundle.main.bundleURL.appendingPathComponent("embedded.mobileprovision")
+        guard let bytes = try? Data(contentsOf: path),
+              let first = bytes.range(of: Data("<plist".utf8))?.lowerBound,
+              let last = bytes.range(of: Data("</plist>".utf8))?.upperBound,
+              first < last,
+              let profile = try? PropertyListSerialization.propertyList(
+                  from: bytes.subdata(in: first..<last), format: nil
+              ) as? [String: Any],
+              let teams = profile["TeamIdentifier"] as? [String],
+              teams.count == 1,
+              let team = teams.first,
+              team.utf8.count == 10,
+              team.allSatisfy({ $0.isASCII && ($0.isUppercase || $0.isNumber) }),
+              let expiry = profile["ExpirationDate"] as? Date,
+              expiry > Date(),
+              let allowed = profile["DeveloperCertificates"] as? [Data],
+              !allowed.isEmpty,
+              let rights = profile["Entitlements"] as? [String: Any],
+              rights["get-task-allow"] as? Bool == true,
+              rights["com.apple.developer.team-identifier"] as? String == team,
+              let bundleID = Bundle.main.bundleIdentifier,
+              rights["application-identifier"] as? String == team + "." + bundleID
+        else { return nil }
+        return (team, "installed_profile")
+    }
+
     static func check(archive: Data, password: String) -> Status {
         let path = Bundle.main.bundleURL.appendingPathComponent("embedded.mobileprovision")
         guard let signedProfile = try? Data(contentsOf: path),
@@ -216,11 +256,17 @@ enum ScarletGuestSignerRecovery {
             "guest", "native_signer_recovery_started",
             fields: ["result": "local_entitled_host_candidate_lookup"])
         defer { nativeRecoveryInProgress = false }
-        let task = SecTaskCreateFromSelf(nil)
-        guard let entitlement = SecTaskCopyValueForEntitlement(
-            task, "com.apple.developer.team-identifier" as CFString, nil),
-              let hostTeam = entitlement.takeRetainedValue() as? String,
-              !hostTeam.isEmpty else { return }
+        guard let hostIdentity = ScarletHostProvisioningSigner
+            .verifiedInstalledHostTeam() else {
+            ScarletDiagnosticRecorder.shared.record(
+                "guest", "native_signer_recovery_blocked", status: "blocked",
+                fields: ["reason": "installed_host_team_unverified"])
+            return
+        }
+        let hostTeam = hostIdentity.team
+        ScarletDiagnosticRecorder.shared.record(
+            "guest", "native_host_team_identity_source",
+            fields: ["result": hostIdentity.source])
 
         // Match a single ACTIVE Apple ID on both reads. Two saved IDs may
         // share one Team, but the actual P12 must match the installed host
@@ -296,11 +342,17 @@ enum ScarletGuestSignerRecovery {
         ScarletDiagnosticRecorder.shared.record(
             "guest", "signer_recovery_started",
             fields: ["result": "local_same_host_team_candidate_lookup"])
-        let task = SecTaskCreateFromSelf(nil)
-        guard let signedValue = SecTaskCopyValueForEntitlement(
-            task, "com.apple.developer.team-identifier" as CFString, nil),
-              let signedHostTeam = signedValue.takeRetainedValue() as? String,
-              !signedHostTeam.isEmpty else { return }
+        guard let hostIdentity = ScarletHostProvisioningSigner
+            .verifiedInstalledHostTeam() else {
+            ScarletDiagnosticRecorder.shared.record(
+                "guest", "signer_recovery_blocked", status: "blocked",
+                fields: ["reason": "installed_host_team_unverified"])
+            return
+        }
+        let signedHostTeam = hostIdentity.team
+        ScarletDiagnosticRecorder.shared.record(
+            "guest", "signer_host_team_identity_source",
+            fields: ["result": hostIdentity.source])
         // This repair must use the REAL installed host Team, not whichever
         // Apple account was most recently selected in Settings.
         let services = ["com.SideStore.SideStore", "com.kdt.livecontainer"]
