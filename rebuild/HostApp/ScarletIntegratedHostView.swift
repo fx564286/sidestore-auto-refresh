@@ -104,8 +104,12 @@ private enum ScarletHostProvisioningSigner {
         guard SecPKCS12Import(archive as CFData, options as CFDictionary, &decoded)
                 == errSecSuccess,
               let items = decoded as? [[String: Any]],
-              let identity = items.first?[kSecImportItemIdentity as String] as? SecIdentity
+              let identityObject = items.first?[kSecImportItemIdentity as String]
         else { return .archiveUnreadable }
+        // Security.framework guarantees kSecImportItemIdentity is a
+        // SecIdentity on successful SecPKCS12Import. Swift 6 / Xcode 27
+        // rejects 'as? SecIdentity' for CoreFoundation reference types.
+        let identity = identityObject as! SecIdentity
         var cert: SecCertificate?
         guard SecIdentityCopyCertificate(identity, &cert) == errSecSuccess,
               let cert else { return .archiveUnreadable }
