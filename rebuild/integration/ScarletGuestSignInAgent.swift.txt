@@ -14,6 +14,13 @@ extension AuthManager {
     }
 }
 
+// Native SideStore CoreData has globally unique Account.identifier and
+// Team.identifier. Reject cross-Apple-ID reuse instead of overwriting records.
+private enum ScarletAccountTeamOwnershipCollision: Error {
+    case accountIdentifier
+    case teamIdentifier
+}
+
 @objc(ScarletGuestSignInAgent)
 final class ScarletGuestSignInAgent: NSObject {
     @MainActor private static var activeRequest: String?
@@ -79,25 +86,46 @@ final class ScarletGuestSignInAgent: NSObject {
             let context = DatabaseManager.shared.persistentContainer
                 .newBackgroundContext()
             try await context.perform {
-                let accountIdentifier = team.account?.identifier ?? team.identifier
+                let accountIdentifier = team.account?.identifier ?? dsid
                 let account: Account
                 if let existing = Account.first(satisfying: NSPredicate(
                     format: "%K == %@", #keyPath(Account.identifier),
                     accountIdentifier), in: context) {
+                    // The old code overwrote account.appleID unconditionally.
+                    // A shared identifier must never turn A's account into B.
+                    guard existing.appleID.caseInsensitiveCompare(email) ==
+                        .orderedSame else {
+                        throw ScarletAccountTeamOwnershipCollision.accountIdentifier
+                    }
                     account = existing
-                    if let realAccount = team.account {
+                    if let realAccount = team.account,
+                       realAccount.appleID.caseInsensitiveCompare(email) ==
+                            .orderedSame {
                         account.update(account: realAccount)
                     }
                 } else {
-                    let realAccount = team.account ?? ALTAccount(
-                        appleID: email, identifier: accountIdentifier)
+                    let realAccount: ALTAccount
+                    if let portalAccount = team.account,
+                       portalAccount.appleID.caseInsensitiveCompare(email) ==
+                            .orderedSame {
+                        realAccount = portalAccount
+                    } else {
+                        realAccount = ALTAccount(
+                            appleID: email, identifier: accountIdentifier)
+                    }
                     account = Account(realAccount, context: context)
                 }
-                account.appleID = email
                 let storedTeam: Team
                 if let existing = Team.first(satisfying: NSPredicate(
                     format: "%K == %@", #keyPath(Team.identifier),
                     team.identifier), in: context) {
+                    // Team.identifier is unique across the whole SideStore DB.
+                    // Do not steal A's team/InstalledApps when B has the same
+                    // Apple Developer Team. A separate ownership schema would
+                    // be required to represent both account/team pairs.
+                    guard existing.account?.objectID == account.objectID else {
+                        throw ScarletAccountTeamOwnershipCollision.teamIdentifier
+                    }
                     storedTeam = existing
                 } else {
                     storedTeam = Team(team, account: account, context: context)
@@ -119,9 +147,18 @@ final class ScarletGuestSignInAgent: NSObject {
             }
             AuthManager.shared.scarletInvalidateCachedTeam()
             let verified = try await AuthManager.shared.getAuthenticatedTeam()
+            let confirmedOwner = await ScarletInstallTeamAuthority.activeOwnership()
+            guard !requireHostTeam || verified.identifier == expectedTeamID else {
+                return "sidestore_team_mismatch"
+            }
             return verified.identifier == team.identifier &&
-                (!requireHostTeam || verified.identifier == expectedTeamID)
-                ? "team_restored" : "sidestore_team_mismatch"
+                confirmedOwner?.appleID.caseInsensitiveCompare(email) == .orderedSame &&
+                confirmedOwner?.teamID == team.identifier
+                ? "team_restored" : "sidestore_team_owner_unverified"
+        } catch ScarletAccountTeamOwnershipCollision.accountIdentifier {
+            return "sidestore_account_identifier_collision"
+        } catch ScarletAccountTeamOwnershipCollision.teamIdentifier {
+            return "sidestore_team_identifier_collision"
         } catch {
             // No Apple payload, identifiers or Keychain data in XPC/logs.
             return "sidestore_team_recovery_failed"
@@ -292,7 +329,10 @@ final class ScarletGuestSignInAgent: NSObject {
                     "scarlet.auth.rollback_unverified",
                     "scarlet.auth.sidestore_team_missing",
                     "scarlet.auth.sidestore_team_mismatch",
-                    "scarlet.auth.sidestore_team_recovery_failed"
+                    "scarlet.auth.sidestore_team_recovery_failed",
+                    "scarlet.auth.sidestore_team_owner_unverified",
+                    "scarlet.auth.sidestore_team_identifier_collision",
+                    "scarlet.auth.sidestore_account_identifier_collision"
                 ]
                 finish(id, code: failure.code == 0 ? -3300 : failure.code,
                        domain: allowlisted.contains(failure.domain)

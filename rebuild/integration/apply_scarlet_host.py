@@ -1040,6 +1040,11 @@ def attach_native_settings_diagnostics(engine: Path) -> dict:
             return
         }
         let teamID = active[0].teamID
+        let accountID = active[0].id
+        guard active[0].ownerVerified else {
+            scarletAccountSwitchError = "선택한 Apple ID의 개발팀 소유권을 확인할 수 없습니다."
+            return
+        }
         ScarletDiagnosticRecorder.shared.record("certificate",
             "account_certificate_preflight_started",
             fields: ["source": "explicit_account_action",
@@ -1050,7 +1055,8 @@ def attach_native_settings_diagnostics(engine: Path) -> dict:
         let checked = readback.status == "ready" &&
             readback.accounts.filter({ $0.active }).count == 1 &&
             readback.accounts.contains(where: {
-                $0.teamID == teamID && $0.active && $0.certificateReady
+                $0.id == accountID && $0.teamID == teamID &&
+                    $0.active && $0.ownerVerified && $0.certificateReady
             })
         if ready && checked {
             scarletSavedAccounts = readback.accounts
@@ -1074,6 +1080,14 @@ def attach_native_settings_diagnostics(engine: Path) -> dict:
         guard #available(iOS 17.0, *), scarletSwitchingAccountID == nil,
               !scarletCertificateProvisionInFlight,
               scarletSavedAccounts.contains(where: { $0.id == id && !$0.active }) else { return }
+        guard let previousRow = scarletSavedAccounts.first(where: {
+            $0.id == id && !$0.active && $0.ownerVerified
+        }) else {
+            scarletAccountSwitchError =
+                "선택한 Apple ID의 개발팀 소유권 확인이 필요합니다."
+            return
+        }
+        let expectedTeam = previousRow.teamID
         scarletSwitchingAccountID = id
         scarletAccountSwitchError = nil
         scarletAccountReadGeneration &+= 1
@@ -1086,7 +1100,10 @@ def attach_native_settings_diagnostics(engine: Path) -> dict:
                 let readback = await ScarletNativeSavedAccounts.list()
                 if readback.status == "ready" &&
                     readback.accounts.filter({ $0.active }).count == 1 &&
-                    readback.accounts.contains(where: { $0.id == id && $0.active }) {
+                    readback.accounts.contains(where: {
+                        $0.id == id && $0.active &&
+                            $0.teamID == expectedTeam && $0.ownerVerified
+                    }) {
                     scarletSavedAccounts = readback.accounts
                     scarletAccountListStatus = nil
                     scarletLoginVerified = true
@@ -1152,6 +1169,15 @@ def attach_native_settings_diagnostics(engine: Path) -> dict:
                                             .font(.subheadline.weight(row.active ? .medium : .regular))
                                             .lineLimit(1)
                                             .truncationMode(.middle)
+                                        Text("팀 " + row.teamID)
+                                            .font(.caption)
+                                            .foregroundStyle(.secondary)
+                                        Text(row.ownerVerified
+                                            ? "인증서 " + (row.certificateReady ? "준비됨" : "없음") +
+                                              " · 관리 앱 " + String(row.managedAppCount) + "개"
+                                            : "계정·개발팀 소유권 확인 필요")
+                                            .font(.caption2)
+                                            .foregroundColor(row.ownerVerified ? .secondary : .orange)
                                         if row.active {
                                             Text("사용 중")
                                                 .font(.caption)

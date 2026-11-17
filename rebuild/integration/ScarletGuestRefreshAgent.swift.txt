@@ -164,6 +164,31 @@ private actor ScarletGuestHostManagedBootstrap {
     }
 }
 
+// P102: fetchAppsForRefreshingAll() filters isActive and pledge eligibility.
+// Zero refresh targets is NOT evidence that CoreData has no managed apps.
+// Observe the selected Apple ID+Team without exporting account/app identities.
+private enum ScarletSelectedTeamRefreshInventory {
+    static func zeroTargetReason(in context: NSManagedObjectContext,
+                                 teamID: String, appleID: String) async -> String? {
+        await context.perform {
+            do {
+                let all = try context.fetch(InstalledApp.fetchRequest())
+                let owned = all.filter {
+                    $0.team?.identifier == teamID &&
+                    $0.team?.account?.appleID.caseInsensitiveCompare(
+                        appleID) == .orderedSame
+                }
+                guard !owned.isEmpty else { return nil }
+                return owned.allSatisfy { !$0.isActive }
+                    ? "managed_apps_inactive_for_selected_team"
+                    : "managed_apps_excluded_from_refresh_for_selected_team"
+            } catch {
+                return "selected_team_inventory_unavailable"
+            }
+        }
+    }
+}
+
 // Runs inside the REAL embedded SideStore LiveProcess, where SideStore's
 // CoreData database and CertificateManager live. Scarlet's host cannot infer
 // whether its SideInstaller-installed signed bundle is managed by this DB.
@@ -211,8 +236,17 @@ final class ScarletGuestRefreshAgent: NSObject {
                 } else {
                     signingReady = false
                 }
+                var inventoryReason: String?
+                if targets.isEmpty, let currentTeamID, let currentAppleID {
+                    inventoryReason = await ScarletSelectedTeamRefreshInventory
+                        .zeroTargetReason(in: context, teamID: currentTeamID,
+                                          appleID: currentAppleID)
+                }
                 let reason: String
-                if targets.isEmpty {
+                if let inventoryReason {
+                    // Inactive/pledge-excluded managed apps are NOT absent.
+                    reason = inventoryReason
+                } else if targets.isEmpty {
                     // A zero-target result is not sufficient to infer the
                     // reason the native host failed to register. Preserve
                     // the exact safe categorical result of the real P73
@@ -554,7 +588,11 @@ extension ScarletGuestRefreshAgent {
                         }
                 }
                 guard !targets.isEmpty else {
-                    reply(false, "no_managed_apps_for_selected_team"); return
+                    let reason = await ScarletSelectedTeamRefreshInventory
+                        .zeroTargetReason(in: context, teamID: selectedTeamID,
+                                          appleID: selectedAppleID)
+                    reply(false, reason ?? "no_managed_apps_for_selected_team")
+                    return
                 }
                 let signedHostID = Bundle.Info.activeBundleIdentifier
                 let managedHost = targets.first {

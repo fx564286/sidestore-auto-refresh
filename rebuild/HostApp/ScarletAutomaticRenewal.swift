@@ -42,6 +42,12 @@ enum ScarletRefreshFailureDiagnosis {
             return "내장 SideStore에 관리 앱이 없습니다. 현재 Scarlet은 갱신 대상으로 등록되지 않았습니다."
         case "no_managed_apps_for_selected_team":
             return "현재 선택한 Apple 설치팀으로 등록된 관리 앱이 없습니다. 해당 팀으로 IPA를 설치한 뒤 갱신할 수 있습니다."
+        case "managed_apps_inactive_for_selected_team":
+            return "선택 계정에 관리 앱은 있지만 모두 비활성 상태입니다. 활성화하기 전에는 갱신 대상이 아닙니다."
+        case "managed_apps_excluded_from_refresh_for_selected_team":
+            return "선택 계정에 관리 앱이 있지만 SideStore의 원본 갱신 필터에서 제외됐습니다. 앱 활성 상태와 스토어 자격을 확인해야 합니다."
+        case "selected_team_inventory_unavailable":
+            return "선택 계정 관리 앱 목록 조회가 실패했습니다. 관리 앱이 0개라고 판단할 수 없습니다."
         case "selected_team_certificate_missing":
             return "현재 선택한 개발팀의 서명 인증서가 없습니다. 앱 설치의 설치팀 선택 화면에서 인증서를 준비하세요."
         case "selected_team_changed":
@@ -96,6 +102,12 @@ enum ScarletRefreshFailureDiagnosis {
             return "Apple 개발자 포털에서 현재 Scarlet 서명 팀 P8EZT3U5N4를 확인하지 못했습니다. 다른 팀으로 자동 전환하지 않았습니다."
         case "sidestore_team_recovery_failed":
             return "Apple 로그인 토큰은 존재하지만 내장 SideStore의 활성 개발팀 복구가 실패했습니다. 계정·인증서 정보는 유지됩니다."
+        case "sidestore_team_owner_unverified":
+            return "선택 Apple ID와 활성 개발팀의 실제 소유권이 일치하지 않습니다. 인증서·관리 앱을 다른 계정에 연결하지 않았습니다."
+        case "sidestore_team_identifier_collision":
+            return "두 Apple ID가 같은 개발팀 식별자를 공유합니다. 현재 SideStore 데이터베이스는 팀 식별자가 고유하므로 계정별 소유권을 따로 저장할 수 없습니다."
+        case "sidestore_account_identifier_collision":
+            return "서로 다른 Apple ID가 동일한 계정 식별자로 기록되어 충돌했습니다. 기존 계정 정보를 덮어쓰지 않았습니다."
         case "certificate_expired":
             return "SideStore의 서명 인증서 유효기간이 만료된 것으로 보고됐습니다."
         case "certificate_revoked":

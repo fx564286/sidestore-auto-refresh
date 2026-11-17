@@ -379,7 +379,10 @@ public enum ScarletNativeRefreshInspector {
                 // P12 or user-supplied error strings.
                 let allowed = [
                     "ready", "ready_selected_team", "no_managed_apps",
-                    "no_managed_apps_for_selected_team", "host_not_managed",
+                    "no_managed_apps_for_selected_team",
+                    "managed_apps_inactive_for_selected_team",
+                    "managed_apps_excluded_from_refresh_for_selected_team",
+                    "selected_team_inventory_unavailable", "host_not_managed",
                     "host_registration_failed", "host_bundle_path_unavailable",
                     "host_signed_bundle_unavailable", "host_identity_mismatch",
                     "host_selected_team_mismatch",
@@ -516,7 +519,11 @@ public enum ScarletNativeRefreshExecutor {
             "installation_failed", "sidestore_native_operation_failed",
             "sidestore_database_unavailable", "no_managed_apps",
             "host_not_managed", "host_not_in_refresh_results",
-            "no_managed_apps_for_selected_team", "selected_team_not_in_refresh_results",
+            "no_managed_apps_for_selected_team",
+            "managed_apps_inactive_for_selected_team",
+            "managed_apps_excluded_from_refresh_for_selected_team",
+            "selected_team_inventory_unavailable",
+            "selected_team_not_in_refresh_results",
             "selected_team_changed", "selected_team_certificate_missing",
             "selected_team_certificate_activation_failed",
             "selected_team_certificate_readback_failed",
@@ -528,6 +535,9 @@ public enum ScarletNativeRefreshExecutor {
             "certificate_revoked", "profile_missing", "app_group_missing",
             "device_operation_timed_out", "sidestore_invalid_configuration",
             "sidestore_team_mismatch", "sidestore_team_recovery_failed",
+                    "sidestore_team_owner_unverified",
+                    "sidestore_team_identifier_collision",
+                    "sidestore_account_identifier_collision",
             "native_worker_creation_failed",
             // R6P24: R6P23's four static native stage receipts must survive
             // this independent host XPC allowlist. Do not pass raw errors.
@@ -845,6 +855,55 @@ private final class ScarletSlotChangeGate: @unchecked Sendable {
 // R6P61_SLOT_MANAGER_END
 
 
+// P102: Decode only fixed categorical Apple portal error evidence from
+// the existing authenticated LiveProcess reply. The raw NSError description,
+// network URL, Apple ID, Team, P12 and request body never cross this boundary.
+public struct ScarletCertificatePortalEvidence: Codable, Sendable {
+    public let v: Int
+    public let reason: String
+    public let stage: String
+    public let domain: String
+    public let code: Int
+    public let underlyingDomain: String
+    public let underlyingCode: Int
+    public let depth: Int
+
+    public static func decode(_ raw: String) -> ScarletCertificatePortalEvidence? {
+        let prefix = "scarlet_certificate_failure:"
+        guard raw.hasPrefix(prefix), raw.utf8.count <= 1100,
+              let data = String(raw.dropFirst(prefix.count)).data(using: .utf8),
+              let item = try? JSONDecoder().decode(Self.self, from: data) else {
+            return nil
+        }
+        let allowedReasons: Set<String> = [
+            "selected_team_certificate_portal_failed",
+            "selected_team_certificate_quota_reached",
+            "selected_team_certificate_new_issue_unconfirmed"
+        ]
+        let domains: Set<String> = [
+            "url", "cocoa", "posix", "osstatus", "appleapi",
+            "altserver", "sidestore", "other", "none"
+        ]
+        guard item.v == 1,
+              allowedReasons.contains(item.reason),
+              ["import_lookup", "preflight", "create", "readback"].contains(item.stage),
+              domains.contains(item.domain),
+              domains.contains(item.underlyingDomain),
+              (-2_147_483_648...2_147_483_647).contains(item.code),
+              (-2_147_483_648...2_147_483_647).contains(item.underlyingCode),
+              (0...4).contains(item.depth) else { return nil }
+        return item
+    }
+
+    public var safeLogFields: [String: String] {
+        ["reason": reason, "native_error_stage": stage,
+         "native_error_domain": domain, "native_error_code": String(code),
+         "native_underlying_domain": underlyingDomain,
+         "native_underlying_code": String(underlyingCode),
+         "native_error_depth": String(depth)]
+    }
+}
+
 // R6P66_MULTI_ACCOUNT_TRANSPORT_BEGIN
 // Account identities travel only over the authenticated on-device anonymous
 // SideStore XPC channel. No password/token is included in these DTOs.
@@ -853,6 +912,8 @@ public struct ScarletStoredAppleAccount: Identifiable, Decodable, Sendable {
     public let active: Bool
     public let teamID: String
     public let certificateReady: Bool
+    public let ownerVerified: Bool
+    public let managedAppCount: Int
 }
 
 @available(iOS 17.0, *)
@@ -877,7 +938,8 @@ public enum ScarletNativeSavedAccounts {
                         [ScarletStoredAppleAccount].self, from: data),
                       accounts.count <= 8,
                       accounts.allSatisfy({
-                          $0.id.utf8.count <= 254 && $0.teamID.utf8.count == 10
+                          $0.id.utf8.count <= 254 && $0.teamID.utf8.count == 10 &&
+                          (0...999).contains($0.managedAppCount)
                       }) else {
                     gate.finish([], "response_invalid"); return
                 }
@@ -927,8 +989,18 @@ public enum ScarletNativeSavedAccounts {
                     "selected_account_owner_changed",
                     "selected_team_certificate_readback_failed",
                     "sidestore_team_mismatch", "sidestore_team_recovery_failed",
+                    "sidestore_team_owner_unverified",
+                    "sidestore_team_identifier_collision",
+                    "sidestore_account_identifier_collision",
                     "sidestore_auth_missing"]
-                let result = reason ?? "worker_unknown"
+                let raw = reason ?? "worker_unknown"
+                let evidence = ok ? nil : ScarletCertificatePortalEvidence.decode(raw)
+                if let evidence {
+                    ScarletDiagnosticRecorder.shared.record(
+                        "certificate", "native_import_portal_error_evidence",
+                        status: "error", fields: evidence.safeLogFields)
+                }
+                let result = evidence?.reason ?? raw
                 gate.finish(ok && (result == "imported_selected_team" ||
                     result == "ready_existing"),
                     known.contains(result) ? result : "worker_unknown")
@@ -995,9 +1067,19 @@ public enum ScarletNativeSavedAccounts {
                              "selected_team_certificate_new_issue_unconfirmed",
                              "ready_existing_portal", "ready_issued_apple",
                              "sidestore_team_mismatch", "sidestore_team_recovery_failed",
+                    "sidestore_team_owner_unverified",
+                    "sidestore_team_identifier_collision",
+                    "sidestore_account_identifier_collision",
                              "sidestore_auth_missing", "transport_unavailable",
                              "team_operation_in_progress"]
-                let reason = status ?? "worker_unknown"
+                let raw = status ?? "worker_unknown"
+                let evidence = ok ? nil : ScarletCertificatePortalEvidence.decode(raw)
+                if let evidence {
+                    ScarletDiagnosticRecorder.shared.record(
+                        "certificate", "native_issue_portal_error_evidence",
+                        status: "error", fields: evidence.safeLogFields)
+                }
+                let reason = evidence?.reason ?? raw
                 let success = forceFresh
                     ? reason == "ready_issued_apple"
                     : (reason == "ready" ||

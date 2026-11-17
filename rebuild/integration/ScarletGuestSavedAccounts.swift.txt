@@ -15,6 +15,10 @@ private struct ScarletSavedAccountRow: Codable {
     let active: Bool
     let teamID: String
     let certificateReady: Bool
+    // P102: authoritative native SideStore CoreData ownership snapshot.
+    // Different Apple IDs never inherit another row's account/team/apps.
+    let ownerVerified: Bool
+    let managedAppCount: Int
 }
 
 @MainActor
@@ -184,7 +188,14 @@ private enum ScarletAccountVault {
             UserDefaults.standard.set(slot.anisetteProfile,
                 forKey: "scarlet.auth.lastSuccessfulAnisetteProfile")
             guard ScarletGuestSignInAgent.persistedState(),
-                  (try? await auth.getAuthenticatedTeam())?.identifier == slot.teamID else {
+                  (try? await auth.getAuthenticatedTeam())?.identifier == slot.teamID,
+                  auth.currentAppleID?.trimmingCharacters(
+                      in: .whitespacesAndNewlines).lowercased() ==
+                      identifier(slot.email),
+                  auth.adsid == slot.adsid, auth.xcodeToken == slot.xcodeToken,
+                  let owner = await ScarletInstallTeamAuthority.activeOwnership(),
+                  owner.appleID == identifier(slot.email),
+                  owner.teamID == slot.teamID else {
                 return false
             }
             return true
@@ -197,15 +208,52 @@ private enum ScarletAccountVault {
             return ("[]", "keychain_write_failed")
         }
         guard let slots = readAll() else { return ("[]", "keychain_read_failed") }
+        // Team identifiers may be shared by two Apple IDs. Use the original
+        // SideStore Account -> Team relation AND actual InstalledApp.team
+        // instead of inferring ownership from teamID or global active P12.
+        do { try await DatabaseManager.shared.start() }
+        catch { return ("[]", "database_unavailable") }
+        let context = DatabaseManager.shared.persistentContainer.newBackgroundContext()
+        let inventory: (ownerKeys: Set<String>, appCounts: [String: Int])? =
+            await context.perform {
+                do {
+                    let teams = try context.fetch(Team.fetchRequest())
+                    let apps = try context.fetch(InstalledApp.fetchRequest())
+                    var keys = Set<String>()
+                    var counts: [String: Int] = [:]
+                    for team in teams {
+                        guard let email = team.account?.appleID else { continue }
+                        let key = email.trimmingCharacters(
+                            in: .whitespacesAndNewlines).lowercased() +
+                            "|" + team.identifier
+                        keys.insert(key)
+                    }
+                    for app in apps {
+                        guard let team = app.team, let email = team.account?.appleID
+                        else { continue }
+                        let key = email.trimmingCharacters(
+                            in: .whitespacesAndNewlines).lowercased() +
+                            "|" + team.identifier
+                        counts[key, default: 0] += 1
+                    }
+                    return (ownerKeys: keys, appCounts: counts)
+                } catch { return nil }
+            }
+        guard let inventory else { return ("[]", "database_unavailable") }
         let active = identifier(AuthManager.shared.currentAppleID ?? "")
         let rows = slots.map { slot in
-            ScarletSavedAccountRow(id: slot.email,
-                active: identifier(slot.email) == active &&
+            let ownerKey = identifier(slot.email) + "|" + slot.teamID
+            let verifiedOwner = inventory.ownerKeys.contains(ownerKey)
+            return ScarletSavedAccountRow(id: slot.email,
+                active: identifier(slot.email) == active && verifiedOwner &&
                     ScarletGuestSignInAgent.persistedState(),
                 teamID: slot.teamID,
-                certificateReady: ScarletInstallTeamAuthority.matchingCertificate(
-                    for: slot.teamID, appleID: slot.email)
-                    .map { $0.x509.expiryDate > Date() } ?? false)
+                certificateReady: verifiedOwner && (
+                    ScarletInstallTeamAuthority.matchingCertificate(
+                        for: slot.teamID, appleID: slot.email)
+                        .map { $0.x509.expiryDate > Date() } ?? false),
+                ownerVerified: verifiedOwner,
+                managedAppCount: min(999, inventory.appCounts[ownerKey] ?? 0))
         }
         guard let data = try? JSONEncoder().encode(rows),
               let json = String(data: data, encoding: .utf8),
@@ -405,6 +453,52 @@ enum ScarletInstallTeamAuthority {
         return "ready"
     }
 
+    // P102: Apple portal failures are NOT all the same. Send bounded,
+    // categorical NSError evidence over the existing authenticated XPC.
+    // Never send localizedDescription, request payload, credentials or URLs.
+    private static func portalFailure(_ error: Error, stage: String,
+                                     reason: String = "selected_team_certificate_portal_failed") -> String {
+        let original = error as NSError
+        var deepest = original
+        var depth = 0
+        var seen: Set<ObjectIdentifier> = [ObjectIdentifier(original)]
+        while depth < 4,
+              let next = deepest.userInfo[NSUnderlyingErrorKey] as? NSError,
+              seen.insert(ObjectIdentifier(next)).inserted {
+            deepest = next
+            depth += 1
+        }
+        func safeDomain(_ error: NSError) -> String {
+            switch error.domain {
+            case NSURLErrorDomain: return "url"
+            case NSCocoaErrorDomain: return "cocoa"
+            case NSPOSIXErrorDomain: return "posix"
+            case NSOSStatusErrorDomain: return "osstatus"
+            case "ALTAppleAPIErrorDomain": return "appleapi"
+            case "ALTServerErrorDomain": return "altserver"
+            case "SideStore": return "sidestore"
+            default: return "other"
+            }
+        }
+        func boundedCode(_ code: Int) -> Int {
+            max(-2_147_483_648, min(2_147_483_647, code))
+        }
+        let safeReason = stage == "create" &&
+            (original.code == 7460 || deepest.code == 7460)
+            ? "selected_team_certificate_quota_reached" : reason
+        let receipt: [String: Any] = [
+            "v": 1, "reason": safeReason, "stage": stage,
+            "domain": safeDomain(original), "code": boundedCode(original.code),
+            "underlyingDomain": depth == 0 ? "none" : safeDomain(deepest),
+            "underlyingCode": depth == 0 ? 0 : boundedCode(deepest.code),
+            "depth": depth
+        ]
+        guard let data = try? JSONSerialization.data(withJSONObject: receipt),
+              let wire = String(data: data, encoding: .utf8),
+              wire.utf8.count <= 1024 else { return safeReason }
+        return "scarlet_certificate_failure:" + wire
+    }
+
     // P89: SideInstaller's CertManager.performImport verifies the P12 against
     // the currently selected Apple account/team before changing its key.
     // SideStore uses its own CertificateManager Keychain, NEVER the signed
@@ -442,7 +536,7 @@ enum ScarletInstallTeamAuthority {
                 $0.expiryDate > Date()
             }) else { return "p12_not_registered_with_selected_team" }
         } catch {
-            return "selected_team_certificate_portal_failed"
+            return portalFailure(error, stage: "import_lookup")
         }
         guard (await activeTeam())?.identifier == teamID else {
             return "selected_team_changed"
@@ -569,9 +663,11 @@ enum ScarletInstallTeamAuthority {
                 newlyIssued = try await DeveloperPortalProxy.shared.createCertificate(
                     machineName: "Scarlet Crystal (" + teamID + ")", team: team)
             } catch {
-                let failure = error as NSError
-                return failure.code == 7460 ? "selected_team_certificate_quota_reached"
+                let code = (error as NSError).code
+                let fallback = code == 7460
+                    ? "selected_team_certificate_quota_reached"
                     : "selected_team_certificate_portal_failed"
+                return portalFailure(error, stage: "create", reason: fallback)
             }
             guard certificateBelongsToTeam(newlyIssued, teamID: teamID),
                   newlyIssued.x509.expiryDate > Date() else {
@@ -609,19 +705,24 @@ enum ScarletInstallTeamAuthority {
                       readbackOwner.teamID == owner.teamID else {
                     return "selected_account_owner_changed"
                 }
-                let registered = try? await DeveloperPortalProxy.shared
-                    .fetchCertificates(team: team)
-                guard registered?.contains(where: {
-                    $0.serialNumber.caseInsensitiveCompare(
-                        newlyIssued.serialNumber) == .orderedSame &&
-                    $0.expiryDate > Date()
-                }) == true else {
-                    return "selected_team_certificate_new_issue_unconfirmed"
+                do {
+                    let registered = try await DeveloperPortalProxy.shared
+                        .fetchCertificates(team: team)
+                    guard registered.contains(where: {
+                        $0.serialNumber.caseInsensitiveCompare(
+                            newlyIssued.serialNumber) == .orderedSame &&
+                        $0.expiryDate > Date()
+                    }) else {
+                        return "selected_team_certificate_new_issue_unconfirmed"
+                    }
+                } catch {
+                    return portalFailure(error, stage: "readback",
+                        reason: "selected_team_certificate_new_issue_unconfirmed")
                 }
             }
             return "ready_issued_apple"
         } catch {
-            return "selected_team_certificate_portal_failed"
+            return portalFailure(error, stage: "preflight")
         }
     }
 }

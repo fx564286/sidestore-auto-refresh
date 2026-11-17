@@ -228,8 +228,20 @@ struct ScarletAppleIDLoginSheet: View {
                     Section("저장된 Apple ID") {
                         ForEach(savedAccounts) { slot in
                             HStack {
-                                Text(slot.id)
-                                    .lineLimit(1)
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(slot.id)
+                                        .lineLimit(1)
+                                        .truncationMode(.middle)
+                                    Text("팀 " + slot.teamID)
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                    Text(slot.ownerVerified
+                                        ? "인증서 " + (slot.certificateReady ? "준비됨" : "없음") +
+                                          " · 관리 앱 " + String(slot.managedAppCount) + "개"
+                                        : "계정·개발팀 소유권 확인 필요")
+                                        .font(.caption2)
+                                        .foregroundColor(slot.ownerVerified ? .secondary : .orange)
+                                }
                                 Spacer()
                                 if slot.active {
                                     Label("사용 중", systemImage: "checkmark.circle.fill")
