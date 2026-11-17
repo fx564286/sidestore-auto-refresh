@@ -69,6 +69,90 @@ final class ScarletGuestImportActivity: ObservableObject {
     }
 }
 
+// P101: strict DER TBSCertificate validity. No private-key material is parsed.
+enum ScarletX509Validity {
+    private struct TLV {
+        let tag: UInt8
+        let content: Range<Int>
+        let end: Int
+    }
+    private static func tlv(_ b: [UInt8], _ pos: Int, _ limit: Int) -> TLV? {
+        guard pos >= 0, limit <= b.count, limit - pos >= 2 else { return nil }
+        var i = pos + 1
+        let tag = b[pos]
+        let first = Int(b[i])
+        i += 1
+        var len = first
+        if first >= 0x80 {
+            let n = first & 0x7f
+            guard n > 0, n <= 4, n <= limit - i, b[i] != 0 else { return nil }
+            len = 0
+            for _ in 0..<n { len = (len << 8) | Int(b[i]); i += 1 }
+            guard len >= 128 else { return nil }
+        }
+        guard len <= limit - i else { return nil }
+        return TLV(tag: tag, content: i..<(i + len), end: i + len)
+    }
+    private static func date(_ b: [UInt8], _ node: TLV) -> Date? {
+        guard node.tag == 0x17 || node.tag == 0x18,
+              let s = String(bytes: Array(b[node.content]), encoding: .ascii),
+              s.last == "Z", s.count == (node.tag == 0x17 ? 13 : 15) else { return nil }
+        let digits = Array(s.dropLast())
+        guard digits.allSatisfy({ $0.isASCII && $0.isNumber }) else { return nil }
+        let y = node.tag == 0x17 ? 2 : 4
+        func number(_ i: Int, _ n: Int) -> Int? { Int(String(digits[i..<(i+n)])) }
+        guard var year = number(0, y), let month = number(y, 2),
+              let day = number(y+2, 2), let hour = number(y+4, 2),
+              let minute = number(y+6, 2), let second = number(y+8, 2),
+              let utc = TimeZone(secondsFromGMT: 0) else { return nil }
+        if y == 2 { year += year >= 50 ? 1900 : 2000 }
+        var cal = Calendar(identifier: .gregorian)
+        cal.timeZone = utc
+        let parts = DateComponents(timeZone: utc, year: year, month: month,
+                                   day: day, hour: hour, minute: minute, second: second)
+        guard let value = cal.date(from: parts) else { return nil }
+        let verified = cal.dateComponents(
+            [.year, .month, .day, .hour, .minute, .second], from: value)
+        guard verified.year == year, verified.month == month,
+              verified.day == day, verified.hour == hour,
+              verified.minute == minute, verified.second == second else { return nil }
+        return value
+    }
+    static func interval(der: Data) -> (start: Date, end: Date)? {
+        let b = [UInt8](der)
+        guard let cert = tlv(b, 0, b.count), cert.tag == 0x30,
+              cert.end == b.count,
+              let tbs = tlv(b, cert.content.lowerBound, cert.content.upperBound),
+              tbs.tag == 0x30 else { return nil }
+        var i = tbs.content.lowerBound
+        if let v = tlv(b, i, tbs.content.upperBound), v.tag == 0xa0 { i = v.end }
+        guard let serial = tlv(b, i, tbs.content.upperBound), serial.tag == 0x02,
+              let sig = tlv(b, serial.end, tbs.content.upperBound), sig.tag == 0x30,
+              let issuer = tlv(b, sig.end, tbs.content.upperBound), issuer.tag == 0x30,
+              let validity = tlv(b, issuer.end, tbs.content.upperBound),
+              validity.tag == 0x30,
+              let before = tlv(b, validity.content.lowerBound, validity.content.upperBound),
+              let after = tlv(b, before.end, validity.content.upperBound),
+              after.end == validity.content.upperBound,
+              let start = date(b, before), let end = date(b, after),
+              start < end else { return nil }
+        return (start, end)
+    }
+    static func notAfter(der: Data) -> Date? { interval(der: der)?.end }
+}
+
+// Presence and Team OU are insufficient to certify a guest-launch signer.
+enum ScarletHostTeamSignerVault {
+    static func signerIsUsable(archive: Data, password: String, hostTeam: String) -> Bool {
+        guard LCUtils.getCertTeamId(withKeyData: archive, password: password) == hostTeam,
+              let der = LCUtils.scarletCertificateDER(
+                  withKeyData: archive, password: password),
+              let window = ScarletX509Validity.interval(der: der) else { return false }
+        let now = Date()
+        return window.start <= now && window.end > now
+    }
+}
+
 // P93: The signed HOST provisioning profile is the real trust anchor.
 // Team ID / Apple portal membership alone does not prove that iOS will
 // accept a newly signed guest dylib. Compare the candidate's actual X509 DER
@@ -725,10 +809,31 @@ struct ScarletIntegratedHostView: View {
 
     // The original LC settings can read the bundled SideStore certificate,
     // but independent Scarlet has no second app-list/SideStore screen to visit.
-    // Import only a VALID same-team existing P12, and only when LC has none.
+    // Import only a valid unexpired P12 trusted by the installed host.
+    // A present but stale signer must not block repair.
     // Never log a P12, password, account, team ID or Keychain value.
     private func bridgeExistingSideStoreCertificateIfSafe() {
-        guard LCUtils.certificateData() == nil else { return }
+        guard let identity = ScarletHostProvisioningSigner
+            .verifiedInstalledHostTeam() else {
+            ScarletDiagnosticRecorder.shared.record(
+                "guest", "certificate_bridge_skipped", status: "blocked",
+                fields: ["reason": "installed_host_team_unverified"])
+            return
+        }
+        let installedHostTeam = identity.team
+        if let existing = LCUtils.certificateData(),
+           let existingPassword = LCSharedUtils.certificatePassword(),
+           ScarletHostTeamSignerVault.signerIsUsable(
+               archive: existing, password: existingPassword, hostTeam: installedHostTeam),
+           ScarletHostProvisioningSigner.check(
+               archive: existing, password: existingPassword) == .matched {
+            return
+        }
+        if LCUtils.certificateData() != nil {
+            ScarletDiagnosticRecorder.shared.record(
+                "guest", "certificate_bridge_replacing_stale_signer",
+                fields: ["reason": "expired_or_foreign_team_signer"])
+        }
         // UserDefaults(suiteName:) in pinned LC can fall back to standard defaults.
         // Writing a certificate there is NOT granting an App Group entitlement.
         // Only Apple-issued signed entitlement + actual group container access
@@ -783,10 +888,23 @@ struct ScarletIntegratedHostView: View {
             let password = (passwordItem as? Data)
                 .flatMap { String(data: $0, encoding: .utf8) } ?? ""
             guard let certificateTeam = LCUtils.getCertTeamId(
-                withKeyData: candidate, password: password),
-                  let hostTeam = LCSharedUtils.teamIdentifier(),
-                  certificateTeam == hostTeam else {
+                withKeyData: candidate, password: password) else {
                 lastReason = "certificate_team_or_password_invalid"
+                continue
+            }
+            guard certificateTeam == installedHostTeam else {
+                lastReason = "certificate_team_mismatch"
+                continue
+            }
+            guard ScarletHostTeamSignerVault.signerIsUsable(
+                archive: candidate, password: password,
+                hostTeam: installedHostTeam) else {
+                lastReason = "certificate_expired"
+                continue
+            }
+            guard ScarletHostProvisioningSigner.check(
+                archive: candidate, password: password) == .matched else {
+                lastReason = "candidate_not_in_host_profile"
                 continue
             }
             verifiedCertificate = candidate
@@ -800,12 +918,23 @@ struct ScarletIntegratedHostView: View {
                 fields: ["reason": lastReason])
             return
         }
-        // Same storage keys used by the original LCSettingsView.
+        // Preserve the exact previous storage state until App Group readback.
+        let prefs = LCUtils.appGroupUserDefault
+        let priorCert = LCUtils.certificateData()
+        let priorPassword = LCSharedUtils.certificatePassword()
+        let priorDate = prefs.object(forKey: "LCCertificateUpdateDate")
         LCUtils.appGroupUserDefault.set(certData, forKey: "LCCertificateData")
         LCUtils.appGroupUserDefault.set(password, forKey: "LCCertificatePassword")
         LCUtils.appGroupUserDefault.set(Date(), forKey: "LCCertificateUpdateDate")
         guard LCUtils.certificateData() == certData,
               LCSharedUtils.certificatePassword() == password else {
+            if let priorCert { prefs.set(priorCert, forKey: "LCCertificateData") }
+            else { prefs.removeObject(forKey: "LCCertificateData") }
+            if let priorPassword {
+                prefs.set(priorPassword, forKey: "LCCertificatePassword")
+            } else { prefs.removeObject(forKey: "LCCertificatePassword") }
+            if let priorDate { prefs.set(priorDate, forKey: "LCCertificateUpdateDate") }
+            else { prefs.removeObject(forKey: "LCCertificateUpdateDate") }
             ScarletDiagnosticRecorder.shared.record("guest", "certificate_bridge_not_persisted",
                 status: "error", fields: ["reason": "app_group_write_failed"])
             return

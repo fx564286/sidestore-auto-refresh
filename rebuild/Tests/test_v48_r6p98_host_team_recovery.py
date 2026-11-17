@@ -10,7 +10,7 @@ class HostTeamRecovery(unittest.TestCase):
         self.assertIn('"installed_host_team_unverified"', SRC)
         self.assertIn('"native_host_team_identity_source"', SRC)
         self.assertIn('"signer_host_team_identity_source"', SRC)
-        self.assertEqual(SRC.count('.verifiedInstalledHostTeam() else {'), 2)
+        self.assertEqual(SRC.count('.verifiedInstalledHostTeam() else {'), 3) # P101: bridge adds installed-host signer check
         self.assertNotIn('let signedHostTeam = signedValue.takeRetainedValue()', SRC)
     def test_profile_fallback_has_strict_bundle_and_expiry(self):
         section=SRC.split('static func verifiedInstalledHostTeam()',1)[1].split('static func check(archive:',1)[0]

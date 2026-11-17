@@ -48,6 +48,7 @@ OTHER_ALLOWED_METHODS = {
     # making it impossible for one published IPA to contain both repairs.
     "release_branch_convergence_unique_build_identity",
     "xpc_auth_guest_lifecycle_rebind_after_confirmed_disconnect",
+    "strict_x509_host_profile_stale_signer_bridge_replacement",
 }
 
 # This catches a candidate that claims a novel family but still ADDS the same
