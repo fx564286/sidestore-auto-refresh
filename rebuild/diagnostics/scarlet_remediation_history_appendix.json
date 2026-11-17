@@ -6512,6 +6512,222 @@
       "status": "source_committed_static_and_xcode_ci_pending",
       "device_verification": "device_unverified",
       "repeat_policy": "Do not repeat P90 account/team ownership checks without guarding persistent CoreData mutation. Do not call equal Team IDs evidence of independent Apple account signers. Source/static tests do not establish iOS signed-device success."
+    },
+    {
+      "id": "L163",
+      "date": "2026-11-18",
+      "version": "P102-CI-Cross-Module-Diagnostic-Bridge",
+      "incident_family": "p102_native_side_store_support_compile_boundary",
+      "problem": "p102_ios_livecontainer_archive_fails_swiftc_cannot_find_scarletdiagnosticrecorder_in_sidestoresupport",
+      "mechanism": "cross_module_diagnostic_evidence_actor_handoff_without_sidestoresupport_importing_livecontainerswiftui",
+      "strategy_family": "account_auth_team_selection_repair",
+      "operation_fingerprint": "Move the portal failure diagnostic write out of the SideStoreSupport XPC transport module into the LiveContainerSwiftUI host settings and signing panels. Retain a bounded value-type record in the transport actor, consume it immediately after awaited certificate operation, and preserve exact preflight/create/readback error provenance and privacy constraints.",
+      "source_behavior_contract": "SideStoreSupport never references LiveContainerSwiftUI ScarletDiagnosticRecorder; only the first-party host module records diagnostics. Failed XPC request completes only after stage evidence is retained so host reads back the same result, never exposes Apple IDs or secrets, never spoofs successful issuance.",
+      "rollback_commit": "7d79e99bf02f0cac75c2e98e6edc554bd52195b2",
+      "novelty": {
+        "causal_difference": "L162 was accepted by local Python/static tests and SideStore native build but failed separate LiveContainer SideStoreSupport framework compilation on the two injected ScarletDiagnosticRecorder calls. The new change repairs a verified Swift cross-target symbol boundary and is not another account/Team CoreData mutation or signing heuristic.",
+        "falsifiable_prediction": "The same GitHub Xcode 27.2 LiveContainer job will pass Swift compilation of ScarletAuthXPCSupport.swift because it no longer references ScarletDiagnosticRecorder. P102 portal failure evidence must be recorded by host app after await, not only printed to framework stdout.",
+        "prior_excluded_ids": [
+          "L162",
+          "L161"
+        ],
+        "why_prior_fix_failed": "Local Python regression checks do not resolve Swift target dependencies. L162 used the ScarletDiagnosticRecorder global name in SideStoreSupport though that symbol is compiled into a different LiveContainerSwiftUI module. The CI artifact line 1480 and 1488 proves compilation failed at this exact name.",
+        "new_device_evidence": {}
+      },
+      "code_locations": [
+        {
+          "commit": "72a96812b4dd412e8d80e0a659576f1f4986fa53",
+          "file": "rebuild/HostApp/ScarletAuthXPCSupport.swift",
+          "location": "@@ -921,0 +922,14 @@ public enum ScarletNativeSavedAccounts {",
+          "before": [],
+          "after": [
+            "    // P102 CI repair: this framework cannot import LiveContainerSwiftUI's",
+            "    // ScarletDiagnosticRecorder. Return only bounded diagnostics to its host.",
+            "    private static var pendingPortalEvidence: ScarletCertificatePortalEvidence?",
+            "",
+            "    public static func takePortalEvidence() -> ScarletCertificatePortalEvidence? {",
+            "        let value = pendingPortalEvidence",
+            "        pendingPortalEvidence = nil",
+            "        return value",
+            "    }",
+            "",
+            "    private static func retainPortalEvidence(_ value: ScarletCertificatePortalEvidence) {",
+            "        pendingPortalEvidence = value",
+            "    }",
+            ""
+          ]
+        },
+        {
+          "commit": "72a96812b4dd412e8d80e0a659576f1f4986fa53",
+          "file": "rebuild/HostApp/ScarletAuthXPCSupport.swift",
+          "location": "@@ -958,0 +973 @@ public enum ScarletNativeSavedAccounts {",
+          "before": [],
+          "after": [
+            "        pendingPortalEvidence = nil"
+          ]
+        },
+        {
+          "commit": "72a96812b4dd412e8d80e0a659576f1f4986fa53",
+          "file": "rebuild/HostApp/ScarletAuthXPCSupport.swift",
+          "location": "@@ -997,0 +1013,4 @@ public enum ScarletNativeSavedAccounts {",
+          "before": [],
+          "after": [
+            "                let result = evidence?.reason ?? raw",
+            "                let accepted = ok && (result == \"imported_selected_team\" ||",
+            "                    result == \"ready_existing\")",
+            "                let outcome = known.contains(result) ? result : \"worker_unknown\""
+          ]
+        },
+        {
+          "commit": "72a96812b4dd412e8d80e0a659576f1f4986fa53",
+          "file": "rebuild/HostApp/ScarletAuthXPCSupport.swift",
+          "location": "@@ -999,3 +1018,6 @@ public enum ScarletNativeSavedAccounts {",
+          "before": [
+            "                    ScarletDiagnosticRecorder.shared.record(",
+            "                        \"certificate\", \"native_import_portal_error_evidence\",",
+            "                        status: \"error\", fields: evidence.safeLogFields)"
+          ],
+          "after": [
+            "                    Task { @MainActor in",
+            "                        retainPortalEvidence(evidence)",
+            "                        gate.finish(accepted, outcome)",
+            "                    }",
+            "                } else {",
+            "                    gate.finish(accepted, outcome)"
+          ]
+        },
+        {
+          "commit": "72a96812b4dd412e8d80e0a659576f1f4986fa53",
+          "file": "rebuild/HostApp/ScarletAuthXPCSupport.swift",
+          "location": "@@ -1003,4 +1024,0 @@ public enum ScarletNativeSavedAccounts {",
+          "before": [
+            "                let result = evidence?.reason ?? raw",
+            "                gate.finish(ok && (result == \"imported_selected_team\" ||",
+            "                    result == \"ready_existing\"),",
+            "                    known.contains(result) ? result : \"worker_unknown\")"
+          ],
+          "after": []
+        },
+        {
+          "commit": "72a96812b4dd412e8d80e0a659576f1f4986fa53",
+          "file": "rebuild/HostApp/ScarletAuthXPCSupport.swift",
+          "location": "@@ -1038,0 +1057 @@ public enum ScarletNativeSavedAccounts {",
+          "before": [],
+          "after": [
+            "        pendingPortalEvidence = nil"
+          ]
+        },
+        {
+          "commit": "72a96812b4dd412e8d80e0a659576f1f4986fa53",
+          "file": "rebuild/HostApp/ScarletAuthXPCSupport.swift",
+          "location": "@@ -1077,5 +1095,0 @@ public enum ScarletNativeSavedAccounts {",
+          "before": [
+            "                if let evidence {",
+            "                    ScarletDiagnosticRecorder.shared.record(",
+            "                        \"certificate\", \"native_issue_portal_error_evidence\",",
+            "                        status: \"error\", fields: evidence.safeLogFields)",
+            "                }"
+          ],
+          "after": []
+        },
+        {
+          "commit": "72a96812b4dd412e8d80e0a659576f1f4986fa53",
+          "file": "rebuild/HostApp/ScarletAuthXPCSupport.swift",
+          "location": "@@ -1088,2 +1102,10 @@ public enum ScarletNativeSavedAccounts {",
+          "before": [
+            "                gate.finish(ok && success,",
+            "                    known.contains(reason) ? reason : \"worker_unknown\")"
+          ],
+          "after": [
+            "                let accepted = ok && success",
+            "                let outcome = known.contains(reason) ? reason : \"worker_unknown\"",
+            "                if let evidence {",
+            "                    Task { @MainActor in",
+            "                        retainPortalEvidence(evidence)",
+            "                        gate.finish(accepted, outcome)",
+            "                    }",
+            "                } else {",
+            "                    gate.finish(accepted, outcome)",
+            "                }"
+          ]
+        },
+        {
+          "commit": "72a96812b4dd412e8d80e0a659576f1f4986fa53",
+          "file": "rebuild/HostApp/ScarletSigningReadinessPanel.swift",
+          "location": "@@ -356,0 +357,5 @@ struct ScarletSigningReadinessPanel: View {",
+          "before": [],
+          "after": [
+            "                if let evidence = ScarletNativeSavedAccounts.takePortalEvidence() {",
+            "                    ScarletDiagnosticRecorder.shared.record(",
+            "                        \"certificate\", \"native_issue_portal_error_evidence\",",
+            "                        status: \"error\", fields: evidence.safeLogFields)",
+            "                }"
+          ]
+        },
+        {
+          "commit": "72a96812b4dd412e8d80e0a659576f1f4986fa53",
+          "file": "rebuild/HostApp/ScarletSigningReadinessPanel.swift",
+          "location": "@@ -587,0 +593,5 @@ struct ScarletSigningReadinessPanel: View {",
+          "before": [],
+          "after": [
+            "        if let evidence = ScarletNativeSavedAccounts.takePortalEvidence() {",
+            "            ScarletDiagnosticRecorder.shared.record(",
+            "                \"certificate\", \"native_import_portal_error_evidence\",",
+            "                status: \"error\", fields: evidence.safeLogFields)",
+            "        }"
+          ]
+        },
+        {
+          "commit": "72a96812b4dd412e8d80e0a659576f1f4986fa53",
+          "file": "rebuild/Tests/test_v48_r6p102_certificate_evidence_inventory.py",
+          "location": "@@ -44 +44,7 @@ class P102PortalAndRefresh(unittest.TestCase):",
+          "before": [
+            "        self.assertIn('\"native_issue_portal_error_evidence\"', HOST)"
+          ],
+          "after": [
+            "        self.assertIn('pendingPortalEvidence', HOST)",
+            "        self.assertIn('takePortalEvidence()', HOST)",
+            "        self.assertNotIn('ScarletDiagnosticRecorder.shared', HOST)",
+            "        self.assertIn('\"native_issue_portal_error_evidence\"',",
+            "                      (ROOT / \"rebuild/HostApp/ScarletSigningReadinessPanel.swift\").read_text())",
+            "        self.assertIn('\"native_import_portal_error_evidence\"',",
+            "                      (ROOT / \"rebuild/HostApp/ScarletSigningReadinessPanel.swift\").read_text())"
+          ]
+        },
+        {
+          "commit": "72a96812b4dd412e8d80e0a659576f1f4986fa53",
+          "file": "rebuild/integration/apply_scarlet_host.py",
+          "location": "@@ -1053,0 +1054,5 @@ def attach_native_settings_diagnostics(engine: Path) -> dict:",
+          "before": [],
+          "after": [
+            "        if let evidence = ScarletNativeSavedAccounts.takePortalEvidence() {",
+            "            ScarletDiagnosticRecorder.shared.record(",
+            "                \"certificate\", \"native_issue_portal_error_evidence\",",
+            "                status: \"error\", fields: evidence.safeLogFields)",
+            "        }"
+          ]
+        }
+      ],
+      "source_verification": "git_patch_observed",
+      "source_revisions": [
+        {
+          "sha": "72a96812b4dd412e8d80e0a659576f1f4986fa53",
+          "url": "https://github.com/fx564286/sidestore-auto-refresh/commit/72a96812b4dd412e8d80e0a659576f1f4986fa53",
+          "title": "P102: route portal error evidence through host without cross-target dependency"
+        }
+      ],
+      "generated_runtime_targets": [
+        {
+          "tracked_source": "rebuild/integration/apply_scarlet_host.py",
+          "generated_engine_path": "engine/LiveContainer/LiveContainerSwiftUI/Views/Settings/LCSettingsView.swift",
+          "generator": "attach_native_settings_diagnostics",
+          "effect": "Take retained safe evidence and write host diagnostic journal only from SwiftUI module"
+        }
+      ],
+      "observation": "GitHub Actions 44194980477 SideStore succeeded; LiveContainer compile failed in SideStoreSupport/ScarletAuthXPCSupport.swift lines 999 and 1078 with cannot find ScarletDiagnosticRecorder in scope. Failure artifact downloaded and exact xcodebuild errors inspected. After source repair local 926 Python tests passed, 4 skipped; new Xcode CI not yet observed.",
+      "status": "source_committed_static_and_xcode_ci_pending",
+      "device_verification": "device_unverified",
+      "repeat_policy": "Do not reference host-only UI recorder types from SideStoreSupport framework or report this compile-time blocker as a device signing failure. Preserve P101 host signer."
     }
   ]
 }
