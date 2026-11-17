@@ -353,7 +353,7 @@ struct ScarletSigningReadinessPanel: View {
                     return
                 }
                 let result = await ScarletNativeSavedAccounts
-                    .ensureSelectedTeamCertificate(owner.teamID)
+                    .issueInstallCertificate(owner.teamID)
                 ScarletDiagnosticRecorder.shared.record(
                     "certificate", "native_account_issue_result",
                     status: result.0 ? "success" : "blocked",
@@ -395,7 +395,13 @@ struct ScarletSigningReadinessPanel: View {
                 pendingP12 = archive
                 pendingCertificateOrigin = source
                 p12Password = password
-                await importExportedP12()
+                let imported = await importExportedP12()
+                guard imported else {
+                    ScarletDiagnosticRecorder.shared.record(
+                        "certificate", "native_provider_account_import_blocked",
+                        status: "blocked", fields: ["reason": "selected_account_p12_import_failed"])
+                    return
+                }
                 if certificateRecoveryStatus ==
                     "선택한 계정 인증서가 등록됐습니다. 게스트 서명은 별도 검증 중입니다." {
                     certificateRecoveryStatus = source == "new_apple_portal"
@@ -536,14 +542,15 @@ struct ScarletSigningReadinessPanel: View {
     }
 
     @MainActor
-    private func importExportedP12() async {
+    @discardableResult
+    private func importExportedP12() async -> Bool {
         // Original LC host signing is NOT the selected account's SideStore
         // signing identity. SideInstaller's CertManager verifies by active
         // account, not by the host Team identifier.
-        guard !isImportingSelectedTeamP12 else { return }
+        guard !isImportingSelectedTeamP12 else { return false }
         guard let archive = pendingP12, !archive.isEmpty else {
             certificateRecoveryStatus = "선택한 P12가 없습니다."
-            return
+            return false
         }
         let password = p12Password
         guard let team = LCUtils.getCertTeamId(
@@ -552,7 +559,7 @@ struct ScarletSigningReadinessPanel: View {
             ScarletDiagnosticRecorder.shared.record("certificate", "import_blocked",
                 status: "blocked", fields: ["reason": "p12_decode_or_password_invalid"])
             clearStagedCertificate()
-            return
+            return false
         }
         isImportingSelectedTeamP12 = true
         defer {
@@ -566,13 +573,13 @@ struct ScarletSigningReadinessPanel: View {
             certificateRecoveryStatus = "활성 Apple ID를 확인하지 못했습니다."
             ScarletDiagnosticRecorder.shared.record("certificate", "import_blocked",
                 status: "blocked", fields: ["reason": "active_account_unavailable"])
-            return
+            return false
         }
         guard active.teamID == team else {
             certificateRecoveryStatus = "선택한 Apple ID의 개발팀과 P12 인증서의 개발팀이 다릅니다."
             ScarletDiagnosticRecorder.shared.record("certificate", "import_blocked",
                 status: "blocked", fields: ["reason": "p12_selected_account_team_mismatch"])
-            return
+            return false
         }
         let result = await ScarletNativeSavedAccounts.importSelectedTeamCertificate(
             archive, password: password, teamID: active.teamID)
@@ -589,21 +596,44 @@ struct ScarletSigningReadinessPanel: View {
                readback.accounts.contains(where: {
                    $0.active && $0.id == active.id && $0.teamID == active.teamID
                }) {
-                if LCUtils.certificateData() == archive &&
-                   LCSharedUtils.certificatePassword() == password {
+                // P96: a P12 may be valid at Apple but not authorized by
+                // this already installed host's DeveloperCertificates. Never
+                // report guest signing as ready based on portal validity.
+                let trust = ScarletHostProvisioningSigner.check(
+                    archive: archive, password: password)
+                if trust != .matched {
+                    switch trust {
+                    case .different:
+                        certificateRecoveryStatus = "선택한 계정 인증서는 저장됐지만 현재 설치된 Scarlet Crystal의 서명 인증서와 다릅니다. 게스트 실행에는 호스트 재서명·업데이트가 필요합니다."
+                    case .profileUnavailable:
+                        certificateRecoveryStatus = "호스트의 설치 프로비저닝 프로파일을 읽을 수 없어 게스트 서명을 검증하지 못했습니다."
+                    case .archiveUnreadable:
+                        certificateRecoveryStatus = "선택한 P12의 서명 인증서를 읽지 못했습니다. 게스트 서명은 차단됐습니다."
+                    case .developmentProfileRequired:
+                        certificateRecoveryStatus = "설치된 호스트에 개발용 서명 권한이 없어 JIT-Less를 검증할 수 없습니다."
+                    case .matched:
+                        break
+                    }
+                    ScarletDiagnosticRecorder.shared.record(
+                        "certificate", "account_p12_guest_signer_blocked",
+                        status: "blocked", fields: ["reason": trust.rawValue])
+                } else if LCUtils.certificateData() == archive &&
+                    LCSharedUtils.certificatePassword() == password {
                     ScarletDiagnosticRecorder.shared.record(
                         "certificate", "account_p12_guest_signer_unchanged",
-                        fields: ["reason": "already_active_lc_archive"])
+                        fields: ["reason": "already_active_host_matched_archive"])
                 } else {
                     ScarletDiagnosticRecorder.shared.record(
                         "certificate", "account_p12_guest_signer_trial_requested",
                         fields: ["result": "host_profile_and_kernel_check_required"])
-                    // P78 checks actual installed host profile + reversibly
-                    // restores the LC signer if kernel JIT-less postcheck fails.
+                    // P78 performs reversible kernel postcheck before writing
+                    // the guest signer permanently; a matching DER alone is
+                    // never a success receipt.
                     ScarletGuestSignerRecovery.trialExistingSideStoreCertificate(
                         nativeCandidate: (archive: archive, password: password))
                 }
             } else {
+                certificateRecoveryStatus = "인증서 등록 중 활성 Apple ID가 변경돼 게스트 서명을 중단했습니다."
                 ScarletDiagnosticRecorder.shared.record(
                     "certificate", "account_p12_guest_signer_blocked",
                     status: "blocked", fields: ["reason": "active_owner_changed"])
@@ -614,6 +644,7 @@ struct ScarletSigningReadinessPanel: View {
                 status: "blocked", fields: ["reason": result.1])
         }
         inspect()
+        return result.0
     }
 
     var body: some View {

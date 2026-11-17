@@ -10,7 +10,7 @@ class NativeInAppAppleIssue(unittest.TestCase):
     def test_existing_button_uses_selected_owner_team_issuer_first(self):
         body=PANEL.split('private func requestNativeCertificate()',1)[1].split('private func retrieveSideInstallerStyleCertificate()',1)[0]
         self.assertIn('before.accounts.filter({ $0.active }).count == 1',body)
-        self.assertIn('ensureSelectedTeamCertificate(owner.teamID)',body)
+        self.assertIn('issueInstallCertificate(owner.teamID)',body)
         self.assertIn('after.accounts.filter({ $0.active }).count == 1',body)
         self.assertIn('$0.id == owner.id && $0.teamID == owner.teamID',body)
         self.assertIn('retrieveSideStoreCertificate()',body)

@@ -75,7 +75,7 @@ final class ScarletGuestImportActivity: ObservableObject {
 // to the certificate(s) embedded in the installed host profile. No credentials
 // or certificate material are logged or changed by this read-only check.
 @available(iOS 17.0, *)
-private enum ScarletHostProvisioningSigner {
+enum ScarletHostProvisioningSigner {
     enum Status: String {
         case matched = "host_profile_certificate_matched"
         case different = "candidate_not_in_host_profile"

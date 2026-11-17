@@ -423,22 +423,44 @@ enum ScarletInstallTeamAuthority {
         guard teamStatus == "ready" || teamStatus == "team_restored" else {
             return teamStatus
         }
-        if let current = matchingCertificate(for: teamID),
-           current.x509.expiryDate > Date() {
-            return await prepare(teamID: teamID)
+        // P96: an explicit request is NOT satisfied by local X509 expiry or
+        // the Team OU alone. The certificate serial must remain registered
+        // for the authenticated active Apple-ID's Team in Apple's portal.
+        guard let owner = await activeOwnership(), owner.teamID == teamID else {
+            return "selected_account_owner_unverified"
         }
         do {
-            // First reuse signable certificates obtained legitimately for
-            // this exact team, including a still-present portal certificate
-            // whose matching private key is stored locally. No issuance yet.
             let portal = try await DeveloperPortalProxy.shared.fetchCertificates(team: team)
+            guard let currentOwner = await activeOwnership(),
+                  currentOwner.appleID == owner.appleID,
+                  currentOwner.teamID == owner.teamID else {
+                return "selected_account_owner_changed"
+            }
             let manager = CertificateManager.shared
+            // Existing certificate + private key is reusable ONLY when
+            // Apple still recognizes that exact unexpired certificate.
+            if let current = matchingCertificate(for: teamID),
+               current.x509.expiryDate > Date(),
+               portal.contains(where: {
+                   $0.serialNumber.caseInsensitiveCompare(current.serialNumber) == .orderedSame &&
+                   $0.expiryDate > Date()
+               }) {
+                return await prepare(teamID: teamID) == "ready"
+                    ? "ready_existing_portal" : "selected_team_certificate_readback_failed"
+            }
+            // The original SideStore keychain may retain an alternate
+            // registered signable certificate. Reuse it before issuing anew.
             for remote in portal where remote.expiryDate > Date() {
                 guard let signable = manager.getSignableCertificate(
                         for: remote.serialNumber,
                         fallbackPassword: remote.machineIdentifier),
                       signable.serialNumber.lowercased() == remote.serialNumber.lowercased(),
                       certificateBelongsToTeam(signable, teamID: teamID) else { continue }
+                guard let currentOwner = await activeOwnership(),
+                      currentOwner.appleID == owner.appleID,
+                      currentOwner.teamID == owner.teamID else {
+                    return "selected_account_owner_changed"
+                }
                 try manager.setActiveCertificate(signable)
                 guard await prepare(teamID: teamID) == "ready" else {
                     return "selected_team_certificate_readback_failed"
@@ -449,8 +471,10 @@ enum ScarletInstallTeamAuthority {
             // request and SideStore's native requestCertificate both issue
             // directly at Apple. createCertificate returns the matching key.
             // A 7460/quota failure does NOT revoke another app's certificate.
-            guard (await activeTeam())?.identifier == teamID else {
-                return "selected_team_changed"
+            guard let currentOwner = await activeOwnership(),
+                  currentOwner.appleID == owner.appleID,
+                  currentOwner.teamID == owner.teamID else {
+                return "selected_account_owner_changed"
             }
             let originalActive = manager.activeCertificate?.certificate
             let newlyIssued: ALTCertificate
