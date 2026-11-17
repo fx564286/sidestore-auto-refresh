@@ -163,9 +163,18 @@ private enum ScarletGuestSignerRecovery {
     private static var nativeRecoveryInProgress = false
 
     private static func trialNativeManagedHostCertificate() async {
-        guard !active, !nativeRecoveryInProgress,
-              ScarletSigningReadiness.inspect().canRequestNativeRefresh else { return }
+        guard !active, !nativeRecoveryInProgress else { return }
+        let readiness = ScarletSigningReadiness.inspect()
+        guard readiness.canAttemptLocalGuestSignerRecovery else {
+            ScarletDiagnosticRecorder.shared.record(
+                "guest", "native_signer_recovery_blocked",
+                status: "blocked", fields: ["reason": readiness.safeBlockCategory])
+            return
+        }
         nativeRecoveryInProgress = true
+        ScarletDiagnosticRecorder.shared.record(
+            "guest", "native_signer_recovery_started",
+            fields: ["result": "local_entitled_host_candidate_lookup"])
         defer { nativeRecoveryInProgress = false }
         let task = SecTaskCreateFromSelf(nil)
         guard let entitlement = SecTaskCopyValueForEntitlement(
@@ -225,10 +234,22 @@ private enum ScarletGuestSignerRecovery {
             guard !prefs.bool(forKey: pending) else { return }
         }
         guard let original = LCUtils.certificateData(),
-              let originalPassword = LCSharedUtils.certificatePassword(),
-              ScarletSigningReadiness.inspect().canRequestNativeRefresh else {
+              let originalPassword = LCSharedUtils.certificatePassword() else {
+            ScarletDiagnosticRecorder.shared.record(
+                "guest", "signer_recovery_blocked", status: "blocked",
+                fields: ["reason": "host_certificate_material_missing"])
             return
         }
+        let readiness = ScarletSigningReadiness.inspect()
+        guard readiness.canAttemptLocalGuestSignerRecovery else {
+            ScarletDiagnosticRecorder.shared.record(
+                "guest", "signer_recovery_blocked", status: "blocked",
+                fields: ["reason": readiness.safeBlockCategory])
+            return
+        }
+        ScarletDiagnosticRecorder.shared.record(
+            "guest", "signer_recovery_started",
+            fields: ["result": "local_same_host_team_candidate_lookup"])
         let task = SecTaskCreateFromSelf(nil)
         guard let signedValue = SecTaskCopyValueForEntitlement(
             task, "com.apple.developer.team-identifier" as CFString, nil),

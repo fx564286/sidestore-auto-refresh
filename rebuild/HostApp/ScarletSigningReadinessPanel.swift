@@ -24,6 +24,16 @@ struct ScarletSigningReadiness {
         sideStoreAppGroupAccessible
     }
 
+    // Local guest-signature repair is NOT a SideStore reinstallation/refresh.
+    // P91 inadvertently reused the stronger signed-app-identifier refresh gate
+    // and returned before trying a same-team P12 on affected signed hosts.
+    // A candidate still must match the real entitled host Team and then pass
+    // the original kernel signature test and rollback transaction.
+    var canAttemptLocalGuestSignerRecovery: Bool {
+        actualHostIdentity && developerTeamEntitled &&
+        sideStoreAppGroupEntitled && sideStoreAppGroupAccessible
+    }
+
     static func inspect() -> ScarletSigningReadiness {
         let task = SecTaskCreateFromSelf(nil)
         let team = SecTaskCopyValueForEntitlement(
@@ -591,6 +601,19 @@ struct ScarletSigningReadinessPanel: View {
                 Label("P12 파일 선택", systemImage: "doc.badge.plus")
             }
             .accessibilityIdentifier("SCARLET_P12_IMPORT_FROM_FILES")
+            // P92: P7's iOS 17+ replacement dropped the original upstream
+            // JIT-less diagnostic NavigationLink entirely. Restore access to
+            // the original native entitlement, certificate and test screens.
+            NavigationLink {
+                LCJITLessDiagnoseView()
+                    .onAppear {
+                        ScarletDiagnosticRecorder.shared.record(
+                            "guest", "jitless_manual_diagnostic_opened")
+                    }
+            } label: {
+                Label("JIT-less 진단", systemImage: "waveform.path.ecg")
+            }
+            .accessibilityIdentifier("SCARLET_JITLESS_DIAGNOSTIC_ENTRY")
             if let certificateRecoveryStatus {
                 Text(certificateRecoveryStatus)
                     .font(.footnote)

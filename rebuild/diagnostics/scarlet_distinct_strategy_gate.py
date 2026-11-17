@@ -38,6 +38,9 @@ OTHER_ALLOWED_METHODS = {
     "account_auth_team_selection_repair",
     "host_origin_verified_xpc_bundle_authority",
     "native_settings_account_group_divider_owner",
+    # P92 restores a removed native JIT-less route and separates guest-local
+    # signing eligibility from stronger SideStore device refresh eligibility.
+    "original_jitless_diag_navigation_guest_scoped_recovery",
 }
 
 # This catches a candidate that claims a novel family but still ADDS the same

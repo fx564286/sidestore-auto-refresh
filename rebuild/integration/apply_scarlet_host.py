@@ -1429,8 +1429,41 @@ def attach_jitless_diagnostic_scroll_margins(engine: Path) -> dict:
         source = source.replace(anchor, anchor.replace(
             '            .navigationTitle(', '            .scarletDiagnosticScrollMargins()\n            .navigationTitle('))
     assert source.count(".scarletDiagnosticScrollMargins()") == 2
+    # P92: the original test button is visible again. Include a sanitized,
+    # user-exportable result in the same Scarlet session JSONL; otherwise
+    # an alert is lost when the user leaves the JIT screen.
+    start = """        isJITLessTestInProgress = true
+        LCUtils.validateJITLessSetup { success, error in
+            if success {"""
+    instrument = """        isJITLessTestInProgress = true
+        ScarletDiagnosticRecorder.shared.record(
+            "guest", "jitless_manual_probe_started")
+        LCUtils.validateJITLessSetup { success, error in
+            ScarletDiagnosticRecorder.shared.record(
+                "guest", "jitless_manual_probe_finished",
+                status: success ? "success" : "error",
+                fields: ["result": success ? "signature_valid" : "signature_invalid"])
+            if !success, let error {
+                let value = error as NSError
+                ScarletDiagnosticRecorder.shared.record(
+                    "guest", "jitless_manual_probe_failure_classified",
+                    status: "error", fields: [
+                        "reason": value.code == 2 &&
+                            value.domain == Bundle.main.bundleIdentifier ?
+                            "signature_postcheck_invalid" : "signer_operation_failed",
+                        "code": String(value.code)])
+            }
+            if success {"""
+    if start in source:
+        assert source.count(start) == 1, "Pinned native JIT-less test duplicated"
+        source = source.replace(start, instrument, 1)
+    else:
+        # Synthetic native-theme fixture has no testJITLessMode() body;
+        # a REAL pinned function that drifted must still fail closed.
+        assert "func testJITLessMode()" not in source,             "Pinned native JIT-less test path changed"
     path.write_text(source)
     return {"originalNestedForms": 2, "lastRowsCovered": False,
+            "manualJITTestRecorded": True,
             "source": str(path.relative_to(engine)), "sha256": file_sha(path)}
 
 
