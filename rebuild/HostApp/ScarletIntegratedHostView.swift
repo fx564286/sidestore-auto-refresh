@@ -69,6 +69,51 @@ final class ScarletGuestImportActivity: ObservableObject {
     }
 }
 
+// P93: The signed HOST provisioning profile is the real trust anchor.
+// Team ID / Apple portal membership alone does not prove that iOS will
+// accept a newly signed guest dylib. Compare the candidate's actual X509 DER
+// to the certificate(s) embedded in the installed host profile. No credentials
+// or certificate material are logged or changed by this read-only check.
+@available(iOS 17.0, *)
+private enum ScarletHostProvisioningSigner {
+    enum Status: String {
+        case matched = "host_profile_certificate_matched"
+        case different = "candidate_not_in_host_profile"
+        case profileUnavailable = "installed_profile_unreadable"
+        case archiveUnreadable = "p12_identity_unreadable"
+        case developmentProfileRequired = "host_development_profile_required"
+    }
+
+    static func check(archive: Data, password: String) -> Status {
+        let path = Bundle.main.bundleURL.appendingPathComponent("embedded.mobileprovision")
+        guard let signedProfile = try? Data(contentsOf: path),
+              let start = signedProfile.range(of: Data("<plist".utf8))?.lowerBound,
+              let end = signedProfile.range(of: Data("</plist>".utf8))?.upperBound,
+              start < end,
+              let profile = try? PropertyListSerialization.propertyList(
+                from: signedProfile.subdata(in: start..<end), format: nil
+              ) as? [String: Any],
+              let allowed = profile["DeveloperCertificates"] as? [Data],
+              !allowed.isEmpty else { return .profileUnavailable }
+        guard let entitlements = profile["Entitlements"] as? [String: Any],
+              entitlements["get-task-allow"] as? Bool == true else {
+            return .developmentProfileRequired
+        }
+        let options: [String: Any] = [kSecImportExportPassphrase as String: password]
+        var decoded: CFArray?
+        guard SecPKCS12Import(archive as CFData, options as CFDictionary, &decoded)
+                == errSecSuccess,
+              let items = decoded as? [[String: Any]],
+              let identity = items.first?[kSecImportItemIdentity as String] as? SecIdentity
+        else { return .archiveUnreadable }
+        var cert: SecCertificate?
+        guard SecIdentityCopyCertificate(identity, &cert) == errSecSuccess,
+              let cert else { return .archiveUnreadable }
+        let candidateDER = SecCertificateCopyData(cert) as Data
+        return allowed.contains(candidateDER) ? .matched : .different
+    }
+}
+
 // R6P78_SIGNER_SELF_RECOVERY_BEGIN
 // Signed P76 guest: LC preflight P12+password+Team all matched, but four
 // actual guest zsign attempts failed certificate_invalid, and a *separate*
@@ -182,13 +227,12 @@ private enum ScarletGuestSignerRecovery {
               let hostTeam = entitlement.takeRetainedValue() as? String,
               !hostTeam.isEmpty else { return }
 
-        // A and B remain independent even when Apple assigned the SAME
-        // Developer Team. Without a unique owner we cannot infer who owns
-        // this installed host from its Team entitlement alone.
+        // Match a single ACTIVE Apple ID on both reads. Two saved IDs may
+        // share one Team, but the actual P12 must match the installed host
+        // provisioning certificate to authorize this signer transaction.
         let (before, status) = await ScarletNativeSavedAccounts.list()
         guard status == "ready",
               before.filter({ $0.active }).count == 1,
-              before.filter({ $0.teamID == hostTeam }).count == 1,
               let owner = before.first(where: { $0.active && $0.teamID == hostTeam }) else {
             ScarletDiagnosticRecorder.shared.record(
                 "guest", "native_signer_recovery_blocked",
@@ -202,7 +246,6 @@ private enum ScarletGuestSignerRecovery {
                 .shared.retrieveSideStoreCertificate()
             let (after, readback) = await ScarletNativeSavedAccounts.list()
             guard readback == "ready", after.filter({ $0.active }).count == 1,
-                  after.filter({ $0.teamID == hostTeam }).count == 1,
                   after.contains(where: {
                       $0.active && $0.id == owner.id && $0.teamID == hostTeam
                   }),
@@ -212,6 +255,14 @@ private enum ScarletGuestSignerRecovery {
                 ScarletDiagnosticRecorder.shared.record(
                     "guest", "native_signer_recovery_blocked",
                     fields: ["reason": "candidate_or_owner_not_verified"])
+                return
+            }
+            let profile = ScarletHostProvisioningSigner.check(
+                archive: archive, password: password)
+            guard profile == .matched else {
+                ScarletDiagnosticRecorder.shared.record(
+                    "guest", "native_signer_recovery_blocked",
+                    status: "blocked", fields: ["reason": profile.rawValue])
                 return
             }
             // Reuse P78's transaction, kernel readback and exact rollback;
@@ -255,6 +306,8 @@ private enum ScarletGuestSignerRecovery {
             task, "com.apple.developer.team-identifier" as CFString, nil),
               let signedHostTeam = signedValue.takeRetainedValue() as? String,
               !signedHostTeam.isEmpty else { return }
+        // This repair must use the REAL installed host Team, not whichever
+        // Apple account was most recently selected in Settings.
         let services = ["com.SideStore.SideStore", "com.kdt.livecontainer"]
         var alternate: Data? = nativeCandidate?.archive
         var alternatePassword: String? = nativeCandidate?.password
@@ -292,6 +345,10 @@ private enum ScarletGuestSignerRecovery {
                                          password: password) == signedHostTeam else {
                 continue // never use Apple account B's unrelated signer
             }
+            guard ScarletHostProvisioningSigner.check(
+                archive: candidate, password: password) == .matched else {
+                continue // same team but not trusted by the installed host
+            }
             alternate = candidate
             alternatePassword = password
             break
@@ -307,6 +364,16 @@ private enum ScarletGuestSignerRecovery {
                     await trialNativeManagedHostCertificate()
                 }
             }
+            return
+        }
+        // The native and legacy candidate paths share this fail-closed check.
+        // Never overwrite a valid user-selected signer using merely Team OU.
+        let profile = ScarletHostProvisioningSigner.check(
+            archive: candidate, password: candidatePassword)
+        guard profile == .matched else {
+            ScarletDiagnosticRecorder.shared.record(
+                "guest", "signer_recovery_blocked", status: "blocked",
+                fields: ["reason": profile.rawValue])
             return
         }
         // Persist a reversible snapshot in the very SAME already entitled
@@ -592,6 +659,14 @@ struct ScarletIntegratedHostView: View {
                     // the P76 signed device. Try one REAL kernel-verified
                     // alternate same-host-team SideStore P12 with rollback.
                     if category == "signature_postcheck_invalid" {
+                        if let archive = LCUtils.certificateData(),
+                           let password = LCSharedUtils.certificatePassword() {
+                            let trust = ScarletHostProvisioningSigner.check(
+                                archive: archive, password: password)
+                            ScarletDiagnosticRecorder.shared.record(
+                                "guest", "jitless_host_profile_signer_readback",
+                                fields: ["result": trust.rawValue])
+                        }
                         Task { @MainActor in
                             ScarletGuestSignerRecovery.trialExistingSideStoreCertificate()
                         }

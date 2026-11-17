@@ -20,10 +20,16 @@ class NativeOwnedSignerTests(unittest.TestCase):
         self.assertIn('trialExistingSideStoreCertificate(nativeCandidate:', h)
         self.assertIn('if nativeCandidate == nil {\n        for service in services', h)
 
-    def test_host_only_one_apple_owner_guards_same_team_id(self):
+    def test_unique_active_owner_and_profile_anchor_allow_same_team_accounts(self):
         h = self.host
-        self.assertIn('before.filter({ $0.teamID == hostTeam }).count == 1', h)
-        self.assertIn('after.filter({ $0.teamID == hostTeam }).count == 1', h)
+        # P93 supersedes P91's Team-count=1 rejection. Two saved IDs may
+        # share a Team, but the active owner's P12 must match the host's
+        # actual signed embedded profile certificate before any trial.
+        self.assertIn('before.filter({ $0.active }).count == 1', h)
+        self.assertIn('after.filter({ $0.active }).count == 1', h)
+        self.assertNotIn('before.filter({ $0.teamID == hostTeam }).count == 1', h)
+        self.assertNotIn('after.filter({ $0.teamID == hostTeam }).count == 1', h)
+        self.assertIn('ScarletHostProvisioningSigner.check(', h)
         self.assertIn('after.contains(where: {', h)
         self.assertIn('$0.active && $0.id == owner.id && $0.teamID == hostTeam', h)
         self.assertIn('LCUtils.getCertTeamId(withKeyData: archive,', h)
