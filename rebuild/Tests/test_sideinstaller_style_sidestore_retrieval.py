@@ -21,7 +21,8 @@ class SideInstallerStyleRetrieval(unittest.TestCase):
         self.assertIn('SCARLET_P12_NATIVE_ISSUE',UI)
         self.assertIn('SCARLET_P12_IMPORT_FROM_FILES',UI)
         self.assertIn('retrieveSideInstallerStyleCertificate()',UI)
-        self.assertIn('SideInstaller-style retrieval is an internal fallback',UI)
+        self.assertIn('A failed Apple issue is NOT silently converted into a',UI)
+        self.assertNotIn('retrieveSideInstallerStyleCertificate()',UI.split('private func requestNativeCertificate()',1)[1].split('private func retrieveSideInstallerStyleCertificate()',1)[0])
         self.assertNotIn('sideinstaller://',UI)
         self.assertNotIn('UIApplication.shared.open(',UI)
 

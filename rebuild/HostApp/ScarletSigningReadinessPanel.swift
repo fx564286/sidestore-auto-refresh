@@ -339,9 +339,56 @@ struct ScarletSigningReadinessPanel: View {
         Task { @MainActor in
             defer { isIssuingNativeCertificate = false }
             do {
-                let (archive, password) =
-                    try await ScarletNativeCertificateTransport.shared.obtain()
-                let source = ScarletNativeCertificateTransport.shared.lastResolution
+                // P95: the visible button must first use the already-native
+                // account/Team Apple portal issuer (P86), not a global
+                // CertificateProvisioningFlow that may simply return A's P12.
+                let before = await ScarletNativeSavedAccounts.list()
+                guard before.status == "ready",
+                      before.accounts.filter({ $0.active }).count == 1,
+                      let owner = before.accounts.first(where: { $0.active }) else {
+                    certificateRecoveryStatus = "활성 Apple ID를 확인할 수 없어 발급을 중단했습니다."
+                    ScarletDiagnosticRecorder.shared.record(
+                        "certificate", "native_account_issue_blocked",
+                        status: "blocked", fields: ["reason": "active_owner_unverified"])
+                    return
+                }
+                let result = await ScarletNativeSavedAccounts
+                    .ensureSelectedTeamCertificate(owner.teamID)
+                ScarletDiagnosticRecorder.shared.record(
+                    "certificate", "native_account_issue_result",
+                    status: result.0 ? "success" : "blocked",
+                    fields: ["result": result.1])
+                guard result.0 else {
+                    switch result.1 {
+                    case "selected_team_certificate_quota_reached":
+                        certificateRecoveryStatus = "Apple 인증서 발급 한도에 도달했습니다. 기존 인증서는 유지됩니다."
+                    case "selected_team_changed":
+                        certificateRecoveryStatus = "인증서 처리 중 활성 Apple ID가 변경됐습니다."
+                    default:
+                        certificateRecoveryStatus = "선택한 계정 인증서 발급 실패: " + result.1
+                    }
+                    return
+                }
+                let after = await ScarletNativeSavedAccounts.list()
+                guard after.status == "ready",
+                      after.accounts.filter({ $0.active }).count == 1,
+                      after.accounts.contains(where: {
+                          $0.active && $0.id == owner.id && $0.teamID == owner.teamID
+                      }) else {
+                    certificateRecoveryStatus = "발급 이후 활성 Apple ID가 변경돼 가져오기를 중단했습니다."
+                    ScarletDiagnosticRecorder.shared.record(
+                        "certificate", "native_account_issue_blocked",
+                        status: "blocked", fields: ["reason": "active_owner_changed"])
+                    return
+                }
+                // SideStore's own CertificateManager now holds the exactly
+                // prepared/issued Team P12. Export it inside the authenticated
+                // XPC channel; LC guest signer remains independently guarded
+                // by installed-host profile + P78 kernel rollback check.
+                let (archive, password) = try await ScarletNativeCertificateTransport
+                    .shared.retrieveSideStoreCertificate()
+                let source = result.1 == "ready_issued_apple"
+                    ? "new_apple_portal" : "existing_portal"
                 ScarletDiagnosticRecorder.shared.record(
                     "certificate", "provider_origin_checked",
                     fields: ["source": source])
@@ -349,6 +396,12 @@ struct ScarletSigningReadinessPanel: View {
                 pendingCertificateOrigin = source
                 p12Password = password
                 await importExportedP12()
+                if certificateRecoveryStatus ==
+                    "선택한 계정 인증서가 등록됐습니다. 게스트 서명은 별도 검증 중입니다." {
+                    certificateRecoveryStatus = source == "new_apple_portal"
+                        ? "Apple에서 새 인증서를 발급받았습니다. 게스트 서명 검증은 별도입니다."
+                        : "기존 유효 인증서를 사용했습니다. 신규 발급은 없으며 게스트 서명은 별도 검증 중입니다."
+                }
                 ScarletDiagnosticRecorder.shared.record(
                     "certificate", "native_provider_returned",
                     fields: ["result": "team_validation_pending_or_passed"])
@@ -375,15 +428,14 @@ struct ScarletSigningReadinessPanel: View {
             } catch {
                 let failure = error as NSError
                 certificateRecoveryStatus =
-                    "SideStore 발급 요청 실패. 기존 SideStore 인증서를 자동 확인합니다."
+                    "선택한 계정 인증서 요청이 실패했습니다. 기존 인증서는 유지됩니다."
                 ScarletDiagnosticRecorder.shared.record(
                     "certificate", "native_provider_failed",
                     status: "error",
                     fields: ["domain": "scarlet.certificate.worker",
                              "code": String(failure.code)])
-                // SideInstaller-style retrieval is an internal fallback, not
-                // a second user-facing certificate import button.
-                retrieveSideInstallerStyleCertificate()
+                // A failed Apple issue is NOT silently converted into a
+                // success by falling back to an unrelated stored certificate.
             }
         }
     }
