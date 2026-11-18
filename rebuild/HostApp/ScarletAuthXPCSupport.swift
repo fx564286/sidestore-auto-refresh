@@ -1085,6 +1085,7 @@ public enum ScarletNativeSavedAccounts {
                              "selected_team_certificate_new_issue_not_created",
                              "selected_team_certificate_new_issue_unconfirmed",
                              "ready_existing_portal", "ready_issued_apple",
+                             "ready_existing_after_apple_issue_failed",
                              "sidestore_team_mismatch", "sidestore_team_recovery_failed",
                     "sidestore_team_owner_unverified",
                     "sidestore_team_identifier_collision",
@@ -1095,7 +1096,8 @@ public enum ScarletNativeSavedAccounts {
                 let evidence = ok ? nil : ScarletCertificatePortalEvidence.decode(raw)
                 let reason = evidence?.reason ?? raw
                 let success = forceFresh
-                    ? reason == "ready_issued_apple"
+                    ? (reason == "ready_issued_apple" ||
+                       reason == "ready_existing_after_apple_issue_failed")
                     : (reason == "ready" ||
                        (issue && (reason == "ready_existing_portal" ||
                                   reason == "ready_issued_apple")))

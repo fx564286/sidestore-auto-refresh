@@ -66,7 +66,8 @@ class DepthTruncationAndNativeSigningReadback(unittest.TestCase):
             self.assertNotIn(forbidden,func)
     def test_reread_does_not_claim_app_installed_or_silently_replace_certificate(self):
         func=PANEL.split('private func requestNativeCertificate()',1)[1].split('private func retrieveSideInstallerStyleCertificate()',1)[0]
-        self.assertIn('if !nativeState.signingReady && certificateRecoveryStatus ==',func)
+        self.assertIn('if !nativeState.signingReady {',func)
+        self.assertIn('if certificateRecoveryStatus ==',func)
         self.assertNotIn('installation_verified": "true"',func)
         self.assertIn('team_validation_pending_or_passed',func)
         self.assertIn('account_p12_imported',PANEL)

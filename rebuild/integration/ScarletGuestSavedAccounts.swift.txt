@@ -667,6 +667,30 @@ enum ScarletInstallTeamAuthority {
                 let fallback = code == 7460
                     ? "selected_team_certificate_quota_reached"
                     : "selected_team_certificate_portal_failed"
+                // P104: A fresh certificate request may be denied even when
+                // this Apple ID already has a usable registered P12. The
+                // fresh request above ALWAYS ran first; never call Apple
+                // createCertificate a second time, revoke anything or borrow
+                // a certificate owned by another saved Apple ID.
+                // The portal inventory was fetched BEFORE the request under
+                // the same authenticated Team, and the local private key is
+                // pinned to the exact Apple ID + Team by the original vault.
+                if forceNew,
+                   let stillOwner = await activeOwnership(),
+                   stillOwner.appleID == owner.appleID,
+                   stillOwner.teamID == owner.teamID,
+                   let existing = matchingCertificate(
+                       for: teamID, appleID: owner.appleID),
+                   existing.x509.expiryDate > Date(),
+                   portal.contains(where: {
+                       $0.serialNumber.caseInsensitiveCompare(
+                           existing.serialNumber) == .orderedSame &&
+                       $0.expiryDate > Date()
+                   }),
+                   await prepare(teamID: teamID) == "ready" {
+                    // Never tell the UI that Apple's NEW issue succeeded.
+                    return "ready_existing_after_apple_issue_failed"
+                }
                 return portalFailure(error, stage: "create", reason: fallback)
             }
             guard certificateBelongsToTeam(newlyIssued, teamID: teamID),
@@ -770,7 +794,9 @@ extension ScarletGuestSignInAgent {
         }
     }
 
-    // Explicit new Apple certificate: never resolves to ready_existing_portal.
+    // Explicit new Apple certificate runs first. On a denied create call,
+    // a separately reported existing-Apple-portal-verified certificate may
+    // recover this account without falsely claiming fresh issuance.
     @objc(issueFreshInstallTeamCertificate:reply:)
     static func issueFreshInstallTeamCertificate(_ id: String,
         reply: @escaping (Bool, String) -> Void) {
@@ -784,7 +810,8 @@ extension ScarletGuestSignInAgent {
             let status = await ScarletInstallTeamAuthority.issue(
                 teamID: id, forceNew: true)
             await ScarletTeamOperationGate.shared.release()
-            reply(status == "ready_issued_apple", status)
+            reply(status == "ready_issued_apple" ||
+                  status == "ready_existing_after_apple_issue_failed", status)
         }
     }
 

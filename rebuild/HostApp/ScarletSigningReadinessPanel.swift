@@ -363,7 +363,10 @@ struct ScarletSigningReadinessPanel: View {
                     "certificate", "native_account_issue_result",
                     status: result.0 ? "success" : "blocked",
                     fields: ["result": result.1])
-                guard result.0 && result.1 == "ready_issued_apple" else {
+                let issuedNew = result.0 && result.1 == "ready_issued_apple"
+                let reusedExisting = result.0 &&
+                    result.1 == "ready_existing_after_apple_issue_failed"
+                guard issuedNew || reusedExisting else {
                     switch result.1 {
                     case "selected_team_certificate_quota_reached":
                         certificateRecoveryStatus = "Apple 인증서 발급 한도에 도달했습니다. 기존 인증서는 유지됩니다."
@@ -396,7 +399,17 @@ struct ScarletSigningReadinessPanel: View {
                 // by installed-host profile + P78 kernel rollback check.
                 let (archive, password) = try await ScarletNativeCertificateTransport
                     .shared.retrieveSideStoreCertificate()
-                let source = "new_apple_portal"
+                // The fallback never claims a newly issued Apple cert.
+                // Keep the user-visible recovery and source receipt distinct.
+                let source = issuedNew ? "new_apple_portal" :
+                    "existing_apple_portal_after_issue_failed"
+                if reusedExisting {
+                    ScarletDiagnosticRecorder.shared.record(
+                        "certificate", "fresh_issue_failed_existing_portal_cert_recovered",
+                        status: "warning", fields: [
+                            "fresh_issue": "failed", "existing_certificate": "portal_verified",
+                            "owner_scope": "active_apple_id_and_team"])
+                }
                 ScarletDiagnosticRecorder.shared.record(
                     "certificate", "provider_origin_checked",
                     fields: ["source": source])
@@ -412,7 +425,9 @@ struct ScarletSigningReadinessPanel: View {
                 }
                 if certificateRecoveryStatus ==
                     "선택한 계정 인증서가 등록됐습니다. 게스트 서명은 별도 검증 중입니다." {
-                    certificateRecoveryStatus = "Apple에서 새 인증서를 발급받았습니다. 게스트 서명 검증은 별도입니다."
+                    certificateRecoveryStatus = issuedNew
+                        ? "Apple에서 새 인증서를 발급받았습니다. 게스트 서명 검증은 별도입니다."
+                        : "새 인증서 발급에 실패했지만 선택 계정의 기존 Apple 등록 인증서를 복구했습니다. 게스트 서명 검증은 별도입니다."
                 }
                 ScarletDiagnosticRecorder.shared.record(
                     "certificate", "native_provider_returned",
@@ -434,9 +449,14 @@ struct ScarletSigningReadinessPanel: View {
                              "host_managed": nativeState.hostManaged ? "true" : "false",
                              "signing_ready": nativeState.signingReady ? "true" : "false",
                              "reason": nativeState.reason])
-                if !nativeState.signingReady && certificateRecoveryStatus ==
-                    "Apple에서 새 인증서를 발급받았습니다. 게스트 서명 검증은 별도입니다." {
-                    certificateRecoveryStatus = "Apple 신규 발급은 확인됐지만 SideStore 내부 서명 준비는 아직 확인되지 않았습니다."
+                if !nativeState.signingReady {
+                    if certificateRecoveryStatus ==
+                        "Apple에서 새 인증서를 발급받았습니다. 게스트 서명 검증은 별도입니다." {
+                        certificateRecoveryStatus = "Apple 신규 발급은 확인됐지만 SideStore 내부 서명 준비는 아직 확인되지 않았습니다."
+                    } else if certificateRecoveryStatus ==
+                        "새 인증서 발급에 실패했지만 선택 계정의 기존 Apple 등록 인증서를 복구했습니다. 게스트 서명 검증은 별도입니다." {
+                        certificateRecoveryStatus = "선택 계정의 기존 Apple 등록 인증서를 확인했지만 SideStore 내부 서명 준비는 아직 확인되지 않았습니다."
+                    }
                 }
             } catch {
                 let failure = error as NSError

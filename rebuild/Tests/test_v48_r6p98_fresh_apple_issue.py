@@ -8,14 +8,17 @@ SIDE=(R/'rebuild/integration/ScarletGuestSavedAccounts.swift.txt').read_text()
 WIRE=(R/'rebuild/integration/wire_scarlet_auth.py').read_text()
 
 class FreshAppleCertificateIssue(unittest.TestCase):
-    def test_existing_user_button_calls_only_fresh_api(self):
+    def test_existing_user_button_runs_fresh_first_and_labels_safe_recovery(self):
         body=PANEL.split('private func requestNativeCertificate()',1)[1].split('private func retrieveSideInstallerStyleCertificate()',1)[0]
         self.assertIn('.issueFreshInstallCertificate(owner.teamID)',body)
         self.assertNotIn('.issueInstallCertificate(owner.teamID)',body)
-        self.assertIn('result.0 && result.1 == "ready_issued_apple"',body)
+        self.assertIn('let issuedNew = result.0 && result.1 == "ready_issued_apple"',body)
+        self.assertIn('ready_existing_after_apple_issue_failed',body)
+        self.assertIn('guard issuedNew || reusedExisting else',body)
         self.assertNotIn('"ready_existing_portal"',body)
         self.assertIn('case "selected_team_certificate_quota_reached":',body)
-        self.assertIn('let source = "new_apple_portal"',body)
+        self.assertIn('issuedNew ? "new_apple_portal"',body)
+        self.assertIn('existing_apple_portal_after_issue_failed',body)
         self.assertIn('Apple에서 새 인증서를 발급받았습니다.',body)
         self.assertEqual(PANEL.count('Label("SideStore 인증서 받기"'),1)
     def test_fresh_request_has_independent_authenticated_xpc(self):
@@ -26,7 +29,8 @@ class FreshAppleCertificateIssue(unittest.TestCase):
         self.assertIn('@selector(issueFreshInstallTeamCertificate:reply:)',WIRE)
         self.assertIn('@objc(issueFreshInstallTeamCertificate:reply:)',SIDE)
         self.assertIn('teamID: id, forceNew: true)',SIDE)
-        self.assertIn('reply(status == "ready_issued_apple", status)',SIDE)
+        self.assertIn('reply(status == "ready_issued_apple" ||',SIDE)
+        self.assertIn('status == "ready_existing_after_apple_issue_failed", status)',SIDE)
     def test_reuse_is_outside_force_fresh_and_direct_apple_call_remains(self):
         body=SIDE.split('static func issue(teamID: String, forceNew: Bool)',1)[1].split('extension ScarletGuestSignInAgent',1)[0]
         self.assertIn('if !forceNew {',body)
@@ -40,7 +44,8 @@ class FreshAppleCertificateIssue(unittest.TestCase):
         self.assertNotIn('revokeCertificate(',body)
         self.assertNotIn('SecItemDelete(',body)
     def test_guest_host_signer_error_not_overwritten_by_refresh_readback(self):
-        self.assertIn('if !nativeState.signingReady && certificateRecoveryStatus ==',PANEL)
+        self.assertIn('if !nativeState.signingReady {',PANEL)
+        self.assertIn('if certificateRecoveryStatus ==',PANEL)
         self.assertIn('호스트 재서명·업데이트가 필요합니다.',PANEL)
         self.assertIn('new_apple_p12_already_active_in_native_store',PANEL)
 

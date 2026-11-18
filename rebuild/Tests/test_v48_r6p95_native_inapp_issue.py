@@ -19,7 +19,8 @@ class NativeInAppAppleIssue(unittest.TestCase):
     def test_receipt_distinguishes_actual_new_apple_issue_from_reuse(self):
         self.assertIn('native_account_issue_result',PANEL)
         self.assertIn('"ready_issued_apple"',PANEL)
-        self.assertIn('let source = "new_apple_portal"',PANEL)
+        self.assertIn('issuedNew ? "new_apple_portal"',PANEL)
+        self.assertIn('existing_apple_portal_after_issue_failed',PANEL)
         self.assertIn('selected_team_certificate_quota_reached',PANEL)
         self.assertNotIn('기존 유효 인증서를 사용했습니다. 신규 발급은 없으며',PANEL)
         self.assertIn('Apple에서 새 인증서를 발급받았습니다.',PANEL)
