@@ -49,6 +49,11 @@ class RotationBoundToSelectedAccount(unittest.TestCase):
         self.assertIn('AppManager.shared.backgroundRefresh(',WORKER)
         self.assertIn('ScarletNativeRefreshExecutor.execute()',AUTOMATIC)
         self.assertIn('installation_verified": "false"',PANEL)
+    def test_unsigned_release_job_accepts_p109_push(self):
+        gate = FLOW.split('publish-unsigned-github-release:', 1)[1].split('runs-on: ubuntu-24.04', 1)[0]
+        self.assertIn("github.ref == 'refs/heads/fix/scarlet-v48-r6p109-owner-pinned-reinstall-20261118'", gate)
+        self.assertIn("github.event_name == 'push'", gate)
+
     def test_version_and_native_release(self):
         for x in ('fix/scarlet-v48-r6p109-owner-pinned-reinstall-20261118',
                   '--host-build-version 3.8.109',
