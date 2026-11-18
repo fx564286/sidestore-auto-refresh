@@ -585,7 +585,10 @@ jobs:
                   if "r6p106" in __import__("os").environ.get("GITHUB_REF", ""):
                       assert b"native_host_reinstall_returned_install_unverified" in side_bin, "P106 original native install fallback missing"
                       assert b"native_host_reinstall_owner_unverified" in side_bin, "P106 strict host owner receipt missing"
-                      assert b"native_host_reinstall_returned_install_unverified" in host_bin, "P106 host result allowlist missing"
+                      # The allowlist is compiled from ScarletAuthXPCSupport.swift into
+                      # SideStoreSupport.framework, NOT LiveContainerSwiftUI.framework.
+                      # Check the exact XPC owner binary, matching wire_scarlet_auth.py.
+                      assert b"native_host_reinstall_returned_install_unverified" in xpc_bin, "P106 SideStoreSupport result allowlist missing"
                       print("[PASS] P106 manual exact-team external host native install fallback compiled")
           print("[PASS] Public IPA ZIP structure; Apple signature not verified")
           PY
