@@ -39,9 +39,11 @@ class SignedRuntimeCapabilityGate(unittest.TestCase):
         self.assertNotIn("SCARLET_REFRESH_ENTITLEMENT_READBACK", CAP)
 
     def test_3b_signer_app_id_variants_are_not_automatically_entitled(self):
-        # Screenshot shows a suffix-duplicated host bundle. Both observed
-        # spellings are eligible only if Apple's signed app ID matches exactly.
-        self.assertIn('baseBundleID + ".P8EZT3U5N4"', CAP)
+        # A-Team and B-Team signed suffixes must derive from the actual
+        # entitlement. Neither is eligible without exact Apple app-ID proof.
+        self.assertIn('baseBundleID + "." + teamID', CAP)
+        self.assertIn('let validSignedTeam = teamID.utf8.count == 10', CAP)
+        self.assertIn('developerTeamEntitled: validSignedTeam', CAP)
         self.assertIn('"application-identifier" as CFString', CAP)
         self.assertIn('applicationID == (team! + "." + bundleID!)', CAP)
         self.assertIn("signedApplicationIdentifierMatches: signedIDMatches", CAP)

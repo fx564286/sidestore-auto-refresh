@@ -23,8 +23,14 @@ private actor ScarletGuestHostManagedBootstrap {
         // Actual authorization comes from the new selected-account P12 and
         // original SideStore native provisioning/signing transaction.
         let id = host.bundleIdentifier
-        guard id == "com.kdt.livecontainer.P8EZT3U5N4" ||
-              id == "com.kdt.livecontainer.P8EZT3U5N4.P8EZT3U5N4" else {
+        let baseID = "com.kdt.livecontainer.P8EZT3U5N4"
+        let profileTeam = profile.teamIdentifier
+        let validSignedTeam = profileTeam.utf8.count == 10 &&
+            profileTeam.utf8.allSatisfy {
+                ($0 >= 65 && $0 <= 90) || ($0 >= 48 && $0 <= 57)
+            }
+        guard validSignedTeam,
+              id == baseID || id == baseID + "." + profileTeam else {
             return nil
         }
         return id
@@ -146,8 +152,7 @@ private actor ScarletGuestHostManagedBootstrap {
             return "host_signed_bundle_unavailable"
         }
         let bundleID = signedHost.bundleIdentifier
-        guard bundleID == "com.kdt.livecontainer.P8EZT3U5N4" ||
-              bundleID == "com.kdt.livecontainer.P8EZT3U5N4.P8EZT3U5N4" else {
+        guard verifiedInstalledHostID(hostBundlePath: hostBundlePath) == bundleID else {
             return "host_identity_mismatch"
         }
         guard let owner = await ScarletInstallTeamAuthority.activeOwnership(),

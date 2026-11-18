@@ -50,14 +50,18 @@ struct ScarletSigningReadiness {
             .takeRetainedValue() as? String
         let bundleID = Bundle.main.bundleIdentifier
         let baseBundleID = "com.kdt.livecontainer.P8EZT3U5N4"
-        // The user's signer may append a team suffix to a preserved
-        // bundle ID. Accept ONLY these two already-observed exact forms.
-        // The signed application-identifier entitlement must ALSO match
-        // the actual installed bundle ID and declared developer team.
-        let approvedBundles = [
-            baseBundleID,
-            baseBundleID + ".P8EZT3U5N4"
-        ]
+        // Apple-signed host identity, not the original account's Team
+        // literal, owns the optional SideStore-appended Team suffix.
+        // Keep the base bundle identity fixed and verify the code-signature
+        // application-identifier and App Group entitlements below.
+        let teamID = team ?? ""
+        let validSignedTeam = teamID.utf8.count == 10 &&
+            teamID.utf8.allSatisfy {
+                ($0 >= 65 && $0 <= 90) || ($0 >= 48 && $0 <= 57)
+            }
+        let approvedBundles = validSignedTeam
+            ? [baseBundleID, baseBundleID + "." + teamID]
+            : [baseBundleID]
         let approvedBundle = bundleID.map { approvedBundles.contains($0) } ?? false
         let signedIDMatches = team != nil && bundleID != nil &&
             applicationID == (team! + "." + bundleID!)
@@ -74,7 +78,7 @@ struct ScarletSigningReadiness {
         return ScarletSigningReadiness(
             actualHostIdentity: approvedBundle,
             signedApplicationIdentifierMatches: signedIDMatches,
-            developerTeamEntitled: team == "P8EZT3U5N4",
+            developerTeamEntitled: validSignedTeam,
             sideStoreAppGroupEntitled: declared,
             sideStoreAppGroupAccessible: accessible,
             developmentProfile: isDevelopment,
