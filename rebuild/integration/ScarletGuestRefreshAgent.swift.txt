@@ -85,7 +85,8 @@ private actor ScarletGuestHostManagedBootstrap {
         active = task
         let result = await task.value
         active = nil
-        if result == "registered" || result == "already_managed" {
+        if result == "registered" || result == "already_managed" ||
+            result == "host_managed_owner_reconciled" {
             registered = true
         }
         return result
@@ -166,8 +167,9 @@ private actor ScarletGuestHostManagedBootstrap {
             return "host_selected_team_mismatch"
         }
         let currentTeamID = owner.teamID
-        guard await ScarletInstallTeamAuthority.matchingCertificate(
-            for: currentTeamID) != nil else {
+        guard let ownerSigner = await ScarletInstallTeamAuthority.matchingCertificate(
+            for: currentTeamID, appleID: owner.appleID),
+              ownerSigner.x509.expiryDate > Date() else {
             return "host_selected_team_certificate_missing"
         }
         // Use upstream SideStore's own fingerprint cache; its native
@@ -186,21 +188,71 @@ private actor ScarletGuestHostManagedBootstrap {
         }
         let certificateSerial = CertificateManager.shared
             .getSigningCertificate(at: hostURL)?.serialNumber
+        // The installed host signing identity, not merely its profile Team,
+        // must equal the selected Apple ID's Keychain-pinned private key.
+        // A different same-Team Apple ID must never inherit this record.
+        let signedOwnerProven = certificateSerial.map {
+            $0.caseInsensitiveCompare(ownerSigner.serialNumber) == .orderedSame
+        } ?? false
         let context = DatabaseManager.shared.persistentContainer.newBackgroundContext()
         do {
             return try await context.perform {
-                let duplicate = NSPredicate(
-                    format: "%K == %@", #keyPath(InstalledApp.resignedBundleIdentifier), bundleID)
-                if let existing = InstalledApp.first(satisfying: duplicate, in: context) {
-                    // Matching bundle ID alone must never cause A's record to
-                    // satisfy B, or an inactive record to look refreshable.
-                    guard existing.team?.identifier == currentTeamID,
-                          existing.team?.account?.appleID.caseInsensitiveCompare(
-                              owner.appleID) == .orderedSame else {
+                // The signed host may have been re-installed under Team B,
+                // while the original P73 CoreData row still points to Team A.
+                // A global first(satisfying:bundleID) would permanently reject
+                // that actual host even after its signed identity changed.
+                // Reconcile ONLY the unique, live, same-bundle host record.
+                let hostRows = try context.fetch(InstalledApp.fetchRequest()).filter {
+                    $0.resignedBundleIdentifier == bundleID
+                }
+                guard hostRows.count <= 1 else {
+                    return "host_managed_duplicate_records"
+                }
+                if let existing = hostRows.first {
+                    let sameOwner = existing.team?.identifier == currentTeamID &&
+                        existing.team?.account?.appleID.caseInsensitiveCompare(
+                            owner.appleID) == .orderedSame
+                    if sameOwner {
+                        return existing.isActive ? "already_managed" :
+                            "host_managed_record_inactive"
+                    }
+                    // Never transfer an inactive row, unrelated installed
+                    // app, ambiguous extension identity or foreign signer.
+                    guard signedOwnerProven, existing.isActive,
+                          existing.bundleIdentifier == bundleID else {
                         return "host_managed_owner_mismatch"
                     }
-                    return existing.isActive ? "already_managed" :
-                        "host_managed_record_inactive"
+                    let teams = try context.fetch(Team.fetchRequest()).filter {
+                        $0.identifier == currentTeamID && $0.isActiveTeam &&
+                        $0.account?.isActiveAccount == true &&
+                        $0.account?.appleID.caseInsensitiveCompare(
+                            owner.appleID) == .orderedSame
+                    }
+                    guard teams.count == 1, let selectedTeam = teams.first else {
+                        return "host_team_record_missing"
+                    }
+                    let oldExtensionIDs = Set(existing.appExtensions.map {
+                        $0.resignedBundleIdentifier
+                    })
+                    let signedExtensionIDs = Set(signedHost.appExtensions.map {
+                        $0.bundleIdentifier
+                    })
+                    guard oldExtensionIDs == signedExtensionIDs,
+                          signedExtensionIDs.count == signedHost.appExtensions.count else {
+                        return "host_managed_extensions_mismatch"
+                    }
+                    // No app reinstall, certificate issuance, deletion or
+                    // data-container change: only the stale CoreData ownership
+                    // relationship and installed signed-host metadata change.
+                    // context.perform and save make the reassignment atomic.
+                    existing.team = selectedTeam
+                    existing.update(resignedAppBundle: signedHost,
+                                    certificateSerialNumber: certificateSerial,
+                                    storeBuildVersion: nil)
+                    existing.appBundleFingerprint = signature
+                    existing.useMainProfile = false
+                    try context.save()
+                    return "host_managed_owner_reconciled"
                 }
                 let ownerTeams = (try? context.fetch(Team.fetchRequest())) ?? []
                 guard let team = ownerTeams.first(where: {
@@ -343,7 +395,8 @@ final class ScarletGuestRefreshAgent: NSObject {
                         "host_selected_team_certificate_missing",
                         "host_payload_cache_unavailable", "host_cached_bundle_mismatch",
                         "host_team_record_missing", "host_registration_failed",
-                        "host_managed_owner_mismatch", "host_managed_record_inactive"
+                        "host_managed_owner_mismatch", "host_managed_record_inactive",
+                        "host_managed_duplicate_records", "host_managed_extensions_mismatch"
                     ]
                     // SideInstaller's account switch affects future signings,
                     // not the host's already-installed signed Team. On B,
