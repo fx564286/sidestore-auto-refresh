@@ -591,7 +591,8 @@ struct ScarletSigningReadinessPanel: View {
             // This XPC operation installs only the signed on-disk host;
             // it cannot succeed by refreshing unrelated managed apps.
             let outcome = try await ScarletNativeRefreshExecutor.execute(
-                manual: true, certificateRotation: true)
+                manual: true, certificateRotation: true,
+                selectedAccountID: accountID, selectedTeamID: teamID)
             certificateRecoveryStatus = "호스트 재서명·설치 요청이 반환됐습니다. 실제 인증서 변경은 앱 재실행 후 검증합니다."
             ScarletDiagnosticRecorder.shared.record(
                 "certificate", "selected_p12_host_resign_returned",

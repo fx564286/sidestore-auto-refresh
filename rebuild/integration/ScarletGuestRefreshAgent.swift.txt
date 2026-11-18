@@ -638,14 +638,25 @@ extension ScarletGuestRefreshAgent {
     // CoreData managed-app refresh (which might refresh unrelated apps).
     // This distinct entry uses the native SideStore install/sign pipeline
     // with the currently selected account's pinned P12 and same signed team.
-    @objc static func performCertificateRotationHostBundle(_ hostBundlePath: String,
+    @objc(performCertificateRotationHostBundle:accountID:teamID:reply:)
+    static func performCertificateRotationHostBundle(_ hostBundlePath: String,
+                                       accountID: String, teamID: String,
                                        reply: @escaping (Bool, String) -> Void) {
+        let normalizedID = accountID.trimmingCharacters(
+            in: .whitespacesAndNewlines).lowercased()
+        guard normalizedID.utf8.count > 3, normalizedID.utf8.count <= 254,
+              teamID.utf8.count == 10,
+              teamID.allSatisfy({ $0.isASCII && ($0.isUppercase || $0.isNumber) }) else {
+            reply(false, "selected_account_owner_unverified"); return
+        }
         performSelectedHostBundle(hostBundlePath, manual: true,
-            rotateImportedCertificate: true, reply: reply)
+            rotateImportedCertificate: true,
+            expectedOwner: (appleID: normalizedID, teamID: teamID), reply: reply)
     }
 
     private static func performSelectedHostBundle(_ hostBundlePath: String,
                        manual: Bool, rotateImportedCertificate: Bool = false,
+                       expectedOwner: (appleID: String, teamID: String)? = nil,
                        reply: @escaping (Bool, String) -> Void) {
         Task {
             let gate = ScarletGuestNativeRefreshGate.shared
@@ -671,6 +682,17 @@ extension ScarletGuestRefreshAgent {
                 let selectedTeamID = owner.teamID
                 let selectedAppleID = owner.appleID
                 if rotateImportedCertificate {
+                    // P109: the exact selected Apple ID + Team at the host
+                    // P12 import must still own this transaction. A later
+                    // activation of account B must never sign account A's
+                    // explicit request with B's globally active P12.
+                    guard let expectedOwner,
+                          selectedAppleID.caseInsensitiveCompare(
+                              expectedOwner.appleID) == .orderedSame,
+                          selectedTeamID == expectedOwner.teamID else {
+                        reply(false, "selected_account_owner_changed")
+                        return
+                    }
                     // Force a host-only native re-sign even when OTHER
                     // apps exist in this selected account's CoreData.
                     // Installed host must originate from authenticated XPC
@@ -687,8 +709,25 @@ extension ScarletGuestRefreshAgent {
                     guard prepared == "ready" else {
                         reply(false, prepared); return
                     }
+                    // Take a signer serial snapshot AFTER native prepare.
+                    // Original PipelineRunner captures the active certificate
+                    // at pipeline construction, so keep it bound to this
+                    // exact account across transport await and callback.
+                    guard let pinnedSerial = await ScarletInstallTeamAuthority
+                        .activeSelectedSignerSerial(appleID: expectedOwner.appleID,
+                                                    teamID: expectedOwner.teamID) else {
+                        reply(false, "selected_account_signer_changed"); return
+                    }
                     stage = "transport"
                     _ = try await ScarletGuestDeviceTransport.ensureReady()
+                    guard let stillOwner = await ScarletInstallTeamAuthority.activeOwnership(),
+                          stillOwner.appleID == expectedOwner.appleID,
+                          stillOwner.teamID == expectedOwner.teamID,
+                          await ScarletInstallTeamAuthority.activeSelectedSignerSerial(
+                              appleID: expectedOwner.appleID,
+                              teamID: expectedOwner.teamID) == pinnedSerial else {
+                        reply(false, "selected_account_signer_changed"); return
+                    }
                     stage = "refresh"
                     let installed = try await withCheckedThrowingContinuation {
                         (continuation: CheckedContinuation<InstalledApp, Error>) in
@@ -702,9 +741,17 @@ extension ScarletGuestRefreshAgent {
                     guard let currentHostID,
                           installed.resignedBundleIdentifier == currentHostID,
                           await ScarletInstallTeamAuthority.appBelongsToOwner(
-                              installed, owner: owner) else {
+                              installed, owner: expectedOwner) else {
                         reply(false, "native_host_reinstall_owner_unverified")
                         return
+                    }
+                    guard let postOwner = await ScarletInstallTeamAuthority.activeOwnership(),
+                          postOwner.appleID == expectedOwner.appleID,
+                          postOwner.teamID == expectedOwner.teamID,
+                          await ScarletInstallTeamAuthority.activeSelectedSignerSerial(
+                              appleID: expectedOwner.appleID,
+                              teamID: expectedOwner.teamID) == pinnedSerial else {
+                        reply(false, "selected_account_signer_changed"); return
                     }
                     // AppManager callback is NOT SpringBoard installed
                     // profile readback. The host verifies on next launch.

@@ -413,6 +413,23 @@ enum ScarletInstallTeamAuthority {
         }
     }
 
+    // P109: Verify the exact signer bound to the selected Apple ID, not
+    // whichever certificate happens to occupy SideStore's global slot.
+    // The serial stays inside native code and is never included in logs.
+    static func activeSelectedSignerSerial(appleID: String,
+                                           teamID: String) -> String? {
+        guard let owner = AuthManager.shared.currentAppleID,
+              owner.caseInsensitiveCompare(appleID) == .orderedSame,
+              let cert = matchingCertificate(for: teamID, appleID: appleID),
+              cert.x509.expiryDate > Date(),
+              let nativeActive = CertificateManager.shared.activeCertificate,
+              nativeActive.serialNumber.caseInsensitiveCompare(
+                  cert.serialNumber) == .orderedSame else {
+            return nil
+        }
+        return cert.serialNumber.lowercased()
+    }
+
     // Return a Sendable Bool across the MainActor boundary. A saved but
     // expired per-team P12 is not signing readiness.
     static func hasValidSigningCertificate(for teamID: String) -> Bool {

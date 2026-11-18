@@ -46,9 +46,9 @@ class SelectedAccountCertificateHostResign(unittest.TestCase):
         self.assertIn('ScarletGuestSignerRecovery.trialExistingSideStoreCertificate(',PANEL)
     def test_xpc_selector_and_runtime_host_dispatch_distinct_from_manual_refresh(self):
         self.assertIn('scarletPerformSelectedHostResign:(NSString*)hostBundlePath',WIRE)
-        self.assertIn('performCertificateRotationHostBundle:reply:',WIRE)
+        self.assertIn('performCertificateRotationHostBundle:accountID:teamID:reply:',WIRE)
         self.assertIn('performSelectedHostBundle(hostBundlePath, manual: true,',WORKER)
-        self.assertIn('rotateImportedCertificate: true, reply: reply)',WORKER)
+        self.assertIn('rotateImportedCertificate: true,',WORKER)
         self.assertIn('client.scarletPerformSelectedHostResign(',SUPPORT)
         self.assertIn('client.scarletPerformManualNativeRefresh(',SUPPORT)
         self.assertIn('client.scarletPerformNativeRefresh(',SUPPORT)

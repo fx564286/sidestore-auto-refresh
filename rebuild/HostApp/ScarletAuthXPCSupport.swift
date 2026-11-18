@@ -487,7 +487,9 @@ private final class ScarletRefreshExecutionGate: @unchecked Sendable {
 @MainActor
 public enum ScarletNativeRefreshExecutor {
     public static func execute(manual: Bool = false,
-                               certificateRotation: Bool = false) async throws -> String {
+                               certificateRotation: Bool = false,
+                               selectedAccountID: String? = nil,
+                               selectedTeamID: String? = nil) async throws -> String {
         do {
             try await ScarletNativeAuthTransport.shared.prepare()
         } catch {
@@ -509,8 +511,17 @@ public enum ScarletNativeRefreshExecutor {
                 gate.finish(completed, reason ?? "sidestore_native_operation_failed")
             }
             if certificateRotation {
+                // The host selection is an immutable input for this native
+                // transaction, not a worker-time read of global active state.
+                guard let selectedAccountID, !selectedAccountID.isEmpty,
+                      let selectedTeamID, !selectedTeamID.isEmpty else {
+                    gate.finish(false, "selected_account_owner_unverified")
+                    return
+                }
                 client.scarletPerformSelectedHostResign(
-                    Bundle.main.bundleURL.path, reply: finished)
+                    Bundle.main.bundleURL.path,
+                    accountID: selectedAccountID, teamID: selectedTeamID,
+                    reply: finished)
             } else if manual {
                 client.scarletPerformManualNativeRefresh(
                     Bundle.main.bundleURL.path, reply: finished)
@@ -531,6 +542,8 @@ public enum ScarletNativeRefreshExecutor {
             // not collapse an exact account/team failure into a generic
             // AppManager error; never authorize a different-team host.
             "selected_account_owner_unverified",
+            "selected_account_owner_changed",
+            "selected_account_signer_changed",
             "team_operation_in_progress",
             "host_selected_team_mismatch",
             "host_selected_team_certificate_missing",
