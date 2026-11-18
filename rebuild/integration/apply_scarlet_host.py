@@ -1468,6 +1468,33 @@ def attach_jitless_diagnostic_scroll_margins(engine: Path) -> dict:
         source = source.replace(anchor, anchor.replace(
             '            .navigationTitle(', '            .scarletDiagnosticScrollMargins()\n            .navigationTitle('))
     assert source.count(".scarletDiagnosticScrollMargins()") == 2
+    # P103: Only the original LC JIT-less FORM gets a new read-only section.
+    # Preserve original host certificate/entitlement fields and actual test
+    # callback byte-for-byte, including its original execution route.
+    native_marker = "struct LCJITLessDiagnoseView : View {"
+    if native_marker in source:
+        account_form_anchor = (
+            '    var body: some View {\n'
+            '        if loaded {\n'
+            '            Form {\n'
+            '                Section {\n'
+            '                    HStack {\n'
+            '                        Text("lc.jitlessDiag.bundleId".loc)')
+        assert source.count(account_form_anchor) == 1, (
+            "Original LC JIT-Less account/host form changed")
+        account_form_new = account_form_anchor.replace(
+            '            Form {\n                Section {',
+            '            Form {\n'
+            '                if #available(iOS 17.0, *) {\n'
+            '                    ScarletJITLessSelectedAccountPanel()\n'
+            '                }\n'
+            '                Section {', 1)
+        source = source.replace(account_form_anchor, account_form_new, 1)
+    else:
+        # Legacy synthetic test fixture has no original Form. Real pin must
+        # be present; the integration never silently drops an actual route.
+        assert "struct LCJITLessDiagnoseView" not in source, (
+            "Unexpected original JIT-less declaration: account panel cannot be inserted safely")
     # P92: the original test button is visible again. Include a sanitized,
     # user-exportable result in the same Scarlet session JSONL; otherwise
     # an alert is lost when the user leaves the JIT screen.

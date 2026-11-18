@@ -795,3 +795,109 @@ struct ScarletSigningReadinessPanel: View {
 
     }
 }
+
+// P103: An independent READ-ONLY account-specific JIT-less diagnostic.
+// The original LC screen continues to describe the installed host's immutable
+// entitlements and original LC certificate. A SideStore account switch does
+// not replace those entitlements, the LC signer, or any process.
+@available(iOS 17.0, *)
+@MainActor
+struct ScarletJITLessSelectedAccountPanel: View {
+    @State private var accounts: [ScarletStoredAppleAccount] = []
+    @State private var accountStatus: String = "loading"
+
+    private var signedHostTeam: String? {
+        let task = SecTaskCreateFromSelf(nil)
+        return SecTaskCopyValueForEntitlement(
+            task, "com.apple.developer.team-identifier" as CFString, nil)?
+            .takeRetainedValue() as? String
+    }
+
+    var body: some View {
+        Section("선택 Apple ID · JIT-Less 서명 구분") {
+            if accountStatus == "ready" {
+                let active = accounts.filter { $0.active }
+                if active.count != 1 {
+                    Text("현재 사용 중인 Apple ID를 하나로 확인하지 못했습니다.")
+                        .foregroundColor(.orange)
+                }
+                ForEach(accounts) { account in
+                    VStack(alignment: .leading, spacing: 4) {
+                        HStack {
+                            Text(account.id)
+                                .font(.subheadline.weight(account.active ? .semibold : .regular))
+                                .lineLimit(1)
+                                .truncationMode(.middle)
+                            Spacer(minLength: 6)
+                            if account.active {
+                                Text("사용 중")
+                                    .font(.caption)
+                                    .foregroundColor(.green)
+                            }
+                        }
+                        Text("계정 개발팀: " + account.teamID)
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                        Text("계정 인증서: " +
+                            (account.certificateReady ? "준비됨" : "없음") +
+                            " · 관리 앱 " + String(account.managedAppCount) + "개")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                        if !account.ownerVerified {
+                            Text("이 Apple ID와 개발팀의 연결이 확인되지 않았습니다.")
+                                .font(.caption)
+                                .foregroundColor(.orange)
+                        } else if let host = signedHostTeam, account.teamID != host {
+                            Text("설치된 Scarlet의 서명팀과 다름 · 이 계정의 인증서로 호스트를 대신할 수 없음")
+                                .font(.caption)
+                                .foregroundColor(.orange)
+                        } else if signedHostTeam == nil {
+                            Text("설치된 호스트의 서명팀을 읽지 못했습니다.")
+                                .font(.caption)
+                                .foregroundColor(.orange)
+                        } else if !account.certificateReady {
+                            Text("계정 인증서 없음 · 호스트에 저장된 별도 인증서와 혼동 금지")
+                                .font(.caption)
+                                .foregroundColor(.orange)
+                        } else {
+                            Text("호스트 팀과 일치 · 실제 JIT-Less 실행 성공은 별도 검사 필요")
+                                .font(.caption)
+                                .foregroundColor(.green)
+                        }
+                    }
+                    .padding(.vertical, 3)
+                    .accessibilityIdentifier(
+                        account.active ? "SCARLET_JITLESS_SELECTED_ACCOUNT" :
+                            "SCARLET_JITLESS_OTHER_ACCOUNT")
+                }
+            } else if accountStatus == "loading" {
+                ProgressView("계정별 서명 정보 확인 중")
+            } else {
+                Text("계정별 서명 정보 조회 실패 · " + accountStatus)
+                    .font(.footnote)
+                    .foregroundColor(.orange)
+            }
+            if let team = signedHostTeam {
+                Text("실제 설치된 호스트 서명팀: " + team)
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            }
+            Text("아래 번들 ID·앱 그룹·인증서 유효기간 및 JIT-Less 테스트는 설치된 호스트 기준입니다. Apple ID 전환으로 바뀌지 않습니다.")
+                .font(.caption)
+                .foregroundColor(.secondary)
+        }
+        .task {
+            // Read-only XPC list; no activation, new certificate issuance,
+            // signer activation, import, refresh or JIT-less validation here.
+            let result = await ScarletNativeSavedAccounts.list()
+            guard !Task.isCancelled else { return }
+            if result.status == "ready" {
+                accounts = result.accounts
+                accountStatus = "ready"
+            } else {
+                accounts = []
+                accountStatus = result.status
+            }
+        }
+    }
+}
