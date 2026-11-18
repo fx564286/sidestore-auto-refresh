@@ -59,7 +59,11 @@ enum ScarletRefreshFailureDiagnosis {
              "host_identity_mismatch":
             return "서명된 Scarlet 호스트 파일을 확인하지 못했습니다. 실제 설치된 앱과 서명 상태를 확인해야 합니다."
         case "host_selected_team_mismatch":
-            return "현재 Apple 설치팀과 Scarlet 호스트의 기존 서명팀이 다릅니다. 호스트를 다른 팀으로 재서명하지 않습니다."
+            return "현재 Apple 설치팀과 Scarlet 호스트의 기존 서명팀이 다릅니다. 호스트를 다른 팀으로 재서명하지 않습니다. 해당 호스트 서명팀의 계정에서만 호스트 갱신이 가능합니다."
+        case "selected_account_owner_unverified":
+            return "현재 선택한 Apple ID와 개발팀의 원본 SideStore 소유권을 확인할 수 없어 갱신을 중단했습니다. 기존 계정·인증서는 보존됩니다."
+        case "team_operation_in_progress":
+            return "다른 계정 전환 또는 서명 작업이 진행 중이어서 수동 갱신이 중단됐습니다."
         case "host_selected_team_certificate_missing":
             return "호스트를 서명한 Apple 팀의 인증서가 현재 SideStore에 없습니다."
         case "host_managed_owner_mismatch":

@@ -523,6 +523,18 @@ public enum ScarletNativeRefreshExecutor {
             "native_selected_team_refresh_returned_install_unverified",
             "native_host_reinstall_returned_install_unverified",
             "native_host_reinstall_owner_unverified",
+            // P107: worker replies are finite non-sensitive categories. Do
+            // not collapse an exact account/team failure into a generic
+            // AppManager error; never authorize a different-team host.
+            "selected_account_owner_unverified",
+            "team_operation_in_progress",
+            "host_selected_team_mismatch",
+            "host_selected_team_certificate_missing",
+            "host_bundle_path_unavailable",
+            "host_signed_bundle_unavailable", "host_identity_mismatch",
+            "host_registration_failed", "host_payload_cache_unavailable",
+            "host_cached_bundle_mismatch", "host_team_record_missing",
+            "host_managed_owner_mismatch", "host_managed_record_inactive",
             "already_running",
             "anisette_unavailable", "vpn_unavailable", "signing_failed",
             "profile_refresh_failed", "server_unavailable",
@@ -563,7 +575,10 @@ public enum ScarletNativeRefreshExecutor {
             status == "native_operation_returned_unverified_transport_recovered" ||
             status == "native_profile_date_advanced_install_unverified" ||
             status == "native_refresh_record_updated_install_unverified" ||
-            status == "native_selected_team_refresh_returned_install_unverified"
+            status == "native_selected_team_refresh_returned_install_unverified" ||
+            // P106 original SideStore AppManager.install returned. This is
+            // a worker callback, not proof the iPhone installed a new profile.
+            status == "native_host_reinstall_returned_install_unverified"
         ) else {
             throw ScarletNativeRefreshFailure(reason: status,
                 nativeEvidence: allowed.contains(candidateReason) ? nativeEvidence : nil)

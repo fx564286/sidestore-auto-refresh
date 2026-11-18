@@ -48,6 +48,9 @@ OTHER_ALLOWED_METHODS = {
     # making it impossible for one published IPA to contain both repairs.
     "release_branch_convergence_unique_build_identity",
     "xpc_auth_guest_lifecycle_rebind_after_confirmed_disconnect",
+    # P107: preserve bounded native worker outcomes through the existing XPC
+    # response state machine; this is not a new signing or layout method.
+    "native_refresh_xpc_result_fidelity",
     "strict_x509_host_profile_stale_signer_bridge_replacement",
 }
 
