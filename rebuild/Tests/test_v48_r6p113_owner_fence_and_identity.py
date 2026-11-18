@@ -18,15 +18,24 @@ class OwnerFenceIdentity(unittest.TestCase):
             parentID = self.context.targetBundleIdentifier
         }
 '''
+        swift += r'''
+            guard let installedApp = InstalledApp.first(satisfying: predicate, in: context) else {
+                self.verboseLog("[FetchProvisioningProfiles] No existing InstalledApp found for target: \(target)")
+                return nil
+            }
+            let teamsMatch = (installedApp.team?.identifier == team.identifier || installedApp.team == nil)
+                             && installedApp.resignedBundleIdentifier.contains(team.identifier)
+'''
+        swift += '        let profile = try await DeveloperPortalProxy.shared.downloadProvisioningProfile(for: groupAppID, deviceType: DeveloperPortalProxy.currentDeviceType, team: team)'
         patched=wire.patch_idempotent_team_provisioning(swift)
-        self.assertIn('parentID = originalBundleID.hasSuffix(selectedSuffix) ? originalBundleID : originalBundleID + selectedSuffix',patched)
+        self.assertIn('while normalized.hasSuffix(teamSuffix + teamSuffix)',patched)
         with self.assertRaises(AssertionError):wire.patch_idempotent_team_provisioning(patched)
 
     def test_team_suffix_policy(self):
         a='P8EZT3U5N4'; b='AB12CD34EF'
         base='com.kdt.livecontainer.'+a
         def after(original,team):
-            return original if original.endswith('.'+team) else original+'.'+team
+            return original[:-len('.'+team)] if original.endswith('.'+team+'.'+team) else (original if original.endswith('.'+team) else original+'.'+team)
         self.assertEqual(after(base,a),base)
         self.assertEqual(after(base,b),base+'.'+b)
         self.assertEqual(after('com.example.app',b),'com.example.app.'+b)

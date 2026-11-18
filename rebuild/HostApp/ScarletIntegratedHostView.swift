@@ -1327,10 +1327,14 @@ struct ScarletIntegratedHostView: View {
             }
             // Do not let a previous request's stage contaminate this attempt.
             let stageDefaults = UserDefaults(suiteName: groupID)
-            let stageKey = "Scarlet.Install.LastStage.V44"
+            let accountScope = SHA256.hash(data: Data((
+                pinnedAccountID.trimmingCharacters(in: .whitespacesAndNewlines)
+                    .lowercased() + "|" + pinnedTeamID).utf8))
+                .map { String(format: "%02x", $0) }.joined()
+            let stageKey = "Scarlet.Install.LastStage.V44." + accountScope
             stageDefaults?.removeObject(forKey: stageKey)
             let directory = containerURL.appendingPathComponent(
-                "ScarletDeviceInstall", isDirectory: true)
+                "ScarletDeviceInstall/accounts/" + accountScope, isDirectory: true)
             let staged = directory.appendingPathComponent(
                 "scarlet-device-\(UUID().uuidString).ipa")
             // Filename is a random UUID; only the matching installer worker

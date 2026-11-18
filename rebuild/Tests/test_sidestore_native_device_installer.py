@@ -29,7 +29,7 @@ class NativeDeviceInstallerContract(unittest.TestCase):
         self.assertIn('ScarletSigningReadiness.authorizedSideStoreGroupID()',HOST)
         self.assertIn('ScarletInstallStageGroup',WORKER)
         self.assertIn('payload["hostGroupID"]',WORKER)
-        self.assertIn('stageGroup.set(hostGroupID)',WORKER)
+        self.assertIn('stageGroup.set(hostGroupID, ownerScope: scope)',WORKER)
         self.assertIn('hostGroupID: String',WIRE)
         self.assertIn('hostGroupID.hasPrefix(prefix)',WIRE)
         self.assertIn('forSecurityApplicationGroupIdentifier: hostGroupID',WIRE)
@@ -39,7 +39,7 @@ class NativeDeviceInstallerContract(unittest.TestCase):
         self.assertIn('ScarletDeviceInstall',WORKER)
         self.assertIn('ScarletDeviceInstall',HOST)
         self.assertIn('stagedIPA.standardizedFileURL.resolvingSymlinksInPath()',WIRE)
-        self.assertIn('fileURL.deletingLastPathComponent() == workDirectory',WORKER)
+        self.assertIn('fileURL.resolvingSymlinksInPath().deletingLastPathComponent()',WORKER)
         self.assertIn('!filename.contains("..")',WORKER)
 
     def test_hardened_existing_certificate_policy(self):

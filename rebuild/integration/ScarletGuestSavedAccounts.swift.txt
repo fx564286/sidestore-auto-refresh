@@ -54,6 +54,17 @@ private enum ScarletAccountVault {
     // Only call after verifying the same active Apple ID, Apple portal serial,
     // locally signable private key, and exact Team membership. Never delete
     // another account's key or revoke any Apple certificate.
+    // A shared Apple Developer Team is not an Apple-ID ownership claim.
+    // Never let a second saved Apple ID adopt the first account's P12 serial.
+    static func reservedByAnotherAccount(_ serial: String,
+                                         appleID: String, teamID: String) -> Bool {
+        guard let slots = readAll() else { return true }
+        return slots.contains { slot in
+            identifier(slot.email) != identifier(appleID) &&
+            pinnedSignerSerial(appleID: slot.email, teamID: teamID) == serial.lowercased()
+        }
+    }
+
     static func bindSignerSerial(_ serial: String, appleID: String,
                                  teamID: String) -> Bool {
         let id = identifier(appleID)
@@ -61,6 +72,7 @@ private enum ScarletAccountVault {
         guard id.utf8.count > 3, id.utf8.count <= 254,
               teamID.utf8.count == 10,
               !normalized.isEmpty, normalized.utf8.count <= 128,
+              !reservedByAnotherAccount(normalized, appleID: id, teamID: teamID),
               let data = normalized.data(using: .utf8) else { return false }
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
@@ -402,7 +414,9 @@ enum ScarletInstallTeamAuthority {
         // evidence that the current Apple ID owns its signing key.
         let owner = appleID ?? AuthManager.shared.currentAppleID ?? ""
         guard let pinned = ScarletAccountVault.pinnedSignerSerial(
-            appleID: owner, teamID: teamID) else { return nil }
+            appleID: owner, teamID: teamID),
+              !ScarletAccountVault.reservedByAnotherAccount(
+                  pinned, appleID: owner, teamID: teamID) else { return nil }
         let manager = CertificateManager.shared
         if let active = manager.activeCertificate?.certificate,
            active.serialNumber.lowercased() == pinned,
@@ -443,6 +457,62 @@ enum ScarletInstallTeamAuthority {
         return team
     }
 
+    // R6P112 -> R6P114: previous SideStore P12/private keys are preserved
+    // unchanged in the original native keychain. Repair ONLY the missing
+    // ownership index, after independently verifying Apple portal membership
+    // and an existing locally signable private key for this exact login.
+    // Multiple candidates or an existing different owner must fail closed.
+    private static func migrateLegacySigner(team: ALTTeam,
+        owner: (appleID: String, teamID: String)) async -> Bool {
+        if ScarletAccountVault.pinnedSignerSerial(
+            appleID: owner.appleID, teamID: owner.teamID) != nil { return true }
+        // A shared Team portal does not identify which Apple ID originally
+        // imported a legacy P12. If native CoreData has more than one owner
+        // for this Team, automatic adoption is unsafe: retain all keys and
+        // require an explicit account-owned certificate verification instead.
+        let context = DatabaseManager.shared.viewContext
+        let teams = (try? context.fetch(Team.fetchRequest())) ?? []
+        let distinctOwners = Set(teams.filter { $0.identifier == owner.teamID }
+            .compactMap { $0.account?.appleID.trimmingCharacters(
+                in: .whitespacesAndNewlines).lowercased() })
+        guard distinctOwners == Set([owner.appleID]) else { return false }
+        let remote: [ALTCertificate]
+        // The portal returns certificate records, not local private keys.
+        // Do not create, revoke, export or overwrite certificates here.
+        do {
+            let registered = try await DeveloperPortalProxy.shared
+                .fetchCertificates(team: team)
+            let manager = CertificateManager.shared
+            var possible: [ALTCertificate] = []
+            for record in registered where record.expiryDate > Date() {
+                guard let signable = manager.getSignableCertificate(
+                        for: record.serialNumber,
+                        fallbackPassword: record.machineIdentifier),
+                      signable.serialNumber.caseInsensitiveCompare(
+                          record.serialNumber) == .orderedSame,
+                      certificateBelongsToTeam(signable, teamID: owner.teamID),
+                      signable.x509.expiryDate > Date(),
+                      !ScarletAccountVault.reservedByAnotherAccount(
+                          signable.serialNumber, appleID: owner.appleID,
+                          teamID: owner.teamID) else { continue }
+                if !possible.contains(where: {
+                    $0.serialNumber.caseInsensitiveCompare(
+                        signable.serialNumber) == .orderedSame
+                }) { possible.append(signable) }
+            }
+            remote = possible
+        } catch { return false }
+        guard remote.count == 1, let candidate = remote.first,
+              let current = await activeOwnership(),
+              current.appleID == owner.appleID,
+              current.teamID == owner.teamID,
+              ScarletAccountVault.bindSignerSerial(
+                  candidate.serialNumber, appleID: owner.appleID,
+                  teamID: owner.teamID) else { return false }
+        return matchingCertificate(for: owner.teamID,
+            appleID: owner.appleID)?.serialNumber == candidate.serialNumber
+    }
+
     static func prepare(teamID: String) async -> String {
         guard validTeam(teamID) else { return "invalid_team" }
         guard let team = await activeTeam(), team.identifier == teamID else {
@@ -453,7 +523,17 @@ enum ScarletInstallTeamAuthority {
         guard teamStatus == "ready" || teamStatus == "team_restored" else {
             return teamStatus
         }
-        guard let cert = matchingCertificate(for: teamID),
+        guard let owner = await activeOwnership(), owner.teamID == teamID else {
+            return "selected_account_owner_unverified"
+        }
+        if ScarletAccountVault.pinnedSignerSerial(
+            appleID: owner.appleID, teamID: teamID) == nil {
+            guard await migrateLegacySigner(team: team, owner: owner) else {
+                return "selected_team_certificate_legacy_owner_unverified"
+            }
+        }
+        guard let cert = matchingCertificate(for: teamID,
+                                            appleID: owner.appleID),
               cert.x509.expiryDate > Date() else {
             return "selected_team_certificate_missing"
         }

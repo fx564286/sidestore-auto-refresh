@@ -23,6 +23,11 @@ private actor ScarletGuestHostManagedBootstrap {
         // Actual authorization comes from the new selected-account P12 and
         // original SideStore native provisioning/signing transaction.
         let id = host.bundleIdentifier
+        // Preserve the R112 installed identity, but reject any mismatched
+        // application-identifier before native reinstall or provisioning.
+        guard profile.bundleIdentifier == id,
+              (profile.entitlements["application-identifier"] as? String) ==
+                  profile.teamIdentifier + "." + id else { return nil }
         let baseID = "com.kdt.livecontainer.P8EZT3U5N4"
         let profileTeam = profile.teamIdentifier
         let validSignedTeam = profileTeam.utf8.count == 10 &&
@@ -302,8 +307,17 @@ final class ScarletGuestRefreshAgent: NSObject {
                 if let currentTeamID {
                     // CertificateManager and its local P12 store live on the
                     // main actor, not this synchronous Optional.flatMap body.
-                    signingReady = await ScarletInstallTeamAuthority
+                    let existing = await ScarletInstallTeamAuthority
                         .hasValidSigningCertificate(for: currentTeamID)
+                    // R112 legacy P12 may have no ownership-pin record yet.
+                    // A readiness query can migrate a unique, portal-verified
+                    // local private key without clearing original keychain.
+                    if existing {
+                        signingReady = true
+                    } else {
+                        signingReady = await ScarletInstallTeamAuthority.prepare(
+                            teamID: currentTeamID) == "ready"
+                    }
                 } else {
                     signingReady = false
                 }
