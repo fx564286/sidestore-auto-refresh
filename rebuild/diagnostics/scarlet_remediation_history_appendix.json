@@ -8357,6 +8357,88 @@
         }
       ],
       "generated_runtime_targets": []
+    },
+    {
+      "id": "L168",
+      "date": "2026-11-18",
+      "version": "P106-release-binary-owner-verification-repair",
+      "problem": "p106_successful_native_xcode_and_ipa_archive_blocked_by_release_assertion_that_checks_xpc_allowlist_string_in_wrong_swiftui_framework",
+      "mechanism": "verify_compiled_p106_refresh_allowlist_in_actual_sidestoresupport_xpc_framework_and_source_mapping_regression",
+      "incident_family": "p106_release_validator_xpc_binary_ownership_mismatch",
+      "strategy_family": "source_history_strict_strategy_gate",
+      "operation_fingerprint": "Replace the wrong P106 release-only LiveContainerSwiftUI host binary check with the owning SideStoreSupport XPC framework binary check; add a source mapping regression that ensures wire_scarlet_auth.py places ScarletAuthXPCSupport.swift into SideStoreSupport, while SideStore worker native install and exact owner assertions remain enabled.",
+      "source_behavior_contract": "No changes to Scarlet runtime code, signing certificate operations, account selection, install/refresh execution, guest process, island/status UI or automatic refresh. Require actual compiled SideStoreSupport result allowlist and original SideStore worker checks rather than the unrelated SwiftUI module; do not treat unsigned release or CI tests as iPhone install verification.",
+      "rollback_commit": "6a888aae0881ccb8c2da470bd72a26f2d7820e1c",
+      "novelty": {
+        "causal_difference": "P106 GitHub Actions #44223580953 passed LiveContainer native compile, SideStore native compile and IPA package, then failed only at release-check P106 host result allowlist missing. The mapped source is copied to SideStoreSupport/ScarletAuthXPCSupport.swift by wire_scarlet_auth.py, so demanding its literal bytes in LiveContainerSwiftUI is false ownership. Correct the specific framework location and add a test to reject reintroduction.",
+        "falsifiable_prediction": "The release validation for the identical P106 native code searches the result allowlist in SideStoreSupport.framework and checks the native SideStore fallback in SideStoreApp.framework; original Xcode jobs, archive and preexisting P105/P103 marker checks still pass. Actual iPhone certificate renewal remains unverified until signed-device profile readback.",
+        "prior_excluded_ids": [
+          "L165",
+          "L166",
+          "L167"
+        ]
+      },
+      "action": "Correct the release assertion location and add dedicated static regression for mapping of P106 XPC result allowlist to SideStoreSupport framework.",
+      "observation": "GitHub Actions 44223580953: livecontainer success, sidestore success, package-paired success, publish-unsigned-github-release failed at AssertionError P106 host result allowlist missing. Local full Python suite after correction: 941 tests OK, 4 skipped.",
+      "device_verification": "device_unverified",
+      "status": "source_committed_ci_pending",
+      "repeat_policy": "Do not add a new duplicate host string marker requirement in future; trace every source string to its owning compiled framework and keep signing-device outcomes separate from CI.",
+      "source_verification": "git_patch_observed",
+      "source_revisions": [
+        {
+          "sha": "96d7c6d116fb0140a204785f860b59fe05456256",
+          "url": "https://github.com/fx564286/sidestore-auto-refresh/commit/96d7c6d116fb0140a204785f860b59fe05456256",
+          "title": "P106 compiled XPC allowlist assertion owner correction and regression"
+        }
+      ],
+      "code_locations": [
+        {
+          "commit": "96d7c6d116fb0140a204785f860b59fe05456256",
+          "file": ".github/workflows/scarlet-paired-engines-build.yml",
+          "location": "@@ -588 +588,4 @@ jobs:",
+          "before": [
+            "                      assert b\"native_host_reinstall_returned_install_unverified\" in host_bin, \"P106 host result allowlist missing\""
+          ],
+          "after": [
+            "                      # The allowlist is compiled from ScarletAuthXPCSupport.swift into",
+            "                      # SideStoreSupport.framework, NOT LiveContainerSwiftUI.framework.",
+            "                      # Check the exact XPC owner binary, matching wire_scarlet_auth.py.",
+            "                      assert b\"native_host_reinstall_returned_install_unverified\" in xpc_bin, \"P106 SideStoreSupport result allowlist missing\""
+          ]
+        },
+        {
+          "commit": "96d7c6d116fb0140a204785f860b59fe05456256",
+          "file": "rebuild/Tests/test_v48_r6p106_release_binary_owner.py",
+          "location": "@@ -0,0 +1,23 @@",
+          "before": [],
+          "after": [
+            "\"\"\"The P106 renewal outcome allowlist is compiled into SideStoreSupport, not LC UI.\"\"\"",
+            "from pathlib import Path",
+            "import unittest",
+            "ROOT = Path(__file__).resolve().parents[2]",
+            "CI = (ROOT / '.github/workflows/scarlet-paired-engines-build.yml').read_text()",
+            "WIRE = (ROOT / 'rebuild/integration/wire_scarlet_auth.py').read_text()",
+            "XPC = (ROOT / 'rebuild/HostApp/ScarletAuthXPCSupport.swift').read_text()",
+            "SIDE = (ROOT / 'rebuild/integration/ScarletGuestRefreshAgent.swift.txt').read_text()",
+            "",
+            "class P106BinaryOwnership(unittest.TestCase):",
+            "    def test_native_xpc_allowlist_compiled_owner(self):",
+            "        self.assertIn('engine / \"SideStoreSupport/ScarletAuthXPCSupport.swift\"', WIRE)",
+            "        self.assertIn('\"native_host_reinstall_returned_install_unverified\"', XPC)",
+            "        self.assertIn('\"native_host_reinstall_owner_unverified\"', XPC)",
+            "        self.assertIn('assert b\"native_host_reinstall_returned_install_unverified\" in xpc_bin', CI)",
+            "        self.assertNotIn('assert b\"native_host_reinstall_returned_install_unverified\" in host_bin', CI)",
+            "    def test_native_worker_outcome_remains_original_installer(self):",
+            "        self.assertIn('AppManager.shared.install(.url(installedHost)', SIDE)",
+            "        self.assertIn('reply(true, \"native_host_reinstall_returned_install_unverified\")', SIDE)",
+            "        self.assertIn('assert b\"native_host_reinstall_returned_install_unverified\" in side_bin', CI)",
+            "",
+            "if __name__ == '__main__':",
+            "    unittest.main()"
+          ]
+        }
+      ],
+      "generated_runtime_targets": []
     }
   ]
 }
