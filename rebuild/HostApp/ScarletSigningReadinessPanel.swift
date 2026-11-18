@@ -555,6 +555,61 @@ struct ScarletSigningReadinessPanel: View {
         pendingCertificateOrigin = "unknown"
     }
 
+    // P108: A valid selected-account P12 that differs from the installed
+    // host must be used to sign+install the actual host. This runs after
+    // explicit user P12 import, never from an automatic background job.
+    @MainActor
+    private func renewHostWithImportedSelectedCertificate(
+        accountID: String, teamID: String) async {
+        guard !refreshing else {
+            certificateRecoveryStatus = "다른 갱신 작업이 진행 중입니다. 기존 인증서는 보관됐습니다."
+            return
+        }
+        let rows = await ScarletNativeSavedAccounts.list()
+        guard rows.status == "ready",
+              rows.accounts.filter({ $0.active }).count == 1,
+              rows.accounts.contains(where: {
+                  $0.active && $0.id == accountID && $0.teamID == teamID
+              }) else {
+            certificateRecoveryStatus = "활성 Apple ID가 변경돼 호스트 재서명을 중단했습니다."
+            return
+        }
+        guard readiness.canRequestNativeRefresh else {
+            certificateRecoveryStatus = "호스트 App Group·서명 권한이 없어 재서명을 시작할 수 없습니다."
+            return
+        }
+        refreshing = true
+        defer { refreshing = false }
+        certificateRecoveryStatus = "가져온 인증서로 Scarlet Crystal 호스트를 재서명·재설치하는 중입니다."
+        ScarletDiagnosticRecorder.shared.record(
+            "certificate", "selected_p12_host_resign_started",
+            fields: ["result": "native_host_install_requested"])
+        ScarletInstalledProfileReadback.beginRequest(source: "selected_p12_rotation")
+        do {
+            // The selected P12 is already imported and pinned to the exact
+            // account+Team in the original SideStore native Keychain.
+            // This XPC operation installs only the signed on-disk host;
+            // it cannot succeed by refreshing unrelated managed apps.
+            let outcome = try await ScarletNativeRefreshExecutor.execute(
+                manual: true, certificateRotation: true)
+            certificateRecoveryStatus = "호스트 재서명·설치 요청이 반환됐습니다. 실제 인증서 변경은 앱 재실행 후 검증합니다."
+            ScarletDiagnosticRecorder.shared.record(
+                "certificate", "selected_p12_host_resign_returned",
+                fields: ["result": outcome, "installation_verified": "false"])
+        } catch {
+            ScarletInstalledProfileReadback.discardFailedRequest()
+            let reason = (error as? ScarletNativeRefreshFailure)?.reason ??
+                ScarletRefreshFailureDiagnosis.category(error)
+            certificateRecoveryStatus = "호스트 재서명·설치 실패: " +
+                ScarletRefreshFailureDiagnosis.nativeGuidance(reason)
+            ScarletDiagnosticRecorder.shared.record(
+                "certificate", "selected_p12_host_resign_failed",
+                status: "error", fields: ["reason": reason])
+            ScarletDiagnosticRecorder.shared.recordError(
+                "certificate", "selected_p12_host_resign_native_error", error: error)
+        }
+    }
+
     @MainActor
     @discardableResult
     private func importExportedP12() async -> Bool {
@@ -626,7 +681,11 @@ struct ScarletSigningReadinessPanel: View {
                 if trust != .matched {
                     switch trust {
                     case .different:
-                        certificateRecoveryStatus = "선택한 계정 인증서는 저장됐지만 현재 설치된 Scarlet Crystal의 서명 인증서와 다릅니다. 게스트 실행에는 호스트 재서명·업데이트가 필요합니다."
+                        // The old implementation stopped at this warning.
+                        // Perform the actual native on-device re-sign/install
+                        // with the newly imported exact-account certificate.
+                        await renewHostWithImportedSelectedCertificate(
+                            accountID: active.id, teamID: active.teamID)
                     case .profileUnavailable:
                         certificateRecoveryStatus = "호스트의 설치 프로비저닝 프로파일을 읽을 수 없어 게스트 서명을 검증하지 못했습니다."
                     case .archiveUnreadable:

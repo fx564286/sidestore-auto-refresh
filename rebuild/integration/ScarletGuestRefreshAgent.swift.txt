@@ -17,8 +17,11 @@ private actor ScarletGuestHostManagedBootstrap {
     func verifiedInstalledHostID(hostBundlePath: String) -> String? {
         guard let hostURL = verifiedHostBundleURL(hostBundlePath: hostBundlePath),
               let host = ALTApplication(fileURL: hostURL),
-              let profile = host.provisioningProfile,
-              profile.expirationDate > Date() else { return nil }
+              let profile = host.provisioningProfile else { return nil }
+        // The installed old certificate/profile may be EXPIRED. It is a
+        // source to re-sign, not a certificate authorizing the new install.
+        // Actual authorization comes from the new selected-account P12 and
+        // original SideStore native provisioning/signing transaction.
         let id = host.bundleIdentifier
         guard id == "com.kdt.livecontainer.P8EZT3U5N4" ||
               id == "com.kdt.livecontainer.P8EZT3U5N4.P8EZT3U5N4" else {
@@ -37,8 +40,9 @@ private actor ScarletGuestHostManagedBootstrap {
               verifiedInstalledHostID(hostBundlePath: hostBundlePath) != nil,
               let host = ALTApplication(fileURL: hostURL),
               let profile = host.provisioningProfile,
-              profile.teamIdentifier == teamID,
-              profile.expirationDate > Date() else { return nil }
+              profile.teamIdentifier == teamID else { return nil }
+        // The historical provisioning expiry cannot prevent renewal.
+        // The selected account's NEW signing certificate must still be valid.
         return hostURL
     }
 
@@ -630,8 +634,19 @@ extension ScarletGuestRefreshAgent {
         performSelectedHostBundle(hostBundlePath, manual: true, reply: reply)
     }
 
+    // P108: An explicit P12 import triggers host-only re-signing, not a
+    // CoreData managed-app refresh (which might refresh unrelated apps).
+    // This distinct entry uses the native SideStore install/sign pipeline
+    // with the currently selected account's pinned P12 and same signed team.
+    @objc static func performCertificateRotationHostBundle(_ hostBundlePath: String,
+                                       reply: @escaping (Bool, String) -> Void) {
+        performSelectedHostBundle(hostBundlePath, manual: true,
+            rotateImportedCertificate: true, reply: reply)
+    }
+
     private static func performSelectedHostBundle(_ hostBundlePath: String,
-                       manual: Bool, reply: @escaping (Bool, String) -> Void) {
+                       manual: Bool, rotateImportedCertificate: Bool = false,
+                       reply: @escaping (Bool, String) -> Void) {
         Task {
             let gate = ScarletGuestNativeRefreshGate.shared
             guard await gate.claim() else {
@@ -655,6 +670,47 @@ extension ScarletGuestRefreshAgent {
                 }
                 let selectedTeamID = owner.teamID
                 let selectedAppleID = owner.appleID
+                if rotateImportedCertificate {
+                    // Force a host-only native re-sign even when OTHER
+                    // apps exist in this selected account's CoreData.
+                    // Installed host must originate from authenticated XPC
+                    // path and carry the SAME Team as the selected P12.
+                    guard let installedHost = await ScarletGuestHostManagedBootstrap.shared
+                        .verifiedSameTeamManualHostURL(
+                            hostBundlePath: hostBundlePath, teamID: selectedTeamID) else {
+                        reply(false, hostBootstrap == "host_selected_team_mismatch"
+                              ? "host_selected_team_mismatch" : "host_signed_bundle_unavailable")
+                        return
+                    }
+                    let prepared = await ScarletInstallTeamAuthority.prepare(
+                        teamID: selectedTeamID)
+                    guard prepared == "ready" else {
+                        reply(false, prepared); return
+                    }
+                    stage = "transport"
+                    _ = try await ScarletGuestDeviceTransport.ensureReady()
+                    stage = "refresh"
+                    let installed = try await withCheckedThrowingContinuation {
+                        (continuation: CheckedContinuation<InstalledApp, Error>) in
+                        _ = AppManager.shared.install(.url(installedHost),
+                            presentingViewController: nil) { result in
+                            continuation.resume(with: result)
+                        }
+                    }
+                    let currentHostID = await ScarletGuestHostManagedBootstrap.shared
+                        .verifiedInstalledHostID(hostBundlePath: hostBundlePath)
+                    guard let currentHostID,
+                          installed.resignedBundleIdentifier == currentHostID,
+                          await ScarletInstallTeamAuthority.appBelongsToOwner(
+                              installed, owner: owner) else {
+                        reply(false, "native_host_reinstall_owner_unverified")
+                        return
+                    }
+                    // AppManager callback is NOT SpringBoard installed
+                    // profile readback. The host verifies on next launch.
+                    reply(true, "native_host_reinstall_returned_install_unverified")
+                    return
+                }
                 // Native SideStore keeps each InstalledApp associated with the
                 // Apple team that signed it. Refresh ONLY the selected team;
                 // never re-sign the already installed host using another team.

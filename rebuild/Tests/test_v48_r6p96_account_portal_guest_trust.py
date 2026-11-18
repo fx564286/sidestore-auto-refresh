@@ -35,7 +35,7 @@ class AccountPortalTrustContract(unittest.TestCase):
         self.assertIn('"candidate_not_in_host_profile"',HOST)
         self.assertIn('kernel postcheck',body)
         self.assertIn('guard !isImportingSelectedTeamP12 else { return false }',body)
-        self.assertIn('호스트 재서명·업데이트가 필요합니다',body)
+        self.assertIn('await renewHostWithImportedSelectedCertificate(',body)
         self.assertIn('ScarletGuestSignerRecovery.trialExistingSideStoreCertificate(',body)
 
     def test_dont_conflate_managed_apps_with_cert_validity(self):

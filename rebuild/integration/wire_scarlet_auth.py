@@ -43,6 +43,7 @@ def patch_livecontainer(engine: Path) -> None:
 - (void)scarletRefreshReadiness:(NSString*)hostBundlePath reply:(void (^)(NSInteger managedCount, BOOL hostManaged, BOOL signingReady, NSString *status))reply;
 - (void)scarletPerformNativeRefresh:(NSString*)hostBundlePath reply:(void (^)(BOOL operationReturned, NSString *status))reply;
 - (void)scarletPerformManualNativeRefresh:(NSString*)hostBundlePath reply:(void (^)(BOOL operationReturned, NSString *status))reply;
+- (void)scarletPerformSelectedHostResign:(NSString*)hostBundlePath reply:(void (^)(BOOL operationReturned, NSString *status))reply;
 - (void)scarletInstallPairingRecord:(NSData*)record reply:(void (^)(BOOL verified, NSString *status))reply;
 - (void)scarletInspectDevicePairing:(void (^)(BOOL ready, NSString *status))reply;
 - (void)scarletManagedSlots:(void (^)(NSString *json, NSString *status))reply;
@@ -138,6 +139,20 @@ def patch_livecontainer(engine: Path) -> None:
                                      reply:(void (^)(BOOL, NSString *))reply {
     Class worker = NSClassFromString(@"ScarletGuestRefreshAgent");
     SEL selector = NSSelectorFromString(@"performManualHostBundle:reply:");
+    if (!worker || ![worker respondsToSelector:selector]) {
+        reply(NO, @"refresh_worker_missing");
+        return;
+    }
+    ((void (*)(id, SEL, id, id))objc_msgSend)(worker, selector,
+        hostBundlePath ?: @"", reply);
+}
+
+// Host-only re-sign after explicit imported P12. The worker verifies the
+// installed on-device host, current Team and pinned signing certificate.
+- (void)scarletPerformSelectedHostResign:(NSString*)hostBundlePath
+                                   reply:(void (^)(BOOL, NSString *))reply {
+    Class worker = NSClassFromString(@"ScarletGuestRefreshAgent");
+    SEL selector = NSSelectorFromString(@"performCertificateRotationHostBundle:reply:");
     if (!worker || ![worker respondsToSelector:selector]) {
         reply(NO, @"refresh_worker_missing");
         return;

@@ -41,7 +41,7 @@ class FreshAppleCertificateIssue(unittest.TestCase):
         self.assertNotIn('SecItemDelete(',body)
     def test_guest_host_signer_error_not_overwritten_by_refresh_readback(self):
         self.assertIn('if !nativeState.signingReady && certificateRecoveryStatus ==',PANEL)
-        self.assertIn('호스트 재서명·업데이트가 필요합니다.',PANEL)
+        self.assertIn('호스트 재서명·설치 실패:',PANEL)
         self.assertIn('new_apple_p12_already_active_in_native_store',PANEL)
 
 if __name__=='__main__': unittest.main()

@@ -486,7 +486,8 @@ private final class ScarletRefreshExecutionGate: @unchecked Sendable {
 @available(iOS 17.0, *)
 @MainActor
 public enum ScarletNativeRefreshExecutor {
-    public static func execute(manual: Bool = false) async throws -> String {
+    public static func execute(manual: Bool = false,
+                               certificateRotation: Bool = false) async throws -> String {
         do {
             try await ScarletNativeAuthTransport.shared.prepare()
         } catch {
@@ -507,7 +508,10 @@ public enum ScarletNativeRefreshExecutor {
             let finished: (Bool, String?) -> Void = { completed, reason in
                 gate.finish(completed, reason ?? "sidestore_native_operation_failed")
             }
-            if manual {
+            if certificateRotation {
+                client.scarletPerformSelectedHostResign(
+                    Bundle.main.bundleURL.path, reply: finished)
+            } else if manual {
                 client.scarletPerformManualNativeRefresh(
                     Bundle.main.bundleURL.path, reply: finished)
             } else {
