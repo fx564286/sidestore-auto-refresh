@@ -24,7 +24,7 @@ class SideStoreEmbeddedHostBootstrap(unittest.TestCase):
  def test_one_host_record_uses_original_sidestore_models_and_native_refresh(self):
   p=E.split('private actor ScarletGuestHostManagedBootstrap {',1)[1].split('// Runs inside the REAL embedded',1)[0]
   for marker in ('private var active: Task<String, Never>?',
-                 'InstalledApp.first(satisfying: duplicate, in: context)',
+                 'let hostRows = try context.fetch(InstalledApp.fetchRequest()).filter {',
                  '$0.isActiveTeam',
                  'InstalledApp(', 'record.team = team',
                  'record.isActive = true',
