@@ -10835,6 +10835,233 @@
         "rebuild/integration/wire_scarlet_auth.py"
       ],
       "repeat_policy": "Never treat a source test or un-signed IPA as proof of Apple portal issuance, iPhone in-place host replacement or AppGroup data preservation. Distinguish host signed-team group and selected Apple ID/Team for IPA. Retain strict same-Team on installed host until safe cross-Team migration is proved."
+    },
+    {
+      "id": "L177",
+      "problem": "P112_macOS_Xcode_SideStore_compilation_fails_because_injected_authmanager_references_unavailable_SecTask_symbols",
+      "mechanism": "ios15_sidestore_swift_module_sec_task_api_unavailable_use_pinned_upstream_macho_bundle_signing",
+      "incident_family": "p112_native_ios_signed_group_entitlement_compile_error",
+      "strategy_family": "account_auth_team_selection_repair",
+      "operation_fingerprint": "Replace inaccessible SecTask Swift calls in SideStore AuthManager with pinned upstream Bundle.appGroups obtained from the compiled SideStore code bundle; pass verified host group via existing authenticated SideStoreSupport call instead of importing inaccessible Security APIs.",
+      "source_behavior_contract": "Use original pinned SideStore Bundle.appGroups signed MachO parsing for guest/LiveProcess; derive host group in host SwiftUI entitlement, pass it as a verified host-supplied argument into SideStoreSupport installer, validate stage root access. Keep active IPA account Team separate, do not infer from selected IPA Team; preserve app identity and no revocation.",
+      "rollback_commit": "1bc2a7503e6dd739c5dc81a0d521f11e5561272a",
+      "novelty": {
+        "causal_difference": "P112 originally introduced SecTask Swift calls inside iOS15-target SideStore AuthManager, which Xcode 27.2 fails resolving. This is a proven compiler failure with actual failing lines 280/281 and 720/721/728, not a behavioral or visual UI workaround; native upstream already has reliable CodeSignKit MachO parsing.",
+        "falsifiable_prediction": "Same Xcode 27.2 native SideStore build no longer reports missing SecTask symbols in AuthManager; signed host and guest stage group stay distinct from selected IPA team; fail closed for missing signing group; no fabricated pass without native build.",
+        "prior_excluded_ids": [
+          "L116",
+          "L153",
+          "L175",
+          "L176"
+        ],
+        "new_device_evidence": {
+          "source_commit": "1bc2a7503e6dd739c5dc81a0d521f11e5561272a",
+          "event": "P112 GitHub Actions run 44280801752 SideStore build job 134720646187",
+          "observed_value": "Xcode27.2 compile fails SideStore AuthManager.swift 280,281,720,721,728 cannot find SecTaskCreateFromSelf and SecTaskCopyValueForEntitlement in scope"
+        },
+        "why_prior_fix_failed": "P112 attempted to reuse host framework SecTask APIs in an unrelated iOS15 SideStore build target, without verifying this exact target exports that symbol in its Swift module."
+      },
+      "code_locations": [
+        {
+          "file": "rebuild/HostApp/ScarletIntegratedHostView.swift",
+          "location": "@@ -1376 +1376,2 @@ struct ScarletIntegratedHostView: View {",
+          "before": [
+            "                    stagedIPA: staged, teamID: pinnedTeamID)"
+          ],
+          "after": [
+            "                    stagedIPA: staged, teamID: pinnedTeamID,",
+            "                    hostGroupID: groupID)"
+          ]
+        },
+        {
+          "file": "rebuild/Tests/test_sidestore_native_device_installer.py",
+          "location": "@@ -30,6 +30,8 @@ class NativeDeviceInstallerContract(unittest.TestCase):",
+          "before": [
+            "        self.assertIn('SecTaskCopyValueForEntitlement(',WORKER)",
+            "        self.assertIn('SecTaskCopyValueForEntitlement(',WIRE)",
+            "        self.assertIn(group+'\" + team',WORKER)",
+            "        self.assertIn(group+'\" + signedTeam',WIRE)",
+            "        self.assertIn('groups.contains(signedGroupID)',WORKER)",
+            "        self.assertIn('groups.contains(groupID)',WIRE)"
+          ],
+          "after": [
+            "        self.assertIn('ScarletInstallStageGroup',WORKER)",
+            "        self.assertIn('payload[\"hostGroupID\"]',WORKER)",
+            "        self.assertIn('stageGroup.set(hostGroupID)',WORKER)",
+            "        self.assertIn('hostGroupID: String',WIRE)",
+            "        self.assertIn('hostGroupID.hasPrefix(prefix)',WIRE)",
+            "        self.assertIn('forSecurityApplicationGroupIdentifier: hostGroupID',WIRE)",
+            "        self.assertIn(group+'\"',WIRE)",
+            "        self.assertIn('hostGroupID: groupID',HOST)"
+          ]
+        },
+        {
+          "file": "rebuild/Tests/test_v30_real_sidestore_team_reconciliation.py",
+          "location": "@@ -22,2 +22,4 @@ class V30SideStoreTeamIntegration(unittest.TestCase):",
+          "before": [
+            "        self.assertIn('let signedHostTeamID = SecTaskCopyValueForEntitlement(', SIGNIN)",
+            "        self.assertIn('let expectedTeamID = signedHostTeamID.flatMap', SIGNIN)"
+          ],
+          "after": [
+            "        self.assertIn('ScarletNativeSignedGroupPolicy.resolve(', SIGNIN)",
+            "        self.assertIn('let expectedTeamID = ScarletNativeSignedGroupPolicy.resolve(', SIGNIN)",
+            "        self.assertIn('for: Bundle(for: ScarletGuestSignInAgent.self))?.teamID', SIGNIN)",
+            "        self.assertIn('bundle.appGroups.compactMap', SIGNIN)"
+          ]
+        },
+        {
+          "file": "rebuild/Tests/test_v48_r6p112_host_group_owner_and_selected_signer.py",
+          "location": "@@ -29,4 +29,3 @@ class NativeSignedHostIdentity(unittest.TestCase):",
+          "before": [
+            "        for src in (READINESS,WORKER,WIRE):",
+            "            self.assertIn('SecTaskCopyValueForEntitlement(',src)",
+            "            self.assertIn('\"com.apple.developer.team-identifier\" as CFString',src)",
+            "            self.assertIn('\"com.apple.security.application-groups\" as CFString',src)",
+            "        self.assertIn('let signedGroupID = \"group.com.SideStore.SideStore.\" + team',WORKER)",
+            "        self.assertIn('let groupID = \"group.com.SideStore.SideStore.\" + signedTeam',WIRE)",
+            "        self.assertIn('groups.contains(signedGroupID)',WORKER)",
+            "        self.assertIn('groups.contains(groupID)',WIRE)",
+            "        self.assertIn('let signedHostTeamID = SecTaskCopyValueForEntitlement(',SIGNIN)"
+          ],
+          "after": [
+            "        self.assertIn('SecTaskCopyValueForEntitlement(',READINESS)",
+            "        self.assertIn('\"com.apple.developer.team-identifier\" as CFString',READINESS)",
+            "        self.assertIn('\"com.apple.security.application-groups\" as CFString',READINESS)",
+            "        self.assertIn('let hostGroupID = payload[\"hostGroupID\"] as? String',WORKER)",
+            "        self.assertIn('stageGroup.set(hostGroupID)',WORKER)",
+            "        self.assertIn('forSecurityApplicationGroupIdentifier: hostGroupID',WORKER)",
+            "        self.assertIn('NSString* rawStage = mangledTypeName ?: @\"\";',WIRE)",
+            "        self.assertIn('@\"hostGroupID\": parts[0]',WIRE)",
+            "        self.assertIn('mangledName: hostGroupID + \"|\" + resolved.lastPathComponent',WIRE)",
+            "        self.assertIn('bundle.appGroups.compactMap',SIGNIN)",
+            "        self.assertIn('let prefix = \"group.com.SideStore.SideStore.\"',WIRE)",
+            "        self.assertIn('hostGroupID.hasPrefix(prefix)',WIRE)",
+            "        self.assertIn('hostGroupID: groupID',HOST)",
+            "        self.assertIn('forSecurityApplicationGroupIdentifier: hostGroupID',WIRE)",
+            "        self.assertNotIn('SecTaskCreateFromSelf(',SIGNIN+WORKER+WIRE)"
+          ]
+        },
+        {
+          "file": "rebuild/integration/ScarletDeviceInstallAgent.swift.txt",
+          "location": "@@ -5,0 +6,19 @@",
+          "before": [
+            "    // This LiveProcess runs under the installed host's Apple-signed",
+            "    // entitlements. Its IPC group is independent of the selected IPA's Team.",
+            "    private static var groupID: String? {",
+            "        let task = SecTaskCreateFromSelf(nil)",
+            "        guard let team = SecTaskCopyValueForEntitlement(",
+            "            task, \"com.apple.developer.team-identifier\" as CFString, nil)?",
+            "                .takeRetainedValue() as? String,",
+            "              team.utf8.count == 10,",
+            "              team.utf8.allSatisfy({",
+            "                  ($0 >= 65 && $0 <= 90) || ($0 >= 48 && $0 <= 57)",
+            "              }),",
+            "              let groups = SecTaskCopyValueForEntitlement("
+          ],
+          "after": [
+            "// The host has independently verified the signed App Group. The IPC",
+            "// request carries its group through the original authenticated LiveProcess",
+            "// channel, and this worker checks that the group is actually accessible.",
+            "// Keep progress writes pinned to this transaction, never global account B.",
+            "private final class ScarletInstallStageGroup: @unchecked Sendable {",
+            "    private let lock = NSLock()",
+            "    private var value: String?",
+            "    func set(_ groupID: String?) {",
+            "        lock.lock()",
+            "        value = groupID",
+            "        lock.unlock()",
+            "    }",
+            "    func get() -> String? {",
+            "        lock.lock()",
+            "        defer { lock.unlock() }"
+          ]
+        },
+        {
+          "file": "rebuild/integration/ScarletGuestSignInAgent.swift.txt",
+          "location": "@@ -23,0 +24,20 @@ private enum ScarletAccountTeamOwnershipCollision: Error {",
+          "before": [
+            "        // Preserve the optional host-team guard using the actual code-signing",
+            "        // entitlement. Normal multi-account install routes deliberately pass",
+            "        // requireHostTeam: false; they must never inherit host team A.",
+            "        let task = SecTaskCreateFromSelf(nil)",
+            "        let signedHostTeamID = SecTaskCopyValueForEntitlement(",
+            "            task, \"com.apple.developer.team-identifier\" as CFString, nil)?",
+            "                .takeRetainedValue() as? String",
+            "        let expectedTeamID = signedHostTeamID.flatMap { team -> String? in",
+            "            team.utf8.count == 10 && team.utf8.allSatisfy({",
+            "                ($0 >= 65 && $0 <= 90) || ($0 >= 48 && $0 <= 57)",
+            "            }) ? team : nil",
+            "        }"
+          ],
+          "after": [
+            "// P112 native CI repair: upstream SideStore already derives app-group",
+            "// entitlements from the exact Mach-O code bundle via Bundle.appGroups.",
+            "// Unlike a selected Apple ID's IPA Team, the installed host/LiveProcess",
+            "// group must be signed into THIS executable. Reject ambiguous group sets.",
+            "private enum ScarletNativeSignedGroupPolicy {",
+            "    static func resolve(for bundle: Bundle) -> (teamID: String, groupID: String)? {",
+            "        let prefix = \"group.com.SideStore.SideStore.\"",
+            "        let candidates = bundle.appGroups.compactMap { group -> (String, String)? in",
+            "            guard group.hasPrefix(prefix) else { return nil }",
+            "            let team = String(group.dropFirst(prefix.count))",
+            "            guard team.utf8.count == 10 && team.utf8.allSatisfy({",
+            "                ($0 >= 65 && $0 <= 90) || ($0 >= 48 && $0 <= 57)",
+            "            }) else { return nil }",
+            "            return (team, group)",
+            "        }"
+          ]
+        },
+        {
+          "file": "rebuild/integration/wire_scarlet_auth.py",
+          "location": "@@ -341,0 +342,9 @@ def patch_livecontainer(engine: Path) -> None:",
+          "before": [
+            "                                  @\"filename\": mangledTypeName ?: @\"\",",
+            "import Security",
+            "",
+            "    public static func install(stagedIPA: URL, teamID: String) async throws {",
+            "        // Host XPC stage authority comes from THIS process' signed Team,",
+            "        // not the selected Apple ID used to sign the target IPA.",
+            "        let task = SecTaskCreateFromSelf(nil)",
+            "        guard let signedTeam = SecTaskCopyValueForEntitlement(",
+            "                task, \"com.apple.developer.team-identifier\" as CFString, nil)?",
+            "                    .takeRetainedValue() as? String,",
+            "              signedTeam.utf8.count == 10,",
+            "              let groups = SecTaskCopyValueForEntitlement("
+          ],
+          "after": [
+            "        // Explicitly relay the host's signed group and the staged file,",
+            "        // not only the selected IPA team. This is an authenticated XPC",
+            "        // request; each field is independently validated by the worker.",
+            "        NSString* rawStage = mangledTypeName ?: @\"\";",
+            "        NSArray<NSString*>* parts = [rawStage componentsSeparatedByString:@\"|\"];",
+            "        if (parts.count != 2) {",
+            "            [handler.server finish:@\"scarlet.install.invalid_request\"];",
+            "            return;",
+            "        }",
+            "                                  @\"hostGroupID\": parts[0],",
+            "                                  @\"filename\": parts[1],",
+            "    public static func install(stagedIPA: URL, teamID: String,",
+            "                               hostGroupID: String) async throws {",
+            "        // The authenticated host has already read its signed Team and",
+            "        // authorized group. Preserve that exact host-supplied IPC group;"
+          ]
+        }
+      ],
+      "date": "2026-11-18",
+      "version": "P112-sidestore-native-ci-repair",
+      "action": "Replace missing SecTask Swift APIs in pinned SideStore iOS15 AuthManager with upstream Bundle.appGroups signed Mach-O parser. Forward actual host authorized SideStore App Group over existing authenticated LiveProcess XPC staged-IPA call and scope progress to the transaction. No certificate revocation or account migration.",
+      "observation": "P112 CI run 44280801752 failed Xcode27.2 native SideStore build at AuthManager.swift lines 280,281,720,721,728 where SecTask APIs were unresolved. Run 44283284561 on exact source b9544b6a stopped at NO-REPEAT-BLOCK UNRECORDED SOURCE COMMIT, before native build. The committed native repair addresses original compiler defect; real iPhone readback and compiled release are not yet proven.",
+      "status": "source_committed_native_ci_pending",
+      "device_verification": "device_unverified",
+      "source_verification": "git_patch_observed",
+      "source_revisions": [
+        {
+          "sha": "b9544b6a38b5d722ac56edf7e82340c752480d36",
+          "url": "https://github.com/fx564286/sidestore-auto-refresh/commit/b9544b6a38b5d722ac56edf7e82340c752480d36",
+          "title": "fix(P112): use original SideStore signed group reader and relay host stage group"
+        }
+      ],
+      "repeat_policy": "Source tests are not Apple installation proof. Require native Xcode27.2 compiled SideStore and LiveContainer artifact plus device readback before any success assertion. Signed host IPC group and selected Apple ID/Team are independent. Preserve certificates, account data and original bundle."
     }
   ]
 }
