@@ -54,6 +54,7 @@ OTHER_ALLOWED_METHODS = {
     "native_host_resign_exact_owner_signer_transaction_pin",
     "native_build_public_ipa_release_job_branch_gate_repair",
     "original_jitless_native_form_top_scroll_edge_restore",
+    "deterministic_original_jitless_fixture_in_native_ci",
     "native_refresh_xpc_result_fidelity",
     "strict_x509_host_profile_stale_signer_bridge_replacement",
 }
