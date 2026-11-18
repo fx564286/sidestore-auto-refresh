@@ -215,8 +215,13 @@ extension View {
     @ViewBuilder
     func scarletDiagnosticScrollMargins() -> some View {
         if #available(iOS 26.0, *) {
+            // P110: the screenshot showed fully readable scrolled rows
+            // behind the native status clock and navigation title. The
+            // prior .all disabled the ORIGINAL top-edge occlusion/fade.
+            // Restore that OS-owned top treatment; reserve only bottom
+            // scroll clearance. No guest safe-area/window/statusbar change.
             self.contentMargins(.bottom, 84, for: .scrollContent)
-                .scrollEdgeEffectHidden(true, for: .all)
+                .scrollEdgeEffectHidden(true, for: .bottom)
         } else if #available(iOS 17.0, *) {
             self.contentMargins(.bottom, 120, for: .scrollContent)
         } else {

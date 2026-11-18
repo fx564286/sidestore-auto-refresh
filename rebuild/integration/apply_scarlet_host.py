@@ -1490,6 +1490,68 @@ def attach_jitless_diagnostic_scroll_margins(engine: Path) -> dict:
             '                }\n'
             '                Section {', 1)
         source = source.replace(account_form_anchor, account_form_new, 1)
+        # P110: The exact installed Scarlet bundle and App Group identifiers
+        # are longer than the right column of the original HStack. Keep
+        # original values, selectable text, entitlement checks, and test
+        # actions unchanged; render these two host identity rows at the
+        # native Form width rather than splitting one value into 3-4 lines.
+        original_bundle_row = (
+            '                    HStack {\n'
+            '                        Text("lc.jitlessDiag.bundleId".loc)\n'
+            '                        Spacer()\n'
+            '                        Text(Bundle.main.bundleIdentifier ?? "lc.common.unknown".loc)\n'
+            '                            .foregroundStyle(.gray)\n'
+            '                            .textSelection(.enabled)\n'
+            '                    }\n'
+        )
+        full_width_bundle_row = (
+            '                    VStack(alignment: .leading, spacing: 5) {\n'
+            '                        Text("lc.jitlessDiag.bundleId".loc)\n'
+            '                        Text(Bundle.main.bundleIdentifier ?? "lc.common.unknown".loc)\n'
+            '                            .foregroundStyle(.gray)\n'
+            '                            .font(.subheadline)\n'
+            '                            .fixedSize(horizontal: false, vertical: true)\n'
+            '                            .textSelection(.enabled)\n'
+            '                    }\n'
+            '                    .accessibilityIdentifier("SCARLET_JITLESS_HOST_BUNDLE_FULLWIDTH")\n'
+        )
+        original_group_row = (
+            '                    HStack {\n'
+            '                        Text("lc.jitlessDiag.appGroupId".loc)\n'
+            '                        Spacer()\n'
+            '                        Text(appGroupId)\n'
+            '                            .foregroundStyle(appGroupIdColor)\n'
+            '                    }\n'
+        )
+        full_width_group_row = (
+            '                    VStack(alignment: .leading, spacing: 5) {\n'
+            '                        Text("lc.jitlessDiag.appGroupId".loc)\n'
+            '                        Text(appGroupId)\n'
+            '                            .foregroundStyle(appGroupIdColor)\n'
+            '                            .font(.subheadline)\n'
+            '                            .fixedSize(horizontal: false, vertical: true)\n'
+            '                            .textSelection(.enabled)\n'
+            '                    }\n'
+            '                    .accessibilityIdentifier("SCARLET_JITLESS_HOST_GROUP_FULLWIDTH")\n'
+        )
+        # The original LC pin uses a computed green/red style; some later
+        # sources use a dedicated Color. Preserve whichever native expression
+        # the pinned source already contains rather than changing behavior.
+        if 'let storeName = LCUtils.getStoreName()' in source:
+            if source.count(original_group_row) != 1:
+                original_style = '.foregroundStyle(appGroupIdColor)'
+                pinned_style = '.foregroundStyle(appGroupId == "Unknown" ? .red : .green)'
+                assert source.count(pinned_style) == 1, "Pinned host app-group style changed"
+                original_group_row = original_group_row.replace(
+                    original_style, pinned_style)
+                full_width_group_row = full_width_group_row.replace(
+                    original_style, pinned_style)
+            for before, after, name in (
+                (original_bundle_row, full_width_bundle_row, "native host bundle row"),
+                (original_group_row, full_width_group_row, "native host app-group row"),
+            ):
+                assert source.count(before) == 1, (name, "original LC Form drift")
+                source = source.replace(before, after, 1)
     else:
         # Legacy synthetic test fixture has no original Form. Real pin must
         # be present; the integration never silently drops an actual route.
