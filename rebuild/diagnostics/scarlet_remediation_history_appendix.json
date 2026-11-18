@@ -10252,6 +10252,77 @@
         }
       ],
       "repeat_policy": "Do not claim that visual overlap on the user device is fixed without new screenshot; do not change native window/guest geometry/statusbar or account cert paths. CI and probe success are not iPhone renew or JITless account-isolation proof."
+    },
+    {
+      "id": "L174",
+      "problem": "p110_macos_ci_has_no_local_workspace_pinned_livecontainer_and_synthetic_fixture_lacks_original_form_structure",
+      "mechanism": "ci_environment_dependent_fixture_not_equivalent_to_pinned_original_lc_form",
+      "incident_family": "p110_ci_native_preflight_environment_dependent_synthetic_jitless_fixture",
+      "strategy_family": "deterministic_original_jitless_fixture_in_native_ci",
+      "operation_fingerprint": "The P110 native build was blocked before integration because its new test preferred a local /workspace pinned checkout that does not exist on macOS runners. The fallback synthetic Entitlement Form used a one-line closing brace and failed the original LC exact native NavigationTitle anchor. Always build the same deterministic fixture with the original multi-line Form closure on both local and GitHub runners, preserving the production integrator strict source-pin checks.",
+      "source_behavior_contract": "Changes only the deterministic Python regression test fixture and approved nonduplicate test mechanism taxonomy. The native product implementation, host signing/certificate code, independent accounts, JITless test and original LC Form patch remain byte-for-byte unchanged.",
+      "rollback_commit": "8301d17dd15b7b746340477936d05db3894a9575",
+      "novelty": {
+        "causal_difference": "P110 initial test ran against an external pinned checkout on the Linux host, while GitHub macOS CI used a synthetic fallback missing the exact original closing Form lines, failing before Xcode compile. This fixes a test environment dependency and changes no runtime product source.",
+        "falsifiable_prediction": "On the same macOS GitHub Actions runner, the P110 960-test source suite passes this exact original LC synthetic Form anchor, the native LiveContainer integration starts, and no installed iPhone/visual success is claimed without device readback.",
+        "prior_excluded_ids": [
+          "L173",
+          "L166"
+        ],
+        "new_device_evidence": {
+          "source_commit": "8301d17dd15b7b746340477936d05db3894a9575",
+          "event": "GitHub Actions run 44251297651 livecontainer Validate modular feature controls and signing footprint contracts test failure",
+          "observed_value": "Test test_pinned_original_lc_full_width_rows_and_native_test_unchanged failed at line 1467: expected original LCEntitlementView Form close + navigationTitle anchor absent from synthetic fixture on macOS, Linux fixture used external /workspace pin."
+        }
+      },
+      "code_locations": [
+        {
+          "commit": "3df9879dd60a278fda93180a42893309033c7df4",
+          "file": "rebuild/Tests/test_v48_r6p110_jitless_native_form_top.py",
+          "location": "@@ -17,12 +17,14 @@ class OriginalLCJITLessNavigation(unittest.TestCase):",
+          "before": [
+            "        original=Path('/workspace/scarlet-v65/pinned-livecontainer/LiveContainerSwiftUI/Views/Settings/LCJITLessDiagnoseView.swift')",
+            "        # Test using the actual pinned source when available, otherwise use",
+            "        # a synthetic fixture with the exact two native row contracts.",
+            "        s=original.read_text() if original.is_file() else \"\"\"struct LCEntitlementView: View {",
+            "        Form { Text(\"Entitlements\") }"
+          ],
+          "after": [
+            "        # CI runners do not have our local /workspace reference checkout.",
+            "        # Use the SAME exact deterministic pinned-structure fixture on Linux",
+            "        # and macOS. The full upstream pin is verified in the build integrator.",
+            "        s=\"\"\"struct LCEntitlementView: View {",
+            "            Form {",
+            "                Text(\"Entitlements\")",
+            "            }"
+          ]
+        },
+        {
+          "commit": "3df9879dd60a278fda93180a42893309033c7df4",
+          "file": "rebuild/diagnostics/scarlet_distinct_strategy_gate.py",
+          "location": "@@ -54,6 +54,7 @@ OTHER_ALLOWED_METHODS = {",
+          "before": [],
+          "after": [
+            "    \"deterministic_original_jitless_fixture_in_native_ci\","
+          ]
+        }
+      ],
+      "date": "2026-11-18",
+      "version": "P110-deterministic-original-jitless-macos-test",
+      "action": "Remove /workspace runtime fixture dependency; use exact original LC synthetic Entitlement Form lines in P110 regression on Linux and macOS. No iOS functional changes.",
+      "observation": "Run 44251297651 livecontainer preflight failed 1/960 due test-only environment divergence; SideStore native job separately ongoing at inspection. New test fixed and 3 focused tests passed local; iOS native and device still unverified.",
+      "device_verification": "device_unverified",
+      "status": "source_committed_ci_pending",
+      "source_verification": "git_patch_observed",
+      "source_revisions": [
+        {
+          "sha": "3df9879dd60a278fda93180a42893309033c7df4",
+          "url": "https://github.com/fx564286/sidestore-auto-refresh/commit/3df9879dd60a278fda93180a42893309033c7df4",
+          "title": "test(P110): make original JITless fixture deterministic on macOS CI"
+        }
+      ],
+      "generated_runtime_targets": [],
+      "repeat_policy": "Do not interpret Python test fixture pass as iPhone native JITless screen success; do not weaken pinned source asserts or alter installed host signing/owner identity."
     }
   ]
 }
