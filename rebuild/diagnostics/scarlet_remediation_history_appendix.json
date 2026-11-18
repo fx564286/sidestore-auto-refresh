@@ -11834,6 +11834,62 @@
       "observation": "Static regression suite: 980 tests passed (4 skipped) and local source transform validated against pinned SideStore FetchProvisioningProfilesOperation. First R114 CI run 44304495095 was stopped before compilation by this append-only source-commit receipt gate; no real iPhone readback available.",
       "action": "Record exact P114 git source files and new migration mechanism; preserve all R112 Keychain, profile, app/extension IDs and App Group data; re-run native macOS workflow.",
       "repeat_policy": "This revision is not a signed-device success claim. Require Xcode compiled artifact and post-install profile/device readback before declaring end-to-end signing or refresh resolved."
+    },
+    {
+      "id": "L180",
+      "date": "2026-11-19",
+      "version": "R6P114-independent-unsigned-IPA-release-restoration",
+      "problem": "r114_ipa_release_asset_missing_despite_successful_archived_native_build",
+      "mechanism": "new_release_branch_missing_from_publication_allowlist_and_asset_case_mapping",
+      "incident_family": "r114_public_ipa_release_gap",
+      "strategy_family": "release_branch_convergence_unique_build_identity",
+      "operation_fingerprint": "Add R114 to the explicit release-job branch condition, assign its own R114-only release tag and 3.8.114 IPA asset name in the two publishing cases, preserving R113 artifact identity and no signing changes.",
+      "source_behavior_contract": "Build the existing paired engines with CFBundleVersion 3.8.114; publish the same unsigned verified IPA under a new R114-specific public release, without changing bundle identifiers, entitlements, Team IDs, profiles, signatures, data, or R113 release tag.",
+      "rollback_commit": "dbd55ddc85ad832bdf132344f9f86a99fd9b1bdb",
+      "novelty": {
+        "causal_difference": "R113 and R112 both had public IPA assets, but R114 only added its package-paired version mapping and failed to add its branch to the separate publish job allowlist and its two asset/tag selectors. This is an omitted distribution contract, not a recurrence of signer or layout bugs.",
+        "falsifiable_prediction": "After the recorded publishing-only workflow change and the audit receipt, a push to the R114 branch must pass the source-revision gate and create a distinct release tagged scarlet-v48-r6p114-legacy-migration-unsigned-20261119 containing a well-formed unsigned IPA built at version 3.8.114.",
+        "prior_excluded_ids": [
+          "L178",
+          "L179"
+        ],
+        "why_prior_fix_failed": "P114 original CI passed native packaging but its separate public release job was skipped due to a missing R114 branch condition; the subsequent R113 merge republished under the old R113 tag instead of creating an R114 asset.",
+        "new_device_evidence": {
+          "source_commit": "c737b04b183e1fd17f636d12af36fe5875556106",
+          "event": "GitHub Actions 44386996551 on public-IPA publishing-only commit",
+          "observed_value": "Both native jobs were stopped by UNRECORDED SOURCE COMMIT c737b04b in .github/workflows/scarlet-paired-engines-build.yml; no signing or device failure observed."
+        }
+      },
+      "code_locations": [
+        {
+          "file": ".github/workflows/scarlet-paired-engines-build.yml",
+          "location": "@@ -850,7 +850,10 @@ publish-unsigned-github-release:",
+          "before": [
+            "          if [ \"$GITHUB_REF\" = \"refs/heads/fix/scarlet-v48-r6p113-owner-fence-idempotent-ids-20261118\" ]; then",
+            "            tag=scarlet-v48-r6p113-owner-fence-unsigned-20261118",
+            "            asset=Scarlet-Crystal-V48-R6P113-OWNER-FENCE-UNSIGNED.ipa"
+          ],
+          "after": [
+            "          if [ \"$GITHUB_REF\" = \"refs/heads/fix/scarlet-v48-r6p114-legacy-owner-migration-20261118\" ]; then",
+            "            tag=scarlet-v48-r6p114-legacy-migration-unsigned-20261119",
+            "            asset=Scarlet-Crystal-V48-R6P114-LEGACY-MIGRATION-UNSIGNED.ipa",
+            "          elif [ \"$GITHUB_REF\" = \"refs/heads/fix/scarlet-v48-r6p113-owner-fence-idempotent-ids-20261118\" ]; then"
+          ]
+        }
+      ],
+      "source_revisions": [
+        {
+          "sha": "c737b04b183e1fd17f636d12af36fe5875556106",
+          "url": "https://github.com/fx564286/sidestore-auto-refresh/commit/c737b04b183e1fd17f636d12af36fe5875556106",
+          "title": "ci(R6P114): restore standalone unsigned IPA release for the R112 direct upgrade"
+        }
+      ],
+      "source_verification": "git_patch_observed",
+      "device_verification": "device_unverified",
+      "status": "source_committed_native_ci_pending",
+      "observation": "R114 original paired-engine run 44305195387 succeeded, but release publication was skipped. Following c737b04b, run 44386996551 failed closed during mandatory history coverage checking, before compilation.",
+      "action": "Record the exact R114 distribution workflow source revision; rerun native paired-engine and standalone release publishing stages without altering signing inputs.",
+      "repeat_policy": "Public unsigned IPA availability is a packaging result, not evidence of signed-on-device installation or certificate migration success."
     }
   ]
 }
