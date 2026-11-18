@@ -22,8 +22,8 @@ class V24RegistrationGate(unittest.TestCase):
     def test_real_sidestore_managed_app_database_queried_inside_worker(self):
         self.assertIn('DatabaseManager.shared.start()',AGENT)
         self.assertIn('InstalledApp.fetchAppsForRefreshingAll(in: context)',AGENT)
-        self.assertIn('Bundle.Info.activeBundleIdentifier',AGENT)
-        self.assertIn('$0.resignedBundleIdentifier == realHostID',AGENT)
+        self.assertIn('verifiedInstalledHostID(hostBundlePath: hostBundlePath)',AGENT)
+        self.assertIn('targets.contains { $0.resignedBundleIdentifier == verified }',AGENT)
         self.assertIn('.hasValidSigningCertificate(for: currentTeamID)',AGENT)
         self.assertIn('ready_selected_team',AGENT)
         self.assertIn('no_managed_apps',AGENT)
@@ -54,7 +54,7 @@ class V24RegistrationGate(unittest.TestCase):
 
     def test_manual_and_automatic_refresh_prove_managed_self_first(self):
         self.assertIn('let nativeState = await ScarletNativeRefreshInspector.inspect()',PANEL)
-        self.assertIn('guard nativeState.canRefreshSelectedTeam else {',PANEL)
+        self.assertIn('guard nativeState.canRefreshSelectedTeam || manuallyOnboardableHost else {',PANEL)
         self.assertIn('sidestore_managed_apps_inspected',PANEL)
         self.assertNotIn('SCARLET_MANAGED_REFRESH_APP_COUNT',PANEL)
         self.assertIn('sidestore_managed_apps_inspected',PANEL)
@@ -62,7 +62,7 @@ class V24RegistrationGate(unittest.TestCase):
         self.assertIn('SCARLET_NATIVE_REFRESH_NOW',PANEL)
         self.assertIn('Label("지금 갱신"',PANEL)
         self.assertNotIn('Label("SideStore 수동 새로고침"',PANEL)
-        self.assertLess(PANEL.index('guard nativeState.canRefreshSelectedTeam else {'),
+        self.assertLess(PANEL.index('guard nativeState.canRefreshSelectedTeam || manuallyOnboardableHost else {'),
                         PANEL.index('ScarletNativeRefreshExecutor.execute(manual: true)'))
         self.assertIn('automatic_managed_apps_inspected',AUTO)
         self.assertIn('guard nativeState.canRefreshSelectedTeam else {',AUTO)

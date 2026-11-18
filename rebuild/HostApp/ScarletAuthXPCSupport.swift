@@ -521,6 +521,8 @@ public enum ScarletNativeRefreshExecutor {
             "native_profile_date_advanced_install_unverified",
             "native_refresh_record_updated_install_unverified",
             "native_selected_team_refresh_returned_install_unverified",
+            "native_host_reinstall_returned_install_unverified",
+            "native_host_reinstall_owner_unverified",
             "already_running",
             "anisette_unavailable", "vpn_unavailable", "signing_failed",
             "profile_refresh_failed", "server_unavailable",

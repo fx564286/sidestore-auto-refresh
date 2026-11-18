@@ -59,7 +59,7 @@ class TeamAandB(unittest.TestCase):
         self.assertIn('signingReady = await ScarletInstallTeamAuthority',REFRESH)
         self.assertIn('.hasValidSigningCertificate(for: currentTeamID)',REFRESH)
         self.assertNotIn('let signingReady = currentTeam.flatMap {',REFRESH)
-        self.assertIn('let managedHost = targets.first',REFRESH)
+        self.assertIn('let managedHost = signedHostID.flatMap { verified in',REFRESH)
         self.assertIn('if let managedHost {',REFRESH)
         self.assertIn('native_selected_team_refresh_returned_install_unverified',REFRESH)
         self.assertIn('no_managed_apps_for_selected_team',REFRESH)

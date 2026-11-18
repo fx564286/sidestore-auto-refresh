@@ -37,7 +37,7 @@ class NativeDeviceTransportRecovery(unittest.TestCase):
         a=AGENT.index('let recoveredTransport = try await')
         b=AGENT.index('AppManager.shared.backgroundRefresh(',a)
         self.assertLess(a,b)
-        self.assertIn('let managedHost = targets.first {',AGENT)
+        self.assertIn('let managedHost = signedHostID.flatMap { verified in',AGENT)
         self.assertIn('ScarletInstallTeamAuthority.prepare(',AGENT)
         self.assertIn('operation.ignoresServerNotFoundError = false',AGENT)
         self.assertIn('let hostResult = results[managedHost.bundleIdentifier]',AGENT)

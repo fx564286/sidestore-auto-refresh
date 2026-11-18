@@ -224,7 +224,14 @@ struct ScarletSigningReadinessPanel: View {
                          "host_managed": nativeState.hostManaged ? "true" : "false",
                          "signing_ready": nativeState.signingReady ? "true" : "false",
                          "reason": nativeState.reason])
-            guard nativeState.canRefreshSelectedTeam else {
+            // P106: an externally signed but installed Scarlet host can be
+            // absent from SideStore's managed CoreData. The manual native
+            // worker independently checks installed signed .app, exact Apple
+            // owner/Team, native certificate and transport before attempting
+            // the original AppManager.install. Background remains blocked.
+            let manuallyOnboardableHost = nativeState.count == 0 &&
+                nativeState.reason == "no_managed_apps_for_selected_team"
+            guard nativeState.canRefreshSelectedTeam || manuallyOnboardableHost else {
                 let message = ScarletRefreshFailureDiagnosis.nativeGuidance(nativeState.reason)
                 statusMessage = message
                 lastRefreshAttemptState = "차단 · SideStore 갱신 사전검사 실패"

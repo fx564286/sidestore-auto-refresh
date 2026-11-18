@@ -10,18 +10,52 @@ private actor ScarletGuestHostManagedBootstrap {
     private var active: Task<String, Never>?
     private var registered = false
 
+    // P106: Bundle.Info.activeBundleIdentifier describes the embedded SideStore
+    // process (and can be swapped by LiveContainer), not the real installed
+    // Scarlet host. Use ONLY the host .app from the existing authenticated
+    // XPC call plus its original signed profile, without guessing by suffix.
+    func verifiedInstalledHostID(hostBundlePath: String) -> String? {
+        guard let hostURL = verifiedHostBundleURL(hostBundlePath: hostBundlePath),
+              let host = ALTApplication(fileURL: hostURL),
+              let profile = host.provisioningProfile,
+              profile.expirationDate > Date() else { return nil }
+        let id = host.bundleIdentifier
+        guard id == "com.kdt.livecontainer.P8EZT3U5N4" ||
+              id == "com.kdt.livecontainer.P8EZT3U5N4.P8EZT3U5N4" else {
+            return nil
+        }
+        return id
+    }
+
+    // Only the user-tapped manual renewal may reinstall a SideInstaller-signed
+    // existing host when the embedded SideStore has ZERO managed app records.
+    // Enforce the installed host's real provisioning Team; never re-sign A
+    // with the selected B, or accept any untrusted, fabricated IPA path.
+    func verifiedSameTeamManualHostURL(hostBundlePath: String,
+                                       teamID: String) -> URL? {
+        guard let hostURL = verifiedHostBundleURL(hostBundlePath: hostBundlePath),
+              verifiedInstalledHostID(hostBundlePath: hostBundlePath) != nil,
+              let host = ALTApplication(fileURL: hostURL),
+              let profile = host.provisioningProfile,
+              profile.teamIdentifier == teamID,
+              profile.expirationDate > Date() else { return nil }
+        return hostURL
+    }
+
     func ensure(hostBundlePath: String) async -> String {
         // P105: SideStore's upstream reconcile can delete externally installed
         // records after startup. A cached Bool is not a persisted CoreData
         // ownership receipt. Re-check before suppressing registration.
         if registered {
             let owner = await ScarletInstallTeamAuthority.activeOwnership()
+            let installedHostID = verifiedInstalledHostID(
+                hostBundlePath: hostBundlePath)
             let context = DatabaseManager.shared.persistentContainer.newBackgroundContext()
             let intact = await context.perform {
+                guard let owner, let installedHostID else { return false }
                 let predicate = NSPredicate(format: "%K == %@",
-                    #keyPath(InstalledApp.resignedBundleIdentifier),
-                    Bundle.Info.activeBundleIdentifier)
-                guard let owner, let existing = InstalledApp.first(
+                    #keyPath(InstalledApp.resignedBundleIdentifier), installedHostID)
+                guard let existing = InstalledApp.first(
                     satisfying: predicate, in: context) else { return false }
                 return existing.isActive &&
                     existing.team?.identifier == owner.teamID &&
@@ -250,10 +284,11 @@ final class ScarletGuestRefreshAgent: NSObject {
                 // A Personal Team signer may suffix the original bundle ID.
                 // Compare the actual signed bundle, NOT the hard-coded
                 // com.kdt.livecontainer StoreApp.altstoreAppID.
-                let realHostID = Bundle.Info.activeBundleIdentifier
-                let managesHost = targets.contains {
-                    $0.resignedBundleIdentifier == realHostID
-                }
+                let realHostID = await ScarletGuestHostManagedBootstrap.shared
+                    .verifiedInstalledHostID(hostBundlePath: hostBundlePath)
+                let managesHost = realHostID.map { verified in
+                    targets.contains { $0.resignedBundleIdentifier == verified }
+                } ?? false
                 let signingReady: Bool
                 if let currentTeamID {
                     // CertificateManager and its local P12 store live on the
@@ -632,15 +667,62 @@ extension ScarletGuestRefreshAgent {
                         }
                 }
                 guard !targets.isEmpty else {
-                    let reason = await ScarletSelectedTeamRefreshInventory
+                    // P106: an externally signed *installed* host has no
+                    // SideStore InstalledApp row. The original managed-app
+                    // refresh cannot handle an empty list. On the user-tapped
+                    // manual action ONLY, sign/install the verified on-device
+                    // host through original AppManager.install(.url(.app)).
+                    // Never use this for background refresh, for inactive
+                    // managed records, or with a foreign host signing Team.
+                    let existingReason = await ScarletSelectedTeamRefreshInventory
                         .zeroTargetReason(in: context, teamID: selectedTeamID,
                                           appleID: selectedAppleID)
-                    reply(false, reason ?? "no_managed_apps_for_selected_team")
+                    if manual, existingReason == nil,
+                       let installedHost = await ScarletGuestHostManagedBootstrap.shared
+                           .verifiedSameTeamManualHostURL(
+                               hostBundlePath: hostBundlePath,
+                               teamID: selectedTeamID),
+                       await ScarletInstallTeamAuthority.hasValidSigningCertificate(
+                           for: selectedTeamID) {
+                        let teamState = await ScarletInstallTeamAuthority.prepare(
+                            teamID: selectedTeamID)
+                        guard teamState == "ready" else {
+                            reply(false, teamState); return
+                        }
+                        stage = "transport"
+                        _ = try await ScarletGuestDeviceTransport.ensureReady()
+                        stage = "refresh"
+                        let installed = try await withCheckedThrowingContinuation {
+                            (continuation: CheckedContinuation<InstalledApp, Error>) in
+                            _ = AppManager.shared.install(.url(installedHost),
+                                presentingViewController: nil) { result in
+                                continuation.resume(with: result)
+                            }
+                        }
+                        let verifiedHostID = await ScarletGuestHostManagedBootstrap.shared
+                            .verifiedInstalledHostID(hostBundlePath: hostBundlePath)
+                        guard let verifiedHostID,
+                              installed.resignedBundleIdentifier == verifiedHostID,
+                              await ScarletInstallTeamAuthority.appBelongsToOwner(
+                                  installed, owner: owner) else {
+                            reply(false, "native_host_reinstall_owner_unverified")
+                            return
+                        }
+                        // Callback does not prove SpringBoard committed the
+                        // updated host profile. The app may be relaunched.
+                        reply(true, "native_host_reinstall_returned_install_unverified")
+                        return
+                    }
+                    reply(false, existingReason ?? (
+                        hostBootstrap == "host_selected_team_mismatch"
+                            ? "host_selected_team_mismatch"
+                            : "no_managed_apps_for_selected_team"))
                     return
                 }
-                let signedHostID = Bundle.Info.activeBundleIdentifier
-                let managedHost = targets.first {
-                    $0.resignedBundleIdentifier == signedHostID
+                let signedHostID = await ScarletGuestHostManagedBootstrap.shared
+                    .verifiedInstalledHostID(hostBundlePath: hostBundlePath)
+                let managedHost = signedHostID.flatMap { verified in
+                    targets.first { $0.resignedBundleIdentifier == verified }
                 }
                 let before = await context.perform {
                     (managedHost?.refreshedDate, managedHost?.expirationDate)

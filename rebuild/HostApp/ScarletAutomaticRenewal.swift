@@ -66,6 +66,8 @@ enum ScarletRefreshFailureDiagnosis {
             return "설치된 Scarlet 호스트의 SideStore 기록이 다른 Apple ID·개발팀 소유입니다. 해당 기록을 현재 계정으로 덮어쓰지 않았습니다."
         case "host_managed_record_inactive":
             return "설치된 Scarlet 호스트가 현재 계정에 등록돼 있지만 비활성 상태입니다. 임의로 활성화하거나 다른 계정으로 변경하지 않았습니다."
+        case "native_host_reinstall_owner_unverified":
+            return "원본 SideStore가 설치본을 처리했지만 결과 앱의 Apple ID·서명팀 소유권이 확인되지 않았습니다. 갱신 성공으로 처리하지 않았습니다."
         case "host_not_managed":
             return "내장 SideStore 데이터베이스에 현재 설치된 Scarlet 번들 ID가 등록되지 않았습니다. 다른 설치 프로그램의 앱은 자동으로 갱신 대상에 포함되지 않습니다."
         case "sidestore_certificate_missing":
