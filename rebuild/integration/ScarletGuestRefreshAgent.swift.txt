@@ -11,7 +11,26 @@ private actor ScarletGuestHostManagedBootstrap {
     private var registered = false
 
     func ensure(hostBundlePath: String) async -> String {
-        if registered { return "already_registered" }
+        // P105: SideStore's upstream reconcile can delete externally installed
+        // records after startup. A cached Bool is not a persisted CoreData
+        // ownership receipt. Re-check before suppressing registration.
+        if registered {
+            let owner = await ScarletInstallTeamAuthority.activeOwnership()
+            let context = DatabaseManager.shared.persistentContainer.newBackgroundContext()
+            let intact = await context.perform {
+                let predicate = NSPredicate(format: "%K == %@",
+                    #keyPath(InstalledApp.resignedBundleIdentifier),
+                    Bundle.Info.activeBundleIdentifier)
+                guard let owner, let existing = InstalledApp.first(
+                    satisfying: predicate, in: context) else { return false }
+                return existing.isActive &&
+                    existing.team?.identifier == owner.teamID &&
+                    existing.team?.account?.appleID.caseInsensitiveCompare(
+                        owner.appleID) == .orderedSame
+            }
+            if intact { return "already_registered" }
+            registered = false
+        }
         if let active { return await active.value }
         let task = Task { await performRegistration(hostBundlePath: hostBundlePath) }
         active = task
@@ -124,8 +143,16 @@ private actor ScarletGuestHostManagedBootstrap {
             return try await context.perform {
                 let duplicate = NSPredicate(
                     format: "%K == %@", #keyPath(InstalledApp.resignedBundleIdentifier), bundleID)
-                if InstalledApp.first(satisfying: duplicate, in: context) != nil {
-                    return "already_managed"
+                if let existing = InstalledApp.first(satisfying: duplicate, in: context) {
+                    // Matching bundle ID alone must never cause A's record to
+                    // satisfy B, or an inactive record to look refreshable.
+                    guard existing.team?.identifier == currentTeamID,
+                          existing.team?.account?.appleID.caseInsensitiveCompare(
+                              owner.appleID) == .orderedSame else {
+                        return "host_managed_owner_mismatch"
+                    }
+                    return existing.isActive ? "already_managed" :
+                        "host_managed_record_inactive"
                 }
                 let ownerTeams = (try? context.fetch(Team.fetchRequest())) ?? []
                 guard let team = ownerTeams.first(where: {
@@ -257,7 +284,8 @@ final class ScarletGuestRefreshAgent: NSObject {
                         "host_identity_mismatch", "host_selected_team_mismatch",
                         "host_selected_team_certificate_missing",
                         "host_payload_cache_unavailable", "host_cached_bundle_mismatch",
-                        "host_team_record_missing", "host_registration_failed"
+                        "host_team_record_missing", "host_registration_failed",
+                        "host_managed_owner_mismatch", "host_managed_record_inactive"
                     ]
                     // SideInstaller's account switch affects future signings,
                     // not the host's already-installed signed Team. On B,
@@ -553,6 +581,22 @@ extension ScarletGuestRefreshAgent {
 
     @objc static func performHostBundle(_ hostBundlePath: String,
                                        reply: @escaping (Bool, String) -> Void) {
+        performSelectedHostBundle(hostBundlePath, manual: false, reply: reply)
+    }
+
+    // P105: Explicit user renewal is NOT the upstream background operation:
+    // BackgroundRefreshAppsOperation deliberately skips RUNNING apps and
+    // therefore skips the foreground Scarlet host. Keep that behavior for
+    // automatic BG renewal, but use upstream AppManager.refresh for the
+    // user-tapped action. Both paths still require exact Apple ID + Team,
+    // an owned signing key, an actual InstalledApp, and live pairing.
+    @objc static func performManualHostBundle(_ hostBundlePath: String,
+                                       reply: @escaping (Bool, String) -> Void) {
+        performSelectedHostBundle(hostBundlePath, manual: true, reply: reply)
+    }
+
+    private static func performSelectedHostBundle(_ hostBundlePath: String,
+                       manual: Bool, reply: @escaping (Bool, String) -> Void) {
         Task {
             let gate = ScarletGuestNativeRefreshGate.shared
             guard await gate.claim() else {
@@ -617,18 +661,30 @@ extension ScarletGuestRefreshAgent {
                 // Original SideStore refresh operation, not an AppIntent
                 // proxy and not a fake successful "request accepted" flag.
                 stage = "refresh"
-                let results: [String: Result<InstalledApp, Error>] =
-                    try await withCheckedThrowingContinuation { continuation in
-                    do {
-                        let operation = try AppManager.shared.backgroundRefresh(
-                            targets, presentsNotifications: false
-                        ) { result in
-                            continuation.resume(with: result)
+                let results: [String: Result<InstalledApp, Error>]
+                if manual {
+                    // Original SideStore interactive pipeline; never fake
+                    // successful refresh by bypassing its signing/installer.
+                    // The BACKGROUND operation suppresses the foreground host.
+                    results = await withCheckedContinuation { continuation in
+                        let group = AppManager.shared.refresh(
+                            targets, presentingViewController: nil)
+                        group.completionHandler = { result in
+                            continuation.resume(returning: result)
                         }
-                        operation.ignoresServerNotFoundError = false
-                    } catch {
-                        // Preserve the actual synchronous dispatch error.
-                        continuation.resume(throwing: error)
+                    }
+                } else {
+                    results = try await withCheckedThrowingContinuation { continuation in
+                        do {
+                            let operation = try AppManager.shared.backgroundRefresh(
+                                targets, presentsNotifications: false
+                            ) { result in
+                                continuation.resume(with: result)
+                            }
+                            operation.ignoresServerNotFoundError = false
+                        } catch {
+                            continuation.resume(throwing: error)
+                        }
                     }
                 }
                 for (_, result) in results {

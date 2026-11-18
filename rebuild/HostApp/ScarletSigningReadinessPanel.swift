@@ -240,7 +240,7 @@ struct ScarletSigningReadinessPanel: View {
                 // Native upstream action; do not navigate to the guest SideStore.
                 // It can refresh registered apps, but must not be taken as proof
                 // this Scarlet host was re-signed and reinstalled.
-                let receipt = try await ScarletNativeRefreshExecutor.execute()
+                let receipt = try await ScarletNativeRefreshExecutor.execute(manual: true)
                 ScarletDiagnosticRecorder.shared.record(
                     "refresh", "native_worker_operation_returned",
                     status: "info",

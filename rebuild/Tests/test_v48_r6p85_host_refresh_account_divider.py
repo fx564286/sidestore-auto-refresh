@@ -11,7 +11,9 @@ WF=(R.parent/'.github/workflows/scarlet-paired-engines-build.yml').read_text()
 class P85OriginPathAndSettings(unittest.TestCase):
  def test_host_origin_bundled_path_passed_to_both_workers(self):
   self.assertIn('client.scarletRefreshReadiness(Bundle.main.bundleURL.path)',A)
-  self.assertIn('client.scarletPerformNativeRefresh(Bundle.main.bundleURL.path)',A)
+  self.assertIn('client.scarletPerformNativeRefresh(',A)
+  self.assertIn('client.scarletPerformManualNativeRefresh(',A)
+  self.assertIn('Bundle.main.bundleURL.path, reply: finished',A)
   for x in ('scarletRefreshReadiness:(NSString*)hostBundlePath reply:',
             'scarletPerformNativeRefresh:(NSString*)hostBundlePath reply:',
             'inspectHostBundle:reply:', 'performHostBundle:reply:'):

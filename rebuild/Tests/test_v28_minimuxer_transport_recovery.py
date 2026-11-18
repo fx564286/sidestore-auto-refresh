@@ -62,7 +62,7 @@ class NativeDeviceTransportRecovery(unittest.TestCase):
         self.assertIn('native_operation_returned_unverified',AGENT)
         self.assertIn('native_operation_returned_unverified_transport_recovered',XPC)
         self.assertIn('let receipt = try await ScarletNativeRefreshExecutor.execute()',AUTO)
-        self.assertIn('let receipt = try await ScarletNativeRefreshExecutor.execute()',MANUAL)
+        self.assertIn('let receipt = try await ScarletNativeRefreshExecutor.execute(manual: true)',MANUAL)
         self.assertIn('installation_verified": "false"',AUTO)
         self.assertIn('installation_verified": "false"',MANUAL)
         self.assertNotIn('replaceItemAt(',AGENT)

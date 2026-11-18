@@ -389,6 +389,7 @@ public enum ScarletNativeRefreshInspector {
                     "host_selected_team_certificate_missing",
                     "host_payload_cache_unavailable", "host_cached_bundle_mismatch",
                     "host_team_record_missing",
+                    "host_managed_owner_mismatch", "host_managed_record_inactive",
                     "sidestore_certificate_missing", "selected_team_certificate_missing",
                     "sidestore_database_unavailable",
                     "refresh_worker_missing"
@@ -485,7 +486,7 @@ private final class ScarletRefreshExecutionGate: @unchecked Sendable {
 @available(iOS 17.0, *)
 @MainActor
 public enum ScarletNativeRefreshExecutor {
-    public static func execute() async throws -> String {
+    public static func execute(manual: Bool = false) async throws -> String {
         do {
             try await ScarletNativeAuthTransport.shared.prepare()
         } catch {
@@ -503,8 +504,15 @@ public enum ScarletNativeRefreshExecutor {
             DispatchQueue.main.asyncAfter(deadline: .now() + 600) {
                 gate.finish(false, "worker_unresponsive")
             }
-            client.scarletPerformNativeRefresh(Bundle.main.bundleURL.path) { completed, reason in
+            let finished: (Bool, String?) -> Void = { completed, reason in
                 gate.finish(completed, reason ?? "sidestore_native_operation_failed")
+            }
+            if manual {
+                client.scarletPerformManualNativeRefresh(
+                    Bundle.main.bundleURL.path, reply: finished)
+            } else {
+                client.scarletPerformNativeRefresh(
+                    Bundle.main.bundleURL.path, reply: finished)
             }
         }
         let allowed: Set<String> = [

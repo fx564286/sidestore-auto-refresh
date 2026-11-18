@@ -63,7 +63,7 @@ class V24RegistrationGate(unittest.TestCase):
         self.assertIn('Label("지금 갱신"',PANEL)
         self.assertNotIn('Label("SideStore 수동 새로고침"',PANEL)
         self.assertLess(PANEL.index('guard nativeState.canRefreshSelectedTeam else {'),
-                        PANEL.index('ScarletNativeRefreshExecutor.execute()'))
+                        PANEL.index('ScarletNativeRefreshExecutor.execute(manual: true)'))
         self.assertIn('automatic_managed_apps_inspected',AUTO)
         self.assertIn('guard nativeState.canRefreshSelectedTeam else {',AUTO)
         self.assertLess(AUTO.index('guard nativeState.canRefreshSelectedTeam else {'),

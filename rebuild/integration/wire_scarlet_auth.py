@@ -42,6 +42,7 @@ def patch_livecontainer(engine: Path) -> None:
 - (void)scarletImportInstallCertificate:(NSData*)archive password:(NSString*)password teamID:(NSString*)teamID reply:(void (^)(BOOL ok, NSString *status))reply;
 - (void)scarletRefreshReadiness:(NSString*)hostBundlePath reply:(void (^)(NSInteger managedCount, BOOL hostManaged, BOOL signingReady, NSString *status))reply;
 - (void)scarletPerformNativeRefresh:(NSString*)hostBundlePath reply:(void (^)(BOOL operationReturned, NSString *status))reply;
+- (void)scarletPerformManualNativeRefresh:(NSString*)hostBundlePath reply:(void (^)(BOOL operationReturned, NSString *status))reply;
 - (void)scarletInstallPairingRecord:(NSData*)record reply:(void (^)(BOOL verified, NSString *status))reply;
 - (void)scarletInspectDevicePairing:(void (^)(BOOL ready, NSString *status))reply;
 - (void)scarletManagedSlots:(void (^)(NSString *json, NSString *status))reply;
@@ -125,6 +126,18 @@ def patch_livecontainer(engine: Path) -> None:
     // host identity input now comes from original LC process, not guesswork.
     Class worker = NSClassFromString(@"ScarletGuestRefreshAgent");
     SEL selector = NSSelectorFromString(@"performHostBundle:reply:");
+    if (!worker || ![worker respondsToSelector:selector]) {
+        reply(NO, @"refresh_worker_missing");
+        return;
+    }
+    ((void (*)(id, SEL, id, id))objc_msgSend)(worker, selector,
+        hostBundlePath ?: @"", reply);
+}
+
+- (void)scarletPerformManualNativeRefresh:(NSString*)hostBundlePath
+                                     reply:(void (^)(BOOL, NSString *))reply {
+    Class worker = NSClassFromString(@"ScarletGuestRefreshAgent");
+    SEL selector = NSSelectorFromString(@"performManualHostBundle:reply:");
     if (!worker || ![worker respondsToSelector:selector]) {
         reply(NO, @"refresh_worker_missing");
         return;

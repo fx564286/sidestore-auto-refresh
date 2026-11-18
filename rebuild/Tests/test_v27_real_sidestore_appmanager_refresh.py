@@ -59,7 +59,7 @@ class V27InProcessRefresh(unittest.TestCase):
         self.assertIn('ScarletNativeRefreshFailure',XPC)
 
     def test_both_refresh_requests_use_same_worker(self):
-        self.assertIn('let receipt = try await ScarletNativeRefreshExecutor.execute()',MANUAL)
+        self.assertIn('let receipt = try await ScarletNativeRefreshExecutor.execute(manual: true)',MANUAL)
         self.assertIn('let receipt = try await ScarletNativeRefreshExecutor.execute()',AUTO)
         self.assertNotIn('RefreshAllAppsIntent().perform()',MANUAL)
         self.assertNotIn('RefreshAllAppsIntent().perform()',AUTO)
