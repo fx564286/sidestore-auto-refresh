@@ -21,6 +21,26 @@ private enum ScarletAccountTeamOwnershipCollision: Error {
     case teamIdentifier
 }
 
+// P112 native CI repair: upstream SideStore already derives app-group
+// entitlements from the exact Mach-O code bundle via Bundle.appGroups.
+// Unlike a selected Apple ID's IPA Team, the installed host/LiveProcess
+// group must be signed into THIS executable. Reject ambiguous group sets.
+private enum ScarletNativeSignedGroupPolicy {
+    static func resolve(for bundle: Bundle) -> (teamID: String, groupID: String)? {
+        let prefix = "group.com.SideStore.SideStore."
+        let candidates = bundle.appGroups.compactMap { group -> (String, String)? in
+            guard group.hasPrefix(prefix) else { return nil }
+            let team = String(group.dropFirst(prefix.count))
+            guard team.utf8.count == 10 && team.utf8.allSatisfy({
+                ($0 >= 65 && $0 <= 90) || ($0 >= 48 && $0 <= 57)
+            }) else { return nil }
+            return (team, group)
+        }
+        guard candidates.count == 1, let match = candidates.first else { return nil }
+        return (teamID: match.0, groupID: match.1)
+    }
+}
+
 @objc(ScarletGuestSignInAgent)
 final class ScarletGuestSignInAgent: NSObject {
     @MainActor private static var activeRequest: String?
@@ -51,18 +71,12 @@ final class ScarletGuestSignInAgent: NSObject {
               let dsid = AuthManager.shared.adsid else {
             return "sidestore_auth_missing"
         }
-        // Preserve the optional host-team guard using the actual code-signing
-        // entitlement. Normal multi-account install routes deliberately pass
-        // requireHostTeam: false; they must never inherit host team A.
-        let task = SecTaskCreateFromSelf(nil)
-        let signedHostTeamID = SecTaskCopyValueForEntitlement(
-            task, "com.apple.developer.team-identifier" as CFString, nil)?
-                .takeRetainedValue() as? String
-        let expectedTeamID = signedHostTeamID.flatMap { team -> String? in
-            team.utf8.count == 10 && team.utf8.allSatisfy({
-                ($0 >= 65 && $0 <= 90) || ($0 >= 48 && $0 <= 57)
-            }) ? team : nil
-        }
+        // P112 native: the pinned SideStore Bundle.appGroups inspects the
+        // signed executable's Mach-O. Swift SecTask symbols are unavailable
+        // in this iOS15 SideStore target (run 44280801752).
+        // Normal account install explicitly passes requireHostTeam=false.
+        let expectedTeamID = ScarletNativeSignedGroupPolicy.resolve(
+            for: Bundle(for: ScarletGuestSignInAgent.self))?.teamID
         if requireHostTeam && expectedTeamID == nil {
             return "sidestore_team_mismatch"
         }

@@ -1373,7 +1373,8 @@ struct ScarletIntegratedHostView: View {
                     return
                 }
                 try await ScarletDeviceInstaller.install(
-                    stagedIPA: staged, teamID: pinnedTeamID)
+                    stagedIPA: staged, teamID: pinnedTeamID,
+                    hostGroupID: groupID)
                 deviceInstallStatus = "설치 엔진 반환 · 실제 iPhone 설치 결과 확인 필요"
                 let finalStage = stageDefaults?.string(forKey: stageKey) ??
                     "stage_not_reported"

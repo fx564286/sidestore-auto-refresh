@@ -339,8 +339,18 @@ def patch_livecontainer(engine: Path) -> None:
         }
         NSString* requestID = [[NSUUID UUID] UUIDString];
         NSString* teamID = [identifier substringFromIndex:[@"scarlet.install.ipa." length]];
+        // Explicitly relay the host's signed group and the staged file,
+        // not only the selected IPA team. This is an authenticated XPC
+        // request; each field is independently validated by the worker.
+        NSString* rawStage = mangledTypeName ?: @"";
+        NSArray<NSString*>* parts = [rawStage componentsSeparatedByString:@"|"];
+        if (parts.count != 2) {
+            [handler.server finish:@"scarlet.install.invalid_request"];
+            return;
+        }
         NSDictionary* payload = @{@"requestID": requestID,
-                                  @"filename": mangledTypeName ?: @"",
+                                  @"hostGroupID": parts[0],
+                                  @"filename": parts[1],
                                   @"expectedTeamID": teamID};
         ((void (*)(id, SEL, id))objc_msgSend)(worker, @selector(install:), payload);
         return;
@@ -393,33 +403,27 @@ def patch_livecontainer(engine: Path) -> None:
     support_source = bridge.read_text()
     assert "scarlet.install.ipa" not in support_source, "Device installer already staged"
     support_source += """
-import Security
-
 @available(iOS 17.0, *)
 public enum ScarletDeviceInstaller {
-    public static func install(stagedIPA: URL, teamID: String) async throws {
+    public static func install(stagedIPA: URL, teamID: String,
+                               hostGroupID: String) async throws {
         guard teamID.utf8.count == 10 && teamID.allSatisfy({
             $0.isASCII && ($0.isUppercase || $0.isNumber)
         }) else { throw NSError(domain: "scarlet.install.invalid_team", code: 3) }
-        // Host XPC stage authority comes from THIS process' signed Team,
-        // not the selected Apple ID used to sign the target IPA.
-        let task = SecTaskCreateFromSelf(nil)
-        guard let signedTeam = SecTaskCopyValueForEntitlement(
-                task, "com.apple.developer.team-identifier" as CFString, nil)?
-                    .takeRetainedValue() as? String,
-              signedTeam.utf8.count == 10,
+        // The authenticated host has already read its signed Team and
+        // authorized group. Preserve that exact host-supplied IPC group;
+        // never confuse it with the target IPA's selected Apple Team.
+        let prefix = "group.com.SideStore.SideStore."
+        guard hostGroupID.hasPrefix(prefix) else {
+            throw NSError(domain: "scarlet.install.app_group_unavailable", code: 1)
+        }
+        let signedTeam = String(hostGroupID.dropFirst(prefix.count))
+        guard signedTeam.utf8.count == 10,
               signedTeam.utf8.allSatisfy({
                   ($0 >= 65 && $0 <= 90) || ($0 >= 48 && $0 <= 57)
               }),
-              let groups = SecTaskCopyValueForEntitlement(
-                task, "com.apple.security.application-groups" as CFString, nil)?
-                    .takeRetainedValue() as? [String] else {
-            throw NSError(domain: "scarlet.install.app_group_unavailable", code: 1)
-        }
-        let groupID = "group.com.SideStore.SideStore." + signedTeam
-        guard groups.contains(groupID),
               let root = FileManager.default.containerURL(
-                  forSecurityApplicationGroupIdentifier: groupID) else {
+                  forSecurityApplicationGroupIdentifier: hostGroupID) else {
             throw NSError(domain: "scarlet.install.app_group_unavailable", code: 1)
         }
         let allowed = root.appendingPathComponent("ScarletDeviceInstall",
@@ -432,7 +436,7 @@ public enum ScarletDeviceInstaller {
         }
         try await RefreshHandler.shared.startRefresh(
             identifier: "scarlet.install.ipa." + teamID,
-            mangledName: resolved.lastPathComponent)
+            mangledName: hostGroupID + "|" + resolved.lastPathComponent)
     }
 }
 """

@@ -3,25 +3,28 @@
 // This runs inside the pinned SideStore guest LiveProcess, NOT in a second UI.
 // Uses SideStore's ORIGINAL AppManager install/sign/provisioning pipeline.
 // No SideInstaller source code, binary or dependency is copied into Scarlet.
+// The host has independently verified the signed App Group. The IPC
+// request carries its group through the original authenticated LiveProcess
+// channel, and this worker checks that the group is actually accessible.
+// Keep progress writes pinned to this transaction, never global account B.
+private final class ScarletInstallStageGroup: @unchecked Sendable {
+    private let lock = NSLock()
+    private var value: String?
+    func set(_ groupID: String?) {
+        lock.lock()
+        value = groupID
+        lock.unlock()
+    }
+    func get() -> String? {
+        lock.lock()
+        defer { lock.unlock() }
+        return value
+    }
+}
+
 @objc(ScarletDeviceInstallAgent)
 final class ScarletDeviceInstallAgent: NSObject {
-    // This LiveProcess runs under the installed host's Apple-signed
-    // entitlements. Its IPC group is independent of the selected IPA's Team.
-    private static var groupID: String? {
-        let task = SecTaskCreateFromSelf(nil)
-        guard let team = SecTaskCopyValueForEntitlement(
-            task, "com.apple.developer.team-identifier" as CFString, nil)?
-                .takeRetainedValue() as? String,
-              team.utf8.count == 10,
-              team.utf8.allSatisfy({
-                  ($0 >= 65 && $0 <= 90) || ($0 >= 48 && $0 <= 57)
-              }),
-              let groups = SecTaskCopyValueForEntitlement(
-                  task, "com.apple.security.application-groups" as CFString, nil)?
-                .takeRetainedValue() as? [String] else { return nil }
-        let signedGroupID = "group.com.SideStore.SideStore." + team
-        return groups.contains(signedGroupID) ? signedGroupID : nil
-    }
+    private static let stageGroup = ScarletInstallStageGroup()
     private static let directory = "ScarletDeviceInstall"
     private static let stageKey = "Scarlet.Install.LastStage.V44"
     // The host can read only these generic stages from its SAME signed group.
@@ -34,7 +37,7 @@ final class ScarletDeviceInstallAgent: NSObject {
             "install_pipeline_returned", "appmanager_callback_returned"
         ]
         guard allowed.contains(stage) else { return }
-        guard let groupID else { return }
+        guard let groupID = stageGroup.get() else { return }
         UserDefaults(suiteName: groupID)?.set(stage, forKey: stageKey)
     }
 
@@ -46,6 +49,12 @@ final class ScarletDeviceInstallAgent: NSObject {
               expectedTeamID.utf8.count == 10,
               expectedTeamID.allSatisfy({
                   $0.isASCII && ($0.isUppercase || $0.isNumber)
+              }),
+              let hostGroupID = payload["hostGroupID"] as? String,
+              hostGroupID.hasPrefix("group.com.SideStore.SideStore."),
+              hostGroupID.count == "group.com.SideStore.SideStore.".count + 10,
+              hostGroupID.suffix(10).utf8.allSatisfy({
+                  ($0 >= 65 && $0 <= 90) || ($0 >= 48 && $0 <= 57)
               }),
               let filename = payload["filename"] as? String,
               filename.hasSuffix(".ipa"),
@@ -59,15 +68,17 @@ final class ScarletDeviceInstallAgent: NSObject {
                 notify("team_operation_in_progress"); return
             }
             defer { Task { await ScarletTeamOperationGate.shared.release() } }
+            // The gate excludes concurrent group scope changes.
+            stageGroup.set(hostGroupID)
+            defer { stageGroup.set(nil) }
             mark("request_received")
             do {
                 // The host and SideStore LiveProcess must possess the same
                 // Apple-authorized group. The staged file stays in its own
                 // dedicated folder; paths provided by third parties are never
                 // accepted by this endpoint.
-                guard let groupID,
-                      let groupURL = FileManager.default.containerURL(
-                          forSecurityApplicationGroupIdentifier: groupID) else {
+                guard let groupURL = FileManager.default.containerURL(
+                          forSecurityApplicationGroupIdentifier: hostGroupID) else {
                     notify("app_group_unavailable")
                     return
                 }

@@ -26,17 +26,24 @@ def signed_host_group(team, groups):
 
 class NativeSignedHostIdentity(unittest.TestCase):
     def test_host_and_guest_stage_authorized_by_actual_signed_host_not_selected_ipa_team(self):
-        for src in (READINESS,WORKER,WIRE):
-            self.assertIn('SecTaskCopyValueForEntitlement(',src)
-            self.assertIn('"com.apple.developer.team-identifier" as CFString',src)
-            self.assertIn('"com.apple.security.application-groups" as CFString',src)
+        self.assertIn('SecTaskCopyValueForEntitlement(',READINESS)
+        self.assertIn('"com.apple.developer.team-identifier" as CFString',READINESS)
+        self.assertIn('"com.apple.security.application-groups" as CFString',READINESS)
         self.assertIn('ScarletSigningReadiness.authorizedSideStoreGroupID()',HOST)
         self.assertIn('let groupID = "group.com.SideStore.SideStore." + team',READINESS)
-        self.assertIn('let signedGroupID = "group.com.SideStore.SideStore." + team',WORKER)
-        self.assertIn('let groupID = "group.com.SideStore.SideStore." + signedTeam',WIRE)
         self.assertIn('groups.contains(groupID)',READINESS)
-        self.assertIn('groups.contains(signedGroupID)',WORKER)
-        self.assertIn('groups.contains(groupID)',WIRE)
+        self.assertIn('let hostGroupID = payload["hostGroupID"] as? String',WORKER)
+        self.assertIn('stageGroup.set(hostGroupID)',WORKER)
+        self.assertIn('forSecurityApplicationGroupIdentifier: hostGroupID',WORKER)
+        self.assertIn('NSString* rawStage = mangledTypeName ?: @"";',WIRE)
+        self.assertIn('@"hostGroupID": parts[0]',WIRE)
+        self.assertIn('mangledName: hostGroupID + "|" + resolved.lastPathComponent',WIRE)
+        self.assertIn('bundle.appGroups.compactMap',SIGNIN)
+        self.assertIn('let prefix = "group.com.SideStore.SideStore."',WIRE)
+        self.assertIn('hostGroupID.hasPrefix(prefix)',WIRE)
+        self.assertIn('hostGroupID: groupID',HOST)
+        self.assertIn('forSecurityApplicationGroupIdentifier: hostGroupID',WIRE)
+        self.assertNotIn('SecTaskCreateFromSelf(',SIGNIN+WORKER+WIRE)
         self.assertNotIn('group.com.SideStore.SideStore.P8EZT3U5N4',HOST+WORKER+WIRE)
         self.assertIn('owner.teamID == expectedTeamID',WORKER)
         self.assertIn('activeAccounts[0].teamID == pinnedTeamID',HOST)
@@ -70,7 +77,7 @@ class NativeSignedHostIdentity(unittest.TestCase):
 
     def test_default_host_team_identity_is_actual_entitlement_when_required(self):
         self.assertNotIn('let expectedTeamID = "P8EZT3U5N4"',SIGNIN)
-        self.assertIn('let signedHostTeamID = SecTaskCopyValueForEntitlement(',SIGNIN)
+        self.assertIn('let expectedTeamID = ScarletNativeSignedGroupPolicy.resolve(',SIGNIN)
         self.assertIn('if requireHostTeam && team.identifier != expectedTeamID',SIGNIN)
         self.assertIn('.ensureActiveTeamForRefresh(requireHostTeam: false)',(
             R/'rebuild/integration/ScarletGuestSavedAccounts.swift.txt').read_text())
