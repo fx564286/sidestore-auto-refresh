@@ -51,6 +51,7 @@ OTHER_ALLOWED_METHODS = {
     # P107: preserve bounded native worker outcomes through the existing XPC
     # response state machine; this is not a new signing or layout method.
     "explicit_p12_import_owned_host_resign_transaction",
+    "native_host_resign_exact_owner_signer_transaction_pin",
     "native_refresh_xpc_result_fidelity",
     "strict_x509_host_profile_stale_signer_bridge_replacement",
 }
