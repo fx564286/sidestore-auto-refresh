@@ -34,6 +34,30 @@ struct ScarletSigningReadiness {
         sideStoreAppGroupEntitled && sideStoreAppGroupAccessible
     }
 
+    // P112: the host-to-LiveProcess IPA staging group belongs to the
+    // actually installed signed host, NOT the selected Apple ID for the IPA.
+    // Never stage into an old team's group after a host re-sign.
+    static func authorizedSideStoreGroupID() -> String? {
+        let task = SecTaskCreateFromSelf(nil)
+        guard let team = SecTaskCopyValueForEntitlement(
+            task, "com.apple.developer.team-identifier" as CFString, nil)?
+                .takeRetainedValue() as? String,
+              team.utf8.count == 10,
+              team.utf8.allSatisfy({
+                  ($0 >= 65 && $0 <= 90) || ($0 >= 48 && $0 <= 57)
+              }),
+              let groups = SecTaskCopyValueForEntitlement(
+                  task, "com.apple.security.application-groups" as CFString, nil)?
+                .takeRetainedValue() as? [String] else { return nil }
+        let groupID = "group.com.SideStore.SideStore." + team
+        guard groups.contains(groupID),
+              FileManager.default.containerURL(
+                  forSecurityApplicationGroupIdentifier: groupID) != nil else {
+            return nil
+        }
+        return groupID
+    }
+
     static func inspect() -> ScarletSigningReadiness {
         let task = SecTaskCreateFromSelf(nil)
         let team = SecTaskCopyValueForEntitlement(

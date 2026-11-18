@@ -1317,8 +1317,8 @@ struct ScarletIntegratedHostView: View {
                     status: "blocked", fields: ["reason": "auth_unavailable"])
                 return
             }
-            let groupID = "group.com.SideStore.SideStore.P8EZT3U5N4"
-            guard let containerURL = FileManager.default.containerURL(
+            guard let groupID = ScarletSigningReadiness.authorizedSideStoreGroupID(),
+                  let containerURL = FileManager.default.containerURL(
                       forSecurityApplicationGroupIdentifier: groupID) else {
                 deviceInstallStatus = "App Group 저장소에 접근할 수 없습니다."
                 ScarletDiagnosticRecorder.shared.record("sidestore", "install_blocked",

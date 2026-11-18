@@ -34,7 +34,9 @@ class RealSignInSessionAndSignedIdentifierTests(unittest.TestCase):
     def test_bg_task_id_tracks_exact_installed_signed_bundle(self):
         for src,ending in [(AUTO,'.refresh'),(PAIR,'.pairing')]:
             self.assertIn('Bundle.main.bundleIdentifier ?? original',src)
-            self.assertIn('actual == original + ".P8EZT3U5N4"',src)
+            self.assertIn('let signedHost = ScarletSigningReadiness.inspect()',src)
+            self.assertIn('signedHost.signedApplicationIdentifierMatches',src)
+            self.assertNotIn('actual == original + ".P8EZT3U5N4"',src)
             self.assertIn('return actual + "'+ending+'"',src)
             self.assertIn('return original + "'+ending+'"',src)
     def test_both_known_permitted_bundle_id_variants_declared(self):

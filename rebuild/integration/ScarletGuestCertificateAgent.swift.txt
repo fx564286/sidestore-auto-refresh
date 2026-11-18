@@ -1,7 +1,7 @@
 
 // Explicit user-requested certificate resolution in the pinned SideStore
-// LiveProcess. Uses the *existing* authenticated SideSign portal and original
-// CertificateProvisioningFlow. No silent revocation, new account, or deep link.
+// LiveProcess. Uses the selected Apple ID's verified Team and native
+// account-pinned signing authority. No revocation, new account, or deep link.
 // The private key stays in memory until the existing authenticated XPC
 // connection returns it to the host; the host verifies the Apple team before
 // changing its existing LC signing certificate.
@@ -20,87 +20,46 @@ final class ScarletGuestCertificateAgent: NSObject {
             }
             busy = true
             defer { busy = false }
-            do {
-                guard ScarletGuestSignInAgent.persistedState() else {
-                    report(requestID, code: -5202, domain: "scarlet.certificate.login_required")
-                    return
-                }
-                // Headless login stores Apple tokens but may not persist the
-                // SideStore-specific activeTeam record. Resolve the team from
-                // the real authenticated Apple portal instead of guessing.
-                let team: ALTTeam
-                if let stored = try? await AuthManager.shared.getAuthenticatedTeam(),
-                   stored.identifier == "P8EZT3U5N4" {
-                    team = stored
-                } else {
-                    guard let email = AuthManager.shared.currentAppleID,
-                          let dsid = AuthManager.shared.adsid else {
-                        report(requestID, code: -5205,
-                               domain: "scarlet.certificate.saved_account_unavailable")
-                        return
-                    }
-                    let account = ALTAccount(appleID: email, identifier: dsid)
-                    let portalTeams = try await DeveloperPortalProxy.shared.fetchTeams(
-                        for: account)
-                    guard let matched = portalTeams.first(where: {
-                        $0.identifier == "P8EZT3U5N4"
-                    }) else {
-                        report(requestID, code: -5203,
-                               domain: "scarlet.certificate.team_mismatch")
-                        return
-                    }
-                    team = matched
-                }
-                guard team.identifier == "P8EZT3U5N4" else {
-                    report(requestID, code: -5203, domain: "scarlet.certificate.team_mismatch")
-                    return
-                }
-                // nil handler NEVER auto-revokes an existing Apple certificate.
-                // A free account may already have its one allowed certificate;
-                // upstream then reuses its verified private key or Apple's
-                // portal returns a quota error without revoking anything.
-                let oldActiveSerial = CertificateManager.shared.activeCertificate?.serialNumber
-                // Before-resolution portal snapshot distinguishes a newly
-                // issued certificate from an existing, signable P12.
-                // Failed snapshot -> unknown, never claim new issuance.
-                let portalBefore = try? await DeveloperPortalProxy.shared.fetchCertificates(team: team)
-                let oldPortalSerials = portalBefore.map {
-                    Set($0.map { $0.serialNumber.lowercased() })
-                }
-                let flow = CertificateProvisioningFlow(handler: nil)
-                guard let issued = try await flow.resolveCertificate(for: team),
-                      let active = CertificateManager.shared.activeCertificate,
-                      active.serialNumber == issued.serialNumber,
-                      active.p12Data.count > 0, active.p12Data.count <= 64 * 1024 else {
-                    report(requestID, code: -5204, domain: "scarlet.certificate.unavailable")
-                    return
-                }
-                let resolvedSerial = issued.serialNumber.lowercased()
-                let portalVerified = flow.portalCertificates?.contains(where: {
-                    $0.serialNumber.lowercased() == resolvedSerial
-                }) ?? false
-                let origin: String
-                if portalVerified, let previous = oldPortalSerials,
-                   !previous.contains(resolvedSerial) {
-                    origin = "scarlet.cert.new_apple_portal"
-                } else if oldActiveSerial?.lowercased() == resolvedSerial {
-                    origin = "scarlet.cert.existing_active"
-                } else if portalVerified,
-                          oldPortalSerials?.contains(resolvedSerial) == true {
-                    origin = "scarlet.cert.existing_portal"
-                } else {
-                    origin = "scarlet.cert.unknown"
-                }
-                report(requestID, code: 0, domain: origin,
-                       archive: active.p12Data, password: active.password ?? "")
-            } catch {
-                let ns = error as NSError
-                // Error category only. Never cross the XPC/log boundary with
-                // Apple's raw response, account, certificate serial or key.
-                report(requestID,
-                       code: ns.code == 0 ? -5299 : ns.code,
-                       domain: "scarlet.certificate.portal_error")
+            // The original V6 certificate worker was pinned to the host's
+            // first Team. Route this legacy endpoint through the SAME
+            // Apple-ID+Team vault as the current native P98 issuer.
+            // The chosen IPA signing Team is independent of host entitlements.
+            guard ScarletGuestSignInAgent.persistedState(),
+                  let selected = await ScarletInstallTeamAuthority.activeOwnership()
+            else {
+                report(requestID, code: -5205,
+                       domain: "scarlet.certificate.selected_owner_unavailable")
+                return
             }
+            let status = await ScarletInstallTeamAuthority.issue(
+                teamID: selected.teamID, forceNew: false)
+            guard status == "ready_existing_portal" ||
+                  status == "ready_issued_apple" else {
+                report(requestID, code: -5204,
+                       domain: "scarlet.certificate.selected_team_unavailable")
+                return
+            }
+            guard let ownerNow = await ScarletInstallTeamAuthority.activeOwnership(),
+                  ownerNow.appleID == selected.appleID,
+                  ownerNow.teamID == selected.teamID,
+                  await ScarletInstallTeamAuthority.prepare(
+                      teamID: selected.teamID) == "ready",
+                  let pinnedSerial = ScarletInstallTeamAuthority
+                      .activeSelectedSignerSerial(
+                          appleID: selected.appleID, teamID: selected.teamID),
+                  let active = CertificateManager.shared.activeCertificate,
+                  active.serialNumber.lowercased() == pinnedSerial,
+                  !active.p12Data.isEmpty,
+                  active.p12Data.count <= 64 * 1024 else {
+                report(requestID, code: -5204,
+                       domain: "scarlet.certificate.selected_signer_unverified")
+                return
+            }
+            let origin = status == "ready_issued_apple"
+                ? "scarlet.cert.new_apple_portal"
+                : "scarlet.cert.existing_portal"
+            report(requestID, code: 0, domain: origin,
+                   archive: active.p12Data, password: active.password ?? "")
         }
     }
 
@@ -115,16 +74,17 @@ final class ScarletGuestCertificateAgent: NSObject {
         guard let requestID = payload["requestID"] as? String,
               !requestID.isEmpty else { return }
         Task { @MainActor in
-            guard ScarletGuestSignInAgent.persistedState() else {
-                report(requestID, code: -5301,
-                       domain: "scarlet.certificate.login_required")
-                return
-            }
-            guard let active = CertificateManager.shared.activeCertificate,
+            guard let owner = await ScarletInstallTeamAuthority.activeOwnership(),
+                  await ScarletInstallTeamAuthority.prepare(
+                      teamID: owner.teamID) == "ready",
+                  let pinned = ScarletInstallTeamAuthority.activeSelectedSignerSerial(
+                      appleID: owner.appleID, teamID: owner.teamID),
+                  let active = CertificateManager.shared.activeCertificate,
+                  active.serialNumber.lowercased() == pinned,
                   !active.p12Data.isEmpty,
                   active.p12Data.count <= 64 * 1024 else {
                 report(requestID, code: -5302,
-                       domain: "scarlet.certificate.stored_p12_missing")
+                       domain: "scarlet.certificate.selected_p12_missing")
                 return
             }
             report(requestID, code: 0, domain: "scarlet.cert.existing_stored",

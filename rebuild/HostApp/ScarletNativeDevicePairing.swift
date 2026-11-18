@@ -16,7 +16,9 @@ final class ScarletDevicePairingModel: NSObject, ObservableObject, @preconcurren
     static var taskIdentifier: String {
         let original = "com.kdt.livecontainer.P8EZT3U5N4"
         let actual = Bundle.main.bundleIdentifier ?? original
-        guard actual == original || actual == original + ".P8EZT3U5N4" else {
+        let signedHost = ScarletSigningReadiness.inspect()
+        guard signedHost.actualHostIdentity &&
+              signedHost.signedApplicationIdentifierMatches else {
             return original + ".pairing"
         }
         return actual + ".pairing"

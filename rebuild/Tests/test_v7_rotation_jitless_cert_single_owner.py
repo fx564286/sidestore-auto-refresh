@@ -51,14 +51,15 @@ class V7SafetyContracts(unittest.TestCase):
         self.assertIn('Label("P12 파일 선택"',PANEL)
 
     def test_cert_origin_categorized_without_private_key_in_logs(self):
-        for x in ("oldPortalSerials","oldActiveSerial",
-                  "DeveloperPortalProxy.shared.fetchCertificates",
+        for x in ("ScarletInstallTeamAuthority.activeOwnership()",
+                  "ScarletInstallTeamAuthority.issue(",
+                  "ScarletInstallTeamAuthority.activeSelectedSignerSerial(",
                   "scarlet.cert.new_apple_portal",
-                  "scarlet.cert.existing_active",
                   "scarlet.cert.existing_portal",
                   "scarlet.cert.existing_stored",
-                  "portalVerified"):
+                  "selected_signer_unverified"):
             self.assertIn(x,WORKER)
+        self.assertNotIn('stored.identifier == "P8EZT3U5N4"', WORKER)
         self.assertIn("lastResolution",TRANSPORT)
         self.assertIn('"certificate", "provider_origin_checked"',PANEL)
         self.assertIn('"source"',RECORDER)

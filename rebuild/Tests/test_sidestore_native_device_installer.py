@@ -25,10 +25,15 @@ class NativeDeviceInstallerContract(unittest.TestCase):
         self.assertIn('prepareDeviceIPAInstall(selected)',HOST)
 
     def test_same_group_and_staging_contract(self):
-        group='group.com.SideStore.SideStore.P8EZT3U5N4'
-        self.assertIn(group,HOST)
-        self.assertIn(group,WORKER)
-        self.assertIn(group,WIRE)
+        group='group.com.SideStore.SideStore.'
+        self.assertIn('ScarletSigningReadiness.authorizedSideStoreGroupID()',HOST)
+        self.assertIn('SecTaskCopyValueForEntitlement(',WORKER)
+        self.assertIn('SecTaskCopyValueForEntitlement(',WIRE)
+        self.assertIn(group+'" + team',WORKER)
+        self.assertIn(group+'" + signedTeam',WIRE)
+        self.assertIn('groups.contains(signedGroupID)',WORKER)
+        self.assertIn('groups.contains(groupID)',WIRE)
+        self.assertNotIn(group+'P8EZT3U5N4',HOST+WORKER+WIRE)
         self.assertIn('ScarletDeviceInstall',WORKER)
         self.assertIn('ScarletDeviceInstall',HOST)
         self.assertIn('stagedIPA.standardizedFileURL.resolvingSymlinksInPath()',WIRE)

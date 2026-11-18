@@ -35,14 +35,15 @@ class InAppCertAndGlassContracts(unittest.TestCase):
         self.assertLess(i,j)
 
     def test_worker_uses_authorized_original_provisioning_no_revoke(self):
-        for fragment in ("CertificateProvisioningFlow(handler: nil)",
-                         "AuthManager.shared.getAuthenticatedTeam()",
-                         'team.identifier == "P8EZT3U5N4"',
+        for fragment in ("ScarletInstallTeamAuthority.activeOwnership()",
+                         "ScarletInstallTeamAuthority.issue(",
+                         "ScarletInstallTeamAuthority.prepare(",
+                         "ScarletInstallTeamAuthority.activeSelectedSignerSerial(",
                          "CertificateManager.shared.activeCertificate",
-                         "scarlet.certificate.portal_error"):
+                         "scarlet.certificate.selected_signer_unverified"):
             self.assertIn(fragment,WORKER)
-        self.assertIn("ALTAccount(appleID: email, identifier: dsid)",WORKER)
-        self.assertIn("DeveloperPortalProxy.shared.fetchTeams",WORKER)
+        self.assertNotIn('team.identifier == "P8EZT3U5N4"',WORKER)
+        self.assertNotIn('CertificateProvisioningFlow(handler: nil)',WORKER)
         self.assertNotIn('revokeCertificate(',WORKER)
         for fragment in ("scarletIssueCertificate", "scarletCertificateCompleted",
                          "ScarletGuestCertificateCompleted"):
@@ -52,7 +53,7 @@ class InAppCertAndGlassContracts(unittest.TestCase):
         self.assertIn("retrieveSideStoreCertificate()",SUPPORT)
         self.assertIn("@objc(retrieve:)",WORKER)
         self.assertIn("CertificateManager.shared.activeCertificate",WORKER)
-        self.assertIn('stored_p12_missing',WORKER)
+        self.assertIn('selected_p12_missing',WORKER)
         self.assertIn("CheckedContinuation<(Data, String), Error>",SUPPORT)
         self.assertNotIn("URLSession",SUPPORT)
         self.assertNotIn("base64EncodedString()",SUPPORT)

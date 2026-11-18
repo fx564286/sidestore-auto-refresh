@@ -19,7 +19,9 @@ BUILD = (ROOT.parent / ".github/workflows/scarlet-paired-engines-build.yml").rea
 
 class V30SideStoreTeamIntegration(unittest.TestCase):
     def test_actual_apple_account_team_verified_without_host_team_lock(self):
-        self.assertIn('let expectedTeamID = "P8EZT3U5N4"', SIGNIN)
+        self.assertIn('let signedHostTeamID = SecTaskCopyValueForEntitlement(', SIGNIN)
+        self.assertIn('let expectedTeamID = signedHostTeamID.flatMap', SIGNIN)
+        self.assertNotIn('let expectedTeamID = "P8EZT3U5N4"', SIGNIN)
         self.assertIn('DeveloperPortalProxy.shared.fetchTeams(', SIGNIN)
         self.assertIn('$0.identifier == expectedTeamID', SIGNIN)
         self.assertIn('}) ?? portalTeams.first else', SIGNIN)

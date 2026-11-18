@@ -393,14 +393,32 @@ def patch_livecontainer(engine: Path) -> None:
     support_source = bridge.read_text()
     assert "scarlet.install.ipa" not in support_source, "Device installer already staged"
     support_source += """
+import Security
+
 @available(iOS 17.0, *)
 public enum ScarletDeviceInstaller {
     public static func install(stagedIPA: URL, teamID: String) async throws {
         guard teamID.utf8.count == 10 && teamID.allSatisfy({
             $0.isASCII && ($0.isUppercase || $0.isNumber)
         }) else { throw NSError(domain: "scarlet.install.invalid_team", code: 3) }
-        let groupID = "group.com.SideStore.SideStore.P8EZT3U5N4"
-        guard let root = FileManager.default.containerURL(
+        // Host XPC stage authority comes from THIS process' signed Team,
+        // not the selected Apple ID used to sign the target IPA.
+        let task = SecTaskCreateFromSelf(nil)
+        guard let signedTeam = SecTaskCopyValueForEntitlement(
+                task, "com.apple.developer.team-identifier" as CFString, nil)?
+                    .takeRetainedValue() as? String,
+              signedTeam.utf8.count == 10,
+              signedTeam.utf8.allSatisfy({
+                  ($0 >= 65 && $0 <= 90) || ($0 >= 48 && $0 <= 57)
+              }),
+              let groups = SecTaskCopyValueForEntitlement(
+                task, "com.apple.security.application-groups" as CFString, nil)?
+                    .takeRetainedValue() as? [String] else {
+            throw NSError(domain: "scarlet.install.app_group_unavailable", code: 1)
+        }
+        let groupID = "group.com.SideStore.SideStore." + signedTeam
+        guard groups.contains(groupID),
+              let root = FileManager.default.containerURL(
                   forSecurityApplicationGroupIdentifier: groupID) else {
             throw NSError(domain: "scarlet.install.app_group_unavailable", code: 1)
         }
