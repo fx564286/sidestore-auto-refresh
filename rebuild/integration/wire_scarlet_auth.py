@@ -429,14 +429,23 @@ public enum ScarletDeviceInstaller {
         let allowed = root.appendingPathComponent("ScarletDeviceInstall",
                            isDirectory: true).standardizedFileURL
         let resolved = stagedIPA.standardizedFileURL.resolvingSymlinksInPath()
-        guard resolved.deletingLastPathComponent() == allowed,
+        let parent = resolved.deletingLastPathComponent()
+        let slot = parent.lastPathComponent
+        let isScoped = slot.utf8.count == 64 && slot.utf8.allSatisfy({
+            ($0 >= 48 && $0 <= 57) || ($0 >= 97 && $0 <= 102)
+        }) && parent.deletingLastPathComponent() ==
+            allowed.appendingPathComponent("accounts", isDirectory: true)
+        // R112 staged archives remain readable at the legacy directory;
+        // the embedded worker rechecks the selected account before opening.
+        guard (isScoped || parent == allowed),
               resolved.pathExtension.lowercased() == "ipa",
               FileManager.default.isReadableFile(atPath: resolved.path) else {
             throw NSError(domain: "scarlet.install.staged_ipa_invalid", code: 2)
         }
         try await RefreshHandler.shared.startRefresh(
             identifier: "scarlet.install.ipa." + teamID,
-            mangledName: hostGroupID + "|" + resolved.lastPathComponent)
+            mangledName: hostGroupID + "|" +
+                (isScoped ? slot + "/" : "") + resolved.lastPathComponent)
     }
 }
 """
@@ -516,19 +525,56 @@ public enum ScarletDeviceInstaller {
 
 
 def patch_idempotent_team_provisioning(source: str) -> str:
-    """Do not append a signing team twice to an already suffixed App ID.
+    """Preserve installed identity and prevent duplicate Team suffixes.
 
-    Preserve upstream's preferred installed bundle-ID branch: existing
-    deployed app IDs remain unchanged so iOS can update them in place.
-    For a different selected Team, append the new team once as SideStore does.
+    R112 has real installed identifiers, including legacy duplicate suffixes.
+    Existing installs MUST retain their exact deployed identifier; only a
+    NEW registration can safely remove repeated suffixes. Preferred lookup
+    must not select another Apple ID just because both share a developer Team.
     """
     old = ('        } else if self.context.appendTeamID {\n'
            '            parentID = "\\(self.context.targetBundleIdentifier).\\(team.identifier)"\n')
     new = ('        } else if self.context.appendTeamID {\n'
-           '            let selectedSuffix = "." + team.identifier\n'
-           '            let originalBundleID = self.context.targetBundleIdentifier\n'
-           '            parentID = originalBundleID.hasSuffix(selectedSuffix) ? originalBundleID : originalBundleID + selectedSuffix\n')
-    return replace_one(source, old, new, "duplicate signed-team bundle suffix")
+           '            let teamSuffix = "." + team.identifier\n'
+           '            var normalized = self.context.targetBundleIdentifier\n'
+           '            while normalized.hasSuffix(teamSuffix + teamSuffix) {\n'
+           '                normalized.removeLast(teamSuffix.count)\n'
+           '            }\n'
+           '            parentID = normalized.hasSuffix(teamSuffix) ? normalized : normalized + teamSuffix\n')
+    source = replace_one(source, old, new, 'R114 idempotent Team suffix')
+    old_owner = ('            guard let installedApp = InstalledApp.first(satisfying: predicate, in: context) else {\n'
+                 '                self.verboseLog("[FetchProvisioningProfiles] No existing InstalledApp found for target: \\(target)")\n'
+                 '                return nil\n'
+                 '            }')
+    new_owner = ('            let candidates = (try? context.fetch(\n'
+                 '                InstalledApp.fetchRequest() as NSFetchRequest<InstalledApp>)) ?? []\n'
+                 '            guard let installedApp = candidates.first(where: {\n'
+                 '                ($0.customBundleIdentifier == target ||\n'
+                 '                 $0.resignedBundleIdentifier == target) &&\n'
+                 '                $0.team?.identifier == team.identifier &&\n'
+                 '                $0.team?.account?.isActiveAccount == true\n'
+                 '            }) else { return nil }')
+    source = replace_one(source, old_owner, new_owner,
+                         'R114 account-owned preferred installed ID')
+    old_match = ('            let teamsMatch = (installedApp.team?.identifier == team.identifier || installedApp.team == nil)\n'
+                 '                             && installedApp.resignedBundleIdentifier.contains(team.identifier)')
+    new_match = ('            let teamsMatch = installedApp.team?.identifier == team.identifier &&\n'
+                 '                installedApp.team?.account?.isActiveAccount == true &&\n'
+                 '                !installedApp.resignedBundleIdentifier.isEmpty')
+    source = replace_one(source, old_match, new_match,
+                         'R114 exact Team and active Apple ID ownership')
+    download = ('        let profile = try await DeveloperPortalProxy.shared.downloadProvisioningProfile('
+                'for: groupAppID, deviceType: DeveloperPortalProxy.currentDeviceType, team: team)')
+    verify = download + ('\n        // Reject a profile whose signed application ID differs from the target.\n'
+                         '        guard profile.bundleIdentifier == bundleID,\n'
+                         '              (profile.entitlements["application-identifier"] as? String) ==\n'
+                         '                  team.identifier + "." + bundleID else {\n'
+                         '            throw OperationError.invalidApp(\n'
+                         '                reason: "Signed bundle and downloaded profile identifier mismatch")\n'
+                         '        }')
+    source = replace_one(source, download, verify,
+                         'R114 provisioning profile matches main and extension ID')
+    return source
 
 
 def patch_sidestore(engine: Path) -> None:
@@ -577,7 +623,7 @@ def patch_sidestore(engine: Path) -> None:
     # Scarlet's injected RPPairing route calls the public Minimuxer types.
     # The original AuthManager file imported only SideSign/CoreData.
     source = replace_one(source, "import CoreData\n",
-                         "import CoreData\nimport Security\nimport Minimuxer\nimport MinimuxerCommon\n",
+                         "import CoreData\nimport Security\nimport CryptoKit\nimport Minimuxer\nimport MinimuxerCommon\n",
                          "V44 native RPPairing import")
     original = "            let anisetteData = try await AnisetteProvider.fetch()"
     assert source.count(original) == 1, "Pinned SideStore token restoration changed"

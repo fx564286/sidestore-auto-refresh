@@ -9,13 +9,15 @@
 // Keep progress writes pinned to this transaction, never global account B.
 private final class ScarletInstallStageGroup: @unchecked Sendable {
     private let lock = NSLock()
-    private var value: String?
-    func set(_ groupID: String?) {
+    private var value: (groupID: String, ownerScope: String)?
+    func set(_ groupID: String?, ownerScope: String? = nil) {
         lock.lock()
-        value = groupID
+        if let groupID, let ownerScope {
+            value = (groupID: groupID, ownerScope: ownerScope)
+        } else { value = nil }
         lock.unlock()
     }
-    func get() -> String? {
+    func get() -> (groupID: String, ownerScope: String)? {
         lock.lock()
         defer { lock.unlock() }
         return value
@@ -37,8 +39,9 @@ final class ScarletDeviceInstallAgent: NSObject {
             "install_pipeline_returned", "appmanager_callback_returned"
         ]
         guard allowed.contains(stage) else { return }
-        guard let groupID = stageGroup.get() else { return }
-        UserDefaults(suiteName: groupID)?.set(stage, forKey: stageKey)
+        guard let state = stageGroup.get() else { return }
+        UserDefaults(suiteName: state.groupID)?.set(
+            stage, forKey: stageKey + "." + state.ownerScope)
     }
 
     @objc(install:)
@@ -57,9 +60,11 @@ final class ScarletDeviceInstallAgent: NSObject {
                   ($0 >= 65 && $0 <= 90) || ($0 >= 48 && $0 <= 57)
               }),
               let filename = payload["filename"] as? String,
-              filename.hasSuffix(".ipa"),
-              filename == URL(fileURLWithPath: filename).lastPathComponent,
-              !filename.contains("..") else {
+              filename.hasSuffix(".ipa"), !filename.contains(".."),
+              !filename.hasPrefix("/"),
+              !filename.contains("\\"),
+              (filename.split(separator: "/", omittingEmptySubsequences: false).count == 1 ||
+               filename.split(separator: "/", omittingEmptySubsequences: false).count == 2) else {
             notify("invalid_request")
             return
         }
@@ -68,10 +73,8 @@ final class ScarletDeviceInstallAgent: NSObject {
                 notify("team_operation_in_progress"); return
             }
             defer { Task { await ScarletTeamOperationGate.shared.release() } }
-            // The gate excludes concurrent group scope changes.
-            stageGroup.set(hostGroupID)
-            defer { stageGroup.set(nil) }
-            mark("request_received")
+            // The shared group is a signed HOST entitlement. Account
+            // ownership is checked separately before any staged IPA is read.
             do {
                 // The host and SideStore LiveProcess must possess the same
                 // Apple-authorized group. The staged file stays in its own
@@ -82,19 +85,43 @@ final class ScarletDeviceInstallAgent: NSObject {
                     notify("app_group_unavailable")
                     return
                 }
+                guard let owner = await ScarletInstallTeamAuthority.activeOwnership(),
+                      owner.teamID == expectedTeamID else {
+                    notify("selected_account_team_mismatch"); return
+                }
+                let scope = SHA256.hash(data: Data((
+                    owner.appleID.trimmingCharacters(in: .whitespacesAndNewlines)
+                        .lowercased() + "|" + owner.teamID).utf8))
+                    .map { String(format: "%02x", $0) }.joined()
+                let pieces = filename.split(separator: "/", omittingEmptySubsequences: false)
+                // Single-component names belong to the R112 legacy inbox;
+                // accept them only under the already verified active owner.
+                // Never MOVE or delete old items during an app update.
+                let legacy = pieces.count == 1
+                guard legacy || (pieces.count == 2 && String(pieces[0]) == scope) else {
+                    notify("staged_ipa_owner_mismatch"); return
+                }
                 let workDirectory = groupURL.appendingPathComponent(
-                    directory, isDirectory: true).standardizedFileURL
+                    legacy ? directory : directory + "/accounts/" + scope,
+                    isDirectory: true).standardizedFileURL
+                let stagedName = String(pieces.last ?? "")
+                guard stagedName == URL(fileURLWithPath: stagedName).lastPathComponent else {
+                    notify("staged_ipa_invalid"); return
+                }
                 let fileURL = workDirectory.appendingPathComponent(
-                    filename, isDirectory: false).standardizedFileURL
-                guard fileURL.deletingLastPathComponent() == workDirectory,
+                    stagedName, isDirectory: false).standardizedFileURL
+                guard fileURL.resolvingSymlinksInPath().deletingLastPathComponent() ==
+                          workDirectory.resolvingSymlinksInPath(),
                       fileURL.pathExtension.lowercased() == "ipa",
                       FileManager.default.isReadableFile(atPath: fileURL.path),
                       let fileSize = (try? fileURL.resourceValues(
                         forKeys: [.fileSizeKey])).flatMap({ $0.fileSize }),
                       fileSize > 100 else {
-                    notify("staged_ipa_missing")
-                    return
+                    notify("staged_ipa_missing"); return
                 }
+                stageGroup.set(hostGroupID, ownerScope: scope)
+                defer { stageGroup.set(nil) }
+                mark("request_received")
                 mark("ipa_staged")
                 // Free Personal Teams should reuse their EXISTING valid
                 // certificate. Never silently revoke/replace it just to
@@ -105,10 +132,6 @@ final class ScarletDeviceInstallAgent: NSObject {
                 // Pin BOTH the Apple ID and Team while the shared native
                 // active account is locked; a matching Team alone is not an
                 // authorization to install for another Apple account.
-                guard let owner = await ScarletInstallTeamAuthority.activeOwnership(),
-                      owner.teamID == expectedTeamID else {
-                    notify("selected_account_team_mismatch"); return
-                }
                 let teamState = await ScarletInstallTeamAuthority.prepare(
                     teamID: owner.teamID)
                 guard teamState == "ready" else {
