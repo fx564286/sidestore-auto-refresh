@@ -7753,6 +7753,73 @@
           "effect": "Existing now refresh button uses explicit manual native dispatch, retaining readback."
         }
       ]
+    },
+    {
+      "id": "L166",
+      "date": "2026-11-18",
+      "version": "P105-CI-compiled-XPC-selector-release-guard",
+      "problem": "p105_signed_unsigned_release_job_false_rejection_of_compiled_native_manual_refresh_due_swift_selector_string_assumption",
+      "mechanism": "compiled_xpc_owner_binary_gate_replaces_nonowner_swift_host_literal_and_corrects_embedded_python_linebreaks",
+      "incident_family": "p105_release_binary_contract_false_negative",
+      "strategy_family": "source_history_strict_strategy_gate",
+      "operation_fingerprint": "Replace only the release-validation demand for a duplicated Swift host ObjC selector literal with a compiled host UI receipt, retaining compiled actual SideStore worker and SideStoreSupport XPC selector checks; fix malformed literal newlines introduced in first CI repair.",
+      "source_behavior_contract": "Only the post-build release validation script changes. P105 native AppManager manual and background paths, Apple portal forced issuance, per-Apple-ID Team ownership, signer isolation, host UI, and installed app files are untouched; reject unsigned IPA as signed-install proof.",
+      "rollback_commit": "926f2548a3486bd0ea15a3e1cf82fb5dda29bc06",
+      "novelty": {
+        "causal_difference": "L165 P105 native manual refresh compiled successfully in both iOS engine jobs; release assertion assumed ObjC selector bytes must also appear in SwiftUI host, while actual protocol owns selector in SideStoreSupport; first correction accidentally embedded literal backslash-n inside YAML Python comment and subsequent correction restored actual line boundaries.",
+        "falsifiable_prediction": "Native paired engines and archive continue to pass; post-build binary audit finds P105 worker selector in SideStore, XPC selector in SideStoreSupport, and host UI receipt without requiring unrelated host duplicate selector, enabling actual release asset publication.",
+        "prior_excluded_ids": [
+          "L140",
+          "L165"
+        ]
+      },
+      "action": "Correct CI-only native binary contract and the emitted YAML Python comment formatting, preserving stronger worker/XPC markers and host UI evidence.",
+      "observation": "2026-11-18 Actions 44216005283: livecontainer/sidestore/package-paired passed; publish failed at P105 host manual native call missing. CI 44218009627 then failed both preflight jobs for source commit d706 unrecorded in append-only audit; L166 records both exact source commits.",
+      "device_verification": "device_unverified",
+      "status": "source_committed_ci_pending",
+      "repeat_policy": "Do not repeat the host Swift literal ObjC selector assertion; binary owner is SideStoreSupport. Any subsequent source edit must get a new audited source receipt and true native compile, not just source-string assertion.",
+      "source_verification": "git_patch_observed",
+      "source_revisions": [
+        {
+          "sha": "d70614d00ada8ccbafafd39869f52acab0c7711b",
+          "url": "https://github.com/fx564286/sidestore-auto-refresh/commit/d70614d00ada8ccbafafd39869f52acab0c7711b",
+          "title": "P105 CI actual XPC-selector binary ownership audit"
+        },
+        {
+          "sha": "520e1be8af0691ff2c856df1123f51ad459952a1",
+          "url": "https://github.com/fx564286/sidestore-auto-refresh/commit/520e1be8af0691ff2c856df1123f51ad459952a1",
+          "title": "P105 restore embedded Python comment newlines"
+        }
+      ],
+      "code_locations": [
+        {
+          "commit": "d70614d00ada8ccbafafd39869f52acab0c7711b",
+          "file": ".github/workflows/scarlet-paired-engines-build.yml",
+          "location": "@@ -575 +575 @@ jobs:",
+          "before": [
+            "                      assert b\"scarletPerformManualNativeRefresh\" in host_bin, \"P105 host manual native call missing\""
+          ],
+          "after": [
+            "                      # The @objc selector belongs to SideStoreSupport.framework. Swift may\\n                      # omit its duplicate spelling from LiveContainerSwiftUI.framework;\\n                      # requiring that duplicate falsely rejects a successful native build.\\n                      # Host dispatch is source-contract tested and native-compiled above.\\n                      assert b\"native_worker_operation_returned\" in host_bin, \"P105 host native refresh UI receipt missing\""
+          ]
+        },
+        {
+          "commit": "520e1be8af0691ff2c856df1123f51ad459952a1",
+          "file": ".github/workflows/scarlet-paired-engines-build.yml",
+          "location": "@@ -575 +575,5 @@ jobs:",
+          "before": [
+            "                      # The @objc selector belongs to SideStoreSupport.framework. Swift may\\n                      # omit its duplicate spelling from LiveContainerSwiftUI.framework;\\n                      # requiring that duplicate falsely rejects a successful native build.\\n                      # Host dispatch is source-contract tested and native-compiled above.\\n                      assert b\"native_worker_operation_returned\" in host_bin, \"P105 host native refresh UI receipt missing\""
+          ],
+          "after": [
+            "                      # The @objc selector belongs to SideStoreSupport.framework. Swift may",
+            "                      # omit its duplicate spelling from LiveContainerSwiftUI.framework;",
+            "                      # requiring that duplicate falsely rejects a successful native build.",
+            "                      # Host dispatch is source-contract tested and native-compiled above.",
+            "                      assert b\"native_worker_operation_returned\" in host_bin, \"P105 host native refresh UI receipt missing\""
+          ]
+        }
+      ],
+      "generated_runtime_targets": []
     }
   ]
 }
