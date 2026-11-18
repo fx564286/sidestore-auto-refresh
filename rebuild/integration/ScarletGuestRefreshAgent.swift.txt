@@ -797,8 +797,24 @@ extension ScarletGuestRefreshAgent {
                         guard teamState == "ready" else {
                             reply(false, teamState); return
                         }
+                        // The selected P12 must belong to the exact Apple ID,
+                        // not just the same team. P109 protected imported-P12
+                        // rotation, but manual zero-managed-host refresh lacked
+                        // that boundary entirely.
+                        guard let pinnedSerial = await ScarletInstallTeamAuthority
+                            .activeSelectedSignerSerial(appleID: selectedAppleID,
+                                                        teamID: selectedTeamID) else {
+                            reply(false, "selected_account_signer_changed"); return
+                        }
                         stage = "transport"
                         _ = try await ScarletGuestDeviceTransport.ensureReady()
+                        guard let signingOwner = await ScarletInstallTeamAuthority.activeOwnership(),
+                              signingOwner.appleID == selectedAppleID,
+                              signingOwner.teamID == selectedTeamID,
+                              await ScarletInstallTeamAuthority.activeSelectedSignerSerial(
+                                  appleID: selectedAppleID, teamID: selectedTeamID) == pinnedSerial else {
+                            reply(false, "selected_account_signer_changed"); return
+                        }
                         stage = "refresh"
                         let installed = try await withCheckedThrowingContinuation {
                             (continuation: CheckedContinuation<InstalledApp, Error>) in
@@ -845,9 +861,24 @@ extension ScarletGuestRefreshAgent {
                 // have skipped the SideStore UIApplication launch lifecycle.
                 // Restore only the original transport, then re-check its
                 // own preconditions. A failed check aborts before signing.
+                // Freeze the exact (Apple ID, Team, certificate serial) tuple
+                // before asynchronous device transport. A newly activated B
+                // account must not let A's pending refresh use B's global P12.
+                guard let pinnedSerial = await ScarletInstallTeamAuthority
+                    .activeSelectedSignerSerial(appleID: selectedAppleID,
+                                                teamID: selectedTeamID) else {
+                    reply(false, "selected_account_signer_changed"); return
+                }
                 stage = "transport"
                 let recoveredTransport = try await
                     ScarletGuestDeviceTransport.ensureReady()
+                guard let signingOwner = await ScarletInstallTeamAuthority.activeOwnership(),
+                      signingOwner.appleID == selectedAppleID,
+                      signingOwner.teamID == selectedTeamID,
+                      await ScarletInstallTeamAuthority.activeSelectedSignerSerial(
+                          appleID: selectedAppleID, teamID: selectedTeamID) == pinnedSerial else {
+                    reply(false, "selected_account_signer_changed"); return
+                }
                 // Original SideStore refresh operation, not an AppIntent
                 // proxy and not a fake successful "request accepted" flag.
                 stage = "refresh"

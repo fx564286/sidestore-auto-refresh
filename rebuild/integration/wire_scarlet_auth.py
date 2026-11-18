@@ -515,6 +515,22 @@ public enum ScarletDeviceInstaller {
 
 
 
+def patch_idempotent_team_provisioning(source: str) -> str:
+    """Do not append a signing team twice to an already suffixed App ID.
+
+    Preserve upstream's preferred installed bundle-ID branch: existing
+    deployed app IDs remain unchanged so iOS can update them in place.
+    For a different selected Team, append the new team once as SideStore does.
+    """
+    old = ('        } else if self.context.appendTeamID {\n'
+           '            parentID = "\\(self.context.targetBundleIdentifier).\\(team.identifier)"\n')
+    new = ('        } else if self.context.appendTeamID {\n'
+           '            let selectedSuffix = "." + team.identifier\n'
+           '            let originalBundleID = self.context.targetBundleIdentifier\n'
+           '            parentID = originalBundleID.hasSuffix(selectedSuffix) ? originalBundleID : originalBundleID + selectedSuffix\n')
+    return replace_one(source, old, new, "duplicate signed-team bundle suffix")
+
+
 def patch_sidestore(engine: Path) -> None:
     # SideStore's original self-registration returns immediately inside ALL
     # .appex processes. Scarlet intentionally runs SideStore headlessly in
@@ -540,6 +556,14 @@ def patch_sidestore(engine: Path) -> None:
         "signed LC host extension receipt for self registration")
     database.write_text(db)
     print("[PASS] Embedded SideStore LiveProcess may run original signed-host DB self registration")
+    # P113: the default Scarlet host ID already ends in the owner's Team.
+    # Original SideStore's appendTeamID otherwise generates host.Team.Team.
+    # Preserve preferredBundleID for already installed duplicate-ID hosts.
+    profile_file = (engine / "SideStore/Core/Operations/PipelineOperations/"
+                    "FetchProvisioningProfilesOperation.swift")
+    profile_source = profile_file.read_text()
+    profile_file.write_text(patch_idempotent_team_provisioning(profile_source))
+    print("[PASS] SideStore provisioning app ID keeps exactly one selected-team suffix")
     target = engine / "SideStore/Core/Auth/AuthManager.swift"
     assert target.is_file(), target
     source = target.read_text()
