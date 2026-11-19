@@ -1778,6 +1778,43 @@ def repair_resident_scene_containment(source: str) -> str:
     return source
 
 
+def repair_resident_scene_settings(source: str) -> str:
+    """Forward host changes without replacing settings owned by a resident scene."""
+    original = ("    UIMutableApplicationSceneSettings *baseSettings = "
+                "[diff settingsByApplyingToMutableCopyOfSettings:settings];")
+    if source.count(original) != 1:
+        raise ValueError("Pinned scene settings diff callback changed")
+    return source.replace(original, """    UIMutableApplicationSceneSettings *baseSettings;
+    if (self.scarletNativeFullscreenSlot) {
+        if (self.isAppTerminationCleanUpCalled || !scene ||
+            scene != self.viewIfLoaded.window.windowScene || !settings) return;
+
+        // The diff describes the host window. Only forward values that actually
+        // changed there, starting from this guest's current presentation state.
+        baseSettings = [self.presenter.scene.settings mutableCopy];
+        UIMutableApplicationSceneSettings *before = [settings mutableCopy];
+        UIMutableApplicationSceneSettings *after = [diff settingsByApplyingToMutableCopyOfSettings:settings];
+        if (!baseSettings || !before || !after) return;
+        if (before.foreground != after.foreground) {
+            baseSettings.foreground = after.foreground;
+        }
+        if (before.deactivationReasons != after.deactivationReasons) {
+            baseSettings.deactivationReasons = after.deactivationReasons;
+        }
+        if (before.interfaceOrientation != after.interfaceOrientation) {
+            baseSettings.interfaceOrientation = after.interfaceOrientation;
+        }
+        if (before.deviceOrientation != after.deviceOrientation) {
+            baseSettings.deviceOrientation = after.deviceOrientation;
+        }
+        if (before.userInterfaceStyle != after.userInterfaceStyle) {
+            baseSettings.userInterfaceStyle = after.userInterfaceStyle;
+        }
+    } else {
+        baseSettings = [diff settingsByApplyingToMutableCopyOfSettings:settings];
+    }""", 1)
+
+
 def add_v45_fullscreen_scene_slot(engine: Path) -> dict:
     """Create a single full-screen remote-scene viewport, never a fake LC window.
 
@@ -2031,6 +2068,7 @@ static UIEdgeInsets ScarletPilotHostInsets(UIWindowScene *scene,
     }
 """,1)
     a = repair_resident_scene_containment(a)
+    a = repair_resident_scene_settings(a)
 
     hook_file = engine / "MultitaskSupport/UIKitHooks.m"
     hooks = hook_file.read_text()
