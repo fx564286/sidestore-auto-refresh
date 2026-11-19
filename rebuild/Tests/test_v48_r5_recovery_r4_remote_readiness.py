@@ -18,7 +18,9 @@ class R4NativeSceneReady(unittest.TestCase):
                    'self.contentView.superview != self.view',
                    'self.view.window',
                    'self.presenter.scene',
-                   'self.hostingController.sceneViewController.view == self.contentView'):
+                   'child.parentViewController == self',
+                   'child == self.hostingController.sceneViewController',
+                   'child.viewIfLoaded == self.contentView'):
    self.assertIn(fragment,BRIDGE)
  def test_initial_foreground_single_write_after_real_attach(self):
   self.assertIn('- (BOOL)scarletEnsureRemoteForeground',BRIDGE)

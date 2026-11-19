@@ -11981,6 +11981,333 @@
       "observation": "R114 signed iPhone log recorded host_managed_owner_mismatch after A-B switch. P115 adds conditional source fix with four new source contract tests; Python full suite 984 tests OK with 4 skips. No claim that this signed-device runtime path was executed or that Apple portal code20, Dynamic Island overlap or visual statusbar were repaired.",
       "action": "Build on Xcode 27.2 GitHub Actions and test B signed host with B owned signer against stale singleton CoreData row. Verify AppManager refresh, strict owner failure paths, and A-B-A across active guest; separately investigate Apple portal code20 and guest Island via new scene creation root cause.",
       "repeat_policy": "No repeat of P84 blocked Island layout/statusbar/inset/masking methods. Do not label Python tests, native CI or unsigned IPA as signed-device success."
+    },
+    {
+      "id": "L182",
+      "date": "2026-11-20",
+      "version": "R6P116-resident-UIKit-child-containment",
+      "problem": "guest_top",
+      "mechanism": "complete_nested_resident_child_containment_before_scene_reveal_and_invalidate",
+      "incident_family": "island_content_collision",
+      "strategy_family": "guest_render_attachment_contract_repair",
+      "operation_fingerprint": "Parent both resident controllers before first loading their views, acknowledge the inner mounted child with UIKit didMoveToParentViewController, and revoke readiness before removing that exact owned child on exit.",
+      "source_behavior_contract": "Use public UIKit controller containment on the resident host main thread. An attached scene is render-ready only if it is the same mounted child whose didMove has completed. Keep the original nonresident and legacy setup and exit paths.",
+      "rollback_commit": "aeba51d5c8968608cc769ac624ee0857c04aa35d",
+      "novelty": {
+        "causal_difference": "L033 and L043 gated remote readiness or deferred the outer extension launch. Neither established the inner controller parent before first view access, completed its UIKit didMove callback, or detached it before host invalidation.",
+        "falsifiable_prediction": "The generated resident controller acquires its parent before first view access and reports ready only after didMove. If unsafe foreground controls persist when this contract holds on the signed same-device A/B run, the visual hypothesis is falsified.",
+        "prior_excluded_ids": [
+          "L024",
+          "L033",
+          "L042",
+          "L043",
+          "L100",
+          "L101",
+          "L138",
+          "L181"
+        ],
+        "why_prior_fix_failed": "Host and root already report the expected safe area while a guest still has interactive content at the top edge. Earlier owner-layout, status-bar and wait-for-surface changes cannot supply a missing UIViewController containment callback."
+      },
+      "normal_experimental_diff": {
+        "normal_mode_source": "ScarletIntegratedHostView.swift selects app.runApp(multitask: false) on iPhone. Pinned LiveContainer 9108ae624ea0 LCAppModel.runApp transfers to launchToGuestApp without the nested resident container.",
+        "resident_mode_source": "ScarletFullscreenSceneViewport.reconcile loads the outer view before adding the child. Pinned MultitaskSupport/AppSceneViewController.m setUpAppPresenter loads the inner controller view before parenting it and never calls didMoveToParentViewController after mounting.",
+        "proven_difference": "The normal phone launch uses the original process handoff. Only the resident render path requires this custom nested parent-child lifecycle; its previous receipt accepted a view/superview match without a completed child transition.",
+        "failure_causal_link": "The missing UIKit lifecycle notification is present in the render code and can affect initialization of a controller that depends on its installed owner. Existing device evidence establishes the residual collision, not that repairing containment eliminates it."
+      },
+      "alternative_strategies": [
+        {
+          "strategy_family": "guest_render_attachment_contract_repair",
+          "reason_not_selected": "Selected. The pinned modern presenter omits a required UIKit callback; source and signed-device criteria can test this independently of geometric policy. L033 observed attachment and L043 only parented the outer host before starting the extension."
+        },
+        {
+          "strategy_family": "original_vs_resident_creation_path_repair",
+          "reason_not_selected": "L042 already considered scene-manifest policies. Another correctly laid-out guest in this session has the same lack of a manifest, so changing manifests or launch policy has no discriminating support."
+        },
+        {
+          "strategy_family": "native_process_scene_ownership_contract_repair",
+          "reason_not_selected": "L024 addressed scene ownership. Existing receipts show multiple individually owned and attached remote processes with distinct outcomes, with no evidence of presenting the wrong process."
+        },
+        {
+          "strategy_family": "guest_original_layout_writer_root_cause_repair",
+          "reason_not_selected": "L100/L101 changed local layout writers. Neither the redacted samples nor the original host sources identify an erroneous application-specific writer whose contract can be safely replaced."
+        }
+      ],
+      "new_source_root_cause": "The resident UI can consider an onscreen view render-ready without ever calling didMoveToParentViewController on its nested scene controller. The pinned code also invalidates the hosting owner before looking up the child for removal.",
+      "runtime_acceptance_gate": "On the same signed iPhone and guest compare OFF/ON cold launch. Require no overlapping controls and visible native clock/battery, verify top-control hit testing, full scroll and portrait/landscape, return from Home and A-B-A with the same live PID. A repeat of the residual controls rejects the visual hypothesis.",
+      "observation": "A prior signed launch recorded a residual top-edge collision in one of several resident guests despite an already-correct root safe area. There is no same-session OFF sample or signed run of this repair. The pinned P115 generated controller fails all three attachment/removal checks; the P116 generated target passes them. The Linux suite ran 988 tests with seven skipped. No native or signed-device result is available for this revision.",
+      "action": "Validate the native archive and signed-device acceptance gate. Treat the separate saved-pairing transport deferrals as unresolved pending independent evidence.",
+      "repeat_policy": "Use the existing P84 family gate for later changes and retain every prior receipt.",
+      "code_locations": [
+        {
+          "file": ".github/workflows/scarlet-paired-engines-build.yml",
+          "location": "@@ -6 +6 @@ on:",
+          "before": [
+            "    branches: [rebuild/scarlet-from-zero-20261106, fix/scarlet-auth-status-rootcause-20261109, fix/scarlet-pr48-guest-overlay-no-resize-20261109, fix/scarlet-pr48-airpods-glass-guest-switch-v3-20261109, fix/scarlet-pr48-draggable-guest-tab-v4-20261109, fix/scarlet-pr48-v5-glass-drag-cert-recovery-20261109, fix/scarlet-pr48-v6-unified-cert-glass-20261109, fix/scarlet-pr48-v7-cert-jitless-unify-panel-rim-20261109, fix/scarlet-pr48-v8-flicker-certificate-menu-20261109, fix/scarlet-pr48-v9-single-glass-rim-20261109, fix/scarlet-pr48-v10-fixed-tab-cert-and-session-20261109, fix/scarlet-pr48-v11-module-settings-appid-20261109, fix/scarlet-pr48-v12-live-sessions-source-auto-refresh-20261109, fix/scarlet-pr48-v13-compact-settings-current-app-20261109, fix/scarlet-pr48-v14-guest-history-native-scenes-three-ids-20261109, fix/scarlet-pr48-v15-source-disclosure-icons-guest-handoff-20261109, fix/scarlet-pr48-v16-guest-switcher-icons-readback-20261110, fix/scarlet-v17-cold-switch-rotation-20261110, fix/scarlet-v18-refresh-diagnostics-native-glass-20261110, fix/scarlet-v19-active-session-switcher-20261110, fix/scarlet-v20-guest-switcher-trace-20261110, fix/scarlet-v21-hook-telemetry-persistence-20261110, fix/scarlet-v22-runtime-guest-identity-20261110, fix/scarlet-v23-session-only-switcher-20261110, fix/scarlet-v24-refresh-lifecycle-switch-receipt-20261110, fix/scarlet-v25-single-panel-outside-dismiss-20261110, fix/scarlet-v26-liquidglass-button-to-fixed-panel-morph-20261110, fix/scarlet-v27-sidestore-direct-native-refresh-20261110, fix/scarlet-v28-minimuxer-readiness-recovery-20261110, fix/scarlet-v29-inapp-rppairing-20261110, fix/scarlet-v30-restore-sidestore-active-team-20261110, fix/scarlet-v31-pairing-persistence-sheet-purple-20261110, fix/scarlet-v32-korean-copy-20261110, fix/scarlet-v33-log-rootcause-20261110, fix/scarlet-v34-iphone-virtual-resident-20261110, fix/scarlet-v35-restore-original-fullscreen-20261110, fix/scarlet-v36-remove-legacy-ui-20261110, fix/scarlet-v37-session-refresh-20261110, fix/scarlet-v38-current-launch-logs-20261110, fix/scarlet-v39-log-truth-20261110, fix/scarlet-v40-clean-work-session-20261110, fix/scarlet-v42-v40-safe-diagnostics-20261110, fix/scarlet-v43-install-rootcause-20261110, fix/scarlet-v44-rppairing-postsign-install-20261111, fix/scarlet-v45-single-viewport-liveprocess-20261111, fix/scarlet-v46-guard-provisional-guest-geometry-20261111, fix/scarlet-v47-resident-inplace-guest-switch-20261111, fix/scarlet-v48-guest-runtime-recovery-20261111, fix/scarlet-v48-restored-20261111, fix/scarlet-v48-r2-unified-switcher-20261111, fix/scarlet-v48-r3-original-pan-diagnostics-20261111, fix/scarlet-v48-r4-native-outside-remote-insets-20261111, fix/scarlet-v48-r5-attached-insets-shield-20261111, fix/scarlet-v48-r5-crash-recovery-20261111, fix/scarlet-v48-r5-recovery-r2-host-owner-20261111, fix/scarlet-v48-r5-recovery-r3-scene-authority-20261111, fix/scarlet-v48-r5-recovery-r4-native-ready-20261111, fix/scarlet-v48-r5-recovery-r5-compat-foreground-20261111, fix/scarlet-v48-r6-island-outside-audio-20261111, fix/scarlet-v48-r6p1-audio-home-focus-20261111, fix/scarlet-v48-r6p2-blocked-history-20261111, fix/scarlet-v48-r6p3-home-audio-gate-20261111, fix/scarlet-v48-r6p4-guest-audio-ack-20261112, fix/scarlet-v48-r6p7-launch-policy-rootcause-20261112, fix/scarlet-v48-r6p8-policy-field-relay-20261112, fix/scarlet-v48-r6p9-deferred-scene-boot-20261112, fix/scarlet-v48-r6p10-persistent-remediation-ledger-20261112, fix/scarlet-v48-r6p11-resident-guest-sdk-contract-20261112, fix/scarlet-v48-r6p12-instant-recent-switcher-20261112, fix/scarlet-v48-r6p14-switcher-reset-on-navigation-20261112, fix/scarlet-v48-r6p15-guest-root-island-pairing-recovery-20261112, fix/scarlet-v48-r6p16-audit-coverage-20261112, fix/scarlet-v48-r6p17-resident-optin-defaults-20261112, fix/scarlet-v48-r6p18-guest-content-geometry-20261112, fix/scarlet-v48-r6p19-entitlement-failclosed-network-recovery-20261112, fix/scarlet-v48-r6p20-auth-session-bg-id-20261112, fix/scarlet-v48-r6p21-depth-probe-cert-recheck-20261112, fix/scarlet-v48-r6p22-guest-scroll-content-inset-20261112, fix/scarlet-v48-r6p23-guest-owner-refresh-stage-20261112, fix/scarlet-v48-r6p24-keyboard-stage-relay-20261112, fix/scarlet-v48-r6p25-visibility-occlusion-20261112, fix/scarlet-v48-r6p26-recorder-field-contract-20261112, fix/scarlet-v48-r6p27-visible-scroll-owner-20261112, fix/scarlet-v48-r6p28-guest-local-scroll-inset-20261112, fix/scarlet-v48-r6p29-residual-auto-inset-20261112, fix/scarlet-v48-r6p30-inset-interference-isolation-20261112, fix/scarlet-v48-r6p31-nonvertical-always-safearea-20261112, fix/scarlet-v48-r6p32-nonscrolling-owner-stabilization-20261112, fix/scarlet-v48-r6p33-deferred-inset-anchor-20261112, fix/scarlet-v48-r6p34-constraint-native-error-proof-20261112, fix/scarlet-v48-r6p35-ancestor-layout-owner-20261112, fix/scarlet-v48-r6p36-lost-guest-probe-readback-20261112, fix/scarlet-v48-r6p37-nested-header-safe-guide-anchor-20261112, fix/scarlet-v48-r6p38-header-layout-owner-20261113, fix/scarlet-v48-r6p39-parent-safe-guide-constraint-20261113, fix/scarlet-v48-r6p40-transparent-chrome-slot-20261113, fix/scarlet-v48-r6p41-adaptive-chrome-stickiness-20261113, fix/scarlet-v48-r6p42-guest-matched-status-chrome-20261113, fix/scarlet-v48-r6p43-host-verified-native-slot-20261113, fix/scarlet-v48-r6p44-full-native-scroll-header-20261113, fix/scarlet-v48-r6p45-scroll-aware-header-proof-20261113, fix/scarlet-v48-r6p46-detached-header-full-scroll-20261113, fix/scarlet-v48-r6p47-lifecycle-statusbar-20261113, fix/scarlet-v48-r6p48-fresh-proof-crop-gate-20261113, fix/scarlet-v48-r6p49-key-host-statusbar-20261113, fix/scarlet-v48-r6p50-scroll-crop-veto-20261113, fix/scarlet-v48-r6p51-native-statusbar-collision-shield-20261113, fix/scarlet-v48-r6p52-restore-original-host-colors-20261113, fix/scarlet-v48-r6p53-current-log-followup-20261113, fix/scarlet-v48-r6p54-owning-layout-contract-20261114, fix/scarlet-v48-r6p55-child-controller-owner-layout-20261114, fix/scarlet-v48-r6p56-parent-feed-reflow-20261114, fix/scarlet-v48-r6p57-guest-overwrite-20261114, fix/scarlet-v48-r6p58-install-identity-20261114, fix/scarlet-v48-r6p59-unsafe-feed-owner-20261114, fix/scarlet-v48-r6p60-deep-owner-20261114, fix/scarlet-v48-r6p61-slot-manager-20261114, fix/scarlet-v48-r6p62-scroll-viewport-20261114, fix/scarlet-v48-r6p63-nested-parent-20261114, fix/scarlet-v48-r6p64-residual-viewport-20261115, fix/scarlet-v48-r6p65-inset-compensated-settle-20261115, fix/scarlet-v48-r6p66-multiaccount-rea-20261115, fix/scarlet-v48-r6p67-auth-rollback-20261115, fix/scarlet-v48-r6p68-install-team-switch-20261115, fix/scarlet-v48-r6p69-settings-debloat-20261115, fix/scarlet-v48-r6p70-settings-account-list-20261115, fix/scarlet-v48-r6p71-pairing-refresh-race-20261115, fix/scarlet-v48-r6p72-native-pairing-recheck-20261115, fix/scarlet-v48-r6p73-native-managed-host-20261115, fix/scarlet-v48-r6p74-statusband-proof-20261115, fix/scarlet-v48-r6p75-team-slot-scope-20261115, fix/scarlet-v48-r6p76-postheader-scroll-20261115, fix/scarlet-v48-r6p77-severe-scroll-owner-20261116, fix/scarlet-v48-r6p78-signer-recovery-20261116, fix/scarlet-v48-r6p79-import-archive-status-20261116, fix/scarlet-v48-r6p80-device-import-settings-island-20261116, fix/scarlet-v48-r6p81-upstream-import-validation-20261116, fix/scarlet-v48-r6p82-settings-active-install-20261116, fix/scarlet-v48-r6p83-single-statusbar-authority-20261116, fix/scarlet-v48-r6p84-strict-distinct-methods-20261116, fix/scarlet-v48-r6p85-host-origin-refresh-settings-20261116, fix/scarlet-v48-r6p86-apple-team-cert-on-demand-20261116, fix/scarlet-v48-r6p87-account-ui-p12-diagnostics-20261116, fix/scarlet-v48-r6p88-native-account-rows-20261116, fix/scarlet-v48-r6p89-sideinstaller-account-p12-ui-20261117, fix/scarlet-v48-r6p90-account-ownership-20261117, fix/scarlet-v48-r6p91-native-owned-guest-signer-20261117, fix/scarlet-v48-r6p92-jitless-diag-guest-recovery-20261117, fix/scarlet-v48-r6p93-host-profile-signer-anchor-20261117, fix/scarlet-v48-r6p94-explicit-p12-guest-signer-20261117, fix/scarlet-v48-r6p95-inapp-apple-certificate-20261117, fix/scarlet-v48-r6p96-portal-certificate-truth-20261117, fix/scarlet-v48-r6p97-account-owned-signer-20261117, fix/scarlet-v48-r6p98-force-fresh-apple-certificate-20261117, fix/scarlet-v48-r6p99-merged-fresh-cert-host-recovery-20261117, fix/scarlet-v48-r6p100-native-xpc-rebind-20261117, fix/scarlet-v48-r6p101-valid-host-signer-20261117, fix/scarlet-v48-r6p102-certificate-evidence-20261118, fix/scarlet-v48-r6p103-jitless-account-view-20261118, fix/scarlet-v48-r6p105-new-cert-managed-refresh-20261118, fix/scarlet-v48-r6p106-external-host-manual-renew-20261118, fix/scarlet-v48-r6p107-manual-result-contract-20261118, fix/scarlet-v48-r6p108-postimport-cert-rotation-20261118, fix/scarlet-v48-r6p109-owner-pinned-reinstall-20261118, fix/scarlet-v48-r6p110-jitless-native-navigation-20261118, fix/scarlet-v48-r6p111-rootcause-20261118, fix/scarlet-v48-r6p112-remove-runtime-team-literals-20261118, fix/scarlet-v48-r6p113-owner-fence-idempotent-ids-20261118, fix/scarlet-v48-r6p114-legacy-owner-migration-20261118, fix/scarlet-v48-r6p115-managed-host-owner-20261119]"
+          ],
+          "after": [
+            "    branches: [rebuild/scarlet-from-zero-20261106, fix/scarlet-auth-status-rootcause-20261109, fix/scarlet-pr48-guest-overlay-no-resize-20261109, fix/scarlet-pr48-airpods-glass-guest-switch-v3-20261109, fix/scarlet-pr48-draggable-guest-tab-v4-20261109, fix/scarlet-pr48-v5-glass-drag-cert-recovery-20261109, fix/scarlet-pr48-v6-unified-cert-glass-20261109, fix/scarlet-pr48-v7-cert-jitless-unify-panel-rim-20261109, fix/scarlet-pr48-v8-flicker-certificate-menu-20261109, fix/scarlet-pr48-v9-single-glass-rim-20261109, fix/scarlet-pr48-v10-fixed-tab-cert-and-session-20261109, fix/scarlet-pr48-v11-module-settings-appid-20261109, fix/scarlet-pr48-v12-live-sessions-source-auto-refresh-20261109, fix/scarlet-pr48-v13-compact-settings-current-app-20261109, fix/scarlet-pr48-v14-guest-history-native-scenes-three-ids-20261109, fix/scarlet-pr48-v15-source-disclosure-icons-guest-handoff-20261109, fix/scarlet-pr48-v16-guest-switcher-icons-readback-20261110, fix/scarlet-v17-cold-switch-rotation-20261110, fix/scarlet-v18-refresh-diagnostics-native-glass-20261110, fix/scarlet-v19-active-session-switcher-20261110, fix/scarlet-v20-guest-switcher-trace-20261110, fix/scarlet-v21-hook-telemetry-persistence-20261110, fix/scarlet-v22-runtime-guest-identity-20261110, fix/scarlet-v23-session-only-switcher-20261110, fix/scarlet-v24-refresh-lifecycle-switch-receipt-20261110, fix/scarlet-v25-single-panel-outside-dismiss-20261110, fix/scarlet-v26-liquidglass-button-to-fixed-panel-morph-20261110, fix/scarlet-v27-sidestore-direct-native-refresh-20261110, fix/scarlet-v28-minimuxer-readiness-recovery-20261110, fix/scarlet-v29-inapp-rppairing-20261110, fix/scarlet-v30-restore-sidestore-active-team-20261110, fix/scarlet-v31-pairing-persistence-sheet-purple-20261110, fix/scarlet-v32-korean-copy-20261110, fix/scarlet-v33-log-rootcause-20261110, fix/scarlet-v34-iphone-virtual-resident-20261110, fix/scarlet-v35-restore-original-fullscreen-20261110, fix/scarlet-v36-remove-legacy-ui-20261110, fix/scarlet-v37-session-refresh-20261110, fix/scarlet-v38-current-launch-logs-20261110, fix/scarlet-v39-log-truth-20261110, fix/scarlet-v40-clean-work-session-20261110, fix/scarlet-v42-v40-safe-diagnostics-20261110, fix/scarlet-v43-install-rootcause-20261110, fix/scarlet-v44-rppairing-postsign-install-20261111, fix/scarlet-v45-single-viewport-liveprocess-20261111, fix/scarlet-v46-guard-provisional-guest-geometry-20261111, fix/scarlet-v47-resident-inplace-guest-switch-20261111, fix/scarlet-v48-guest-runtime-recovery-20261111, fix/scarlet-v48-restored-20261111, fix/scarlet-v48-r2-unified-switcher-20261111, fix/scarlet-v48-r3-original-pan-diagnostics-20261111, fix/scarlet-v48-r4-native-outside-remote-insets-20261111, fix/scarlet-v48-r5-attached-insets-shield-20261111, fix/scarlet-v48-r5-crash-recovery-20261111, fix/scarlet-v48-r5-recovery-r2-host-owner-20261111, fix/scarlet-v48-r5-recovery-r3-scene-authority-20261111, fix/scarlet-v48-r5-recovery-r4-native-ready-20261111, fix/scarlet-v48-r5-recovery-r5-compat-foreground-20261111, fix/scarlet-v48-r6-island-outside-audio-20261111, fix/scarlet-v48-r6p1-audio-home-focus-20261111, fix/scarlet-v48-r6p2-blocked-history-20261111, fix/scarlet-v48-r6p3-home-audio-gate-20261111, fix/scarlet-v48-r6p4-guest-audio-ack-20261112, fix/scarlet-v48-r6p7-launch-policy-rootcause-20261112, fix/scarlet-v48-r6p8-policy-field-relay-20261112, fix/scarlet-v48-r6p9-deferred-scene-boot-20261112, fix/scarlet-v48-r6p10-persistent-remediation-ledger-20261112, fix/scarlet-v48-r6p11-resident-guest-sdk-contract-20261112, fix/scarlet-v48-r6p12-instant-recent-switcher-20261112, fix/scarlet-v48-r6p14-switcher-reset-on-navigation-20261112, fix/scarlet-v48-r6p15-guest-root-island-pairing-recovery-20261112, fix/scarlet-v48-r6p16-audit-coverage-20261112, fix/scarlet-v48-r6p17-resident-optin-defaults-20261112, fix/scarlet-v48-r6p18-guest-content-geometry-20261112, fix/scarlet-v48-r6p19-entitlement-failclosed-network-recovery-20261112, fix/scarlet-v48-r6p20-auth-session-bg-id-20261112, fix/scarlet-v48-r6p21-depth-probe-cert-recheck-20261112, fix/scarlet-v48-r6p22-guest-scroll-content-inset-20261112, fix/scarlet-v48-r6p23-guest-owner-refresh-stage-20261112, fix/scarlet-v48-r6p24-keyboard-stage-relay-20261112, fix/scarlet-v48-r6p25-visibility-occlusion-20261112, fix/scarlet-v48-r6p26-recorder-field-contract-20261112, fix/scarlet-v48-r6p27-visible-scroll-owner-20261112, fix/scarlet-v48-r6p28-guest-local-scroll-inset-20261112, fix/scarlet-v48-r6p29-residual-auto-inset-20261112, fix/scarlet-v48-r6p30-inset-interference-isolation-20261112, fix/scarlet-v48-r6p31-nonvertical-always-safearea-20261112, fix/scarlet-v48-r6p32-nonscrolling-owner-stabilization-20261112, fix/scarlet-v48-r6p33-deferred-inset-anchor-20261112, fix/scarlet-v48-r6p34-constraint-native-error-proof-20261112, fix/scarlet-v48-r6p35-ancestor-layout-owner-20261112, fix/scarlet-v48-r6p36-lost-guest-probe-readback-20261112, fix/scarlet-v48-r6p37-nested-header-safe-guide-anchor-20261112, fix/scarlet-v48-r6p38-header-layout-owner-20261113, fix/scarlet-v48-r6p39-parent-safe-guide-constraint-20261113, fix/scarlet-v48-r6p40-transparent-chrome-slot-20261113, fix/scarlet-v48-r6p41-adaptive-chrome-stickiness-20261113, fix/scarlet-v48-r6p42-guest-matched-status-chrome-20261113, fix/scarlet-v48-r6p43-host-verified-native-slot-20261113, fix/scarlet-v48-r6p44-full-native-scroll-header-20261113, fix/scarlet-v48-r6p45-scroll-aware-header-proof-20261113, fix/scarlet-v48-r6p46-detached-header-full-scroll-20261113, fix/scarlet-v48-r6p47-lifecycle-statusbar-20261113, fix/scarlet-v48-r6p48-fresh-proof-crop-gate-20261113, fix/scarlet-v48-r6p49-key-host-statusbar-20261113, fix/scarlet-v48-r6p50-scroll-crop-veto-20261113, fix/scarlet-v48-r6p51-native-statusbar-collision-shield-20261113, fix/scarlet-v48-r6p52-restore-original-host-colors-20261113, fix/scarlet-v48-r6p53-current-log-followup-20261113, fix/scarlet-v48-r6p54-owning-layout-contract-20261114, fix/scarlet-v48-r6p55-child-controller-owner-layout-20261114, fix/scarlet-v48-r6p56-parent-feed-reflow-20261114, fix/scarlet-v48-r6p57-guest-overwrite-20261114, fix/scarlet-v48-r6p58-install-identity-20261114, fix/scarlet-v48-r6p59-unsafe-feed-owner-20261114, fix/scarlet-v48-r6p60-deep-owner-20261114, fix/scarlet-v48-r6p61-slot-manager-20261114, fix/scarlet-v48-r6p62-scroll-viewport-20261114, fix/scarlet-v48-r6p63-nested-parent-20261114, fix/scarlet-v48-r6p64-residual-viewport-20261115, fix/scarlet-v48-r6p65-inset-compensated-settle-20261115, fix/scarlet-v48-r6p66-multiaccount-rea-20261115, fix/scarlet-v48-r6p67-auth-rollback-20261115, fix/scarlet-v48-r6p68-install-team-switch-20261115, fix/scarlet-v48-r6p69-settings-debloat-20261115, fix/scarlet-v48-r6p70-settings-account-list-20261115, fix/scarlet-v48-r6p71-pairing-refresh-race-20261115, fix/scarlet-v48-r6p72-native-pairing-recheck-20261115, fix/scarlet-v48-r6p73-native-managed-host-20261115, fix/scarlet-v48-r6p74-statusband-proof-20261115, fix/scarlet-v48-r6p75-team-slot-scope-20261115, fix/scarlet-v48-r6p76-postheader-scroll-20261115, fix/scarlet-v48-r6p77-severe-scroll-owner-20261116, fix/scarlet-v48-r6p78-signer-recovery-20261116, fix/scarlet-v48-r6p79-import-archive-status-20261116, fix/scarlet-v48-r6p80-device-import-settings-island-20261116, fix/scarlet-v48-r6p81-upstream-import-validation-20261116, fix/scarlet-v48-r6p82-settings-active-install-20261116, fix/scarlet-v48-r6p83-single-statusbar-authority-20261116, fix/scarlet-v48-r6p84-strict-distinct-methods-20261116, fix/scarlet-v48-r6p85-host-origin-refresh-settings-20261116, fix/scarlet-v48-r6p86-apple-team-cert-on-demand-20261116, fix/scarlet-v48-r6p87-account-ui-p12-diagnostics-20261116, fix/scarlet-v48-r6p88-native-account-rows-20261116, fix/scarlet-v48-r6p89-sideinstaller-account-p12-ui-20261117, fix/scarlet-v48-r6p90-account-ownership-20261117, fix/scarlet-v48-r6p91-native-owned-guest-signer-20261117, fix/scarlet-v48-r6p92-jitless-diag-guest-recovery-20261117, fix/scarlet-v48-r6p93-host-profile-signer-anchor-20261117, fix/scarlet-v48-r6p94-explicit-p12-guest-signer-20261117, fix/scarlet-v48-r6p95-inapp-apple-certificate-20261117, fix/scarlet-v48-r6p96-portal-certificate-truth-20261117, fix/scarlet-v48-r6p97-account-owned-signer-20261117, fix/scarlet-v48-r6p98-force-fresh-apple-certificate-20261117, fix/scarlet-v48-r6p99-merged-fresh-cert-host-recovery-20261117, fix/scarlet-v48-r6p100-native-xpc-rebind-20261117, fix/scarlet-v48-r6p101-valid-host-signer-20261117, fix/scarlet-v48-r6p102-certificate-evidence-20261118, fix/scarlet-v48-r6p103-jitless-account-view-20261118, fix/scarlet-v48-r6p105-new-cert-managed-refresh-20261118, fix/scarlet-v48-r6p106-external-host-manual-renew-20261118, fix/scarlet-v48-r6p107-manual-result-contract-20261118, fix/scarlet-v48-r6p108-postimport-cert-rotation-20261118, fix/scarlet-v48-r6p109-owner-pinned-reinstall-20261118, fix/scarlet-v48-r6p110-jitless-native-navigation-20261118, fix/scarlet-v48-r6p111-rootcause-20261118, fix/scarlet-v48-r6p112-remove-runtime-team-literals-20261118, fix/scarlet-v48-r6p113-owner-fence-idempotent-ids-20261118, fix/scarlet-v48-r6p114-legacy-owner-migration-20261118, fix/scarlet-v48-r6p115-managed-host-owner-20261119, fix/scarlet-v48-r6p116-resident-scene-containment-20261120]"
+          ]
+        },
+        {
+          "file": ".github/workflows/scarlet-paired-engines-build.yml",
+          "location": "@@ -92,0 +93,2 @@ jobs:",
+          "before": [],
+          "after": [
+            "          SCARLET_TEST_GENERATED_ENGINE=engine/LiveContainer \\",
+            "            python3 rebuild/Tests/test_v48_r6p116_resident_scene_containment.py"
+          ]
+        },
+        {
+          "file": ".github/workflows/scarlet-paired-engines-build.yml",
+          "location": "@@ -336 +338,3 @@ jobs:",
+          "before": [
+            "          if [ \"$GITHUB_REF\" = \"refs/heads/fix/scarlet-v48-r6p115-managed-host-owner-20261119\" ]; then"
+          ],
+          "after": [
+            "          if [ \"$GITHUB_REF\" = \"refs/heads/fix/scarlet-v48-r6p116-resident-scene-containment-20261120\" ]; then",
+            "            SCARLET_HOST_VERSION_ARGS=(--host-build-version 3.8.116)",
+            "          elif [ \"$GITHUB_REF\" = \"refs/heads/fix/scarlet-v48-r6p115-managed-host-owner-20261119\" ]; then"
+          ]
+        },
+        {
+          "file": "rebuild/HostApp/ScarletFullscreenSceneStack.swift",
+          "location": "@@ -2472,0 +2473 @@ final class ScarletFullscreenSceneViewport: UIViewController {",
+          "before": [],
+          "after": [
+            "            addChild(vc)"
+          ]
+        },
+        {
+          "file": "rebuild/HostApp/ScarletFullscreenSceneStack.swift",
+          "location": "@@ -2481 +2481,0 @@ final class ScarletFullscreenSceneViewport: UIViewController {",
+          "before": [
+            "            addChild(vc)"
+          ],
+          "after": []
+        },
+        {
+          "file": "rebuild/Tests/test_v48_r5_recovery_r4_remote_readiness.py",
+          "location": "@@ -21 +21,3 @@ class R4NativeSceneReady(unittest.TestCase):",
+          "before": [
+            "                   'self.hostingController.sceneViewController.view == self.contentView'):"
+          ],
+          "after": [
+            "                   'child.parentViewController == self',",
+            "                   'child == self.hostingController.sceneViewController',",
+            "                   'child.viewIfLoaded == self.contentView'):"
+          ]
+        },
+        {
+          "file": "rebuild/Tests/test_v48_r6p116_resident_scene_containment.py",
+          "location": "@@ -0,0 +1,109 @@",
+          "before": [],
+          "after": [
+            "\"\"\"Check both the pinned integration seam and the generated UIKit lifecycle.\"\"\"",
+            "import importlib.util",
+            "import os",
+            "from pathlib import Path",
+            "import unittest",
+            "",
+            "",
+            "REBUILD = Path(__file__).resolve().parents[1]",
+            "INTEGRATOR = REBUILD / \"integration\" / \"apply_scarlet_host.py\"",
+            "SPEC = importlib.util.spec_from_file_location(\"scarlet_host\", INTEGRATOR)",
+            "HOST = importlib.util.module_from_spec(SPEC)",
+            "SPEC.loader.exec_module(HOST)",
+            "",
+            "# Pinned UIKit attachment and removal statements. CI also runs these checks",
+            "# against the complete Objective-C file immediately after host integration.",
+            "PINNED = \"\"\"@property(nonatomic) UIWindowScene *hostScene;",
+            "- (void)setUpAppPresenter {",
+            "    if (@available(iOS 18.0, *)) {",
+            "        self.contentView = self.hostingController.sceneViewController.view;",
+            "        [self.delegate appSceneVCWillActivateScene:self];",
+            "        [self addChildViewController:self.hostingController.sceneViewController];",
+            "    } else {",
+            "        self.contentView = [[UIView alloc] init];",
+            "        [self.contentView addSubview:self.presenter.presentationView];",
+            "    }",
+            "    [self.view addSubview:_contentView];",
+            "    if(self.scarletNativeFullscreenSlot &&",
+            "       [self.delegate respondsToSelector:@selector(appSceneVCDidAttachRemoteContent:)]) {",
+            "        [weakSelf.delegate appSceneVCDidAttachRemoteContent:weakSelf];",
+            "    }",
+            "}",
+            "- (void)appTerminationCleanUp {",
+            "    _isAppTerminationCleanUpCalled = true;",
+            "    dispatch_async(dispatch_get_main_queue(), ^{",
+            "        if(self.sceneID) {",
+            "            [[PrivClass(FBSceneManager) sharedInstance] destroyScene:self.sceneID withTransitionContext:nil];",
+            "        }",
+            "        if(self.usesHostingControllerAPI) {",
+            "            if(@available(iOS 17.0, *)) {",
+            "                [self.hostingController invalidate];",
+            "                [self.hostingController.sceneViewController removeFromParentViewController];",
+            "                self.hostingController = nil;",
+            "            }",
+            "        }",
+            "    });",
+            "}",
+            "\"\"\"",
+            "",
+            "",
+            "class ResidentSceneContainmentTests(unittest.TestCase):",
+            "    @classmethod",
+            "    def setUpClass(cls):",
+            "        generated = os.environ.get(\"SCARLET_TEST_GENERATED_ENGINE\")",
+            "        if generated:",
+            "            scene = Path(generated) / \"MultitaskSupport\" / \"AppSceneViewController.m\"",
+            "            cls.source = scene.read_text()",
+            "        else:",
+            "            cls.source = HOST.repair_resident_scene_containment(PINNED)",
+            "        cls.setup = cls.source.split(\"- (void)setUpAppPresenter {\", 1)[1].split(\"\\n}\", 1)[0]",
+            "        cls.cleanup = cls.source.split(\"- (void)appTerminationCleanUp {\", 1)[1].split(\"\\n}\", 1)[0]",
+            "",
+            "    def assert_in_order(self, source, *statements):",
+            "        indices = [source.index(statement) for statement in statements]",
+            "        self.assertEqual(indices, sorted(indices))",
+            "",
+            "    def test_parents_exist_before_first_view_load_and_mount_completes_before_reveal(self):",
+            "        swift = (REBUILD / \"HostApp\" / \"ScarletFullscreenSceneStack.swift\").read_text()",
+            "        outer = swift.split(\"vc.scarletNativeFullscreenSlot = true\", 1)[1]",
+            "        self.assert_in_order(outer, \"addChild(vc)\", \"vc.view.\", \"view.addSubview(vc.view)\",",
+            "                             \"vc.didMove(toParent: self)\")",
+            "        self.assert_in_order(self.setup, \"if (self.scarletNativeFullscreenSlot)\",",
+            "                             \"if (!child) return;\", \"[self addChildViewController:child]\",",
+            "                             \"self.contentView = child.view;\", \"[self.view addSubview:_contentView]\",",
+            "                             \"[residentChild didMoveToParentViewController:self]\",",
+            "                             \"self.scarletAttachedSceneChild = residentChild;\",",
+            "                             \"[weakSelf.delegate appSceneVCDidAttachRemoteContent:weakSelf]\")",
+            "        self.assertEqual(self.setup.count(\"didMoveToParentViewController:self\"), 1)",
+            "",
+            "    def test_native_and_legacy_branches_keep_their_child_ownership(self):",
+            "        self.assertIn(\"UIViewController *residentChild = nil;\", self.setup)",
+            "        self.assertIn(\"if (!self.scarletNativeFullscreenSlot) {\\n\"",
+            "                      \"            [self addChildViewController:self.hostingController.sceneViewController];\",",
+            "                      self.setup)",
+            "        self.assertIn(\"if (residentChild) {\\n\"",
+            "                      \"        [residentChild didMoveToParentViewController:self];\", self.setup)",
+            "        self.assert_in_order(self.setup, \"self.contentView = [[UIView alloc] init];\",",
+            "                             \"[self.contentView addSubview:self.presenter.presentationView]\",",
+            "                             \"[self.view addSubview:_contentView]\")",
+            "",
+            "    def test_teardown_clears_readiness_and_detaches_only_owned_child_before_invalidation(self):",
+            "        self.assert_in_order(self.cleanup, \"dispatch_async(dispatch_get_main_queue()\",",
+            "                             \"UIViewController *child = self.scarletAttachedSceneChild;\",",
+            "                             \"self.scarletAttachedSceneChild = nil;\", \"child.parentViewController == self\",",
+            "                             \"[child willMoveToParentViewController:nil]\",",
+            "                             \"child.viewIfLoaded.superview == self.viewIfLoaded\",",
+            "                             \"[child.viewIfLoaded removeFromSuperview]\",",
+            "                             \"[child removeFromParentViewController]\", \"destroyScene:self.sceneID\",",
+            "                             \"[self.hostingController invalidate]\", \"if (!self.scarletNativeFullscreenSlot)\",",
+            "                             \"[self.hostingController.sceneViewController removeFromParentViewController]\")",
+            "",
+            "    def test_changed_or_ambiguous_upstream_anchor_blocks_integration(self):",
+            "        mount = \"[self.view addSubview:_contentView];\"",
+            "        for replacement in (\"\", mount + \"\\n    \" + mount):",
+            "            with self.subTest(replacement=replacement), self.assertRaises(ValueError):",
+            "                HOST.repair_resident_scene_containment(PINNED.replace(mount, replacement))",
+            "",
+            "",
+            "if __name__ == \"__main__\":",
+            "    unittest.main()"
+          ]
+        },
+        {
+          "file": "rebuild/integration/apply_scarlet_host.py",
+          "location": "@@ -1730,0 +1731,50 @@ import Combine",
+          "before": [],
+          "after": [
+            "def repair_resident_scene_containment(source: str) -> str:",
+            "    \"\"\"Complete UIKit containment for the nested resident scene controller.\"\"\"",
+            "    host_scene = \"@property(nonatomic) UIWindowScene *hostScene;\"",
+            "    setup = \"- (void)setUpAppPresenter {\"",
+            "    load_view = \"        self.contentView = self.hostingController.sceneViewController.view;\"",
+            "    add_child = \"        [self addChildViewController:self.hostingController.sceneViewController];\"",
+            "    mount = \"    [self.view addSubview:_contentView];\"",
+            "    cleanup = (\"    _isAppTerminationCleanUpCalled = true;\\n\"",
+            "               \"    dispatch_async(dispatch_get_main_queue(), ^{\")",
+            "    old_removal = \"                [self.hostingController.sceneViewController removeFromParentViewController];\"",
+            "",
+            "    replacements = (",
+            "        (host_scene, host_scene + \"\\n@property(nonatomic, weak) UIViewController *scarletAttachedSceneChild;\"),",
+            "        (setup, setup + \"\\n    UIViewController *residentChild = nil;\"),",
+            "        (load_view, \"\"\"        UIViewController *child = self.hostingController.sceneViewController;",
+            "        if (self.scarletNativeFullscreenSlot) {",
+            "            if (!child) return;",
+            "            residentChild = child;",
+            "            [self addChildViewController:child];",
+            "        }",
+            "        self.contentView = child.view;\"\"\"),",
+            "        (add_child, \"\"\"        if (!self.scarletNativeFullscreenSlot) {",
+            "            [self addChildViewController:self.hostingController.sceneViewController];",
+            "        }\"\"\"),",
+            "        (mount, mount + \"\"\"",
+            "    if (residentChild) {",
+            "        [residentChild didMoveToParentViewController:self];",
+            "        self.scarletAttachedSceneChild = residentChild;",
+            "    }\"\"\"),",
+            "        (cleanup, cleanup + \"\"\"",
+            "        UIViewController *child = self.scarletAttachedSceneChild;",
+            "        self.scarletAttachedSceneChild = nil;",
+            "        if (child.parentViewController == self) {",
+            "            [child willMoveToParentViewController:nil];",
+            "            if (child.viewIfLoaded.superview == self.viewIfLoaded) {",
+            "                [child.viewIfLoaded removeFromSuperview];",
+            "            }",
+            "            [child removeFromParentViewController];",
+            "        }\"\"\"),",
+            "        (old_removal, \"\"\"                if (!self.scarletNativeFullscreenSlot) {",
+            "                    [self.hostingController.sceneViewController removeFromParentViewController];",
+            "                }\"\"\"),",
+            "    )",
+            "    for old, new in replacements:",
+            "        if source.count(old) != 1:",
+            "            raise ValueError(f\"Pinned scene containment source changed at {old!r}\")",
+            "        source = source.replace(old, new, 1)",
+            "    return source",
+            "",
+            ""
+          ]
+        },
+        {
+          "file": "rebuild/integration/apply_scarlet_host.py",
+          "location": "@@ -1944 +1994,4 @@ static UIEdgeInsets ScarletPilotHostInsets(UIWindowScene *scene,",
+          "before": [
+            "    return self.hostingController.sceneViewController.view == self.contentView;"
+          ],
+          "after": [
+            "    UIViewController *child = self.scarletAttachedSceneChild;",
+            "    return child.parentViewController == self &&",
+            "           child == self.hostingController.sceneViewController &&",
+            "           child.viewIfLoaded == self.contentView;"
+          ]
+        },
+        {
+          "file": "rebuild/integration/apply_scarlet_host.py",
+          "location": "@@ -1980 +2033 @@ static UIEdgeInsets ScarletPilotHostInsets(UIWindowScene *scene,",
+          "before": [
+            "    target.write_text(a)"
+          ],
+          "after": [
+            "    a = repair_resident_scene_containment(a)"
+          ]
+        }
+      ],
+      "source_revisions": [
+        {
+          "sha": "7bfdcf6b930bbffc1c2aa74210789c7d80a8dbe2",
+          "title": "fix(R6P116): complete resident scene child containment before reveal"
+        }
+      ],
+      "source_verification": "git_patch_observed",
+      "status": "source_committed_native_ci_pending",
+      "device_verification": "device_unverified",
+      "hypothesis": "The missing resident child transition may prevent a guest layout that depends on its controller hierarchy from following the original full-screen launch. This has a reproducible source failure; whether the visual symptom shares that cause requires a signed same-guest device run.",
+      "generated_runtime_targets_if_integrated": [
+        "MultitaskSupport/AppSceneViewController.m (resident UIKit setup, render readiness and cleanup)",
+        "LiveContainerSwiftUI/Views/ScarletCrystal/ScarletFullscreenSceneStack.swift (resident viewport outer child)"
+      ]
     }
   ]
 }

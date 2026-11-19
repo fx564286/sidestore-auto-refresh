@@ -2470,6 +2470,7 @@ final class ScarletFullscreenSceneViewport: UIViewController {
             vc.scarletNativeFullscreenSlot = true
             vc.scarletNativeTransparentChromeSlot = false
             vc.scaleRatio = 1
+            addChild(vc)
             vc.view.frame = contentSlot(in: scene, reserved: false)
             // Parent autoresize must never expand a reserved 894pt scene
             // back to 956pt while the guest is hidden.
@@ -2478,7 +2479,6 @@ final class ScarletFullscreenSceneViewport: UIViewController {
             // The prior guest remains fully attached, visible and touchable.
             vc.view.layer.opacity = 0
             vc.view.isUserInteractionEnabled = false
-            addChild(vc)
             view.addSubview(vc.view)
             vc.didMove(toParent: self)
             controllers[slot.id] = vc

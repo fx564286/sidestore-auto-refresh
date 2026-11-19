@@ -1728,6 +1728,56 @@ import Combine
 }
 """
 
+def repair_resident_scene_containment(source: str) -> str:
+    """Complete UIKit containment for the nested resident scene controller."""
+    host_scene = "@property(nonatomic) UIWindowScene *hostScene;"
+    setup = "- (void)setUpAppPresenter {"
+    load_view = "        self.contentView = self.hostingController.sceneViewController.view;"
+    add_child = "        [self addChildViewController:self.hostingController.sceneViewController];"
+    mount = "    [self.view addSubview:_contentView];"
+    cleanup = ("    _isAppTerminationCleanUpCalled = true;\n"
+               "    dispatch_async(dispatch_get_main_queue(), ^{")
+    old_removal = "                [self.hostingController.sceneViewController removeFromParentViewController];"
+
+    replacements = (
+        (host_scene, host_scene + "\n@property(nonatomic, weak) UIViewController *scarletAttachedSceneChild;"),
+        (setup, setup + "\n    UIViewController *residentChild = nil;"),
+        (load_view, """        UIViewController *child = self.hostingController.sceneViewController;
+        if (self.scarletNativeFullscreenSlot) {
+            if (!child) return;
+            residentChild = child;
+            [self addChildViewController:child];
+        }
+        self.contentView = child.view;"""),
+        (add_child, """        if (!self.scarletNativeFullscreenSlot) {
+            [self addChildViewController:self.hostingController.sceneViewController];
+        }"""),
+        (mount, mount + """
+    if (residentChild) {
+        [residentChild didMoveToParentViewController:self];
+        self.scarletAttachedSceneChild = residentChild;
+    }"""),
+        (cleanup, cleanup + """
+        UIViewController *child = self.scarletAttachedSceneChild;
+        self.scarletAttachedSceneChild = nil;
+        if (child.parentViewController == self) {
+            [child willMoveToParentViewController:nil];
+            if (child.viewIfLoaded.superview == self.viewIfLoaded) {
+                [child.viewIfLoaded removeFromSuperview];
+            }
+            [child removeFromParentViewController];
+        }"""),
+        (old_removal, """                if (!self.scarletNativeFullscreenSlot) {
+                    [self.hostingController.sceneViewController removeFromParentViewController];
+                }"""),
+    )
+    for old, new in replacements:
+        if source.count(old) != 1:
+            raise ValueError(f"Pinned scene containment source changed at {old!r}")
+        source = source.replace(old, new, 1)
+    return source
+
+
 def add_v45_fullscreen_scene_slot(engine: Path) -> dict:
     """Create a single full-screen remote-scene viewport, never a fake LC window.
 
@@ -1941,7 +1991,10 @@ static UIEdgeInsets ScarletPilotHostInsets(UIWindowScene *scene,
        !self.view.window || CGRectGetWidth(self.contentView.bounds) < 2 ||
        CGRectGetHeight(self.contentView.bounds) < 2)
         return NO;
-    return self.hostingController.sceneViewController.view == self.contentView;
+    UIViewController *child = self.scarletAttachedSceneChild;
+    return child.parentViewController == self &&
+           child == self.hostingController.sceneViewController &&
+           child.viewIfLoaded == self.contentView;
 }
 - (BOOL)scarletEnsureRemoteForeground {
     if(![self scarletRemoteContentReady]) return NO;
@@ -1977,7 +2030,7 @@ static UIEdgeInsets ScarletPilotHostInsets(UIWindowScene *scene,
         });
     }
 """,1)
-    target.write_text(a)
+    a = repair_resident_scene_containment(a)
 
     hook_file = engine / "MultitaskSupport/UIKitHooks.m"
     hooks = hook_file.read_text()
