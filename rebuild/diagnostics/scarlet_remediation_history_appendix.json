@@ -12296,7 +12296,7 @@
       ],
       "source_revisions": [
         {
-          "sha": "7bfdcf6b930bbffc1c2aa74210789c7d80a8dbe2",
+          "sha": "c52cd8a183773c4afa84ec202ebe562565837561",
           "title": "fix(R6P116): complete resident scene child containment before reveal"
         }
       ],
