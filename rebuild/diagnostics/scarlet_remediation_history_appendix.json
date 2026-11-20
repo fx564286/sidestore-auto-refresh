@@ -14480,6 +14480,16 @@
           "after": [
             "class DeviceVsGuestCatalog(unittest.TestCase):"
           ]
+        },
+        {
+          "file": "rebuild/Tests/test_v48_r6p121_release_identity_chain.py",
+          "location": "@@ R6P122 release selector compatibility @@",
+          "before": [
+            "needle = f'if [ \"$GITHUB_REF\" = \"{REF_121}\" ]; then'"
+          ],
+          "after": [
+            "needle = f'if [ \"$GITHUB_REF\" = \"{REF_122}\" ]; then'"
+          ]
         }
       ],
       "date": "2026-11-20",
@@ -14489,7 +14499,7 @@
       "hypothesis": "A missing connection between independent existing data sources causes the UI to conflate or omit two installation modes; separate source-backed sections reveal native device IPA records and LC guest storage without changing signing, installation or SpringBoard state.",
       "status": "source_committed_static_and_xcode_ci_pending",
       "device_verification": "device_unverified",
-      "verification": "R6P122 RED new tests failed before source implementation; GREEN 5 targeted tests passed. Full source regression prior to final release-test addition 1024 tests passed (5 skipped); final suite and Xcode device compilation pending. Existing Apple ID, Team, certification, provisioning, entitlement and original installed data unchanged.",
+      "verification": "R6P122 RED dedicated tests failed before source implementation; GREEN 5 catalog tests, 4 R6P120/R6P121/R6P122 release selector tests; full 1026 Python source regressions passed (5 skipped). L197 no-repeat source audit passed with 197 prior attempts. Native iOS Xcode build and real device visual/install readback pending.",
       "repeat_policy": "Do not treat SideStore CoreData active rows as confirmed iOS installed, never merge LC guest models and native managed records by bundle ID or grant one app type the other deletion/launch actions, and never reproduce prior native transport or guest Island geometry workarounds.",
       "generated_runtime_targets_if_integrated": [
         "rebuild/HostApp/ScarletIntegratedHostView.swift",
@@ -14515,6 +14525,10 @@
         {
           "sha": "e00fa8d28d3ef92bb0c65e1ad982a974e2834b33",
           "title": "ci(R6P122): build and release versioned unsigned device-vs-guest IPA"
+        },
+        {
+          "sha": "a5db0579cc63c77984d57db12e07e4706400b1ae",
+          "title": "test(R6P122): preserve R6P120 and R6P121 release selectors under R6P122 branch"
         }
       ],
       "source_verification": "git_patch_observed"
