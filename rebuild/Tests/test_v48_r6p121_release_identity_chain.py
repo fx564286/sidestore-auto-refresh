@@ -22,10 +22,12 @@ EXPECTED_TAG_120 = 'scarlet-v48-r6p120-manual-owner-mismatch-unsigned-20261120'
 
 def shell_selectors():
     lines = WORKFLOW.splitlines()
-    needle = f'if [ "$GITHUB_REF" = "{REF_123}" ]; then'
+    # R6P126 adds a preceding, uniquely versioned branch to each chain.
+    # The real selectors must begin with this branch; later R6P123 is elif.
+    needle = 'if [ "$GITHUB_REF" = "refs/heads/fix/scarlet-r6p124-apps-grid-balance-20261121" ]; then'
     starts = [i for i, line in enumerate(lines) if line.strip() == needle]
     if len(starts) != 3:
-        raise AssertionError(f'Expected three distinct R6P123 selector blocks, got {len(starts)}')
+        raise AssertionError(f'Expected three distinct R6P126 selector blocks, got {len(starts)}')
     selectors = []
     for start in starts:
         indent = len(lines[start]) - len(lines[start].lstrip())
