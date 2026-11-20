@@ -380,7 +380,13 @@ final class ScarletGuestRefreshAgent: NSObject {
                                           appleID: currentAppleID)
                 }
                 let reason: String
-                if let inventoryReason {
+                if targets.isEmpty && hostBootstrap == "host_selected_team_mismatch" {
+                    // The selected account cannot own the installed host signed
+                    // by another Team. Report the actual safe bootstrap failure
+                    // instead of relabeling it "no managed apps" and attempting
+                    // an impossible host reinstallation.
+                    reason = "host_selected_team_mismatch"
+                } else if let inventoryReason {
                     // Inactive/pledge-excluded managed apps are NOT absent.
                     reason = inventoryReason
                 } else if targets.isEmpty {
@@ -398,15 +404,10 @@ final class ScarletGuestRefreshAgent: NSObject {
                         "host_managed_owner_mismatch", "host_managed_record_inactive",
                         "host_managed_duplicate_records", "host_managed_extensions_mismatch"
                     ]
-                    // SideInstaller's account switch affects future signings,
-                    // not the host's already-installed signed Team. On B,
-                    // absence of B-managed apps is not a host signing error.
-                    // Keep the host mismatch diagnostic inside the bootstrap,
-                    // but report the selected Team's actual empty app set.
-                    reason = hostBootstrap == "host_selected_team_mismatch"
-                        ? "no_managed_apps_for_selected_team"
-                        : (registrationFailures.contains(hostBootstrap)
-                            ? hostBootstrap : "no_managed_apps_for_selected_team")
+                    // Preserve exact bootstrap failures; an empty selected-
+                    // team inventory is not a reason to erase host provenance.
+                    reason = registrationFailures.contains(hostBootstrap)
+                        ? hostBootstrap : "no_managed_apps_for_selected_team"
                 } else if !signingReady {
                     reason = "selected_team_certificate_missing"
                 } else if managesHost {

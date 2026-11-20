@@ -38,7 +38,13 @@ class CurrentLaunchOnly(unittest.TestCase):
         self.assertIn('Text("이번 실행").tag(false)',S)
         self.assertIn('Text("이전 기록 포함").tag(true)',S)
         self.assertIn('SCARLET_DIAGNOSTICS_LOG_SCOPE',S)
-        self.assertIn('makeShareFile(\n            includeHistory: includeHistory)',S)
+        # Export is constructed only after explicit consent, off the UI thread.
+        # The scope snapshot remains current-launch only by default.
+        self.assertIn('let archivedRuns = includeHistory',S)
+        self.assertIn('includeHistory: archivedRuns',S)
+        self.assertIn('Button {\n                    shareAsLink()\n                } label: {',S)
+        self.assertNotIn('showUploadConsent = true',S)
+        self.assertNotIn('ShareLink(item: shareFile)',S)
 
     def test_cannot_accidentally_erase_other_app_data(self):
         self.assertNotIn('removePersistentDomain(',S)

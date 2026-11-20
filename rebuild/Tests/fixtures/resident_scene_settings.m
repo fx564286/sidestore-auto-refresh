@@ -24,11 +24,11 @@
 @end
 
 @interface FBSSceneSettingsDiff : NSObject
-@property(nonatomic, strong) UIApplicationSceneSettings *oldHost, *newHost;
+@property(nonatomic, strong) UIApplicationSceneSettings *oldHost, *updatedHost;
 @end
 @implementation FBSSceneSettingsDiff
 - (UIMutableApplicationSceneSettings *)settingsByApplyingToMutableCopyOfSettings:(UIApplicationSceneSettings *)input {
-    return input == self.oldHost ? [self.newHost mutableCopy] : nil;
+    return input == self.oldHost ? [self.updatedHost mutableCopy] : nil;
 }
 @end
 
@@ -97,9 +97,9 @@ int main(void) {
             [guests addObject:guest];
         }
         for (NSUInteger mask = 0; mask < (1u << fields.count); mask++) {
-            diff.newHost = [diff.oldHost mutableCopy];
+            diff.updatedHost = [diff.oldHost mutableCopy];
             for (NSUInteger i = 0; i < fields.count; i++) {
-                if (mask & (1u << i)) [diff.newHost setValue:@1 forKey:fields[i]];
+                if (mask & (1u << i)) [diff.updatedHost setValue:@1 forKey:fields[i]];
             }
             for (SceneController *guest in guests) {
                 UIApplicationSceneSettings *original = guest.presenter.scene.settings;

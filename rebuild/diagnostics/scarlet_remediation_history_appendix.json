@@ -12700,6 +12700,400 @@
       "source_verification": "git_patch_observed",
       "status": "source_committed_native_ci_pending",
       "verification": "Linux discovery ran 991 tests with five skipped. The P116 and P117 tests inspected the changed callback generated from pinned LiveContainer 9108ae624ea0. The Apple Foundation executable and native archive run in the macOS workflow. The signed P117 device acceptance remains open."
+    },
+    {
+      "id": "L184",
+      "date": "2026-11-20",
+      "version": "R6P118-user-approved-diagnostic-link-sharing",
+      "problem": "diagnostic_large_local_report_share_to_chatgpt_causes_target_app_termination",
+      "mechanism": "explicit_user_confirmed_file_backed_remote_paste_and_short_https_url_activity_share",
+      "incident_family": "diagnostic_large_report_share_transport",
+      "strategy_family": "diagnostic_explicit_consent_public_link_transport",
+      "operation_fingerprint": "After an explicit user confirmation, materialize the full source-audited diagnostic file off the main actor, stream it by HTTPS file-backed upload to a bounded anonymous text host, reject incomplete HTTP responses, then pass ONLY the validated short URL to UIActivityViewController.",
+      "source_behavior_contract": "Opening diagnostics, refreshing logs, and switching between current or archived scopes perform zero network operations. Only a confirmed share publishes the complete generated report, never deletes device journals, never changes signing state or scene geometry, and delivers no multi-megabyte text or local file to the ChatGPT share extension.",
+      "rollback_commit": "89f88a7f46f492e731772eabff900ea0c2e1d7fb",
+      "novelty": {
+        "causal_difference": "Older L045/L048 diagnostics and L052 audit embedding share local files without a remote link. R6P118 changes only the destination payload after explicit user consent, retaining every historical report section and removing eager main-actor export construction.",
+        "falsifiable_prediction": "A current report larger than five megabytes returns a complete HTTPS link on explicit consent, the iOS share sheet has one URL item instead of a file, and opening/refreshing the diagnostic view performs no upload. No 206 response or untrusted host may produce a shared link.",
+        "prior_excluded_ids": [
+          "L045",
+          "L048",
+          "L052",
+          "L140",
+          "L183"
+        ],
+        "why_prior_fix_failed": "Existing direct ShareLink of a URL pointing to a huge local TXT document still causes the target application to import all bytes. Earlier history embeds preserve engineering context but cannot prevent target share-extension memory pressure."
+      },
+      "observation": "Attached 2026-11-20 current-run handoff TXT is 5,860,582 bytes; installed source creates a complete report in makeShareFile on diagnostic-view reload and calls ShareLink(item: shareFile). User reports ChatGPT iOS app termination after sharing/pasting full report.",
+      "action": "Publish only a short link after consent, retain complete historical code/audit context remotely, reject partial/malformed upload responses, and validate iOS share-sheet URL-only transfer on a signed device.",
+      "repeat_policy": "Do not silently truncate or summarize audit history; do not auto-upload or send local report files as the primary ChatGPT share item. Provider changes require the same consent and size/URL response contract.",
+      "code_locations": [
+        {
+          "file": "rebuild/HostApp/ScarletDiagnosticRecorder.swift",
+          "location": "@@ -445,66 +445,174 @@",
+          "before": [
+            "    @State private var shareFile: URL?",
+            "        shareFile = ScarletDiagnosticRecorder.shared.makeShareFile(",
+            "                    ShareLink(item: shareFile) {"
+          ],
+          "after": [
+            "private enum ScarletDiagnosticLinkUploader {",
+            "        let (result, response) = try await session.upload(for: request, fromFile: file)",
+            "              http.statusCode == 200 || http.statusCode == 201 else {",
+            "        UIActivityViewController(activityItems: [url], applicationActivities: nil)",
+            "            Button(\"동의하고 링크 공유\") { shareAsLink() }"
+          ]
+        },
+        {
+          "file": "rebuild/Tests/test_native_diagnostic_export.py",
+          "location": "@@ -81,11 +81,15 @@",
+          "before": [
+            "        self.assertNotIn(\"URLSession\",LOG)",
+            "        self.assertNotIn(\"https://\",LOG)"
+          ],
+          "after": [
+            "        self.assertIn(\"session.upload(for: request, fromFile: file)\",LOG)",
+            "        self.assertIn(\"showUploadConsent = true\",LOG)",
+            "        self.assertIn(\"UIActivityViewController(activityItems: [url]\",LOG)",
+            "        self.assertIn(\"http.statusCode == 200 || http.statusCode == 201\",LOG)"
+          ]
+        },
+        {
+          "file": "rebuild/diagnostics/scarlet_distinct_strategy_gate.py",
+          "location": "@@ -59,0 +60 @@ OTHER_ALLOWED_METHODS = {",
+          "before": [],
+          "after": [
+            "    \"diagnostic_explicit_consent_public_link_transport\","
+          ]
+        },
+        {
+          "file": ".github/workflows/scarlet-paired-engines-build.yml",
+          "location": "@@ -339,0 +340,2 @@ jobs:",
+          "before": [
+            "          if [ \"$GITHUB_REF\" = \"refs/heads/fix/scarlet-v48-r6p117-resident-scene-settings-20261120\" ]; then"
+          ],
+          "after": [
+            "          if [ \"$GITHUB_REF\" = \"refs/heads/fix/scarlet-v48-r6p118-diagnostic-link-share-20261120\" ]; then",
+            "            SCARLET_HOST_VERSION_ARGS=(--host-build-version 3.8.118)"
+          ]
+        }
+      ],
+      "source_revisions": [
+        {
+          "sha": "648c47e4dc29ec44de583602adb4efe84b3cc9a2",
+          "title": "R6P118: share explicitly uploaded diagnostic reports as short HTTPS URLs"
+        }
+      ],
+      "source_verification": "git_patch_observed",
+      "status": "source_committed_native_ci_pending",
+      "device_verification": "device_unverified",
+      "hypothesis": "Reducing ChatGPT's incoming share payload to a URL avoids the oversized-file ingestion that the user reports as a crash; native target-app behavior and external provider end-to-end response still need live-device verification.",
+      "verification": "Source readback and static structural checks confirmed the consent-first uploader and URL-only activity sheet. Native Xcode/IPA and actual provider upload remain CI/device pending.",
+      "generated_runtime_targets_if_integrated": [
+        "rebuild/HostApp/ScarletDiagnosticRecorder.swift"
+      ]
+    },
+    {
+      "id": "L185",
+      "date": "2026-11-20",
+      "version": "R6P118-CI-original-current-run-test-update",
+      "problem": "diagnostic_ci_assertion_staleness_after_consent_based_url_share",
+      "mechanism": "replace_obsolete_eager_file_share_string_assertion_with_explicit_user_consent_scope_snapshot_contract",
+      "incident_family": "diagnostic_ci_assertion_staleness",
+      "strategy_family": "diagnostic_explicit_consent_public_link_transport",
+      "operation_fingerprint": "Remove the old test's literal eager makeShareFile(includeHistory:) matching requirement and assert a user-confirmed export uses the selected history flag snapshot, never an oversized local document ShareLink.",
+      "source_behavior_contract": "The default remains current-run scope with archived logs opt-in only; diagnostic view reload must not export a report, while the confirmed upload uses the same scope snapshot and only shares the validated URL.",
+      "rollback_commit": "cfe2413b1c9da5b62988e5f8c6fd8f56257bb5b8",
+      "novelty": {
+        "causal_difference": "L184 created a consent-first remote URL sharing UI but left a source-contract test expecting eager local file generation. L185 updates only that stale regression contract to explicitly assert the user-consent boundary and immutable scope snapshot.",
+        "falsifiable_prediction": "The previously failing test_share_and_view_default_current_process_only must pass when the share is built after consent with archivedRuns, and fail if the implementation regresses to eager local file sharing.",
+        "prior_excluded_ids": [
+          "L045",
+          "L048",
+          "L052",
+          "L184"
+        ],
+        "why_prior_fix_failed": "The existing test assumed that a report file was produced from a view reload using one exact indentation and variable name. The correct implementation moves export after consent into a detached task, invalidating only that old text assertion."
+      },
+      "observation": "GitHub Actions run 44645846784 livecontainer preflight reports Ran 991 tests, FAILED failures=1 skipped=5; sole failed test test_v38_current_launch_only_diagnostics.CurrentLaunchOnly.test_share_and_view_default_current_process_only on obsolete literal.",
+      "action": "Update the legacy test to assert selected-scope snapshot and explicit upload consent. Verify full 991-test preflight, native Xcode compile, unsigned IPA publication, and later signed-device URL share.",
+      "repeat_policy": "Do not restore eager makeShareFile UI generation or local-file ShareLink simply to satisfy a string-based regression test. Preserve current-run scope semantics.",
+      "code_locations": [
+        {
+          "file": "rebuild/Tests/test_v38_current_launch_only_diagnostics.py",
+          "location": "@@ -41 +41,7 @@ class CurrentLaunchOnly(unittest.TestCase):",
+          "before": [
+            "        self.assertIn('makeShareFile(\\n            includeHistory: includeHistory)',S)"
+          ],
+          "after": [
+            "        # Export is constructed only after explicit consent, off the UI thread.",
+            "        # The scope snapshot remains current-launch only by default.",
+            "        self.assertIn('let archivedRuns = includeHistory',S)",
+            "        self.assertIn('includeHistory: archivedRuns',S)",
+            "        self.assertIn('showUploadConsent = true',S)",
+            "        self.assertIn('Button(\"동의하고 링크 공유\") { shareAsLink() }',S)",
+            "        self.assertNotIn('ShareLink(item: shareFile)',S)"
+          ]
+        }
+      ],
+      "source_revisions": [
+        {
+          "sha": "5f2223b41be3f320e7cd99808ce29de05999dadd",
+          "title": "test(R6P118): align legacy current-run share assertion with URL consent flow"
+        }
+      ],
+      "source_verification": "git_patch_observed",
+      "status": "source_committed_native_ci_pending",
+      "device_verification": "device_unverified",
+      "verification": "Prior CI isolated one obsolete test assertion; source now validates explicit consent and retained current-run default. Native CI and device verification pending."
+    },
+    {
+      "id": "L186",
+      "date": "2026-11-20",
+      "version": "R6P118-one-tap-user-authorized-log-URL",
+      "problem": "diagnostic_share_requires_redundant_confirmation_after_explicit_user_approval",
+      "mechanism": "remove_redundant_modal_after_user_consented_and_bind_log_share_button_directly_to_asynchronous_link_upload",
+      "incident_family": "diagnostic_one_tap_share_ux",
+      "strategy_family": "diagnostic_user_approved_one_tap_link_sharing",
+      "operation_fingerprint": "The existing diagnostic screen now invokes shareAsLink directly from the log-share button; it still generates the report and uploads only when the user presses that button, and explicitly warns that the link is public.",
+      "source_behavior_contract": "No new authentication prompt or secondary confirmation is required after the user's explicit approval. Viewing or refreshing logs never uploads; iOS shares the returned short URL only, with scope selection frozen before awaiting upload.",
+      "rollback_commit": "823ca0506905d4fad7c47dc6e4a0da18368ad5f0",
+      "novelty": {
+        "causal_difference": "L184 added a secondary modal to obtain public-hosting consent before uploading. The user has since explicitly authorized link sharing and requested a single-tap flow. This change removes only the redundant modal, keeping the same file-backed uploader.",
+        "falsifiable_prediction": "After pressing Log Share once, the app immediately starts file-backed upload and presents a URL-only UIActivityViewController on success; initial view and refresh continue to produce zero network requests.",
+        "prior_excluded_ids": [
+          "L184",
+          "L185",
+          "L052"
+        ],
+        "why_prior_fix_failed": "L184 added a secondary modal to obtain public-hosting consent before uploading. The user has since explicitly authorized link sharing and requested a single-tap flow. This change removes only the redundant modal, keeping the same file-backed uploader."
+      },
+      "observation": "User requests one-tap URL delivery rather than an additional in-app confirmation; prior R6P118 implementation presents a confirmationDialog despite the already granted consent.",
+      "action": "Remove the confirmationDialog state and action, wire button directly to shareAsLink, retain visible public-link disclosure, and update both old and new diagnostic source assertions.",
+      "repeat_policy": "Keep all history entries immutable; do not bypass original SideStore certificate/team/transport checks and do not label CI as device proof.",
+      "code_locations": [
+        {
+          "file": "rebuild/HostApp/ScarletDiagnosticRecorder.swift",
+          "location": "@@ -559,0 +559,4 @@ struct ScarletDiagnosticLogView: View",
+          "before": [
+            "                    showUploadConsent = true"
+          ],
+          "after": [
+            "                    shareAsLink()",
+            "            Text(\"로그 링크 공유를 누르면 전체 진단 보고서가 paste.c-net.org로 업로드됩니다. 링크를 아는 누구나 볼 수 있습니다.\")"
+          ]
+        },
+        {
+          "file": "rebuild/Tests/test_native_diagnostic_export.py",
+          "location": "@@ -88 +88,2 @@ class FullSizeSettingsAndOnDeviceLog(unittest.TestCase):",
+          "before": [
+            "        self.assertIn(\"showUploadConsent = true\",LOG)"
+          ],
+          "after": [
+            "        self.assertIn(\"shareAsLink()\",LOG)",
+            "        self.assertIn(\"로그 링크 공유를 누르면\",LOG)"
+          ]
+        },
+        {
+          "file": "rebuild/Tests/test_v38_current_launch_only_diagnostics.py",
+          "location": "@@ -44,2 +44,2 @@ class CurrentLaunchOnly(unittest.TestCase):",
+          "before": [
+            "        self.assertIn('showUploadConsent = true',S)",
+            "        self.assertIn('Button(\"동의하고 링크 공유\") { shareAsLink() }',S)"
+          ],
+          "after": [
+            "        self.assertIn('Button {\\n                    shareAsLink()\\n                } label: {',S)",
+            "        self.assertNotIn('showUploadConsent = true',S)"
+          ]
+        }
+      ],
+      "source_revisions": [
+        {
+          "sha": "8c98c4055335482d1fdce29691bbd31c434e3096",
+          "title": "fix(R6P118): one-tap URL share, exact host-owner mismatch, and ARC fixture regression"
+        }
+      ],
+      "source_verification": "git_patch_observed",
+      "status": "source_committed_native_ci_pending",
+      "device_verification": "device_unverified"
+    },
+    {
+      "id": "L187",
+      "date": "2026-11-20",
+      "version": "R6P118-exact-host-team-mismatch-before-manual-refresh",
+      "problem": "installed_host_signed_by_different_team_hidden_as_no_managed_apps_then_manual_refresh_fails",
+      "mechanism": "preserve_verified_host_selected_team_mismatch_before_empty_inventory_classification_and_native_manual_onboarding",
+      "incident_family": "native_refresh_team_mismatch_diagnostic_invariant",
+      "strategy_family": "native_refresh_host_signer_owner_mismatch_exact_reason",
+      "operation_fingerprint": "The native SideStore read-only inventory classifier now forwards host_selected_team_mismatch when selected Team has no managed targets and verified installed host belongs to a different Team; it prevents the manual host-onboarding path from making an impossible cross-team installation attempt.",
+      "source_behavior_contract": "Never change selected account, host Bundle/Team ID, certificate, Keychain, entitlement or CoreData ownership to circumvent this mismatch. Preserve precise failure stage and existing valid managed apps on other Team, and block before any signing or installation when the host signer differs.",
+      "rollback_commit": "823ca0506905d4fad7c47dc6e4a0da18368ad5f0",
+      "novelty": {
+        "causal_difference": "P116 current-run log records count=0/no_managed_apps_for_selected_team at seq296 followed by host_selected_team_mismatch at seq298 within 26 ms. Source explicitly rewrites mismatch into no_managed_apps at zero-target inventory, allowing manual onboarding even though host signing cannot match the selected Team.",
+        "falsifiable_prediction": "A native inspector with no targets and hostBootstrap host_selected_team_mismatch returns that exact reason, and the host manual-onboarding action refuses to proceed. Same-team empty inventory still returns no_managed_apps_for_selected_team.",
+        "prior_excluded_ids": [
+          "L171",
+          "L172",
+          "L175",
+          "L178",
+          "L184"
+        ],
+        "why_prior_fix_failed": "P116 current-run log records count=0/no_managed_apps_for_selected_team at seq296 followed by host_selected_team_mismatch at seq298 within 26 ms. Source explicitly rewrites mismatch into no_managed_apps at zero-target inventory, allowing manual onboarding even though host signing cannot match the selected Team."
+      },
+      "observation": "P116 session cd4f5a82 seq296 no_managed_apps_for_selected_team count=0 and seq298 manual_request_failed host_selected_team_mismatch; source has reason = hostBootstrap == mismatch ? no_managed_apps_for_selected_team.",
+      "action": "Expose the installed-host Team mismatch before the zero-inventory alias branch, preserve all existing same-Team target paths, and add a regression test proving the exact reason prevents cross-Team onboarding.",
+      "repeat_policy": "Keep all history entries immutable; do not bypass original SideStore certificate/team/transport checks and do not label CI as device proof.",
+      "code_locations": [
+        {
+          "file": "rebuild/integration/ScarletGuestRefreshAgent.swift.txt",
+          "location": "@@ -380,7 +380,13 @@ native inventory result",
+          "before": [
+            "                if let inventoryReason {",
+            "                    reason = hostBootstrap == \"host_selected_team_mismatch\"",
+            "                        ? \"no_managed_apps_for_selected_team\""
+          ],
+          "after": [
+            "                if targets.isEmpty && hostBootstrap == \"host_selected_team_mismatch\" {",
+            "                    reason = \"host_selected_team_mismatch\"",
+            "                } else if let inventoryReason {",
+            "                    reason = registrationFailures.contains(hostBootstrap)",
+            "                        ? hostBootstrap : \"no_managed_apps_for_selected_team\""
+          ]
+        },
+        {
+          "file": "rebuild/Tests/test_v48_r6p118_share_ci_and_host_team_mismatch.py",
+          "location": "@@ -0,0 +1,35 @@",
+          "before": [],
+          "after": [
+            "class HostTeamMismatchPropagation(unittest.TestCase):",
+            "    def test_zero_target_host_mismatch_wins_over_inventory_alias(self):",
+            "    def test_manual_onboarding_requires_true_zero_inventory_not_wrong_host_owner(self):"
+          ]
+        }
+      ],
+      "source_revisions": [
+        {
+          "sha": "8c98c4055335482d1fdce29691bbd31c434e3096",
+          "title": "fix(R6P118): one-tap URL share, exact host-owner mismatch, and ARC fixture regression"
+        }
+      ],
+      "source_verification": "git_patch_observed",
+      "status": "source_committed_native_ci_pending",
+      "device_verification": "device_unverified"
+    },
+    {
+      "id": "L188",
+      "date": "2026-11-20",
+      "version": "R6P118-native-ARC-fixture-CI-repair",
+      "problem": "clang_objc_arc_property_newHost_convention_prevents_guest_scene_callback_regression_execution",
+      "mechanism": "rename_test_only_arc_property_with_new_prefix_ownership_convention_to_unambiguous_updatedHost",
+      "incident_family": "ci_native_objc_arc_fixture_error",
+      "strategy_family": "native_objc_arc_fixture_property_name_repair",
+      "operation_fingerprint": "Rename FBSSceneSettingsDiff fixture property newHost to updatedHost in the P117 Objective-C executable harness without changing the generated production callback, memory ownership or two-guest state assertions.",
+      "source_behavior_contract": "The same P117 two-guest host transition test must compile and execute under macOS clang -fobjc-arc. No runtime production scene policy changes are permitted while repairing this fixture-only naming failure.",
+      "rollback_commit": "823ca0506905d4fad7c47dc6e4a0da18368ad5f0",
+      "novelty": {
+        "causal_difference": "Mac runner Xcode 27.2 clang reports property follows Cocoa naming convention for returning owned objects on newHost declaration; Objective-C ARC recognizes the new prefix as a retained-family selector. The test never reaches guest state assertions.",
+        "falsifiable_prediction": "Both original and integrated P117 Objective-C harnesses compile under clang -fobjc-arc with the updatedHost property and run all original state assertions without changing generated runtime callback.",
+        "prior_excluded_ids": [
+          "L183",
+          "L185"
+        ],
+        "why_prior_fix_failed": "Mac runner Xcode 27.2 clang reports property follows Cocoa naming convention for returning owned objects on newHost declaration; Objective-C ARC recognizes the new prefix as a retained-family selector. The test never reaches guest state assertions."
+      },
+      "observation": "GitHub Actions 44646343040 livecontainer fails in generated integration at rebuild/Tests/fixtures/resident_scene_settings.m line27:68 property follows Cocoa naming convention for returning owned objects, with two harness errors.",
+      "action": "Rename only fixture property, add exact ARC name regression, include the three newly audited unrelated R6P118 implementation strategy names in the strict gate allowlist, rerun the existing Xcode preflight.",
+      "repeat_policy": "Keep all history entries immutable; do not bypass original SideStore certificate/team/transport checks and do not label CI as device proof.",
+      "code_locations": [
+        {
+          "file": "rebuild/Tests/fixtures/resident_scene_settings.m",
+          "location": "@@ -27 +27 @@ FBSSceneSettingsDiff",
+          "before": [
+            "@property(nonatomic, strong) UIApplicationSceneSettings *oldHost, *newHost;"
+          ],
+          "after": [
+            "@property(nonatomic, strong) UIApplicationSceneSettings *oldHost, *updatedHost;"
+          ]
+        },
+        {
+          "file": "rebuild/diagnostics/scarlet_distinct_strategy_gate.py",
+          "location": "@@ -60,0 +61,3 @@ OTHER_ALLOWED_METHODS",
+          "before": [],
+          "after": [
+            "    \"diagnostic_user_approved_one_tap_link_sharing\",",
+            "    \"native_refresh_host_signer_owner_mismatch_exact_reason\",",
+            "    \"native_objc_arc_fixture_property_name_repair\","
+          ]
+        }
+      ],
+      "source_revisions": [
+        {
+          "sha": "8c98c4055335482d1fdce29691bbd31c434e3096",
+          "title": "fix(R6P118): one-tap URL share, exact host-owner mismatch, and ARC fixture regression"
+        }
+      ],
+      "source_verification": "git_patch_observed",
+      "status": "source_committed_native_ci_pending",
+      "device_verification": "device_unverified"
+    },
+    {
+      "id": "L189",
+      "date": "2026-11-20",
+      "version": "R6P118-release-staging-asset-name-parity",
+      "problem": "ci_release_upload_cannot_find_r6p118_named_ipa_despite_successful_native_and_package_jobs",
+      "mechanism": "stage_release_asset_under_exact_same_versioned_name_as_gh_release_upload_uses",
+      "incident_family": "ci_release_prepared_asset_filename_mismatch",
+      "strategy_family": "native_build_public_ipa_release_job_branch_gate_repair",
+      "operation_fingerprint": "Match the explicit R6P118 branch-specific source artifact copy filename in the Verify unsigned IPA and prepare downloadable release asset step to the existing R6P118 gh release upload target name in the subsequent publish step.",
+      "source_behavior_contract": "Only rename the already integrity-checked unsigned IPA within the isolated GitHub Release job. Do not rebuild, re-sign, change Bundle/Team ID, use a fallback release filename, or publish an empty placeholder. The prepared filename and checksum must match the publish step.",
+      "rollback_commit": "2bc01c18dc4d0462317486b859aedf7a068f67a4",
+      "novelty": {
+        "causal_difference": "L184 created R6P118 public Release name mapping only in the publish step. The earlier prepare step retained its fallback Scarlet-Integrated-UNSIGNED.ipa, so gh release upload could not find the expected versioned local file although all native engine and package jobs succeeded. This is a filename parity correction, not another app or signing attempt.",
+        "falsifiable_prediction": "On R6P118 push, the asset-preparation step copies the successful packaged IPA under Scarlet-Crystal-V48-R6P118-DIAGNOSTIC-LINK-UNSIGNED.ipa and creates a matching sha256 file; publish uses the identical pair and GitHub Release lists the exact IPA.",
+        "prior_excluded_ids": [
+          "L175",
+          "L184",
+          "L188"
+        ],
+        "why_prior_fix_failed": "The publishing command's argument was updated to the new R6P118 filename while the independent release staging step's branch table was not; successful package output was therefore copied to a different basename."
+      },
+      "observation": "GitHub Actions run 44648092895: livecontainer, sidestore, package-paired jobs all succeeded; publish-unsigned-github-release failed after creating tag with 'no matches found for `Scarlet-Crystal-V48-R6P118-DIAGNOSTIC-LINK-UNSIGNED.ipa`'. Staging table has no R6P118 case and defaults to Scarlet-Integrated-UNSIGNED.ipa.",
+      "action": "Insert the matching R6P118 branch condition into the staging asset table, add source-contract parity test, rerun native build and publication without changing signing or provisioning assets.",
+      "repeat_policy": "Never treat a created Release tag as evidence that a downloadable IPA asset was uploaded. Require exact asset+SHA256 listing in the release final assertion.",
+      "code_locations": [
+        {
+          "file": ".github/workflows/scarlet-paired-engines-build.yml",
+          "location": "@@ -661,0 +662,3 @@ Verify unsigned IPA and prepare downloadable release asset",
+          "before": [
+            "          if [ \"$GITHUB_REF\" = \"refs/heads/fix/scarlet-v48-r6p115-managed-host-owner-20261119\" ]; then"
+          ],
+          "after": [
+            "          if [ \"$GITHUB_REF\" = \"refs/heads/fix/scarlet-v48-r6p118-diagnostic-link-share-20261120\" ]; then",
+            "            asset=\"Scarlet-Crystal-V48-R6P118-DIAGNOSTIC-LINK-UNSIGNED.ipa\"",
+            "          elif [ \"$GITHUB_REF\" = \"refs/heads/fix/scarlet-v48-r6p115-managed-host-owner-20261119\" ]; then"
+          ]
+        },
+        {
+          "file": "rebuild/Tests/test_v48_r6p118_share_ci_and_host_team_mismatch.py",
+          "location": "@@ -34,0 +35,8 @@ HostTeamMismatchPropagation",
+          "before": [],
+          "after": [
+            "    def test_release_asset_name_matches_prepared_file_for_r6p118(self):",
+            "        self.assertIn('asset=\"' + asset + '\"', before)",
+            "        self.assertIn(\"asset=\" + asset, after)"
+          ]
+        }
+      ],
+      "source_revisions": [
+        {
+          "sha": "dca92d7f666bd2d43ba5521be3f3332219024558",
+          "title": "fix(R6P118): stage the exact IPA filename expected by release upload"
+        }
+      ],
+      "source_verification": "git_patch_observed",
+      "status": "source_committed_native_ci_pending",
+      "device_verification": "device_unverified",
+      "verification": "Source difference and exact CI publish error reproduced. New push native/publication tests pending."
     }
   ]
 }

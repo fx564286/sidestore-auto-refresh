@@ -18,7 +18,7 @@ final class ScarletDiagnosticRecorder: @unchecked Sendable {
     private let salt = UUID().uuidString
     private var sequence: UInt64 = 0
     // Full, device-local diagnostic history for the experimental compositor.
-    // Bounded to 8 x 4 MiB, never exported to a network service automatically.
+    // Bounded to 8 x 4 MiB; only an explicit confirmed share may upload a report.
     private let maxFileBytes = 4_000_000
     private let retainedFiles = 8
     // Process-specific journal, independent of archived runs.
@@ -441,11 +441,99 @@ final class ScarletDiagnosticRecorder: @unchecked Sendable {
     }
 }
 
+// User-initiated only: export a bounded diagnostic report to an HTTPS link.
+// Never upload automatically at launch, when opening diagnostics, or on refresh.
+private enum ScarletDiagnosticLinkError: LocalizedError {
+    case reportUnavailable
+    case invalidSize
+    case uploadRejected
+    case invalidResponse
+
+    var errorDescription: String? {
+        switch self {
+        case .reportUnavailable:
+            return "진단 로그 파일을 만들 수 없습니다."
+        case .invalidSize:
+            return "로그 파일이 비어 있거나 링크 서비스의 50MB 제한을 초과했습니다."
+        case .uploadRejected:
+            return "링크 서버가 업로드를 완료하지 못했습니다. 원본 로그는 기기에 유지됩니다."
+        case .invalidResponse:
+            return "링크 서버가 올바른 HTTPS 공유 주소를 반환하지 않았습니다."
+        }
+    }
+}
+
+private enum ScarletDiagnosticLinkUploader {
+    // paste.c-net.org: documented 50MB limit, user-visible anonymous links.
+    // Explicit consent is mandatory because anyone who knows the link can read it.
+    static func publish(file: URL) async throws -> URL {
+        let fileSize = try file.resourceValues(forKeys: [.fileSizeKey]).fileSize ?? 0
+        guard fileSize > 0 && fileSize <= 50_000_000 else {
+            throw ScarletDiagnosticLinkError.invalidSize
+        }
+        let endpoint = URL(string: "https://paste.c-net.org/")!
+        var request = URLRequest(url: endpoint)
+        request.httpMethod = "POST"
+        request.timeoutInterval = 120
+        request.setValue("text/plain; charset=utf-8", forHTTPHeaderField: "Content-Type")
+        // Request a high-entropy, non-enumerable link rather than a word-based slug.
+        request.setValue("1", forHTTPHeaderField: "X-UUID")
+
+        let session = URLSession(configuration: .ephemeral)
+        defer { session.invalidateAndCancel() }
+        // File-backed upload avoids passing the multi-MB report to the share sheet
+        // or materializing a second full Data buffer in SwiftUI.
+        let (result, response) = try await session.upload(for: request, fromFile: file)
+        guard let http = response as? HTTPURLResponse,
+              http.statusCode == 200 || http.statusCode == 201 else {
+            // In particular, do NOT share 206 Partial Content or truncated data.
+            throw ScarletDiagnosticLinkError.uploadRejected
+        }
+        guard result.count <= 4_096,
+              let returned = String(data: result, encoding: .utf8)?
+                .trimmingCharacters(in: .whitespacesAndNewlines),
+              let url = URL(string: returned),
+              url.scheme == "https", url.host == "paste.c-net.org",
+              url.user == nil, url.password == nil,
+              url.query == nil, url.fragment == nil,
+              url.pathComponents.count == 2,
+              url.lastPathComponent.count >= 8,
+              url.lastPathComponent.count <= 100,
+              url.lastPathComponent.unicodeScalars.allSatisfy({
+                  CharacterSet(charactersIn: "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-").contains($0)
+              }) else {
+            throw ScarletDiagnosticLinkError.invalidResponse
+        }
+        return url
+    }
+}
+
+private struct ScarletDiagnosticSharedLink: Identifiable {
+    let id = UUID()
+    let url: URL
+}
+
 @available(iOS 16.0, *)
+private struct ScarletDiagnosticURLShareSheet: UIViewControllerRepresentable {
+    let url: URL
+
+    func makeUIViewController(context: Context) -> UIActivityViewController {
+        // Only a short remote URL is ever handed to ChatGPT, not the report.
+        UIActivityViewController(activityItems: [url], applicationActivities: nil)
+    }
+
+    func updateUIViewController(_ controller: UIActivityViewController, context: Context) {}
+}
+
+@available(iOS 16.0, *)
+@MainActor
 struct ScarletDiagnosticLogView: View {
     @State private var text = "기록된 이벤트가 없습니다."
-    @State private var shareFile: URL?
     @State private var includeHistory = false
+    @State private var isUploading = false
+    @State private var sharedLink: ScarletDiagnosticSharedLink?
+    @State private var showUploadError = false
+    @State private var uploadErrorMessage = ""
 
     private func reload() {
         // A returned guest can hand off without a fresh host .onAppear.
@@ -459,8 +547,33 @@ struct ScarletDiagnosticLogView: View {
         let content = ScarletDiagnosticRecorder.shared.readRecent(
             maxLines: 350, includeHistory: includeHistory)
         text = content.isEmpty ? "기록된 이벤트가 없습니다." : content
-        shareFile = ScarletDiagnosticRecorder.shared.makeShareFile(
-            includeHistory: includeHistory)
+    }
+
+    private func shareAsLink() {
+        guard !isUploading else { return }
+        isUploading = true
+        let archivedRuns = includeHistory
+        Task {
+            defer { isUploading = false }
+            do {
+                let url = try await Task.detached(priority: .userInitiated) { () async throws -> URL in
+                    guard let file = ScarletDiagnosticRecorder.shared.makeShareFile(
+                        includeHistory: archivedRuns) else {
+                        throw ScarletDiagnosticLinkError.reportUnavailable
+                    }
+                    defer { try? FileManager.default.removeItem(at: file) }
+                    return try await ScarletDiagnosticLinkUploader.publish(file: file)
+                }.value
+                ScarletDiagnosticRecorder.shared.record(
+                    "diagnostics", "link_shared", status: "success")
+                sharedLink = ScarletDiagnosticSharedLink(url: url)
+            } catch {
+                ScarletDiagnosticRecorder.shared.record(
+                    "diagnostics", "link_share_failed", status: "error")
+                uploadErrorMessage = error.localizedDescription
+                showUploadError = true
+            }
+        }
     }
 
     var body: some View {
@@ -474,6 +587,7 @@ struct ScarletDiagnosticLogView: View {
             }
             .pickerStyle(.segmented)
             .onChange(of: includeHistory) { _ in reload() }
+            .disabled(isUploading)
             .accessibilityIdentifier("SCARLET_DIAGNOSTICS_LOG_SCOPE")
             HStack(spacing: 12) {
                 Button {
@@ -481,13 +595,19 @@ struct ScarletDiagnosticLogView: View {
                 } label: {
                     Label("새로고침", systemImage: "arrow.clockwise")
                 }
+                .disabled(isUploading)
                 .accessibilityIdentifier("SCARLET_DIAGNOSTICS_REFRESH")
-                if let shareFile {
-                    ShareLink(item: shareFile) {
-                        Label("로그 공유", systemImage: "square.and.arrow.up")
+                Button {
+                    shareAsLink()
+                } label: {
+                    if isUploading {
+                        ProgressView()
+                    } else {
+                        Label("로그 링크 공유", systemImage: "link")
                     }
-                    .accessibilityIdentifier("SCARLET_DIAGNOSTICS_SHARE")
                 }
+                .disabled(isUploading)
+                .accessibilityIdentifier("SCARLET_DIAGNOSTICS_SHARE")
             }
             .buttonStyle(.bordered)
             ScrollView {
@@ -496,6 +616,9 @@ struct ScarletDiagnosticLogView: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .textSelection(.enabled)
             }
+            Text("로그 링크 공유를 누르면 전체 진단 보고서가 paste.c-net.org로 업로드됩니다. 링크를 아는 누구나 볼 수 있습니다.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
             Text("치명적인 iOS 종료는 앱 내부 기록이 중단될 수 있습니다. 그때는 iPhone 분석 데이터의 .ips 보고서도 필요합니다.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
@@ -505,6 +628,14 @@ struct ScarletDiagnosticLogView: View {
         .navigationTitle("진단 로그")
         .navigationBarTitleDisplayMode(.inline)
         .onAppear(perform: reload)
+        .alert("로그 링크 생성 실패", isPresented: $showUploadError) {
+            Button("확인", role: .cancel) {}
+        } message: {
+            Text(uploadErrorMessage)
+        }
+        .sheet(item: $sharedLink) { link in
+            ScarletDiagnosticURLShareSheet(url: link.url)
+        }
         .accessibilityIdentifier("SCARLET_DIAGNOSTICS_VIEW")
     }
 }
