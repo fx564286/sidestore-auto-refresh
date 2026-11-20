@@ -13239,6 +13239,95 @@
       "status": "source_committed_native_ci_pending",
       "device_verification": "device_unverified",
       "verification": "P84 pre-edit method gate passed against 189 prior actions. Linux 1000 unittest: all passed, 5 skipped; signed iPhone reinstallation not yet verified."
+    },
+    {
+      "id": "L191",
+      "date": "2026-11-20",
+      "version": "R6P120-manual-owner-mismatch-onboarding",
+      "problem": "manual_same_team_signed_host_onboarding_blocked_by_stale_foreign_coredata_owner",
+      "mechanism": "native_manual_ui_preflight_gates_safe_zero_target_worker_for_owner_mismatch",
+      "incident_family": "explicit_manual_native_owner_mismatch_inspection_dispatch",
+      "strategy_family": "account_auth_team_selection_repair",
+      "operation_fingerprint": "Permit only an explicit manual refresh with zero selected-account targets, exact host_managed_owner_mismatch and native signing readiness to dispatch the existing original Same-Team AppManager.install transaction, whose worker independently validates host and account.",
+      "source_behavior_contract": "Keep automatic refresh fail-closed; never admit host_selected_team_mismatch, inactive selected-owned rows, unverified certificates, or cross-Team host. The original worker must enforce signed host same Team, current Apple ID, active pinned signing certificate, recheck across awaits and preserve installation-unverified outcome.",
+      "rollback_commit": "7a3f49bec28bb5a9a6b0761446c182a4ecdb8acb",
+      "novelty": {
+        "causal_difference": "P106 introduced manual AppManager.install only for no_managed_apps_for_selected_team. The new signed-device log actually reports host_managed_owner_mismatch with zero targets. The UI allowlist blocks dispatch before the existing independently guarded same-Team native worker can handle this explicit operation; P115 and P119 only reconcile current host ownership, not UI routing.",
+        "falsifiable_prediction": "On the next signed iPhone build, an explicit manual refresh for a zero-target same-Team stale-owned host passes the UI guard and invokes the original native worker; foreign Team still blocks, no background install is scheduled, and completion remains installation-unverified.",
+        "new_device_evidence": {
+          "source_commit": "7a3f49bec28b",
+          "event": "sidestore_managed_apps_inspected",
+          "observed_value": "seq233 count=0 reason=host_managed_owner_mismatch"
+        },
+        "prior_excluded_ids": [
+          "L167",
+          "L181",
+          "L187",
+          "L190"
+        ],
+        "why_prior_fix_failed": "P106 UI only allowed no_managed_apps_for_selected_team, P115/P119 bootstrap emits host_managed_owner_mismatch for stale foreign owner; P118 preserves mismatch classification but manual request refuses to dispatch despite worker having a separate same-Team owner-checked installation route."
+      },
+      "code_locations": [
+        {
+          "file": "rebuild/HostApp/ScarletSigningReadinessPanel.swift",
+          "location": "@@ -255,7 +255,15 @@ explicit manual zero-target dispatch",
+          "before": [
+            "            let manuallyOnboardableHost = nativeState.count == 0 &&",
+            "                nativeState.reason == \"no_managed_apps_for_selected_team\""
+          ],
+          "after": [
+            "            let manuallyOnboardableHost = nativeState.count == 0 &&",
+            "                (nativeState.reason == \"no_managed_apps_for_selected_team\" ||",
+            "                 (nativeState.reason == \"host_managed_owner_mismatch\" &&",
+            "                  nativeState.signingReady))"
+          ]
+        },
+        {
+          "file": ".github/workflows/scarlet-paired-engines-build.yml",
+          "location": "@@ -340,3 +340,5 @@ unique R6P120 build and unsigned release mapping",
+          "before": [
+            "          if [ \"$GITHUB_REF\" = \"refs/heads/fix/scarlet-v48-r6p119-owner-refresh-20261120\" ]; then"
+          ],
+          "after": [
+            "          if [ \"$GITHUB_REF\" = \"refs/heads/fix/scarlet-v48-r6p120-manual-owner-mismatch-20261120\" ]; then",
+            "            SCARLET_HOST_VERSION_ARGS=(--host-build-version 3.8.120)",
+            "          elif [ \"$GITHUB_REF\" = \"refs/heads/fix/scarlet-v48-r6p119-owner-refresh-20261120\" ]; then"
+          ]
+        },
+        {
+          "file": "rebuild/Tests/test_v48_r6p120_manual_owner_mismatch_dispatch.py",
+          "location": "@@ -0,0 +1,57 @@ new R6P120 precise manual native dispatch regression",
+          "before": [],
+          "after": [
+            "class R6P120ManualOwnerMismatchDispatch(unittest.TestCase):",
+            "    def test_only_explicit_manual_zero_target_owner_mismatch_reaches_existing_worker(self):",
+            "    def test_original_native_worker_retains_cross_owner_native_install_proofs(self):",
+            "    def test_background_cannot_dispatch_manual_foreign_owner_onboarding(self):",
+            "    def test_native_release_identity_and_unsigned_publication(self):"
+          ]
+        }
+      ],
+      "source_revisions": [
+        {
+          "sha": "817b54fadc1de51498ea7e460dbfbdf15bb806ea",
+          "title": "fix(R6P120): allow manual owner-mismatch dispatch only through native signed-host gates"
+        },
+        {
+          "sha": "855883f013ee22c752f645ec57abe5f89bf631f8",
+          "title": "ci(R6P120): unique 3.8.120 native build and unsigned IPA release mapping"
+        },
+        {
+          "sha": "5316283a86d17f947f6ef36edc6a7d3a39c1bcfb",
+          "title": "test(R6P120): assert manual owner-mismatch native dispatch and fail-closed background path"
+        }
+      ],
+      "source_verification": "git_patch_observed",
+      "status": "source_committed_native_ci_pending",
+      "device_verification": "device_unverified",
+      "observation": "iPhone R6P119 7a3f49bec28b current session 4fe0dafa seq233 04:49:56.418Z: explicit manual SideStore refresh inspection count=0 host_managed_owner_mismatch; UI requestManualRefresh returns before protected native zero-target installer. seq225 automatic reinspection confirmed; seq230 fresh Apple cert issue fails independent portal code 20.",
+      "action": "Allow only zero-target, signer-ready explicit manual host_managed_owner_mismatch to dispatch original native worker; worker still verifies host Team, current Apple ID, pinned signer serial, live transport and installer callback ownership. Preserve foreign Team, inactive, background and account-changing gates; publish distinct 3.8.120 unsigned IPA.",
+      "repeat_policy": "Never auto-transfer CoreData rows or bypass native signed host provenance, P12 ownership, per-account Team or Apple portal. Worker callback is installation unverified, not successful installed profile renewal.",
+      "verification": "P84 pre-edit no-repeat pass against L001-L190; Linux 1004 unittest passed, 5 skipped; native xcodebuild, unsigned IPA release and signed iPhone reinstallation pending. Apple's portal create code 20 remains a separate unresolved error."
     }
   ]
 }
