@@ -627,6 +627,11 @@ struct ScarletIntegratedHostView: View {
     @State private var selectedInstallAccountID: String?
     @State private var selectedInstallTeamID: String?
     @State private var showManagedSlotSheet = false
+    // Read only the authenticated SideStore owner's managed IPA records.
+    // This is never merged with sharedModel.apps (LC guest bundle storage).
+    @State private var managedDeviceApps: [ScarletManagedDevicePresentation] = []
+    @State private var deviceAppLookupStatus = "not_loaded"
+    @State private var deviceAppReadGeneration: UInt64 = 0
     @State private var sourceInputError: String?
     @State private var showScarletAppleIDLogin = false
     @State private var showInAppDevicePairing = false
@@ -643,7 +648,48 @@ struct ScarletIntegratedHostView: View {
 
     // Recorded values are deliberately categorical. No Apple ID, guest name,
     // certificate, UDID, user path, IPA URL or credential is ever serialized.
+    private func reloadManagedDeviceApps() {
+        deviceAppReadGeneration &+= 1
+        let generation = deviceAppReadGeneration
+        // Hide the old owner's rows immediately while a new account-scoped
+        // list is loading; a late XPC reply must never restore stale rows.
+        managedDeviceApps = []
+        deviceAppLookupStatus = "loading"
+        Task { @MainActor in
+            let result = await ScarletNativeSideloadSlots.list()
+            guard generation == deviceAppReadGeneration else { return }
+            guard result.reason == "ready" else {
+                deviceAppLookupStatus = "unavailable"
+                ScarletDiagnosticRecorder.shared.record(
+                    "sidestore", "device_app_catalog_unavailable",
+                    fields: ["reason": result.reason])
+                return
+            }
+            // The slot worker filters against native selected Apple ID+Team.
+            // Never infer these rows from LC guest models or claim iOS install.
+            managedDeviceApps = result.apps.map { slot in
+                ScarletManagedDevicePresentation(
+                    id: slot.id, title: slot.name,
+                    isActive: slot.active, isHost: !slot.editable)
+            }
+            deviceAppLookupStatus = "ready"
+            ScarletDiagnosticRecorder.shared.record(
+                "sidestore", "device_app_catalog_loaded",
+                fields: ["count": String(result.apps.count),
+                         "installation_verified": "false"])
+        }
+    }
+
     private func recordTab(_ raw: String) {
+        if raw == "앱" {
+            reloadManagedDeviceApps()
+        } else if raw == "설정" {
+            // Account selection changes in Settings. Do not retain rows from
+            // the prior Apple ID while the user edits the native account.
+            deviceAppReadGeneration &+= 1
+            managedDeviceApps = []
+            deviceAppLookupStatus = "not_loaded"
+        }
         let tabs = ["소스": "sources", "앱": "apps",
                     "트윅": "tweaks", "설정": "settings"]
         ScarletDiagnosticRecorder.shared.record(
@@ -1380,6 +1426,7 @@ struct ScarletIntegratedHostView: View {
                     stagedIPA: staged, teamID: pinnedTeamID,
                     hostGroupID: groupID)
                 deviceInstallStatus = "설치 엔진 반환 · 실제 iPhone 설치 결과 확인 필요"
+                reloadManagedDeviceApps()
                 let finalStage = stageDefaults?.string(forKey: stageKey) ??
                     "stage_not_reported"
                 ScarletDiagnosticRecorder.shared.record("sidestore",
@@ -1803,6 +1850,8 @@ struct ScarletIntegratedHostView: View {
                 installedProfileExpiresAt: nil,
                 installedProfileVerified: false),
             guests: guestItems,
+            deviceApps: managedDeviceApps,
+            deviceAppLookupStatus: deviceAppLookupStatus,
             sources: originalSources.sources.map { item in
                 ScarletSourcePresentation(
                     id: item.id.absoluteString,
@@ -1823,6 +1872,7 @@ struct ScarletIntegratedHostView: View {
             onAction: handle,
             onOpenGuest: runGuest,
             onDeleteGuest: requestGuestUninstall,
+            onManageDeviceApps: { showManagedSlotSheet = true },
             onOpenSource: { raw in
                 guard let source = originalSources.sources.first(where: {
                     $0.id.absoluteString == raw
@@ -2060,10 +2110,16 @@ struct ScarletIntegratedHostView: View {
             ScarletDiagnosticRecorder.shared.record("sources",
                 visible ? "source_actions_visible" : "source_actions_dismissed")
         }
+        .onChange(of: showManagedSlotSheet) { visible in
+            if !visible { reloadManagedDeviceApps() }
+        }
         .onChange(of: showScarletAppleIDLogin) { visible in
             ScarletDiagnosticRecorder.shared.record("auth",
                 visible ? "login_visible" : "login_dismissed")
-            if !visible { refreshStoredLoginState() }
+            if !visible {
+                refreshStoredLoginState()
+                reloadManagedDeviceApps()
+            }
         }
         .onChange(of: showOriginalError) { error in
             if error != nil {

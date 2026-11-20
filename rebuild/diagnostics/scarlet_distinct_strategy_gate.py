@@ -67,6 +67,9 @@ OTHER_ALLOWED_METHODS = {
     # P196: upstream LiveContainer uses ARM64-only svc assembler instructions;
     # constrain only the separate simulator diagnostic target architecture.
     "simulator_arm64_only_architecture_routing_for_upstream_arm_asm",
+    # R6P122: show two existing, independently owned app registries without
+    # migrating installed bundles or changing the native signing/refresh path.
+    "owner_scoped_sidestore_catalog_separate_from_lc_guest_presentation",
 }
 
 # This catches a candidate that claims a novel family but still ADDS the same

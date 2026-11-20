@@ -14411,6 +14411,127 @@
       "generated_runtime_targets_if_integrated": [
         "rebuild/diagnostics/scarlet_ios_simulator_smoke.py"
       ]
+    },
+    {
+      "id": "L197",
+      "incident_family": "device_ipa_and_lc_guest_catalog_conflation",
+      "strategy_family": "owner_scoped_sidestore_catalog_separate_from_lc_guest_presentation",
+      "problem": "real_device_sideStore_managed_ipa_absent_from_apps_home_which_only_reads_lcappmodel_guest_registry",
+      "mechanism": "reuse_existing_read_only_owner_scoped_managed_slot_xpc_for_separate_device_install_app_section_without_touching_guest_registry",
+      "operation_fingerprint": "Read existing owner-filtered native SideStore slot listing in host on Apps-tab activation; show its records in distinct static device install section while retaining the original LiveContainer guest launcher grid, ownership and deletion semantics.",
+      "source_behavior_contract": "Separate SideStore managed IPA records (not proof of SpringBoard installation) from actual LCAppModel guest launcher entries; never merge same bundle IDs, never touch original guest data, entitlement, signing credentials, account persistence, or native install pipeline.",
+      "rollback_commit": "931146c33832f35b869621f3d0f6c455665bf60b",
+      "novelty": {
+        "causal_difference": "Earlier L061 and L075 exposed management slots solely through Settings but the Apps landing page still renders exclusively LCAppModel guests, so users cannot distinguish a native IPA install from an LC guest. This proposal connects existing read-only native inventory directly to a separate Apps presentation section; it does not change installed app ownership or any update engine.",
+        "falsifiable_prediction": "Given native list returns two owner-scoped records and LC model returns one guest with a duplicate bundleID, the Apps page renders two native records under device-managed heading and exactly one guest tile; a failed native list shows unavailable rather than inventing a zero-app result; no native row can call guest deletion.",
+        "prior_excluded_ids": [
+          "L061",
+          "L075",
+          "L106",
+          "L191",
+          "L190"
+        ]
+      },
+      "code_locations": [
+        {
+          "file": "rebuild/Sources/ScarletIndependentUI/ScarletIndependentShell.swift",
+          "location": "@@ R6P122 separate original-managed registries @@",
+          "before": [
+            "public let guests: [ScarletGuestPresentation]"
+          ],
+          "after": [
+            "public let deviceApps: [ScarletManagedDevicePresentation]"
+          ]
+        },
+        {
+          "file": "rebuild/HostApp/ScarletIntegratedHostView.swift",
+          "location": "@@ R6P122 separate original-managed registries @@",
+          "before": [
+            "@State private var showManagedSlotSheet = false"
+          ],
+          "after": [
+            "@State private var managedDeviceApps: [ScarletManagedDevicePresentation] = []"
+          ]
+        },
+        {
+          "file": "rebuild/diagnostics/scarlet_distinct_strategy_gate.py",
+          "location": "@@ R6P122 separate original-managed registries @@",
+          "before": [
+            "\"simulator_arm64_only_architecture_routing_for_upstream_arm_asm\","
+          ],
+          "after": [
+            "\"owner_scoped_sidestore_catalog_separate_from_lc_guest_presentation\","
+          ]
+        },
+        {
+          "file": ".github/workflows/scarlet-paired-engines-build.yml",
+          "location": "@@ R6P122 separate original-managed registries @@",
+          "before": [
+            "SCARLET_HOST_VERSION_ARGS=(--host-build-version 3.8.121)"
+          ],
+          "after": [
+            "SCARLET_HOST_VERSION_ARGS=(--host-build-version 3.8.122)"
+          ]
+        },
+        {
+          "file": "rebuild/Tests/test_v48_r6p122_device_vs_guest_catalog.py",
+          "location": "@@ R6P122 separate original-managed registries @@",
+          "before": [],
+          "after": [
+            "class DeviceVsGuestCatalog(unittest.TestCase):"
+          ]
+        },
+        {
+          "file": "rebuild/Tests/test_v48_r6p121_release_identity_chain.py",
+          "location": "@@ R6P122 release selector compatibility @@",
+          "before": [
+            "needle = f'if [ \"$GITHUB_REF\" = \"{REF_121}\" ]; then'"
+          ],
+          "after": [
+            "needle = f'if [ \"$GITHUB_REF\" = \"{REF_122}\" ]; then'"
+          ]
+        }
+      ],
+      "date": "2026-11-20",
+      "version": "R6P122-device-guest-catalog",
+      "action": "Show selected Apple-account owner-filtered native SideStore managed IPA records under a separate section on Apps home while preserving original LiveContainer guest launch/delete grid and no database migration; build versioned native IPA.",
+      "observation": "R6P121 Apps home only rendered sharedModel.apps LCAppModel guests. Separate SideStore native InstallApp IPA path and already available owner-scoped managed slot XPC were absent from Apps home. Both kinds could validly use the same bundle identifier.",
+      "hypothesis": "A missing connection between independent existing data sources causes the UI to conflate or omit two installation modes; separate source-backed sections reveal native device IPA records and LC guest storage without changing signing, installation or SpringBoard state.",
+      "status": "source_committed_static_and_xcode_ci_pending",
+      "device_verification": "device_unverified",
+      "verification": "R6P122 RED dedicated tests failed before source implementation; GREEN 5 catalog tests, 4 R6P120/R6P121/R6P122 release selector tests; full 1026 Python source regressions passed (5 skipped). L197 no-repeat source audit passed with 197 prior attempts. Native iOS Xcode build and real device visual/install readback pending.",
+      "repeat_policy": "Do not treat SideStore CoreData active rows as confirmed iOS installed, never merge LC guest models and native managed records by bundle ID or grant one app type the other deletion/launch actions, and never reproduce prior native transport or guest Island geometry workarounds.",
+      "generated_runtime_targets_if_integrated": [
+        "rebuild/HostApp/ScarletIntegratedHostView.swift",
+        "rebuild/Sources/ScarletIndependentUI/ScarletIndependentShell.swift"
+      ],
+      "source_revisions": [
+        {
+          "sha": "716b2b3e1ead56a4b25e55e8d5d9f1daeb8800fc",
+          "title": "audit(R6P122): register distinct native-vs-guest catalog method"
+        },
+        {
+          "sha": "359c4d1408426039976151d011b68a562cbc0c5f",
+          "title": "feat(R6P122): separate managed device IPA and LiveContainer guest sections"
+        },
+        {
+          "sha": "c6faf43b88df999fe8eefddac96e3a457771e5a7",
+          "title": "feat(R6P122): read selected-account native app inventory without mixing LC guests"
+        },
+        {
+          "sha": "2ca6f23a6565d3cad1e6131738c23534e69e3d1a",
+          "title": "test(R6P122): prevent native IPA registry from conflating LC guest actions"
+        },
+        {
+          "sha": "e00fa8d28d3ef92bb0c65e1ad982a974e2834b33",
+          "title": "ci(R6P122): build and release versioned unsigned device-vs-guest IPA"
+        },
+        {
+          "sha": "a5db0579cc63c77984d57db12e07e4706400b1ae",
+          "title": "test(R6P122): preserve R6P120 and R6P121 release selectors under R6P122 branch"
+        }
+      ],
+      "source_verification": "git_patch_observed"
     }
   ]
 }
