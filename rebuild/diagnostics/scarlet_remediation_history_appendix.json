@@ -13035,6 +13035,65 @@
       "source_verification": "git_patch_observed",
       "status": "source_committed_native_ci_pending",
       "device_verification": "device_unverified"
+    },
+    {
+      "id": "L189",
+      "date": "2026-11-20",
+      "version": "R6P118-release-staging-asset-name-parity",
+      "problem": "ci_release_upload_cannot_find_r6p118_named_ipa_despite_successful_native_and_package_jobs",
+      "mechanism": "stage_release_asset_under_exact_same_versioned_name_as_gh_release_upload_uses",
+      "incident_family": "ci_release_prepared_asset_filename_mismatch",
+      "strategy_family": "native_build_public_ipa_release_job_branch_gate_repair",
+      "operation_fingerprint": "Match the explicit R6P118 branch-specific source artifact copy filename in the Verify unsigned IPA and prepare downloadable release asset step to the existing R6P118 gh release upload target name in the subsequent publish step.",
+      "source_behavior_contract": "Only rename the already integrity-checked unsigned IPA within the isolated GitHub Release job. Do not rebuild, re-sign, change Bundle/Team ID, use a fallback release filename, or publish an empty placeholder. The prepared filename and checksum must match the publish step.",
+      "rollback_commit": "2bc01c18dc4d0462317486b859aedf7a068f67a4",
+      "novelty": {
+        "causal_difference": "L184 created R6P118 public Release name mapping only in the publish step. The earlier prepare step retained its fallback Scarlet-Integrated-UNSIGNED.ipa, so gh release upload could not find the expected versioned local file although all native engine and package jobs succeeded. This is a filename parity correction, not another app or signing attempt.",
+        "falsifiable_prediction": "On R6P118 push, the asset-preparation step copies the successful packaged IPA under Scarlet-Crystal-V48-R6P118-DIAGNOSTIC-LINK-UNSIGNED.ipa and creates a matching sha256 file; publish uses the identical pair and GitHub Release lists the exact IPA.",
+        "prior_excluded_ids": [
+          "L175",
+          "L184",
+          "L188"
+        ],
+        "why_prior_fix_failed": "The publishing command's argument was updated to the new R6P118 filename while the independent release staging step's branch table was not; successful package output was therefore copied to a different basename."
+      },
+      "observation": "GitHub Actions run 44648092895: livecontainer, sidestore, package-paired jobs all succeeded; publish-unsigned-github-release failed after creating tag with 'no matches found for `Scarlet-Crystal-V48-R6P118-DIAGNOSTIC-LINK-UNSIGNED.ipa`'. Staging table has no R6P118 case and defaults to Scarlet-Integrated-UNSIGNED.ipa.",
+      "action": "Insert the matching R6P118 branch condition into the staging asset table, add source-contract parity test, rerun native build and publication without changing signing or provisioning assets.",
+      "repeat_policy": "Never treat a created Release tag as evidence that a downloadable IPA asset was uploaded. Require exact asset+SHA256 listing in the release final assertion.",
+      "code_locations": [
+        {
+          "file": ".github/workflows/scarlet-paired-engines-build.yml",
+          "location": "@@ -661,0 +662,3 @@ Verify unsigned IPA and prepare downloadable release asset",
+          "before": [
+            "          if [ \"$GITHUB_REF\" = \"refs/heads/fix/scarlet-v48-r6p115-managed-host-owner-20261119\" ]; then"
+          ],
+          "after": [
+            "          if [ \"$GITHUB_REF\" = \"refs/heads/fix/scarlet-v48-r6p118-diagnostic-link-share-20261120\" ]; then",
+            "            asset=\"Scarlet-Crystal-V48-R6P118-DIAGNOSTIC-LINK-UNSIGNED.ipa\"",
+            "          elif [ \"$GITHUB_REF\" = \"refs/heads/fix/scarlet-v48-r6p115-managed-host-owner-20261119\" ]; then"
+          ]
+        },
+        {
+          "file": "rebuild/Tests/test_v48_r6p118_share_ci_and_host_team_mismatch.py",
+          "location": "@@ -34,0 +35,8 @@ HostTeamMismatchPropagation",
+          "before": [],
+          "after": [
+            "    def test_release_asset_name_matches_prepared_file_for_r6p118(self):",
+            "        self.assertIn('asset=\"' + asset + '\"', before)",
+            "        self.assertIn(\"asset=\" + asset, after)"
+          ]
+        }
+      ],
+      "source_revisions": [
+        {
+          "sha": "dca92d7f666bd2d43ba5521be3f3332219024558",
+          "title": "fix(R6P118): stage the exact IPA filename expected by release upload"
+        }
+      ],
+      "source_verification": "git_patch_observed",
+      "status": "source_committed_native_ci_pending",
+      "device_verification": "device_unverified",
+      "verification": "Source difference and exact CI publish error reproduced. New push native/publication tests pending."
     }
   ]
 }
