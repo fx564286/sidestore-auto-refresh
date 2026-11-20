@@ -13094,6 +13094,151 @@
       "status": "source_committed_native_ci_pending",
       "device_verification": "device_unverified",
       "verification": "Source difference and exact CI publish error reproduced. New push native/publication tests pending."
+    },
+    {
+      "id": "L190",
+      "date": "2026-11-20",
+      "version": "R6P119-owner-switch-refresh-and-expired-host-input",
+      "problem": "managed_refresh_owner_switch_does_not_reinspect_blocked_host",
+      "mechanism": "verified_account_switch_triggers_owner_scoped_reinspection_and_expired_host_original_can_be_resigned",
+      "incident_family": "verified_owner_switch_strands_prior_auto_refresh",
+      "strategy_family": "account_auth_team_selection_repair",
+      "operation_fingerprint": "After verified native Apple account activation and certificate readback, run an independently gated refresh reinspection for the new owner, while admitting expired original installed-host profiles as sources only if a new pinned valid signer is authorized.",
+      "source_behavior_contract": "Do not transfer CoreData rows without exact profile, signer serial and extension proof, or bypass original SideStore installer; account-switch retries must verify current Apple ID and signing Team through the native worker, and never report iOS installation success based on a callback.",
+      "rollback_commit": "9dabe374bc0e720429905ef00e2d9c3172bffff0",
+      "novelty": {
+        "causal_difference": "L181 reconciled a proven stale owner only during a refresh inspection, but today's actual current-launch seq25 failed before the native account switch at seq33. The existing Settings switch does not rerun the native owner inspection, and bootstrap falsely treats the previous signed host's expired profile as unsuitable as a resign source.",
+        "falsifiable_prediction": "Immediately after an authenticated A-to-B account switch, a new native automatic_managed_apps_inspected event appears without waiting for the original global cooldown; if B is proven host owner and signer, native refresh can proceed, otherwise no cross-owner record is changed. A legacy expired host profile reaches the new-signer checks instead of host_signed_bundle_unavailable.",
+        "prior_excluded_ids": [
+          "L181",
+          "L187",
+          "L189"
+        ],
+        "why_prior_fix_failed": "P115 only reconciles on native worker inspections, P118 only labels owner mismatch, and neither P115 nor P118 triggers a new inspection after Settings verified account activation. P73 registration additionally aborts on expired SOURCE profile before checking new certificate validity."
+      },
+      "code_locations": [
+        {
+          "file": "rebuild/integration/apply_scarlet_host.py",
+          "location": "@@ -1119,2 +1119,8 @@ verified native saved-account activation",
+          "before": [
+            "                    await scarletEnsureCertificateForActiveAccount()"
+          ],
+          "after": [
+            "                    await scarletEnsureCertificateForActiveAccount()",
+            "                    if scarletAccountSwitchError == nil {",
+            "                        Task { @MainActor in",
+            "                            await ScarletAutomaticRenewal.shared.refreshAfterVerifiedAccountSwitch()",
+            "                        }",
+            "                    }"
+          ]
+        },
+        {
+          "file": "rebuild/HostApp/ScarletAutomaticRenewal.swift",
+          "location": "@@ -255,1 +255,7 @@ owner switch refresh trigger and cooldown",
+          "before": [
+            "    func foregroundCatchUp() async {"
+          ],
+          "after": [
+            "    func refreshAfterVerifiedAccountSwitch() async {",
+            "        scheduleNext()",
+            "        _ = await refreshIfDue(origin: \"verified_account_switch\")",
+            "    }",
+            "",
+            "    func foregroundCatchUp() async {"
+          ]
+        },
+        {
+          "file": "rebuild/integration/ScarletGuestRefreshAgent.swift.txt",
+          "location": "@@ -154,4 +154,4 @@ expired prior signed host source",
+          "before": [
+            "              let profile = signedHost.provisioningProfile,",
+            "              profile.expirationDate > Date() else {"
+          ],
+          "after": [
+            "              let profile = signedHost.provisioningProfile else {"
+          ]
+        },
+        {
+          "file": "rebuild/integration/ScarletGuestRefreshAgent.swift.txt",
+          "location": "@@ -219,4 +219,10 @@ exact installed original-vs-resigned identifier for certified owner",
+          "before": [
+            "                    guard signedOwnerProven, existing.isActive,",
+            "                          existing.bundleIdentifier == bundleID else {"
+          ],
+          "after": [
+            "                    let originalIdentityMatches = existing.bundleIdentifier == bundleID ||",
+            "                        (existing.bundleIdentifier == \"com.kdt.livecontainer.P8EZT3U5N4\" &&",
+            "                         bundleID == \"com.kdt.livecontainer.P8EZT3U5N4.\" + currentTeamID)",
+            "                    guard signedOwnerProven, existing.isActive,",
+            "                          originalIdentityMatches else {"
+          ]
+        },
+        {
+          "file": ".github/workflows/scarlet-paired-engines-build.yml",
+          "location": "@@ -339,3 +339,5 @@ R6P119 unique native host version and release mapping",
+          "before": [
+            "          if [ \"$GITHUB_REF\" = \"refs/heads/fix/scarlet-v48-r6p118-diagnostic-link-share-20261120\" ]; then"
+          ],
+          "after": [
+            "          if [ \"$GITHUB_REF\" = \"refs/heads/fix/scarlet-v48-r6p119-owner-refresh-20261120\" ]; then",
+            "            SCARLET_HOST_VERSION_ARGS=(--host-build-version 3.8.119)",
+            "          elif [ \"$GITHUB_REF\" = \"refs/heads/fix/scarlet-v48-r6p118-diagnostic-link-share-20261120\" ]; then"
+          ]
+        },
+        {
+          "file": "rebuild/Tests/test_v48_r6p119_owner_refresh_after_switch.py",
+          "location": "@@ -0,0 +1,5 @@ verified account switch and expired original profile acceptance",
+          "before": [],
+          "after": [
+            "class R6P119OwnerRefresh(unittest.TestCase):",
+            "    def test_only_explicit_owner_switch_bypasses_stale_attempt_cooldown(self):",
+            "    def test_legacy_original_id_requires_exact_signed_id_and_unique_owner(self):"
+          ]
+        },
+        {
+          "file": "rebuild/Tests/test_v48_r6p106_external_host_manual_renew.py",
+          "location": "@@ -13,1 +13,1 @@ former-host signed profile is only source",
+          "before": [
+            "  self.assertIn('profile.expirationDate > Date()',AG)"
+          ],
+          "after": [
+            "  self.assertIn('ownerSigner.x509.expiryDate > Date()',AG)"
+          ]
+        },
+        {
+          "file": "rebuild/Tests/test_v48_r6p73_original_sidestore_host_registration.py",
+          "location": "@@ -22,1 +22,1 @@ signed source expiry regression contract",
+          "before": [
+            "                 'profile.expirationDate > Date()',"
+          ],
+          "after": [
+            "                 'ownerSigner.x509.expiryDate > Date()',"
+          ]
+        },
+        {
+          "file": "rebuild/Tests/test_v48_r6p85_host_refresh_account_divider.py",
+          "location": "@@ -34,1 +34,1 @@ certificate owner proof not prior profile expiry",
+          "before": [
+            "            'profile.expirationDate > Date()',"
+          ],
+          "after": [
+            "            'ownerSigner.x509.expiryDate > Date()',"
+          ]
+        }
+      ],
+      "observation": "iPhone R6P118 SourceCommit 9dabe374bc0e, session 68d94542, seq25 at 2026-11-20T01:14:42.481Z: automatic_managed_apps_inspected count=0 reason=host_managed_owner_mismatch. The verified account switch occurred only at seq33 01:14:50.396Z, after this failed attempt. Source check shows Settings switch never triggered automatic reinspection, P73 bootstrap blocked expired original profile and P115 required CoreData original bundleIdentifier to equal resigned signed suffix ID.",
+      "action": "When native saved-account activation and new-signer readback succeed, explicitly re-evaluate native selected owner without reusing previous account cooldown. Use an expired original signed host only as cache/re-sign input with valid new account-pinned signer; reconcile exact legacy original-versus-suffixed signed ID only after P115 serial/unique active row/extension identity checks. Publish unique R6P119 native build.",
+      "repeat_policy": "Never equate same Apple account or Team name alone with signing-key proof or managed InstalledApp ownership. A newly selected account cannot claim an unrelated or inactive CoreData record. iOS BG scheduling and AppManager callback are not proof of installed provisioning renewal.",
+      "source_revisions": [
+        {
+          "sha": "184caa5516caccadc38b3f4ea7ed3cc1e957da65",
+          "title": "fix(R6P119): recheck selected-owner refresh after account switch and accept expired host as resign source"
+        }
+      ],
+      "source_verification": "git_patch_observed",
+      "status": "source_committed_native_ci_pending",
+      "device_verification": "device_unverified",
+      "verification": "P84 pre-edit method gate passed against 189 prior actions. Linux 1000 unittest: all passed, 5 skipped; signed iPhone reinstallation not yet verified."
     }
   ]
 }

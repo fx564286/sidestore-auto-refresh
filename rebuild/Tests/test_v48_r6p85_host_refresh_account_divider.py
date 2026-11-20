@@ -26,7 +26,7 @@ class P85OriginPathAndSettings(unittest.TestCase):
   for x in ('hostBundlePath.hasPrefix("/")','resolvingSymlinksInPath()',
             '"PlugIns/LiveProcess.appex"','"embedded.mobileprovision"',
             'hostURL.pathExtension == "app"','ALTApplication(fileURL: hostURL)',
-            'profile.expirationDate > Date()',
+            'ownerSigner.x509.expiryDate > Date()',
             'profile.teamIdentifier == owner.teamID',
             'matchingCertificate(', 'CacheAppOperation.cachePayload(for: hostURL)',
             'record.useMainProfile = false','record.appExtensions = extensions',

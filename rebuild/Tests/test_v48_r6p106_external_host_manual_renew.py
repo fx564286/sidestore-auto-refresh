@@ -10,7 +10,7 @@ class P106ManualOwnedHost(unittest.TestCase):
  def test_actual_installed_host_bundle_not_embedded_guest(self):
   self.assertIn('verifiedInstalledHostID(hostBundlePath: String)',AG)
   self.assertIn('let host = ALTApplication(fileURL: hostURL)',AG)
-  self.assertIn('profile.expirationDate > Date()',AG)
+  self.assertIn('ownerSigner.x509.expiryDate > Date()',AG)
   self.assertIn('installedHostID',AG)
   self.assertNotIn('let signedHostID = Bundle.Info.activeBundleIdentifier',AG)
   self.assertIn('targets.first { $0.resignedBundleIdentifier == verified }',AG)

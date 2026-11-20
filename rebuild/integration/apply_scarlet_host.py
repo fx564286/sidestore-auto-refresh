@@ -1118,6 +1118,14 @@ def attach_native_settings_diagnostics(engine: Path) -> dict:
                     // Posting the generic login notification here caused an
                     // overlapping Keychain read and a visible row redraw.
                     await scarletEnsureCertificateForActiveAccount()
+                    if scarletAccountSwitchError == nil {
+                        // An earlier automatic refresh may have been blocked for
+                        // the PREVIOUS Apple ID. Reinspect with the new owner;
+                        // the native worker still gates the pinned signer/team.
+                        Task { @MainActor in
+                            await ScarletAutomaticRenewal.shared.refreshAfterVerifiedAccountSwitch()
+                        }
+                    }
                 } else {
                     scarletAccountSwitchError = "전환 후 활성 계정을 확인하지 못했습니다. 다시 확인하세요."
                     ScarletDiagnosticRecorder.shared.record("auth",

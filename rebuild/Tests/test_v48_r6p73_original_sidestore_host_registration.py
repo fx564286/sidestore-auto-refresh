@@ -14,7 +14,7 @@ class SideStoreEmbeddedHostBootstrap(unittest.TestCase):
                  'verifiedHostBundleURL(hostBundlePath: hostBundlePath)',
                  'directory.lastPathComponent == "LiveProcess.appex"',
                  'directory.deletingLastPathComponent().lastPathComponent == "PlugIns"',
-                 'profile.expirationDate > Date()',
+                 'ownerSigner.x509.expiryDate > Date()',
                  'profile.teamIdentifier == owner.teamID',
                  'ScarletInstallTeamAuthority.matchingCertificate(',
                  'CacheAppOperation.cachePayload(for: hostURL)',
