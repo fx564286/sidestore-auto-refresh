@@ -257,8 +257,15 @@ struct ScarletSigningReadinessPanel: View {
             // worker independently checks installed signed .app, exact Apple
             // owner/Team, native certificate and transport before attempting
             // the original AppManager.install. Background remains blocked.
+            // The native inspector may find a stale, foreign CoreData owner
+            // for this installed host. Permit ONLY an explicit manual repair
+            // attempt: the worker still requires the signed host's same Team,
+            // selected Apple ID and pinned signer, and checks live transport.
+            // Inactive records and foreign signed Teams remain blocked here.
             let manuallyOnboardableHost = nativeState.count == 0 &&
-                nativeState.reason == "no_managed_apps_for_selected_team"
+                (nativeState.reason == "no_managed_apps_for_selected_team" ||
+                 (nativeState.reason == "host_managed_owner_mismatch" &&
+                  nativeState.signingReady))
             guard nativeState.canRefreshSelectedTeam || manuallyOnboardableHost else {
                 let message = ScarletRefreshFailureDiagnosis.nativeGuidance(nativeState.reason)
                 statusMessage = message
