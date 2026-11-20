@@ -14710,6 +14710,342 @@
         }
       ],
       "source_verification": "git_patch_observed"
+    },
+    {
+      "id": "L199",
+      "date": "2026-11-21",
+      "version": "R6P124-guest-audio-focus",
+      "incident_family": "resident_guest_audio_continues_after_guest_switch",
+      "strategy_family": "guest_local_active_session_activation_fence",
+      "problem": "outgoing_resident_liveprocess_audible_audio_continues_after_pause_ack_from_native_av_audio_session",
+      "mechanism": "guest_process_intercepts_its_own_av_audio_session_reactivation_while_inactive_and_releases_fence_only_for_selected_process",
+      "operation_fingerprint": "Install guest-local AVAudioSession setActive YES interception before app launches; after outgoing PID pause block subsequent activations until explicitly selected, preserving process memory and guest audio session ownership.",
+      "source_behavior_contract": "Only LiveProcess audio sessions are intercepted; stop outgoing guest auto-reactivation while paused and release upon explicit resumed guest. No process termination, global host audio category, credentials, signing, guest data, or geometry changes.",
+      "rollback_commit": "a9319f36c2246c14dd147f958cdbc79f5cb636da",
+      "novelty": {
+        "causal_difference": "Earlier L036 and L037 requested guest AVAudioSession setActive NO and saw success acknowledgments, but a guest playback engine can call setActive YES again after the host delivers pause; repeated deactivation and retries cannot prevent that reactivation. This proposal installs a process-local activation fence to deny the new activation itself, independent of previous pause implementation.",
+        "falsifiable_prediction": "When outgoing PID has received pause, guest AVAudioSession setActive:YES returns a deterministic inactive error and emits a scoped blocked receipt without activating output; on explicit resume the same call is routed to the original implementation, and other guest sessions are untouched.",
+        "prior_excluded_ids": [
+          "L036",
+          "L037",
+          "L067"
+        ]
+      },
+      "code_locations": [
+        {
+          "file": ".github/workflows/scarlet-paired-engines-build.yml",
+          "location": "@@ -6 +6 @@ on:",
+          "before": [
+            "    branches: [rebuild/scarlet-from-zero-20261106, fix/scarlet-auth-status-rootcause-20261109, fix/scarlet-pr48-guest-overlay-no-resize-20261109, fix/scarlet-pr48-airpods-glass-guest-switch-v3-20261109, fix/scarlet-pr48-draggable-guest-tab-v4-20261109, fix/scarlet-pr48-v5-glass-drag-cert-recovery-20261109, fix/scarlet-pr48-v6-unified-cert-glass-20261109, fix/scarlet-pr48-v7-cert-jitless-unify-panel-rim-20261109, fix/scarlet-pr48-v8-flicker-certificate-menu-20261109, fix/scarlet-pr48-v9-single-glass-rim-20261109, fix/scarlet-pr48-v10-fixed-tab-cert-and-session-20261109, fix/scarlet-pr48-v11-module-settings-appid-20261109, fix/scarlet-pr48-v12-live-sessions-source-auto-refresh-20261109, fix/scarlet-pr48-v13-compact-settings-current-app-20261109, fix/scarlet-pr48-v14-guest-history-native-scenes-three-ids-20261109, fix/scarlet-pr48-v15-source-disclosure-icons-guest-handoff-20261109, fix/scarlet-pr48-v16-guest-switcher-icons-readback-20261110, fix/scarlet-v17-cold-switch-rotation-20261110, fix/scarlet-v18-refresh-diagnostics-native-glass-20261110, fix/scarlet-v19-active-session-switcher-20261110, fix/scarlet-v20-guest-switcher-trace-20261110, fix/scarlet-v21-hook-telemetry-persistence-20261110, fix/scarlet-v22-runtime-guest-identity-20261110, fix/scarlet-v23-session-only-switcher-20261110, fix/scarlet-v24-refresh-lifecycle-switch-receipt-20261110, fix/scarlet-v25-single-panel-outside-dismiss-20261110, fix/scarlet-v26-liquidglass-button-to-fixed-panel-morph-20261110, fix/scarlet-v27-sidestore-direct-native-refresh-20261110, fix/scarlet-v28-minimuxer-readiness-recovery-20261110, fix/scarlet-v29-inapp-rppairing-20261110, fix/scarlet-v30-restore-sidestore-active-team-20261110, fix/scarlet-v31-pairing-persistence-sheet-purple-20261110, fix/scarlet-v32-korean-copy-20261110, fix/scarlet-v33-log-rootcause-20261110, fix/scarlet-v34-iphone-virtual-resident-20261110, fix/scarlet-v35-restore-original-fullscreen-20261110, fix/scarlet-v36-remove-legacy-ui-20261110, fix/scarlet-v37-session-refresh-20261110, fix/scarlet-v38-current-launch-logs-20261110, fix/scarlet-v39-log-truth-20261110, fix/scarlet-v40-clean-work-session-20261110, fix/scarlet-v42-v40-safe-diagnostics-20261110, fix/scarlet-v43-install-rootcause-20261110, fix/scarlet-v44-rppairing-postsign-install-20261111, fix/scarlet-v45-single-viewport-liveprocess-20261111, fix/scarlet-v46-guard-provisional-guest-geometry-20261111, fix/scarlet-v47-resident-inplace-guest-switch-20261111, fix/scarlet-v48-guest-runtime-recovery-20261111, fix/scarlet-v48-restored-20261111, fix/scarlet-v48-r2-unified-switcher-20261111, fix/scarlet-v48-r3-original-pan-diagnostics-20261111, fix/scarlet-v48-r4-native-outside-remote-insets-20261111, fix/scarlet-v48-r5-attached-insets-shield-20261111, fix/scarlet-v48-r5-crash-recovery-20261111, fix/scarlet-v48-r5-recovery-r2-host-owner-20261111, fix/scarlet-v48-r5-recovery-r3-scene-authority-20261111, fix/scarlet-v48-r5-recovery-r4-native-ready-20261111, fix/scarlet-v48-r5-recovery-r5-compat-foreground-20261111, fix/scarlet-v48-r6-island-outside-audio-20261111, fix/scarlet-v48-r6p1-audio-home-focus-20261111, fix/scarlet-v48-r6p2-blocked-history-20261111, fix/scarlet-v48-r6p3-home-audio-gate-20261111, fix/scarlet-v48-r6p4-guest-audio-ack-20261112, fix/scarlet-v48-r6p7-launch-policy-rootcause-20261112, fix/scarlet-v48-r6p8-policy-field-relay-20261112, fix/scarlet-v48-r6p9-deferred-scene-boot-20261112, fix/scarlet-v48-r6p10-persistent-remediation-ledger-20261112, fix/scarlet-v48-r6p11-resident-guest-sdk-contract-20261112, fix/scarlet-v48-r6p12-instant-recent-switcher-20261112, fix/scarlet-v48-r6p14-switcher-reset-on-navigation-20261112, fix/scarlet-v48-r6p15-guest-root-island-pairing-recovery-20261112, fix/scarlet-v48-r6p16-audit-coverage-20261112, fix/scarlet-v48-r6p17-resident-optin-defaults-20261112, fix/scarlet-v48-r6p18-guest-content-geometry-20261112, fix/scarlet-v48-r6p19-entitlement-failclosed-network-recovery-20261112, fix/scarlet-v48-r6p20-auth-session-bg-id-20261112, fix/scarlet-v48-r6p21-depth-probe-cert-recheck-20261112, fix/scarlet-v48-r6p22-guest-scroll-content-inset-20261112, fix/scarlet-v48-r6p23-guest-owner-refresh-stage-20261112, fix/scarlet-v48-r6p24-keyboard-stage-relay-20261112, fix/scarlet-v48-r6p25-visibility-occlusion-20261112, fix/scarlet-v48-r6p26-recorder-field-contract-20261112, fix/scarlet-v48-r6p27-visible-scroll-owner-20261112, fix/scarlet-v48-r6p28-guest-local-scroll-inset-20261112, fix/scarlet-v48-r6p29-residual-auto-inset-20261112, fix/scarlet-v48-r6p30-inset-interference-isolation-20261112, fix/scarlet-v48-r6p31-nonvertical-always-safearea-20261112, fix/scarlet-v48-r6p32-nonscrolling-owner-stabilization-20261112, fix/scarlet-v48-r6p33-deferred-inset-anchor-20261112, fix/scarlet-v48-r6p34-constraint-native-error-proof-20261112, fix/scarlet-v48-r6p35-ancestor-layout-owner-20261112, fix/scarlet-v48-r6p36-lost-guest-probe-readback-20261112, fix/scarlet-v48-r6p37-nested-header-safe-guide-anchor-20261112, fix/scarlet-v48-r6p38-header-layout-owner-20261113, fix/scarlet-v48-r6p39-parent-safe-guide-constraint-20261113, fix/scarlet-v48-r6p40-transparent-chrome-slot-20261113, fix/scarlet-v48-r6p41-adaptive-chrome-stickiness-20261113, fix/scarlet-v48-r6p42-guest-matched-status-chrome-20261113, fix/scarlet-v48-r6p43-host-verified-native-slot-20261113, fix/scarlet-v48-r6p44-full-native-scroll-header-20261113, fix/scarlet-v48-r6p45-scroll-aware-header-proof-20261113, fix/scarlet-v48-r6p46-detached-header-full-scroll-20261113, fix/scarlet-v48-r6p47-lifecycle-statusbar-20261113, fix/scarlet-v48-r6p48-fresh-proof-crop-gate-20261113, fix/scarlet-v48-r6p49-key-host-statusbar-20261113, fix/scarlet-v48-r6p50-scroll-crop-veto-20261113, fix/scarlet-v48-r6p51-native-statusbar-collision-shield-20261113, fix/scarlet-v48-r6p52-restore-original-host-colors-20261113, fix/scarlet-v48-r6p53-current-log-followup-20261113, fix/scarlet-v48-r6p54-owning-layout-contract-20261114, fix/scarlet-v48-r6p55-child-controller-owner-layout-20261114, fix/scarlet-v48-r6p56-parent-feed-reflow-20261114, fix/scarlet-v48-r6p57-guest-overwrite-20261114, fix/scarlet-v48-r6p58-install-identity-20261114, fix/scarlet-v48-r6p59-unsafe-feed-owner-20261114, fix/scarlet-v48-r6p60-deep-owner-20261114, fix/scarlet-v48-r6p61-slot-manager-20261114, fix/scarlet-v48-r6p62-scroll-viewport-20261114, fix/scarlet-v48-r6p63-nested-parent-20261114, fix/scarlet-v48-r6p64-residual-viewport-20261115, fix/scarlet-v48-r6p65-inset-compensated-settle-20261115, fix/scarlet-v48-r6p66-multiaccount-rea-20261115, fix/scarlet-v48-r6p67-auth-rollback-20261115, fix/scarlet-v48-r6p68-install-team-switch-20261115, fix/scarlet-v48-r6p69-settings-debloat-20261115, fix/scarlet-v48-r6p70-settings-account-list-20261115, fix/scarlet-v48-r6p71-pairing-refresh-race-20261115, fix/scarlet-v48-r6p72-native-pairing-recheck-20261115, fix/scarlet-v48-r6p73-native-managed-host-20261115, fix/scarlet-v48-r6p74-statusband-proof-20261115, fix/scarlet-v48-r6p75-team-slot-scope-20261115, fix/scarlet-v48-r6p76-postheader-scroll-20261115, fix/scarlet-v48-r6p77-severe-scroll-owner-20261116, fix/scarlet-v48-r6p78-signer-recovery-20261116, fix/scarlet-v48-r6p79-import-archive-status-20261116, fix/scarlet-v48-r6p80-device-import-settings-island-20261116, fix/scarlet-v48-r6p81-upstream-import-validation-20261116, fix/scarlet-v48-r6p82-settings-active-install-20261116, fix/scarlet-v48-r6p83-single-statusbar-authority-20261116, fix/scarlet-v48-r6p84-strict-distinct-methods-20261116, fix/scarlet-v48-r6p85-host-origin-refresh-settings-20261116, fix/scarlet-v48-r6p86-apple-team-cert-on-demand-20261116, fix/scarlet-v48-r6p87-account-ui-p12-diagnostics-20261116, fix/scarlet-v48-r6p88-native-account-rows-20261116, fix/scarlet-v48-r6p89-sideinstaller-account-p12-ui-20261117, fix/scarlet-v48-r6p90-account-ownership-20261117, fix/scarlet-v48-r6p91-native-owned-guest-signer-20261117, fix/scarlet-v48-r6p92-jitless-diag-guest-recovery-20261117, fix/scarlet-v48-r6p93-host-profile-signer-anchor-20261117, fix/scarlet-v48-r6p94-explicit-p12-guest-signer-20261117, fix/scarlet-v48-r6p95-inapp-apple-certificate-20261117, fix/scarlet-v48-r6p96-portal-certificate-truth-20261117, fix/scarlet-v48-r6p97-account-owned-signer-20261117, fix/scarlet-v48-r6p98-force-fresh-apple-certificate-20261117, fix/scarlet-v48-r6p99-merged-fresh-cert-host-recovery-20261117, fix/scarlet-v48-r6p100-native-xpc-rebind-20261117, fix/scarlet-v48-r6p101-valid-host-signer-20261117, fix/scarlet-v48-r6p102-certificate-evidence-20261118, fix/scarlet-v48-r6p103-jitless-account-view-20261118, fix/scarlet-v48-r6p105-new-cert-managed-refresh-20261118, fix/scarlet-v48-r6p106-external-host-manual-renew-20261118, fix/scarlet-v48-r6p107-manual-result-contract-20261118, fix/scarlet-v48-r6p108-postimport-cert-rotation-20261118, fix/scarlet-v48-r6p109-owner-pinned-reinstall-20261118, fix/scarlet-v48-r6p110-jitless-native-navigation-20261118, fix/scarlet-v48-r6p111-rootcause-20261118, fix/scarlet-v48-r6p112-remove-runtime-team-literals-20261118, fix/scarlet-v48-r6p113-owner-fence-idempotent-ids-20261118, fix/scarlet-v48-r6p114-legacy-owner-migration-20261118, fix/scarlet-v48-r6p115-managed-host-owner-20261119, fix/scarlet-v48-r6p116-resident-scene-containment-20261120, fix/scarlet-v48-r6p117-resident-scene-settings-20261120, fix/scarlet-v48-r6p118-diagnostic-link-share-20261120, fix/scarlet-v48-r6p119-owner-refresh-20261120, fix/scarlet-v48-r6p120-manual-owner-mismatch-20261120, fix/scarlet-v48-r6p121-existing-cert-recovery-20261120, fix/scarlet-v48-r6p122-device-guest-catalog-20261120, fix/scarlet-v48-r6p123-device-install-labels-20261120]",
+            "    if: github.event_name == 'push' && (github.ref == 'refs/heads/rebuild/scarlet-from-zero-20261106' || github.ref == 'refs/heads/fix/scarlet-v31-pairing-persistence-sheet-purple-20261110' || github.ref == 'refs/heads/fix/scarlet-v32-korean-copy-20261110' || github.ref == 'refs/heads/fix/scarlet-v33-log-rootcause-20261110' || github.ref == 'refs/heads/fix/scarlet-v34-iphone-virtual-resident-20261110' || github.ref == 'refs/heads/fix/scarlet-v35-restore-original-fullscreen-20261110' || github.ref == 'refs/heads/fix/scarlet-v36-remove-legacy-ui-20261110' || github.ref == 'refs/heads/fix/scarlet-v37-session-refresh-20261110' || github.ref == 'refs/heads/fix/scarlet-v38-current-launch-logs-20261110' || github.ref == 'refs/heads/fix/scarlet-v39-log-truth-20261110' || github.ref == 'refs/heads/fix/scarlet-v40-clean-work-session-20261110' || github.ref == 'refs/heads/fix/scarlet-v42-v40-safe-diagnostics-20261110' || github.ref == 'refs/heads/fix/scarlet-v43-install-rootcause-20261110' || github.ref == 'refs/heads/fix/scarlet-v44-rppairing-postsign-install-20261111' || github.ref == 'refs/heads/fix/scarlet-v45-single-viewport-liveprocess-20261111' || github.ref == 'refs/heads/fix/scarlet-v46-guard-provisional-guest-geometry-20261111' || github.ref == 'refs/heads/fix/scarlet-v47-resident-inplace-guest-switch-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-guest-runtime-recovery-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-restored-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r2-unified-switcher-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r3-original-pan-diagnostics-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r4-native-outside-remote-insets-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r5-attached-insets-shield-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r5-crash-recovery-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r5-recovery-r2-host-owner-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r5-recovery-r3-scene-authority-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r5-recovery-r4-native-ready-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r5-recovery-r5-compat-foreground-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r6-island-outside-audio-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r6p1-audio-home-focus-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r6p2-blocked-history-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r6p3-home-audio-gate-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r6p4-guest-audio-ack-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p7-launch-policy-rootcause-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p8-policy-field-relay-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p9-deferred-scene-boot-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p10-persistent-remediation-ledger-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p11-resident-guest-sdk-contract-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p12-instant-recent-switcher-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p14-switcher-reset-on-navigation-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p15-guest-root-island-pairing-recovery-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p16-audit-coverage-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p17-resident-optin-defaults-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p18-guest-content-geometry-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p19-entitlement-failclosed-network-recovery-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p20-auth-session-bg-id-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p21-depth-probe-cert-recheck-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p22-guest-scroll-content-inset-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p23-guest-owner-refresh-stage-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p24-keyboard-stage-relay-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p25-visibility-occlusion-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p26-recorder-field-contract-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p27-visible-scroll-owner-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p28-guest-local-scroll-inset-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p29-residual-auto-inset-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p30-inset-interference-isolation-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p31-nonvertical-always-safearea-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p32-nonscrolling-owner-stabilization-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p33-deferred-inset-anchor-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p34-constraint-native-error-proof-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p35-ancestor-layout-owner-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p36-lost-guest-probe-readback-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p37-nested-header-safe-guide-anchor-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p38-header-layout-owner-20261113' || github.ref == 'refs/heads/fix/scarlet-v48-r6p39-parent-safe-guide-constraint-20261113' || github.ref == 'refs/heads/fix/scarlet-v48-r6p40-transparent-chrome-slot-20261113' || github.ref == 'refs/heads/fix/scarlet-v48-r6p41-adaptive-chrome-stickiness-20261113' || github.ref == 'refs/heads/fix/scarlet-v48-r6p42-guest-matched-status-chrome-20261113' || github.ref == 'refs/heads/fix/scarlet-v48-r6p43-host-verified-native-slot-20261113' || github.ref == 'refs/heads/fix/scarlet-v48-r6p44-full-native-scroll-header-20261113' || github.ref == 'refs/heads/fix/scarlet-v48-r6p45-scroll-aware-header-proof-20261113' || github.ref == 'refs/heads/fix/scarlet-v48-r6p46-detached-header-full-scroll-20261113' || github.ref == 'refs/heads/fix/scarlet-v48-r6p47-lifecycle-statusbar-20261113' || github.ref == 'refs/heads/fix/scarlet-v48-r6p48-fresh-proof-crop-gate-20261113' || github.ref == 'refs/heads/fix/scarlet-v48-r6p49-key-host-statusbar-20261113' || github.ref == 'refs/heads/fix/scarlet-v48-r6p50-scroll-crop-veto-20261113' || github.ref == 'refs/heads/fix/scarlet-v48-r6p51-native-statusbar-collision-shield-20261113' || github.ref == 'refs/heads/fix/scarlet-v48-r6p52-restore-original-host-colors-20261113' || github.ref == 'refs/heads/fix/scarlet-v48-r6p53-current-log-followup-20261113' || github.ref == 'refs/heads/fix/scarlet-v48-r6p54-owning-layout-contract-20261114' || github.ref == 'refs/heads/fix/scarlet-v48-r6p55-child-controller-owner-layout-20261114' || github.ref == 'refs/heads/fix/scarlet-v48-r6p56-parent-feed-reflow-20261114' || github.ref == 'refs/heads/fix/scarlet-v48-r6p57-guest-overwrite-20261114' || github.ref == 'refs/heads/fix/scarlet-v48-r6p58-install-identity-20261114' || github.ref == 'refs/heads/fix/scarlet-v48-r6p59-unsafe-feed-owner-20261114' || github.ref == 'refs/heads/fix/scarlet-v48-r6p60-deep-owner-20261114' || github.ref == 'refs/heads/fix/scarlet-v48-r6p61-slot-manager-20261114' || github.ref == 'refs/heads/fix/scarlet-v48-r6p63-nested-parent-20261114' || github.ref == 'refs/heads/fix/scarlet-v48-r6p64-residual-viewport-20261115' || github.ref == 'refs/heads/fix/scarlet-v48-r6p65-inset-compensated-settle-20261115' || github.ref == 'refs/heads/fix/scarlet-v48-r6p66-multiaccount-rea-20261115' || github.ref == 'refs/heads/fix/scarlet-v48-r6p67-auth-rollback-20261115' || github.ref == 'refs/heads/fix/scarlet-v48-r6p68-install-team-switch-20261115' || github.ref == 'refs/heads/fix/scarlet-v48-r6p69-settings-debloat-20261115' || github.ref == 'refs/heads/fix/scarlet-v48-r6p70-settings-account-list-20261115' || github.ref == 'refs/heads/fix/scarlet-v48-r6p71-pairing-refresh-race-20261115' || github.ref == 'refs/heads/fix/scarlet-v48-r6p72-native-pairing-recheck-20261115' || github.ref == 'refs/heads/fix/scarlet-v48-r6p73-native-managed-host-20261115' || github.ref == 'refs/heads/fix/scarlet-v48-r6p74-statusband-proof-20261115' || github.ref == 'refs/heads/fix/scarlet-v48-r6p75-team-slot-scope-20261115' || github.ref == 'refs/heads/fix/scarlet-v48-r6p76-postheader-scroll-20261115' || github.ref == 'refs/heads/fix/scarlet-v48-r6p77-severe-scroll-owner-20261116' || github.ref == 'refs/heads/fix/scarlet-v48-r6p78-signer-recovery-20261116' || github.ref == 'refs/heads/fix/scarlet-v48-r6p79-import-archive-status-20261116' || github.ref == 'refs/heads/fix/scarlet-v48-r6p80-device-import-settings-island-20261116' || github.ref == 'refs/heads/fix/scarlet-v48-r6p81-upstream-import-validation-20261116' || github.ref == 'refs/heads/fix/scarlet-v48-r6p83-single-statusbar-authority-20261116' || github.ref == 'refs/heads/fix/scarlet-v48-r6p84-strict-distinct-methods-20261116' || github.ref == 'refs/heads/fix/scarlet-v48-r6p85-host-origin-refresh-settings-20261116' || github.ref == 'refs/heads/fix/scarlet-v48-r6p86-apple-team-cert-on-demand-20261116' || github.ref == 'refs/heads/fix/scarlet-v48-r6p87-account-ui-p12-diagnostics-20261116' || github.ref == 'refs/heads/fix/scarlet-v48-r6p88-native-account-rows-20261116' || github.ref == 'refs/heads/fix/scarlet-v48-r6p89-sideinstaller-account-p12-ui-20261117' || github.ref == 'refs/heads/fix/scarlet-v48-r6p90-account-ownership-20261117' || github.ref == 'refs/heads/fix/scarlet-v48-r6p91-native-owned-guest-signer-20261117' || github.ref == 'refs/heads/fix/scarlet-v48-r6p92-jitless-diag-guest-recovery-20261117' || github.ref == 'refs/heads/fix/scarlet-v48-r6p93-host-profile-signer-anchor-20261117' || github.ref == 'refs/heads/fix/scarlet-v48-r6p94-explicit-p12-guest-signer-20261117' || github.ref == 'refs/heads/fix/scarlet-v48-r6p95-inapp-apple-certificate-20261117' || github.ref == 'refs/heads/fix/scarlet-v48-r6p96-portal-certificate-truth-20261117' || github.ref == 'refs/heads/fix/scarlet-v48-r6p97-account-owned-signer-20261117' || github.ref == 'refs/heads/fix/scarlet-v48-r6p98-force-fresh-apple-certificate-20261117' || github.ref == 'refs/heads/fix/scarlet-v48-r6p99-merged-fresh-cert-host-recovery-20261117' || github.ref == 'refs/heads/fix/scarlet-v48-r6p100-native-xpc-rebind-20261117' || github.ref == 'refs/heads/fix/scarlet-v48-r6p101-valid-host-signer-20261117' || github.ref == 'refs/heads/fix/scarlet-v48-r6p102-certificate-evidence-20261118' || github.ref == 'refs/heads/fix/scarlet-v48-r6p103-jitless-account-view-20261118' || github.ref == 'refs/heads/fix/scarlet-v48-r6p105-new-cert-managed-refresh-20261118' || github.ref == 'refs/heads/fix/scarlet-v48-r6p106-external-host-manual-renew-20261118' || github.ref == 'refs/heads/fix/scarlet-v48-r6p107-manual-result-contract-20261118' || github.ref == 'refs/heads/fix/scarlet-v48-r6p108-postimport-cert-rotation-20261118' || github.ref == 'refs/heads/fix/scarlet-v48-r6p109-owner-pinned-reinstall-20261118' || github.ref == 'refs/heads/fix/scarlet-v48-r6p110-jitless-native-navigation-20261118' || github.ref == 'refs/heads/fix/scarlet-v48-r6p111-rootcause-20261118' || github.ref == 'refs/heads/fix/scarlet-v48-r6p112-remove-runtime-team-literals-20261118' || github.ref == 'refs/heads/fix/scarlet-v48-r6p113-owner-fence-idempotent-ids-20261118' || github.ref == 'refs/heads/fix/scarlet-v48-r6p114-legacy-owner-migration-20261118' || github.ref == 'refs/heads/fix/scarlet-v48-r6p115-managed-host-owner-20261119' || github.ref == 'refs/heads/fix/scarlet-v48-r6p118-diagnostic-link-share-20261120' || github.ref == 'refs/heads/fix/scarlet-v48-r6p119-owner-refresh-20261120' || github.ref == 'refs/heads/fix/scarlet-v48-r6p120-manual-owner-mismatch-20261120' || github.ref == 'refs/heads/fix/scarlet-v48-r6p121-existing-cert-recovery-20261120' || github.ref == 'refs/heads/fix/scarlet-v48-r6p122-device-guest-catalog-20261120' || github.ref == 'refs/heads/fix/scarlet-v48-r6p123-device-install-labels-20261120')"
+          ],
+          "after": [
+            "    branches: [rebuild/scarlet-from-zero-20261106, fix/scarlet-auth-status-rootcause-20261109, fix/scarlet-pr48-guest-overlay-no-resize-20261109, fix/scarlet-pr48-airpods-glass-guest-switch-v3-20261109, fix/scarlet-pr48-draggable-guest-tab-v4-20261109, fix/scarlet-pr48-v5-glass-drag-cert-recovery-20261109, fix/scarlet-pr48-v6-unified-cert-glass-20261109, fix/scarlet-pr48-v7-cert-jitless-unify-panel-rim-20261109, fix/scarlet-pr48-v8-flicker-certificate-menu-20261109, fix/scarlet-pr48-v9-single-glass-rim-20261109, fix/scarlet-pr48-v10-fixed-tab-cert-and-session-20261109, fix/scarlet-pr48-v11-module-settings-appid-20261109, fix/scarlet-pr48-v12-live-sessions-source-auto-refresh-20261109, fix/scarlet-pr48-v13-compact-settings-current-app-20261109, fix/scarlet-pr48-v14-guest-history-native-scenes-three-ids-20261109, fix/scarlet-pr48-v15-source-disclosure-icons-guest-handoff-20261109, fix/scarlet-pr48-v16-guest-switcher-icons-readback-20261110, fix/scarlet-v17-cold-switch-rotation-20261110, fix/scarlet-v18-refresh-diagnostics-native-glass-20261110, fix/scarlet-v19-active-session-switcher-20261110, fix/scarlet-v20-guest-switcher-trace-20261110, fix/scarlet-v21-hook-telemetry-persistence-20261110, fix/scarlet-v22-runtime-guest-identity-20261110, fix/scarlet-v23-session-only-switcher-20261110, fix/scarlet-v24-refresh-lifecycle-switch-receipt-20261110, fix/scarlet-v25-single-panel-outside-dismiss-20261110, fix/scarlet-v26-liquidglass-button-to-fixed-panel-morph-20261110, fix/scarlet-v27-sidestore-direct-native-refresh-20261110, fix/scarlet-v28-minimuxer-readiness-recovery-20261110, fix/scarlet-v29-inapp-rppairing-20261110, fix/scarlet-v30-restore-sidestore-active-team-20261110, fix/scarlet-v31-pairing-persistence-sheet-purple-20261110, fix/scarlet-v32-korean-copy-20261110, fix/scarlet-v33-log-rootcause-20261110, fix/scarlet-v34-iphone-virtual-resident-20261110, fix/scarlet-v35-restore-original-fullscreen-20261110, fix/scarlet-v36-remove-legacy-ui-20261110, fix/scarlet-v37-session-refresh-20261110, fix/scarlet-v38-current-launch-logs-20261110, fix/scarlet-v39-log-truth-20261110, fix/scarlet-v40-clean-work-session-20261110, fix/scarlet-v42-v40-safe-diagnostics-20261110, fix/scarlet-v43-install-rootcause-20261110, fix/scarlet-v44-rppairing-postsign-install-20261111, fix/scarlet-v45-single-viewport-liveprocess-20261111, fix/scarlet-v46-guard-provisional-guest-geometry-20261111, fix/scarlet-v47-resident-inplace-guest-switch-20261111, fix/scarlet-v48-guest-runtime-recovery-20261111, fix/scarlet-v48-restored-20261111, fix/scarlet-v48-r2-unified-switcher-20261111, fix/scarlet-v48-r3-original-pan-diagnostics-20261111, fix/scarlet-v48-r4-native-outside-remote-insets-20261111, fix/scarlet-v48-r5-attached-insets-shield-20261111, fix/scarlet-v48-r5-crash-recovery-20261111, fix/scarlet-v48-r5-recovery-r2-host-owner-20261111, fix/scarlet-v48-r5-recovery-r3-scene-authority-20261111, fix/scarlet-v48-r5-recovery-r4-native-ready-20261111, fix/scarlet-v48-r5-recovery-r5-compat-foreground-20261111, fix/scarlet-v48-r6-island-outside-audio-20261111, fix/scarlet-v48-r6p1-audio-home-focus-20261111, fix/scarlet-v48-r6p2-blocked-history-20261111, fix/scarlet-v48-r6p3-home-audio-gate-20261111, fix/scarlet-v48-r6p4-guest-audio-ack-20261112, fix/scarlet-v48-r6p7-launch-policy-rootcause-20261112, fix/scarlet-v48-r6p8-policy-field-relay-20261112, fix/scarlet-v48-r6p9-deferred-scene-boot-20261112, fix/scarlet-v48-r6p10-persistent-remediation-ledger-20261112, fix/scarlet-v48-r6p11-resident-guest-sdk-contract-20261112, fix/scarlet-v48-r6p12-instant-recent-switcher-20261112, fix/scarlet-v48-r6p14-switcher-reset-on-navigation-20261112, fix/scarlet-v48-r6p15-guest-root-island-pairing-recovery-20261112, fix/scarlet-v48-r6p16-audit-coverage-20261112, fix/scarlet-v48-r6p17-resident-optin-defaults-20261112, fix/scarlet-v48-r6p18-guest-content-geometry-20261112, fix/scarlet-v48-r6p19-entitlement-failclosed-network-recovery-20261112, fix/scarlet-v48-r6p20-auth-session-bg-id-20261112, fix/scarlet-v48-r6p21-depth-probe-cert-recheck-20261112, fix/scarlet-v48-r6p22-guest-scroll-content-inset-20261112, fix/scarlet-v48-r6p23-guest-owner-refresh-stage-20261112, fix/scarlet-v48-r6p24-keyboard-stage-relay-20261112, fix/scarlet-v48-r6p25-visibility-occlusion-20261112, fix/scarlet-v48-r6p26-recorder-field-contract-20261112, fix/scarlet-v48-r6p27-visible-scroll-owner-20261112, fix/scarlet-v48-r6p28-guest-local-scroll-inset-20261112, fix/scarlet-v48-r6p29-residual-auto-inset-20261112, fix/scarlet-v48-r6p30-inset-interference-isolation-20261112, fix/scarlet-v48-r6p31-nonvertical-always-safearea-20261112, fix/scarlet-v48-r6p32-nonscrolling-owner-stabilization-20261112, fix/scarlet-v48-r6p33-deferred-inset-anchor-20261112, fix/scarlet-v48-r6p34-constraint-native-error-proof-20261112, fix/scarlet-v48-r6p35-ancestor-layout-owner-20261112, fix/scarlet-v48-r6p36-lost-guest-probe-readback-20261112, fix/scarlet-v48-r6p37-nested-header-safe-guide-anchor-20261112, fix/scarlet-v48-r6p38-header-layout-owner-20261113, fix/scarlet-v48-r6p39-parent-safe-guide-constraint-20261113, fix/scarlet-v48-r6p40-transparent-chrome-slot-20261113, fix/scarlet-v48-r6p41-adaptive-chrome-stickiness-20261113, fix/scarlet-v48-r6p42-guest-matched-status-chrome-20261113, fix/scarlet-v48-r6p43-host-verified-native-slot-20261113, fix/scarlet-v48-r6p44-full-native-scroll-header-20261113, fix/scarlet-v48-r6p45-scroll-aware-header-proof-20261113, fix/scarlet-v48-r6p46-detached-header-full-scroll-20261113, fix/scarlet-v48-r6p47-lifecycle-statusbar-20261113, fix/scarlet-v48-r6p48-fresh-proof-crop-gate-20261113, fix/scarlet-v48-r6p49-key-host-statusbar-20261113, fix/scarlet-v48-r6p50-scroll-crop-veto-20261113, fix/scarlet-v48-r6p51-native-statusbar-collision-shield-20261113, fix/scarlet-v48-r6p52-restore-original-host-colors-20261113, fix/scarlet-v48-r6p53-current-log-followup-20261113, fix/scarlet-v48-r6p54-owning-layout-contract-20261114, fix/scarlet-v48-r6p55-child-controller-owner-layout-20261114, fix/scarlet-v48-r6p56-parent-feed-reflow-20261114, fix/scarlet-v48-r6p57-guest-overwrite-20261114, fix/scarlet-v48-r6p58-install-identity-20261114, fix/scarlet-v48-r6p59-unsafe-feed-owner-20261114, fix/scarlet-v48-r6p60-deep-owner-20261114, fix/scarlet-v48-r6p61-slot-manager-20261114, fix/scarlet-v48-r6p62-scroll-viewport-20261114, fix/scarlet-v48-r6p63-nested-parent-20261114, fix/scarlet-v48-r6p64-residual-viewport-20261115, fix/scarlet-v48-r6p65-inset-compensated-settle-20261115, fix/scarlet-v48-r6p66-multiaccount-rea-20261115, fix/scarlet-v48-r6p67-auth-rollback-20261115, fix/scarlet-v48-r6p68-install-team-switch-20261115, fix/scarlet-v48-r6p69-settings-debloat-20261115, fix/scarlet-v48-r6p70-settings-account-list-20261115, fix/scarlet-v48-r6p71-pairing-refresh-race-20261115, fix/scarlet-v48-r6p72-native-pairing-recheck-20261115, fix/scarlet-v48-r6p73-native-managed-host-20261115, fix/scarlet-v48-r6p74-statusband-proof-20261115, fix/scarlet-v48-r6p75-team-slot-scope-20261115, fix/scarlet-v48-r6p76-postheader-scroll-20261115, fix/scarlet-v48-r6p77-severe-scroll-owner-20261116, fix/scarlet-v48-r6p78-signer-recovery-20261116, fix/scarlet-v48-r6p79-import-archive-status-20261116, fix/scarlet-v48-r6p80-device-import-settings-island-20261116, fix/scarlet-v48-r6p81-upstream-import-validation-20261116, fix/scarlet-v48-r6p82-settings-active-install-20261116, fix/scarlet-v48-r6p83-single-statusbar-authority-20261116, fix/scarlet-v48-r6p84-strict-distinct-methods-20261116, fix/scarlet-v48-r6p85-host-origin-refresh-settings-20261116, fix/scarlet-v48-r6p86-apple-team-cert-on-demand-20261116, fix/scarlet-v48-r6p87-account-ui-p12-diagnostics-20261116, fix/scarlet-v48-r6p88-native-account-rows-20261116, fix/scarlet-v48-r6p89-sideinstaller-account-p12-ui-20261117, fix/scarlet-v48-r6p90-account-ownership-20261117, fix/scarlet-v48-r6p91-native-owned-guest-signer-20261117, fix/scarlet-v48-r6p92-jitless-diag-guest-recovery-20261117, fix/scarlet-v48-r6p93-host-profile-signer-anchor-20261117, fix/scarlet-v48-r6p94-explicit-p12-guest-signer-20261117, fix/scarlet-v48-r6p95-inapp-apple-certificate-20261117, fix/scarlet-v48-r6p96-portal-certificate-truth-20261117, fix/scarlet-v48-r6p97-account-owned-signer-20261117, fix/scarlet-v48-r6p98-force-fresh-apple-certificate-20261117, fix/scarlet-v48-r6p99-merged-fresh-cert-host-recovery-20261117, fix/scarlet-v48-r6p100-native-xpc-rebind-20261117, fix/scarlet-v48-r6p101-valid-host-signer-20261117, fix/scarlet-v48-r6p102-certificate-evidence-20261118, fix/scarlet-v48-r6p103-jitless-account-view-20261118, fix/scarlet-v48-r6p105-new-cert-managed-refresh-20261118, fix/scarlet-v48-r6p106-external-host-manual-renew-20261118, fix/scarlet-v48-r6p107-manual-result-contract-20261118, fix/scarlet-v48-r6p108-postimport-cert-rotation-20261118, fix/scarlet-v48-r6p109-owner-pinned-reinstall-20261118, fix/scarlet-v48-r6p110-jitless-native-navigation-20261118, fix/scarlet-v48-r6p111-rootcause-20261118, fix/scarlet-v48-r6p112-remove-runtime-team-literals-20261118, fix/scarlet-v48-r6p113-owner-fence-idempotent-ids-20261118, fix/scarlet-v48-r6p114-legacy-owner-migration-20261118, fix/scarlet-v48-r6p115-managed-host-owner-20261119, fix/scarlet-v48-r6p116-resident-scene-containment-20261120, fix/scarlet-v48-r6p117-resident-scene-settings-20261120, fix/scarlet-v48-r6p118-diagnostic-link-share-20261120, fix/scarlet-v48-r6p119-owner-refresh-20261120, fix/scarlet-v48-r6p120-manual-owner-mismatch-20261120, fix/scarlet-v48-r6p121-existing-cert-recovery-20261120, fix/scarlet-v48-r6p122-device-guest-catalog-20261120, fix/scarlet-v48-r6p123-device-install-labels-20261120, fix/scarlet-v48-r6p124-guest-audio-focus-20261121]",
+            "          elif [ \"$GITHUB_REF\" = \"refs/heads/fix/scarlet-v48-r6p124-guest-audio-focus-20261121\" ]; then",
+            "            SCARLET_HOST_VERSION_ARGS=(--host-build-version 3.8.124)",
+            "    if: github.event_name == 'push' && (github.ref == 'refs/heads/rebuild/scarlet-from-zero-20261106' || github.ref == 'refs/heads/fix/scarlet-v31-pairing-persistence-sheet-purple-20261110' || github.ref == 'refs/heads/fix/scarlet-v32-korean-copy-20261110' || github.ref == 'refs/heads/fix/scarlet-v33-log-rootcause-20261110' || github.ref == 'refs/heads/fix/scarlet-v34-iphone-virtual-resident-20261110' || github.ref == 'refs/heads/fix/scarlet-v35-restore-original-fullscreen-20261110' || github.ref == 'refs/heads/fix/scarlet-v36-remove-legacy-ui-20261110' || github.ref == 'refs/heads/fix/scarlet-v37-session-refresh-20261110' || github.ref == 'refs/heads/fix/scarlet-v38-current-launch-logs-20261110' || github.ref == 'refs/heads/fix/scarlet-v39-log-truth-20261110' || github.ref == 'refs/heads/fix/scarlet-v40-clean-work-session-20261110' || github.ref == 'refs/heads/fix/scarlet-v42-v40-safe-diagnostics-20261110' || github.ref == 'refs/heads/fix/scarlet-v43-install-rootcause-20261110' || github.ref == 'refs/heads/fix/scarlet-v44-rppairing-postsign-install-20261111' || github.ref == 'refs/heads/fix/scarlet-v45-single-viewport-liveprocess-20261111' || github.ref == 'refs/heads/fix/scarlet-v46-guard-provisional-guest-geometry-20261111' || github.ref == 'refs/heads/fix/scarlet-v47-resident-inplace-guest-switch-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-guest-runtime-recovery-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-restored-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r2-unified-switcher-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r3-original-pan-diagnostics-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r4-native-outside-remote-insets-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r5-attached-insets-shield-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r5-crash-recovery-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r5-recovery-r2-host-owner-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r5-recovery-r3-scene-authority-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r5-recovery-r4-native-ready-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r5-recovery-r5-compat-foreground-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r6-island-outside-audio-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r6p1-audio-home-focus-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r6p2-blocked-history-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r6p3-home-audio-gate-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r6p4-guest-audio-ack-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p7-launch-policy-rootcause-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p8-policy-field-relay-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p9-deferred-scene-boot-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p10-persistent-remediation-ledger-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p11-resident-guest-sdk-contract-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p12-instant-recent-switcher-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p14-switcher-reset-on-navigation-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p15-guest-root-island-pairing-recovery-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p16-audit-coverage-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p17-resident-optin-defaults-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p18-guest-content-geometry-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p19-entitlement-failclosed-network-recovery-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p20-auth-session-bg-id-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p21-depth-probe-cert-recheck-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p22-guest-scroll-content-inset-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p23-guest-owner-refresh-stage-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p24-keyboard-stage-relay-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p25-visibility-occlusion-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p26-recorder-field-contract-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p27-visible-scroll-owner-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p28-guest-local-scroll-inset-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p29-residual-auto-inset-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p30-inset-interference-isolation-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p31-nonvertical-always-safearea-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p32-nonscrolling-owner-stabilization-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p33-deferred-inset-anchor-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p34-constraint-native-error-proof-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p35-ancestor-layout-owner-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p36-lost-guest-probe-readback-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p37-nested-header-safe-guide-anchor-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p38-header-layout-owner-20261113' || github.ref == 'refs/heads/fix/scarlet-v48-r6p39-parent-safe-guide-constraint-20261113' || github.ref == 'refs/heads/fix/scarlet-v48-r6p40-transparent-chrome-slot-20261113' || github.ref == 'refs/heads/fix/scarlet-v48-r6p41-adaptive-chrome-stickiness-20261113' || github.ref == 'refs/heads/fix/scarlet-v48-r6p42-guest-matched-status-chrome-20261113' || github.ref == 'refs/heads/fix/scarlet-v48-r6p43-host-verified-native-slot-20261113' || github.ref == 'refs/heads/fix/scarlet-v48-r6p44-full-native-scroll-header-20261113' || github.ref == 'refs/heads/fix/scarlet-v48-r6p45-scroll-aware-header-proof-20261113' || github.ref == 'refs/heads/fix/scarlet-v48-r6p46-detached-header-full-scroll-20261113' || github.ref == 'refs/heads/fix/scarlet-v48-r6p47-lifecycle-statusbar-20261113' || github.ref == 'refs/heads/fix/scarlet-v48-r6p48-fresh-proof-crop-gate-20261113' || github.ref == 'refs/heads/fix/scarlet-v48-r6p49-key-host-statusbar-20261113' || github.ref == 'refs/heads/fix/scarlet-v48-r6p50-scroll-crop-veto-20261113' || github.ref == 'refs/heads/fix/scarlet-v48-r6p51-native-statusbar-collision-shield-20261113' || github.ref == 'refs/heads/fix/scarlet-v48-r6p52-restore-original-host-colors-20261113' || github.ref == 'refs/heads/fix/scarlet-v48-r6p53-current-log-followup-20261113' || github.ref == 'refs/heads/fix/scarlet-v48-r6p54-owning-layout-contract-20261114' || github.ref == 'refs/heads/fix/scarlet-v48-r6p55-child-controller-owner-layout-20261114' || github.ref == 'refs/heads/fix/scarlet-v48-r6p56-parent-feed-reflow-20261114' || github.ref == 'refs/heads/fix/scarlet-v48-r6p57-guest-overwrite-20261114' || github.ref == 'refs/heads/fix/scarlet-v48-r6p58-install-identity-20261114' || github.ref == 'refs/heads/fix/scarlet-v48-r6p59-unsafe-feed-owner-20261114' || github.ref == 'refs/heads/fix/scarlet-v48-r6p60-deep-owner-20261114' || github.ref == 'refs/heads/fix/scarlet-v48-r6p61-slot-manager-20261114' || github.ref == 'refs/heads/fix/scarlet-v48-r6p63-nested-parent-20261114' || github.ref == 'refs/heads/fix/scarlet-v48-r6p64-residual-viewport-20261115' || github.ref == 'refs/heads/fix/scarlet-v48-r6p65-inset-compensated-settle-20261115' || github.ref == 'refs/heads/fix/scarlet-v48-r6p66-multiaccount-rea-20261115' || github.ref == 'refs/heads/fix/scarlet-v48-r6p67-auth-rollback-20261115' || github.ref == 'refs/heads/fix/scarlet-v48-r6p68-install-team-switch-20261115' || github.ref == 'refs/heads/fix/scarlet-v48-r6p69-settings-debloat-20261115' || github.ref == 'refs/heads/fix/scarlet-v48-r6p70-settings-account-list-20261115' || github.ref == 'refs/heads/fix/scarlet-v48-r6p71-pairing-refresh-race-20261115' || github.ref == 'refs/heads/fix/scarlet-v48-r6p72-native-pairing-recheck-20261115' || github.ref == 'refs/heads/fix/scarlet-v48-r6p73-native-managed-host-20261115' || github.ref == 'refs/heads/fix/scarlet-v48-r6p74-statusband-proof-20261115' || github.ref == 'refs/heads/fix/scarlet-v48-r6p75-team-slot-scope-20261115' || github.ref == 'refs/heads/fix/scarlet-v48-r6p76-postheader-scroll-20261115' || github.ref == 'refs/heads/fix/scarlet-v48-r6p77-severe-scroll-owner-20261116' || github.ref == 'refs/heads/fix/scarlet-v48-r6p78-signer-recovery-20261116' || github.ref == 'refs/heads/fix/scarlet-v48-r6p79-import-archive-status-20261116' || github.ref == 'refs/heads/fix/scarlet-v48-r6p80-device-import-settings-island-20261116' || github.ref == 'refs/heads/fix/scarlet-v48-r6p81-upstream-import-validation-20261116' || github.ref == 'refs/heads/fix/scarlet-v48-r6p83-single-statusbar-authority-20261116' || github.ref == 'refs/heads/fix/scarlet-v48-r6p84-strict-distinct-methods-20261116' || github.ref == 'refs/heads/fix/scarlet-v48-r6p85-host-origin-refresh-settings-20261116' || github.ref == 'refs/heads/fix/scarlet-v48-r6p86-apple-team-cert-on-demand-20261116' || github.ref == 'refs/heads/fix/scarlet-v48-r6p87-account-ui-p12-diagnostics-20261116' || github.ref == 'refs/heads/fix/scarlet-v48-r6p88-native-account-rows-20261116' || github.ref == 'refs/heads/fix/scarlet-v48-r6p89-sideinstaller-account-p12-ui-20261117' || github.ref == 'refs/heads/fix/scarlet-v48-r6p90-account-ownership-20261117' || github.ref == 'refs/heads/fix/scarlet-v48-r6p91-native-owned-guest-signer-20261117' || github.ref == 'refs/heads/fix/scarlet-v48-r6p92-jitless-diag-guest-recovery-20261117' || github.ref == 'refs/heads/fix/scarlet-v48-r6p93-host-profile-signer-anchor-20261117' || github.ref == 'refs/heads/fix/scarlet-v48-r6p94-explicit-p12-guest-signer-20261117' || github.ref == 'refs/heads/fix/scarlet-v48-r6p95-inapp-apple-certificate-20261117' || github.ref == 'refs/heads/fix/scarlet-v48-r6p96-portal-certificate-truth-20261117' || github.ref == 'refs/heads/fix/scarlet-v48-r6p97-account-owned-signer-20261117' || github.ref == 'refs/heads/fix/scarlet-v48-r6p98-force-fresh-apple-certificate-20261117' || github.ref == 'refs/heads/fix/scarlet-v48-r6p99-merged-fresh-cert-host-recovery-20261117' || github.ref == 'refs/heads/fix/scarlet-v48-r6p100-native-xpc-rebind-20261117' || github.ref == 'refs/heads/fix/scarlet-v48-r6p101-valid-host-signer-20261117' || github.ref == 'refs/heads/fix/scarlet-v48-r6p102-certificate-evidence-20261118' || github.ref == 'refs/heads/fix/scarlet-v48-r6p103-jitless-account-view-20261118' || github.ref == 'refs/heads/fix/scarlet-v48-r6p105-new-cert-managed-refresh-20261118' || github.ref == 'refs/heads/fix/scarlet-v48-r6p106-external-host-manual-renew-20261118' || github.ref == 'refs/heads/fix/scarlet-v48-r6p107-manual-result-contract-20261118' || github.ref == 'refs/heads/fix/scarlet-v48-r6p108-postimport-cert-rotation-20261118' || github.ref == 'refs/heads/fix/scarlet-v48-r6p109-owner-pinned-reinstall-20261118' || github.ref == 'refs/heads/fix/scarlet-v48-r6p110-jitless-native-navigation-20261118' || github.ref == 'refs/heads/fix/scarlet-v48-r6p111-rootcause-20261118' || github.ref == 'refs/heads/fix/scarlet-v48-r6p112-remove-runtime-team-literals-20261118' || github.ref == 'refs/heads/fix/scarlet-v48-r6p113-owner-fence-idempotent-ids-20261118' || github.ref == 'refs/heads/fix/scarlet-v48-r6p114-legacy-owner-migration-20261118' || github.ref == 'refs/heads/fix/scarlet-v48-r6p115-managed-host-owner-20261119' || github.ref == 'refs/heads/fix/scarlet-v48-r6p118-diagnostic-link-share-20261120' || github.ref == 'refs/heads/fix/scarlet-v48-r6p119-owner-refresh-20261120' || github.ref == 'refs/heads/fix/scarlet-v48-r6p120-manual-owner-mismatch-20261120' || github.ref == 'refs/heads/fix/scarlet-v48-r6p121-existing-cert-recovery-20261120' || github.ref == 'refs/heads/fix/scarlet-v48-r6p122-device-guest-catalog-20261120' || github.ref == 'refs/heads/fix/scarlet-v48-r6p123-device-install-labels-20261120' || github.ref == 'refs/heads/fix/scarlet-v48-r6p124-guest-audio-focus-20261121')",
+            "                  if \"r6p124\" in __import__(\"os\").environ.get(\"GITHUB_REF\", \"\"): version=\"3.8.124\"",
+            "          elif [ \"$GITHUB_REF\" = \"refs/heads/fix/scarlet-v48-r6p124-guest-audio-focus-20261121\" ]; then",
+            "            asset=\"Scarlet-Crystal-V48-R6P124-GUEST-AUDIO-FOCUS-UNSIGNED.ipa\"",
+            "          elif [ \"$GITHUB_REF\" = \"refs/heads/fix/scarlet-v48-r6p124-guest-audio-focus-20261121\" ]; then",
+            "            tag=scarlet-v48-r6p124-guest-audio-focus-unsigned-20261121",
+            "            asset=Scarlet-Crystal-V48-R6P124-GUEST-AUDIO-FOCUS-UNSIGNED.ipa"
+          ]
+        },
+        {
+          "file": "rebuild/HostApp/ScarletFullscreenSceneStack.swift",
+          "location": "@@ -903 +903 @@ private final class ScarletGuestAudioReceiptObserver {",
+          "before": [
+            "            for outcome in [\"ok\", \"error\"] {"
+          ],
+          "after": [
+            "            for outcome in [\"ok\", \"error\", \"blocked\"] {"
+          ]
+        },
+        {
+          "file": "rebuild/Tests/test_v48_r6p124_guest_audio_activation_fence.py",
+          "location": "@@ -0,0 +1,54 @@",
+          "before": [],
+          "after": [
+            "\"\"\"R6P124: a paused LiveProcess cannot reactivate audio by itself.\"\"\"",
+            "from pathlib import Path",
+            "import unittest",
+            "import re",
+            "",
+            "ROOT = Path(__file__).resolve().parents[1]",
+            "PATCHER = (ROOT / \"integration/apply_scarlet_host.py\").read_text()",
+            "HOST = (ROOT / \"HostApp/ScarletFullscreenSceneStack.swift\").read_text()",
+            "WORKFLOW = (ROOT.parent / \".github/workflows/scarlet-paired-engines-build.yml\").read_text()",
+            "",
+            "",
+            "class GuestAudioActivationFenceTests(unittest.TestCase):",
+            "    def test_guest_only_fence_registration_and_atomic_state(self):",
+            "        self.assertIn('if(!NSUserDefaults.isLiveProcess) return;', PATCHER)",
+            "        self.assertIn('static atomic_bool scarletGuestAudioActivationFenced = ATOMIC_VAR_INIT(false);', PATCHER)",
+            "        self.assertIn('ScarletGuestAudioInstallActivationFence();', PATCHER)",
+            "        self.assertRegex(PATCHER, r'atomic_store_explicit\\(&scarletGuestAudioActivationFenced,\\s*true,\\s*memory_order_release\\)')",
+            "        self.assertRegex(PATCHER, r'atomic_store_explicit\\(&scarletGuestAudioActivationFenced,\\s*false,\\s*memory_order_release\\)')",
+            "",
+            "    def test_sync_and_async_activation_cannot_bypass_paused_fence(self):",
+            "        for marker in ('ScarletGuestAudioGuardedSetActive(',",
+            "                       'ScarletGuestAudioGuardedSetActiveWithOptions(',",
+            "                       'ScarletGuestAudioGuardedActivateAsync('):",
+            "            self.assertIn(marker, PATCHER)",
+            "        for selector in ('@selector(setActive:error:)',",
+            "                         '@selector(setActive:withOptions:error:)',",
+            "                         '@\"activateWithOptions:completionHandler:\"'):",
+            "            self.assertIn(selector, PATCHER)",
+            "        self.assertGreaterEqual(",
+            "            len(re.findall(r'atomic_load_explicit\\(&scarletGuestAudioActivationFenced,\\s*memory_order_acquire\\)', PATCHER)), 3)",
+            "        self.assertIn('AVAudioSessionErrorCodeCannotStartPlaying', PATCHER)",
+            "        self.assertIn('ScarletGuestAudioReceiptBlocked()', PATCHER)",
+            "",
+            "    def test_fence_reports_but_does_not_change_earlier_pause_contract(self):",
+            "        self.assertIn('ScarletGuestAudioRetryPause(0);', PATCHER)",
+            "        self.assertIn('ScarletGuestAudioReceipt(NO, result);', PATCHER)",
+            "        self.assertIn('for outcome in [\"ok\", \"error\", \"blocked\"]', HOST)",
+            "        self.assertIn('\"scope\": \"av_audio_session_set_active\"', HOST)",
+            "        self.assertNotIn('AVAudioSession.sharedInstance.setCategory', HOST)",
+            "        self.assertIn('for (key, vc) in controllers where key != folder {', HOST)",
+            "        self.assertIn('postGuestAudioScope(\"pause\", pid: vc.pid)', HOST)",
+            "",
+            "    def test_new_ipa_identity_keeps_r6p123_label_change_in_ancestry(self):",
+            "        branch = 'fix/scarlet-v48-r6p124-guest-audio-focus-20261121'",
+            "        self.assertIn(branch, WORKFLOW)",
+            "        self.assertIn('SCARLET_HOST_VERSION_ARGS=(--host-build-version 3.8.124)', WORKFLOW)",
+            "        self.assertIn('Scarlet-Crystal-V48-R6P124-GUEST-AUDIO-FOCUS-UNSIGNED.ipa', WORKFLOW)",
+            "        self.assertIn('scarlet-v48-r6p124-guest-audio-focus-unsigned-20261121', WORKFLOW)",
+            "        self.assertIn('Text(\"선택한 계정의 SideStore 관리 앱 목록\")',",
+            "                      (ROOT / 'Sources/ScarletIndependentUI/ScarletIndependentShell.swift').read_text())",
+            "",
+            "",
+            "if __name__ == '__main__':",
+            "    unittest.main()"
+          ]
+        },
+        {
+          "file": "rebuild/diagnostics/scarlet_distinct_strategy_gate.py",
+          "location": "@@ -72,0 +73,2 @@ OTHER_ALLOWED_METHODS = {",
+          "before": [],
+          "after": [
+            "    # R6P124: gate AVAudioSession activation within paused guest LiveProcess only.",
+            "    \"guest_local_active_session_activation_fence\","
+          ]
+        },
+        {
+          "file": "rebuild/integration/apply_scarlet_host.py",
+          "location": "@@ -2577,0 +2578,2 @@ def add_scarlet_guest_audio_isolation(engine: Path) -> dict:",
+          "before": [],
+          "after": [
+            "#import <objc/runtime.h>",
+            "#include <stdatomic.h>",
+            "// R6P124: a successful deactivation can be undone by a guest player that",
+            "// immediately calls setActive:YES. This fence is process-local and atomic",
+            "// because playback frameworks may activate from a non-main queue.",
+            "static atomic_bool scarletGuestAudioActivationFenced = ATOMIC_VAR_INIT(false);",
+            "static atomic_bool scarletGuestAudioBlockedReceiptSent = ATOMIC_VAR_INIT(false);",
+            "// A pause ACK only means setActive:NO returned; this distinct receipt proves",
+            "// an attempted reactivation was actually rejected in the outgoing process.",
+            "static void ScarletGuestAudioReceiptBlocked(void) {",
+            "    if(atomic_exchange_explicit(&scarletGuestAudioBlockedReceiptSent,",
+            "                                true, memory_order_relaxed)) return;",
+            "    NSString *name = [NSString stringWithFormat:",
+            "        @\"com.scarlet.guest.audio.ack.pause.blocked.%d\", getpid()];",
+            "    CFNotificationCenterPostNotification(",
+            "        CFNotificationCenterGetDarwinNotifyCenter(),",
+            "        (__bridge CFStringRef)name, NULL, NULL, true);",
+            "}",
+            "",
+            "static NSError *ScarletGuestAudioFenceError(void) {",
+            "    return [NSError errorWithDomain:AVAudioSessionErrorDomain",
+            "        code:AVAudioSessionErrorCodeCannotStartPlaying userInfo:nil];",
+            "}",
+            "",
+            "// Intercept all public activation entry points, not a global host audio",
+            "// category and not an AVPlayer state mutation. Only the LiveProcess hook",
+            "// registers these IMPs. The original method is called outside the pause gate.",
+            "static BOOL (*scarletGuestOriginalSetActive)(AVAudioSession *, SEL, BOOL,",
+            "                                            NSError **) = NULL;",
+            "static BOOL (*scarletGuestOriginalSetActiveWithOptions)(AVAudioSession *, SEL,",
+            "    BOOL, AVAudioSessionSetActiveOptions, NSError **) = NULL;",
+            "static void (*scarletGuestOriginalActivateAsync)(AVAudioSession *, SEL,",
+            "    NSUInteger, void (^)(BOOL, NSError *)) = NULL;",
+            "",
+            "static BOOL ScarletGuestAudioGuardedSetActive(AVAudioSession *session,",
+            "                                              SEL selector, BOOL active,",
+            "                                              NSError **error) {",
+            "    if(active && atomic_load_explicit(&scarletGuestAudioActivationFenced,",
+            "                                      memory_order_acquire)) {",
+            "        if(error) *error = ScarletGuestAudioFenceError();",
+            "        ScarletGuestAudioReceiptBlocked();",
+            "        return NO;",
+            "    }",
+            "    return scarletGuestOriginalSetActive(session, selector, active, error);",
+            "}",
+            "",
+            "static BOOL ScarletGuestAudioGuardedSetActiveWithOptions(",
+            "    AVAudioSession *session, SEL selector, BOOL active,",
+            "    AVAudioSessionSetActiveOptions options, NSError **error) {",
+            "    if(active && atomic_load_explicit(&scarletGuestAudioActivationFenced,",
+            "                                      memory_order_acquire)) {",
+            "        if(error) *error = ScarletGuestAudioFenceError();",
+            "        ScarletGuestAudioReceiptBlocked();",
+            "        return NO;",
+            "    }",
+            "    return scarletGuestOriginalSetActiveWithOptions(",
+            "        session, selector, active, options, error);",
+            "}",
+            "",
+            "// Xcode 27 SDK exposes an asynchronous activation entry point. Resolve it",
+            "// dynamically so earlier supported iOS versions remain compatible.",
+            "static void ScarletGuestAudioGuardedActivateAsync(",
+            "    AVAudioSession *session, SEL selector, NSUInteger options,",
+            "    void (^completion)(BOOL, NSError *)) {",
+            "    if(atomic_load_explicit(&scarletGuestAudioActivationFenced,",
+            "                            memory_order_acquire)) {",
+            "        ScarletGuestAudioReceiptBlocked();",
+            "        if(completion) {",
+            "            dispatch_async(dispatch_get_main_queue(), ^{",
+            "                completion(NO, ScarletGuestAudioFenceError());",
+            "            });",
+            "        }",
+            "        return;",
+            "    }",
+            "    scarletGuestOriginalActivateAsync(session, selector, options, completion);",
+            "}",
+            "",
+            "static void ScarletGuestAudioInstallActivationFence(void) {",
+            "    Class audioClass = [AVAudioSession class];",
+            "    Method simple = class_getInstanceMethod(audioClass,",
+            "                                            @selector(setActive:error:));",
+            "    Method options = class_getInstanceMethod(audioClass,",
+            "                               @selector(setActive:withOptions:error:));",
+            "    if(simple) {",
+            "        scarletGuestOriginalSetActive = (BOOL (*)(AVAudioSession *, SEL,",
+            "            BOOL, NSError **))method_setImplementation(",
+            "                simple, (IMP)ScarletGuestAudioGuardedSetActive);",
+            "    }",
+            "    if(options) {",
+            "        scarletGuestOriginalSetActiveWithOptions = (BOOL (*)(AVAudioSession *,",
+            "            SEL, BOOL, AVAudioSessionSetActiveOptions, NSError **))",
+            "                method_setImplementation(",
+            "                    options, (IMP)ScarletGuestAudioGuardedSetActiveWithOptions);",
+            "    }",
+            "    SEL asyncSelector = NSSelectorFromString(",
+            "        @\"activateWithOptions:completionHandler:\");",
+            "    Method asyncMethod = class_getInstanceMethod(audioClass, asyncSelector);",
+            "    if(asyncMethod) {",
+            "        scarletGuestOriginalActivateAsync = (void (*)(AVAudioSession *, SEL,",
+            "            NSUInteger, void (^)(BOOL, NSError *)))method_setImplementation(",
+            "                asyncMethod, (IMP)ScarletGuestAudioGuardedActivateAsync);",
+            "    }",
+            "    NSLog(@\"[SCARLET_AUDIO] guest activation fence armed pid=%d sync=%d options=%d async=%d\",",
+            "          getpid(), simple != NULL, options != NULL, asyncMethod != NULL);",
+            "}",
+            "",
+            "        // Release the fence BEFORE the selected guest's own setActive:YES.",
+            "        atomic_store_explicit(&scarletGuestAudioActivationFenced,",
+            "                              false, memory_order_release);",
+            "        atomic_store_explicit(&scarletGuestAudioBlockedReceiptSent,",
+            "                              false, memory_order_relaxed);",
+            "        // Publish inactive state before notifying guest audio observers;",
+            "        // synchronous callbacks cannot re-open the outgoing session.",
+            "        atomic_store_explicit(&scarletGuestAudioActivationFenced,",
+            "                              true, memory_order_release);",
+            "        ScarletGuestAudioInstallActivationFence();"
+          ]
+        }
+      ],
+      "source_revisions": [
+        {
+          "sha": "5825b2db9628d611dffd07ac4a97bf78bb433cbe",
+          "title": "fix(R6P124): block outgoing guest audio reactivation after switch"
+        }
+      ],
+      "source_verification": "git_patch_observed",
+      "status": "source_committed_native_ci_pending",
+      "device_verification": "device_audio_leak_user_reported_candidate_unverified",
+      "observation": "R6P122 iPhone session 9b92d881 recorded guest_audio_scope_applied pause (seq156) and guest_audio_device_receipt pause ok from PID12095 (seq165), but the user reports audible playback continuing when switching guests. This current-launch trace includes a Home transition and is not an acoustic proof of the A-to-B switch itself.",
+      "hypothesis": "AVAudioSession setActive:NO acknowledges one call but an outgoing guest playback framework can re-activate its own process-local session immediately; host opacity and scene focus do not prevent that. A guest-local atomic activation fence directly denies new activation until explicit PID-scoped resume.",
+      "action": "Keep R6P123 native IPA catalogue copy, block outgoing LiveProcess AVAudioSession reactivation on sync and asynchronous routes after pause; restore normal session activation only upon explicit guest resume; publish uniquely versioned 3.8.124 IPA.",
+      "verification": "RED 4 new regression tests failed before source edits; GREEN 4 audio-fence tests, R6P4 five legacy audio tests, R6P121/R6P122 selector/catalog tests, and full 1034 Python source tests OK with 5 skipped. Pre-edit no-repeat proposal for 198 prior entries passed. iOS Xcode 27.2 native compile, unsigned IPA publication and iPhone A-to-B audible silence pending.",
+      "repeat_policy": "Never equate AVAudioSession deactivation return or Darwin ACK with actual silence; no repeated timer or deactivation retry workaround; do not kill/suspend guest PIDs, mutate guest storage, host audio category, certificate, provisioning, App IDs, safe area or UIKit layout. User device audible result remains the acceptance criterion.",
+      "generated_runtime_targets_if_integrated": [
+        "LiveContainer/Tweaks/ScarletGuestAudioIsolation.m",
+        "rebuild/HostApp/ScarletFullscreenSceneStack.swift"
+      ]
+    },
+    {
+      "id": "L200",
+      "date": "2026-11-21",
+      "version": "R6P124-ObjC-AVAudioSession-ErrorDomain-compile",
+      "incident_family": "native_ios27_2_guest_audio_fence_objc_archive_compile",
+      "strategy_family": "guest_audio_sdk_compatible_custom_nserror_domain",
+      "problem": "ios27_2_archive_fails_generated_scarlet_guest_audio_isolation_m_55_undeclared_AVAudioSessionErrorDomain",
+      "mechanism": "replace_nonexistent_avaudiosession_error_domain_identifier_with_project_owned_nserror_domain_for_synthetic_activation_rejection",
+      "operation_fingerprint": "Modify only NSError domain of generated LiveProcess AVAudioSession activation rejection error from absent iOS 27 SDK symbol to a private stable NSString domain; retain OS error code and all fence state machine behavior.",
+      "source_behavior_contract": "An outgoing paused guest activation rejection is a project-generated error; the domain is a string not an undefined Apple identifier. All AVAudioSession activation swizzles, guest process isolation, audio receipts, profile/signing identity, device IPA catalog and release version 3.8.124 remain unchanged.",
+      "rollback_commit": "445521e70ded148e24102222cb2e628436814986",
+      "novelty": {
+        "causal_difference": "L199 added a functional guest-local audio activation fence but generated Objective-C referenced AVAudioSessionErrorDomain, which Xcode 27.2 does not export as an ObjC symbol. The run failed at compile before the fence could run; replace only the synthetic error domain while retaining the L199 audio behavior and install labels.",
+        "falsifiable_prediction": "With the same pinned Xcode 27.2 iPhoneOS SDK, the generated ScarletGuestAudioIsolation.m compiles without undeclared identifier AVAudioSessionErrorDomain, still reports CannotStartPlaying on synthetic pauses, and both native archive and IPA packaging become eligible to run.",
+        "prior_excluded_ids": [
+          "L199",
+          "L198"
+        ]
+      },
+      "code_locations": [
+        {
+          "file": "rebuild/Tests/test_v48_r6p124_guest_audio_activation_fence.py",
+          "location": "@@ -33,0 +34,7 @@ class GuestAudioActivationFenceTests(unittest.TestCase):",
+          "before": [],
+          "after": [
+            "    def test_generated_objc_fence_error_has_declared_sdk_compatible_domain(self):",
+            "        # Xcode 27.2 does not declare AVAudioSessionErrorDomain as an ObjC",
+            "        # identifier. This error is synthetic, not an OS session error.",
+            "        self.assertIn('errorWithDomain:@\"com.scarlet.guest.audio.focus\"', PATCHER)",
+            "        self.assertNotIn('errorWithDomain:AVAudioSessionErrorDomain', PATCHER)",
+            "        self.assertIn('code:AVAudioSessionErrorCodeCannotStartPlaying', PATCHER)",
+            ""
+          ]
+        },
+        {
+          "file": "rebuild/diagnostics/scarlet_distinct_strategy_gate.py",
+          "location": "@@ -74,0 +75,2 @@ OTHER_ALLOWED_METHODS = {",
+          "before": [],
+          "after": [
+            "    # R6P124 native compiler: project-owned NSErrorDomain for synthetic audio block.",
+            "    \"guest_audio_sdk_compatible_custom_nserror_domain\","
+          ]
+        },
+        {
+          "file": "rebuild/integration/apply_scarlet_host.py",
+          "location": "@@ -2625 +2625 @@ static NSError *ScarletGuestAudioFenceError(void) {",
+          "before": [
+            "    return [NSError errorWithDomain:AVAudioSessionErrorDomain"
+          ],
+          "after": [
+            "    return [NSError errorWithDomain:@\"com.scarlet.guest.audio.focus\""
+          ]
+        }
+      ],
+      "source_revisions": [
+        {
+          "sha": "ac6c77476582b45ba7690503c417179b93ce18ce",
+          "title": "fix(R6P124): use declared synthetic audio error domain for Xcode 27.2"
+        }
+      ],
+      "source_verification": "git_patch_observed",
+      "status": "source_committed_native_ci_pending",
+      "device_verification": "device_unverified",
+      "observation": "GitHub Actions run 44764685098 on signed source 445521e7: SideStore compiled, LiveContainer integration and all 1034 Python tests passed, but the native iPhoneOS27.2 archive failed at generated ScarletGuestAudioIsolation.m:55 with undeclared AVAudioSessionErrorDomain identifier; package and release skipped.",
+      "hypothesis": "An Apple framework error domain constant was referenced in Objective-C despite not being declared by the SDK. The activation refusal is generated by Scarlet and does not require the Apple framework error domain; use an owned, fixed NSError domain while keeping AVAudioSessionErrorCodeCannotStartPlaying.",
+      "action": "Preserve the R6P124 guest-local audio activation fence and R6P123 native IPA catalog labels; use com.scarlet.guest.audio.focus as error domain, and add Xcode 27 compilation regression assertion. Keep existing 3.8.124 release and signing identity.",
+      "verification": "Five dedicated audio tests OK after one RED test before change; five R6P4 legacy audio tests OK; 1035 Python tests OK with 5 skipped; no-repeat pre-edit proposal passed against 199 attempts. Xcode 27.2 archive and signed iPhone audio silence still separate and pending.",
+      "repeat_policy": "Fix only exact native ObjC compile identifier; do not alter source signing, installed app registry, audio timing/retry, guest process lifetime, Apple credentials, Bundle ID, Team ID or entitlement. Do not claim successful iOS archive or real audio focus until observed.",
+      "generated_runtime_targets_if_integrated": [
+        "LiveContainer/Tweaks/ScarletGuestAudioIsolation.m"
+      ]
     }
   ]
 }

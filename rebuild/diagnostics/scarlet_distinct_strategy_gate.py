@@ -70,6 +70,10 @@ OTHER_ALLOWED_METHODS = {
     # R6P122: show two existing, independently owned app registries without
     # migrating installed bundles or changing the native signing/refresh path.
     "owner_scoped_sidestore_catalog_separate_from_lc_guest_presentation",
+    # R6P124: gate AVAudioSession activation within paused guest LiveProcess only.
+    "guest_local_active_session_activation_fence",
+    # R6P124 native compiler: project-owned NSErrorDomain for synthetic audio block.
+    "guest_audio_sdk_compatible_custom_nserror_domain",
     # R6P123: source-backed managed catalog copy is not an IPA install-outcome verdict.
     "source_scoped_device_catalog_copy_without_install_result_projection",
 }

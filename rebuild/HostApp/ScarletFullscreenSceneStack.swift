@@ -900,7 +900,7 @@ private final class ScarletGuestAudioReceiptObserver {
         guard pid > 0, observedPIDs.insert(pid).inserted else { return }
         let center = CFNotificationCenterGetDarwinNotifyCenter()
         for action in ["pause", "resume"] {
-            for outcome in ["ok", "error"] {
+            for outcome in ["ok", "error", "blocked"] {
                 let notification = "com.scarlet.guest.audio.ack.\(action).\(outcome).\(pid)"
                 CFNotificationCenterAddObserver(
                     center, Unmanaged.passUnretained(self).toOpaque(),

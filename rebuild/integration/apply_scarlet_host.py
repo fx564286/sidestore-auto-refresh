@@ -2575,6 +2575,8 @@ def add_scarlet_guest_audio_isolation(engine: Path) -> dict:
 // audio without terminating or suspending the retained LiveProcess.
 #import <Foundation/Foundation.h>
 #import <AVFoundation/AVFoundation.h>
+#import <objc/runtime.h>
+#include <stdatomic.h>
 #include <unistd.h>
 #import "utils.h"
 
@@ -2587,6 +2589,11 @@ static NSNotificationName const ScarletUIResignActiveNotification =
     @"UIApplicationWillResignActiveNotification";
 
 static BOOL scarletGuestAudioPaused = NO;
+// R6P124: a successful deactivation can be undone by a guest player that
+// immediately calls setActive:YES. This fence is process-local and atomic
+// because playback frameworks may activate from a non-main queue.
+static atomic_bool scarletGuestAudioActivationFenced = ATOMIC_VAR_INIT(false);
+static atomic_bool scarletGuestAudioBlockedReceiptSent = ATOMIC_VAR_INIT(false);
 static int scarletGuestAudioObserver = 0;
 
 // Darwin notifications do not carry a cross-process userInfo dictionary.
@@ -2600,6 +2607,105 @@ static void ScarletGuestAudioReceipt(BOOL active, BOOL success) {
     CFNotificationCenterPostNotification(
         CFNotificationCenterGetDarwinNotifyCenter(),
         (__bridge CFStringRef)name, NULL, NULL, true);
+}
+
+// A pause ACK only means setActive:NO returned; this distinct receipt proves
+// an attempted reactivation was actually rejected in the outgoing process.
+static void ScarletGuestAudioReceiptBlocked(void) {
+    if(atomic_exchange_explicit(&scarletGuestAudioBlockedReceiptSent,
+                                true, memory_order_relaxed)) return;
+    NSString *name = [NSString stringWithFormat:
+        @"com.scarlet.guest.audio.ack.pause.blocked.%d", getpid()];
+    CFNotificationCenterPostNotification(
+        CFNotificationCenterGetDarwinNotifyCenter(),
+        (__bridge CFStringRef)name, NULL, NULL, true);
+}
+
+static NSError *ScarletGuestAudioFenceError(void) {
+    return [NSError errorWithDomain:@"com.scarlet.guest.audio.focus"
+        code:AVAudioSessionErrorCodeCannotStartPlaying userInfo:nil];
+}
+
+// Intercept all public activation entry points, not a global host audio
+// category and not an AVPlayer state mutation. Only the LiveProcess hook
+// registers these IMPs. The original method is called outside the pause gate.
+static BOOL (*scarletGuestOriginalSetActive)(AVAudioSession *, SEL, BOOL,
+                                            NSError **) = NULL;
+static BOOL (*scarletGuestOriginalSetActiveWithOptions)(AVAudioSession *, SEL,
+    BOOL, AVAudioSessionSetActiveOptions, NSError **) = NULL;
+static void (*scarletGuestOriginalActivateAsync)(AVAudioSession *, SEL,
+    NSUInteger, void (^)(BOOL, NSError *)) = NULL;
+
+static BOOL ScarletGuestAudioGuardedSetActive(AVAudioSession *session,
+                                              SEL selector, BOOL active,
+                                              NSError **error) {
+    if(active && atomic_load_explicit(&scarletGuestAudioActivationFenced,
+                                      memory_order_acquire)) {
+        if(error) *error = ScarletGuestAudioFenceError();
+        ScarletGuestAudioReceiptBlocked();
+        return NO;
+    }
+    return scarletGuestOriginalSetActive(session, selector, active, error);
+}
+
+static BOOL ScarletGuestAudioGuardedSetActiveWithOptions(
+    AVAudioSession *session, SEL selector, BOOL active,
+    AVAudioSessionSetActiveOptions options, NSError **error) {
+    if(active && atomic_load_explicit(&scarletGuestAudioActivationFenced,
+                                      memory_order_acquire)) {
+        if(error) *error = ScarletGuestAudioFenceError();
+        ScarletGuestAudioReceiptBlocked();
+        return NO;
+    }
+    return scarletGuestOriginalSetActiveWithOptions(
+        session, selector, active, options, error);
+}
+
+// Xcode 27 SDK exposes an asynchronous activation entry point. Resolve it
+// dynamically so earlier supported iOS versions remain compatible.
+static void ScarletGuestAudioGuardedActivateAsync(
+    AVAudioSession *session, SEL selector, NSUInteger options,
+    void (^completion)(BOOL, NSError *)) {
+    if(atomic_load_explicit(&scarletGuestAudioActivationFenced,
+                            memory_order_acquire)) {
+        ScarletGuestAudioReceiptBlocked();
+        if(completion) {
+            dispatch_async(dispatch_get_main_queue(), ^{
+                completion(NO, ScarletGuestAudioFenceError());
+            });
+        }
+        return;
+    }
+    scarletGuestOriginalActivateAsync(session, selector, options, completion);
+}
+
+static void ScarletGuestAudioInstallActivationFence(void) {
+    Class audioClass = [AVAudioSession class];
+    Method simple = class_getInstanceMethod(audioClass,
+                                            @selector(setActive:error:));
+    Method options = class_getInstanceMethod(audioClass,
+                               @selector(setActive:withOptions:error:));
+    if(simple) {
+        scarletGuestOriginalSetActive = (BOOL (*)(AVAudioSession *, SEL,
+            BOOL, NSError **))method_setImplementation(
+                simple, (IMP)ScarletGuestAudioGuardedSetActive);
+    }
+    if(options) {
+        scarletGuestOriginalSetActiveWithOptions = (BOOL (*)(AVAudioSession *,
+            SEL, BOOL, AVAudioSessionSetActiveOptions, NSError **))
+                method_setImplementation(
+                    options, (IMP)ScarletGuestAudioGuardedSetActiveWithOptions);
+    }
+    SEL asyncSelector = NSSelectorFromString(
+        @"activateWithOptions:completionHandler:");
+    Method asyncMethod = class_getInstanceMethod(audioClass, asyncSelector);
+    if(asyncMethod) {
+        scarletGuestOriginalActivateAsync = (void (*)(AVAudioSession *, SEL,
+            NSUInteger, void (^)(BOOL, NSError *)))method_setImplementation(
+                asyncMethod, (IMP)ScarletGuestAudioGuardedActivateAsync);
+    }
+    NSLog(@"[SCARLET_AUDIO] guest activation fence armed pid=%d sync=%d options=%d async=%d",
+          getpid(), simple != NULL, options != NULL, asyncMethod != NULL);
 }
 
 static void ScarletGuestAudioRetryPause(int attempt) {
@@ -2626,6 +2732,11 @@ static void ScarletGuestAudioApply(BOOL active) {
     AVAudioSession *session = AVAudioSession.sharedInstance;
     NSError *error = nil;
     if(active) {
+        // Release the fence BEFORE the selected guest's own setActive:YES.
+        atomic_store_explicit(&scarletGuestAudioActivationFenced,
+                              false, memory_order_release);
+        atomic_store_explicit(&scarletGuestAudioBlockedReceiptSent,
+                              false, memory_order_relaxed);
         if(!scarletGuestAudioPaused) {
             ScarletGuestAudioReceipt(YES, YES); // Already unpaused.
             return;
@@ -2646,6 +2757,10 @@ static void ScarletGuestAudioApply(BOOL active) {
         NSLog(@"[SCARLET_AUDIO] guest pid=%d resume result=%d code=%ld",
               getpid(), result ? 1 : 0, (long)error.code);
     } else {
+        // Publish inactive state before notifying guest audio observers;
+        // synchronous callbacks cannot re-open the outgoing session.
+        atomic_store_explicit(&scarletGuestAudioActivationFenced,
+                              true, memory_order_release);
         if(!scarletGuestAudioPaused) {
             scarletGuestAudioPaused = YES;
             [[NSNotificationCenter defaultCenter]
@@ -2683,6 +2798,7 @@ void initScarletGuestAudioIsolation(void) {
     if(!NSUserDefaults.isLiveProcess) return;
     static dispatch_once_t once;
     dispatch_once(&once, ^{
+        ScarletGuestAudioInstallActivationFence();
         int pid = getpid();
         NSString *pauseName = [NSString stringWithFormat:
             @"com.scarlet.guest.audio.pause.%d", pid];
