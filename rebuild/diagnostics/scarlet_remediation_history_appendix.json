@@ -13591,6 +13591,168 @@
         "rebuild/HostApp/ScarletSigningReadinessPanel.swift",
         ".github/workflows/scarlet-paired-engines-build.yml"
       ]
+    },
+    {
+      "id": "L193",
+      "date": "2026-11-20",
+      "version": "R6P121-release-selection-chain-repair",
+      "incident_family": "ci_r6p121_release_selector_fallthrough",
+      "strategy_family": "native_build_public_ipa_release_job_branch_gate_repair",
+      "problem": "r6p121_ci_success_but_versioned_github_release_missing_due_to_independent_if_fallthrough_into_generic_latest",
+      "mechanism": "join_r6p121_and_r6p120_release_selectors_with_single_mutually_exclusive_if_elif_chain",
+      "operation_fingerprint": "Replace three independent R6P121 if/fi selectors followed by historical R6P120 if/elif/else chains with single if/elif chains, so native host version arguments, versioned IPA asset filename, and GitHub Release tag and asset cannot be overwritten by legacy fallback.",
+      "source_behavior_contract": "For exact R6P121 branch, all three shell selectors must resolve to 3.8.121, Scarlet-Crystal-V48-R6P121-EXISTING-CERT-RECOVERY-UNSIGNED.ipa and scarlet-v48-r6p121-existing-cert-recovery-unsigned-20261120; for R6P120 retain previous values; unknown branches retain existing legacy fallback; do not touch signing, certificates, entitlements, account or guest runtime.",
+      "rollback_commit": "7b55a499eff0d7d22c505a1176482e29be8e93a9",
+      "novelty": {
+        "causal_difference": "L189 fixed a staging-vs-upload filename mismatch for a known R6P118 release. L192 introduced three standalone R6P121 selectors above existing defaulting if/elif/else logic; the new R6P121 code runs, then the old else overwrites its output, publishing to an unintended shared latest release. Repair is exclusive chain coupling, not merely renaming an output asset.",
+        "falsifiable_prediction": "A shell simulation of all three actual GitHub Actions selector blocks with GITHUB_REF=R6P121 returns the expected 3.8.121, release tag and exact unsigned IPA basename, while R6P120 remains unchanged. The GitHub Release API must subsequently return the exact R6P121 tag and IPA.",
+        "prior_excluded_ids": [
+          "L172",
+          "L180",
+          "L189",
+          "L192"
+        ],
+        "new_device_evidence": {
+          "source_commit": "7b55a499eff0d7d22c505a1176482e29be8e93a9",
+          "event": "release_publish_job_success_without_versioned_tag",
+          "observed_value": "job136156307356 completed success, release tag R6P121 404, actual output scarlet-integrated-unsigned-latest updated 2026-11-20T07:43:53Z"
+        }
+      },
+      "code_locations": [
+        {
+          "file": ".github/workflows/scarlet-paired-engines-build.yml",
+          "location": "@@ -340,6 +340,5 @@ jobs:",
+          "before": [
+            "          fi",
+            "          if [ \"$GITHUB_REF\" = \"refs/heads/fix/scarlet-v48-r6p120-manual-owner-mismatch-20261120\" ]; then"
+          ],
+          "after": [
+            "          elif [ \"$GITHUB_REF\" = \"refs/heads/fix/scarlet-v48-r6p120-manual-owner-mismatch-20261120\" ]; then"
+          ]
+        },
+        {
+          "file": ".github/workflows/scarlet-paired-engines-build.yml",
+          "location": "@@ -672,6 +671,5 @@ jobs:",
+          "before": [
+            "          fi",
+            "          if [ \"$GITHUB_REF\" = \"refs/heads/fix/scarlet-v48-r6p120-manual-owner-mismatch-20261120\" ]; then"
+          ],
+          "after": [
+            "          elif [ \"$GITHUB_REF\" = \"refs/heads/fix/scarlet-v48-r6p120-manual-owner-mismatch-20261120\" ]; then"
+          ]
+        },
+        {
+          "file": ".github/workflows/scarlet-paired-engines-build.yml",
+          "location": "@@ -984,6 +982,5 @@ jobs:",
+          "before": [
+            "          fi",
+            "          if [ \"$GITHUB_REF\" = \"refs/heads/fix/scarlet-v48-r6p120-manual-owner-mismatch-20261120\" ]; then"
+          ],
+          "after": [
+            "          elif [ \"$GITHUB_REF\" = \"refs/heads/fix/scarlet-v48-r6p120-manual-owner-mismatch-20261120\" ]; then"
+          ]
+        },
+        {
+          "file": "rebuild/Tests/test_v48_r6p121_release_identity_chain.py",
+          "location": "@@ -0,0 +1,76 @@",
+          "before": [],
+          "after": [
+            "\"\"\"R6P121: prove CI uses mutually exclusive branch selectors for IPA and Release.\"\"\"",
+            "import os",
+            "from pathlib import Path",
+            "import subprocess",
+            "import unittest",
+            "",
+            "ROOT = Path(__file__).resolve().parents[2]",
+            "WORKFLOW = (ROOT / '.github/workflows/scarlet-paired-engines-build.yml').read_text()",
+            "REF_121 = 'refs/heads/fix/scarlet-v48-r6p121-existing-cert-recovery-20261120'",
+            "REF_120 = 'refs/heads/fix/scarlet-v48-r6p120-manual-owner-mismatch-20261120'",
+            "EXPECTED_ASSET_121 = 'Scarlet-Crystal-V48-R6P121-EXISTING-CERT-RECOVERY-UNSIGNED.ipa'",
+            "EXPECTED_ASSET_120 = 'Scarlet-Crystal-V48-R6P120-MANUAL-OWNER-MISMATCH-UNSIGNED.ipa'",
+            "EXPECTED_TAG_121 = 'scarlet-v48-r6p121-existing-cert-recovery-unsigned-20261120'",
+            "EXPECTED_TAG_120 = 'scarlet-v48-r6p120-manual-owner-mismatch-unsigned-20261120'",
+            "",
+            "",
+            "def shell_selectors():",
+            "    lines = WORKFLOW.splitlines()",
+            "    needle = f'if [ \"$GITHUB_REF\" = \"{REF_121}\" ]; then'",
+            "    starts = [i for i, line in enumerate(lines) if line.strip() == needle]",
+            "    if len(starts) != 3:",
+            "        raise AssertionError(f'Expected three distinct R6P121 selector blocks, got {len(starts)}')",
+            "    selectors = []",
+            "    for start in starts:",
+            "        indent = len(lines[start]) - len(lines[start].lstrip())",
+            "        # The original source has one independent `fi` before R6P120,",
+            "        # which is exactly the regression this test catches.",
+            "        closing = next(i for i in range(start + 1, len(lines))",
+            "                       if lines[i].strip() == 'fi' and",
+            "                       len(lines[i]) - len(lines[i].lstrip()) == indent)",
+            "        selectors.append('\\n'.join(lines[start:closing + 1]))",
+            "    return selectors",
+            "",
+            "",
+            "def resolve(selector, ref):",
+            "    code = ('set -Eeuo pipefail\\n'",
+            "            'SCARLET_HOST_VERSION_ARGS=()\\n'",
+            "            'asset=none\\n'",
+            "            'tag=none\\n'",
+            "            + selector + '\\n'",
+            "            'printf \"version=%s\\\\nasset=%s\\\\ntag=%s\\\\n\" '",
+            "            '\"${SCARLET_HOST_VERSION_ARGS[*]}\" \"$asset\" \"$tag\"\\n')",
+            "    result = subprocess.run(['bash', '-c', code], capture_output=True,",
+            "                            text=True, check=True, timeout=10,",
+            "                            env={**os.environ, 'GITHUB_REF': ref})",
+            "    return dict(line.split('=', 1) for line in result.stdout.splitlines())",
+            "",
+            "",
+            "class R6P121ReleaseChain(unittest.TestCase):",
+            "    def test_r6p121_must_precede_r6p120_in_same_if_elif_chain(self):",
+            "        for selector in shell_selectors():",
+            "            with self.subTest(selector=selector[:100]):",
+            "                self.assertIn(f'elif [ \"$GITHUB_REF\" = \"{REF_120}\" ]; then', selector)",
+            "                self.assertNotIn(f'if [ \"$GITHUB_REF\" = \"{REF_120}\" ]; then',",
+            "                                 '\\n'.join(line for line in selector.splitlines()",
+            "                                           if line.strip().startswith('if ')))",
+            "",
+            "    def test_r6p121_native_version_and_asset_and_release_are_exact(self):",
+            "        version, packaging, publishing = shell_selectors()",
+            "        self.assertEqual(resolve(version, REF_121)['version'], '--host-build-version 3.8.121')",
+            "        self.assertEqual(resolve(packaging, REF_121)['asset'], EXPECTED_ASSET_121)",
+            "        output = resolve(publishing, REF_121)",
+            "        self.assertEqual(output['tag'], EXPECTED_TAG_121)",
+            "        self.assertEqual(output['asset'], EXPECTED_ASSET_121)",
+            "",
+            "    def test_r6p120_identity_is_unchanged(self):",
+            "        version, packaging, publishing = shell_selectors()",
+            "        self.assertEqual(resolve(version, REF_120)['version'], '--host-build-version 3.8.120')",
+            "        self.assertEqual(resolve(packaging, REF_120)['asset'], EXPECTED_ASSET_120)",
+            "        output = resolve(publishing, REF_120)",
+            "        self.assertEqual(output['tag'], EXPECTED_TAG_120)",
+            "        self.assertEqual(output['asset'], EXPECTED_ASSET_120)",
+            "",
+            "",
+            "if __name__ == '__main__':",
+            "    unittest.main()"
+          ]
+        }
+      ],
+      "source_revisions": [
+        {
+          "sha": "4339604b18a6b75c6306ac00f2ebe3c82886ef1d",
+          "title": "fix(R6P121): prevent release identity fallthrough by exclusive selector chains"
+        }
+      ],
+      "source_verification": "git_patch_observed",
+      "action": "Connect the three R6P121 version/asset/tag branches into existing R6P120 if/elif chains. Retain all other branches and fallback and add actual Bash selector execution tests for R6P121 and R6P120.",
+      "observation": "R6P121 7b55a499 GitHub Actions run 44696126183 completed success in four jobs and three build artifacts exist, yet R6P121 GitHub Release tag returned HTTP 404. Publish job logs show deployment to scarlet-integrated-unsigned-latest and generic asset updated 2026-11-20T07:43:53Z; independent R6P121 fi terminated before R6P120 if/elif default else.",
+      "hypothesis": "Standalone R6P121 if/fi followed by the previous fallback-bearing R6P120 if/elif/else overwrote the assigned release tag, IPA filename and possibly version parameters; a mutually-exclusive selector ensures one and only one path runs.",
+      "status": "source_created_native_ci_pending",
+      "device_verification": "device_unverified",
+      "verification": "P84 pre-edit gate against 192 history records passed; reproduced four failures/one pass in original three-block Bash-source test; converted to three passing tests after exact if/elif correction; 1011 Linux suite tests passed (5 skipped), PyYAML parsed 4 CI jobs, git diff --check passed. Native release CI and exact versioned GitHub Release API verification pending.",
+      "repeat_policy": "Only change release selection control flow. Never modify signing Team, certificate, provisioning, bundle IDs, Swift code, native user data or auto-create an unsafe signed host. Preserve other historical release mappings and unknown-branch fallback.",
+      "generated_runtime_targets_if_integrated": [
+        ".github/workflows/scarlet-paired-engines-build.yml"
+      ]
     }
   ]
 }
