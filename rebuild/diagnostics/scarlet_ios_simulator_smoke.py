@@ -32,9 +32,11 @@ def select_iphone(inventory: dict) -> dict | None:
                 candidates.append((version, device))
     if not candidates:
         return None
+    # Hosted macOS boots are not guaranteed to finish. Reuse a healthy,
+    # already booted iPhone before attempting a newer shutdown runtime.
     candidates.sort(key=lambda item: (
-        item[0][0], item[0][1],
         1 if item[1].get('state') == 'Booted' else 0,
+        item[0][0], item[0][1],
         1 if 'Pro' in item[1]['name'] else 0), reverse=True)
     return candidates[0][1]
 
@@ -100,6 +102,7 @@ def main() -> int:
     report = {
         'schema': 1, 'kind': 'real_iphonesimulator_compile_install_launch_screenshot',
         'result': 'not_attempted', 'stage': 'initialization',
+        'simulator_build': 'not_attempted',
         'runtime_name': None, 'device_udid_tail': None,
         'app_bundle_id': None,
         'limitations': 'Simulator cannot prove Apple portal issuance, RSD pairing, real device install, or JIT-less kernel behavior.',
@@ -107,6 +110,18 @@ def main() -> int:
     udid = None
     started_here = False
     try:
+        # The original probe attempted CoreSimulator boot before compilation,
+        # so a boot timeout masked whether Scarlet could build for iOS Simulator.
+        # Compile independently first and persist this verdict even if boot fails.
+        report['stage'] = 'simulator_build'
+        derived = Path(os.environ.get('RUNNER_TEMP', '/tmp')).resolve() / 'ScarletSimDerivedData'
+        app = simulator_build(args.engine.resolve(), derived, dest)
+        report['simulator_build'] = 'passed'
+        with (app / 'Info.plist').open('rb') as f:
+            bundle_id = plistlib.load(f).get('CFBundleIdentifier')
+        if not isinstance(bundle_id, str) or not bundle_id:
+            raise SmokeBlocked('simulator_build_failed', 'built_app_bundle_id_missing')
+        report['app_bundle_id'] = bundle_id
         available = run(['xcrun', 'simctl', 'list', '-j', 'devices', 'available'],
                         stage='simulator_runtime_unavailable')
         chosen = select_iphone(json.loads(available))
@@ -121,15 +136,7 @@ def main() -> int:
             started_here = True
         run(['xcrun', 'simctl', 'bootstatus', udid, '-b'], stage='simulator_boot_failed',
             timeout=260)
-        report['stage'] = 'simulator_build'
-        derived = Path(os.environ.get('RUNNER_TEMP', '/tmp')).resolve() / 'ScarletSimDerivedData'
-        app = simulator_build(args.engine.resolve(), derived, dest)
         report['stage'] = 'simulator_install'
-        with (app / 'Info.plist').open('rb') as f:
-            bundle_id = plistlib.load(f).get('CFBundleIdentifier')
-        if not isinstance(bundle_id, str) or not bundle_id:
-            raise SmokeBlocked('simulator_install_failed', 'built_app_bundle_id_missing')
-        report['app_bundle_id'] = bundle_id
         run(['xcrun', 'simctl', 'install', udid, str(app)],
             stage='simulator_install_failed', timeout=200)
         report['stage'] = 'simulator_launch'
@@ -150,6 +157,9 @@ def main() -> int:
         return 0
     except (SmokeBlocked, json.JSONDecodeError) as error:
         report['result'] = 'blocked'
+        if isinstance(error, SmokeBlocked) and error.stage in (
+                'simulator_build_failed', 'simulator_source_missing'):
+            report['simulator_build'] = 'failed'
         report['stage'] = error.stage if isinstance(error, SmokeBlocked) else 'simulator_runtime_unavailable'
         report['reason'] = (error.reason if isinstance(error, SmokeBlocked)
                             else 'simctl_inventory_json_invalid')[:1400]
