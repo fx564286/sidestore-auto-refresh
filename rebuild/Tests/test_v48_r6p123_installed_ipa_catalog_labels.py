@@ -14,9 +14,13 @@ class DeviceIPAInstallLabelContract(unittest.TestCase):
         catalog = UI.split('"SCARLET_DEVICE_MANAGED_IPA_SECTION"', 1)[1].split('Text("LiveContainer 게스트")', 1)[0]
         self.assertNotIn('설치 미검증', catalog)
         self.assertNotIn('실제 iOS 설치 여부는 별도 확인', catalog)
-        self.assertIn('SideStore 관리 중', catalog)
-        self.assertIn('비활성 관리 기록', catalog)
-        self.assertIn('호스트 보호', catalog)
+        # R6P126 renders the same catalog in an independent launcher tile;
+        # native record copy moved into its accessibilityValue, not guest flow.
+        native_tile = UI.split('private struct ScarletManagedDeviceLauncherTile: View {', 1)[1].split(
+            '@available(iOS 16.0, *)', 1)[0]
+        self.assertIn('ScarletManagedDeviceLauncherTile(', catalog)
+        for label in ('SideStore 관리 중', '비활성 관리 기록', '호스트 보호'):
+            self.assertIn(label, native_tile)
 
     def test_catalog_event_records_registry_source_not_install_verdict(self):
         catalog = HOST.split('"sidestore", "device_app_catalog_loaded"', 1)[1].split('\n        }', 1)[0]

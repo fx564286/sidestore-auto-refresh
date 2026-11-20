@@ -76,6 +76,10 @@ OTHER_ALLOWED_METHODS = {
     "guest_audio_sdk_compatible_custom_nserror_domain",
     # R6P123: source-backed managed catalog copy is not an IPA install-outcome verdict.
     "source_scoped_device_catalog_copy_without_install_result_projection",
+    # R6P126: same launcher artwork/grid with separate LC and SideStore actions.
+    "owner_scoped_launcher_visual_design_parity",
+    # R6P126: allow current layout branch to produce a distinct unsigned IPA.
+    "native_launcher_qa_branch_build_identity_release_binding",
 }
 
 # This catches a candidate that claims a novel family but still ADDS the same
