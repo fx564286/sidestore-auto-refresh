@@ -659,7 +659,9 @@ jobs:
                       print("[PASS] P112 account-pinned legacy cert and host group guard compiled")
           print("[PASS] Public IPA ZIP structure; Apple signature not verified")
           PY
-          if [ "$GITHUB_REF" = "refs/heads/fix/scarlet-v48-r6p115-managed-host-owner-20261119" ]; then
+          if [ "$GITHUB_REF" = "refs/heads/fix/scarlet-v48-r6p118-diagnostic-link-share-20261120" ]; then
+            asset="Scarlet-Crystal-V48-R6P118-DIAGNOSTIC-LINK-UNSIGNED.ipa"
+          elif [ "$GITHUB_REF" = "refs/heads/fix/scarlet-v48-r6p115-managed-host-owner-20261119" ]; then
             asset="Scarlet-Crystal-V48-R6P115-MANAGED-OWNER-UNSIGNED.ipa"
           elif [ "$GITHUB_REF" = "refs/heads/fix/scarlet-v48-r6p114-legacy-owner-migration-20261118" ]; then
             asset="Scarlet-Crystal-V48-R6P114-LEGACY-MIGRATION-UNSIGNED.ipa"

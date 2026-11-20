@@ -28,6 +28,16 @@ class HostTeamMismatchPropagation(unittest.TestCase):
         self.assertNotIn('nativeState.reason == "host_selected_team_mismatch"', UI)
         self.assertIn('hostBootstrap == "host_selected_team_mismatch"', SRC)
 
+    def test_release_asset_name_matches_prepared_file_for_r6p118(self):
+        workflow = (ROOT.parent / ".github/workflows/scarlet-paired-engines-build.yml").read_text()
+        before, after = workflow.split("      - name: Publish public GitHub Release asset", 1)
+        asset = "Scarlet-Crystal-V48-R6P118-DIAGNOSTIC-LINK-UNSIGNED.ipa"
+        branch = "fix/scarlet-v48-r6p118-diagnostic-link-share-20261120"
+        self.assertIn('asset="' + asset + '"', before)
+        self.assertIn("asset=" + asset, after)
+        self.assertIn('refs/heads/' + branch, before)
+        self.assertIn('refs/heads/' + branch, after)
+
     def test_objc_arc_fixture_avoids_new_family_property_ownership_name(self):
         self.assertNotIn("newHost", FIXTURE)
         self.assertIn("updatedHost", FIXTURE)
