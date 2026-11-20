@@ -12700,6 +12700,98 @@
       "source_verification": "git_patch_observed",
       "status": "source_committed_native_ci_pending",
       "verification": "Linux discovery ran 991 tests with five skipped. The P116 and P117 tests inspected the changed callback generated from pinned LiveContainer 9108ae624ea0. The Apple Foundation executable and native archive run in the macOS workflow. The signed P117 device acceptance remains open."
+    },
+    {
+      "id": "L184",
+      "date": "2026-11-20",
+      "version": "R6P118-user-approved-diagnostic-link-sharing",
+      "problem": "diagnostic_large_local_report_share_to_chatgpt_causes_target_app_termination",
+      "mechanism": "explicit_user_confirmed_file_backed_remote_paste_and_short_https_url_activity_share",
+      "incident_family": "diagnostic_large_report_share_transport",
+      "strategy_family": "diagnostic_explicit_consent_public_link_transport",
+      "operation_fingerprint": "After an explicit user confirmation, materialize the full source-audited diagnostic file off the main actor, stream it by HTTPS file-backed upload to a bounded anonymous text host, reject incomplete HTTP responses, then pass ONLY the validated short URL to UIActivityViewController.",
+      "source_behavior_contract": "Opening diagnostics, refreshing logs, and switching between current or archived scopes perform zero network operations. Only a confirmed share publishes the complete generated report, never deletes device journals, never changes signing state or scene geometry, and delivers no multi-megabyte text or local file to the ChatGPT share extension.",
+      "rollback_commit": "89f88a7f46f492e731772eabff900ea0c2e1d7fb",
+      "novelty": {
+        "causal_difference": "Older L045/L048 diagnostics and L052 audit embedding share local files without a remote link. R6P118 changes only the destination payload after explicit user consent, retaining every historical report section and removing eager main-actor export construction.",
+        "falsifiable_prediction": "A current report larger than five megabytes returns a complete HTTPS link on explicit consent, the iOS share sheet has one URL item instead of a file, and opening/refreshing the diagnostic view performs no upload. No 206 response or untrusted host may produce a shared link.",
+        "prior_excluded_ids": [
+          "L045",
+          "L048",
+          "L052",
+          "L140",
+          "L183"
+        ],
+        "why_prior_fix_failed": "Existing direct ShareLink of a URL pointing to a huge local TXT document still causes the target application to import all bytes. Earlier history embeds preserve engineering context but cannot prevent target share-extension memory pressure."
+      },
+      "observation": "Attached 2026-11-20 current-run handoff TXT is 5,860,582 bytes; installed source creates a complete report in makeShareFile on diagnostic-view reload and calls ShareLink(item: shareFile). User reports ChatGPT iOS app termination after sharing/pasting full report.",
+      "action": "Publish only a short link after consent, retain complete historical code/audit context remotely, reject partial/malformed upload responses, and validate iOS share-sheet URL-only transfer on a signed device.",
+      "repeat_policy": "Do not silently truncate or summarize audit history; do not auto-upload or send local report files as the primary ChatGPT share item. Provider changes require the same consent and size/URL response contract.",
+      "code_locations": [
+        {
+          "file": "rebuild/HostApp/ScarletDiagnosticRecorder.swift",
+          "location": "@@ -445,66 +445,174 @@",
+          "before": [
+            "    @State private var shareFile: URL?",
+            "        shareFile = ScarletDiagnosticRecorder.shared.makeShareFile(",
+            "                    ShareLink(item: shareFile) {"
+          ],
+          "after": [
+            "private enum ScarletDiagnosticLinkUploader {",
+            "        let (result, response) = try await session.upload(for: request, fromFile: file)",
+            "              http.statusCode == 200 || http.statusCode == 201 else {",
+            "        UIActivityViewController(activityItems: [url], applicationActivities: nil)",
+            "            Button(\"동의하고 링크 공유\") { shareAsLink() }"
+          ]
+        },
+        {
+          "file": "rebuild/Tests/test_native_diagnostic_export.py",
+          "location": "@@ -81,11 +81,15 @@",
+          "before": [
+            "        self.assertNotIn(\"URLSession\",LOG)",
+            "        self.assertNotIn(\"https://\",LOG)"
+          ],
+          "after": [
+            "        self.assertIn(\"session.upload(for: request, fromFile: file)\",LOG)",
+            "        self.assertIn(\"showUploadConsent = true\",LOG)",
+            "        self.assertIn(\"UIActivityViewController(activityItems: [url]\",LOG)",
+            "        self.assertIn(\"http.statusCode == 200 || http.statusCode == 201\",LOG)"
+          ]
+        },
+        {
+          "file": "rebuild/diagnostics/scarlet_distinct_strategy_gate.py",
+          "location": "@@ -59,0 +60 @@ OTHER_ALLOWED_METHODS = {",
+          "before": [],
+          "after": [
+            "    \"diagnostic_explicit_consent_public_link_transport\","
+          ]
+        },
+        {
+          "file": ".github/workflows/scarlet-paired-engines-build.yml",
+          "location": "@@ -339,0 +340,2 @@ jobs:",
+          "before": [
+            "          if [ \"$GITHUB_REF\" = \"refs/heads/fix/scarlet-v48-r6p117-resident-scene-settings-20261120\" ]; then"
+          ],
+          "after": [
+            "          if [ \"$GITHUB_REF\" = \"refs/heads/fix/scarlet-v48-r6p118-diagnostic-link-share-20261120\" ]; then",
+            "            SCARLET_HOST_VERSION_ARGS=(--host-build-version 3.8.118)"
+          ]
+        }
+      ],
+      "source_revisions": [
+        {
+          "sha": "648c47e4dc29ec44de583602adb4efe84b3cc9a2",
+          "title": "R6P118: share explicitly uploaded diagnostic reports as short HTTPS URLs"
+        }
+      ],
+      "source_verification": "git_patch_observed",
+      "status": "source_committed_native_ci_pending",
+      "device_verification": "device_unverified",
+      "hypothesis": "Reducing ChatGPT's incoming share payload to a URL avoids the oversized-file ingestion that the user reports as a crash; native target-app behavior and external provider end-to-end response still need live-device verification.",
+      "verification": "Source readback and static structural checks confirmed the consent-first uploader and URL-only activity sheet. Native Xcode/IPA and actual provider upload remain CI/device pending.",
+      "generated_runtime_targets_if_integrated": [
+        "rebuild/HostApp/ScarletDiagnosticRecorder.swift"
+      ]
     }
   ]
 }
