@@ -14063,6 +14063,235 @@
         "rebuild/diagnostics/scarlet_ios_simulator_smoke.py",
         ".github/workflows/scarlet-paired-engines-build.yml"
       ]
+    },
+    {
+      "id": "L195",
+      "date": "2026-11-20",
+      "version": "R6P121-simulator-build-first-stage-isolation",
+      "incident_family": "macos_simulator_boot_timeout_masks_iphonesimulator_compile_viability",
+      "strategy_family": "simulator_diagnostic_compile_first_runtime_stage_isolation",
+      "problem": "real_mac_runner_simctl_boot_timeout_while_iphonesimulator_project_build_remains_unattempted",
+      "mechanism": "move_independent_iphonesimulator_build_ahead_of_simctl_boot_while_recording_build_success_before_boot_attempt_and_prefer_prebooted_device",
+      "operation_fingerprint": "Reorder existing real Xcode27 simulator smoke to build integrated LiveContainer for iphonesimulator first, establish built Info.plist and bundle ID and report build_result independently, then use simctl to select a prebooted available iPhone where possible or boot a fresh runtime; preserve exact single-device cleanup and fail-closed smoke semantics.",
+      "source_behavior_contract": "Never install a physical iphoneos IPA in CoreSimulator; never alter native signing, certificates, team IDs, entitlement, bundle identifiers or Apple account state; both simulator compile and simctl stage outcomes must be recorded separately and an app launch success must require actual simulator install and launch, not a mocked result.",
+      "rollback_commit": "3905b371db0d4077550baffb71e4479eca737e19",
+      "novelty": {
+        "causal_difference": "L194 established a real simulator attempt but always booted before compiling, so GitHub run44700777599 timed out at simctl and produced no simulator compile evidence. L195 diagnoses whether the integrated app is simulator-buildable independently of the simulator boot service; it is not an additional boot timeout retry nor the original L194 simulator-enable change.",
+        "falsifiable_prediction": "A deterministic mocked smoke run where simctl.bootstatus times out must still record a prior completed iphonesimulator build and parsed CFBundleIdentifier. On genuine CI, smoke.json must contain simulator_build pass/fail regardless of iPhone boot health.",
+        "prior_excluded_ids": [
+          "L194",
+          "L193",
+          "L189"
+        ],
+        "new_device_evidence": {
+          "source_commit": "3905b371db0d4077550baffb71e4479eca737e19",
+          "event": "macOS_xcode27_simctl_boot_timeout",
+          "observed_value": "CI #44700777599 smoke.json result blocked, stage simulator_boot_failed, iPhone 18 Pro UDID tail 612FA8, reason command_unavailable_or_timeout:TimeoutExpired, app_bundle_id null; simulator-xcodebuild.log absent"
+        }
+      },
+      "code_locations": [
+        {
+          "file": "rebuild/Tests/test_v48_r6p121_iphone_simulator_smoke.py",
+          "location": "@@ -23,5 +23,5 @@ class SimulatorSmoke(unittest.TestCase):",
+          "before": [
+            "        self.assertEqual(chosen['udid'],'iphone27')"
+          ],
+          "after": [
+            "        self.assertEqual(chosen['udid'],'iphone26')"
+          ]
+        },
+        {
+          "file": "rebuild/Tests/test_v48_r6p121_iphone_simulator_smoke.py",
+          "location": "@@ -48,2 +48,76 @@ class SimulatorSmoke(unittest.TestCase):",
+          "before": [],
+          "after": [
+            "",
+            "",
+            "class SimulatorCompileFirst(unittest.TestCase):",
+            "    @staticmethod",
+            "    def module():",
+            "        spec=importlib.util.spec_from_file_location('iphone_smoke_compilefirst',SCRIPT)",
+            "        module=importlib.util.module_from_spec(spec)",
+            "        spec.loader.exec_module(module)",
+            "        return module",
+            "",
+            "    def test_successful_simulator_build_remains_visible_even_when_boot_times_out(self):",
+            "        import json",
+            "        import plistlib",
+            "        import tempfile",
+            "        from unittest.mock import patch",
+            "        m=self.module()",
+            "        with tempfile.TemporaryDirectory() as td:",
+            "            root=Path(td)",
+            "            app=root/'LiveContainer.app'",
+            "            app.mkdir()",
+            "            (app/'Info.plist').write_bytes(plistlib.dumps({'CFBundleIdentifier':'test.scarlet.smoke'}))",
+            "            observations=[]",
+            "",
+            "            def build(*args,**kwargs):",
+            "                observations.append('xcodebuild')",
+            "                return app",
+            "",
+            "            def fake_run(args,*,stage,timeout=100,cwd=None):",
+            "                observations.append(' '.join(args))",
+            "                if args[:4]==['xcrun','simctl','list','-j']:",
+            "                    return json.dumps({'devices':{",
+            "                        'com.apple.CoreSimulator.SimRuntime.iOS-27-2':[",
+            "                            {'name':'iPhone 18 Pro','udid':'sim-test-id','state':'Shutdown','isAvailable':True}]}})",
+            "                if args[:3]==['xcrun','simctl','bootstatus']:",
+            "                    raise m.SmokeBlocked('simulator_boot_failed','command_unavailable_or_timeout:TimeoutExpired')",
+            "                return ''",
+            "",
+            "            with patch.object(m,'simulator_build',side_effect=build), \\",
+            "                 patch.object(m,'run',side_effect=fake_run), \\",
+            "                 patch('sys.argv',['smoke','--engine',str(root),'--report-dir',str(root/'report')]):",
+            "                self.assertEqual(m.main(),2)",
+            "            report=json.loads((root/'report/smoke.json').read_text())",
+            "            self.assertEqual(observations[0],'xcodebuild')",
+            "            self.assertEqual(report['simulator_build'],'passed')",
+            "            self.assertEqual(report['app_bundle_id'],'test.scarlet.smoke')",
+            "            self.assertEqual(report['stage'],'simulator_boot_failed')",
+            "            self.assertEqual(report['result'],'blocked')",
+            "            self.assertNotIn('screenshot_bytes',report)",
+            "",
+            "    def test_failed_simulator_compilation_stops_before_simctl_and_records_stage(self):",
+            "        import json",
+            "        import tempfile",
+            "        from unittest.mock import patch",
+            "        m=self.module()",
+            "        with tempfile.TemporaryDirectory() as td:",
+            "            root=Path(td)",
+            "            with patch.object(m,'simulator_build',side_effect=m.SmokeBlocked(",
+            "                'simulator_build_failed','simulator_target_unsupported')), \\",
+            "                 patch.object(m,'run',side_effect=AssertionError('boot_must_not_run')), \\",
+            "                 patch('sys.argv',['smoke','--engine',str(root),'--report-dir',str(root/'report')]):",
+            "                self.assertEqual(m.main(),2)",
+            "            report=json.loads((root/'report/smoke.json').read_text())",
+            "            self.assertEqual(report['simulator_build'],'failed')",
+            "            self.assertEqual(report['stage'],'simulator_build_failed')",
+            "            self.assertEqual(report['result'],'blocked')",
+            "",
+            "    def test_prebooted_iphone_is_preferred_over_newer_shutdown_runtime(self):",
+            "        m=self.module()",
+            "        inventory={'devices':{",
+            "            'com.apple.CoreSimulator.SimRuntime.iOS-27-2':[",
+            "                {'name':'iPhone 18 Pro','udid':'newer-off','state':'Shutdown','isAvailable':True}],",
+            "            'com.apple.CoreSimulator.SimRuntime.iOS-26-0':[",
+            "                {'name':'iPhone 17','udid':'older-on','state':'Booted','isAvailable':True}]}}",
+            "        self.assertEqual(m.select_iphone(inventory)['udid'],'older-on')"
+          ]
+        },
+        {
+          "file": "rebuild/Tests/test_v48_r6p84_strict_strategy_family.py",
+          "location": "@@ -81,4 +81,16 @@ class P84StrictFamilyGate(unittest.TestCase):",
+          "before": [],
+          "after": [
+            " def test_simulator_compile_first_family_requires_auditable_contract(self):",
+            "  p={",
+            "   'id':'L999','problem':'simulator_boot_masks_build','incident_family':'macos_simulator_boot_timeout_masks_iphonesimulator_compile_viability',",
+            "   'mechanism':'compile_independent_of_simulator_boot','strategy_family':'simulator_diagnostic_compile_first_runtime_stage_isolation',",
+            "   'operation_fingerprint':'Build iphonesimulator target independently before booting to preserve compilation failure evidence on an unbootable macOS hosted runner.',",
+            "   'source_behavior_contract':'Keep simulator compile and CoreSimulator runtime failures separate and preserve all real-device signing and artifact generation paths.',",
+            "   'rollback_commit':'3905b371db0d4077550baffb71e4479eca737e19'",
+            "  }",
+            "  self.assertEqual(check_distinct_method(p,HISTORY['entries']),[])",
+            "  prior=dict(p,id='L195')",
+            "  self.assertTrue(any('HARD BLOCK same operational family' in e",
+            "      for e in check_distinct_method(p,HISTORY['entries']+[prior])))"
+          ]
+        },
+        {
+          "file": "rebuild/diagnostics/scarlet_distinct_strategy_gate.py",
+          "location": "@@ -62,4 +62,7 @@ OTHER_ALLOWED_METHODS = {",
+          "before": [],
+          "after": [
+            "    # P195: diagnose simulator-target compilation independently of hosted macOS",
+            "    # CoreSimulator boot availability; retain explicit stage-specific evidence.",
+            "    \"simulator_diagnostic_compile_first_runtime_stage_isolation\","
+          ]
+        },
+        {
+          "file": "rebuild/diagnostics/scarlet_ios_simulator_smoke.py",
+          "location": "@@ -33,7 +33,9 @@ def select_iphone(inventory: dict) -> dict | None:",
+          "before": [
+            "        item[0][0], item[0][1],"
+          ],
+          "after": [
+            "    # Hosted macOS boots are not guaranteed to finish. Reuse a healthy,",
+            "    # already booted iPhone before attempting a newer shutdown runtime.",
+            "        item[0][0], item[0][1],"
+          ]
+        },
+        {
+          "file": "rebuild/diagnostics/scarlet_ios_simulator_smoke.py",
+          "location": "@@ -101,4 +103,5 @@ def main() -> int:",
+          "before": [],
+          "after": [
+            "        'simulator_build': 'not_attempted',"
+          ]
+        },
+        {
+          "file": "rebuild/diagnostics/scarlet_ios_simulator_smoke.py",
+          "location": "@@ -108,4 +111,16 @@ def main() -> int:",
+          "before": [],
+          "after": [
+            "        # The original probe attempted CoreSimulator boot before compilation,",
+            "        # so a boot timeout masked whether Scarlet could build for iOS Simulator.",
+            "        # Compile independently first and persist this verdict even if boot fails.",
+            "        report['stage'] = 'simulator_build'",
+            "        derived = Path(os.environ.get('RUNNER_TEMP', '/tmp')).resolve() / 'ScarletSimDerivedData'",
+            "        app = simulator_build(args.engine.resolve(), derived, dest)",
+            "        report['simulator_build'] = 'passed'",
+            "        with (app / 'Info.plist').open('rb') as f:",
+            "            bundle_id = plistlib.load(f).get('CFBundleIdentifier')",
+            "        if not isinstance(bundle_id, str) or not bundle_id:",
+            "            raise SmokeBlocked('simulator_build_failed', 'built_app_bundle_id_missing')",
+            "        report['app_bundle_id'] = bundle_id"
+          ]
+        },
+        {
+          "file": "rebuild/diagnostics/scarlet_ios_simulator_smoke.py",
+          "location": "@@ -122,13 +137,5 @@ def main() -> int:",
+          "before": [
+            "        report['stage'] = 'simulator_build'",
+            "        derived = Path(os.environ.get('RUNNER_TEMP', '/tmp')).resolve() / 'ScarletSimDerivedData'",
+            "        app = simulator_build(args.engine.resolve(), derived, dest)",
+            "        with (app / 'Info.plist').open('rb') as f:",
+            "            bundle_id = plistlib.load(f).get('CFBundleIdentifier')",
+            "        if not isinstance(bundle_id, str) or not bundle_id:",
+            "            raise SmokeBlocked('simulator_install_failed', 'built_app_bundle_id_missing')",
+            "        report['app_bundle_id'] = bundle_id"
+          ],
+          "after": []
+        },
+        {
+          "file": "rebuild/diagnostics/scarlet_ios_simulator_smoke.py",
+          "location": "@@ -151,4 +158,7 @@ def main() -> int:",
+          "before": [],
+          "after": [
+            "        if isinstance(error, SmokeBlocked) and error.stage in (",
+            "                'simulator_build_failed', 'simulator_source_missing'):",
+            "            report['simulator_build'] = 'failed'"
+          ]
+        }
+      ],
+      "source_revisions": [
+        {
+          "sha": "f70dc6b21fb6f4e28d0b6ffe1455114a1cc75fd5",
+          "title": "test(R6P121): isolate simulator compilation before CoreSimulator boot"
+        }
+      ],
+      "source_verification": "git_patch_observed",
+      "action": "Move isolated iphonesimulator compilation and built-app Info.plist inspection before simctl inventory/boot, independently persist simulator_build passed/failed, choose already Booted iPhone runtime first, and enforce separate Mac compile failure vs simulator boot timeout regression contracts. Register reviewed method family in strict P84 gate.",
+      "observation": "Github Actions run44700777599 native LC and SideStore builds, package, release succeeded; simulator probe selected iPhone 18 Pro UDID tail 612FA8 but timed out in simctl bootstatus before invoking xcodebuild iphonesimulator, so no simulator build evidence was collected. Simulator smoke.json in archived artifact shows simulator_boot_failed, reason TimeoutExpired, app_bundle_id null, cleanup shutdown_failed.",
+      "hypothesis": "CoreSimulator boot availability is a separate native CI service failure, not proof of source incompatibility with iOS Simulator. Building first isolates SDK compile/link failures and preserves a measurable outcome even when simulator boot hangs.",
+      "status": "source_committed_macos_ci_pending",
+      "device_verification": "device_unverified",
+      "verification": "P84 gate initial proposal was blocked because new strategy_family was unregistered; added reviewed taxonomy entry with explicit duplicate-family regression test; preedit RED simulator tests failed in 3 distinct ways, then all 6 simulator tests and 9 P84 tests passed; 1018 full Linux Python tests passed (5 skipped), existing P84 no-repeat/repository audit passed for 194 previous attempts; macOS iphonesimulator compile, iPhone install/launch and screenshot remain unverified and must not be reported as passing.",
+      "repeat_policy": "Do not repeat guest layout or status-bar masking. Do not modify certificates, Apple accounts, signed host identity, provisioning, entitlements, native guest runtime, or falsely treat Linux mocks as simulator runtime evidence.",
+      "generated_runtime_targets_if_integrated": [
+        "rebuild/diagnostics/scarlet_ios_simulator_smoke.py"
+      ]
     }
   ]
 }
