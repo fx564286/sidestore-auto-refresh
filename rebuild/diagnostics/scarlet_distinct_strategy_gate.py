@@ -57,6 +57,7 @@ OTHER_ALLOWED_METHODS = {
     "deterministic_original_jitless_fixture_in_native_ci",
     "native_refresh_xpc_result_fidelity",
     "strict_x509_host_profile_stale_signer_bridge_replacement",
+    "diagnostic_explicit_consent_public_link_transport",
 }
 
 # This catches a candidate that claims a novel family but still ADDS the same

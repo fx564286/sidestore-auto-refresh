@@ -83,10 +83,14 @@ struct LCSettingsView: View {
                          "retainedFiles = 8", "JSONSerialization.data",
                          "ISO8601DateFormatter", "FileHandle(forWritingTo:",
                          "readRecent(maxLines:", "makeShareFile(includeHistory: Bool = false)",
-                         "SCARLET_DIAGNOSTICS_VIEW", "ShareLink(item:",
+                         "SCARLET_DIAGNOSTICS_VIEW", "UIActivityViewController(",
                          "SCARLET_DIAGNOSTICS_SHARE"):
             self.assertIn(required,LOG)
-        self.assertNotIn("URLSession",LOG)
+        self.assertIn("session.upload(for: request, fromFile: file)",LOG)
+        self.assertIn("showUploadConsent = true",LOG)
+        self.assertIn("URLSession(configuration: .ephemeral)",LOG)
+        self.assertIn("UIActivityViewController(activityItems: [url]",LOG)
+        self.assertNotIn("ShareLink(item: shareFile)",LOG)
         self.assertNotIn("keychain",LOG.lower())
         self.assertNotIn("AppGroup",LOG)
         self.assertIn("allowedFields.contains(key)",LOG)
@@ -122,7 +126,10 @@ struct LCSettingsView: View {
         self.assertIn("auth",LOGIN)
         self.assertIn("reason",HOST)
         self.assertNotIn("http://",LOG)
-        self.assertNotIn("https://",LOG)
+        self.assertIn("https://paste.c-net.org/",LOG)
+        self.assertIn("http.statusCode == 200 || http.statusCode == 201",LOG)
+        self.assertIn("fileSize <= 50_000_000",LOG)
+        self.assertIn("링크를 아는 누구나",LOG)
 
 if __name__=="__main__":
     unittest.main()
