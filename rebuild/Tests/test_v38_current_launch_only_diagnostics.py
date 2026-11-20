@@ -42,8 +42,8 @@ class CurrentLaunchOnly(unittest.TestCase):
         # The scope snapshot remains current-launch only by default.
         self.assertIn('let archivedRuns = includeHistory',S)
         self.assertIn('includeHistory: archivedRuns',S)
-        self.assertIn('showUploadConsent = true',S)
-        self.assertIn('Button("동의하고 링크 공유") { shareAsLink() }',S)
+        self.assertIn('Button {\n                    shareAsLink()\n                } label: {',S)
+        self.assertNotIn('showUploadConsent = true',S)
         self.assertNotIn('ShareLink(item: shareFile)',S)
 
     def test_cannot_accidentally_erase_other_app_data(self):

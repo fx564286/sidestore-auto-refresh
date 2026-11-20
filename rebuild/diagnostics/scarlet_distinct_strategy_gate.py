@@ -58,6 +58,9 @@ OTHER_ALLOWED_METHODS = {
     "native_refresh_xpc_result_fidelity",
     "strict_x509_host_profile_stale_signer_bridge_replacement",
     "diagnostic_explicit_consent_public_link_transport",
+    "diagnostic_user_approved_one_tap_link_sharing",
+    "native_refresh_host_signer_owner_mismatch_exact_reason",
+    "native_objc_arc_fixture_property_name_repair",
 }
 
 # This catches a candidate that claims a novel family but still ADDS the same

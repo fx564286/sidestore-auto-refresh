@@ -530,7 +530,6 @@ private struct ScarletDiagnosticURLShareSheet: UIViewControllerRepresentable {
 struct ScarletDiagnosticLogView: View {
     @State private var text = "기록된 이벤트가 없습니다."
     @State private var includeHistory = false
-    @State private var showUploadConsent = false
     @State private var isUploading = false
     @State private var sharedLink: ScarletDiagnosticSharedLink?
     @State private var showUploadError = false
@@ -599,7 +598,7 @@ struct ScarletDiagnosticLogView: View {
                 .disabled(isUploading)
                 .accessibilityIdentifier("SCARLET_DIAGNOSTICS_REFRESH")
                 Button {
-                    showUploadConsent = true
+                    shareAsLink()
                 } label: {
                     if isUploading {
                         ProgressView()
@@ -617,6 +616,9 @@ struct ScarletDiagnosticLogView: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .textSelection(.enabled)
             }
+            Text("로그 링크 공유를 누르면 전체 진단 보고서가 paste.c-net.org로 업로드됩니다. 링크를 아는 누구나 볼 수 있습니다.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
             Text("치명적인 iOS 종료는 앱 내부 기록이 중단될 수 있습니다. 그때는 iPhone 분석 데이터의 .ips 보고서도 필요합니다.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
@@ -626,16 +628,6 @@ struct ScarletDiagnosticLogView: View {
         .navigationTitle("진단 로그")
         .navigationBarTitleDisplayMode(.inline)
         .onAppear(perform: reload)
-        .confirmationDialog(
-            "외부 서비스에 로그를 업로드하시겠습니까?",
-            isPresented: $showUploadConsent,
-            titleVisibility: .visible
-        ) {
-            Button("동의하고 링크 공유") { shareAsLink() }
-            Button("취소", role: .cancel) {}
-        } message: {
-            Text("익명 공개 링크가 생성됩니다. 링크를 아는 누구나 전체 진단 보고서를 열람할 수 있으며, paste.c-net.org에 최대 180일 보관되고 열람 시 기간이 연장될 수 있습니다. 기기 로그 원본은 유지됩니다.")
-        }
         .alert("로그 링크 생성 실패", isPresented: $showUploadError) {
             Button("확인", role: .cancel) {}
         } message: {

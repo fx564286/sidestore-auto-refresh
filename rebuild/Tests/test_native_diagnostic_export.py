@@ -87,7 +87,8 @@ struct LCSettingsView: View {
                          "SCARLET_DIAGNOSTICS_SHARE"):
             self.assertIn(required,LOG)
         self.assertIn("session.upload(for: request, fromFile: file)",LOG)
-        self.assertIn("showUploadConsent = true",LOG)
+        self.assertIn("shareAsLink()",LOG)
+        self.assertIn("로그 링크 공유를 누르면",LOG)
         self.assertIn("URLSession(configuration: .ephemeral)",LOG)
         self.assertIn("UIActivityViewController(activityItems: [url]",LOG)
         self.assertNotIn("ShareLink(item: shareFile)",LOG)
