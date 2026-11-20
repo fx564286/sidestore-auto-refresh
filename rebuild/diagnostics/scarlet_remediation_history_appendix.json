@@ -14292,6 +14292,125 @@
       "generated_runtime_targets_if_integrated": [
         "rebuild/diagnostics/scarlet_ios_simulator_smoke.py"
       ]
+    },
+    {
+      "id": "L196",
+      "date": "2026-11-20",
+      "version": "R6P121-arm64-only-simulator-diagnostic-compile",
+      "incident_family": "simulator_x86_64_assembly_svc_in_arm_native_livecontainer_hook",
+      "strategy_family": "simulator_arm64_only_architecture_routing_for_upstream_arm_asm",
+      "problem": "integrated_iphonesimulator_generic_build_x86_64_compiles_armv8_svc_asm_and_exits_65",
+      "mechanism": "pin_only_simulator_diagnostic_xcodebuild_archs_to_arm64_without_touching_source_or_native_release_build",
+      "operation_fingerprint": "Add explicit ARCHS=arm64 to only the independent xcodebuild -sdk iphonesimulator diagnostic invocation, assert target arch in unit command test, and record macOS host/simulator target architecture in smoke.json; leave original iphoneos Xcode archive and all private signing identities unchanged.",
+      "source_behavior_contract": "Xcode's simulator diagnostic build must no longer dispatch upstream armv8 svc assembly to x86_64, but all original IPA compilation, archive, SideStore binary, certificate, provisioning, Team ID and entitlements must remain untouched. Successful compilation must still not be represented as simulator app launch success without real simctl receipts.",
+      "rollback_commit": "c0560367bfebe6d2181c337d1f4f6d4654dae08f",
+      "novelty": {
+        "causal_difference": "L195 separated compiling from CoreSimulator boot and thereby discovered a new toolchain fault: the original generic iphonesimulator scheme includes both x86_64 and ARM64 objects and x86_64 hits ARM svc inline-asm error. The fix is simulator architecture routing, not compiling before boot or deferring or retrying CoreSimulator startup.",
+        "falsifiable_prediction": "On the same Xcode27.2 hosted runner, the generic LiveContainer simulator compile command should stop producing x86_64 dyld_bypass_validation.svc invalid mnemonic after ARCHS=arm64; either an ARM64 simulator app is emitted or the next exact unrelated compile/link limitation is logged. IPA device signing and checksum remain unrelated.",
+        "prior_excluded_ids": [
+          "L194",
+          "L195",
+          "L193"
+        ],
+        "new_device_evidence": {
+          "source_commit": "c0560367bfebe6d2181c337d1f4f6d4654dae08f",
+          "event": "xcode27_simulator_generic_arch_invalid_arm_svc_asm",
+          "observed_value": "Run44704967412 real CI simulator-xcodebuild.log fails CompileC LiveContainerShared/dyld_bypass_validation.m normal x86_64: error unknown token in expression, invalid instruction mnemonic svc; smoke stage simulator_build_failed exit_65"
+        }
+      },
+      "code_locations": [
+        {
+          "file": "rebuild/Tests/test_v48_r6p121_iphone_simulator_smoke.py",
+          "location": "@@ -122,2 +122,30 @@ class SimulatorCompileFirst(unittest.TestCase):",
+          "before": [],
+          "after": [
+            "",
+            "",
+            "class SimulatorArm64UpstreamAssembly(unittest.TestCase):",
+            "    def test_compile_invocation_targets_only_arm64_simulator(self):",
+            "        import tempfile",
+            "        from unittest.mock import patch",
+            "        from types import SimpleNamespace",
+            "        spec=importlib.util.spec_from_file_location('iphone_smoke_arm64',SCRIPT)",
+            "        mod=importlib.util.module_from_spec(spec)",
+            "        spec.loader.exec_module(mod)",
+            "        with tempfile.TemporaryDirectory() as tmp:",
+            "            root=Path(tmp)",
+            "            engine=root/'LiveContainer'",
+            "            (engine/'LiveContainer.xcodeproj').mkdir(parents=True)",
+            "            expected_app=root/'derived/Build/Products/Release-iphonesimulator/LiveContainer.app'",
+            "            expected_app.mkdir(parents=True)",
+            "            (expected_app/'Info.plist').write_bytes(b'plist fixture')",
+            "            captured=[]",
+            "            def fake_xcode(command, **kwargs):",
+            "                captured.append(command)",
+            "                return SimpleNamespace(returncode=0)",
+            "            with patch.object(mod.subprocess, 'run', side_effect=fake_xcode):",
+            "                app=mod.simulator_build(engine,root/'derived',root)",
+            "            self.assertEqual(app,expected_app)",
+            "            self.assertEqual(len(captured),1)",
+            "            self.assertIn('ARCHS=arm64',captured[0])",
+            "            self.assertIn('iphonesimulator',captured[0])",
+            "            self.assertNotIn('ARCHS=x86_64',captured[0])"
+          ]
+        },
+        {
+          "file": "rebuild/Tests/test_v48_r6p84_strict_strategy_family.py",
+          "location": "@@ -93,4 +93,15 @@ class P84StrictFamilyGate(unittest.TestCase):",
+          "before": [],
+          "after": [
+            " def test_simulator_arm64_only_family_has_strict_unique_effect_contract(self):",
+            "  p={",
+            "   'id':'L999','problem':'simulator_x86_64_asm','incident_family':'simulator_x86_64_assembly_svc_in_arm_native_livecontainer_hook',",
+            "   'mechanism':'explicit_arm64_only_xcodebuild_sdk_target','strategy_family':'simulator_arm64_only_architecture_routing_for_upstream_arm_asm',",
+            "   'operation_fingerprint':'Xcode simulator diagnostic build targets only arm64 because upstream ARM svc assembly cannot compile on x86_64.',",
+            "   'source_behavior_contract':'iPhoneOS release build remains unchanged and simulator app target must exclude x86_64 assembly compilation.',",
+            "   'rollback_commit':'c0560367bfebe6d2181c337d1f4f6d4654dae08f'",
+            "  }",
+            "  self.assertEqual(check_distinct_method(p,HISTORY['entries']),[])",
+            "  self.assertTrue(any('HARD BLOCK same operational family' in e",
+            "    for e in check_distinct_method(p,HISTORY['entries']+[dict(p,id='L196')])))"
+          ]
+        },
+        {
+          "file": "rebuild/diagnostics/scarlet_distinct_strategy_gate.py",
+          "location": "@@ -65,4 +65,7 @@ OTHER_ALLOWED_METHODS = {",
+          "before": [],
+          "after": [
+            "    # P196: upstream LiveContainer uses ARM64-only svc assembler instructions;",
+            "    # constrain only the separate simulator diagnostic target architecture.",
+            "    \"simulator_arm64_only_architecture_routing_for_upstream_arm_asm\","
+          ]
+        },
+        {
+          "file": "rebuild/diagnostics/scarlet_ios_simulator_smoke.py",
+          "location": "@@ -71,4 +71,8 @@ def simulator_build(engine: Path, products: Path, report_dir: Path) -> Path:",
+          "before": [],
+          "after": [
+            "        # Generic iphonesimulator builds both x86_64 and arm64 by default.",
+            "        # Upstream dyld_bypass_validation.m uses ARM-only `svc` assembly.",
+            "        # This is diagnostic-only; iPhoneOS archive architecture is untouched.",
+            "        'ARCHS=arm64',"
+          ]
+        }
+      ],
+      "source_revisions": [
+        {
+          "sha": "f6c3206931abf0398eae0f933827ae5b44751d0b",
+          "title": "ci(R6P121): constrain simulator diagnostic assembly to arm64"
+        }
+      ],
+      "source_verification": "git_patch_observed",
+      "action": "Restrict the independent simulator diagnostic xcodebuild invocation to ARCHS=arm64, so ARM64 svc inline asm in upstream dyld_bypass_validation.m is never assembled as x86_64. Register a uniquely scoped P84 strategy, add regression tests for exact xcodebuild target arch and strict family reuse rejection.",
+      "observation": "CI run44704967412 stage simulator_build_failed, xcodebuild exit65 while compiling LiveContainerShared/dyld_bypass_validation.m normal x86_64, with assembler errors \"unknown token in expression\" and \"invalid instruction mnemonic svc\". Previously original native iPhoneOS jobs continued to succeed. This is a distinct fault from older simctl bootstatus timeout; simulator app install and screenshot still not observed.",
+      "hypothesis": "Upstream LiveContainer contains explicit ARM64 svc assembler that builds on arm64 iphoneos but is invalid in x86_64 iphonesimulator; scheme default generic simulator destination compiles x86_64 and arm64, so narrowing this diagnostic invocation to ARM64 isolates native source errors without changing real device signed architecture or entitlements.",
+      "status": "source_committed_macos_ci_pending",
+      "device_verification": "device_unverified",
+      "verification": "P84 proposal initially blocked unregistered family; reviewed strategy method taxonomy with no guest layout masking; RED simulator architecture test failed before source change, then GREEN 7 simulator tests, 10 strategy gate tests, full 1020 Linux unittest tests passed (5 skipped), 195 prior remediation audit entries validated; macOS arm64 compilation and simulator launch pending.",
+      "repeat_policy": "This is simulator-only architecture selection, not an iOS native workaround. No changes to upstream LC assembly, guest layout, JIT-less runtime, signed IPA build, Apple accounts, certificate issuance, provisioning or app identifiers. Simulator build success is not iPhone runtime proof.",
+      "generated_runtime_targets_if_integrated": [
+        "rebuild/diagnostics/scarlet_ios_simulator_smoke.py"
+      ]
     }
   ]
 }
