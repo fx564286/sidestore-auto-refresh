@@ -2622,7 +2622,7 @@ static void ScarletGuestAudioReceiptBlocked(void) {
 }
 
 static NSError *ScarletGuestAudioFenceError(void) {
-    return [NSError errorWithDomain:AVAudioSessionErrorDomain
+    return [NSError errorWithDomain:@"com.scarlet.guest.audio.focus"
         code:AVAudioSessionErrorCodeCannotStartPlaying userInfo:nil];
 }
 

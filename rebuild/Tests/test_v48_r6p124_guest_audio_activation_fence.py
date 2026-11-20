@@ -31,6 +31,13 @@ class GuestAudioActivationFenceTests(unittest.TestCase):
         self.assertIn('AVAudioSessionErrorCodeCannotStartPlaying', PATCHER)
         self.assertIn('ScarletGuestAudioReceiptBlocked()', PATCHER)
 
+    def test_generated_objc_fence_error_has_declared_sdk_compatible_domain(self):
+        # Xcode 27.2 does not declare AVAudioSessionErrorDomain as an ObjC
+        # identifier. This error is synthetic, not an OS session error.
+        self.assertIn('errorWithDomain:@"com.scarlet.guest.audio.focus"', PATCHER)
+        self.assertNotIn('errorWithDomain:AVAudioSessionErrorDomain', PATCHER)
+        self.assertIn('code:AVAudioSessionErrorCodeCannotStartPlaying', PATCHER)
+
     def test_fence_reports_but_does_not_change_earlier_pause_contract(self):
         self.assertIn('ScarletGuestAudioRetryPause(0);', PATCHER)
         self.assertIn('ScarletGuestAudioReceipt(NO, result);', PATCHER)
