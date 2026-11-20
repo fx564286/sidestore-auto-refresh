@@ -258,6 +258,14 @@ final class ScarletAutomaticRenewal {
         await refreshIfDue(origin: "foreground")
     }
 
+    func refreshAfterVerifiedAccountSwitch() async {
+        // The previous owner may have used the global attempt cooldown.
+        // The user explicitly verified a different account and team, so
+        // perform a fresh native owner inspection before any signing/install.
+        scheduleNext()
+        _ = await refreshIfDue(origin: "verified_account_switch")
+    }
+
     private func handle(_ bg: BGAppRefreshTask) {
         scheduleNext()
         let operation = Task { @MainActor in
@@ -292,7 +300,8 @@ final class ScarletAutomaticRenewal {
         guard !running else { return false }
         let prefs = UserDefaults.standard
         let now = Date()
-        if let last = prefs.object(forKey: attemptKey) as? Date,
+        if origin != "verified_account_switch",
+           let last = prefs.object(forKey: attemptKey) as? Date,
            now.timeIntervalSince(last) < interval {
             // The host's onAppear and scenePhase.active callbacks can both
             // invoke foregroundCatchUp within 100 ms. This is ONE deferral,

@@ -153,8 +153,9 @@ private actor ScarletGuestHostManagedBootstrap {
         }
         guard hostURL.pathExtension == "app",
               let signedHost = ALTApplication(fileURL: hostURL),
-              let profile = signedHost.provisioningProfile,
-              profile.expirationDate > Date() else {
+              // An expired *old installed host* is a re-signing INPUT only.
+              // The new Apple-ID-pinned signer must still be unexpired below.
+              let profile = signedHost.provisioningProfile else {
             return "host_signed_bundle_unavailable"
         }
         let bundleID = signedHost.bundleIdentifier
@@ -218,8 +219,17 @@ private actor ScarletGuestHostManagedBootstrap {
                     }
                     // Never transfer an inactive row, unrelated installed
                     // app, ambiguous extension identity or foreign signer.
+                    // CoreData keeps the ORIGINAL app ID separately from
+                    // resignedBundleIdentifier. A Personal Team suffix must
+                    // not turn an otherwise cryptographically proven host
+                    // record into a false foreign-account mismatch.
+                    // Accept only the exact pinned legacy host identity;
+                    // never make this an arbitrary suffix or Team-only match.
+                    let originalIdentityMatches = existing.bundleIdentifier == bundleID ||
+                        (existing.bundleIdentifier == "com.kdt.livecontainer.P8EZT3U5N4" &&
+                         bundleID == "com.kdt.livecontainer.P8EZT3U5N4." + currentTeamID)
                     guard signedOwnerProven, existing.isActive,
-                          existing.bundleIdentifier == bundleID else {
+                          originalIdentityMatches else {
                         return "host_managed_owner_mismatch"
                     }
                     let teams = try context.fetch(Team.fetchRequest()).filter {
