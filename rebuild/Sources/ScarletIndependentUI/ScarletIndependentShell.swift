@@ -572,19 +572,19 @@ public struct ScarletIndependentShell: View {
                     .accessibilityIdentifier("SCARLET_DEVICE_APP_MANAGE")
             }
             .accessibilityIdentifier("SCARLET_DEVICE_MANAGED_IPA_SECTION")
-            Text("SideStore 관리 기록 · 실제 iOS 설치 여부는 별도 확인이 필요합니다.")
+            Text("선택한 계정의 SideStore 관리 앱 목록")
                 .font(.caption)
                 .foregroundStyle(ScarletPresentationColor.muted)
             if deviceAppLookupStatus == "loading" || deviceAppLookupStatus == "not_loaded" {
-                Text("기기 설치 기록 확인 중")
+                Text("기기 앱 목록 불러오는 중")
                     .font(.subheadline)
                     .foregroundStyle(ScarletPresentationColor.muted)
             } else if deviceAppLookupStatus != "ready" {
-                Text("SideStore 기록 조회 불가 · 계정 상태 확인 필요")
+                Text("SideStore 앱 목록을 불러오지 못했습니다.")
                     .font(.subheadline)
                     .foregroundStyle(ScarletPresentationColor.muted)
             } else if visibleDeviceApps.isEmpty {
-                Text("현재 계정의 관리 기록이 없습니다.")
+                Text("선택한 계정의 SideStore 관리 앱이 없습니다.")
                     .font(.subheadline)
                     .foregroundStyle(ScarletPresentationColor.muted)
             } else {
@@ -596,7 +596,7 @@ public struct ScarletIndependentShell: View {
                             VStack(alignment: .leading, spacing: 3) {
                                 Text(app.title).font(.subheadline.weight(.medium))
                                 Text(app.isHost ? "호스트 보호 · SideStore 기록"
-                                     : app.isActive ? "활성 관리 기록 · 설치 미검증"
+                                     : app.isActive ? "SideStore 관리 중"
                                                     : "비활성 관리 기록")
                                     .font(.caption)
                                     .foregroundStyle(ScarletPresentationColor.muted)

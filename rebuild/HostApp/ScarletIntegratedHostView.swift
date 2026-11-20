@@ -676,7 +676,7 @@ struct ScarletIntegratedHostView: View {
             ScarletDiagnosticRecorder.shared.record(
                 "sidestore", "device_app_catalog_loaded",
                 fields: ["count": String(result.apps.count),
-                         "installation_verified": "false"])
+                         "source": "selected_owner_managed_records"])
         }
     }
 
