@@ -12846,6 +12846,195 @@
       "status": "source_committed_native_ci_pending",
       "device_verification": "device_unverified",
       "verification": "Prior CI isolated one obsolete test assertion; source now validates explicit consent and retained current-run default. Native CI and device verification pending."
+    },
+    {
+      "id": "L186",
+      "date": "2026-11-20",
+      "version": "R6P118-one-tap-user-authorized-log-URL",
+      "problem": "diagnostic_share_requires_redundant_confirmation_after_explicit_user_approval",
+      "mechanism": "remove_redundant_modal_after_user_consented_and_bind_log_share_button_directly_to_asynchronous_link_upload",
+      "incident_family": "diagnostic_one_tap_share_ux",
+      "strategy_family": "diagnostic_user_approved_one_tap_link_sharing",
+      "operation_fingerprint": "The existing diagnostic screen now invokes shareAsLink directly from the log-share button; it still generates the report and uploads only when the user presses that button, and explicitly warns that the link is public.",
+      "source_behavior_contract": "No new authentication prompt or secondary confirmation is required after the user's explicit approval. Viewing or refreshing logs never uploads; iOS shares the returned short URL only, with scope selection frozen before awaiting upload.",
+      "rollback_commit": "823ca0506905d4fad7c47dc6e4a0da18368ad5f0",
+      "novelty": {
+        "causal_difference": "L184 added a secondary modal to obtain public-hosting consent before uploading. The user has since explicitly authorized link sharing and requested a single-tap flow. This change removes only the redundant modal, keeping the same file-backed uploader.",
+        "falsifiable_prediction": "After pressing Log Share once, the app immediately starts file-backed upload and presents a URL-only UIActivityViewController on success; initial view and refresh continue to produce zero network requests.",
+        "prior_excluded_ids": [
+          "L184",
+          "L185",
+          "L052"
+        ],
+        "why_prior_fix_failed": "L184 added a secondary modal to obtain public-hosting consent before uploading. The user has since explicitly authorized link sharing and requested a single-tap flow. This change removes only the redundant modal, keeping the same file-backed uploader."
+      },
+      "observation": "User requests one-tap URL delivery rather than an additional in-app confirmation; prior R6P118 implementation presents a confirmationDialog despite the already granted consent.",
+      "action": "Remove the confirmationDialog state and action, wire button directly to shareAsLink, retain visible public-link disclosure, and update both old and new diagnostic source assertions.",
+      "repeat_policy": "Keep all history entries immutable; do not bypass original SideStore certificate/team/transport checks and do not label CI as device proof.",
+      "code_locations": [
+        {
+          "file": "rebuild/HostApp/ScarletDiagnosticRecorder.swift",
+          "location": "@@ -559,0 +559,4 @@ struct ScarletDiagnosticLogView: View",
+          "before": [
+            "                    showUploadConsent = true"
+          ],
+          "after": [
+            "                    shareAsLink()",
+            "            Text(\"로그 링크 공유를 누르면 전체 진단 보고서가 paste.c-net.org로 업로드됩니다. 링크를 아는 누구나 볼 수 있습니다.\")"
+          ]
+        },
+        {
+          "file": "rebuild/Tests/test_native_diagnostic_export.py",
+          "location": "@@ -88 +88,2 @@ class FullSizeSettingsAndOnDeviceLog(unittest.TestCase):",
+          "before": [
+            "        self.assertIn(\"showUploadConsent = true\",LOG)"
+          ],
+          "after": [
+            "        self.assertIn(\"shareAsLink()\",LOG)",
+            "        self.assertIn(\"로그 링크 공유를 누르면\",LOG)"
+          ]
+        },
+        {
+          "file": "rebuild/Tests/test_v38_current_launch_only_diagnostics.py",
+          "location": "@@ -44,2 +44,2 @@ class CurrentLaunchOnly(unittest.TestCase):",
+          "before": [
+            "        self.assertIn('showUploadConsent = true',S)",
+            "        self.assertIn('Button(\"동의하고 링크 공유\") { shareAsLink() }',S)"
+          ],
+          "after": [
+            "        self.assertIn('Button {\\n                    shareAsLink()\\n                } label: {',S)",
+            "        self.assertNotIn('showUploadConsent = true',S)"
+          ]
+        }
+      ],
+      "source_revisions": [
+        {
+          "sha": "8c98c4055335482d1fdce29691bbd31c434e3096",
+          "title": "fix(R6P118): one-tap URL share, exact host-owner mismatch, and ARC fixture regression"
+        }
+      ],
+      "source_verification": "git_patch_observed",
+      "status": "source_committed_native_ci_pending",
+      "device_verification": "device_unverified"
+    },
+    {
+      "id": "L187",
+      "date": "2026-11-20",
+      "version": "R6P118-exact-host-team-mismatch-before-manual-refresh",
+      "problem": "installed_host_signed_by_different_team_hidden_as_no_managed_apps_then_manual_refresh_fails",
+      "mechanism": "preserve_verified_host_selected_team_mismatch_before_empty_inventory_classification_and_native_manual_onboarding",
+      "incident_family": "native_refresh_team_mismatch_diagnostic_invariant",
+      "strategy_family": "native_refresh_host_signer_owner_mismatch_exact_reason",
+      "operation_fingerprint": "The native SideStore read-only inventory classifier now forwards host_selected_team_mismatch when selected Team has no managed targets and verified installed host belongs to a different Team; it prevents the manual host-onboarding path from making an impossible cross-team installation attempt.",
+      "source_behavior_contract": "Never change selected account, host Bundle/Team ID, certificate, Keychain, entitlement or CoreData ownership to circumvent this mismatch. Preserve precise failure stage and existing valid managed apps on other Team, and block before any signing or installation when the host signer differs.",
+      "rollback_commit": "823ca0506905d4fad7c47dc6e4a0da18368ad5f0",
+      "novelty": {
+        "causal_difference": "P116 current-run log records count=0/no_managed_apps_for_selected_team at seq296 followed by host_selected_team_mismatch at seq298 within 26 ms. Source explicitly rewrites mismatch into no_managed_apps at zero-target inventory, allowing manual onboarding even though host signing cannot match the selected Team.",
+        "falsifiable_prediction": "A native inspector with no targets and hostBootstrap host_selected_team_mismatch returns that exact reason, and the host manual-onboarding action refuses to proceed. Same-team empty inventory still returns no_managed_apps_for_selected_team.",
+        "prior_excluded_ids": [
+          "L171",
+          "L172",
+          "L175",
+          "L178",
+          "L184"
+        ],
+        "why_prior_fix_failed": "P116 current-run log records count=0/no_managed_apps_for_selected_team at seq296 followed by host_selected_team_mismatch at seq298 within 26 ms. Source explicitly rewrites mismatch into no_managed_apps at zero-target inventory, allowing manual onboarding even though host signing cannot match the selected Team."
+      },
+      "observation": "P116 session cd4f5a82 seq296 no_managed_apps_for_selected_team count=0 and seq298 manual_request_failed host_selected_team_mismatch; source has reason = hostBootstrap == mismatch ? no_managed_apps_for_selected_team.",
+      "action": "Expose the installed-host Team mismatch before the zero-inventory alias branch, preserve all existing same-Team target paths, and add a regression test proving the exact reason prevents cross-Team onboarding.",
+      "repeat_policy": "Keep all history entries immutable; do not bypass original SideStore certificate/team/transport checks and do not label CI as device proof.",
+      "code_locations": [
+        {
+          "file": "rebuild/integration/ScarletGuestRefreshAgent.swift.txt",
+          "location": "@@ -380,7 +380,13 @@ native inventory result",
+          "before": [
+            "                if let inventoryReason {",
+            "                    reason = hostBootstrap == \"host_selected_team_mismatch\"",
+            "                        ? \"no_managed_apps_for_selected_team\""
+          ],
+          "after": [
+            "                if targets.isEmpty && hostBootstrap == \"host_selected_team_mismatch\" {",
+            "                    reason = \"host_selected_team_mismatch\"",
+            "                } else if let inventoryReason {",
+            "                    reason = registrationFailures.contains(hostBootstrap)",
+            "                        ? hostBootstrap : \"no_managed_apps_for_selected_team\""
+          ]
+        },
+        {
+          "file": "rebuild/Tests/test_v48_r6p118_share_ci_and_host_team_mismatch.py",
+          "location": "@@ -0,0 +1,35 @@",
+          "before": [],
+          "after": [
+            "class HostTeamMismatchPropagation(unittest.TestCase):",
+            "    def test_zero_target_host_mismatch_wins_over_inventory_alias(self):",
+            "    def test_manual_onboarding_requires_true_zero_inventory_not_wrong_host_owner(self):"
+          ]
+        }
+      ],
+      "source_revisions": [
+        {
+          "sha": "8c98c4055335482d1fdce29691bbd31c434e3096",
+          "title": "fix(R6P118): one-tap URL share, exact host-owner mismatch, and ARC fixture regression"
+        }
+      ],
+      "source_verification": "git_patch_observed",
+      "status": "source_committed_native_ci_pending",
+      "device_verification": "device_unverified"
+    },
+    {
+      "id": "L188",
+      "date": "2026-11-20",
+      "version": "R6P118-native-ARC-fixture-CI-repair",
+      "problem": "clang_objc_arc_property_newHost_convention_prevents_guest_scene_callback_regression_execution",
+      "mechanism": "rename_test_only_arc_property_with_new_prefix_ownership_convention_to_unambiguous_updatedHost",
+      "incident_family": "ci_native_objc_arc_fixture_error",
+      "strategy_family": "native_objc_arc_fixture_property_name_repair",
+      "operation_fingerprint": "Rename FBSSceneSettingsDiff fixture property newHost to updatedHost in the P117 Objective-C executable harness without changing the generated production callback, memory ownership or two-guest state assertions.",
+      "source_behavior_contract": "The same P117 two-guest host transition test must compile and execute under macOS clang -fobjc-arc. No runtime production scene policy changes are permitted while repairing this fixture-only naming failure.",
+      "rollback_commit": "823ca0506905d4fad7c47dc6e4a0da18368ad5f0",
+      "novelty": {
+        "causal_difference": "Mac runner Xcode 27.2 clang reports property follows Cocoa naming convention for returning owned objects on newHost declaration; Objective-C ARC recognizes the new prefix as a retained-family selector. The test never reaches guest state assertions.",
+        "falsifiable_prediction": "Both original and integrated P117 Objective-C harnesses compile under clang -fobjc-arc with the updatedHost property and run all original state assertions without changing generated runtime callback.",
+        "prior_excluded_ids": [
+          "L183",
+          "L185"
+        ],
+        "why_prior_fix_failed": "Mac runner Xcode 27.2 clang reports property follows Cocoa naming convention for returning owned objects on newHost declaration; Objective-C ARC recognizes the new prefix as a retained-family selector. The test never reaches guest state assertions."
+      },
+      "observation": "GitHub Actions 44646343040 livecontainer fails in generated integration at rebuild/Tests/fixtures/resident_scene_settings.m line27:68 property follows Cocoa naming convention for returning owned objects, with two harness errors.",
+      "action": "Rename only fixture property, add exact ARC name regression, include the three newly audited unrelated R6P118 implementation strategy names in the strict gate allowlist, rerun the existing Xcode preflight.",
+      "repeat_policy": "Keep all history entries immutable; do not bypass original SideStore certificate/team/transport checks and do not label CI as device proof.",
+      "code_locations": [
+        {
+          "file": "rebuild/Tests/fixtures/resident_scene_settings.m",
+          "location": "@@ -27 +27 @@ FBSSceneSettingsDiff",
+          "before": [
+            "@property(nonatomic, strong) UIApplicationSceneSettings *oldHost, *newHost;"
+          ],
+          "after": [
+            "@property(nonatomic, strong) UIApplicationSceneSettings *oldHost, *updatedHost;"
+          ]
+        },
+        {
+          "file": "rebuild/diagnostics/scarlet_distinct_strategy_gate.py",
+          "location": "@@ -60,0 +61,3 @@ OTHER_ALLOWED_METHODS",
+          "before": [],
+          "after": [
+            "    \"diagnostic_user_approved_one_tap_link_sharing\",",
+            "    \"native_refresh_host_signer_owner_mismatch_exact_reason\",",
+            "    \"native_objc_arc_fixture_property_name_repair\","
+          ]
+        }
+      ],
+      "source_revisions": [
+        {
+          "sha": "8c98c4055335482d1fdce29691bbd31c434e3096",
+          "title": "fix(R6P118): one-tap URL share, exact host-owner mismatch, and ARC fixture regression"
+        }
+      ],
+      "source_verification": "git_patch_observed",
+      "status": "source_committed_native_ci_pending",
+      "device_verification": "device_unverified"
     }
   ]
 }
