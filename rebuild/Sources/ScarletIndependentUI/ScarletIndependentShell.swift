@@ -223,6 +223,49 @@ private struct ScarletStatusBadge: View {
     }
 }
 
+// A single visual primitive serves both registries; source ownership, gestures
+// and installation/launch authority stay in their respective adapters.
+private struct ScarletLauncherArtwork: View {
+    let iconPNG: Data?
+    let fallbackSymbol: String
+
+    var body: some View {
+        Group {
+            if let iconPNG, let image = UIImage(data: iconPNG) {
+                Image(uiImage: image)
+                    .resizable()
+                    .scaledToFit()
+            } else {
+                Image(systemName: fallbackSymbol)
+                    .resizable()
+                    .scaledToFit()
+                    .padding(18)
+                    .foregroundStyle(ScarletPresentationColor.accent)
+                    .background(ScarletPresentationColor.surface)
+            }
+        }
+        .frame(width: 66, height: 66)
+        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .stroke(ScarletPresentationColor.stroke.opacity(0.65), lineWidth: 0.75)
+        }
+    }
+}
+
+private struct ScarletLauncherCaption: View {
+    let title: String
+
+    var body: some View {
+        Text(title)
+            .font(.system(size: 11.5, weight: .medium))
+            .foregroundStyle(ScarletPresentationColor.text)
+            .lineLimit(2)
+            .multilineTextAlignment(.center)
+            .frame(maxWidth: .infinity, minHeight: 30, alignment: .top)
+    }
+}
+
 // iPhone-style launcher: one independent icon per guest, no enclosing list card.
 private struct ScarletGuestLauncherTile: View {
     let guest: ScarletGuestPresentation
@@ -233,26 +276,8 @@ private struct ScarletGuestLauncherTile: View {
         Button(action: action) {
             VStack(spacing: 7) {
                 ZStack(alignment: .bottomTrailing) {
-                    Group {
-                        if let data = guest.iconPNG, let image = UIImage(data: data) {
-                            Image(uiImage: image)
-                                .resizable()
-                                .scaledToFit()
-                        } else {
-                            Image(systemName: guest.icon)
-                                .resizable()
-                                .scaledToFit()
-                                .padding(18)
-                                .foregroundStyle(ScarletPresentationColor.accent)
-                                .background(ScarletPresentationColor.surface)
-                        }
-                    }
-                    .frame(width: 66, height: 66)
-                    .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-                    .overlay {
-                        RoundedRectangle(cornerRadius: 16, style: .continuous)
-                            .stroke(ScarletPresentationColor.stroke.opacity(0.65), lineWidth: 0.75)
-                    }
+                    ScarletLauncherArtwork(iconPNG: guest.iconPNG,
+                                           fallbackSymbol: guest.icon)
                     if guest.isRunning {
                         Circle()
                             .fill(ScarletPresentationColor.success)
@@ -260,12 +285,7 @@ private struct ScarletGuestLauncherTile: View {
                             .overlay(Circle().stroke(ScarletPresentationColor.background, lineWidth: 2))
                     }
                 }
-                Text(guest.title)
-                    .font(.system(size: 11.5, weight: .medium))
-                    .foregroundStyle(ScarletPresentationColor.text)
-                    .lineLimit(2)
-                    .multilineTextAlignment(.center)
-                    .frame(maxWidth: .infinity, minHeight: 30, alignment: .top)
+                ScarletLauncherCaption(title: guest.title)
             }
             .frame(maxWidth: .infinity, alignment: .top)
             .contentShape(Rectangle())
@@ -280,6 +300,32 @@ private struct ScarletGuestLauncherTile: View {
             }
             .accessibilityIdentifier("SCARLET_GUEST_UNINSTALL_MENU")
         }
+    }
+}
+
+// Native SideStore rows share the guest artwork/caption geometry but must
+// never invoke a LiveContainer guest launch or guest deletion callback.
+private struct ScarletManagedDeviceLauncherTile: View {
+    let app: ScarletManagedDevicePresentation
+    let onManage: () -> Void
+
+    var body: some View {
+        Button(action: onManage) {
+            VStack(spacing: 7) {
+                ScarletLauncherArtwork(
+                    iconPNG: nil,
+                    fallbackSymbol: app.isHost ? "shield.lefthalf.filled" : "iphone.gen3")
+                ScarletLauncherCaption(title: app.title)
+            }
+            .frame(maxWidth: .infinity, alignment: .top)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(app.title)
+        .accessibilityValue(app.isHost ? "호스트 보호 · SideStore 기록"
+                            : app.isActive ? "SideStore 관리 중" : "비활성 관리 기록")
+        .accessibilityHint("SideStore 기기 설치 앱 관리 열기")
+        .accessibilityIdentifier("SCARLET_DEVICE_MANAGED_IPA_ROW")
     }
 }
 
@@ -588,24 +634,17 @@ public struct ScarletIndependentShell: View {
                     .font(.subheadline)
                     .foregroundStyle(ScarletPresentationColor.muted)
             } else {
-                ScarletPanel {
+                LazyVGrid(
+                    columns: launcherColumns,
+                    alignment: .center, spacing: 28
+                ) {
                     ForEach(visibleDeviceApps) { app in
-                        HStack(spacing: 12) {
-                            Image(systemName: "iphone.gen3")
-                                .foregroundStyle(ScarletPresentationColor.accent)
-                            VStack(alignment: .leading, spacing: 3) {
-                                Text(app.title).font(.subheadline.weight(.medium))
-                                Text(app.isHost ? "호스트 보호 · SideStore 기록"
-                                     : app.isActive ? "SideStore 관리 중"
-                                                    : "비활성 관리 기록")
-                                    .font(.caption)
-                                    .foregroundStyle(ScarletPresentationColor.muted)
-                            }
-                            Spacer(minLength: 4)
-                        }
-                        .accessibilityIdentifier("SCARLET_DEVICE_MANAGED_IPA_ROW")
+                        ScarletManagedDeviceLauncherTile(
+                            app: app, onManage: onManageDeviceApps)
                     }
                 }
+                .padding(.top, 16)
+                .accessibilityIdentifier("SCARLET_DEVICE_APPS_FOUR_COLUMN_LAUNCHER")
             }
             Text("LiveContainer 게스트")
                 .font(.headline)
@@ -617,7 +656,7 @@ public struct ScarletIndependentShell: View {
                     .frame(maxWidth: .infinity, minHeight: 120)
             } else {
                 LazyVGrid(
-                    columns: Array(repeating: GridItem(.flexible(minimum: 58), spacing: 12), count: 4),
+                    columns: launcherColumns,
                     alignment: .center, spacing: 28
                 ) {
                     ForEach(visibleGuests) { guest in
@@ -658,6 +697,11 @@ public struct ScarletIndependentShell: View {
             .buttonStyle(.plain)
             .accessibilityIdentifier("SCARLET_REOPEN_MINIMIZED_INSTALL")
         }
+    }
+
+    // Both registries use exactly the same 4-column width and spacing.
+    private var launcherColumns: [GridItem] {
+        Array(repeating: GridItem(.flexible(minimum: 58), spacing: 12), count: 4)
     }
 
     private var visibleDeviceApps: [ScarletManagedDevicePresentation] {
