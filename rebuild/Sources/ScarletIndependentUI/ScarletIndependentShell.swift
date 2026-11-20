@@ -30,6 +30,22 @@ public struct ScarletGuestPresentation: Identifiable, Equatable, Sendable {
     }
 }
 
+// A SideStore-managed device IPA is NOT an LC guest. The native record's
+// active flag does not prove SpringBoard currently has an installed app.
+public struct ScarletManagedDevicePresentation: Identifiable, Equatable, Sendable {
+    public let id: String
+    public let title: String
+    public let isActive: Bool
+    public let isHost: Bool
+
+    public init(id: String, title: String, isActive: Bool, isHost: Bool) {
+        self.id = id
+        self.title = title
+        self.isActive = isActive
+        self.isHost = isHost
+    }
+}
+
 public struct ScarletSourceAppPresentation: Identifiable, Equatable, Sendable {
     public let id: String
     public let name: String
@@ -290,6 +306,8 @@ public struct ScarletIndependentShell: View {
 
     public let snapshot: ScarletHostPresentationSnapshot
     public let guests: [ScarletGuestPresentation]
+    public let deviceApps: [ScarletManagedDevicePresentation]
+    public let deviceAppLookupStatus: String
     public let sources: [ScarletSourcePresentation]
     public let onOpenSource: (String) -> Void
     public let onAddSource: () -> Void
@@ -301,6 +319,7 @@ public struct ScarletIndependentShell: View {
     public let onAction: (ScarletControl) -> Void
     public let onOpenGuest: (String) -> Void
     public let onDeleteGuest: (String) -> Void
+    public let onManageDeviceApps: () -> Void
     // The container's four tabs remain native Liquid Glass.
     // The one round switch control belongs to a running guest scene ONLY.
     // Keep the original interactive Liquid Glass tab-bar renderer. The host
@@ -325,10 +344,13 @@ public struct ScarletIndependentShell: View {
 
     public init(snapshot: ScarletHostPresentationSnapshot,
                 guests: [ScarletGuestPresentation],
+                deviceApps: [ScarletManagedDevicePresentation] = [],
+                deviceAppLookupStatus: String = "not_loaded",
                 sources: [ScarletSourcePresentation],
                 onAction: @escaping (ScarletControl) -> Void,
                 onOpenGuest: @escaping (String) -> Void,
                 onDeleteGuest: @escaping (String) -> Void = { _ in },
+                onManageDeviceApps: @escaping () -> Void = {},
                 onOpenSource: @escaping (String) -> Void,
                 onAddSource: @escaping () -> Void,
                 onInstallSourceApp: @escaping (String) -> Void = { _ in },
@@ -342,10 +364,13 @@ public struct ScarletIndependentShell: View {
                 initialTab: Tab = .apps) {
         self.snapshot = snapshot
         self.guests = guests
+        self.deviceApps = deviceApps
+        self.deviceAppLookupStatus = deviceAppLookupStatus
         self.sources = sources
         self.onAction = onAction
         self.onOpenGuest = onOpenGuest
         self.onDeleteGuest = onDeleteGuest
+        self.onManageDeviceApps = onManageDeviceApps
         self.onOpenSource = onOpenSource
         self.onAddSource = onAddSource
         self.onInstallSourceApp = onInstallSourceApp
@@ -535,8 +560,58 @@ public struct ScarletIndependentShell: View {
                 RoundedRectangle(cornerRadius: 20)
                     .stroke(ScarletPresentationColor.stroke, lineWidth: 1)
             }
+            // The SideStore-owned installation catalog and LiveContainer guest
+            // bundles are separate registries. Even identical Bundle IDs must
+            // never cause one mode to inherit the other mode's actions.
+            HStack {
+                Text("기기 설치 IPA")
+                    .font(.headline)
+                Spacer()
+                Button("기기 설치 앱 관리") { onManageDeviceApps() }
+                    .font(.caption.weight(.semibold))
+                    .accessibilityIdentifier("SCARLET_DEVICE_APP_MANAGE")
+            }
+            .accessibilityIdentifier("SCARLET_DEVICE_MANAGED_IPA_SECTION")
+            Text("SideStore 관리 기록 · 실제 iOS 설치 여부는 별도 확인이 필요합니다.")
+                .font(.caption)
+                .foregroundStyle(ScarletPresentationColor.muted)
+            if deviceAppLookupStatus == "loading" || deviceAppLookupStatus == "not_loaded" {
+                Text("기기 설치 기록 확인 중")
+                    .font(.subheadline)
+                    .foregroundStyle(ScarletPresentationColor.muted)
+            } else if deviceAppLookupStatus != "ready" {
+                Text("SideStore 기록 조회 불가 · 계정 상태 확인 필요")
+                    .font(.subheadline)
+                    .foregroundStyle(ScarletPresentationColor.muted)
+            } else if visibleDeviceApps.isEmpty {
+                Text("현재 계정의 관리 기록이 없습니다.")
+                    .font(.subheadline)
+                    .foregroundStyle(ScarletPresentationColor.muted)
+            } else {
+                ScarletPanel {
+                    ForEach(visibleDeviceApps) { app in
+                        HStack(spacing: 12) {
+                            Image(systemName: "iphone.gen3")
+                                .foregroundStyle(ScarletPresentationColor.accent)
+                            VStack(alignment: .leading, spacing: 3) {
+                                Text(app.title).font(.subheadline.weight(.medium))
+                                Text(app.isHost ? "호스트 보호 · SideStore 기록"
+                                     : app.isActive ? "활성 관리 기록 · 설치 미검증"
+                                                    : "비활성 관리 기록")
+                                    .font(.caption)
+                                    .foregroundStyle(ScarletPresentationColor.muted)
+                            }
+                            Spacer(minLength: 4)
+                        }
+                        .accessibilityIdentifier("SCARLET_DEVICE_MANAGED_IPA_ROW")
+                    }
+                }
+            }
+            Text("LiveContainer 게스트")
+                .font(.headline)
+                .accessibilityIdentifier("SCARLET_LC_GUEST_SECTION")
             if visibleGuests.isEmpty {
-                Text("설치된 앱이 없습니다.")
+                Text("저장된 게스트 앱이 없습니다.")
                     .font(.subheadline)
                     .foregroundStyle(ScarletPresentationColor.muted)
                     .frame(maxWidth: .infinity, minHeight: 120)
@@ -582,6 +657,12 @@ public struct ScarletIndependentShell: View {
             }
             .buttonStyle(.plain)
             .accessibilityIdentifier("SCARLET_REOPEN_MINIMIZED_INSTALL")
+        }
+    }
+
+    private var visibleDeviceApps: [ScarletManagedDevicePresentation] {
+        deviceApps.filter {
+            searchText.isEmpty || $0.title.localizedCaseInsensitiveContains(searchText)
         }
     }
 
