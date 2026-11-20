@@ -1,0 +1,76 @@
+"""R6P121: prove CI uses mutually exclusive branch selectors for IPA and Release."""
+import os
+from pathlib import Path
+import subprocess
+import unittest
+
+ROOT = Path(__file__).resolve().parents[2]
+WORKFLOW = (ROOT / '.github/workflows/scarlet-paired-engines-build.yml').read_text()
+REF_121 = 'refs/heads/fix/scarlet-v48-r6p121-existing-cert-recovery-20261120'
+REF_120 = 'refs/heads/fix/scarlet-v48-r6p120-manual-owner-mismatch-20261120'
+EXPECTED_ASSET_121 = 'Scarlet-Crystal-V48-R6P121-EXISTING-CERT-RECOVERY-UNSIGNED.ipa'
+EXPECTED_ASSET_120 = 'Scarlet-Crystal-V48-R6P120-MANUAL-OWNER-MISMATCH-UNSIGNED.ipa'
+EXPECTED_TAG_121 = 'scarlet-v48-r6p121-existing-cert-recovery-unsigned-20261120'
+EXPECTED_TAG_120 = 'scarlet-v48-r6p120-manual-owner-mismatch-unsigned-20261120'
+
+
+def shell_selectors():
+    lines = WORKFLOW.splitlines()
+    needle = f'if [ "$GITHUB_REF" = "{REF_121}" ]; then'
+    starts = [i for i, line in enumerate(lines) if line.strip() == needle]
+    if len(starts) != 3:
+        raise AssertionError(f'Expected three distinct R6P121 selector blocks, got {len(starts)}')
+    selectors = []
+    for start in starts:
+        indent = len(lines[start]) - len(lines[start].lstrip())
+        # The original source has one independent `fi` before R6P120,
+        # which is exactly the regression this test catches.
+        closing = next(i for i in range(start + 1, len(lines))
+                       if lines[i].strip() == 'fi' and
+                       len(lines[i]) - len(lines[i].lstrip()) == indent)
+        selectors.append('\n'.join(lines[start:closing + 1]))
+    return selectors
+
+
+def resolve(selector, ref):
+    code = ('set -Eeuo pipefail\n'
+            'SCARLET_HOST_VERSION_ARGS=()\n'
+            'asset=none\n'
+            'tag=none\n'
+            + selector + '\n'
+            'printf "version=%s\\nasset=%s\\ntag=%s\\n" '
+            '"${SCARLET_HOST_VERSION_ARGS[*]}" "$asset" "$tag"\n')
+    result = subprocess.run(['bash', '-c', code], capture_output=True,
+                            text=True, check=True, timeout=10,
+                            env={**os.environ, 'GITHUB_REF': ref})
+    return dict(line.split('=', 1) for line in result.stdout.splitlines())
+
+
+class R6P121ReleaseChain(unittest.TestCase):
+    def test_r6p121_must_precede_r6p120_in_same_if_elif_chain(self):
+        for selector in shell_selectors():
+            with self.subTest(selector=selector[:100]):
+                self.assertIn(f'elif [ "$GITHUB_REF" = "{REF_120}" ]; then', selector)
+                self.assertNotIn(f'if [ "$GITHUB_REF" = "{REF_120}" ]; then',
+                                 '\n'.join(line for line in selector.splitlines()
+                                           if line.strip().startswith('if ')))
+
+    def test_r6p121_native_version_and_asset_and_release_are_exact(self):
+        version, packaging, publishing = shell_selectors()
+        self.assertEqual(resolve(version, REF_121)['version'], '--host-build-version 3.8.121')
+        self.assertEqual(resolve(packaging, REF_121)['asset'], EXPECTED_ASSET_121)
+        output = resolve(publishing, REF_121)
+        self.assertEqual(output['tag'], EXPECTED_TAG_121)
+        self.assertEqual(output['asset'], EXPECTED_ASSET_121)
+
+    def test_r6p120_identity_is_unchanged(self):
+        version, packaging, publishing = shell_selectors()
+        self.assertEqual(resolve(version, REF_120)['version'], '--host-build-version 3.8.120')
+        self.assertEqual(resolve(packaging, REF_120)['asset'], EXPECTED_ASSET_120)
+        output = resolve(publishing, REF_120)
+        self.assertEqual(output['tag'], EXPECTED_TAG_120)
+        self.assertEqual(output['asset'], EXPECTED_ASSET_120)
+
+
+if __name__ == '__main__':
+    unittest.main()

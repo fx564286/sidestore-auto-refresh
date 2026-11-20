@@ -339,8 +339,7 @@ jobs:
           SCARLET_HOST_VERSION_ARGS=()
           if [ "$GITHUB_REF" = "refs/heads/fix/scarlet-v48-r6p121-existing-cert-recovery-20261120" ]; then
             SCARLET_HOST_VERSION_ARGS=(--host-build-version 3.8.121)
-          fi
-          if [ "$GITHUB_REF" = "refs/heads/fix/scarlet-v48-r6p120-manual-owner-mismatch-20261120" ]; then
+          elif [ "$GITHUB_REF" = "refs/heads/fix/scarlet-v48-r6p120-manual-owner-mismatch-20261120" ]; then
             SCARLET_HOST_VERSION_ARGS=(--host-build-version 3.8.120)
           elif [ "$GITHUB_REF" = "refs/heads/fix/scarlet-v48-r6p119-owner-refresh-20261120" ]; then
             SCARLET_HOST_VERSION_ARGS=(--host-build-version 3.8.119)
@@ -671,8 +670,7 @@ jobs:
           PY
           if [ "$GITHUB_REF" = "refs/heads/fix/scarlet-v48-r6p121-existing-cert-recovery-20261120" ]; then
             asset="Scarlet-Crystal-V48-R6P121-EXISTING-CERT-RECOVERY-UNSIGNED.ipa"
-          fi
-          if [ "$GITHUB_REF" = "refs/heads/fix/scarlet-v48-r6p120-manual-owner-mismatch-20261120" ]; then
+          elif [ "$GITHUB_REF" = "refs/heads/fix/scarlet-v48-r6p120-manual-owner-mismatch-20261120" ]; then
             asset="Scarlet-Crystal-V48-R6P120-MANUAL-OWNER-MISMATCH-UNSIGNED.ipa"
           elif [ "$GITHUB_REF" = "refs/heads/fix/scarlet-v48-r6p119-owner-refresh-20261120" ]; then
             asset="Scarlet-Crystal-V48-R6P119-OWNER-REFRESH-UNSIGNED.ipa"
@@ -983,8 +981,7 @@ jobs:
           if [ "$GITHUB_REF" = "refs/heads/fix/scarlet-v48-r6p121-existing-cert-recovery-20261120" ]; then
             tag=scarlet-v48-r6p121-existing-cert-recovery-unsigned-20261120
             asset=Scarlet-Crystal-V48-R6P121-EXISTING-CERT-RECOVERY-UNSIGNED.ipa
-          fi
-          if [ "$GITHUB_REF" = "refs/heads/fix/scarlet-v48-r6p120-manual-owner-mismatch-20261120" ]; then
+          elif [ "$GITHUB_REF" = "refs/heads/fix/scarlet-v48-r6p120-manual-owner-mismatch-20261120" ]; then
             tag=scarlet-v48-r6p120-manual-owner-mismatch-unsigned-20261120
             asset=Scarlet-Crystal-V48-R6P120-MANUAL-OWNER-MISMATCH-UNSIGNED.ipa
           elif [ "$GITHUB_REF" = "refs/heads/fix/scarlet-v48-r6p119-owner-refresh-20261120" ]; then
