@@ -188,6 +188,19 @@ jobs:
           PY
           tar -cf "$GITHUB_WORKSPACE/report/LiveContainer-app.tar" -C "$(dirname "$app")" LiveContainer.app
           echo "[PASS] Compiled LiveContainer host, 3 native extensions and SideStoreSupport"
+      # This is a separate simulator build: an iPhoneOS archive cannot be
+      # installed in CoreSimulator. Record an actual runtime verdict without
+      # misrepresenting simulator limits or blocking the signed-device build.
+      - name: Attempt real iPhone Simulator build, install, launch and screenshot
+        id: ios_simulator_smoke
+        shell: bash
+        timeout-minutes: 23
+        continue-on-error: true
+        run: |
+          set -euo pipefail
+          python3 rebuild/diagnostics/scarlet_ios_simulator_smoke.py \
+            --engine engine/LiveContainer \
+            --report-dir report/ios-simulator
       - uses: actions/upload-artifact@v4
         if: always()
         with:

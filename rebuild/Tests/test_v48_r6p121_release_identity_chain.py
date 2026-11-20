@@ -34,7 +34,7 @@ def shell_selectors():
 
 def resolve(selector, ref):
     code = ('set -Eeuo pipefail\n'
-            'SCARLET_HOST_VERSION_ARGS=()\n'
+            'SCARLET_HOST_VERSION_ARGS=(__unset__)\n'
             'asset=none\n'
             'tag=none\n'
             + selector + '\n'
