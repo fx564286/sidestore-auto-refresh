@@ -12792,6 +12792,60 @@
       "generated_runtime_targets_if_integrated": [
         "rebuild/HostApp/ScarletDiagnosticRecorder.swift"
       ]
+    },
+    {
+      "id": "L185",
+      "date": "2026-11-20",
+      "version": "R6P118-CI-original-current-run-test-update",
+      "problem": "diagnostic_ci_assertion_staleness_after_consent_based_url_share",
+      "mechanism": "replace_obsolete_eager_file_share_string_assertion_with_explicit_user_consent_scope_snapshot_contract",
+      "incident_family": "diagnostic_ci_assertion_staleness",
+      "strategy_family": "diagnostic_explicit_consent_public_link_transport",
+      "operation_fingerprint": "Remove the old test's literal eager makeShareFile(includeHistory:) matching requirement and assert a user-confirmed export uses the selected history flag snapshot, never an oversized local document ShareLink.",
+      "source_behavior_contract": "The default remains current-run scope with archived logs opt-in only; diagnostic view reload must not export a report, while the confirmed upload uses the same scope snapshot and only shares the validated URL.",
+      "rollback_commit": "cfe2413b1c9da5b62988e5f8c6fd8f56257bb5b8",
+      "novelty": {
+        "causal_difference": "L184 created a consent-first remote URL sharing UI but left a source-contract test expecting eager local file generation. L185 updates only that stale regression contract to explicitly assert the user-consent boundary and immutable scope snapshot.",
+        "falsifiable_prediction": "The previously failing test_share_and_view_default_current_process_only must pass when the share is built after consent with archivedRuns, and fail if the implementation regresses to eager local file sharing.",
+        "prior_excluded_ids": [
+          "L045",
+          "L048",
+          "L052",
+          "L184"
+        ],
+        "why_prior_fix_failed": "The existing test assumed that a report file was produced from a view reload using one exact indentation and variable name. The correct implementation moves export after consent into a detached task, invalidating only that old text assertion."
+      },
+      "observation": "GitHub Actions run 44645846784 livecontainer preflight reports Ran 991 tests, FAILED failures=1 skipped=5; sole failed test test_v38_current_launch_only_diagnostics.CurrentLaunchOnly.test_share_and_view_default_current_process_only on obsolete literal.",
+      "action": "Update the legacy test to assert selected-scope snapshot and explicit upload consent. Verify full 991-test preflight, native Xcode compile, unsigned IPA publication, and later signed-device URL share.",
+      "repeat_policy": "Do not restore eager makeShareFile UI generation or local-file ShareLink simply to satisfy a string-based regression test. Preserve current-run scope semantics.",
+      "code_locations": [
+        {
+          "file": "rebuild/Tests/test_v38_current_launch_only_diagnostics.py",
+          "location": "@@ -41 +41,7 @@ class CurrentLaunchOnly(unittest.TestCase):",
+          "before": [
+            "        self.assertIn('makeShareFile(\\n            includeHistory: includeHistory)',S)"
+          ],
+          "after": [
+            "        # Export is constructed only after explicit consent, off the UI thread.",
+            "        # The scope snapshot remains current-launch only by default.",
+            "        self.assertIn('let archivedRuns = includeHistory',S)",
+            "        self.assertIn('includeHistory: archivedRuns',S)",
+            "        self.assertIn('showUploadConsent = true',S)",
+            "        self.assertIn('Button(\"동의하고 링크 공유\") { shareAsLink() }',S)",
+            "        self.assertNotIn('ShareLink(item: shareFile)',S)"
+          ]
+        }
+      ],
+      "source_revisions": [
+        {
+          "sha": "5f2223b41be3f320e7cd99808ce29de05999dadd",
+          "title": "test(R6P118): align legacy current-run share assertion with URL consent flow"
+        }
+      ],
+      "source_verification": "git_patch_observed",
+      "status": "source_committed_native_ci_pending",
+      "device_verification": "device_unverified",
+      "verification": "Prior CI isolated one obsolete test assertion; source now validates explicit consent and retained current-run default. Native CI and device verification pending."
     }
   ]
 }
