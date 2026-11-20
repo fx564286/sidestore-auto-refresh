@@ -618,7 +618,7 @@ public struct ScarletIndependentShell: View {
             } else {
                 LazyVGrid(
                     columns: Array(repeating: GridItem(.flexible(minimum: 58), spacing: 12), count: 4),
-                    alignment: .center, spacing: 18
+                    alignment: .center, spacing: 28
                 ) {
                     ForEach(visibleGuests) { guest in
                         ScarletGuestLauncherTile(
@@ -628,7 +628,7 @@ public struct ScarletIndependentShell: View {
                         )
                     }
                 }
-                .padding(.top, 12)
+                .padding(.top, 16)
                 .accessibilityIdentifier("SCARLET_APPS_FOUR_COLUMN_LAUNCHER")
             }
         }
