@@ -64,6 +64,9 @@ OTHER_ALLOWED_METHODS = {
     # P195: diagnose simulator-target compilation independently of hosted macOS
     # CoreSimulator boot availability; retain explicit stage-specific evidence.
     "simulator_diagnostic_compile_first_runtime_stage_isolation",
+    # P196: upstream LiveContainer uses ARM64-only svc assembler instructions;
+    # constrain only the separate simulator diagnostic target architecture.
+    "simulator_arm64_only_architecture_routing_for_upstream_arm_asm",
 }
 
 # This catches a candidate that claims a novel family but still ADDS the same

@@ -70,6 +70,10 @@ def simulator_build(engine: Path, products: Path, report_dir: Path) -> Path:
         '-configuration', 'Release', '-sdk', 'iphonesimulator',
         '-destination', 'generic/platform=iOS Simulator',
         '-derivedDataPath', str(products), '-jobs', '2',
+        # Generic iphonesimulator builds both x86_64 and arm64 by default.
+        # Upstream dyld_bypass_validation.m uses ARM-only `svc` assembly.
+        # This is diagnostic-only; iPhoneOS archive architecture is untouched.
+        'ARCHS=arm64',
         'CODE_SIGNING_ALLOWED=NO', 'CODE_SIGNING_REQUIRED=NO',
         'COMPILER_INDEX_STORE_ENABLE=NO',
     ]

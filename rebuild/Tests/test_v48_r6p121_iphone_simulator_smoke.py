@@ -121,3 +121,31 @@ class SimulatorCompileFirst(unittest.TestCase):
             'com.apple.CoreSimulator.SimRuntime.iOS-26-0':[
                 {'name':'iPhone 17','udid':'older-on','state':'Booted','isAvailable':True}]}}
         self.assertEqual(m.select_iphone(inventory)['udid'],'older-on')
+
+
+class SimulatorArm64UpstreamAssembly(unittest.TestCase):
+    def test_compile_invocation_targets_only_arm64_simulator(self):
+        import tempfile
+        from unittest.mock import patch
+        from types import SimpleNamespace
+        spec=importlib.util.spec_from_file_location('iphone_smoke_arm64',SCRIPT)
+        mod=importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        with tempfile.TemporaryDirectory() as tmp:
+            root=Path(tmp)
+            engine=root/'LiveContainer'
+            (engine/'LiveContainer.xcodeproj').mkdir(parents=True)
+            expected_app=root/'derived/Build/Products/Release-iphonesimulator/LiveContainer.app'
+            expected_app.mkdir(parents=True)
+            (expected_app/'Info.plist').write_bytes(b'plist fixture')
+            captured=[]
+            def fake_xcode(command, **kwargs):
+                captured.append(command)
+                return SimpleNamespace(returncode=0)
+            with patch.object(mod.subprocess, 'run', side_effect=fake_xcode):
+                app=mod.simulator_build(engine,root/'derived',root)
+            self.assertEqual(app,expected_app)
+            self.assertEqual(len(captured),1)
+            self.assertIn('ARCHS=arm64',captured[0])
+            self.assertIn('iphonesimulator',captured[0])
+            self.assertNotIn('ARCHS=x86_64',captured[0])
