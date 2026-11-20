@@ -80,6 +80,29 @@ class P84StrictFamilyGate(unittest.TestCase):
                  'alternative_strategies','서명', '빌드'):
    self.assertIn(phrase,PROMPT)
   self.assertIn('body += Self.decodedAudit(Self.handoffPromptBlob)',REC)
+ def test_simulator_compile_first_family_requires_auditable_contract(self):
+  p={
+   'id':'L999','problem':'simulator_boot_masks_build','incident_family':'macos_simulator_boot_timeout_masks_iphonesimulator_compile_viability',
+   'mechanism':'compile_independent_of_simulator_boot','strategy_family':'simulator_diagnostic_compile_first_runtime_stage_isolation',
+   'operation_fingerprint':'Build iphonesimulator target independently before booting to preserve compilation failure evidence on an unbootable macOS hosted runner.',
+   'source_behavior_contract':'Keep simulator compile and CoreSimulator runtime failures separate and preserve all real-device signing and artifact generation paths.',
+   'rollback_commit':'3905b371db0d4077550baffb71e4479eca737e19'
+  }
+  self.assertEqual(check_distinct_method(p,HISTORY['entries']),[])
+  prior=dict(p,id='L195')
+  self.assertTrue(any('HARD BLOCK same operational family' in e
+      for e in check_distinct_method(p,HISTORY['entries']+[prior])))
+ def test_simulator_arm64_only_family_has_strict_unique_effect_contract(self):
+  p={
+   'id':'L999','problem':'simulator_x86_64_asm','incident_family':'simulator_x86_64_assembly_svc_in_arm_native_livecontainer_hook',
+   'mechanism':'explicit_arm64_only_xcodebuild_sdk_target','strategy_family':'simulator_arm64_only_architecture_routing_for_upstream_arm_asm',
+   'operation_fingerprint':'Xcode simulator diagnostic build targets only arm64 because upstream ARM svc assembly cannot compile on x86_64.',
+   'source_behavior_contract':'iPhoneOS release build remains unchanged and simulator app target must exclude x86_64 assembly compilation.',
+   'rollback_commit':'c0560367bfebe6d2181c337d1f4f6d4654dae08f'
+  }
+  self.assertEqual(check_distinct_method(p,HISTORY['entries']),[])
+  self.assertTrue(any('HARD BLOCK same operational family' in e
+    for e in check_distinct_method(p,HISTORY['entries']+[dict(p,id='L196')])))
  def test_new_entries_need_strict_fields_before_making_build(self):
   proposal=new_island();proposal['source_behavior_contract']='bad'
   self.assertTrue(any('source_behavior_contract' in e for e in check_distinct_method(proposal,HISTORY['entries'])))

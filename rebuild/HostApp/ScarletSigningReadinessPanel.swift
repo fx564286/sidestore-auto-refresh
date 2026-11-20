@@ -133,6 +133,7 @@ struct ScarletSigningReadinessPanel: View {
     @State private var refreshHostManaged: Bool?
     @State private var statusMessage: String?
     @State private var certificateRecoveryStatus: String?
+    @State private var offersExistingCertificateRecovery = false
     @State private var isSelectingP12 = false
     @State private var pendingP12: Data?
     // Safe enum only, never serial/key/password. Preserve through explicit
@@ -374,6 +375,7 @@ struct ScarletSigningReadinessPanel: View {
             certificateRecoveryStatus = "서명 팀 또는 앱 그룹 권한을 확인할 수 없습니다."
             return
         }
+        offersExistingCertificateRecovery = false
         isIssuingNativeCertificate = true
         certificateRecoveryStatus = "선택한 Apple ID로 Apple에 새 개발 인증서를 발급 요청하는 중입니다."
         ScarletDiagnosticRecorder.shared.record(
@@ -407,8 +409,14 @@ struct ScarletSigningReadinessPanel: View {
                     fields: ["result": result.1])
                 guard result.0 && result.1 == "ready_issued_apple" else {
                     switch result.1 {
+                    case "selected_team_certificate_portal_failed":
+                        // Preserve the failed NEW-serial receipt. The existing
+                        // archive can only be read by a separate user tap.
+                        offersExistingCertificateRecovery = true
+                        certificateRecoveryStatus = "Apple 신규 인증서 발급에 실패했습니다. 기존 SideStore 인증서가 있다면 아래에서 별도로 가져올 수 있습니다."
                     case "selected_team_certificate_quota_reached":
-                        certificateRecoveryStatus = "Apple 인증서 발급 한도에 도달했습니다. 기존 인증서는 유지됩니다."
+                        offersExistingCertificateRecovery = true
+                        certificateRecoveryStatus = "Apple 인증서 발급 한도에 도달했습니다. 기존 인증서는 유지되며 아래에서 별도로 가져올 수 있습니다."
                     case "selected_team_changed", "selected_account_owner_changed":
                         certificateRecoveryStatus = "인증서 처리 중 활성 Apple ID가 변경됐습니다."
                     case "selected_team_certificate_new_issue_unconfirmed":
@@ -501,21 +509,46 @@ struct ScarletSigningReadinessPanel: View {
     // Perform both operations inside this app; the existing XPC connection
     // carries the archive, and this host verifies its Team ID before saving.
     private func retrieveSideInstallerStyleCertificate() {
-        guard !isRetrievingSideStoreCertificate else { return }
+        guard !isRetrievingSideStoreCertificate &&
+              !isIssuingNativeCertificate &&
+              !isImportingSelectedTeamP12 else { return }
         isRetrievingSideStoreCertificate = true
         certificateRecoveryStatus = "SideStore가 보유한 인증서를 확인하는 중입니다."
         ScarletDiagnosticRecorder.shared.record(
             "certificate", "sideinstaller_style_retrieval_started")
         Task { @MainActor in
             defer { isRetrievingSideStoreCertificate = false }
+            let before = await ScarletNativeSavedAccounts.list()
+            guard before.status == "ready",
+                  before.accounts.filter({ $0.active }).count == 1,
+                  let owner = before.accounts.first(where: { $0.active }) else {
+                certificateRecoveryStatus = "선택한 Apple ID 소유자를 확인하지 못해 기존 인증서를 가져오지 않았습니다."
+                ScarletDiagnosticRecorder.shared.record(
+                    "certificate", "sideinstaller_style_retrieval_blocked",
+                    status: "blocked", fields: ["reason": "active_owner_unverified"])
+                return
+            }
             do {
                 let (archive, password) =
                     try await ScarletNativeCertificateTransport.shared
                         .retrieveSideStoreCertificate()
+                let after = await ScarletNativeSavedAccounts.list()
+                guard after.status == "ready",
+                      after.accounts.filter({ $0.active }).count == 1,
+                      after.accounts.contains(where: {
+                          $0.active && $0.id == owner.id && $0.teamID == owner.teamID
+                      }) else {
+                    certificateRecoveryStatus = "기존 인증서를 읽는 도중 Apple ID가 변경돼 가져오기를 차단했습니다."
+                    ScarletDiagnosticRecorder.shared.record(
+                        "certificate", "sideinstaller_style_retrieval_blocked",
+                        status: "blocked", fields: ["reason": "active_owner_changed"])
+                    return
+                }
                 pendingP12 = archive
                 pendingCertificateOrigin = "existing_stored"
                 p12Password = password
-                await importExportedP12()
+                let imported = await importExportedP12()
+                guard imported else { return }
                 ScarletDiagnosticRecorder.shared.record(
                     "certificate", "sideinstaller_style_retrieval_finished",
                     fields: ["result": "selected_account_team_check_applied"])
@@ -825,6 +858,18 @@ struct ScarletSigningReadinessPanel: View {
                       isRetrievingSideStoreCertificate ||
                       !readiness.canRequestNativeRefresh)
             .accessibilityIdentifier("SCARLET_P12_NATIVE_ISSUE")
+            if offersExistingCertificateRecovery {
+                // Explicit selection only: never turn failed NEW issuance into
+                // a false success or silently replace an Apple ID's signer.
+                Button(action: retrieveSideInstallerStyleCertificate) {
+                    Label("기존 SideStore 인증서 사용", systemImage: "arrow.down.doc")
+                }
+                .disabled(isRetrievingSideStoreCertificate ||
+                          isIssuingNativeCertificate ||
+                          isImportingSelectedTeamP12 ||
+                          !readiness.canRequestNativeRefresh)
+                .accessibilityIdentifier("SCARLET_P12_EXISTING_AFTER_ISSUE_FAILURE")
+            }
             Button { isSelectingP12 = true } label: {
                 Label("P12 파일 선택", systemImage: "doc.badge.plus")
             }
