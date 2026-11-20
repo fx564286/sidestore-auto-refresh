@@ -6,12 +6,15 @@ import unittest
 
 ROOT = Path(__file__).resolve().parents[2]
 WORKFLOW = (ROOT / '.github/workflows/scarlet-paired-engines-build.yml').read_text()
+REF_123 = 'refs/heads/fix/scarlet-v48-r6p123-device-install-labels-20261120'
 REF_122 = 'refs/heads/fix/scarlet-v48-r6p122-device-guest-catalog-20261120'
 REF_121 = 'refs/heads/fix/scarlet-v48-r6p121-existing-cert-recovery-20261120'
 REF_120 = 'refs/heads/fix/scarlet-v48-r6p120-manual-owner-mismatch-20261120'
+EXPECTED_ASSET_123 = 'Scarlet-Crystal-V48-R6P123-DEVICE-INSTALL-LABELS-UNSIGNED.ipa'
 EXPECTED_ASSET_122 = 'Scarlet-Crystal-V48-R6P122-DEVICE-GUEST-CATALOG-UNSIGNED.ipa'
 EXPECTED_ASSET_121 = 'Scarlet-Crystal-V48-R6P121-EXISTING-CERT-RECOVERY-UNSIGNED.ipa'
 EXPECTED_ASSET_120 = 'Scarlet-Crystal-V48-R6P120-MANUAL-OWNER-MISMATCH-UNSIGNED.ipa'
+EXPECTED_TAG_123 = 'scarlet-v48-r6p123-device-install-labels-unsigned-20261120'
 EXPECTED_TAG_122 = 'scarlet-v48-r6p122-device-guest-catalog-unsigned-20261120'
 EXPECTED_TAG_121 = 'scarlet-v48-r6p121-existing-cert-recovery-unsigned-20261120'
 EXPECTED_TAG_120 = 'scarlet-v48-r6p120-manual-owner-mismatch-unsigned-20261120'
@@ -19,10 +22,10 @@ EXPECTED_TAG_120 = 'scarlet-v48-r6p120-manual-owner-mismatch-unsigned-20261120'
 
 def shell_selectors():
     lines = WORKFLOW.splitlines()
-    needle = f'if [ "$GITHUB_REF" = "{REF_122}" ]; then'
+    needle = f'if [ "$GITHUB_REF" = "{REF_123}" ]; then'
     starts = [i for i, line in enumerate(lines) if line.strip() == needle]
     if len(starts) != 3:
-        raise AssertionError(f'Expected three distinct R6P122 selector blocks, got {len(starts)}')
+        raise AssertionError(f'Expected three distinct R6P123 selector blocks, got {len(starts)}')
     selectors = []
     for start in starts:
         indent = len(lines[start]) - len(lines[start].lstrip())
@@ -61,6 +64,14 @@ class R6P121ReleaseChain(unittest.TestCase):
                 self.assertNotIn(f'if [ "$GITHUB_REF" = "{REF_120}" ]; then',
                                  '\n'.join(line for line in selector.splitlines()
                                            if line.strip().startswith('if ')))
+
+    def test_r6p123_native_version_asset_and_release_are_exact(self):
+        version, packaging, publishing = shell_selectors()
+        self.assertEqual(resolve(version, REF_123)['version'], '--host-build-version 3.8.123')
+        self.assertEqual(resolve(packaging, REF_123)['asset'], EXPECTED_ASSET_123)
+        output = resolve(publishing, REF_123)
+        self.assertEqual(output['tag'], EXPECTED_TAG_123)
+        self.assertEqual(output['asset'], EXPECTED_ASSET_123)
 
     def test_r6p122_native_version_asset_and_release_are_exact(self):
         version, packaging, publishing = shell_selectors()
