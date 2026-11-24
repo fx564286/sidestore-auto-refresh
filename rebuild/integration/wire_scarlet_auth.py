@@ -344,7 +344,7 @@ def patch_livecontainer(engine: Path) -> None:
         // request; each field is independently validated by the worker.
         NSString* rawStage = mangledTypeName ?: @"";
         NSArray<NSString*>* parts = [rawStage componentsSeparatedByString:@"|"];
-        if (parts.count != 2 && parts.count != 4) {
+        if (parts.count != 2 && parts.count != 5) {
             [handler.server finish:@"scarlet.install.invalid_request"];
             return;
         }
@@ -352,9 +352,10 @@ def patch_livecontainer(engine: Path) -> None:
                                   @"hostGroupID": parts[0],
                                   @"filename": parts[1],
                                   @"expectedTeamID": teamID} mutableCopy];
-        if (parts.count == 4) {
+        if (parts.count == 5) {
             payload[@"selfUpdateHostPath"] = parts[2];
             payload[@"selfUpdateVersion"] = parts[3];
+            payload[@"selfUpdateSHA256"] = parts[4];
         }
         ((void (*)(id, SEL, id))objc_msgSend)(worker, @selector(install:), payload);
         return;
@@ -412,7 +413,8 @@ public enum ScarletDeviceInstaller {
     public static func install(stagedIPA: URL, teamID: String,
                                hostGroupID: String,
                                selfUpdateHostPath: String? = nil,
-                               selfUpdateVersion: String? = nil) async throws {
+                               selfUpdateVersion: String? = nil,
+                               selfUpdateSHA256: String? = nil) async throws {
         guard teamID.utf8.count == 10 && teamID.allSatisfy({
             $0.isASCII && ($0.isUppercase || $0.isNumber)
         }) else { throw NSError(domain: "scarlet.install.invalid_team", code: 3) }
@@ -450,14 +452,16 @@ public enum ScarletDeviceInstaller {
         }
         var payload = hostGroupID + "|" +
             (isScoped ? slot + "/" : "") + resolved.lastPathComponent
-        if let selfUpdateHostPath, let selfUpdateVersion {
+        if let selfUpdateHostPath, let selfUpdateVersion, let selfUpdateSHA256 {
             guard isScoped, selfUpdateHostPath.hasPrefix("/"),
+                  selfUpdateSHA256.utf8.count == 64,
+                  selfUpdateSHA256.utf8.allSatisfy({ (48...57).contains($0) || (97...102).contains($0) }),
                   selfUpdateHostPath.utf8.count <= 1024,
                   !selfUpdateHostPath.contains("|"), !selfUpdateVersion.contains("|") else {
                 throw NSError(domain: "scarlet.install.self_update_identity_unverified", code: 3)
             }
-            payload += "|" + selfUpdateHostPath + "|" + selfUpdateVersion
-        } else if selfUpdateHostPath != nil || selfUpdateVersion != nil {
+            payload += "|" + selfUpdateHostPath + "|" + selfUpdateVersion + "|" + selfUpdateSHA256
+        } else if selfUpdateHostPath != nil || selfUpdateVersion != nil || selfUpdateSHA256 != nil {
             throw NSError(domain: "scarlet.install.self_update_identity_unverified", code: 3)
         }
         try await RefreshHandler.shared.startRefresh(
@@ -590,6 +594,22 @@ def patch_idempotent_team_provisioning(source: str) -> str:
                          '        }')
     source = replace_one(source, download, verify,
                          'R114 provisioning profile matches main and extension ID')
+    # R134: validate the whole source extension topology before registering
+    # any profile. Pin the exact installed host ID ahead of preferred/global
+    # identifier generation, only while the verified self-update fence exists.
+    source = replace_one(source,
+        "        if let overrideProfile = self.context.overrideProvisioningProfile {",
+        "        try ScarletDeviceInstallAgent.validateSelfUpdateInput(targetAppBundle,\n"
+        "            useMainProfile: self.context.useMainProfile,\n"
+        "            hasOverrideProfile: self.context.overrideProvisioningProfile != nil)\n"
+        "        if let overrideProfile = self.context.overrideProvisioningProfile {",
+        "R134 self-update source topology before portal")
+    source = replace_one(source,
+        "        if let preferredBundleID = await self.getPreferredBundleID(for: targetAppBundle, team: team) {",
+        "        if let exactHostID = try ScarletDeviceInstallAgent.selfUpdateProvisioningParentID(teamID: team.identifier) {\n"
+        "            parentID = exactHostID\n"
+        "        } else if let preferredBundleID = await self.getPreferredBundleID(for: targetAppBundle, team: team) {",
+        "R134 exact installed host provisioning ID")
     return source
 
 

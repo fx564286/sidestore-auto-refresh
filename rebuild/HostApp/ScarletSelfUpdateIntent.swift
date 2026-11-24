@@ -218,7 +218,7 @@ enum ScarletSelfUpdate {
             // callback. A persistent ticket is verified on next host launch.
             try await ScarletDeviceInstaller.install(stagedIPA: staged, teamID: account.teamID,
                 hostGroupID: group, selfUpdateHostPath: Bundle.main.bundleURL.path,
-                selfUpdateVersion: expectedVersion)
+                selfUpdateVersion: expectedVersion, selfUpdateSHA256: manifest.sha256)
             ScarletDiagnosticRecorder.shared.record("sidestore", "shortcut_update_returned",
                 fields: ["source": "shortcut", "installation_verified": "false"])
             return "설치 엔진 요청이 반환됐습니다. Scarlet을 다시 열어 새 버전을 확인하세요."

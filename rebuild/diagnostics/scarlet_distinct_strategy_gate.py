@@ -33,6 +33,7 @@ POTENTIALLY_DISTINCT_ISLAND_METHODS = {
     "native_process_scene_ownership_contract_repair",
 }
 OTHER_ALLOWED_METHODS = {
+    "worker_verified_update_snapshot_and_preportal_existing_identity_pin",
     "native_shortcut_verified_release_self_update_and_signed_identity_fence",
     "cumulative_binary_release_identity_and_native_readiness_serialization",
     "classic_bootstrap_owned_switcher_and_token_bound_diagnostic_handoff",
