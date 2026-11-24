@@ -93,6 +93,17 @@ def verify(ipa: Path, version: str, source_commit: str) -> dict:
             require(all(marker in binary for marker in (
                 b"classic_handoff_drained", b"classic_handoff_blocked")),
                 "R135 classic ownership drain receipts missing")
+        if tuple(map(int, version.split("."))) >= (3, 8, 136):
+            for binary_path, markers in (
+                ("Frameworks/LiveContainerSwiftUI.framework/LiveContainerSwiftUI", (
+                    b"selected_team_partial_refresh_results", b"selected_team_refresh_result_mismatch")),
+                ("Frameworks/SideStoreApp.framework/SideStore", (
+                    b"SideSign.DeveloperPortalError", b"selected_team_partial_refresh_results",
+                    b"selected_team_refresh_result_mismatch")),
+            ):
+                binary = z.read(PREFIX + binary_path)
+                require(all(marker in binary for marker in markers),
+                        f"R136 converged refresh/portal markers missing: {binary_path}")
     with ipa.open("rb") as f:
         digest = hashlib.file_digest(f, "sha256").hexdigest()
     return {"schema": 1, "sourceCommit": source_commit, "version": version,

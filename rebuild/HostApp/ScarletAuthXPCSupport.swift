@@ -564,6 +564,8 @@ public enum ScarletNativeRefreshExecutor {
             "managed_apps_excluded_from_refresh_for_selected_team",
             "selected_team_inventory_unavailable",
             "selected_team_not_in_refresh_results",
+            "selected_team_partial_refresh_results",
+            "selected_team_refresh_result_mismatch",
             "selected_team_changed", "selected_team_certificate_missing",
             "selected_team_certificate_activation_failed",
             "selected_team_certificate_readback_failed",

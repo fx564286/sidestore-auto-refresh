@@ -329,6 +329,27 @@ private enum ScarletSelectedTeamRefreshInventory {
 // Runs inside the REAL embedded SideStore LiveProcess, where SideStore's
 // CoreData database and CertificateManager live. Scarlet's host cannot infer
 // whether its SideInstaller-installed signed bundle is managed by this DB.
+// AppManager keys its results by original bundle ID. Background refresh
+// deliberately omits running apps, so nonempty results are not full coverage.
+private enum ScarletRefreshTargetCoverage {
+    static func failure(expected: Set<String>, returned: Set<String>,
+                        host: String?) -> String? {
+        guard returned.isSubset(of: expected) else {
+            return "selected_team_refresh_result_mismatch"
+        }
+        if let host, !returned.contains(host) {
+            return "host_not_in_refresh_results"
+        }
+        guard !returned.isEmpty else {
+            return "selected_team_not_in_refresh_results"
+        }
+        guard returned == expected else {
+            return "selected_team_partial_refresh_results"
+        }
+        return nil
+    }
+}
+
 @objc(ScarletGuestRefreshAgent)
 final class ScarletGuestRefreshAgent: NSObject {
     @objc static func inspect(_ reply: @escaping (Int, Bool, Bool, String) -> Void) {
@@ -936,6 +957,17 @@ extension ScarletGuestRefreshAgent {
                 let before = await context.perform {
                     (managedHost?.refreshedDate, managedHost?.expirationDate)
                 }
+                // Snapshot scalar target IDs on their CoreData context queue
+                // before crossing into the upstream asynchronous pipeline.
+                let expectedTargetIDs = await context.perform {
+                    Set(targets.map { $0.bundleIdentifier })
+                }
+                let requestedHostID = await context.perform {
+                    managedHost?.bundleIdentifier
+                }
+                guard expectedTargetIDs.count == targets.count else {
+                    reply(false, "selected_team_refresh_result_mismatch"); return
+                }
                 let teamState = await ScarletInstallTeamAuthority.prepare(
                     teamID: selectedTeamID)
                 guard teamState == "ready" else {
@@ -1000,8 +1032,15 @@ extension ScarletGuestRefreshAgent {
                     }
                 }
                 // Original SideStore skips apps it sees as running. A
-                // completed operation may contain results for other apps,
-                // or no results at all. Never call that a Scarlet refresh.
+                // completed operation may contain only a subset of the
+                // requested owner-scoped app IDs. Never call that a full
+                // refresh, even if every returned entry is successful.
+                if let coverageFailure = ScarletRefreshTargetCoverage.failure(
+                    expected: expectedTargetIDs, returned: Set(results.keys),
+                    host: requestedHostID) {
+                    reply(false, coverageFailure)
+                    return
+                }
                 // A selected team B must not attempt to re-sign Scarlet's
                 // host A. For the host team, preserve the stricter readback.
                 if let managedHost {
