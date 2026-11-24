@@ -33,6 +33,8 @@ POTENTIALLY_DISTINCT_ISLAND_METHODS = {
     "native_process_scene_ownership_contract_repair",
 }
 OTHER_ALLOWED_METHODS = {
+    # R6P128: exact installed bundle artwork and truthful read-only ownership labels.
+    "exact_installed_bundle_artwork_and_independent_management_state",
     "paired_installation_proxy_inventory_and_unverified_renewal_cooldown",
     "source_history_strict_strategy_gate",
     "independent_guest_import_transaction_repair",

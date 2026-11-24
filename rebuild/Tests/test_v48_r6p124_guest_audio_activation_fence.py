@@ -53,7 +53,7 @@ class GuestAudioActivationFenceTests(unittest.TestCase):
         self.assertIn('SCARLET_HOST_VERSION_ARGS=(--host-build-version 3.8.124)', WORKFLOW)
         self.assertIn('Scarlet-Crystal-V48-R6P124-GUEST-AUDIO-FOCUS-UNSIGNED.ipa', WORKFLOW)
         self.assertIn('scarlet-v48-r6p124-guest-audio-focus-unsigned-20261121', WORKFLOW)
-        self.assertIn('Text("선택한 계정의 SideStore 관리 앱 목록")',
+        self.assertIn('Text("실제 기기 설치 앱 및 관리 상태")',
                       (ROOT / 'Sources/ScarletIndependentUI/ScarletIndependentShell.swift').read_text())
 
 

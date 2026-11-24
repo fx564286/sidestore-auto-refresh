@@ -2473,14 +2473,15 @@ private struct ScarletManagedSlotSheet: View {
                         HStack(spacing: 12) {
                             VStack(alignment: .leading, spacing: 4) {
                                 Text(app.name).font(.body)
-                                Text(app.managed == false ? "기기 설치 확인 · 미관리" :
+                                Text(app.id == Bundle.main.bundleIdentifier ? "기기 설치 확인 · 현재 앱" :
+                                     app.managed == false ? "기기 설치 확인 · 관리 미등록" :
                                      app.deviceInstalled == true ? "기기 설치 확인" :
                                      app.deviceInstalled == false ? "기기에서 미확인" :
                                      app.active ? "활성 기록" : "비활성 기록")
                                     .font(.caption).foregroundStyle(.secondary)
                             }
                             Spacer()
-                            if app.editable {
+                            if app.editable && app.managed != false && app.id != Bundle.main.bundleIdentifier {
                                 Button(app.active ? "비활성화" : "재활성화") {
                                     pendingBundle = app.id
                                     pendingActive = !app.active
@@ -2488,7 +2489,7 @@ private struct ScarletManagedSlotSheet: View {
                                 }
                                 .disabled(loading || operationRunning)
                             } else {
-                                Text(app.id == Bundle.main.bundleIdentifier ? "호스트 보호" : app.managed == false ? "관리 미등록" : "호스트 보호").font(.caption).foregroundStyle(.secondary)
+                                Text(app.id == Bundle.main.bundleIdentifier ? "호스트 보호" : app.managed == false ? "읽기 전용" : "호스트 보호").font(.caption).foregroundStyle(.secondary)
                             }
                         }
                     }
@@ -2574,10 +2575,24 @@ private struct ScarletManagedSlotSheet: View {
 private enum ScarletInstalledIconReader {
     static func icon(bundleID: String) -> Data? {
         let selector = NSSelectorFromString("_applicationIconImageForBundleIdentifier:format:scale:")
-        guard let method = class_getClassMethod(UIImage.self, selector) else { return nil }
-        typealias Getter = @convention(c) (AnyClass, Selector, NSString, Int, CGFloat) -> Unmanaged<UIImage>?
-        let getter = unsafeBitCast(method_getImplementation(method), to: Getter.self)
-        return getter(UIImage.self, selector, bundleID as NSString, 2, 2)?
-            .takeUnretainedValue().pngData()
+        if let method = class_getClassMethod(UIImage.self, selector) {
+            typealias Getter = @convention(c) (AnyClass, Selector, NSString, Int, CGFloat) -> Unmanaged<UIImage>?
+            let getter = unsafeBitCast(method_getImplementation(method), to: Getter.self)
+            if let data = getter(UIImage.self, selector, bundleID as NSString, 2, 2)?
+                .takeUnretainedValue().pngData() {
+                return data
+            }
+        }
+        // Only our own bundle is accessible through the ordinary app resource APIs.
+        guard bundleID == Bundle.main.bundleIdentifier,
+              let icons = Bundle.main.object(forInfoDictionaryKey: "CFBundleIcons") as? [String: Any],
+              let primary = icons["CFBundlePrimaryIcon"] as? [String: Any],
+              let files = primary["CFBundleIconFiles"] as? [String] else { return nil }
+        for name in files.reversed() {
+            if let data = UIImage(named: name, in: .main, compatibleWith: nil)?.pngData() {
+                return data
+            }
+        }
+        return nil
     }
 }

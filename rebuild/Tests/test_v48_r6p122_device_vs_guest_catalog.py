@@ -14,7 +14,7 @@ class DeviceVsGuestCatalog(unittest.TestCase):
         self.assertIn("ForEach(visibleGuests) { guest in",UI)
         self.assertIn('SCARLET_DEVICE_MANAGED_IPA_SECTION',UI)
         self.assertIn('SCARLET_LC_GUEST_SECTION',UI)
-        self.assertIn('SideStore 관리 앱 목록',UI)
+        self.assertIn('실제 기기 설치 앱 및 관리 상태',UI)
 
     def test_device_listing_reuses_existing_native_authority(self):
         self.assertIn('await ScarletNativeSideloadSlots.list()',HOST)

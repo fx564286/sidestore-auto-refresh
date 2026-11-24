@@ -323,7 +323,8 @@ private struct ScarletManagedDeviceLauncherTile: View {
                     iconPNG: app.iconPNG,
                     fallbackSymbol: app.isHost ? "shield.lefthalf.filled" : "iphone.gen3")
                 ScarletLauncherCaption(title: app.title)
-                if !app.isManaged && !app.isHost { Text("미관리").font(.caption2) }
+                if app.isHost { Text("호스트 보호").font(.caption2) }
+                else if !app.isManaged { Text("관리 미등록").font(.caption2) }
             }
             .frame(maxWidth: .infinity, alignment: .top)
             .contentShape(Rectangle())
