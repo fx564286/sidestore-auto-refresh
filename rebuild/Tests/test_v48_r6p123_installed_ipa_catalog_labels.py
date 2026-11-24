@@ -24,7 +24,8 @@ class DeviceIPAInstallLabelContract(unittest.TestCase):
 
     def test_catalog_event_records_registry_source_not_install_verdict(self):
         catalog = HOST.split('"sidestore", "device_app_catalog_loaded"', 1)[1].split('\n        }', 1)[0]
-        self.assertIn('"source": "selected_owner_managed_records"', catalog)
+        self.assertIn('"selected_owner_managed_records"', catalog)
+        self.assertIn('"installation_proxy_and_managed_records"', catalog)
         self.assertNotIn('"installation_verified"', catalog)
         self.assertIn('"installation_verified": "false"', (ROOT / 'HostApp/ScarletAutomaticRenewal.swift').read_text())
 

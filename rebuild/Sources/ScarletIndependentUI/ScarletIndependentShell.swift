@@ -37,12 +37,17 @@ public struct ScarletManagedDevicePresentation: Identifiable, Equatable, Sendabl
     public let title: String
     public let isActive: Bool
     public let isHost: Bool
+    public let isManaged: Bool
+    public let deviceInstalled: Bool?
 
-    public init(id: String, title: String, isActive: Bool, isHost: Bool) {
+    public init(id: String, title: String, isActive: Bool, isHost: Bool,
+                isManaged: Bool = true, deviceInstalled: Bool? = nil) {
         self.id = id
         self.title = title
         self.isActive = isActive
         self.isHost = isHost
+        self.isManaged = isManaged
+        self.deviceInstalled = deviceInstalled
     }
 }
 
@@ -316,13 +321,14 @@ private struct ScarletManagedDeviceLauncherTile: View {
                     iconPNG: nil,
                     fallbackSymbol: app.isHost ? "shield.lefthalf.filled" : "iphone.gen3")
                 ScarletLauncherCaption(title: app.title)
+                if !app.isManaged { Text("미관리").font(.caption2) }
             }
             .frame(maxWidth: .infinity, alignment: .top)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .accessibilityLabel(app.title)
-        .accessibilityValue(app.isHost ? "호스트 보호 · SideStore 기록"
+        .accessibilityValue(!app.isManaged ? "기기 설치 확인 · 미관리" : app.isHost ? "호스트 보호 · SideStore 기록"
                             : app.isActive ? "SideStore 관리 중" : "비활성 관리 기록")
         .accessibilityHint("SideStore 기기 설치 앱 관리 열기")
         .accessibilityIdentifier("SCARLET_DEVICE_MANAGED_IPA_ROW")
@@ -621,11 +627,14 @@ public struct ScarletIndependentShell: View {
             Text("선택한 계정의 SideStore 관리 앱 목록")
                 .font(.caption)
                 .foregroundStyle(ScarletPresentationColor.muted)
+            if deviceAppLookupStatus == "ready_inventory_unavailable" {
+                Text("실제 기기 조회 불가 · 관리 기록만 표시").font(.caption)
+            }
             if deviceAppLookupStatus == "loading" || deviceAppLookupStatus == "not_loaded" {
                 Text("기기 앱 목록 불러오는 중")
                     .font(.subheadline)
                     .foregroundStyle(ScarletPresentationColor.muted)
-            } else if deviceAppLookupStatus != "ready" {
+            } else if !["ready", "ready_inventory_unavailable"].contains(deviceAppLookupStatus) {
                 Text("SideStore 앱 목록을 불러오지 못했습니다.")
                     .font(.subheadline)
                     .foregroundStyle(ScarletPresentationColor.muted)

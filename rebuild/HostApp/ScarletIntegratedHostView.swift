@@ -658,7 +658,7 @@ struct ScarletIntegratedHostView: View {
         Task { @MainActor in
             let result = await ScarletNativeSideloadSlots.list()
             guard generation == deviceAppReadGeneration else { return }
-            guard result.reason == "ready" else {
+            guard ["ready", "ready_inventory_unavailable"].contains(result.reason) else {
                 deviceAppLookupStatus = "unavailable"
                 ScarletDiagnosticRecorder.shared.record(
                     "sidestore", "device_app_catalog_unavailable",
@@ -670,13 +670,14 @@ struct ScarletIntegratedHostView: View {
             managedDeviceApps = result.apps.map { slot in
                 ScarletManagedDevicePresentation(
                     id: slot.id, title: slot.name,
-                    isActive: slot.active, isHost: !slot.editable)
+                    isActive: slot.active, isHost: slot.managed != false && !slot.editable,
+                    isManaged: slot.managed != false, deviceInstalled: slot.deviceInstalled)
             }
-            deviceAppLookupStatus = "ready"
+            deviceAppLookupStatus = result.reason
             ScarletDiagnosticRecorder.shared.record(
                 "sidestore", "device_app_catalog_loaded",
                 fields: ["count": String(result.apps.count),
-                         "source": "selected_owner_managed_records"])
+                         "source": result.reason == "ready" ? "installation_proxy_and_managed_records" : "selected_owner_managed_records"])
         }
     }
 
@@ -2470,7 +2471,10 @@ private struct ScarletManagedSlotSheet: View {
                         HStack(spacing: 12) {
                             VStack(alignment: .leading, spacing: 4) {
                                 Text(app.name).font(.body)
-                                Text(app.active ? "활성" : "비활성")
+                                Text(app.managed == false ? "기기 설치 확인 · 미관리" :
+                                     app.deviceInstalled == true ? "기기 설치 확인" :
+                                     app.deviceInstalled == false ? "기기에서 미확인" :
+                                     app.active ? "활성 기록" : "비활성 기록")
                                     .font(.caption).foregroundStyle(.secondary)
                             }
                             Spacer()
@@ -2482,7 +2486,7 @@ private struct ScarletManagedSlotSheet: View {
                                 }
                                 .disabled(loading || operationRunning)
                             } else {
-                                Text("호스트 보호").font(.caption).foregroundStyle(.secondary)
+                                Text(app.managed == false ? "원본 IPA 필요" : "호스트 보호").font(.caption).foregroundStyle(.secondary)
                             }
                         }
                     }
@@ -2525,7 +2529,7 @@ private struct ScarletManagedSlotSheet: View {
         defer { loading = false }
         let result = await ScarletNativeSideloadSlots.list()
         rows = result.apps
-        status = result.reason == "ready" ? "" : "목록 조회 불가: " + result.reason
+        status = result.reason == "ready" ? "" : result.reason == "ready_inventory_unavailable" ? "실제 기기 조회 불가 · 관리 기록만 표시" : "목록 조회 불가: " + result.reason
         ScarletDiagnosticRecorder.shared.record("sidestore", "slot_management_inspected",
             fields: ["result": result.reason,
                      "count": String(result.apps.count)])
