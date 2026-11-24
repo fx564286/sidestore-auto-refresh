@@ -80,6 +80,14 @@ def verify(ipa: Path, version: str, source_commit: str) -> dict:
             ):
                 binary = z.read(PREFIX + binary_path)
                 require(all(m in binary for m in markers), f"Shortcut native code missing: {binary_path}")
+        if tuple(map(int, version.split("."))) >= (3, 8, 134):
+            binary = z.read(PREFIX + "Frameworks/SideStoreApp.framework/SideStore")
+            require(all(marker in binary for marker in (
+                b"self_update_archive_unverified",
+                b"Scarlet self-update archive digest mismatch",
+                b"Scarlet self-update source topology mismatch",
+                b"Scarlet self-update provisioning Team mismatch")),
+                "R134 worker integrity or preportal pin missing")
     with ipa.open("rb") as f:
         digest = hashlib.file_digest(f, "sha256").hexdigest()
     return {"schema": 1, "sourceCommit": source_commit, "version": version,

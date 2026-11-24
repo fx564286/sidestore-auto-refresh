@@ -44,6 +44,76 @@ final class ScarletDeviceInstallAgent: NSObject {
         }
     }
     private static let selfUpdateFence = SelfUpdateFence()
+    // Bind the *unsigned* input topology before any Apple portal mutation.
+    // Never derive a fresh identifier from global appendTeamID preferences.
+    static func validateSelfUpdateInput(_ targetAppBundle: ALTApplication,
+                                       useMainProfile: Bool, hasOverrideProfile: Bool) throws {
+        guard let expected = selfUpdateFence.get() else { return }
+        let base = targetAppBundle.bundleIdentifier
+        let children = targetAppBundle.appExtensions
+        let mapped = Set(children.compactMap { child -> String? in
+            let id = child.bundleIdentifier
+            guard id.hasPrefix(base + "."), id.count > base.count + 1 else { return nil }
+            return expected.bundleID + String(id.dropFirst(base.count))
+        })
+        guard targetAppBundle.bundleIdentifier == "com.kdt.livecontainer.P8EZT3U5N4",
+              expected.version == targetAppBundle.infoPlist["CFBundleVersion"] as? String,
+              !hasOverrideProfile, (!useMainProfile || children.isEmpty),
+              expected.extensionIDs == mapped,
+              mapped.count == children.count else {
+            throw OperationError.invalidApp(reason: "Scarlet self-update source topology mismatch")
+        }
+    }
+    static func selfUpdateProvisioningParentID(teamID: String) throws -> String? {
+        guard let expected = selfUpdateFence.get() else { return nil }
+        guard expected.teamID == teamID else {
+            throw OperationError.invalidApp(reason: "Scarlet self-update provisioning Team mismatch")
+        }
+        return expected.bundleID
+    }
+    // Copy by value, never copy a symlink object from the shared directory.
+    // Limit the copy even if its original size changes after the preflight.
+    private static func copySelfUpdateSnapshot(from source: URL, to destination: URL) throws {
+        let values = try source.resourceValues(forKeys: [.isRegularFileKey, .isSymbolicLinkKey])
+        guard values.isRegularFile == true, values.isSymbolicLink != true,
+              FileManager.default.createFile(atPath: destination.path, contents: nil,
+                                              attributes: [.posixPermissions: 0o600]) else {
+            throw OperationError.invalidApp(reason: "Scarlet self-update snapshot invalid")
+        }
+        let input = try FileHandle(forReadingFrom: source)
+        defer { try? input.close() }
+        let output = try FileHandle(forWritingTo: destination)
+        defer { try? output.close() }
+        var total = 0
+        while let block = try input.read(upToCount: 1024 * 1024), !block.isEmpty {
+            total += block.count
+            guard total <= 150 * 1024 * 1024 else {
+                throw OperationError.invalidApp(reason: "Scarlet self-update archive size invalid")
+            }
+            try Task.checkCancellation()
+            try output.write(contentsOf: block)
+        }
+        try output.synchronize()
+    }
+    private static func verifySelfUpdateDigest(_ file: URL, expected: String) throws {
+        let maxBytes = 150 * 1024 * 1024
+        let handle = try FileHandle(forReadingFrom: file)
+        defer { try? handle.close() }
+        var total = 0
+        var hash = SHA256()
+        while let block = try handle.read(upToCount: 1024 * 1024), !block.isEmpty {
+            total += block.count
+            guard total <= maxBytes else {
+                throw OperationError.invalidApp(reason: "Scarlet self-update archive size invalid")
+            }
+            try Task.checkCancellation()
+            hash.update(data: block)
+        }
+        let actual = hash.finalize().map { String(format: "%02x", $0) }.joined()
+        guard total >= 1_000_000, actual == expected else {
+            throw OperationError.invalidApp(reason: "Scarlet self-update archive digest mismatch")
+        }
+    }
     static func validateSelfUpdateTarget(_ app: ALTApplication) throws {
         guard let expected = selfUpdateFence.get() else { return }
         guard app.bundleIdentifier == expected.bundleID,
@@ -138,8 +208,15 @@ final class ScarletDeviceInstallAgent: NSObject {
                 guard stagedName == URL(fileURLWithPath: stagedName).lastPathComponent else {
                     notify("staged_ipa_invalid"); return
                 }
-                let fileURL = workDirectory.appendingPathComponent(
+                let stagedURL = workDirectory.appendingPathComponent(
                     stagedName, isDirectory: false).standardizedFileURL
+                var fileURL = stagedURL
+                var privateSnapshotDirectory: URL?
+                defer {
+                    if let privateSnapshotDirectory {
+                        try? FileManager.default.removeItem(at: privateSnapshotDirectory)
+                    }
+                }
                 guard fileURL.resolvingSymlinksInPath().deletingLastPathComponent() ==
                           workDirectory.resolvingSymlinksInPath(),
                       fileURL.pathExtension.lowercased() == "ipa",
@@ -150,8 +227,12 @@ final class ScarletDeviceInstallAgent: NSObject {
                     notify("staged_ipa_missing"); return
                 }
                 if let hostPath = payload["selfUpdateHostPath"] as? String,
-                   let version = payload["selfUpdateVersion"] as? String {
+                   let version = payload["selfUpdateVersion"] as? String,
+                   let digest = payload["selfUpdateSHA256"] as? String {
                     guard !legacy, stagedName.hasPrefix("scarlet-self-update-"),
+                          digest.utf8.count == 64,
+                          digest.utf8.allSatisfy({ (48...57).contains($0) || (97...102).contains($0) }),
+                          (1_000_000...150 * 1024 * 1024).contains(fileSize),
                           hostGroupID == "group.com.SideStore.SideStore." + owner.teamID,
                           let hostURL = await ScarletGuestHostManagedBootstrap.shared
                             .verifiedSameTeamManualHostURL(hostBundlePath: hostPath, teamID: owner.teamID),
@@ -162,11 +243,27 @@ final class ScarletDeviceInstallAgent: NSObject {
                           let oldBuild = Int(oldVersion.dropFirst(4)), newBuild > oldBuild else {
                         notify("self_update_identity_unverified"); return
                     }
+                    // The host may exit or delete its shared staging file.
+                    // Copy into a worker-owned unique directory and verify
+                    // the exact bytes AppManager will read before provisioning.
+                    let snapshot = FileManager.default.temporaryDirectory
+                        .appendingPathComponent("scarlet-update-" + UUID().uuidString, isDirectory: true)
+                    try FileManager.default.createDirectory(at: snapshot,
+                        withIntermediateDirectories: false, attributes: [.posixPermissions: 0o700])
+                    privateSnapshotDirectory = snapshot
+                    fileURL = snapshot.appendingPathComponent("verified.ipa")
+                    do {
+                        try copySelfUpdateSnapshot(from: stagedURL, to: fileURL)
+                        try verifySelfUpdateDigest(fileURL, expected: digest)
+                    } catch {
+                        notify("self_update_archive_unverified"); return
+                    }
                     selfUpdateFence.set(SelfUpdateExpectation(bundleID: installedHost.bundleIdentifier,
                         extensionIDs: Set(installedHost.appExtensions.map { $0.bundleIdentifier }),
                         teamID: owner.teamID, version: version))
                 } else if stagedName.hasPrefix("scarlet-self-update-") ||
-                          payload["selfUpdateHostPath"] != nil || payload["selfUpdateVersion"] != nil {
+                          payload["selfUpdateHostPath"] != nil || payload["selfUpdateVersion"] != nil ||
+                          payload["selfUpdateSHA256"] != nil {
                     notify("self_update_identity_unverified"); return
                 }
                 stageGroup.set(hostGroupID, ownerScope: scope)

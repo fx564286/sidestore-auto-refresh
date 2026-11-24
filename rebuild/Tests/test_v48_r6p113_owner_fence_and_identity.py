@@ -27,7 +27,10 @@ class OwnerFenceIdentity(unittest.TestCase):
                              && installedApp.resignedBundleIdentifier.contains(team.identifier)
 '''
         swift += '        let profile = try await DeveloperPortalProxy.shared.downloadProvisioningProfile(for: groupAppID, deviceType: DeveloperPortalProxy.currentDeviceType, team: team)'
+        swift += '\n        if let overrideProfile = self.context.overrideProvisioningProfile {'
+        swift += '\n        if let preferredBundleID = await self.getPreferredBundleID(for: targetAppBundle, team: team) {'
         patched=wire.patch_idempotent_team_provisioning(swift)
+        self.assertIn('parentID = exactHostID',patched)
         self.assertIn('while normalized.hasSuffix(teamSuffix + teamSuffix)',patched)
         with self.assertRaises(AssertionError):wire.patch_idempotent_team_provisioning(patched)
 

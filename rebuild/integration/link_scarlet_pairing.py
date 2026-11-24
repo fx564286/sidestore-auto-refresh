@@ -48,7 +48,9 @@ def main():
     assert source.count(original)==2, "Pinned LC SwiftUI linker layout changed"
     replacement=(
         'OTHER_LDFLAGS = ("-Wl,-U,_OBJC_CLASS_$_RBSTarget", '
-        '"-force_load", "$(PROJECT_DIR)/ScarletPairingFFI.a", "-lc++");')
+        '"-force_load", "$(PROJECT_DIR)/$(SCARLET_PAIRING_ARCHIVE)", "-lc++");\n'
+        'SCARLET_PAIRING_ARCHIVE = ScarletPairingFFI.a;\n'
+        '"SCARLET_PAIRING_ARCHIVE[sdk=iphonesimulator*]" = ScarletPairingFFISimulator.a;')
     project.write_text(source.replace(original,replacement))
 
     # Retain third-party attribution in the actual installable IPA resources.

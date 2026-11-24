@@ -61,6 +61,20 @@ def run(args: list[str], *, stage: str, timeout: int = 100,
     return result.stdout.strip()
 
 
+def extract_build_errors(log: str) -> list[str]:
+    import re
+    result = []
+    for line in log.splitlines():
+        line = line.strip()
+        if (re.match(r"^.+?:\d+(?::\d+)?: (?:fatal )?error:", line)
+                or re.match(r"^(?:[^:]+: )?(?:fatal )?error:", line)
+                or line.startswith(("ld: ", "Undefined symbols for architecture", "** BUILD FAILED **",
+                                    "xcodebuild: error:", "clang: error:"))):
+            if line not in result:
+                result.append(line[:400])
+    return result
+
+
 def simulator_build(engine: Path, products: Path, report_dir: Path) -> Path:
     project = engine / 'LiveContainer.xcodeproj'
     if not project.is_dir():
@@ -85,9 +99,7 @@ def simulator_build(engine: Path, products: Path, report_dir: Path) -> Path:
         except (subprocess.TimeoutExpired, OSError) as error:
             raise SmokeBlocked('simulator_build_failed', f'build_timeout_or_spawn:{type(error).__name__}') from error
     if result.returncode:
-        errors = [line.strip()[:400] for line in log.read_text(errors='replace').splitlines()
-                  if any(marker in line for marker in ('error:', 'fatal error:', 'BUILD FAILED',
-                                                       'linker command failed'))]
+        errors = extract_build_errors(log.read_text(errors='replace'))
         raise SmokeBlocked('simulator_build_failed',
                            f'exit_{result.returncode}:' + ' | '.join(errors[:8]))
     app = products / 'Build/Products/Release-iphonesimulator/LiveContainer.app'
