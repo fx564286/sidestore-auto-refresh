@@ -553,6 +553,15 @@ struct ScarletSigningReadinessPanel: View {
                     "certificate", "sideinstaller_style_retrieval_finished",
                     fields: ["result": "selected_account_team_check_applied"])
             } catch {
+                if let nativeError = error as? ScarletNativeAuthError,
+                   case .remoteFailure(let domain, _) = nativeError,
+                   domain == "scarlet.certificate.team_operation_in_progress" {
+                    certificateRecoveryStatus = "다른 서명 작업이 진행 중입니다. 완료 후 기존 인증서를 다시 가져오세요."
+                    ScarletDiagnosticRecorder.shared.record("certificate",
+                        "sideinstaller_style_retrieval_blocked",
+                        status: "blocked", fields: ["reason": "team_operation_in_progress"])
+                    return
+                }
                 // SideInstaller in LiveContainer reads LC's already-held
                 // certificate when SideStore cannot provide a callback.
                 // This fallback confirms presence, not newly issued cert.

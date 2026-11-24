@@ -684,6 +684,7 @@ struct ScarletIntegratedHostView: View {
     }
 
     private func recordTab(_ raw: String) {
+        ScarletAutomaticRenewal.shared.setSettingsInteractionActive(raw == "설정")
         if raw == "앱" {
             reloadManagedDeviceApps()
         } else if raw == "설정" {
