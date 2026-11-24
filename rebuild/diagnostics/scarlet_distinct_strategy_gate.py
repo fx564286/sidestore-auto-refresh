@@ -33,6 +33,8 @@ POTENTIALLY_DISTINCT_ISLAND_METHODS = {
     "native_process_scene_ownership_contract_repair",
 }
 OTHER_ALLOWED_METHODS = {
+    # Simulator evidence only: bind live process identity across screenshot capture.
+    "simulator_launch_pid_bundle_liveness_before_after_capture",
     "worker_verified_update_snapshot_and_preportal_existing_identity_pin",
     "native_shortcut_verified_release_self_update_and_signed_identity_fence",
     "cumulative_binary_release_identity_and_native_readiness_serialization",

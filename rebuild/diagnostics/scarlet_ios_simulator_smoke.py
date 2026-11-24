@@ -75,6 +75,29 @@ def extract_build_errors(log: str) -> list[str]:
     return result
 
 
+def launch_pid(receipt: str, bundle_id: str) -> int:
+    match = re.fullmatch(re.escape(bundle_id) + r":\s*([1-9][0-9]*)", receipt.strip())
+    if match is None:
+        raise SmokeBlocked('simulator_launch_liveness_failed', 'launch_receipt_identity_invalid')
+    return int(match.group(1))
+
+
+def require_live_process(udid: str, bundle_id: str, pid: int) -> None:
+    # launchctl executes inside the selected simulator's launchd namespace.
+    # A screenshot alone may be SpringBoard after the launched process exits.
+    snapshot = run(['xcrun', 'simctl', 'spawn', udid, 'launchctl', 'list'],
+                   stage='simulator_launch_liveness_failed', timeout=30)
+    for line in snapshot.splitlines():
+        fields = line.split(None, 2)
+        if len(fields) != 3 or fields[0] != str(pid):
+            continue
+        label = fields[2]
+        expected = 'UIKitApplication:' + bundle_id
+        if label == expected or label.startswith(expected + '['):
+            return
+    raise SmokeBlocked('simulator_launch_liveness_failed', 'launched_process_not_observed')
+
+
 def simulator_build(engine: Path, products: Path, report_dir: Path) -> Path:
     project = engine / 'LiveContainer.xcodeproj'
     if not project.is_dir():
@@ -159,13 +182,18 @@ def main() -> int:
         launch_receipt = run(['xcrun', 'simctl', 'launch', '--terminate-running-process',
                               udid, bundle_id], stage='simulator_launch_failed', timeout=100)
         report['launch_receipt'] = launch_receipt[:220]
+        pid = launch_pid(launch_receipt, bundle_id)
         time.sleep(8)
+        report['stage'] = 'simulator_launch_liveness'
+        require_live_process(udid, bundle_id, pid)
         report['stage'] = 'simulator_screenshot'
         screenshot = dest / 'iphone-simulator-after-launch.png'
         run(['xcrun', 'simctl', 'io', udid, 'screenshot', str(screenshot)],
             stage='simulator_screenshot_failed', timeout=95)
-        if screenshot.stat().st_size < 1024:
+        if not screenshot.is_file() or screenshot.stat().st_size < 1024:
             raise SmokeBlocked('simulator_screenshot_failed', 'screenshot_empty')
+        require_live_process(udid, bundle_id, pid)
+        report['launch_liveness'] = 'verified_before_and_after_screenshot'
         report['screenshot_bytes'] = screenshot.stat().st_size
         report['result'] = 'simulator_launch_screenshot_captured'
         report['stage'] = 'complete'
