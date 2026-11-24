@@ -259,6 +259,20 @@ private struct ScarletSlotRow: Codable {
 }
 
 extension ScarletDeviceInstallAgent {
+    // Host validates UTF-8 bytes, not Swift Character count. Preserve whole
+    // grapheme clusters and never reject an otherwise valid multilingual row.
+    private static func slotDisplayName(_ name: String) -> String {
+        var output = ""
+        var byteCount = 0
+        for character in name {
+            let size = String(character).utf8.count
+            guard byteCount + size <= 120 else { break }
+            output.append(character)
+            byteCount += size
+        }
+        return output.isEmpty ? "앱" : output
+    }
+
     @objc(listManagedSlots:)
     static func listManagedSlots(_ reply: @escaping (String, String) -> Void) {
         Task { @MainActor in
@@ -289,7 +303,7 @@ extension ScarletDeviceInstallAgent {
                     let protected = app.resignedBundleIdentifier == hostBundle ||
                         app.bundleIdentifier == StoreApp.altstoreAppID
                     return ScarletSlotRow(id: app.resignedBundleIdentifier,
-                        name: String(app.name.prefix(120)), active: app.isActive,
+                        name: slotDisplayName(app.name), active: app.isActive,
                         editable: !protected, managed: true,
                         deviceInstalled: installedIDs.map { $0.contains(app.resignedBundleIdentifier) })
                 }
@@ -300,12 +314,19 @@ extension ScarletDeviceInstallAgent {
                     for app in inventory where app.developmentSigned {
                         guard app.id.utf8.count <= 200, known.insert(app.id).inserted else { continue }
                         rows.append(ScarletSlotRow(id: app.id,
-                            name: String(app.name.prefix(40)), active: true, editable: false,
+                            name: slotDisplayName(app.name), active: true, editable: false,
                             managed: false, deviceInstalled: true))
                     }
                 }
+                guard rows.count <= 80 else {
+                    reply("[]", "response_too_large"); return
+                }
+                guard Set(rows.map(\.id)).count == rows.count,
+                      rows.allSatisfy({ !$0.id.isEmpty && $0.id.utf8.count <= 200 }) else {
+                    reply("[]", "response_invalid"); return
+                }
                 let encoded = try JSONEncoder().encode(rows)
-                guard encoded.count < 64000,
+                guard encoded.count <= 64000,
                       let json = String(data: encoded, encoding: .utf8) else {
                     reply("[]", "response_too_large"); return
                 }

@@ -2529,6 +2529,7 @@ private struct ScarletManagedSlotSheet: View {
     private func reload() async {
         guard !loading && !operationRunning else { return }
         loading = true
+        rows = []
         defer { loading = false }
         let result = await ScarletNativeSideloadSlots.list()
         rows = result.apps
@@ -2539,11 +2540,13 @@ private struct ScarletManagedSlotSheet: View {
     }
 
     private func change(_ bundle: String, active: Bool) async {
-        guard !operationRunning else { return }
+        guard !loading && !operationRunning,
+              rows.contains(where: { $0.id == bundle && $0.editable && $0.managed != false &&
+                  $0.id != Bundle.main.bundleIdentifier && $0.active != active }) else { return }
         operationRunning = true
+        defer { operationRunning = false }
         status = "SideStore 원본 백업·설치 경로 처리 중"
         let result = await ScarletNativeSideloadSlots.change(bundleID: bundle, active: active)
-        operationRunning = false
         if result.0 {
             status = "SideStore 작업 반환. 실제 iPhone 설치·데이터 복원 결과는 검증이 필요합니다."
         } else {
@@ -2566,6 +2569,11 @@ private struct ScarletManagedSlotSheet: View {
         // a stale isActive flag; never assert that data was restored.
         let after = await ScarletNativeSideloadSlots.list()
         rows = after.apps
+        if after.reason != "ready" {
+            status += after.reason == "ready_inventory_unavailable"
+                ? " · 실제 기기 조회 불가"
+                : " · 목록 재조회 불가: " + after.reason
+        }
     }
 }
 // R6P61_SLOT_MANAGER_END

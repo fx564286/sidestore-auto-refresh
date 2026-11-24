@@ -842,17 +842,27 @@ public enum ScarletNativeSideloadSlots {
                 gate.finish([], "timeout")
             }
             client.scarletManagedSlots { json, reason in
-                let raw = json ?? "[]"
-                guard raw.utf8.count <= 64000,
+                let status = reason ?? "worker_unknown"
+                let successReasons: Set<String> = ["ready", "ready_inventory_unavailable"]
+                let failureReasons: Set<String> = [
+                    "database_unavailable", "response_too_large", "response_invalid",
+                    "slot_worker_missing", "team_operation_in_progress", "selected_account_owner_unverified"
+                ]
+                // Failure responses cannot publish stale or untrusted rows.
+                guard successReasons.contains(status) else {
+                    gate.finish([], failureReasons.contains(status) ? status : "worker_unknown"); return
+                }
+                guard let raw = json, raw.utf8.count <= 64000,
                       let bytes = raw.data(using: .utf8),
                       let rows = try? JSONDecoder().decode([ScarletSideloadSlot].self, from: bytes),
                       rows.count <= 80,
-                      rows.allSatisfy({ $0.id.utf8.count <= 200 && $0.name.utf8.count <= 120 }) else {
+                      Set(rows.map(\.id)).count == rows.count,
+                      rows.allSatisfy({ !$0.id.isEmpty && $0.id.utf8.count <= 200 &&
+                          $0.name.utf8.count <= 120 &&
+                          ($0.managed != false || (!$0.editable && $0.deviceInstalled == true)) }) else {
                     gate.finish([], "response_invalid"); return
                 }
-                let status = reason ?? "worker_unknown"
-                gate.finish(rows, ["ready", "ready_inventory_unavailable", "database_unavailable", "response_too_large",
-                                   "slot_worker_missing"].contains(status) ? status : "worker_unknown")
+                gate.finish(rows, status)
             }
         }
     }
@@ -867,12 +877,21 @@ public enum ScarletNativeSideloadSlots {
             }
             client.scarletSetManagedSlot(bundleID, active: active) { ok, reason in
                 let status = reason ?? "worker_unknown"
-                let allowed = ["side_store_pipeline_returned_device_unverified",
-                    "already_in_requested_state", "coredata_state_unverified",
-                    "active_slot_full", "app_not_managed", "invalid_request", "host_protected",
-                    "operation_in_progress", "activation_or_restore_failed",
-                    "backup_or_deactivation_failed", "database_unavailable", "slot_worker_missing"]
-                gate.finish(ok, allowed.contains(status) ? status : "worker_unknown")
+                let successReasons: Set<String> = [
+                    "side_store_pipeline_returned_device_unverified", "already_in_requested_state"
+                ]
+                let failureReasons: Set<String> = [
+                    "coredata_state_unverified", "active_slot_full", "app_not_managed",
+                    "invalid_request", "host_protected", "operation_in_progress",
+                    "activation_or_restore_failed", "backup_or_deactivation_failed",
+                    "database_unavailable", "slot_worker_missing", "team_operation_in_progress",
+                    "selected_account_owner_unverified", "selected_account_app_mismatch"
+                ]
+                guard (successReasons.contains(status) || failureReasons.contains(status)),
+                      ok == successReasons.contains(status) else {
+                    gate.finish(false, "worker_unknown"); return
+                }
+                gate.finish(ok, status)
             }
         }
     }
