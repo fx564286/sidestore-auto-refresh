@@ -1214,11 +1214,15 @@ struct ScarletIntegratedHostView: View {
                         if UIDevice.current.userInterfaceIdiom == .phone {
                             // Explicit false bypasses persisted LC multitask
                             // preferences and preserves original guest geometry.
+                            ScarletGuestSessionLedger.beginClassicTraceHandoff()
                             try await app.runApp(multitask: false)
                         } else {
                             try await app.runApp()
                         }
                     } catch {
+                        if UIDevice.current.userInterfaceIdiom == .phone {
+                            ScarletGuestSessionLedger.cancelClassicTraceHandoff()
+                        }
                         ScarletGuestSessionLedger.restore(historyBeforeLaunch)
                         throw error
                     }

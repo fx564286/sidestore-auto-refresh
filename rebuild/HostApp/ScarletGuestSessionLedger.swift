@@ -159,6 +159,36 @@ enum ScarletGuestSessionLedger {
     // private JSONL cannot be read from the host's diagnostic viewer.
     // Relay ONLY a fixed whitelist of anonymous switcher lifecycle events.
     // This never includes guest names, bundle IDs, credentials or screenshots.
+    private static let classicTraceTicketKey = "Scarlet.Guest.ClassicTraceTicket.V1"
+    private struct ClassicTraceTicket {
+        let token: String
+        let started: Date
+        let originPID: Int32
+    }
+    private static var classicTraceToken: String?
+    private static func classicTicket() -> ClassicTraceTicket? {
+        guard let row = store.dictionary(forKey: classicTraceTicketKey),
+              let token = row["token"] as? String, UUID(uuidString: token) != nil,
+              let time = row["started"] as? Double,
+              let origin = row["originPID"] as? NSNumber,
+              origin.int32Value > 0 else { return nil }
+        let date = Date(timeIntervalSinceReferenceDate: time)
+        let age = Date().timeIntervalSince(date)
+        guard age >= 0 && age <= 24 * 3600 else { return nil }
+        return ClassicTraceTicket(token: token, started: date, originPID: origin.int32Value)
+    }
+    static func beginClassicTraceHandoff() {
+        store.set(["token": UUID().uuidString,
+                   "started": Date().timeIntervalSinceReferenceDate,
+                   "originPID": ProcessInfo.processInfo.processIdentifier] as [String: Any],
+                  forKey: classicTraceTicketKey)
+    }
+    static func cancelClassicTraceHandoff() {
+        store.removeObject(forKey: classicTraceTicketKey)
+    }
+    static func bindClassicTrace() {
+        classicTraceToken = classicTicket()?.token
+    }
     private static let switchTraceKey = "Scarlet.Guest.SwitcherTrace.V20"
     private static let switchTraceCursor = "Scarlet.Guest.SwitcherTraceCursor.V20"
     private static let switchTraceEvents: Set<String> = [
@@ -173,7 +203,9 @@ enum ScarletGuestSessionLedger {
         "runtime_current_resolved", "runtime_current_unresolved",
         "switch_target_boot_ack", "switch_target_boot_mismatch",
         "glass_morph_opened", "glass_morph_closed",
-        "runtime_guest_process_observed"
+        "runtime_guest_process_observed", "classic_bootstrap_armed",
+        "classic_geometry_on_mount", "classic_geometry_on_exit",
+        "classic_return_requested", "classic_return_failed"
     ]
 
     struct SwitchTrace: Codable {
@@ -185,17 +217,22 @@ enum ScarletGuestSessionLedger {
         let createdAt: Date?
         // Ephemeral PID only; never record app names, bundle IDs or device IDs.
         let processPID: Int32?
+        let classicToken: String?
+        let classicGeometry: [String: Int]?
     }
 
     static func traceSwitcher(_ event: String, count: Int = 0,
-                              processPID: Int32? = nil) {
+                              processPID: Int32? = nil,
+                              classicGeometry: [String: Int]? = nil) {
         guard switchTraceEvents.contains(event) else { return }
         let previous = (store.data(forKey: switchTraceKey))
             .flatMap { try? JSONDecoder().decode([SwitchTrace].self, from: $0) } ?? []
         let entry = SwitchTrace(id: UUID().uuidString, event: event,
                                 count: max(0, min(count, 8)),
                                 createdAt: Date(),
-                                processPID: processPID.flatMap { $0 > 0 ? $0 : nil })
+                                processPID: processPID.flatMap { $0 > 0 ? $0 : nil },
+                                classicToken: classicTraceToken,
+                                classicGeometry: classicGeometry)
         if let encoded = try? JSONEncoder().encode(
             Array((previous + [entry]).suffix(48))) {
             store.set(encoded, forKey: switchTraceKey)
@@ -204,7 +241,39 @@ enum ScarletGuestSessionLedger {
 
     private static var traceReaderReported = false
 
+    // Explicit, token-bound handoff only; not a general relaxation of the
+    // current-process log policy. Import before the ordinary cursor advances.
+    static func replayClassicTraceHandoff() {
+        guard let ticket = classicTicket(),
+              ticket.originPID != ProcessInfo.processInfo.processIdentifier else { return }
+        store.removeObject(forKey: classicTraceTicketKey)
+        let entries = store.data(forKey: switchTraceKey)
+            .flatMap { try? JSONDecoder().decode([SwitchTrace].self, from: $0) } ?? []
+        let currentStart = ScarletDiagnosticRecorder.shared.currentProcessStartDate
+        let accepted = entries.suffix(48).filter { entry in
+            entry.classicToken == ticket.token &&
+                switchTraceEvents.contains(entry.event) &&
+                (entry.createdAt.map { $0 >= ticket.started && $0 < currentStart } ?? false)
+        }
+        ScarletDiagnosticRecorder.shared.record("guest_switcher", "classic_handoff_imported",
+            fields: ["source": "classic_guest_previous_process", "count": String(accepted.count)])
+        for entry in accepted {
+            var fields = ["source": "classic_guest_previous_process", "count": String(entry.count)]
+            if let pid = entry.processPID, pid > 0 { fields["process_pid"] = String(pid) }
+            if let metrics = entry.classicGeometry {
+                for key in ["safe_top_pt", "root_safe_top_pt", "near_controls", "severe_nodes",
+                            "first_near_control_y", "scan_complete"] {
+                    if let value = metrics[key], (-999...2400).contains(value) {
+                        fields[key] = key == "scan_complete" ? (value == 1 ? "true" : "false") : String(value)
+                    }
+                }
+            }
+            ScarletDiagnosticRecorder.shared.record("guest_switcher", entry.event, fields: fields)
+        }
+    }
+
     static func replaySwitcherTraceToHostJournal() {
+        replayClassicTraceHandoff()
         guard let raw = store.data(forKey: switchTraceKey),
               let entries = try? JSONDecoder().decode([SwitchTrace].self, from: raw),
               !entries.isEmpty else {

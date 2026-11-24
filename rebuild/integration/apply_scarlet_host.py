@@ -2898,6 +2898,132 @@ def add_scarlet_guest_island_content_guard(engine: Path) -> dict:
             "sha256": file_sha(target)}
 
 
+def add_classic_guest_switcher(engine: Path) -> dict:
+    """Arm the first-party return control in LC's classic app-main path.
+
+    No TweakLoader dependency, no global UIKit swizzles or guest geometry
+    writes. Resident LiveProcess and embedded SideStore are untouched.
+    """
+    target = engine / "LiveContainer/LCBootstrap.m"
+    source = target.read_text()
+    anchor = "bool sideStoreExist = false;\n"
+    entry = '    // Go!\n    NSLog(@"[LCBootstrap] jumping to main %p", appMain);'
+    assert source.count(anchor) == 1 and source.count(entry) == 1
+    hook_probe_helper = """
+
+static void ScarletGuestHookTrace(NSString *event) {
+    static NSSet *allowed;
+    static dispatch_once_t once;
+    dispatch_once(&once, ^{
+        allowed = [NSSet setWithArray:@[@"hook_entered", @"framework_loaded",
+            @"framework_missing", @"provider_ready", @"provider_missing", @"classic_bootstrap_armed"]];
+    });
+    if(![allowed containsObject:event]) return;
+    NSUserDefaults *shared = NSUserDefaults.lcSharedDefaults;
+    if(!shared) return;
+    NSData *raw = [shared dataForKey:@"Scarlet.Guest.SwitcherTrace.V20"];
+    NSMutableArray *entries = [NSMutableArray array];
+    if(raw) {
+        id previous = [NSJSONSerialization JSONObjectWithData:raw
+            options:NSJSONReadingMutableContainers error:NULL];
+        if([previous isKindOfClass:NSArray.class]) [entries addObjectsFromArray:previous];
+    }
+    NSMutableDictionary *entry = [@{@"id":NSUUID.UUID.UUIDString,
+                         @"event":event, @"count":@0,
+                         @"processPID":@(getpid()),
+                         @"createdAt":@([[NSDate date] timeIntervalSinceReferenceDate])} mutableCopy];
+    NSDictionary *ticket = [shared dictionaryForKey:@"Scarlet.Guest.ClassicTraceTicket.V1"];
+    NSString *token = ticket[@"token"];
+    if([token isKindOfClass:NSString.class] && token.length == 36)
+        entry[@"classicToken"] = token;
+    [entries addObject:entry];
+    if(entries.count > 48) {
+        [entries removeObjectsInRange:NSMakeRange(0, entries.count - 48)];
+    }
+    NSData *encoded = [NSJSONSerialization dataWithJSONObject:entries options:0 error:NULL];
+    if(encoded) {
+        [shared setObject:encoded forKey:@"Scarlet.Guest.SwitcherTrace.V20"];
+        if(![[shared dataForKey:@"Scarlet.Guest.SwitcherTrace.V20"] isEqualToData:encoded]) {
+            NSLog(@"[SCARLET_GUEST_TAB] shared_trace_readback_failed");
+        }
+    }
+}
+
+"""
+    mount = (
+        "static void ScarletArmClassicGuestSwitcher(void) {\n"
+        "    if(isLiveProcess || isSideStore || !lcGuestAppId.length) return;\n"
+        "    static dispatch_once_t once;\n"
+        "    dispatch_once(&once, ^{\n"
+        "        ScarletGuestHookTrace(@\"hook_entered\");\n"
+        "        ScarletGuestHookTrace(@\"classic_bootstrap_armed\");\n"
+        "        // UIKit may not have a window before guest main. Defer framework\n"
+        "        // loading to actual UIKit lifecycle events, not TweakLoader init.\n"
+        "        void (^mount)(void) = ^{\n"
+        "            static BOOL mounting = NO;\n"
+        "            static void *framework = NULL;\n"
+        "            static BOOL frameworkMissingTraced = NO;\n"
+        "            static BOOL providerTraced = NO;\n"
+        "            static BOOL providerMissingTraced = NO;\n"
+        "            if(mounting) return;\n"
+        "            mounting = YES;\n"
+        "            @try {\n"
+        "                if(!framework) {\n"
+        "                    NSString *frameworkPath = [NSUserDefaults.lcMainBundle.bundlePath\n"
+        "                        stringByAppendingPathComponent:@\"Frameworks/LiveContainerSwiftUI.framework/LiveContainerSwiftUI\"];\n"
+        "                    framework = dlopen(frameworkPath.UTF8String, RTLD_LAZY | RTLD_GLOBAL);\n"
+        "                    if(!framework) {\n"
+        "                        if(!frameworkMissingTraced) {\n"
+        "                            frameworkMissingTraced = YES;\n"
+        "                            ScarletGuestHookTrace(@\"framework_missing\");\n"
+        "                            NSLog(@\"[SCARLET_GUEST_TAB] framework_unavailable\");\n"
+        "                        }\n"
+        "                    } else {\n"
+        "                        ScarletGuestHookTrace(@\"framework_loaded\");\n"
+        "                    }\n"
+        "                }\n"
+        "                Class provider = NSClassFromString(@\"ScarletFullscreenGuestTabInstaller\");\n"
+        "                SEL callback = NSSelectorFromString(@\"installForGuestName:\");\n"
+        "                if(provider && [provider respondsToSelector:callback]) {\n"
+        "                    if(!providerTraced) {\n"
+        "                        providerTraced = YES;\n"
+        "                        ScarletGuestHookTrace(@\"provider_ready\");\n"
+        "                    }\n"
+        "                    NSString *guestID = NSUserDefaults.lcGuestAppId;\n"
+        "                    ((void(*)(id,SEL,id))objc_msgSend)(provider,callback,guestID);\n"
+        "                } else if(!providerMissingTraced) {\n"
+        "                    providerMissingTraced = YES;\n"
+        "                    ScarletGuestHookTrace(@\"provider_missing\");\n"
+        "                    NSLog(@\"[SCARLET_GUEST_TAB] installer_class_unavailable\");\n"
+        "                }\n"
+        "            } @finally {\n"
+        "                mounting = NO;\n"
+        "            }\n"
+        "        };\n"
+        "        for(NSNotificationName name in @[UIApplicationDidBecomeActiveNotification,\n"
+        "              UIWindowDidBecomeKeyNotification, UIWindowDidBecomeVisibleNotification,\n"
+        "              UISceneDidActivateNotification]) {\n"
+        "            [[NSNotificationCenter defaultCenter] addObserverForName:name\n"
+        "              object:nil queue:NSOperationQueue.mainQueue usingBlock:^(NSNotification *note) {\n"
+        "                // Ignore the switcher's own nonnormal UIWindow notifications.\n"
+        "                if([note.object isKindOfClass:UIWindow.class] &&\n"
+        "                   ((UIWindow *)note.object).windowLevel != UIWindowLevelNormal) return;\n"
+        "                dispatch_async(dispatch_get_main_queue(), mount);\n"
+        "            }];\n"
+        "        }\n"
+        "    });\n"
+        "}\n"
+    )
+    source = source.replace(anchor, anchor + "\n@import UIKit;\n#import <objc/message.h>\n#include <unistd.h>\n" + hook_probe_helper + mount, 1)
+    source = source.replace(entry,
+        "    if(!isLiveProcess && !isSideStore && !is32bit) {\n"
+        "        ScarletArmClassicGuestSwitcher();\n"
+        "    }\n" + entry, 1)
+    target.write_text(source)
+    return {"classicOnly": True, "tweakLoaderIndependent": True,
+            "guestGeometryChanged": False, "source": str(target.relative_to(engine))}
+
+
 def main():
     p=argparse.ArgumentParser()
     p.add_argument("--engine",type=Path,required=True)
@@ -3094,107 +3220,9 @@ def main():
         guest_src=guest_src.replace(before,after)
     guest_window.write_text(guest_src)
 
-    # Overlay only: the PR48 default runApp() relaunches an entire guest
-    # process and does NOT create a MultitaskAppWindow. Inject the floating
-    # control via existing guest UIKit hook after its UIApplication is active.
-    # Avoid touching guest bounds, transforms, orientation policies, host tabs.
-    guest_hook_file = engine/"TweakLoader/UIKit+GuestHooks.m"
-    assert guest_hook_file.is_file(), "Pinned LC guest UIKit hook missing"
-    guest_hook_source = guest_hook_file.read_text()
-    guest_hook_anchor = "    if(!NSUserDefaults.lcGuestAppId) return;\n"
-    assert guest_hook_source.count(guest_hook_anchor)==1, "Guest hook changed"
-    guest_hook_source = guest_hook_source.replace(
-        '#import "Localization.h"\n',
-        '#import "Localization.h"\n#import <objc/message.h>\n#import <dlfcn.h>\n')
-    # This can execute before the SwiftUI framework exists. The host can
-    # distinguish a missing TweakLoader hook from a broken Swift overlay.
-    # Only fixed event names; bounded to 48, and never a guest title/ID.
-    hook_probe_anchor = "UIInterfaceOrientation LCOrientationLock = UIInterfaceOrientationUnknown;\n"
-    assert guest_hook_source.count(hook_probe_anchor) == 1
-    hook_probe_helper = """
-static void ScarletGuestHookTrace(NSString *event) {
-    static NSSet *allowed;
-    static dispatch_once_t once;
-    dispatch_once(&once, ^{
-        allowed = [NSSet setWithArray:@[@"hook_entered", @"framework_loaded",
-            @"framework_missing", @"provider_ready", @"provider_missing"]];
-    });
-    if(![allowed containsObject:event]) return;
-    NSUserDefaults *shared = NSUserDefaults.lcSharedDefaults;
-    if(!shared) return;
-    NSData *raw = [shared dataForKey:@"Scarlet.Guest.SwitcherTrace.V20"];
-    NSMutableArray *entries = [NSMutableArray array];
-    if(raw) {
-        id previous = [NSJSONSerialization JSONObjectWithData:raw
-            options:NSJSONReadingMutableContainers error:NULL];
-        if([previous isKindOfClass:NSArray.class]) [entries addObjectsFromArray:previous];
-    }
-    [entries addObject:@{@"id":NSUUID.UUID.UUIDString,
-                         @"event":event, @"count":@0,
-                         @"createdAt":@([[NSDate date] timeIntervalSinceReferenceDate])}];
-    if(entries.count > 48) {
-        [entries removeObjectsInRange:NSMakeRange(0, entries.count - 48)];
-    }
-    NSData *encoded = [NSJSONSerialization dataWithJSONObject:entries options:0 error:NULL];
-    if(encoded) {
-        [shared setObject:encoded forKey:@"Scarlet.Guest.SwitcherTrace.V20"];
-        if(![[shared dataForKey:@"Scarlet.Guest.SwitcherTrace.V20"] isEqualToData:encoded]) {
-            NSLog(@"[SCARLET_GUEST_TAB] shared_trace_readback_failed");
-        }
-    }
-}
-
-"""
-    guest_hook_source = guest_hook_source.replace(
-        hook_probe_anchor, hook_probe_helper + hook_probe_anchor)
-    guest_hook_source = guest_hook_source.replace(
-        guest_hook_anchor,
-        guest_hook_anchor +
-        "    ScarletGuestHookTrace(@\"hook_entered\");\n"
-        "    // The full-screen LC guest skips LiveContainerSwiftUI's main().\n"
-        "    // Its classes are in a separate dylib, not in the main executable.\n"
-        "    // Explicitly load the exact built-in framework before NSClassFromString.\n"
-        "    if(!NSUserDefaults.isLiveProcess) {\n"
-        "        NSString *frameworkPath = [NSUserDefaults.lcMainBundle.bundlePath\n"
-        "            stringByAppendingPathComponent:@\"Frameworks/LiveContainerSwiftUI.framework/LiveContainerSwiftUI\"];\n"
-        "        void *framework = dlopen(frameworkPath.UTF8String, RTLD_LAZY | RTLD_GLOBAL);\n"
-        "        if(!framework) {\n"
-        "            NSLog(@\"[SCARLET_GUEST_TAB] framework_unavailable\");\n"
-        "            ScarletGuestHookTrace(@\"framework_missing\");\n"
-        "        } else {\n"
-        "            NSLog(@\"[SCARLET_GUEST_TAB] framework_loaded\");\n"
-        "            ScarletGuestHookTrace(@\"framework_loaded\");\n"
-        "        }\n"
-        "        void (^mount)(void) = ^{\n"
-        "            Class provider = NSClassFromString(@\"ScarletFullscreenGuestTabInstaller\");\n"
-        "            SEL callback = NSSelectorFromString(@\"installForGuestName:\");\n"
-        "            if (provider && [provider respondsToSelector:callback]) {\n"
-        "                static BOOL providerTraced = NO;\n"
-        "                if(!providerTraced) { providerTraced = YES; ScarletGuestHookTrace(@\"provider_ready\"); }\n"
-        "                // A display name is not a stable guest identity.\n"
-        "                // LC clears selected during bootstrap, but this\n"
-        "                // runtime bundle ID remains authoritative.\n"
-        "                NSString *guestID = NSUserDefaults.lcGuestAppId;\n"
-        "                ((void(*)(id,SEL,id))objc_msgSend)(provider,callback,guestID);\n"
-        "            } else {\n"
-        "                NSLog(@\"[SCARLET_GUEST_TAB] installer_class_unavailable\");\n"
-        "                static BOOL providerMissingTraced = NO;\n"
-        "                if(!providerMissingTraced) { providerMissingTraced = YES; ScarletGuestHookTrace(@\"provider_missing\"); }\n"
-        "            }\n"
-        "        };\n"
-        "        for(NSNotificationName name in @[UIApplicationDidBecomeActiveNotification,\n"
-        "              UIWindowDidBecomeKeyNotification, UISceneDidActivateNotification]) {\n"
-        "            [[NSNotificationCenter defaultCenter] addObserverForName:name\n"
-        "              object:nil queue:NSOperationQueue.mainQueue usingBlock:^(NSNotification *note) {\n"
-        "                mount();\n"
-        "            }];\n"
-        "        }\n"
-        "        for(NSNumber *delay in @[@0.2,@0.75,@1.5,@3.0]) {\n"
-        "            dispatch_after(dispatch_time(DISPATCH_TIME_NOW,(int64_t)(delay.doubleValue * NSEC_PER_SEC)),\n"
-        "                           dispatch_get_main_queue(), mount);\n"
-        "        }\n"
-        "    }\n")
-    guest_hook_file.write_text(guest_hook_source)
+    # The original TweakLoader/UIKit+GuestHooks.m is intentionally untouched.
+    # The first-party classic return control is armed even if tweaks are disabled.
+    classic_switcher = add_classic_guest_switcher(engine)
 
     # V36 removes the root cause at source-level rather than attaching or
     # hiding the old LC dock from host UIKit.
@@ -3220,6 +3248,7 @@ static void ScarletGuestHookTrace(NSString *event) {
         "invalidPersistedGuestSkippedWithoutMutation":True,
         "hostBootPhaseLoggingInjected":True,
         "onDeviceSigtrapDockForceUnwrapGuarded":False,
+        "classicGuestSwitcher": classic_switcher,
         "legacyVisualSourceRemoved":True,
         "legacyVisualRemoval":legacy_visuals,
         "experimentalResidentFullscreenViewport": fullscreen_slot,

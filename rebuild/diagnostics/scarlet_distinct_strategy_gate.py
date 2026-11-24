@@ -33,6 +33,7 @@ POTENTIALLY_DISTINCT_ISLAND_METHODS = {
     "native_process_scene_ownership_contract_repair",
 }
 OTHER_ALLOWED_METHODS = {
+    "classic_bootstrap_owned_switcher_and_token_bound_diagnostic_handoff",
     "interactive_account_priority_and_certificate_transport_reservation",
     # R6P129: align native slot wire limits, result semantics and readback lifetime.
     "native_slot_response_contract_and_serialized_readback",
