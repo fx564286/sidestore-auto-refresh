@@ -33,6 +33,7 @@ POTENTIALLY_DISTINCT_ISLAND_METHODS = {
     "native_process_scene_ownership_contract_repair",
 }
 OTHER_ALLOWED_METHODS = {
+    "user_confirmed_native_resident_ownership_drain_before_classic_bootstrap",
     # Simulator evidence only: bind live process identity across screenshot capture.
     "simulator_launch_pid_bundle_liveness_before_after_capture",
     "worker_verified_update_snapshot_and_preportal_existing_identity_pin",

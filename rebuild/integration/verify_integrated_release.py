@@ -88,6 +88,11 @@ def verify(ipa: Path, version: str, source_commit: str) -> dict:
                 b"Scarlet self-update source topology mismatch",
                 b"Scarlet self-update provisioning Team mismatch")),
                 "R134 worker integrity or preportal pin missing")
+        if tuple(map(int, version.split("."))) >= (3, 8, 135):
+            binary = z.read(PREFIX + "Frameworks/LiveContainerSwiftUI.framework/LiveContainerSwiftUI")
+            require(all(marker in binary for marker in (
+                b"classic_handoff_drained", b"classic_handoff_blocked")),
+                "R135 classic ownership drain receipts missing")
     with ipa.open("rb") as f:
         digest = hashlib.file_digest(f, "sha256").hexdigest()
     return {"schema": 1, "sourceCommit": source_commit, "version": version,

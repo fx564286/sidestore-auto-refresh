@@ -60,6 +60,10 @@ final class ScarletFullscreenSceneStack: NSObject, ObservableObject,
     // through Scarlet Home. Existing live scenes are always preferred.
     private var installedModels: [String: LCAppModel] = [:]
     private var pendingInPlaceLaunch = false
+    private(set) var classicHandoffInProgress = false
+    // Weak references distinguish an intentionally terminated controller from
+    // an unrelated future process, even if memory addresses/PIDs are reused.
+    private let classicTerminationControllers = NSHashTable<AppSceneViewController>.weakObjects()
 
     // An embedded LiveProcess and the original LC full-screen bootstrap
     // must not both own this host process at the same time. Disallow toggles
@@ -80,6 +84,52 @@ final class ScarletFullscreenSceneStack: NSObject, ObservableObject,
     var hasLiveResidentProcess: Bool {
         slots.contains { slot in
             slot.pid > 0 && viewport?.isAlive(folder: slot.id) == true
+        }
+    }
+
+    // A hidden viewport may still own a pending extension request.
+    var classicHandoffRequired: Bool {
+        hasResidentSession || pendingInPlaceLaunch || !pendingClassicFallback.isEmpty ||
+            slots.contains { !$0.failed && $0.pid <= 0 }
+    }
+
+    // Only the explicit host confirmation calls this method. Never clear
+    // MultitaskManager registrations manually or kill an arbitrary PID.
+    func prepareClassicHandoff() async -> Bool {
+        guard !Task.isCancelled, !classicHandoffInProgress, !pendingInPlaceLaunch,
+              pendingClassicFallback.isEmpty,
+              !slots.contains(where: { !$0.failed && $0.pid <= 0 }),
+              let viewport, let owners = viewport.classicHandoffControllers(slots: slots) else {
+            return false
+        }
+        classicHandoffInProgress = true
+        defer { classicHandoffInProgress = false }
+        goHome()
+        for controller in owners {
+            classicTerminationControllers.add(controller)
+        }
+        for controller in owners where controller.isAppRunning {
+            controller.terminate()
+        }
+        // Original LC unregisters the container AFTER its exit delegate.
+        // A successful termination request or an empty slot list alone is
+        // therefore not proof that the native classic bootstrap is available.
+        let deadline = ContinuousClock.now + .seconds(8)
+        while true {
+            if !hasResidentSession && !MultitaskManager.isMultitasking() &&
+                owners.allSatisfy({ !$0.isAppRunning }) {
+                ScarletDiagnosticRecorder.shared.record("guest", "classic_handoff_drained",
+                    status: "success", fields: ["count": String(owners.count),
+                                                 "result": "native_registry_empty"])
+                return true
+            }
+            guard ContinuousClock.now < deadline else {
+                ScarletDiagnosticRecorder.shared.record("guest", "classic_handoff_blocked",
+                    status: "blocked", fields: ["reason": "native_registry_not_drained"])
+                return false
+            }
+            do { try await Task.sleep(nanoseconds: 100_000_000) }
+            catch { return false }
         }
     }
 
@@ -122,6 +172,10 @@ final class ScarletFullscreenSceneStack: NSObject, ObservableObject,
     }
 
     func enqueueSignedGuest(_ app: LCAppModel) throws {
+        guard !classicHandoffInProgress else {
+            throw NSError(domain: "scarlet.fullscreen", code: 5,
+                userInfo: [NSLocalizedDescriptionKey: "기본 실행 방식으로 전환 중입니다."])
+        }
         guard let folder = app.appInfo.relativeBundlePath,
               folder.hasSuffix(".app"), !folder.contains("/"),
               let uuid = app.uiSelectedContainer?.folderName,
@@ -258,7 +312,7 @@ final class ScarletFullscreenSceneStack: NSObject, ObservableObject,
 
     @discardableResult
     private func switchOrLaunch(_ target: ScarletGuestSwitchTarget) -> Bool {
-        guard target.id.hasSuffix(".app"), !target.id.contains("/"),
+        guard !classicHandoffInProgress, target.id.hasSuffix(".app"), !target.id.contains("/"),
               !target.id.contains("\\") else { return false }
         if target.canSwitch {
             let reused = activate(folder: target.id)
@@ -313,7 +367,7 @@ final class ScarletFullscreenSceneStack: NSObject, ObservableObject,
 
     @discardableResult
     func activate(folder: String) -> Bool {
-        guard let slot = slots.first(where: { $0.id == folder }),
+        guard !classicHandoffInProgress, let slot = slots.first(where: { $0.id == folder }),
               slot.pid > 0, viewport?.isAlive(folder: folder) == true else {
             ScarletDiagnosticRecorder.shared.record(
                 "guest", "fullscreen_scene_reuse_failed",
@@ -770,6 +824,8 @@ final class ScarletFullscreenSceneStack: NSObject, ObservableObject,
     func appSceneVCAppDidExit(_ vc: AppSceneViewController!) {
         guard let vc, viewport?.ownsController(vc, folder: vc.bundleId) == true
         else { return }
+        let deliberateClassicExit = classicTerminationControllers.contains(vc)
+        classicTerminationControllers.remove(vc)
         let wasActive = activeID == vc.bundleId
         // The upstream Objective-C controller exposes dataUUID as an
         // implicitly optional String. Preserve the exact existing slot's
@@ -807,7 +863,7 @@ final class ScarletFullscreenSceneStack: NSObject, ObservableObject,
             activeID = nil
             goHome()
         }
-        if fastExit && wasActive, let exitedDataUUID {
+        if fastExit && wasActive && !deliberateClassicExit, let exitedDataUUID {
             recoverFastFailedGuest(vc.bundleId, dataUUID: exitedDataUUID,
                                    reason: "liveprocess_exited_under_4s")
         }
@@ -2290,6 +2346,23 @@ final class ScarletFullscreenSceneViewport: UIViewController {
         controllers[folder]?.isAppRunning == true
     }
 
+    func classicHandoffControllers(slots: [ScarletFullscreenSceneStack.Slot]) -> [AppSceneViewController]? {
+        let running = controllers.values.filter { $0.isAppRunning }
+        // Verify exact current controller/slot/container ownership before
+        // requesting termination. Pending or unrelated controllers fail closed.
+        for controller in running {
+            guard let slot = slots.first(where: { $0.id == controller.bundleId && !$0.failed }),
+                  controller.pid == slot.pid, controller.pid > 0,
+                  controller.dataUUID == slot.dataUUID,
+                  MultitaskManager.isUsing(container: slot.dataUUID) else { return nil }
+        }
+        guard slots.filter({ !$0.failed && $0.pid > 0 }).allSatisfy({ slot in
+            guard let controller = controllers[slot.id] else { return false }
+            return controller.pid == slot.pid && controller.dataUUID == slot.dataUUID
+        }) else { return nil }
+        return running
+    }
+
     func isRemoteReady(folder: String) -> Bool {
         controllers[folder]?.scarletRemoteContentReady() == true
     }
@@ -2443,7 +2516,7 @@ final class ScarletFullscreenSceneViewport: UIViewController {
 
     func reconcile() {
         guard isViewLoaded, let scene = view.window?.windowScene,
-              let stack else { return }
+              let stack, !stack.classicHandoffInProgress else { return }
         let expected = scene.coordinateSpace.bounds.size
         let actual = view.bounds.size
         guard abs(expected.width - actual.width) < 2,
