@@ -19413,6 +19413,565 @@
           "title": "R6P133: native verified self-update shortcut and same-team host rotation preflight"
         }
       ]
+    },
+    {
+      "id": "L212",
+      "date": "2026-11-24",
+      "version": "R6P134-update-integrity",
+      "incident_family": "self_update_verified_bytes_and_native_provisioning_boundary_plus_simulator_platform_linkage",
+      "strategy_family": "worker_verified_update_snapshot_and_preportal_existing_identity_pin",
+      "problem": "host_only_archive_digest_and_post_portal_identity_fence_and_simulator_ios_object_mismatch",
+      "mechanism": "worker_owned_bounded_content_snapshot_and_existing_id_pin_before_apple_portal_and_sdk_specific_rust_archive",
+      "operation_fingerprint": "Carry expected SHA256 through native install IPC; copy regular-file bytes into a private bounded snapshot, verify digest before signer prepare; validate source extension topology before portal and use exact deployed host identifier instead of global appendTeamID. Route the same pinned Rust FFI to SDK-specific static archives with no device archive mutation. Extract true compiler diagnostics.",
+      "source_behavior_contract": "Preserve host and extension identity, credentials, provisioning policy, native pipelines, older manual install payload and all guest layout. Separate device vs simulator archive, do not change device bytes. No claim of signed-device update from CI.",
+      "rollback_commit": "865f2257dd210906f7512c1c305fcd456c0945df",
+      "novelty": {
+        "causal_difference": "L211 only verified file in host then shared pathname and checked signed result after portal. This enforces exact content in the consuming process and pre-portal deployed identifier. L196 constrained simulator architecture but same arm64 device object remained incompatible with simulator platform. R133 actual full artifact log identifies exact linker error. Neither is an Island masking technique.",
+        "falsifiable_prediction": "Changed shared file bytes cannot enter signer prepare; source topology mismatch blocks provisioning; exact host ID used before preferred/global suffix. Simulator linker resolves aarch64-apple-ios-sim archive while device digest unchanged. Native and real device proof remains separate.",
+        "prior_excluded_ids": [
+          "L114",
+          "L195",
+          "L196",
+          "L211"
+        ]
+      },
+      "code_locations": [
+        {
+          "file": ".github/workflows/scarlet-paired-engines-build.yml",
+          "location": "@@ -6 +6 @@ on:",
+          "before": [
+            "    branches: [rebuild/scarlet-from-zero-20261106, fix/scarlet-auth-status-rootcause-20261109, fix/scarlet-pr48-guest-overlay-no-resize-20261109, fix/scarlet-pr48-airpods-glass-guest-switch-v3-20261109, fix/scarlet-pr48-draggable-guest-tab-v4-20261109, fix/scarlet-pr48-v5-glass-drag-cert-recovery-20261109, fix/scarlet-pr48-v6-unified-cert-glass-20261109, fix/scarlet-pr48-v7-cert-jitless-unify-panel-rim-20261109, fix/scarlet-pr48-v8-flicker-certificate-menu-20261109, fix/scarlet-pr48-v9-single-glass-rim-20261109, fix/scarlet-pr48-v10-fixed-tab-cert-and-session-20261109, fix/scarlet-pr48-v11-module-settings-appid-20261109, fix/scarlet-pr48-v12-live-sessions-source-auto-refresh-20261109, fix/scarlet-pr48-v13-compact-settings-current-app-20261109, fix/scarlet-pr48-v14-guest-history-native-scenes-three-ids-20261109, fix/scarlet-pr48-v15-source-disclosure-icons-guest-handoff-20261109, fix/scarlet-pr48-v16-guest-switcher-icons-readback-20261110, fix/scarlet-v17-cold-switch-rotation-20261110, fix/scarlet-v18-refresh-diagnostics-native-glass-20261110, fix/scarlet-v19-active-session-switcher-20261110, fix/scarlet-v20-guest-switcher-trace-20261110, fix/scarlet-v21-hook-telemetry-persistence-20261110, fix/scarlet-v22-runtime-guest-identity-20261110, fix/scarlet-v23-session-only-switcher-20261110, fix/scarlet-v24-refresh-lifecycle-switch-receipt-20261110, fix/scarlet-v25-single-panel-outside-dismiss-20261110, fix/scarlet-v26-liquidglass-button-to-fixed-panel-morph-20261110, fix/scarlet-v27-sidestore-direct-native-refresh-20261110, fix/scarlet-v28-minimuxer-readiness-recovery-20261110, fix/scarlet-v29-inapp-rppairing-20261110, fix/scarlet-v30-restore-sidestore-active-team-20261110, fix/scarlet-v31-pairing-persistence-sheet-purple-20261110, fix/scarlet-v32-korean-copy-20261110, fix/scarlet-v33-log-rootcause-20261110, fix/scarlet-v34-iphone-virtual-resident-20261110, fix/scarlet-v35-restore-original-fullscreen-20261110, fix/scarlet-v36-remove-legacy-ui-20261110, fix/scarlet-v37-session-refresh-20261110, fix/scarlet-v38-current-launch-logs-20261110, fix/scarlet-v39-log-truth-20261110, fix/scarlet-v40-clean-work-session-20261110, fix/scarlet-v42-v40-safe-diagnostics-20261110, fix/scarlet-v43-install-rootcause-20261110, fix/scarlet-v44-rppairing-postsign-install-20261111, fix/scarlet-v45-single-viewport-liveprocess-20261111, fix/scarlet-v46-guard-provisional-guest-geometry-20261111, fix/scarlet-v47-resident-inplace-guest-switch-20261111, fix/scarlet-v48-guest-runtime-recovery-20261111, fix/scarlet-v48-restored-20261111, fix/scarlet-v48-r2-unified-switcher-20261111, fix/scarlet-v48-r3-original-pan-diagnostics-20261111, fix/scarlet-v48-r4-native-outside-remote-insets-20261111, fix/scarlet-v48-r5-attached-insets-shield-20261111, fix/scarlet-v48-r5-crash-recovery-20261111, fix/scarlet-v48-r5-recovery-r2-host-owner-20261111, fix/scarlet-v48-r5-recovery-r3-scene-authority-20261111, fix/scarlet-v48-r5-recovery-r4-native-ready-20261111, fix/scarlet-v48-r5-recovery-r5-compat-foreground-20261111, fix/scarlet-v48-r6-island-outside-audio-20261111, fix/scarlet-v48-r6p1-audio-home-focus-20261111, fix/scarlet-v48-r6p2-blocked-history-20261111, fix/scarlet-v48-r6p3-home-audio-gate-20261111, fix/scarlet-v48-r6p4-guest-audio-ack-20261112, fix/scarlet-v48-r6p7-launch-policy-rootcause-20261112, fix/scarlet-v48-r6p8-policy-field-relay-20261112, fix/scarlet-v48-r6p9-deferred-scene-boot-20261112, fix/scarlet-v48-r6p10-persistent-remediation-ledger-20261112, fix/scarlet-v48-r6p11-resident-guest-sdk-contract-20261112, fix/scarlet-v48-r6p12-instant-recent-switcher-20261112, fix/scarlet-v48-r6p14-switcher-reset-on-navigation-20261112, fix/scarlet-v48-r6p15-guest-root-island-pairing-recovery-20261112, fix/scarlet-v48-r6p16-audit-coverage-20261112, fix/scarlet-v48-r6p17-resident-optin-defaults-20261112, fix/scarlet-v48-r6p18-guest-content-geometry-20261112, fix/scarlet-v48-r6p19-entitlement-failclosed-network-recovery-20261112, fix/scarlet-v48-r6p20-auth-session-bg-id-20261112, fix/scarlet-v48-r6p21-depth-probe-cert-recheck-20261112, fix/scarlet-v48-r6p22-guest-scroll-content-inset-20261112, fix/scarlet-v48-r6p23-guest-owner-refresh-stage-20261112, fix/scarlet-v48-r6p24-keyboard-stage-relay-20261112, fix/scarlet-v48-r6p25-visibility-occlusion-20261112, fix/scarlet-v48-r6p26-recorder-field-contract-20261112, fix/scarlet-v48-r6p27-visible-scroll-owner-20261112, fix/scarlet-v48-r6p28-guest-local-scroll-inset-20261112, fix/scarlet-v48-r6p29-residual-auto-inset-20261112, fix/scarlet-v48-r6p30-inset-interference-isolation-20261112, fix/scarlet-v48-r6p31-nonvertical-always-safearea-20261112, fix/scarlet-v48-r6p32-nonscrolling-owner-stabilization-20261112, fix/scarlet-v48-r6p33-deferred-inset-anchor-20261112, fix/scarlet-v48-r6p34-constraint-native-error-proof-20261112, fix/scarlet-v48-r6p35-ancestor-layout-owner-20261112, fix/scarlet-v48-r6p36-lost-guest-probe-readback-20261112, fix/scarlet-v48-r6p37-nested-header-safe-guide-anchor-20261112, fix/scarlet-v48-r6p38-header-layout-owner-20261113, fix/scarlet-v48-r6p39-parent-safe-guide-constraint-20261113, fix/scarlet-v48-r6p40-transparent-chrome-slot-20261113, fix/scarlet-v48-r6p41-adaptive-chrome-stickiness-20261113, fix/scarlet-v48-r6p42-guest-matched-status-chrome-20261113, fix/scarlet-v48-r6p43-host-verified-native-slot-20261113, fix/scarlet-v48-r6p44-full-native-scroll-header-20261113, fix/scarlet-v48-r6p45-scroll-aware-header-proof-20261113, fix/scarlet-v48-r6p46-detached-header-full-scroll-20261113, fix/scarlet-v48-r6p47-lifecycle-statusbar-20261113, fix/scarlet-v48-r6p48-fresh-proof-crop-gate-20261113, fix/scarlet-v48-r6p49-key-host-statusbar-20261113, fix/scarlet-v48-r6p50-scroll-crop-veto-20261113, fix/scarlet-v48-r6p51-native-statusbar-collision-shield-20261113, fix/scarlet-v48-r6p52-restore-original-host-colors-20261113, fix/scarlet-v48-r6p53-current-log-followup-20261113, fix/scarlet-v48-r6p54-owning-layout-contract-20261114, fix/scarlet-v48-r6p55-child-controller-owner-layout-20261114, fix/scarlet-v48-r6p56-parent-feed-reflow-20261114, fix/scarlet-v48-r6p57-guest-overwrite-20261114, fix/scarlet-v48-r6p58-install-identity-20261114, fix/scarlet-v48-r6p59-unsafe-feed-owner-20261114, fix/scarlet-v48-r6p60-deep-owner-20261114, fix/scarlet-v48-r6p61-slot-manager-20261114, fix/scarlet-v48-r6p62-scroll-viewport-20261114, fix/scarlet-v48-r6p63-nested-parent-20261114, fix/scarlet-v48-r6p64-residual-viewport-20261115, fix/scarlet-v48-r6p65-inset-compensated-settle-20261115, fix/scarlet-v48-r6p66-multiaccount-rea-20261115, fix/scarlet-v48-r6p67-auth-rollback-20261115, fix/scarlet-v48-r6p68-install-team-switch-20261115, fix/scarlet-v48-r6p69-settings-debloat-20261115, fix/scarlet-v48-r6p70-settings-account-list-20261115, fix/scarlet-v48-r6p71-pairing-refresh-race-20261115, fix/scarlet-v48-r6p72-native-pairing-recheck-20261115, fix/scarlet-v48-r6p73-native-managed-host-20261115, fix/scarlet-v48-r6p74-statusband-proof-20261115, fix/scarlet-v48-r6p75-team-slot-scope-20261115, fix/scarlet-v48-r6p76-postheader-scroll-20261115, fix/scarlet-v48-r6p77-severe-scroll-owner-20261116, fix/scarlet-v48-r6p78-signer-recovery-20261116, fix/scarlet-v48-r6p79-import-archive-status-20261116, fix/scarlet-v48-r6p80-device-import-settings-island-20261116, fix/scarlet-v48-r6p81-upstream-import-validation-20261116, fix/scarlet-v48-r6p82-settings-active-install-20261116, fix/scarlet-v48-r6p83-single-statusbar-authority-20261116, fix/scarlet-v48-r6p84-strict-distinct-methods-20261116, fix/scarlet-v48-r6p85-host-origin-refresh-settings-20261116, fix/scarlet-v48-r6p86-apple-team-cert-on-demand-20261116, fix/scarlet-v48-r6p87-account-ui-p12-diagnostics-20261116, fix/scarlet-v48-r6p88-native-account-rows-20261116, fix/scarlet-v48-r6p89-sideinstaller-account-p12-ui-20261117, fix/scarlet-v48-r6p90-account-ownership-20261117, fix/scarlet-v48-r6p91-native-owned-guest-signer-20261117, fix/scarlet-v48-r6p92-jitless-diag-guest-recovery-20261117, fix/scarlet-v48-r6p93-host-profile-signer-anchor-20261117, fix/scarlet-v48-r6p94-explicit-p12-guest-signer-20261117, fix/scarlet-v48-r6p95-inapp-apple-certificate-20261117, fix/scarlet-v48-r6p96-portal-certificate-truth-20261117, fix/scarlet-v48-r6p97-account-owned-signer-20261117, fix/scarlet-v48-r6p98-force-fresh-apple-certificate-20261117, fix/scarlet-v48-r6p99-merged-fresh-cert-host-recovery-20261117, fix/scarlet-v48-r6p100-native-xpc-rebind-20261117, fix/scarlet-v48-r6p101-valid-host-signer-20261117, fix/scarlet-v48-r6p102-certificate-evidence-20261118, fix/scarlet-v48-r6p103-jitless-account-view-20261118, fix/scarlet-v48-r6p105-new-cert-managed-refresh-20261118, fix/scarlet-v48-r6p106-external-host-manual-renew-20261118, fix/scarlet-v48-r6p107-manual-result-contract-20261118, fix/scarlet-v48-r6p108-postimport-cert-rotation-20261118, fix/scarlet-v48-r6p109-owner-pinned-reinstall-20261118, fix/scarlet-v48-r6p110-jitless-native-navigation-20261118, fix/scarlet-v48-r6p111-rootcause-20261118, fix/scarlet-v48-r6p112-remove-runtime-team-literals-20261118, fix/scarlet-v48-r6p113-owner-fence-idempotent-ids-20261118, fix/scarlet-v48-r6p114-legacy-owner-migration-20261118, fix/scarlet-v48-r6p115-managed-host-owner-20261119, fix/scarlet-v48-r6p116-resident-scene-containment-20261120, fix/scarlet-v48-r6p117-resident-scene-settings-20261120, fix/scarlet-v48-r6p118-diagnostic-link-share-20261120, fix/scarlet-v48-r6p119-owner-refresh-20261120, fix/scarlet-v48-r6p120-manual-owner-mismatch-20261120, fix/scarlet-v48-r6p121-existing-cert-recovery-20261120, fix/scarlet-v48-r6p122-device-guest-catalog-20261120, fix/scarlet-v48-r6p123-device-install-labels-20261120, fix/scarlet-v48-r6p124-guest-audio-focus-20261121, fix/scarlet-r6p124-apps-grid-balance-20261121, fix/scarlet-r6p127-device-inventory-renewal-20261124, fix/scarlet-r6p128-device-icons-20261124, fix/scarlet-r6p129-slot-transport-integrity-20261124, fix/scarlet-r6p130-account-refresh-priority-20261124, fix/scarlet-r6p131-classic-switcher-20261124, fix/scarlet-r6p132-integrated-verified-20261124, fix/scarlet-r6p133-shortcut-self-update-20261124]"
+          ],
+          "after": [
+            "    branches: [rebuild/scarlet-from-zero-20261106, fix/scarlet-auth-status-rootcause-20261109, fix/scarlet-pr48-guest-overlay-no-resize-20261109, fix/scarlet-pr48-airpods-glass-guest-switch-v3-20261109, fix/scarlet-pr48-draggable-guest-tab-v4-20261109, fix/scarlet-pr48-v5-glass-drag-cert-recovery-20261109, fix/scarlet-pr48-v6-unified-cert-glass-20261109, fix/scarlet-pr48-v7-cert-jitless-unify-panel-rim-20261109, fix/scarlet-pr48-v8-flicker-certificate-menu-20261109, fix/scarlet-pr48-v9-single-glass-rim-20261109, fix/scarlet-pr48-v10-fixed-tab-cert-and-session-20261109, fix/scarlet-pr48-v11-module-settings-appid-20261109, fix/scarlet-pr48-v12-live-sessions-source-auto-refresh-20261109, fix/scarlet-pr48-v13-compact-settings-current-app-20261109, fix/scarlet-pr48-v14-guest-history-native-scenes-three-ids-20261109, fix/scarlet-pr48-v15-source-disclosure-icons-guest-handoff-20261109, fix/scarlet-pr48-v16-guest-switcher-icons-readback-20261110, fix/scarlet-v17-cold-switch-rotation-20261110, fix/scarlet-v18-refresh-diagnostics-native-glass-20261110, fix/scarlet-v19-active-session-switcher-20261110, fix/scarlet-v20-guest-switcher-trace-20261110, fix/scarlet-v21-hook-telemetry-persistence-20261110, fix/scarlet-v22-runtime-guest-identity-20261110, fix/scarlet-v23-session-only-switcher-20261110, fix/scarlet-v24-refresh-lifecycle-switch-receipt-20261110, fix/scarlet-v25-single-panel-outside-dismiss-20261110, fix/scarlet-v26-liquidglass-button-to-fixed-panel-morph-20261110, fix/scarlet-v27-sidestore-direct-native-refresh-20261110, fix/scarlet-v28-minimuxer-readiness-recovery-20261110, fix/scarlet-v29-inapp-rppairing-20261110, fix/scarlet-v30-restore-sidestore-active-team-20261110, fix/scarlet-v31-pairing-persistence-sheet-purple-20261110, fix/scarlet-v32-korean-copy-20261110, fix/scarlet-v33-log-rootcause-20261110, fix/scarlet-v34-iphone-virtual-resident-20261110, fix/scarlet-v35-restore-original-fullscreen-20261110, fix/scarlet-v36-remove-legacy-ui-20261110, fix/scarlet-v37-session-refresh-20261110, fix/scarlet-v38-current-launch-logs-20261110, fix/scarlet-v39-log-truth-20261110, fix/scarlet-v40-clean-work-session-20261110, fix/scarlet-v42-v40-safe-diagnostics-20261110, fix/scarlet-v43-install-rootcause-20261110, fix/scarlet-v44-rppairing-postsign-install-20261111, fix/scarlet-v45-single-viewport-liveprocess-20261111, fix/scarlet-v46-guard-provisional-guest-geometry-20261111, fix/scarlet-v47-resident-inplace-guest-switch-20261111, fix/scarlet-v48-guest-runtime-recovery-20261111, fix/scarlet-v48-restored-20261111, fix/scarlet-v48-r2-unified-switcher-20261111, fix/scarlet-v48-r3-original-pan-diagnostics-20261111, fix/scarlet-v48-r4-native-outside-remote-insets-20261111, fix/scarlet-v48-r5-attached-insets-shield-20261111, fix/scarlet-v48-r5-crash-recovery-20261111, fix/scarlet-v48-r5-recovery-r2-host-owner-20261111, fix/scarlet-v48-r5-recovery-r3-scene-authority-20261111, fix/scarlet-v48-r5-recovery-r4-native-ready-20261111, fix/scarlet-v48-r5-recovery-r5-compat-foreground-20261111, fix/scarlet-v48-r6-island-outside-audio-20261111, fix/scarlet-v48-r6p1-audio-home-focus-20261111, fix/scarlet-v48-r6p2-blocked-history-20261111, fix/scarlet-v48-r6p3-home-audio-gate-20261111, fix/scarlet-v48-r6p4-guest-audio-ack-20261112, fix/scarlet-v48-r6p7-launch-policy-rootcause-20261112, fix/scarlet-v48-r6p8-policy-field-relay-20261112, fix/scarlet-v48-r6p9-deferred-scene-boot-20261112, fix/scarlet-v48-r6p10-persistent-remediation-ledger-20261112, fix/scarlet-v48-r6p11-resident-guest-sdk-contract-20261112, fix/scarlet-v48-r6p12-instant-recent-switcher-20261112, fix/scarlet-v48-r6p14-switcher-reset-on-navigation-20261112, fix/scarlet-v48-r6p15-guest-root-island-pairing-recovery-20261112, fix/scarlet-v48-r6p16-audit-coverage-20261112, fix/scarlet-v48-r6p17-resident-optin-defaults-20261112, fix/scarlet-v48-r6p18-guest-content-geometry-20261112, fix/scarlet-v48-r6p19-entitlement-failclosed-network-recovery-20261112, fix/scarlet-v48-r6p20-auth-session-bg-id-20261112, fix/scarlet-v48-r6p21-depth-probe-cert-recheck-20261112, fix/scarlet-v48-r6p22-guest-scroll-content-inset-20261112, fix/scarlet-v48-r6p23-guest-owner-refresh-stage-20261112, fix/scarlet-v48-r6p24-keyboard-stage-relay-20261112, fix/scarlet-v48-r6p25-visibility-occlusion-20261112, fix/scarlet-v48-r6p26-recorder-field-contract-20261112, fix/scarlet-v48-r6p27-visible-scroll-owner-20261112, fix/scarlet-v48-r6p28-guest-local-scroll-inset-20261112, fix/scarlet-v48-r6p29-residual-auto-inset-20261112, fix/scarlet-v48-r6p30-inset-interference-isolation-20261112, fix/scarlet-v48-r6p31-nonvertical-always-safearea-20261112, fix/scarlet-v48-r6p32-nonscrolling-owner-stabilization-20261112, fix/scarlet-v48-r6p33-deferred-inset-anchor-20261112, fix/scarlet-v48-r6p34-constraint-native-error-proof-20261112, fix/scarlet-v48-r6p35-ancestor-layout-owner-20261112, fix/scarlet-v48-r6p36-lost-guest-probe-readback-20261112, fix/scarlet-v48-r6p37-nested-header-safe-guide-anchor-20261112, fix/scarlet-v48-r6p38-header-layout-owner-20261113, fix/scarlet-v48-r6p39-parent-safe-guide-constraint-20261113, fix/scarlet-v48-r6p40-transparent-chrome-slot-20261113, fix/scarlet-v48-r6p41-adaptive-chrome-stickiness-20261113, fix/scarlet-v48-r6p42-guest-matched-status-chrome-20261113, fix/scarlet-v48-r6p43-host-verified-native-slot-20261113, fix/scarlet-v48-r6p44-full-native-scroll-header-20261113, fix/scarlet-v48-r6p45-scroll-aware-header-proof-20261113, fix/scarlet-v48-r6p46-detached-header-full-scroll-20261113, fix/scarlet-v48-r6p47-lifecycle-statusbar-20261113, fix/scarlet-v48-r6p48-fresh-proof-crop-gate-20261113, fix/scarlet-v48-r6p49-key-host-statusbar-20261113, fix/scarlet-v48-r6p50-scroll-crop-veto-20261113, fix/scarlet-v48-r6p51-native-statusbar-collision-shield-20261113, fix/scarlet-v48-r6p52-restore-original-host-colors-20261113, fix/scarlet-v48-r6p53-current-log-followup-20261113, fix/scarlet-v48-r6p54-owning-layout-contract-20261114, fix/scarlet-v48-r6p55-child-controller-owner-layout-20261114, fix/scarlet-v48-r6p56-parent-feed-reflow-20261114, fix/scarlet-v48-r6p57-guest-overwrite-20261114, fix/scarlet-v48-r6p58-install-identity-20261114, fix/scarlet-v48-r6p59-unsafe-feed-owner-20261114, fix/scarlet-v48-r6p60-deep-owner-20261114, fix/scarlet-v48-r6p61-slot-manager-20261114, fix/scarlet-v48-r6p62-scroll-viewport-20261114, fix/scarlet-v48-r6p63-nested-parent-20261114, fix/scarlet-v48-r6p64-residual-viewport-20261115, fix/scarlet-v48-r6p65-inset-compensated-settle-20261115, fix/scarlet-v48-r6p66-multiaccount-rea-20261115, fix/scarlet-v48-r6p67-auth-rollback-20261115, fix/scarlet-v48-r6p68-install-team-switch-20261115, fix/scarlet-v48-r6p69-settings-debloat-20261115, fix/scarlet-v48-r6p70-settings-account-list-20261115, fix/scarlet-v48-r6p71-pairing-refresh-race-20261115, fix/scarlet-v48-r6p72-native-pairing-recheck-20261115, fix/scarlet-v48-r6p73-native-managed-host-20261115, fix/scarlet-v48-r6p74-statusband-proof-20261115, fix/scarlet-v48-r6p75-team-slot-scope-20261115, fix/scarlet-v48-r6p76-postheader-scroll-20261115, fix/scarlet-v48-r6p77-severe-scroll-owner-20261116, fix/scarlet-v48-r6p78-signer-recovery-20261116, fix/scarlet-v48-r6p79-import-archive-status-20261116, fix/scarlet-v48-r6p80-device-import-settings-island-20261116, fix/scarlet-v48-r6p81-upstream-import-validation-20261116, fix/scarlet-v48-r6p82-settings-active-install-20261116, fix/scarlet-v48-r6p83-single-statusbar-authority-20261116, fix/scarlet-v48-r6p84-strict-distinct-methods-20261116, fix/scarlet-v48-r6p85-host-origin-refresh-settings-20261116, fix/scarlet-v48-r6p86-apple-team-cert-on-demand-20261116, fix/scarlet-v48-r6p87-account-ui-p12-diagnostics-20261116, fix/scarlet-v48-r6p88-native-account-rows-20261116, fix/scarlet-v48-r6p89-sideinstaller-account-p12-ui-20261117, fix/scarlet-v48-r6p90-account-ownership-20261117, fix/scarlet-v48-r6p91-native-owned-guest-signer-20261117, fix/scarlet-v48-r6p92-jitless-diag-guest-recovery-20261117, fix/scarlet-v48-r6p93-host-profile-signer-anchor-20261117, fix/scarlet-v48-r6p94-explicit-p12-guest-signer-20261117, fix/scarlet-v48-r6p95-inapp-apple-certificate-20261117, fix/scarlet-v48-r6p96-portal-certificate-truth-20261117, fix/scarlet-v48-r6p97-account-owned-signer-20261117, fix/scarlet-v48-r6p98-force-fresh-apple-certificate-20261117, fix/scarlet-v48-r6p99-merged-fresh-cert-host-recovery-20261117, fix/scarlet-v48-r6p100-native-xpc-rebind-20261117, fix/scarlet-v48-r6p101-valid-host-signer-20261117, fix/scarlet-v48-r6p102-certificate-evidence-20261118, fix/scarlet-v48-r6p103-jitless-account-view-20261118, fix/scarlet-v48-r6p105-new-cert-managed-refresh-20261118, fix/scarlet-v48-r6p106-external-host-manual-renew-20261118, fix/scarlet-v48-r6p107-manual-result-contract-20261118, fix/scarlet-v48-r6p108-postimport-cert-rotation-20261118, fix/scarlet-v48-r6p109-owner-pinned-reinstall-20261118, fix/scarlet-v48-r6p110-jitless-native-navigation-20261118, fix/scarlet-v48-r6p111-rootcause-20261118, fix/scarlet-v48-r6p112-remove-runtime-team-literals-20261118, fix/scarlet-v48-r6p113-owner-fence-idempotent-ids-20261118, fix/scarlet-v48-r6p114-legacy-owner-migration-20261118, fix/scarlet-v48-r6p115-managed-host-owner-20261119, fix/scarlet-v48-r6p116-resident-scene-containment-20261120, fix/scarlet-v48-r6p117-resident-scene-settings-20261120, fix/scarlet-v48-r6p118-diagnostic-link-share-20261120, fix/scarlet-v48-r6p119-owner-refresh-20261120, fix/scarlet-v48-r6p120-manual-owner-mismatch-20261120, fix/scarlet-v48-r6p121-existing-cert-recovery-20261120, fix/scarlet-v48-r6p122-device-guest-catalog-20261120, fix/scarlet-v48-r6p123-device-install-labels-20261120, fix/scarlet-v48-r6p124-guest-audio-focus-20261121, fix/scarlet-r6p124-apps-grid-balance-20261121, fix/scarlet-r6p127-device-inventory-renewal-20261124, fix/scarlet-r6p128-device-icons-20261124, fix/scarlet-r6p129-slot-transport-integrity-20261124, fix/scarlet-r6p130-account-refresh-priority-20261124, fix/scarlet-r6p131-classic-switcher-20261124, fix/scarlet-r6p132-integrated-verified-20261124, fix/scarlet-r6p133-shortcut-self-update-20261124, fix/scarlet-r6p134-update-integrity-20261124]"
+          ]
+        },
+        {
+          "file": ".github/workflows/scarlet-paired-engines-build.yml",
+          "location": "@@ -200,0 +201,17 @@ jobs:",
+          "before": [],
+          "after": [
+            "          # Device archive is already built. Do not link iPhoneOS Mach-O",
+            "          # objects into an iPhoneSimulator target even on matching arm64.",
+            "          mkdir -p report/ios-simulator",
+            "          device_digest=\"$(shasum -a 256 engine/LiveContainer/ScarletPairingFFI.a)\"",
+            "          rustup target add aarch64-apple-ios-sim",
+            "          (",
+            "            cd engine/StikPair/rust",
+            "            SDKROOT=\"$(xcrun --sdk iphonesimulator --show-sdk-path)\" \\",
+            "              IPHONEOS_DEPLOYMENT_TARGET=17.4 \\",
+            "              cargo build --release --locked --target aarch64-apple-ios-sim",
+            "          ) > report/ios-simulator/stikpair-simulator-build.log 2>&1 || {",
+            "            tail -60 report/ios-simulator/stikpair-simulator-build.log",
+            "            exit 1",
+            "          }",
+            "          cp engine/StikPair/rust/target/aarch64-apple-ios-sim/release/libstikpair_ffi.a \\",
+            "            engine/LiveContainer/ScarletPairingFFISimulator.a",
+            "          test \"$device_digest\" = \"$(shasum -a 256 engine/LiveContainer/ScarletPairingFFI.a)\""
+          ]
+        },
+        {
+          "file": ".github/workflows/scarlet-paired-engines-build.yml",
+          "location": "@@ -368,0 +386,2 @@ jobs:",
+          "before": [],
+          "after": [
+            "          elif [ \"$GITHUB_REF\" = \"refs/heads/fix/scarlet-r6p134-update-integrity-20261124\" ]; then",
+            "            SCARLET_HOST_VERSION_ARGS=(--host-build-version 3.8.134)"
+          ]
+        },
+        {
+          "file": ".github/workflows/scarlet-paired-engines-build.yml",
+          "location": "@@ -538 +557 @@ jobs:",
+          "before": [
+            "    if: github.event_name == 'push' && (github.ref == 'refs/heads/rebuild/scarlet-from-zero-20261106' || github.ref == 'refs/heads/fix/scarlet-v31-pairing-persistence-sheet-purple-20261110' || github.ref == 'refs/heads/fix/scarlet-v32-korean-copy-20261110' || github.ref == 'refs/heads/fix/scarlet-v33-log-rootcause-20261110' || github.ref == 'refs/heads/fix/scarlet-v34-iphone-virtual-resident-20261110' || github.ref == 'refs/heads/fix/scarlet-v35-restore-original-fullscreen-20261110' || github.ref == 'refs/heads/fix/scarlet-v36-remove-legacy-ui-20261110' || github.ref == 'refs/heads/fix/scarlet-v37-session-refresh-20261110' || github.ref == 'refs/heads/fix/scarlet-v38-current-launch-logs-20261110' || github.ref == 'refs/heads/fix/scarlet-v39-log-truth-20261110' || github.ref == 'refs/heads/fix/scarlet-v40-clean-work-session-20261110' || github.ref == 'refs/heads/fix/scarlet-v42-v40-safe-diagnostics-20261110' || github.ref == 'refs/heads/fix/scarlet-v43-install-rootcause-20261110' || github.ref == 'refs/heads/fix/scarlet-v44-rppairing-postsign-install-20261111' || github.ref == 'refs/heads/fix/scarlet-v45-single-viewport-liveprocess-20261111' || github.ref == 'refs/heads/fix/scarlet-v46-guard-provisional-guest-geometry-20261111' || github.ref == 'refs/heads/fix/scarlet-v47-resident-inplace-guest-switch-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-guest-runtime-recovery-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-restored-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r2-unified-switcher-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r3-original-pan-diagnostics-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r4-native-outside-remote-insets-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r5-attached-insets-shield-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r5-crash-recovery-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r5-recovery-r2-host-owner-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r5-recovery-r3-scene-authority-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r5-recovery-r4-native-ready-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r5-recovery-r5-compat-foreground-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r6-island-outside-audio-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r6p1-audio-home-focus-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r6p2-blocked-history-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r6p3-home-audio-gate-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r6p4-guest-audio-ack-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p7-launch-policy-rootcause-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p8-policy-field-relay-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p9-deferred-scene-boot-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p10-persistent-remediation-ledger-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p11-resident-guest-sdk-contract-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p12-instant-recent-switcher-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p14-switcher-reset-on-navigation-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p15-guest-root-island-pairing-recovery-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p16-audit-coverage-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p17-resident-optin-defaults-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p18-guest-content-geometry-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p19-entitlement-failclosed-network-recovery-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p20-auth-session-bg-id-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p21-depth-probe-cert-recheck-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p22-guest-scroll-content-inset-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p23-guest-owner-refresh-stage-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p24-keyboard-stage-relay-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p25-visibility-occlusion-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p26-recorder-field-contract-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p27-visible-scroll-owner-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p28-guest-local-scroll-inset-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p29-residual-auto-inset-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p30-inset-interference-isolation-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p31-nonvertical-always-safearea-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p32-nonscrolling-owner-stabilization-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p33-deferred-inset-anchor-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p34-constraint-native-error-proof-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p35-ancestor-layout-owner-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p36-lost-guest-probe-readback-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p37-nested-header-safe-guide-anchor-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p38-header-layout-owner-20261113' || github.ref == 'refs/heads/fix/scarlet-v48-r6p39-parent-safe-guide-constraint-20261113' || github.ref == 'refs/heads/fix/scarlet-v48-r6p40-transparent-chrome-slot-20261113' || github.ref == 'refs/heads/fix/scarlet-v48-r6p41-adaptive-chrome-stickiness-20261113' || github.ref == 'refs/heads/fix/scarlet-v48-r6p42-guest-matched-status-chrome-20261113' || github.ref == 'refs/heads/fix/scarlet-v48-r6p43-host-verified-native-slot-20261113' || github.ref == 'refs/heads/fix/scarlet-v48-r6p44-full-native-scroll-header-20261113' || github.ref == 'refs/heads/fix/scarlet-v48-r6p45-scroll-aware-header-proof-20261113' || github.ref == 'refs/heads/fix/scarlet-v48-r6p46-detached-header-full-scroll-20261113' || github.ref == 'refs/heads/fix/scarlet-v48-r6p47-lifecycle-statusbar-20261113' || github.ref == 'refs/heads/fix/scarlet-v48-r6p48-fresh-proof-crop-gate-20261113' || github.ref == 'refs/heads/fix/scarlet-v48-r6p49-key-host-statusbar-20261113' || github.ref == 'refs/heads/fix/scarlet-v48-r6p50-scroll-crop-veto-20261113' || github.ref == 'refs/heads/fix/scarlet-v48-r6p51-native-statusbar-collision-shield-20261113' || github.ref == 'refs/heads/fix/scarlet-v48-r6p52-restore-original-host-colors-20261113' || github.ref == 'refs/heads/fix/scarlet-v48-r6p53-current-log-followup-20261113' || github.ref == 'refs/heads/fix/scarlet-v48-r6p54-owning-layout-contract-20261114' || github.ref == 'refs/heads/fix/scarlet-v48-r6p55-child-controller-owner-layout-20261114' || github.ref == 'refs/heads/fix/scarlet-v48-r6p56-parent-feed-reflow-20261114' || github.ref == 'refs/heads/fix/scarlet-v48-r6p57-guest-overwrite-20261114' || github.ref == 'refs/heads/fix/scarlet-v48-r6p58-install-identity-20261114' || github.ref == 'refs/heads/fix/scarlet-v48-r6p59-unsafe-feed-owner-20261114' || github.ref == 'refs/heads/fix/scarlet-v48-r6p60-deep-owner-20261114' || github.ref == 'refs/heads/fix/scarlet-v48-r6p61-slot-manager-20261114' || github.ref == 'refs/heads/fix/scarlet-v48-r6p63-nested-parent-20261114' || github.ref == 'refs/heads/fix/scarlet-v48-r6p64-residual-viewport-20261115' || github.ref == 'refs/heads/fix/scarlet-v48-r6p65-inset-compensated-settle-20261115' || github.ref == 'refs/heads/fix/scarlet-v48-r6p66-multiaccount-rea-20261115' || github.ref == 'refs/heads/fix/scarlet-v48-r6p67-auth-rollback-20261115' || github.ref == 'refs/heads/fix/scarlet-v48-r6p68-install-team-switch-20261115' || github.ref == 'refs/heads/fix/scarlet-v48-r6p69-settings-debloat-20261115' || github.ref == 'refs/heads/fix/scarlet-v48-r6p70-settings-account-list-20261115' || github.ref == 'refs/heads/fix/scarlet-v48-r6p71-pairing-refresh-race-20261115' || github.ref == 'refs/heads/fix/scarlet-v48-r6p72-native-pairing-recheck-20261115' || github.ref == 'refs/heads/fix/scarlet-v48-r6p73-native-managed-host-20261115' || github.ref == 'refs/heads/fix/scarlet-v48-r6p74-statusband-proof-20261115' || github.ref == 'refs/heads/fix/scarlet-v48-r6p75-team-slot-scope-20261115' || github.ref == 'refs/heads/fix/scarlet-v48-r6p76-postheader-scroll-20261115' || github.ref == 'refs/heads/fix/scarlet-v48-r6p77-severe-scroll-owner-20261116' || github.ref == 'refs/heads/fix/scarlet-v48-r6p78-signer-recovery-20261116' || github.ref == 'refs/heads/fix/scarlet-v48-r6p79-import-archive-status-20261116' || github.ref == 'refs/heads/fix/scarlet-v48-r6p80-device-import-settings-island-20261116' || github.ref == 'refs/heads/fix/scarlet-v48-r6p81-upstream-import-validation-20261116' || github.ref == 'refs/heads/fix/scarlet-v48-r6p83-single-statusbar-authority-20261116' || github.ref == 'refs/heads/fix/scarlet-v48-r6p84-strict-distinct-methods-20261116' || github.ref == 'refs/heads/fix/scarlet-v48-r6p85-host-origin-refresh-settings-20261116' || github.ref == 'refs/heads/fix/scarlet-v48-r6p86-apple-team-cert-on-demand-20261116' || github.ref == 'refs/heads/fix/scarlet-v48-r6p87-account-ui-p12-diagnostics-20261116' || github.ref == 'refs/heads/fix/scarlet-v48-r6p88-native-account-rows-20261116' || github.ref == 'refs/heads/fix/scarlet-v48-r6p89-sideinstaller-account-p12-ui-20261117' || github.ref == 'refs/heads/fix/scarlet-v48-r6p90-account-ownership-20261117' || github.ref == 'refs/heads/fix/scarlet-v48-r6p91-native-owned-guest-signer-20261117' || github.ref == 'refs/heads/fix/scarlet-v48-r6p92-jitless-diag-guest-recovery-20261117' || github.ref == 'refs/heads/fix/scarlet-v48-r6p93-host-profile-signer-anchor-20261117' || github.ref == 'refs/heads/fix/scarlet-v48-r6p94-explicit-p12-guest-signer-20261117' || github.ref == 'refs/heads/fix/scarlet-v48-r6p95-inapp-apple-certificate-20261117' || github.ref == 'refs/heads/fix/scarlet-v48-r6p96-portal-certificate-truth-20261117' || github.ref == 'refs/heads/fix/scarlet-v48-r6p97-account-owned-signer-20261117' || github.ref == 'refs/heads/fix/scarlet-v48-r6p98-force-fresh-apple-certificate-20261117' || github.ref == 'refs/heads/fix/scarlet-v48-r6p99-merged-fresh-cert-host-recovery-20261117' || github.ref == 'refs/heads/fix/scarlet-v48-r6p100-native-xpc-rebind-20261117' || github.ref == 'refs/heads/fix/scarlet-v48-r6p101-valid-host-signer-20261117' || github.ref == 'refs/heads/fix/scarlet-v48-r6p102-certificate-evidence-20261118' || github.ref == 'refs/heads/fix/scarlet-v48-r6p103-jitless-account-view-20261118' || github.ref == 'refs/heads/fix/scarlet-v48-r6p105-new-cert-managed-refresh-20261118' || github.ref == 'refs/heads/fix/scarlet-v48-r6p106-external-host-manual-renew-20261118' || github.ref == 'refs/heads/fix/scarlet-v48-r6p107-manual-result-contract-20261118' || github.ref == 'refs/heads/fix/scarlet-v48-r6p108-postimport-cert-rotation-20261118' || github.ref == 'refs/heads/fix/scarlet-v48-r6p109-owner-pinned-reinstall-20261118' || github.ref == 'refs/heads/fix/scarlet-v48-r6p110-jitless-native-navigation-20261118' || github.ref == 'refs/heads/fix/scarlet-v48-r6p111-rootcause-20261118' || github.ref == 'refs/heads/fix/scarlet-v48-r6p112-remove-runtime-team-literals-20261118' || github.ref == 'refs/heads/fix/scarlet-v48-r6p113-owner-fence-idempotent-ids-20261118' || github.ref == 'refs/heads/fix/scarlet-v48-r6p114-legacy-owner-migration-20261118' || github.ref == 'refs/heads/fix/scarlet-v48-r6p115-managed-host-owner-20261119' || github.ref == 'refs/heads/fix/scarlet-v48-r6p118-diagnostic-link-share-20261120' || github.ref == 'refs/heads/fix/scarlet-v48-r6p119-owner-refresh-20261120' || github.ref == 'refs/heads/fix/scarlet-v48-r6p120-manual-owner-mismatch-20261120' || github.ref == 'refs/heads/fix/scarlet-v48-r6p121-existing-cert-recovery-20261120' || github.ref == 'refs/heads/fix/scarlet-v48-r6p122-device-guest-catalog-20261120' || github.ref == 'refs/heads/fix/scarlet-v48-r6p123-device-install-labels-20261120' || github.ref == 'refs/heads/fix/scarlet-v48-r6p124-guest-audio-focus-20261121' || github.ref == 'refs/heads/fix/scarlet-r6p124-apps-grid-balance-20261121' || github.ref == 'refs/heads/fix/scarlet-r6p127-device-inventory-renewal-20261124' || github.ref == 'refs/heads/fix/scarlet-r6p128-device-icons-20261124' || github.ref == 'refs/heads/fix/scarlet-r6p129-slot-transport-integrity-20261124' || github.ref == 'refs/heads/fix/scarlet-r6p130-account-refresh-priority-20261124' || github.ref == 'refs/heads/fix/scarlet-r6p131-classic-switcher-20261124' || github.ref == 'refs/heads/fix/scarlet-r6p132-integrated-verified-20261124' || github.ref == 'refs/heads/fix/scarlet-r6p133-shortcut-self-update-20261124')"
+          ],
+          "after": [
+            "    if: github.event_name == 'push' && (github.ref == 'refs/heads/rebuild/scarlet-from-zero-20261106' || github.ref == 'refs/heads/fix/scarlet-v31-pairing-persistence-sheet-purple-20261110' || github.ref == 'refs/heads/fix/scarlet-v32-korean-copy-20261110' || github.ref == 'refs/heads/fix/scarlet-v33-log-rootcause-20261110' || github.ref == 'refs/heads/fix/scarlet-v34-iphone-virtual-resident-20261110' || github.ref == 'refs/heads/fix/scarlet-v35-restore-original-fullscreen-20261110' || github.ref == 'refs/heads/fix/scarlet-v36-remove-legacy-ui-20261110' || github.ref == 'refs/heads/fix/scarlet-v37-session-refresh-20261110' || github.ref == 'refs/heads/fix/scarlet-v38-current-launch-logs-20261110' || github.ref == 'refs/heads/fix/scarlet-v39-log-truth-20261110' || github.ref == 'refs/heads/fix/scarlet-v40-clean-work-session-20261110' || github.ref == 'refs/heads/fix/scarlet-v42-v40-safe-diagnostics-20261110' || github.ref == 'refs/heads/fix/scarlet-v43-install-rootcause-20261110' || github.ref == 'refs/heads/fix/scarlet-v44-rppairing-postsign-install-20261111' || github.ref == 'refs/heads/fix/scarlet-v45-single-viewport-liveprocess-20261111' || github.ref == 'refs/heads/fix/scarlet-v46-guard-provisional-guest-geometry-20261111' || github.ref == 'refs/heads/fix/scarlet-v47-resident-inplace-guest-switch-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-guest-runtime-recovery-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-restored-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r2-unified-switcher-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r3-original-pan-diagnostics-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r4-native-outside-remote-insets-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r5-attached-insets-shield-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r5-crash-recovery-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r5-recovery-r2-host-owner-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r5-recovery-r3-scene-authority-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r5-recovery-r4-native-ready-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r5-recovery-r5-compat-foreground-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r6-island-outside-audio-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r6p1-audio-home-focus-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r6p2-blocked-history-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r6p3-home-audio-gate-20261111' || github.ref == 'refs/heads/fix/scarlet-v48-r6p4-guest-audio-ack-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p7-launch-policy-rootcause-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p8-policy-field-relay-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p9-deferred-scene-boot-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p10-persistent-remediation-ledger-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p11-resident-guest-sdk-contract-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p12-instant-recent-switcher-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p14-switcher-reset-on-navigation-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p15-guest-root-island-pairing-recovery-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p16-audit-coverage-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p17-resident-optin-defaults-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p18-guest-content-geometry-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p19-entitlement-failclosed-network-recovery-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p20-auth-session-bg-id-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p21-depth-probe-cert-recheck-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p22-guest-scroll-content-inset-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p23-guest-owner-refresh-stage-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p24-keyboard-stage-relay-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p25-visibility-occlusion-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p26-recorder-field-contract-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p27-visible-scroll-owner-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p28-guest-local-scroll-inset-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p29-residual-auto-inset-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p30-inset-interference-isolation-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p31-nonvertical-always-safearea-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p32-nonscrolling-owner-stabilization-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p33-deferred-inset-anchor-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p34-constraint-native-error-proof-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p35-ancestor-layout-owner-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p36-lost-guest-probe-readback-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p37-nested-header-safe-guide-anchor-20261112' || github.ref == 'refs/heads/fix/scarlet-v48-r6p38-header-layout-owner-20261113' || github.ref == 'refs/heads/fix/scarlet-v48-r6p39-parent-safe-guide-constraint-20261113' || github.ref == 'refs/heads/fix/scarlet-v48-r6p40-transparent-chrome-slot-20261113' || github.ref == 'refs/heads/fix/scarlet-v48-r6p41-adaptive-chrome-stickiness-20261113' || github.ref == 'refs/heads/fix/scarlet-v48-r6p42-guest-matched-status-chrome-20261113' || github.ref == 'refs/heads/fix/scarlet-v48-r6p43-host-verified-native-slot-20261113' || github.ref == 'refs/heads/fix/scarlet-v48-r6p44-full-native-scroll-header-20261113' || github.ref == 'refs/heads/fix/scarlet-v48-r6p45-scroll-aware-header-proof-20261113' || github.ref == 'refs/heads/fix/scarlet-v48-r6p46-detached-header-full-scroll-20261113' || github.ref == 'refs/heads/fix/scarlet-v48-r6p47-lifecycle-statusbar-20261113' || github.ref == 'refs/heads/fix/scarlet-v48-r6p48-fresh-proof-crop-gate-20261113' || github.ref == 'refs/heads/fix/scarlet-v48-r6p49-key-host-statusbar-20261113' || github.ref == 'refs/heads/fix/scarlet-v48-r6p50-scroll-crop-veto-20261113' || github.ref == 'refs/heads/fix/scarlet-v48-r6p51-native-statusbar-collision-shield-20261113' || github.ref == 'refs/heads/fix/scarlet-v48-r6p52-restore-original-host-colors-20261113' || github.ref == 'refs/heads/fix/scarlet-v48-r6p53-current-log-followup-20261113' || github.ref == 'refs/heads/fix/scarlet-v48-r6p54-owning-layout-contract-20261114' || github.ref == 'refs/heads/fix/scarlet-v48-r6p55-child-controller-owner-layout-20261114' || github.ref == 'refs/heads/fix/scarlet-v48-r6p56-parent-feed-reflow-20261114' || github.ref == 'refs/heads/fix/scarlet-v48-r6p57-guest-overwrite-20261114' || github.ref == 'refs/heads/fix/scarlet-v48-r6p58-install-identity-20261114' || github.ref == 'refs/heads/fix/scarlet-v48-r6p59-unsafe-feed-owner-20261114' || github.ref == 'refs/heads/fix/scarlet-v48-r6p60-deep-owner-20261114' || github.ref == 'refs/heads/fix/scarlet-v48-r6p61-slot-manager-20261114' || github.ref == 'refs/heads/fix/scarlet-v48-r6p63-nested-parent-20261114' || github.ref == 'refs/heads/fix/scarlet-v48-r6p64-residual-viewport-20261115' || github.ref == 'refs/heads/fix/scarlet-v48-r6p65-inset-compensated-settle-20261115' || github.ref == 'refs/heads/fix/scarlet-v48-r6p66-multiaccount-rea-20261115' || github.ref == 'refs/heads/fix/scarlet-v48-r6p67-auth-rollback-20261115' || github.ref == 'refs/heads/fix/scarlet-v48-r6p68-install-team-switch-20261115' || github.ref == 'refs/heads/fix/scarlet-v48-r6p69-settings-debloat-20261115' || github.ref == 'refs/heads/fix/scarlet-v48-r6p70-settings-account-list-20261115' || github.ref == 'refs/heads/fix/scarlet-v48-r6p71-pairing-refresh-race-20261115' || github.ref == 'refs/heads/fix/scarlet-v48-r6p72-native-pairing-recheck-20261115' || github.ref == 'refs/heads/fix/scarlet-v48-r6p73-native-managed-host-20261115' || github.ref == 'refs/heads/fix/scarlet-v48-r6p74-statusband-proof-20261115' || github.ref == 'refs/heads/fix/scarlet-v48-r6p75-team-slot-scope-20261115' || github.ref == 'refs/heads/fix/scarlet-v48-r6p76-postheader-scroll-20261115' || github.ref == 'refs/heads/fix/scarlet-v48-r6p77-severe-scroll-owner-20261116' || github.ref == 'refs/heads/fix/scarlet-v48-r6p78-signer-recovery-20261116' || github.ref == 'refs/heads/fix/scarlet-v48-r6p79-import-archive-status-20261116' || github.ref == 'refs/heads/fix/scarlet-v48-r6p80-device-import-settings-island-20261116' || github.ref == 'refs/heads/fix/scarlet-v48-r6p81-upstream-import-validation-20261116' || github.ref == 'refs/heads/fix/scarlet-v48-r6p83-single-statusbar-authority-20261116' || github.ref == 'refs/heads/fix/scarlet-v48-r6p84-strict-distinct-methods-20261116' || github.ref == 'refs/heads/fix/scarlet-v48-r6p85-host-origin-refresh-settings-20261116' || github.ref == 'refs/heads/fix/scarlet-v48-r6p86-apple-team-cert-on-demand-20261116' || github.ref == 'refs/heads/fix/scarlet-v48-r6p87-account-ui-p12-diagnostics-20261116' || github.ref == 'refs/heads/fix/scarlet-v48-r6p88-native-account-rows-20261116' || github.ref == 'refs/heads/fix/scarlet-v48-r6p89-sideinstaller-account-p12-ui-20261117' || github.ref == 'refs/heads/fix/scarlet-v48-r6p90-account-ownership-20261117' || github.ref == 'refs/heads/fix/scarlet-v48-r6p91-native-owned-guest-signer-20261117' || github.ref == 'refs/heads/fix/scarlet-v48-r6p92-jitless-diag-guest-recovery-20261117' || github.ref == 'refs/heads/fix/scarlet-v48-r6p93-host-profile-signer-anchor-20261117' || github.ref == 'refs/heads/fix/scarlet-v48-r6p94-explicit-p12-guest-signer-20261117' || github.ref == 'refs/heads/fix/scarlet-v48-r6p95-inapp-apple-certificate-20261117' || github.ref == 'refs/heads/fix/scarlet-v48-r6p96-portal-certificate-truth-20261117' || github.ref == 'refs/heads/fix/scarlet-v48-r6p97-account-owned-signer-20261117' || github.ref == 'refs/heads/fix/scarlet-v48-r6p98-force-fresh-apple-certificate-20261117' || github.ref == 'refs/heads/fix/scarlet-v48-r6p99-merged-fresh-cert-host-recovery-20261117' || github.ref == 'refs/heads/fix/scarlet-v48-r6p100-native-xpc-rebind-20261117' || github.ref == 'refs/heads/fix/scarlet-v48-r6p101-valid-host-signer-20261117' || github.ref == 'refs/heads/fix/scarlet-v48-r6p102-certificate-evidence-20261118' || github.ref == 'refs/heads/fix/scarlet-v48-r6p103-jitless-account-view-20261118' || github.ref == 'refs/heads/fix/scarlet-v48-r6p105-new-cert-managed-refresh-20261118' || github.ref == 'refs/heads/fix/scarlet-v48-r6p106-external-host-manual-renew-20261118' || github.ref == 'refs/heads/fix/scarlet-v48-r6p107-manual-result-contract-20261118' || github.ref == 'refs/heads/fix/scarlet-v48-r6p108-postimport-cert-rotation-20261118' || github.ref == 'refs/heads/fix/scarlet-v48-r6p109-owner-pinned-reinstall-20261118' || github.ref == 'refs/heads/fix/scarlet-v48-r6p110-jitless-native-navigation-20261118' || github.ref == 'refs/heads/fix/scarlet-v48-r6p111-rootcause-20261118' || github.ref == 'refs/heads/fix/scarlet-v48-r6p112-remove-runtime-team-literals-20261118' || github.ref == 'refs/heads/fix/scarlet-v48-r6p113-owner-fence-idempotent-ids-20261118' || github.ref == 'refs/heads/fix/scarlet-v48-r6p114-legacy-owner-migration-20261118' || github.ref == 'refs/heads/fix/scarlet-v48-r6p115-managed-host-owner-20261119' || github.ref == 'refs/heads/fix/scarlet-v48-r6p118-diagnostic-link-share-20261120' || github.ref == 'refs/heads/fix/scarlet-v48-r6p119-owner-refresh-20261120' || github.ref == 'refs/heads/fix/scarlet-v48-r6p120-manual-owner-mismatch-20261120' || github.ref == 'refs/heads/fix/scarlet-v48-r6p121-existing-cert-recovery-20261120' || github.ref == 'refs/heads/fix/scarlet-v48-r6p122-device-guest-catalog-20261120' || github.ref == 'refs/heads/fix/scarlet-v48-r6p123-device-install-labels-20261120' || github.ref == 'refs/heads/fix/scarlet-v48-r6p124-guest-audio-focus-20261121' || github.ref == 'refs/heads/fix/scarlet-r6p124-apps-grid-balance-20261121' || github.ref == 'refs/heads/fix/scarlet-r6p127-device-inventory-renewal-20261124' || github.ref == 'refs/heads/fix/scarlet-r6p128-device-icons-20261124' || github.ref == 'refs/heads/fix/scarlet-r6p129-slot-transport-integrity-20261124' || github.ref == 'refs/heads/fix/scarlet-r6p130-account-refresh-priority-20261124' || github.ref == 'refs/heads/fix/scarlet-r6p131-classic-switcher-20261124' || github.ref == 'refs/heads/fix/scarlet-r6p132-integrated-verified-20261124' || github.ref == 'refs/heads/fix/scarlet-r6p133-shortcut-self-update-20261124' || github.ref == 'refs/heads/fix/scarlet-r6p134-update-integrity-20261124')"
+          ]
+        },
+        {
+          "file": ".github/workflows/scarlet-paired-engines-build.yml",
+          "location": "@@ -579 +598 @@ jobs:",
+          "before": [
+            "              if any(x in __import__(\"os\").environ.get(\"GITHUB_REF\",\"\") for x in (\"r6p58\",\"r6p59\",\"r6p60\",\"r6p61\",\"r6p62\",\"r6p63\",\"r6p64\",\"r6p65\",\"r6p66\",\"r6p67\",\"r6p68\",\"r6p69\",\"r6p70\",\"r6p71\",\"r6p72\",\"r6p73\",\"r6p74\",\"r6p75\",\"r6p76\",\"r6p77\",\"r6p78\",\"r6p79\",\"r6p80\",\"r6p81\",\"r6p82\",\"r6p83\",\"r6p84\",\"r6p85\",\"r6p86\",\"r6p87\",\"r6p88\",\"r6p89\",\"r6p90\",\"r6p91\",\"r6p92\",\"r6p93\",\"r6p94\",\"r6p95\",\"r6p96\",\"r6p97\",\"r6p98\",\"r6p99\",\"r6p100\")) or __import__(\"os\").environ.get(\"GITHUB_REF\", \"\") in ('refs/heads/fix/scarlet-r6p128-device-icons-20261124', 'refs/heads/fix/scarlet-r6p129-slot-transport-integrity-20261124', 'refs/heads/fix/scarlet-r6p130-account-refresh-priority-20261124', 'refs/heads/fix/scarlet-r6p131-classic-switcher-20261124', 'refs/heads/fix/scarlet-r6p132-integrated-verified-20261124', 'refs/heads/fix/scarlet-r6p133-shortcut-self-update-20261124'):"
+          ],
+          "after": [
+            "              if any(x in __import__(\"os\").environ.get(\"GITHUB_REF\",\"\") for x in (\"r6p58\",\"r6p59\",\"r6p60\",\"r6p61\",\"r6p62\",\"r6p63\",\"r6p64\",\"r6p65\",\"r6p66\",\"r6p67\",\"r6p68\",\"r6p69\",\"r6p70\",\"r6p71\",\"r6p72\",\"r6p73\",\"r6p74\",\"r6p75\",\"r6p76\",\"r6p77\",\"r6p78\",\"r6p79\",\"r6p80\",\"r6p81\",\"r6p82\",\"r6p83\",\"r6p84\",\"r6p85\",\"r6p86\",\"r6p87\",\"r6p88\",\"r6p89\",\"r6p90\",\"r6p91\",\"r6p92\",\"r6p93\",\"r6p94\",\"r6p95\",\"r6p96\",\"r6p97\",\"r6p98\",\"r6p99\",\"r6p100\")) or __import__(\"os\").environ.get(\"GITHUB_REF\", \"\") in ('refs/heads/fix/scarlet-r6p128-device-icons-20261124', 'refs/heads/fix/scarlet-r6p129-slot-transport-integrity-20261124', 'refs/heads/fix/scarlet-r6p130-account-refresh-priority-20261124', 'refs/heads/fix/scarlet-r6p131-classic-switcher-20261124', 'refs/heads/fix/scarlet-r6p132-integrated-verified-20261124', 'refs/heads/fix/scarlet-r6p133-shortcut-self-update-20261124', 'refs/heads/fix/scarlet-r6p134-update-integrity-20261124'):"
+          ]
+        },
+        {
+          "file": ".github/workflows/scarlet-paired-engines-build.yml",
+          "location": "@@ -644,0 +664 @@ jobs:",
+          "before": [],
+          "after": [
+            "                  if __import__(\"os\").environ.get(\"GITHUB_REF\", \"\") == \"refs/heads/fix/scarlet-r6p134-update-integrity-20261124\": version=\"3.8.134\""
+          ]
+        },
+        {
+          "file": ".github/workflows/scarlet-paired-engines-build.yml",
+          "location": "@@ -753,0 +774,2 @@ jobs:",
+          "before": [],
+          "after": [
+            "          elif [ \"$GITHUB_REF\" = \"refs/heads/fix/scarlet-r6p134-update-integrity-20261124\" ]; then",
+            "            asset=\"Scarlet-Crystal-V48-R6P134-UPDATE-INTEGRITY-UNSIGNED.ipa\""
+          ]
+        },
+        {
+          "file": ".github/workflows/scarlet-paired-engines-build.yml",
+          "location": "@@ -1107,0 +1130,3 @@ jobs:",
+          "before": [],
+          "after": [
+            "          elif [ \"$GITHUB_REF\" = \"refs/heads/fix/scarlet-r6p134-update-integrity-20261124\" ]; then",
+            "            tag=scarlet-v48-r6p134-update-integrity-unsigned-20261124",
+            "            asset=Scarlet-Crystal-V48-R6P134-UPDATE-INTEGRITY-UNSIGNED.ipa"
+          ]
+        },
+        {
+          "file": "rebuild/HostApp/ScarletSelfUpdateIntent.swift",
+          "location": "@@ -221 +221 @@ enum ScarletSelfUpdate {",
+          "before": [
+            "                selfUpdateVersion: expectedVersion)"
+          ],
+          "after": [
+            "                selfUpdateVersion: expectedVersion, selfUpdateSHA256: manifest.sha256)"
+          ]
+        },
+        {
+          "file": "rebuild/Tests/test_v48_r6p113_owner_fence_and_identity.py",
+          "location": "@@ -29,0 +30,2 @@ class OwnerFenceIdentity(unittest.TestCase):",
+          "before": [],
+          "after": [
+            "        swift += '\\n        if let overrideProfile = self.context.overrideProvisioningProfile {'",
+            "        swift += '\\n        if let preferredBundleID = await self.getPreferredBundleID(for: targetAppBundle, team: team) {'"
+          ]
+        },
+        {
+          "file": "rebuild/Tests/test_v48_r6p113_owner_fence_and_identity.py",
+          "location": "@@ -30,0 +33 @@ class OwnerFenceIdentity(unittest.TestCase):",
+          "before": [],
+          "after": [
+            "        self.assertIn('parentID = exactHostID',patched)"
+          ]
+        },
+        {
+          "file": "rebuild/Tests/test_v48_r6p134_update_transaction_integrity.py",
+          "location": "@@ -0,0 +1,54 @@",
+          "before": [],
+          "after": [
+            "\"\"\"R134: bind update bytes and existing identity before native provisioning.\"\"\"",
+            "from pathlib import Path",
+            "import importlib.util",
+            "import unittest",
+            "ROOT=Path(__file__).resolve().parents[1]",
+            "W=(ROOT/'integration/ScarletDeviceInstallAgent.swift.txt').read_text()",
+            "H=(ROOT/'HostApp/ScarletSelfUpdateIntent.swift').read_text()",
+            "G=(ROOT/'integration/wire_scarlet_auth.py').read_text()",
+            "",
+            "class UpdateIntegrity(unittest.TestCase):",
+            "    def test_digest_transport_and_private_snapshot_precedes_prepare(self):",
+            "        self.assertIn('selfUpdateSHA256: manifest.sha256',H)",
+            "        self.assertIn('parts.count != 2 && parts.count != 5',G)",
+            "        self.assertIn('payload[@\"selfUpdateSHA256\"] = parts[4]',G)",
+            "        self.assertIn('selfUpdateSHA256: String? = nil',G)",
+            "        self.assertIn('let digest = payload[\"selfUpdateSHA256\"] as? String',W)",
+            "        self.assertIn('copySelfUpdateSnapshot(from: stagedURL, to: fileURL)',W)",
+            "        self.assertLess(W.index('try verifySelfUpdateDigest(fileURL, expected: digest)'),W.index('ScarletInstallTeamAuthority.prepare('))",
+            "        self.assertLess(W.index('try verifySelfUpdateDigest(fileURL, expected: digest)'),W.index('selfUpdateFence.set(SelfUpdateExpectation'))",
+            "        self.assertIn('privateSnapshotDirectory',W)",
+            "        self.assertIn('values.isSymbolicLink != true',W)",
+            "        self.assertIn('try output.write(contentsOf: block)',W)",
+            "        self.assertIn('total <= 150 * 1024 * 1024',W)",
+            "    def test_provisioning_does_not_create_alternate_ids(self):",
+            "        self.assertIn('static func validateSelfUpdateInput(',W)",
+            "        self.assertIn('static func selfUpdateProvisioningParentID(',W)",
+            "        self.assertIn('expected.extensionIDs == mapped',W)",
+            "        self.assertIn('targetAppBundle.bundleIdentifier == \"com.kdt.livecontainer.P8EZT3U5N4\"',W)",
+            "        self.assertIn('ScarletDeviceInstallAgent.validateSelfUpdateInput(targetAppBundle',G)",
+            "        self.assertIn('ScarletDeviceInstallAgent.selfUpdateProvisioningParentID(',G)",
+            "        self.assertIn('parentID = exactHostID',G)",
+            "        self.assertIn('selfUpdateProvisioningParentID',G.split('def patch_idempotent_team_provisioning',1)[1].split('def patch_sidestore',1)[0])",
+            "    def test_simulator_error_summary_excludes_objc_selector_and_warnings(self):",
+            "        spec=importlib.util.spec_from_file_location('smoke',ROOT/'diagnostics/scarlet_ios_simulator_smoke.py')",
+            "        mod=importlib.util.module_from_spec(spec);spec.loader.exec_module(mod)",
+            "        lines=['18 | + (instancetype)extensionWithIdentifier:(NSString *)identifier error:(NSError **)error;',",
+            "               '/tmp/a.m:30:115: warning: undeclared selector error:',",
+            "               '/tmp/a.swift:9:5: error: actual compiler error',",
+            "               'ld: building for iOS Simulator, but linking in object file built for iOS',",
+            "               'clang: error: linker command failed with exit code 1']",
+            "        got=mod.extract_build_errors('\\n'.join(lines))",
+            "        self.assertEqual(got,lines[2:])",
+            "    def test_simulator_ffi_sdk_isolation(self):",
+            "        link=(ROOT/'integration/link_scarlet_pairing.py').read_text()",
+            "        workflow=(ROOT.parent/'.github/workflows/scarlet-paired-engines-build.yml').read_text()",
+            "        self.assertIn('SCARLET_PAIRING_ARCHIVE[sdk=iphonesimulator*]',link)",
+            "        self.assertIn('SCARLET_PAIRING_ARCHIVE = ScarletPairingFFI.a',link)",
+            "        self.assertIn('$(PROJECT_DIR)/$(SCARLET_PAIRING_ARCHIVE)',link)",
+            "        self.assertIn('cargo build --release --locked --target aarch64-apple-ios-sim',workflow)",
+            "        self.assertIn('engine/LiveContainer/ScarletPairingFFISimulator.a',workflow)",
+            "        self.assertIn('test \"$device_digest\" =',workflow)",
+            "        self.assertLess(workflow.index('Build LiveContainer with integrated SideStoreSupport for real iOS'),",
+            "                        workflow.index('rustup target add aarch64-apple-ios-sim'))",
+            "if __name__=='__main__': unittest.main()"
+          ]
+        },
+        {
+          "file": "rebuild/diagnostics/SCARLET_ENGINEERING_STATE.md",
+          "location": "@@ -0,0 +1,20 @@",
+          "before": [],
+          "after": [
+            "# Scarlet Crystal — engineering state / R6P134",
+            "Date: 2026-11-24 (UTC)",
+            "Baseline: R6P133, source 865f2257dd210906f7512c1c305fcd456c0945df.",
+            "",
+            "## Requirements and acceptance",
+            "- Cumulative single IPA, original signed host and extension IDs, selected account isolation, existing SideStore shortcuts and native app pipelines preserved.",
+            "- Native foreground Shortcut without Minis/siboot: discover, verify newer release, pin owner and digest, install same identity, verify exact build/source after relaunch. No new App IDs or signing settings.",
+            "- Original and resident guest modes: Liquid Glass switcher, home return, recent apps, no hardware cutout overlap; no repeated P84 masking methods. Preserve landscape and native guest behavior.",
+            "- Never confuse native callback, CI artifact or simulator status with real iPhone installation/visual proof.",
+            "",
+            "## Evidence observed",
+            "- R133 run 45347414255 four jobs success; device archive and release verified independently. IPA SHA256 a4eb8c21186fbe19d009a2d089659878968c6d668d102f3a64ed4a3e70ae4aba (42536848 bytes). Four packaged App Intents including ScarletSelfUpdateIntent; action discoverable in extracted metadata, not proof of iOS registration.",
+            "- R133 iOS 27.2 report session ac6487aa: 203 events. Seq8-27 classic handoff recovered 19 prior-process entries, switcher mounted/opened/closed/returned, scan complete, near=0 and severe=0 at mount and exit. Resident PID3562 seq165-166 near=5, severe=0, first rounded y60 vs safeTop62. No stable matching guest ID across modes: no definitive causal attribution. Seq183 interactive renewal deferred; seq189-193 certificate stored and wrong-team host resign blocked. Apple portal create error 20 remains. No shortcut dispatch or install readback recorded.",
+            "- R133 simulator artifact 14899047276: real xcodebuild linker error, iOS-simulator linked ScarletPairingFFI.a built for iOS. CI step continue-on-error did not validate simulator runtime.",
+            "",
+            "## R134 implementation and next gates",
+            "- Transfer expected SHA256 to native installer, bounded worker-owned regular-file snapshot and digest verification before signer prepare; verify unsigned source/extension topology before portal requests and pin the exact installed host identifier instead of global appendTeamID. Retain final signed identity fence.",
+            "- SDK-qualified pairing library linkage and separate pinned simulator Rust target. Keep device archive bytes unchanged; improve diagnostic error extraction.",
+            "- Re-run full source suite, pinned upstream patch transformation, YAML and shell checks, L212 proposal and actual commit coverage. Native CI must build and package exact R134, manifest and IPA hash must match. Simulator must explicitly report compile/install/launch/screenshot stages; if unavailable mark blocked.",
+            "- Device acceptance outstanding: Shortcut discoverability, same-Team R133->R134 update (old client path) and R134->next verified release (new snapshot path), failure/cancellation, no duplicate ID, post-relaunch receipt. Need matched guest comparison for resident Island: preserve original mode evidence; distinguish SDK override, scene attachment and guest-local layout writer, no speculative geometry edits. Apple error 20 not a reason to revoke certificates. Test same and different account switching, refresh profile readback, installed catalog/artwork, audio pause/resume, gestures and landscape. No direct signed iPhone connection from NAS."
+          ]
+        },
+        {
+          "file": "rebuild/diagnostics/scarlet_distinct_strategy_gate.py",
+          "location": "@@ -35,0 +36 @@ OTHER_ALLOWED_METHODS = {",
+          "before": [],
+          "after": [
+            "    \"worker_verified_update_snapshot_and_preportal_existing_identity_pin\","
+          ]
+        },
+        {
+          "file": "rebuild/diagnostics/scarlet_ios_simulator_smoke.py",
+          "location": "@@ -63,0 +64,14 @@ def run(args: list[str], *, stage: str, timeout: int = 100,",
+          "before": [],
+          "after": [
+            "def extract_build_errors(log: str) -> list[str]:",
+            "    import re",
+            "    result = []",
+            "    for line in log.splitlines():",
+            "        line = line.strip()",
+            "        if (re.match(r\"^.+?:\\d+(?::\\d+)?: (?:fatal )?error:\", line)",
+            "                or re.match(r\"^(?:[^:]+: )?(?:fatal )?error:\", line)",
+            "                or line.startswith((\"ld: \", \"Undefined symbols for architecture\", \"** BUILD FAILED **\",",
+            "                                    \"xcodebuild: error:\", \"clang: error:\"))):",
+            "            if line not in result:",
+            "                result.append(line[:400])",
+            "    return result",
+            "",
+            ""
+          ]
+        },
+        {
+          "file": "rebuild/diagnostics/scarlet_ios_simulator_smoke.py",
+          "location": "@@ -88,3 +102 @@ def simulator_build(engine: Path, products: Path, report_dir: Path) -> Path:",
+          "before": [
+            "        errors = [line.strip()[:400] for line in log.read_text(errors='replace').splitlines()",
+            "                  if any(marker in line for marker in ('error:', 'fatal error:', 'BUILD FAILED',",
+            "                                                       'linker command failed'))]"
+          ],
+          "after": [
+            "        errors = extract_build_errors(log.read_text(errors='replace'))"
+          ]
+        },
+        {
+          "file": "rebuild/integration/ScarletDeviceInstallAgent.swift.txt",
+          "location": "@@ -46,0 +47,70 @@ final class ScarletDeviceInstallAgent: NSObject {",
+          "before": [],
+          "after": [
+            "    // Bind the *unsigned* input topology before any Apple portal mutation.",
+            "    // Never derive a fresh identifier from global appendTeamID preferences.",
+            "    static func validateSelfUpdateInput(_ targetAppBundle: ALTApplication,",
+            "                                       useMainProfile: Bool, hasOverrideProfile: Bool) throws {",
+            "        guard let expected = selfUpdateFence.get() else { return }",
+            "        let base = targetAppBundle.bundleIdentifier",
+            "        let children = targetAppBundle.appExtensions",
+            "        let mapped = Set(children.compactMap { child -> String? in",
+            "            let id = child.bundleIdentifier",
+            "            guard id.hasPrefix(base + \".\"), id.count > base.count + 1 else { return nil }",
+            "            return expected.bundleID + String(id.dropFirst(base.count))",
+            "        })",
+            "        guard targetAppBundle.bundleIdentifier == \"com.kdt.livecontainer.P8EZT3U5N4\",",
+            "              expected.version == targetAppBundle.infoPlist[\"CFBundleVersion\"] as? String,",
+            "              !hasOverrideProfile, (!useMainProfile || children.isEmpty),",
+            "              expected.extensionIDs == mapped,",
+            "              mapped.count == children.count else {",
+            "            throw OperationError.invalidApp(reason: \"Scarlet self-update source topology mismatch\")",
+            "        }",
+            "    }",
+            "    static func selfUpdateProvisioningParentID(teamID: String) throws -> String? {",
+            "        guard let expected = selfUpdateFence.get() else { return nil }",
+            "        guard expected.teamID == teamID else {",
+            "            throw OperationError.invalidApp(reason: \"Scarlet self-update provisioning Team mismatch\")",
+            "        }",
+            "        return expected.bundleID",
+            "    }",
+            "    // Copy by value, never copy a symlink object from the shared directory.",
+            "    // Limit the copy even if its original size changes after the preflight.",
+            "    private static func copySelfUpdateSnapshot(from source: URL, to destination: URL) throws {",
+            "        let values = try source.resourceValues(forKeys: [.isRegularFileKey, .isSymbolicLinkKey])",
+            "        guard values.isRegularFile == true, values.isSymbolicLink != true,",
+            "              FileManager.default.createFile(atPath: destination.path, contents: nil,",
+            "                                              attributes: [.posixPermissions: 0o600]) else {",
+            "            throw OperationError.invalidApp(reason: \"Scarlet self-update snapshot invalid\")",
+            "        }",
+            "        let input = try FileHandle(forReadingFrom: source)",
+            "        defer { try? input.close() }",
+            "        let output = try FileHandle(forWritingTo: destination)",
+            "        defer { try? output.close() }",
+            "        var total = 0",
+            "        while let block = try input.read(upToCount: 1024 * 1024), !block.isEmpty {",
+            "            total += block.count",
+            "            guard total <= 150 * 1024 * 1024 else {",
+            "                throw OperationError.invalidApp(reason: \"Scarlet self-update archive size invalid\")",
+            "            }",
+            "            try Task.checkCancellation()",
+            "            try output.write(contentsOf: block)",
+            "        }",
+            "        try output.synchronize()",
+            "    }",
+            "    private static func verifySelfUpdateDigest(_ file: URL, expected: String) throws {",
+            "        let maxBytes = 150 * 1024 * 1024",
+            "        let handle = try FileHandle(forReadingFrom: file)",
+            "        defer { try? handle.close() }",
+            "        var total = 0",
+            "        var hash = SHA256()",
+            "        while let block = try handle.read(upToCount: 1024 * 1024), !block.isEmpty {",
+            "            total += block.count",
+            "            guard total <= maxBytes else {",
+            "                throw OperationError.invalidApp(reason: \"Scarlet self-update archive size invalid\")",
+            "            }",
+            "            try Task.checkCancellation()",
+            "            hash.update(data: block)",
+            "        }",
+            "        let actual = hash.finalize().map { String(format: \"%02x\", $0) }.joined()",
+            "        guard total >= 1_000_000, actual == expected else {",
+            "            throw OperationError.invalidApp(reason: \"Scarlet self-update archive digest mismatch\")",
+            "        }",
+            "    }"
+          ]
+        },
+        {
+          "file": "rebuild/integration/ScarletDeviceInstallAgent.swift.txt",
+          "location": "@@ -141 +211 @@ final class ScarletDeviceInstallAgent: NSObject {",
+          "before": [
+            "                let fileURL = workDirectory.appendingPathComponent("
+          ],
+          "after": [
+            "                let stagedURL = workDirectory.appendingPathComponent("
+          ]
+        },
+        {
+          "file": "rebuild/integration/ScarletDeviceInstallAgent.swift.txt",
+          "location": "@@ -142,0 +213,7 @@ final class ScarletDeviceInstallAgent: NSObject {",
+          "before": [],
+          "after": [
+            "                var fileURL = stagedURL",
+            "                var privateSnapshotDirectory: URL?",
+            "                defer {",
+            "                    if let privateSnapshotDirectory {",
+            "                        try? FileManager.default.removeItem(at: privateSnapshotDirectory)",
+            "                    }",
+            "                }"
+          ]
+        },
+        {
+          "file": "rebuild/integration/ScarletDeviceInstallAgent.swift.txt",
+          "location": "@@ -153 +230,2 @@ final class ScarletDeviceInstallAgent: NSObject {",
+          "before": [
+            "                   let version = payload[\"selfUpdateVersion\"] as? String {"
+          ],
+          "after": [
+            "                   let version = payload[\"selfUpdateVersion\"] as? String,",
+            "                   let digest = payload[\"selfUpdateSHA256\"] as? String {"
+          ]
+        },
+        {
+          "file": "rebuild/integration/ScarletDeviceInstallAgent.swift.txt",
+          "location": "@@ -154,0 +233,3 @@ final class ScarletDeviceInstallAgent: NSObject {",
+          "before": [],
+          "after": [
+            "                          digest.utf8.count == 64,",
+            "                          digest.utf8.allSatisfy({ (48...57).contains($0) || (97...102).contains($0) }),",
+            "                          (1_000_000...150 * 1024 * 1024).contains(fileSize),"
+          ]
+        },
+        {
+          "file": "rebuild/integration/ScarletDeviceInstallAgent.swift.txt",
+          "location": "@@ -164,0 +246,15 @@ final class ScarletDeviceInstallAgent: NSObject {",
+          "before": [],
+          "after": [
+            "                    // The host may exit or delete its shared staging file.",
+            "                    // Copy into a worker-owned unique directory and verify",
+            "                    // the exact bytes AppManager will read before provisioning.",
+            "                    let snapshot = FileManager.default.temporaryDirectory",
+            "                        .appendingPathComponent(\"scarlet-update-\" + UUID().uuidString, isDirectory: true)",
+            "                    try FileManager.default.createDirectory(at: snapshot,",
+            "                        withIntermediateDirectories: false, attributes: [.posixPermissions: 0o700])",
+            "                    privateSnapshotDirectory = snapshot",
+            "                    fileURL = snapshot.appendingPathComponent(\"verified.ipa\")",
+            "                    do {",
+            "                        try copySelfUpdateSnapshot(from: stagedURL, to: fileURL)",
+            "                        try verifySelfUpdateDigest(fileURL, expected: digest)",
+            "                    } catch {",
+            "                        notify(\"self_update_archive_unverified\"); return",
+            "                    }"
+          ]
+        },
+        {
+          "file": "rebuild/integration/ScarletDeviceInstallAgent.swift.txt",
+          "location": "@@ -169 +265,2 @@ final class ScarletDeviceInstallAgent: NSObject {",
+          "before": [
+            "                          payload[\"selfUpdateHostPath\"] != nil || payload[\"selfUpdateVersion\"] != nil {"
+          ],
+          "after": [
+            "                          payload[\"selfUpdateHostPath\"] != nil || payload[\"selfUpdateVersion\"] != nil ||",
+            "                          payload[\"selfUpdateSHA256\"] != nil {"
+          ]
+        },
+        {
+          "file": "rebuild/integration/link_scarlet_pairing.py",
+          "location": "@@ -51 +51,3 @@ def main():",
+          "before": [
+            "        '\"-force_load\", \"$(PROJECT_DIR)/ScarletPairingFFI.a\", \"-lc++\");')"
+          ],
+          "after": [
+            "        '\"-force_load\", \"$(PROJECT_DIR)/$(SCARLET_PAIRING_ARCHIVE)\", \"-lc++\");\\n'",
+            "        'SCARLET_PAIRING_ARCHIVE = ScarletPairingFFI.a;\\n'",
+            "        '\"SCARLET_PAIRING_ARCHIVE[sdk=iphonesimulator*]\" = ScarletPairingFFISimulator.a;')"
+          ]
+        },
+        {
+          "file": "rebuild/integration/verify_integrated_release.py",
+          "location": "@@ -82,0 +83,8 @@ def verify(ipa: Path, version: str, source_commit: str) -> dict:",
+          "before": [],
+          "after": [
+            "        if tuple(map(int, version.split(\".\"))) >= (3, 8, 134):",
+            "            binary = z.read(PREFIX + \"Frameworks/SideStoreApp.framework/SideStore\")",
+            "            require(all(marker in binary for marker in (",
+            "                b\"self_update_archive_unverified\",",
+            "                b\"Scarlet self-update archive digest mismatch\",",
+            "                b\"Scarlet self-update source topology mismatch\",",
+            "                b\"Scarlet self-update provisioning Team mismatch\")),",
+            "                \"R134 worker integrity or preportal pin missing\")"
+          ]
+        },
+        {
+          "file": "rebuild/integration/wire_scarlet_auth.py",
+          "location": "@@ -347 +347 @@ def patch_livecontainer(engine: Path) -> None:",
+          "before": [
+            "        if (parts.count != 2 && parts.count != 4) {"
+          ],
+          "after": [
+            "        if (parts.count != 2 && parts.count != 5) {"
+          ]
+        },
+        {
+          "file": "rebuild/integration/wire_scarlet_auth.py",
+          "location": "@@ -355 +355 @@ def patch_livecontainer(engine: Path) -> None:",
+          "before": [
+            "        if (parts.count == 4) {"
+          ],
+          "after": [
+            "        if (parts.count == 5) {"
+          ]
+        },
+        {
+          "file": "rebuild/integration/wire_scarlet_auth.py",
+          "location": "@@ -357,0 +358 @@ def patch_livecontainer(engine: Path) -> None:",
+          "before": [],
+          "after": [
+            "            payload[@\"selfUpdateSHA256\"] = parts[4];"
+          ]
+        },
+        {
+          "file": "rebuild/integration/wire_scarlet_auth.py",
+          "location": "@@ -415 +416,2 @@ public enum ScarletDeviceInstaller {",
+          "before": [
+            "                               selfUpdateVersion: String? = nil) async throws {"
+          ],
+          "after": [
+            "                               selfUpdateVersion: String? = nil,",
+            "                               selfUpdateSHA256: String? = nil) async throws {"
+          ]
+        },
+        {
+          "file": "rebuild/integration/wire_scarlet_auth.py",
+          "location": "@@ -453 +455 @@ public enum ScarletDeviceInstaller {",
+          "before": [
+            "        if let selfUpdateHostPath, let selfUpdateVersion {"
+          ],
+          "after": [
+            "        if let selfUpdateHostPath, let selfUpdateVersion, let selfUpdateSHA256 {"
+          ]
+        },
+        {
+          "file": "rebuild/integration/wire_scarlet_auth.py",
+          "location": "@@ -454,0 +457,2 @@ public enum ScarletDeviceInstaller {",
+          "before": [],
+          "after": [
+            "                  selfUpdateSHA256.utf8.count == 64,",
+            "                  selfUpdateSHA256.utf8.allSatisfy({ (48...57).contains($0) || (97...102).contains($0) }),"
+          ]
+        },
+        {
+          "file": "rebuild/integration/wire_scarlet_auth.py",
+          "location": "@@ -459,2 +463,2 @@ public enum ScarletDeviceInstaller {",
+          "before": [
+            "            payload += \"|\" + selfUpdateHostPath + \"|\" + selfUpdateVersion",
+            "        } else if selfUpdateHostPath != nil || selfUpdateVersion != nil {"
+          ],
+          "after": [
+            "            payload += \"|\" + selfUpdateHostPath + \"|\" + selfUpdateVersion + \"|\" + selfUpdateSHA256",
+            "        } else if selfUpdateHostPath != nil || selfUpdateVersion != nil || selfUpdateSHA256 != nil {"
+          ]
+        },
+        {
+          "file": "rebuild/integration/wire_scarlet_auth.py",
+          "location": "@@ -592,0 +597,16 @@ def patch_idempotent_team_provisioning(source: str) -> str:",
+          "before": [],
+          "after": [
+            "    # R134: validate the whole source extension topology before registering",
+            "    # any profile. Pin the exact installed host ID ahead of preferred/global",
+            "    # identifier generation, only while the verified self-update fence exists.",
+            "    source = replace_one(source,",
+            "        \"        if let overrideProfile = self.context.overrideProvisioningProfile {\",",
+            "        \"        try ScarletDeviceInstallAgent.validateSelfUpdateInput(targetAppBundle,\\n\"",
+            "        \"            useMainProfile: self.context.useMainProfile,\\n\"",
+            "        \"            hasOverrideProfile: self.context.overrideProvisioningProfile != nil)\\n\"",
+            "        \"        if let overrideProfile = self.context.overrideProvisioningProfile {\",",
+            "        \"R134 self-update source topology before portal\")",
+            "    source = replace_one(source,",
+            "        \"        if let preferredBundleID = await self.getPreferredBundleID(for: targetAppBundle, team: team) {\",",
+            "        \"        if let exactHostID = try ScarletDeviceInstallAgent.selfUpdateProvisioningParentID(teamID: team.identifier) {\\n\"",
+            "        \"            parentID = exactHostID\\n\"",
+            "        \"        } else if let preferredBundleID = await self.getPreferredBundleID(for: targetAppBundle, team: team) {\",",
+            "        \"R134 exact installed host provisioning ID\")"
+          ]
+        }
+      ],
+      "source_verification": "git_patch_observed",
+      "status": "source_committed_static_and_xcode_ci_pending",
+      "device_verification": "device_unverified",
+      "observation": "R133 native CI 45347414255 four jobs passed, published IPA 42536848 bytes and manifest independently downloaded and verified; four actual shortcut metadata actions. Simulator log artifact 14899047276 ld building iOS-simulator but linking ScarletPairingFFI.a object built for iOS. R133 device session ac6487aa 203 events: classic seq8-27 19 imported, mounted and returned, near=0 severe=0; resident seq165/166 near=5 first y60 safe62 severe0; no matching guest identity proof; seq183 renewal deferred, seq190 foreign team resign blocked; Apple issue 20 remains; no shortcut execution receipt.",
+      "hypothesis": "Shared staging creates content integrity gap between host check and consumer. Post-sign identity validation cannot prevent earlier Apple ID creation. The simulator linker needs target platform specific Rust artifacts, not only arm64 architecture.",
+      "action": "Implement worker bounded regular-file snapshot and SHA256 verification, existing identity preportal topology validation and pin; keep signed fence, native manual installation and existing credentials. Build separate simulator Rust target and SDK-qualified linker path; diagnostic error extraction. Update durable engineering state and targeted tests. No new Island mutation.",
+      "verification": "Initial focused RED two failures and one error; subsequent full run exposed older synthetic upstream fixture missing two new anchors. Fixed fixture without relaxing previous assertions. Focused 4 pass, old fixture 4 pass; full suite and gate required before branch. Real R133 artifact and device log verified; R134 native/device acceptance pending. Final full regression 1081 tests, 1076 passed, 5 skipped, exit 0; 4 focused and 4 legacy fixture tests passed. YAML and 15 shell scripts parsed, Python compile and actual pinned upstream transform passed. Proposal guard passed 211 entries; exact 33 hunks confirmed.",
+      "repeat_policy": "Do not infer install success from XPC, CI or simulator. No signing settings, new App IDs or speculative guest layout changes.",
+      "source_revisions": [
+        {
+          "sha": "25494fb56d9275fe78d1a020406b808d17ec0f72",
+          "title": "R6P134: pin verified update bytes and existing IDs; isolate simulator pairing FFI"
+        }
+      ]
     }
   ]
 }
