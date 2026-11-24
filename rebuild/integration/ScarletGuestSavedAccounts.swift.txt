@@ -553,6 +553,18 @@ enum ScarletInstallTeamAuthority {
     // P102: Apple portal failures are NOT all the same. Send bounded,
     // categorical NSError evidence over the existing authenticated XPC.
     // Never send localizedDescription, request payload, credentials or URLs.
+    // SideSign maps Apple result codes 35 and 7460 to a Swift enum.
+    // NSError.code is an enum discriminator, not the Apple response code.
+    private static func isCertificateQuotaError(_ error: Error) -> Bool {
+        if let portalError = error as? DeveloperPortalError,
+           case .tooManyCertificates = portalError {
+            return true
+        }
+        let native = error as NSError
+        return native.domain == "ALTAppleAPIErrorDomain" &&
+            (native.code == 35 || native.code == 7460)
+    }
+
     private static func portalFailure(_ error: Error, stage: String,
                                      reason: String = "selected_team_certificate_portal_failed") -> String {
         let original = error as NSError
@@ -571,8 +583,8 @@ enum ScarletInstallTeamAuthority {
             case NSCocoaErrorDomain: return "cocoa"
             case NSPOSIXErrorDomain: return "posix"
             case NSOSStatusErrorDomain: return "osstatus"
-            case "ALTAppleAPIErrorDomain": return "appleapi"
-            case "ALTServerErrorDomain": return "altserver"
+            case "ALTAppleAPIErrorDomain", "SideSign.DeveloperPortalError": return "appleapi"
+            case "ALTServerErrorDomain", "SideSign.ServerError": return "altserver"
             case "SideStore": return "sidestore"
             default: return "other"
             }
@@ -581,7 +593,7 @@ enum ScarletInstallTeamAuthority {
             max(-2_147_483_648, min(2_147_483_647, code))
         }
         let safeReason = stage == "create" &&
-            (original.code == 7460 || deepest.code == 7460)
+            (isCertificateQuotaError(error) || isCertificateQuotaError(deepest))
             ? "selected_team_certificate_quota_reached" : reason
         let receipt: [String: Any] = [
             "v": 1, "reason": safeReason, "stage": stage,
@@ -760,8 +772,7 @@ enum ScarletInstallTeamAuthority {
                 newlyIssued = try await DeveloperPortalProxy.shared.createCertificate(
                     machineName: "Scarlet Crystal (" + teamID + ")", team: team)
             } catch {
-                let code = (error as NSError).code
-                let fallback = code == 7460
+                let fallback = isCertificateQuotaError(error)
                     ? "selected_team_certificate_quota_reached"
                     : "selected_team_certificate_portal_failed"
                 return portalFailure(error, stage: "create", reason: fallback)
