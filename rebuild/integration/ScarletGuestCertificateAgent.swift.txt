@@ -20,6 +20,10 @@ final class ScarletGuestCertificateAgent: NSObject {
             }
             busy = true
             defer { busy = false }
+            guard await ScarletTeamOperationGate.shared.claim() else {
+                report(requestID, code: -5201, domain: "scarlet.certificate.team_operation_in_progress")
+                return
+            }
             // The original V6 certificate worker was pinned to the host's
             // first Team. Route this legacy endpoint through the SAME
             // Apple-ID+Team vault as the current native P98 issuer.
@@ -27,6 +31,7 @@ final class ScarletGuestCertificateAgent: NSObject {
             guard ScarletGuestSignInAgent.persistedState(),
                   let selected = await ScarletInstallTeamAuthority.activeOwnership()
             else {
+                await ScarletTeamOperationGate.shared.release()
                 report(requestID, code: -5205,
                        domain: "scarlet.certificate.selected_owner_unavailable")
                 return
@@ -35,6 +40,7 @@ final class ScarletGuestCertificateAgent: NSObject {
                 teamID: selected.teamID, forceNew: false)
             guard status == "ready_existing_portal" ||
                   status == "ready_issued_apple" else {
+                await ScarletTeamOperationGate.shared.release()
                 report(requestID, code: -5204,
                        domain: "scarlet.certificate.selected_team_unavailable")
                 return
@@ -51,6 +57,7 @@ final class ScarletGuestCertificateAgent: NSObject {
                   active.serialNumber.lowercased() == pinnedSerial,
                   !active.p12Data.isEmpty,
                   active.p12Data.count <= 64 * 1024 else {
+                await ScarletTeamOperationGate.shared.release()
                 report(requestID, code: -5204,
                        domain: "scarlet.certificate.selected_signer_unverified")
                 return
@@ -58,8 +65,11 @@ final class ScarletGuestCertificateAgent: NSObject {
             let origin = status == "ready_issued_apple"
                 ? "scarlet.cert.new_apple_portal"
                 : "scarlet.cert.existing_portal"
+            let archive = active.p12Data
+            let password = active.password ?? ""
+            await ScarletTeamOperationGate.shared.release()
             report(requestID, code: 0, domain: origin,
-                   archive: active.p12Data, password: active.password ?? "")
+                   archive: archive, password: password)
         }
     }
 
@@ -74,6 +84,10 @@ final class ScarletGuestCertificateAgent: NSObject {
         guard let requestID = payload["requestID"] as? String,
               !requestID.isEmpty else { return }
         Task { @MainActor in
+            guard await ScarletTeamOperationGate.shared.claim() else {
+                report(requestID, code: -5301, domain: "scarlet.certificate.team_operation_in_progress")
+                return
+            }
             guard let owner = await ScarletInstallTeamAuthority.activeOwnership(),
                   await ScarletInstallTeamAuthority.prepare(
                       teamID: owner.teamID) == "ready",
@@ -83,12 +97,16 @@ final class ScarletGuestCertificateAgent: NSObject {
                   active.serialNumber.lowercased() == pinned,
                   !active.p12Data.isEmpty,
                   active.p12Data.count <= 64 * 1024 else {
+                await ScarletTeamOperationGate.shared.release()
                 report(requestID, code: -5302,
                        domain: "scarlet.certificate.selected_p12_missing")
                 return
             }
+            let archive = active.p12Data
+            let password = active.password ?? ""
+            await ScarletTeamOperationGate.shared.release()
             report(requestID, code: 0, domain: "scarlet.cert.existing_stored",
-                   archive: active.p12Data, password: active.password ?? "")
+                   archive: archive, password: password)
         }
     }
 

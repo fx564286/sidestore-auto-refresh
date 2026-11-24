@@ -4,6 +4,7 @@
 import Foundation
 import CryptoKit
 import BackgroundTasks
+import UIKit
 import SideStoreSupport
 
 // SideStore wraps very different internal failures in domain SideStore,
@@ -195,6 +196,10 @@ final class ScarletAutomaticRenewal {
     }
     private var registered = false
     private var running = false
+    // Interactive Settings owns the selected account and certificate workflow.
+    // Defer automatic renewal without losing the explicit owner-switch request.
+    private var settingsInteractionActive = false
+    private var pendingVerifiedAccountSwitch = false
     private var lastCheckWasDeferred = false
     private var lastDeferredReportAt: Date?
     private var lastScheduledFor: Date?
@@ -228,7 +233,7 @@ final class ScarletAutomaticRenewal {
         // Avoid repeatedly canceling a healthy iOS background refresh slot.
         guard registered else { return }
         let last = UserDefaults.standard.object(forKey: attemptKey) as? Date
-        let due = last?.addingTimeInterval(interval) ?? .now
+        let due = pendingVerifiedAccountSwitch ? Date() : (last?.addingTimeInterval(interval) ?? .now)
         let requestedStart = max(Date().addingTimeInterval(15 * 60), due)
         if let lastScheduledFor, let lastScheduleSubmitAt,
            abs(lastScheduledFor.timeIntervalSince(requestedStart)) < 60,
@@ -254,15 +259,24 @@ final class ScarletAutomaticRenewal {
         }
     }
 
+    func setSettingsInteractionActive(_ active: Bool) {
+        let wasActive = settingsInteractionActive
+        settingsInteractionActive = active
+        if wasActive && !active && pendingVerifiedAccountSwitch {
+            Task { @MainActor in await self.foregroundCatchUp() }
+        }
+    }
+
     func foregroundCatchUp() async {
         scheduleNext()
-        await refreshIfDue(origin: "foreground")
+        _ = await refreshIfDue(origin:
+            pendingVerifiedAccountSwitch ? "verified_account_switch" : "foreground")
     }
 
     func refreshAfterVerifiedAccountSwitch() async {
-        // The previous owner may have used the global attempt cooldown.
-        // The user explicitly verified a different account and team, so
-        // perform a fresh native owner inspection before any signing/install.
+        // Do not claim the worker's native Team gate while the user is still
+        // working on the selected account's certificate in Settings.
+        pendingVerifiedAccountSwitch = true
         scheduleNext()
         _ = await refreshIfDue(origin: "verified_account_switch")
     }
@@ -270,7 +284,8 @@ final class ScarletAutomaticRenewal {
     private func handle(_ bg: BGAppRefreshTask) {
         scheduleNext()
         let operation = Task { @MainActor in
-            let requestReturned = await refreshIfDue(origin: "background")
+            let requestReturned = await refreshIfDue(origin:
+                pendingVerifiedAccountSwitch ? "verified_account_switch" : "background")
             // BG task completion is NOT a provisioning renewal receipt.
             // Previously even a thrown SideStore error was reported to iOS
             // as a completed-successful background refresh.
@@ -297,8 +312,16 @@ final class ScarletAutomaticRenewal {
 
     @discardableResult
     private func refreshIfDue(origin: String) async -> Bool {
-        lastCheckWasDeferred = false
         guard !running else { return false }
+        lastCheckWasDeferred = false
+        guard !settingsInteractionActive || UIApplication.shared.applicationState == .background else {
+            lastCheckWasDeferred = true
+            ScarletDiagnosticRecorder.shared.record("refresh",
+                "automatic_deferred_interactive_settings",
+                fields: ["reason": "settings_account_work_active",
+                         "installation_verified": "false"])
+            return true
+        }
         let prefs = UserDefaults.standard
         let now = Date()
         if origin != "verified_account_switch",
@@ -327,6 +350,7 @@ final class ScarletAutomaticRenewal {
             return true
         }
         running = true
+        if origin == "verified_account_switch" { pendingVerifiedAccountSwitch = false }
         defer { running = false; scheduleNext(); notifyStateChanged() }
 
         // Do not start the 2h retry cooldown until the real SideStore
@@ -423,6 +447,19 @@ final class ScarletAutomaticRenewal {
             prefs.set(nativeState.reason, forKey: failureReasonKey)
             return false
         }
+        // Settings may have opened while an awaited preflight was running.
+        // A preflight is not authority to start a mutation after that change.
+        guard !settingsInteractionActive || UIApplication.shared.applicationState == .background else {
+            if origin == "verified_account_switch" { pendingVerifiedAccountSwitch = true }
+            lastCheckWasDeferred = true
+            prefs.set("보류 · 계정 설정 작업 중", forKey: outcomeKey)
+            ScarletDiagnosticRecorder.shared.record("refresh",
+                "automatic_deferred_interactive_settings",
+                fields: ["reason": "settings_account_work_active",
+                         "installation_verified": "false"])
+            return true
+        }
+        let previousAttempt = prefs.object(forKey: attemptKey) as? Date
         prefs.set(Date(), forKey: attemptKey)
         ScarletInstalledProfileReadback.beginRequest(source: "automatic")
         do {
@@ -447,6 +484,20 @@ final class ScarletAutomaticRenewal {
             ScarletInstalledProfileReadback.discardFailedRequest()
             let reason = (error as? ScarletNativeRefreshFailure)?.reason ??
                 ScarletRefreshFailureDiagnosis.category(error)
+            if reason == "team_operation_in_progress" || reason == "already_running" {
+                // Native gate refusal occurs before any renewal; do not
+                // consume a new two-hour attempt cooldown.
+                if let previousAttempt { prefs.set(previousAttempt, forKey: attemptKey) }
+                else { prefs.removeObject(forKey: attemptKey) }
+                if origin == "verified_account_switch" { pendingVerifiedAccountSwitch = true }
+                lastCheckWasDeferred = true
+                prefs.set("보류 · 다른 서명 작업 진행 중", forKey: outcomeKey)
+                prefs.set(reason, forKey: failureReasonKey)
+                ScarletDiagnosticRecorder.shared.record("refresh",
+                    "automatic_deferred_native_busy",
+                    fields: ["reason": reason, "installation_verified": "false"])
+                return true
+            }
             prefs.set("실패 · SideStore 갱신 오류", forKey: outcomeKey)
             prefs.set(reason, forKey: failureReasonKey)
             ScarletDiagnosticRecorder.shared.recordError(

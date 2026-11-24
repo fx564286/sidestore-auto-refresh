@@ -41,7 +41,8 @@ class V18RefreshAndGlass(unittest.TestCase):
         self.assertIn('func recordError(_ category: String', JOURNAL)
 
     def test_bg_failure_is_not_reported_as_success(self):
-        self.assertIn('let requestReturned = await refreshIfDue(origin: "background")', AUTO)
+        self.assertIn('let requestReturned = await refreshIfDue(origin:', AUTO)
+        self.assertIn('pendingVerifiedAccountSwitch ? "verified_account_switch" : "background"', AUTO)
         self.assertIn('let taskSucceeded = requestReturned && !Task.isCancelled', AUTO)
         self.assertIn('bg.setTaskCompleted(success: taskSucceeded)', AUTO)
         self.assertIn('return false', AUTO)

@@ -198,7 +198,13 @@ final class ScarletDiagnosticRecorder: @unchecked Sendable {
         directory.appendingPathComponent(index == 0 ? "session.jsonl" : "session.\(index).jsonl")
     }
 
+    // Exact non-sensitive protocol receipts only. Do not loosen the general
+    // length/entropy filter for arbitrary incoming values or user data.
+    private static let fixedLongCategories: Set<String> = [
+        "native_selected_team_refresh_returned_install_unverified"
+    ]
     private static func sanitized(_ source: String) -> String {
+        if Self.fixedLongCategories.contains(source) { return source }
         // Keep protocol-independent error categories and numbers, not payloads.
         let candidate = String(source.prefix(80))
         let allowed = CharacterSet(charactersIn: "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789._:-")

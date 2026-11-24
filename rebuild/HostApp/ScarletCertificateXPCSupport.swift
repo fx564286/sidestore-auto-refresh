@@ -24,15 +24,17 @@ public final class ScarletNativeCertificateTransport {
 
     private func performRequest(issuing: Bool) async throws -> (Data, String) {
         guard requestID == nil else { throw ScarletNativeAuthError.alreadyRunning }
+        // Reserve ownership before the first suspension, not after prepare.
+        // Otherwise two concurrent MainActor tasks can replace completion.
+        let id = UUID().uuidString
+        requestID = id
+        lastResolution = "unknown"
+        defer { requestID = nil; completion = nil }
         try await ScarletNativeAuthTransport.shared.prepare()
         guard await ScarletNativeAuthTransport.shared.storedAuthenticated(),
               let remote = RefreshHandler.shared.client else {
             throw ScarletNativeAuthError.guestUnavailable
         }
-        let id = UUID().uuidString
-        lastResolution = "unknown"
-        requestID = id
-        defer { requestID = nil; completion = nil }
         return try await withCheckedThrowingContinuation {
             (c: CheckedContinuation<(Data, String), Error>) in
             completion = c
