@@ -1339,8 +1339,8 @@ struct ScarletIntegratedHostView: View {
             showOriginalError = "설정에서 사용할 Apple ID를 먼저 선택하세요."
             return
         }
-        guard !deviceInstallRunning, !guestImportActivity.isRunning,
-              !sourceIsDownloading else {
+        guard !ScarletSelfUpdate.isRunning, !deviceInstallRunning,
+              !guestImportActivity.isRunning, !sourceIsDownloading else {
             showOriginalError = "다른 앱 설치가 진행 중입니다."
             return
         }
@@ -2022,6 +2022,7 @@ struct ScarletIntegratedHostView: View {
             // one-use continuation ticket, so A->host->B still shows A,B.
             ScarletGuestSessionLedger.prepareForHostAppearance()
             ScarletInstalledProfileReadback.verifyNewProcess()
+            ScarletSelfUpdate.verifyInstalledBuild()
             // Disable the V34 maximized virtual-window experiment on iPhone.
             // Only presentation preferences are touched; never guest data,
             // certificates, pairing or installed application bundles.

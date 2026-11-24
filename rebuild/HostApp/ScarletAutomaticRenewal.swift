@@ -315,6 +315,10 @@ final class ScarletAutomaticRenewal {
     private func refreshIfDue(origin: String) async -> Bool {
         guard !running else { return false }
         lastCheckWasDeferred = false
+        if ScarletSelfUpdate.isRunning {
+            lastCheckWasDeferred = true
+            return true
+        }
         guard !settingsInteractionActive || UIApplication.shared.applicationState == .background else {
             pendingSettingsCatchUp = true
             lastCheckWasDeferred = true
@@ -477,6 +481,11 @@ final class ScarletAutomaticRenewal {
             if origin == "verified_account_switch" { pendingVerifiedAccountSwitch = true }
             prefs.set("중단 · 갱신 요청 취소됨", forKey: outcomeKey)
             return false
+        }
+        guard !ScarletSelfUpdate.isRunning else {
+            if origin == "verified_account_switch" { pendingVerifiedAccountSwitch = true }
+            lastCheckWasDeferred = true
+            return true
         }
         let previousAttempt = prefs.object(forKey: attemptKey) as? Date
         prefs.set(Date(), forKey: attemptKey)
