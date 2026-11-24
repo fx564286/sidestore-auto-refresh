@@ -45,6 +45,7 @@ OTHER_ALLOWED_METHODS = {
     "cumulative_binary_release_identity_and_native_readiness_serialization",
     "classic_bootstrap_owned_switcher_and_token_bound_diagnostic_handoff",
     "interactive_account_priority_and_certificate_transport_reservation",
+    "generation_bound_account_switch_priority_consumption_at_native_admission",
     # R6P129: align native slot wire limits, result semantics and readback lifetime.
     "native_slot_response_contract_and_serialized_readback",
     # R6P128: exact installed bundle artwork and truthful read-only ownership labels.

@@ -22631,6 +22631,646 @@
           "title": "fix(r6p138): persist complete host profile receipt as one value"
         }
       ]
+    },
+    {
+      "id": "L220",
+      "date": "2026-11-24",
+      "version": "R6P139-switch-generation",
+      "incident_family": "account_switch_priority_lost_before_native_admission",
+      "strategy_family": "generation_bound_account_switch_priority_consumption_at_native_admission",
+      "problem": "verified_account_switch_priority_consumed_before_async_preflight_can_finish_or_be_superseded",
+      "mechanism": "generation_bound_account_switch_priority_consumption_at_native_admission",
+      "operation_fingerprint": "Keep pending switch until native admission or terminal gate; preserve transient preflight and compare generation before dispatch; restore only same generation on native busy.",
+      "source_behavior_contract": "Newer switch cannot be consumed by older request; transient preflight retains priority; terminal denial and native admission consume only the current generation. No signing or layout changes.",
+      "novelty": {
+        "prior_excluded_ids": [
+          "L210",
+          "L218",
+          "L219"
+        ],
+        "causal_difference": "R130 protected interactive Settings and reserved worker transport, R137/138 protect profile receipts; this changes priority-request lifetime across awaited preflight, not worker ownership or profile persistence.",
+        "falsifiable_prediction": "A transient auth/pairing preflight retains explicit priority; a superseding verified switch prevents old native admission; busy restores only the captured generation."
+      },
+      "code_locations": [
+        {
+          "file": ".github/workflows/scarlet-paired-engines-build.yml",
+          "location": "@@ -3,7 +3,7 @@ name: Scarlet paired LiveContainer and SideStore iOS build",
+          "before": [
+            "on:",
+            "  workflow_dispatch:",
+            "  push:",
+            "    branches: [rebuild/scarlet-from-zero-20261106, fix/scarlet-auth-status-rootcause-20261109, fix/scarlet-pr48-guest-overlay-no-resize-20261109, fix/scarlet-pr48-airpods-glass-guest-switch-v3-20261109, fix/scarlet-pr48-draggable-guest-tab-v4-20261109, fix/scarlet-pr48-v5-glass-drag-cert-recovery-20261109, fix/scarlet-pr48-v6-unified-cert-glass-20261109, fix/scarlet-pr48-v7-cert-jitless-unify-panel-rim-20261109, fix/scarlet-pr48-v8-flicker-certificate-menu-20261109, fix/scarlet-pr48-v9-single-glass-rim-20261109, fix/scarlet-pr48-v10-fixed-tab-cert-and-session-20261109, fix/scarlet-pr48-v11-module-settings-appid-20261109, fix/scarlet-pr48-v12-live-sessions-source-auto-refresh-20261109, fix/scarlet-pr48-v13-compact-settings-current-app-20261109, fix/scarlet-pr48-v14-guest-history-native-scenes-three-ids-20261109, fix/scarlet-pr48-v15-source-disclosure-icons-guest-handoff-20261109, fix/scarlet-pr48-v16-guest-switcher-icons-readback-20261110, fix/scarlet-v17-cold-switch-rotation-20261110, fix/scarlet-v18-refresh-diagnostics-native-glass-20261110, fix/scarlet-v19-active-session-switcher-20261110, fix/scarlet-v20-guest-switcher-trace-20261110, fix/scarlet-v21-hook-telemetry-persistence-20261110, fix/scarlet-v22-runtime-guest-identity-20261110, fix/scarlet-v23-session-only-switcher-20261110, fix/scarlet-v24-refresh-lifecycle-switch-receipt-20261110, fix/scarlet-v25-single-panel-outside-dismiss-20261110, fix/scarlet-v26-liquidglass-button-to-fixed-panel-morph-20261110, fix/scarlet-v27-sidestore-direct-native-refresh-20261110, fix/scarlet-v28-minimuxer-readiness-recovery-20261110, fix/scarlet-v29-inapp-rppairing-20261110, fix/scarlet-v30-restore-sidestore-active-team-20261110, fix/scarlet-v31-pairing-persistence-sheet-purple-20261110, fix/scarlet-v32-korean-copy-20261110, fix/scarlet-v33-log-rootcause-20261110, fix/scarlet-v34-iphone-virtual-resident-20261110, fix/scarlet-v35-restore-original-fullscreen-20261110, fix/scarlet-v36-remove-legacy-ui-20261110, fix/scarlet-v37-session-refresh-20261110, fix/scarlet-v38-current-launch-logs-20261110, fix/scarlet-v39-log-truth-20261110, fix/scarlet-v40-clean-work-session-20261110, fix/scarlet-v42-v40-safe-diagnostics-20261110, fix/scarlet-v43-install-rootcause-20261110, fix/scarlet-v44-rppairing-postsign-install-20261111, fix/scarlet-v45-single-viewport-liveprocess-20261111, fix/scarlet-v46-guard-provisional-guest-geometry-20261111, fix/scarlet-v47-resident-inplace-guest-switch-20261111, fix/scarlet-v48-guest-runtime-recovery-20261111, fix/scarlet-v48-restored-20261111, fix/scarlet-v48-r2-unified-switcher-20261111, fix/scarlet-v48-r3-original-pan-diagnostics-20261111, fix/scarlet-v48-r4-native-outside-remote-insets-20261111, fix/scarlet-v48-r5-attached-insets-shield-20261111, fix/scarlet-v48-r5-crash-recovery-20261111, fix/scarlet-v48-r5-recovery-r2-host-owner-20261111, fix/scarlet-v48-r5-recovery-r3-scene-authority-20261111, fix/scarlet-v48-r5-recovery-r4-native-ready-20261111, fix/scarlet-v48-r5-recovery-r5-compat-foreground-20261111, fix/scarlet-v48-r6-island-outside-audio-20261111, fix/scarlet-v48-r6p1-audio-home-focus-20261111, fix/scarlet-v48-r6p2-blocked-history-20261111, fix/scarlet-v48-r6p3-home-audio-gate-20261111, fix/scarlet-v48-r6p4-guest-audio-ack-20261112, fix/scarlet-v48-r6p7-launch-policy-rootcause-20261112, fix/scarlet-v48-r6p8-policy-field-relay-20261112, fix/scarlet-v48-r6p9-deferred-scene-boot-20261112, fix/scarlet-v48-r6p10-persistent-remediation-ledger-20261112, fix/scarlet-v48-r6p11-resident-guest-sdk-contract-20261112, fix/scarlet-v48-r6p12-instant-recent-switcher-20261112, fix/scarlet-v48-r6p14-switcher-reset-on-navigation-20261112, fix/scarlet-v48-r6p15-guest-root-island-pairing-recovery-20261112, fix/scarlet-v48-r6p16-audit-coverage-20261112, fix/scarlet-v48-r6p17-resident-optin-defaults-20261112, fix/scarlet-v48-r6p18-guest-content-geometry-20261112, fix/scarlet-v48-r6p19-entitlement-failclosed-network-recovery-20261112, fix/scarlet-v48-r6p20-auth-session-bg-id-20261112, fix/scarlet-v48-r6p21-depth-probe-cert-recheck-20261112, fix/scarlet-v48-r6p22-guest-scroll-content-inset-20261112, fix/scarlet-v48-r6p23-guest-owner-refresh-stage-20261112, fix/scarlet-v48-r6p24-keyboard-stage-relay-20261112, fix/scarlet-v48-r6p25-visibility-occlusion-20261112, fix/scarlet-v48-r6p26-recorder-field-contract-20261112, fix/scarlet-v48-r6p27-visible-scroll-owner-20261112, fix/scarlet-v48-r6p28-guest-local-scroll-inset-20261112, fix/scarlet-v48-r6p29-residual-auto-inset-20261112, fix/scarlet-v48-r6p30-inset-interference-isolation-20261112, fix/scarlet-v48-r6p31-nonvertical-always-safearea-20261112, fix/scarlet-v48-r6p32-nonscrolling-owner-stabilization-20261112, fix/scarlet-v48-r6p33-deferred-inset-anchor-20261112, fix/scarlet-v48-r6p34-constraint-native-error-proof-20261112, fix/scarlet-v48-r6p35-ancestor-layout-owner-20261112, fix/scarlet-v48-r6p36-lost-guest-probe-readback-20261112, fix/scarlet-v48-r6p37-nested-header-safe-guide-anchor-20261112, fix/scarlet-v48-r6p38-header-layout-owner-20261113, fix/scarlet-v48-r6p39-parent-safe-guide-constraint-20261113, fix/scarlet-v48-r6p40-transparent-chrome-slot-20261113, fix/scarlet-v48-r6p41-adaptive-chrome-stickiness-20261113, fix/scarlet-v48-r6p42-guest-matched-status-chrome-20261113, fix/scarlet-v48-r6p43-host-verified-native-slot-20261113, fix/scarlet-v48-r6p44-full-native-scroll-header-20261113, fix/scarlet-v48-r6p45-scroll-aware-header-proof-20261113, fix/scarlet-v48-r6p46-detached-header-full-scroll-20261113, fix/scarlet-v48-r6p47-lifecycle-statusbar-20261113, fix/scarlet-v48-r6p48-fresh-proof-crop-gate-20261113, fix/scarlet-v48-r6p49-key-host-statusbar-20261113, fix/scarlet-v48-r6p50-scroll-crop-veto-20261113, fix/scarlet-v48-r6p51-native-statusbar-collision-shield-20261113, fix/scarlet-v48-r6p52-restore-original-host-colors-20261113, fix/scarlet-v48-r6p53-current-log-followup-20261113, fix/scarlet-v48-r6p54-owning-layout-contract-20261114, fix/scarlet-v48-r6p55-child-controller-owner-layout-20261114, fix/scarlet-v48-r6p56-parent-feed-reflow-20261114, fix/scarlet-v48-r6p57-guest-overwrite-20261114, fix/scarlet-v48-r6p58-install-identity-20261114, fix/scarlet-v48-r6p59-unsafe-feed-owner-20261114, fix/scarlet-v48-r6p60-deep-owner-20261114, fix/scarlet-v48-r6p61-slot-manager-20261114, fix/scarlet-v48-r6p62-scroll-viewport-20261114, fix/scarlet-v48-r6p63-nested-parent-20261114, fix/scarlet-v48-r6p64-residual-viewport-20261115, fix/scarlet-v48-r6p65-inset-compensated-settle-20261115, fix/scarlet-v48-r6p66-multiaccount-rea-20261115, fix/scarlet-v48-r6p67-auth-rollback-20261115, fix/scarlet-v48-r6p68-install-team-switch-20261115, fix/scarlet-v48-r6p69-settings-debloat-20261115, fix/scarlet-v48-r6p70-settings-account-list-20261115, fix/scarlet-v48-r6p71-pairing-refresh-race-20261115, fix/scarlet-v48-r6p72-native-pairing-recheck-20261115, fix/scarlet-v48-r6p73-native-managed-host-20261115, fix/scarlet-v48-r6p74-statusband-proof-20261115, fix/scarlet-v48-r6p75-team-slot-scope-20261115, fix/scarlet-v48-r6p76-postheader-scroll-20261115, fix/scarlet-v48-r6p77-severe-scroll-owner-20261116, fix/scarlet-v48-r6p78-signer-recovery-20261116, fix/scarlet-v48-r6p79-import-archive-status-20261116, fix/scarlet-v48-r6p80-device-import-settings-island-20261116, fix/scarlet-v48-r6p81-upstream-import-validation-20261116, fix/scarlet-v48-r6p82-settings-active-install-20261116, fix/scarlet-v48-r6p83-single-statusbar-authority-20261116, fix/scarlet-v48-r6p84-strict-distinct-methods-20261116, fix/scarlet-v48-r6p85-host-origin-refresh-settings-20261116, fix/scarlet-v48-r6p86-apple-team-cert-on-demand-20261116, fix/scarlet-v48-r6p87-account-ui-p12-diagnostics-20261116, fix/scarlet-v48-r6p88-native-account-rows-20261116, fix/scarlet-v48-r6p89-sideinstaller-account-p12-ui-20261117, fix/scarlet-v48-r6p90-account-ownership-20261117, fix/scarlet-v48-r6p91-native-owned-guest-signer-20261117, fix/scarlet-v48-r6p92-jitless-diag-guest-recovery-20261117, fix/scarlet-v48-r6p93-host-profile-signer-anchor-20261117, fix/scarlet-v48-r6p94-explicit-p12-guest-signer-20261117, fix/scarlet-v48-r6p95-inapp-apple-certificate-20261117, fix/scarlet-v48-r6p96-portal-certificate-truth-20261117, fix/scarlet-v48-r6p97-account-owned-signer-20261117, fix/scarlet-v48-r6p98-force-fresh-apple-certificate-20261117, fix/scarlet-v48-r6p99-merged-fresh-cert-host-recovery-20261117, fix/scarlet-v48-r6p100-native-xpc-rebind-20261117, fix/scarlet-v48-r6p101-valid-host-signer-20261117, fix/scarlet-v48-r6p102-certificate-evidence-20261118, fix/scarlet-v48-r6p103-jitless-account-view-20261118, fix/scarlet-v48-r6p105-new-cert-managed-refresh-20261118, fix/scarlet-v48-r6p106-external-host-manual-renew-20261118, fix/scarlet-v48-r6p107-manual-result-contract-20261118, fix/scarlet-v48-r6p108-postimport-cert-rotation-20261118, fix/scarlet-v48-r6p109-owner-pinned-reinstall-20261118, fix/scarlet-v48-r6p110-jitless-native-navigation-20261118, fix/scarlet-v48-r6p111-rootcause-20261118, fix/scarlet-v48-r6p112-remove-runtime-team-literals-20261118, fix/scarlet-v48-r6p113-owner-fence-idempotent-ids-20261118, fix/scarlet-v48-r6p114-legacy-owner-migration-20261118, fix/scarlet-v48-r6p115-managed-host-owner-20261119, fix/scarlet-v48-r6p116-resident-scene-containment-20261120, fix/scarlet-v48-r6p117-resident-scene-settings-20261120, fix/scarlet-v48-r6p118-diagnostic-link-share-20261120, fix/scarlet-v48-r6p119-owner-refresh-20261120, fix/scarlet-v48-r6p120-manual-owner-mismatch-20261120, fix/scarlet-v48-r6p121-existing-cert-recovery-20261120, fix/scarlet-v48-r6p122-device-guest-catalog-20261120, fix/scarlet-v48-r6p123-device-install-labels-20261120, fix/scarlet-v48-r6p124-guest-audio-focus-20261121, fix/scarlet-r6p124-apps-grid-balance-20261121, fix/scarlet-r6p127-device-inventory-renewal-20261124, fix/scarlet-r6p128-device-icons-20261124, fix/scarlet-r6p129-slot-transport-integrity-20261124, fix/scarlet-r6p130-account-refresh-priority-20261124, fix/scarlet-r6p131-classic-switcher-20261124, fix/scarlet-r6p132-integrated-verified-20261124, fix/scarlet-r6p133-shortcut-self-update-20261124, fix/scarlet-r6p134-update-integrity-20261124, fix/scarlet-r6p135-classic-handoff-20261124, fix/scarlet-r6p136-converged-20261124, fix/scarlet-r6p137-profile-lease-20261124, fix/scarlet-r6p138-profile-receipt-record-20261124, fix/scarlet-r6p135-refresh-receipts-20261124]",
+            "    paths:",
+            "      - \".github/workflows/scarlet-paired-engines-build.yml\"",
+            "      - \"rebuild/integration/**\""
+          ],
+          "after": [
+            "on:",
+            "  workflow_dispatch:",
+            "  push:",
+            "    branches: [rebuild/scarlet-from-zero-20261106, fix/scarlet-auth-status-rootcause-20261109, fix/scarlet-pr48-guest-overlay-no-resize-20261109, fix/scarlet-pr48-airpods-glass-guest-switch-v3-20261109, fix/scarlet-pr48-draggable-guest-tab-v4-20261109, fix/scarlet-pr48-v5-glass-drag-cert-recovery-20261109, fix/scarlet-pr48-v6-unified-cert-glass-20261109, fix/scarlet-pr48-v7-cert-jitless-unify-panel-rim-20261109, fix/scarlet-pr48-v8-flicker-certificate-menu-20261109, fix/scarlet-pr48-v9-single-glass-rim-20261109, fix/scarlet-pr48-v10-fixed-tab-cert-and-session-20261109, fix/scarlet-pr48-v11-module-settings-appid-20261109, fix/scarlet-pr48-v12-live-sessions-source-auto-refresh-20261109, fix/scarlet-pr48-v13-compact-settings-current-app-20261109, fix/scarlet-pr48-v14-guest-history-native-scenes-three-ids-20261109, fix/scarlet-pr48-v15-source-disclosure-icons-guest-handoff-20261109, fix/scarlet-pr48-v16-guest-switcher-icons-readback-20261110, fix/scarlet-v17-cold-switch-rotation-20261110, fix/scarlet-v18-refresh-diagnostics-native-glass-20261110, fix/scarlet-v19-active-session-switcher-20261110, fix/scarlet-v20-guest-switcher-trace-20261110, fix/scarlet-v21-hook-telemetry-persistence-20261110, fix/scarlet-v22-runtime-guest-identity-20261110, fix/scarlet-v23-session-only-switcher-20261110, fix/scarlet-v24-refresh-lifecycle-switch-receipt-20261110, fix/scarlet-v25-single-panel-outside-dismiss-20261110, fix/scarlet-v26-liquidglass-button-to-fixed-panel-morph-20261110, fix/scarlet-v27-sidestore-direct-native-refresh-20261110, fix/scarlet-v28-minimuxer-readiness-recovery-20261110, fix/scarlet-v29-inapp-rppairing-20261110, fix/scarlet-v30-restore-sidestore-active-team-20261110, fix/scarlet-v31-pairing-persistence-sheet-purple-20261110, fix/scarlet-v32-korean-copy-20261110, fix/scarlet-v33-log-rootcause-20261110, fix/scarlet-v34-iphone-virtual-resident-20261110, fix/scarlet-v35-restore-original-fullscreen-20261110, fix/scarlet-v36-remove-legacy-ui-20261110, fix/scarlet-v37-session-refresh-20261110, fix/scarlet-v38-current-launch-logs-20261110, fix/scarlet-v39-log-truth-20261110, fix/scarlet-v40-clean-work-session-20261110, fix/scarlet-v42-v40-safe-diagnostics-20261110, fix/scarlet-v43-install-rootcause-20261110, fix/scarlet-v44-rppairing-postsign-install-20261111, fix/scarlet-v45-single-viewport-liveprocess-20261111, fix/scarlet-v46-guard-provisional-guest-geometry-20261111, fix/scarlet-v47-resident-inplace-guest-switch-20261111, fix/scarlet-v48-guest-runtime-recovery-20261111, fix/scarlet-v48-restored-20261111, fix/scarlet-v48-r2-unified-switcher-20261111, fix/scarlet-v48-r3-original-pan-diagnostics-20261111, fix/scarlet-v48-r4-native-outside-remote-insets-20261111, fix/scarlet-v48-r5-attached-insets-shield-20261111, fix/scarlet-v48-r5-crash-recovery-20261111, fix/scarlet-v48-r5-recovery-r2-host-owner-20261111, fix/scarlet-v48-r5-recovery-r3-scene-authority-20261111, fix/scarlet-v48-r5-recovery-r4-native-ready-20261111, fix/scarlet-v48-r5-recovery-r5-compat-foreground-20261111, fix/scarlet-v48-r6-island-outside-audio-20261111, fix/scarlet-v48-r6p1-audio-home-focus-20261111, fix/scarlet-v48-r6p2-blocked-history-20261111, fix/scarlet-v48-r6p3-home-audio-gate-20261111, fix/scarlet-v48-r6p4-guest-audio-ack-20261112, fix/scarlet-v48-r6p7-launch-policy-rootcause-20261112, fix/scarlet-v48-r6p8-policy-field-relay-20261112, fix/scarlet-v48-r6p9-deferred-scene-boot-20261112, fix/scarlet-v48-r6p10-persistent-remediation-ledger-20261112, fix/scarlet-v48-r6p11-resident-guest-sdk-contract-20261112, fix/scarlet-v48-r6p12-instant-recent-switcher-20261112, fix/scarlet-v48-r6p14-switcher-reset-on-navigation-20261112, fix/scarlet-v48-r6p15-guest-root-island-pairing-recovery-20261112, fix/scarlet-v48-r6p16-audit-coverage-20261112, fix/scarlet-v48-r6p17-resident-optin-defaults-20261112, fix/scarlet-v48-r6p18-guest-content-geometry-20261112, fix/scarlet-v48-r6p19-entitlement-failclosed-network-recovery-20261112, fix/scarlet-v48-r6p20-auth-session-bg-id-20261112, fix/scarlet-v48-r6p21-depth-probe-cert-recheck-20261112, fix/scarlet-v48-r6p22-guest-scroll-content-inset-20261112, fix/scarlet-v48-r6p23-guest-owner-refresh-stage-20261112, fix/scarlet-v48-r6p24-keyboard-stage-relay-20261112, fix/scarlet-v48-r6p25-visibility-occlusion-20261112, fix/scarlet-v48-r6p26-recorder-field-contract-20261112, fix/scarlet-v48-r6p27-visible-scroll-owner-20261112, fix/scarlet-v48-r6p28-guest-local-scroll-inset-20261112, fix/scarlet-v48-r6p29-residual-auto-inset-20261112, fix/scarlet-v48-r6p30-inset-interference-isolation-20261112, fix/scarlet-v48-r6p31-nonvertical-always-safearea-20261112, fix/scarlet-v48-r6p32-nonscrolling-owner-stabilization-20261112, fix/scarlet-v48-r6p33-deferred-inset-anchor-20261112, fix/scarlet-v48-r6p34-constraint-native-error-proof-20261112, fix/scarlet-v48-r6p35-ancestor-layout-owner-20261112, fix/scarlet-v48-r6p36-lost-guest-probe-readback-20261112, fix/scarlet-v48-r6p37-nested-header-safe-guide-anchor-20261112, fix/scarlet-v48-r6p38-header-layout-owner-20261113, fix/scarlet-v48-r6p39-parent-safe-guide-constraint-20261113, fix/scarlet-v48-r6p40-transparent-chrome-slot-20261113, fix/scarlet-v48-r6p41-adaptive-chrome-stickiness-20261113, fix/scarlet-v48-r6p42-guest-matched-status-chrome-20261113, fix/scarlet-v48-r6p43-host-verified-native-slot-20261113, fix/scarlet-v48-r6p44-full-native-scroll-header-20261113, fix/scarlet-v48-r6p45-scroll-aware-header-proof-20261113, fix/scarlet-v48-r6p46-detached-header-full-scroll-20261113, fix/scarlet-v48-r6p47-lifecycle-statusbar-20261113, fix/scarlet-v48-r6p48-fresh-proof-crop-gate-20261113, fix/scarlet-v48-r6p49-key-host-statusbar-20261113, fix/scarlet-v48-r6p50-scroll-crop-veto-20261113, fix/scarlet-v48-r6p51-native-statusbar-collision-shield-20261113, fix/scarlet-v48-r6p52-restore-original-host-colors-20261113, fix/scarlet-v48-r6p53-current-log-followup-20261113, fix/scarlet-v48-r6p54-owning-layout-contract-20261114, fix/scarlet-v48-r6p55-child-controller-owner-layout-20261114, fix/scarlet-v48-r6p56-parent-feed-reflow-20261114, fix/scarlet-v48-r6p57-guest-overwrite-20261114, fix/scarlet-v48-r6p58-install-identity-20261114, fix/scarlet-v48-r6p59-unsafe-feed-owner-20261114, fix/scarlet-v48-r6p60-deep-owner-20261114, fix/scarlet-v48-r6p61-slot-manager-20261114, fix/scarlet-v48-r6p62-scroll-viewport-20261114, fix/scarlet-v48-r6p63-nested-parent-20261114, fix/scarlet-v48-r6p64-residual-viewport-20261115, fix/scarlet-v48-r6p65-inset-compensated-settle-20261115, fix/scarlet-v48-r6p66-multiaccount-rea-20261115, fix/scarlet-v48-r6p67-auth-rollback-20261115, fix/scarlet-v48-r6p68-install-team-switch-20261115, fix/scarlet-v48-r6p69-settings-debloat-20261115, fix/scarlet-v48-r6p70-settings-account-list-20261115, fix/scarlet-v48-r6p71-pairing-refresh-race-20261115, fix/scarlet-v48-r6p72-native-pairing-recheck-20261115, fix/scarlet-v48-r6p73-native-managed-host-20261115, fix/scarlet-v48-r6p74-statusband-proof-20261115, fix/scarlet-v48-r6p75-team-slot-scope-20261115, fix/scarlet-v48-r6p76-postheader-scroll-20261115, fix/scarlet-v48-r6p77-severe-scroll-owner-20261116, fix/scarlet-v48-r6p78-signer-recovery-20261116, fix/scarlet-v48-r6p79-import-archive-status-20261116, fix/scarlet-v48-r6p80-device-import-settings-island-20261116, fix/scarlet-v48-r6p81-upstream-import-validation-20261116, fix/scarlet-v48-r6p82-settings-active-install-20261116, fix/scarlet-v48-r6p83-single-statusbar-authority-20261116, fix/scarlet-v48-r6p84-strict-distinct-methods-20261116, fix/scarlet-v48-r6p85-host-origin-refresh-settings-20261116, fix/scarlet-v48-r6p86-apple-team-cert-on-demand-20261116, fix/scarlet-v48-r6p87-account-ui-p12-diagnostics-20261116, fix/scarlet-v48-r6p88-native-account-rows-20261116, fix/scarlet-v48-r6p89-sideinstaller-account-p12-ui-20261117, fix/scarlet-v48-r6p90-account-ownership-20261117, fix/scarlet-v48-r6p91-native-owned-guest-signer-20261117, fix/scarlet-v48-r6p92-jitless-diag-guest-recovery-20261117, fix/scarlet-v48-r6p93-host-profile-signer-anchor-20261117, fix/scarlet-v48-r6p94-explicit-p12-guest-signer-20261117, fix/scarlet-v48-r6p95-inapp-apple-certificate-20261117, fix/scarlet-v48-r6p96-portal-certificate-truth-20261117, fix/scarlet-v48-r6p97-account-owned-signer-20261117, fix/scarlet-v48-r6p98-force-fresh-apple-certificate-20261117, fix/scarlet-v48-r6p99-merged-fresh-cert-host-recovery-20261117, fix/scarlet-v48-r6p100-native-xpc-rebind-20261117, fix/scarlet-v48-r6p101-valid-host-signer-20261117, fix/scarlet-v48-r6p102-certificate-evidence-20261118, fix/scarlet-v48-r6p103-jitless-account-view-20261118, fix/scarlet-v48-r6p105-new-cert-managed-refresh-20261118, fix/scarlet-v48-r6p106-external-host-manual-renew-20261118, fix/scarlet-v48-r6p107-manual-result-contract-20261118, fix/scarlet-v48-r6p108-postimport-cert-rotation-20261118, fix/scarlet-v48-r6p109-owner-pinned-reinstall-20261118, fix/scarlet-v48-r6p110-jitless-native-navigation-20261118, fix/scarlet-v48-r6p111-rootcause-20261118, fix/scarlet-v48-r6p112-remove-runtime-team-literals-20261118, fix/scarlet-v48-r6p113-owner-fence-idempotent-ids-20261118, fix/scarlet-v48-r6p114-legacy-owner-migration-20261118, fix/scarlet-v48-r6p115-managed-host-owner-20261119, fix/scarlet-v48-r6p116-resident-scene-containment-20261120, fix/scarlet-v48-r6p117-resident-scene-settings-20261120, fix/scarlet-v48-r6p118-diagnostic-link-share-20261120, fix/scarlet-v48-r6p119-owner-refresh-20261120, fix/scarlet-v48-r6p120-manual-owner-mismatch-20261120, fix/scarlet-v48-r6p121-existing-cert-recovery-20261120, fix/scarlet-v48-r6p122-device-guest-catalog-20261120, fix/scarlet-v48-r6p123-device-install-labels-20261120, fix/scarlet-v48-r6p124-guest-audio-focus-20261121, fix/scarlet-r6p124-apps-grid-balance-20261121, fix/scarlet-r6p127-device-inventory-renewal-20261124, fix/scarlet-r6p128-device-icons-20261124, fix/scarlet-r6p129-slot-transport-integrity-20261124, fix/scarlet-r6p130-account-refresh-priority-20261124, fix/scarlet-r6p131-classic-switcher-20261124, fix/scarlet-r6p132-integrated-verified-20261124, fix/scarlet-r6p133-shortcut-self-update-20261124, fix/scarlet-r6p134-update-integrity-20261124, fix/scarlet-r6p135-classic-handoff-20261124, fix/scarlet-r6p136-converged-20261124, fix/scarlet-r6p137-profile-lease-20261124, fix/scarlet-r6p138-profile-receipt-record-20261124, fix/scarlet-r6p139-switch-generation-20261124, fix/scarlet-r6p135-refresh-receipts-20261124]",
+            "    paths:",
+            "      - \".github/workflows/scarlet-paired-engines-build.yml\"",
+            "      - \"rebuild/integration/**\""
+          ]
+        },
+        {
+          "file": ".github/workflows/scarlet-paired-engines-build.yml",
+          "location": "@@ -393,6 +393,8 @@ jobs:",
+          "before": [
+            "            SCARLET_HOST_VERSION_ARGS=(--host-build-version 3.8.137)",
+            "          elif [ \"$GITHUB_REF\" = \"refs/heads/fix/scarlet-r6p138-profile-receipt-record-20261124\" ]; then",
+            "            SCARLET_HOST_VERSION_ARGS=(--host-build-version 3.8.138)",
+            "          elif [ \"$GITHUB_REF\" = \"refs/heads/fix/scarlet-r6p135-refresh-receipts-20261124\" ]; then",
+            "            SCARLET_HOST_VERSION_ARGS=(--host-build-version 3.8.135)",
+            "          elif [ \"$GITHUB_REF\" = \"refs/heads/fix/scarlet-v48-r6p123-device-install-labels-20261120\" ]; then"
+          ],
+          "after": [
+            "            SCARLET_HOST_VERSION_ARGS=(--host-build-version 3.8.137)",
+            "          elif [ \"$GITHUB_REF\" = \"refs/heads/fix/scarlet-r6p138-profile-receipt-record-20261124\" ]; then",
+            "            SCARLET_HOST_VERSION_ARGS=(--host-build-version 3.8.138)",
+            "          elif [ \"$GITHUB_REF\" = \"refs/heads/fix/scarlet-r6p139-switch-generation-20261124\" ]; then",
+            "            SCARLET_HOST_VERSION_ARGS=(--host-build-version 3.8.139)",
+            "          elif [ \"$GITHUB_REF\" = \"refs/heads/fix/scarlet-r6p135-refresh-receipts-20261124\" ]; then",
+            "            SCARLET_HOST_VERSION_ARGS=(--host-build-version 3.8.135)",
+            "          elif [ \"$GITHUB_REF\" = \"refs/heads/fix/scarlet-v48-r6p123-device-install-labels-20261120\" ]; then"
+          ]
+        },
+        {
+          "file": "rebuild/HostApp/ScarletAutomaticRenewal.swift",
+          "location": "@@ -174,6 +174,27 @@ enum ScarletRefreshFailureDiagnosis {",
+          "before": [
+            "    }",
+            "}",
+            "",
+            "@available(iOS 17.0, *)",
+            "@MainActor",
+            "final class ScarletAutomaticRenewal {"
+          ],
+          "after": [
+            "    }",
+            "}",
+            "",
+            "// A newer verified switch must not be consumed by an older suspended preflight.",
+            "struct ScarletVerifiedAccountRefreshRequest: Sendable {",
+            "    private(set) var generation = UUID()",
+            "    private(set) var isPending = false",
+            "",
+            "    mutating func enqueue() {",
+            "        generation = UUID()",
+            "        isPending = true",
+            "    }",
+            "",
+            "    mutating func consume(_ expected: UUID) {",
+            "        guard generation == expected else { return }",
+            "        isPending = false",
+            "    }",
+            "",
+            "    mutating func restore(_ expected: UUID) {",
+            "        guard generation == expected else { return }",
+            "        isPending = true",
+            "    }",
+            "}",
+            "",
+            "@available(iOS 17.0, *)",
+            "@MainActor",
+            "final class ScarletAutomaticRenewal {"
+          ]
+        },
+        {
+          "file": "rebuild/HostApp/ScarletAutomaticRenewal.swift",
+          "location": "@@ -205,7 +226,8 @@ final class ScarletAutomaticRenewal {",
+          "before": [
+            "    // Interactive Settings owns the selected account and certificate workflow.",
+            "    // Defer automatic renewal without losing the explicit owner-switch request.",
+            "    private var settingsInteractionActive = false",
+            "    private var pendingVerifiedAccountSwitch = false",
+            "    private var pendingSettingsCatchUp = false",
+            "    private var lastCheckWasDeferred = false",
+            "    private var lastDeferredReportAt: Date?"
+          ],
+          "after": [
+            "    // Interactive Settings owns the selected account and certificate workflow.",
+            "    // Defer automatic renewal without losing the explicit owner-switch request.",
+            "    private var settingsInteractionActive = false",
+            "    private var accountSwitchRequest = ScarletVerifiedAccountRefreshRequest()",
+            "    private var pendingVerifiedAccountSwitch: Bool { accountSwitchRequest.isPending }",
+            "    private var pendingSettingsCatchUp = false",
+            "    private var lastCheckWasDeferred = false",
+            "    private var lastDeferredReportAt: Date?"
+          ]
+        },
+        {
+          "file": "rebuild/HostApp/ScarletAutomaticRenewal.swift",
+          "location": "@@ -283,7 +305,7 @@ final class ScarletAutomaticRenewal {",
+          "before": [
+            "    func refreshAfterVerifiedAccountSwitch() async {",
+            "        // Do not claim the worker's native Team gate while the user is still",
+            "        // working on the selected account's certificate in Settings.",
+            "        pendingVerifiedAccountSwitch = true",
+            "        scheduleNext()",
+            "        _ = await refreshIfDue(origin: \"verified_account_switch\")",
+            "    }"
+          ],
+          "after": [
+            "    func refreshAfterVerifiedAccountSwitch() async {",
+            "        // Do not claim the worker's native Team gate while the user is still",
+            "        // working on the selected account's certificate in Settings.",
+            "        accountSwitchRequest.enqueue()",
+            "        scheduleNext()",
+            "        _ = await refreshIfDue(origin: \"verified_account_switch\")",
+            "    }"
+          ]
+        },
+        {
+          "file": "rebuild/HostApp/ScarletAutomaticRenewal.swift",
+          "location": "@@ -363,7 +385,7 @@ final class ScarletAutomaticRenewal {",
+          "before": [
+            "            return true",
+            "        }",
+            "        running = true",
+            "        if origin == \"verified_account_switch\" { pendingVerifiedAccountSwitch = false }",
+            "        defer { running = false; scheduleNext(); notifyStateChanged() }",
+            "",
+            "        // Do not start the 2h retry cooldown until the real SideStore"
+          ],
+          "after": [
+            "            return true",
+            "        }",
+            "        running = true",
+            "        let switchGeneration = accountSwitchRequest.generation",
+            "        defer { running = false; scheduleNext(); notifyStateChanged() }",
+            "",
+            "        // Do not start the 2h retry cooldown until the real SideStore"
+          ]
+        },
+        {
+          "file": "rebuild/HostApp/ScarletAutomaticRenewal.swift",
+          "location": "@@ -380,6 +402,7 @@ final class ScarletAutomaticRenewal {",
+          "before": [
+            "",
+            "        let gate = ScarletSigningReadiness.inspect()",
+            "        guard gate.canRequestNativeRefresh else {",
+            "            prefs.set(\"차단 · App Group 또는 서명 권한 불일치\", forKey: outcomeKey)",
+            "            ScarletDiagnosticRecorder.shared.record(",
+            "                \"refresh\", \"automatic_attempt_blocked\", status: \"blocked\","
+          ],
+          "after": [
+            "",
+            "        let gate = ScarletSigningReadiness.inspect()",
+            "        guard gate.canRequestNativeRefresh else {",
+            "            if origin == \"verified_account_switch\" { accountSwitchRequest.consume(switchGeneration) }",
+            "            prefs.set(\"차단 · App Group 또는 서명 권한 불일치\", forKey: outcomeKey)",
+            "            ScarletDiagnosticRecorder.shared.record(",
+            "                \"refresh\", \"automatic_attempt_blocked\", status: \"blocked\","
+          ]
+        },
+        {
+          "file": "rebuild/HostApp/ScarletAutomaticRenewal.swift",
+          "location": "@@ -397,6 +420,7 @@ final class ScarletAutomaticRenewal {",
+          "before": [
+            "            return false",
+            "        }",
+            "        guard authState.isAuthenticated else {",
+            "            prefs.set(\"차단 · SideStore 로그인 세션 없음\", forKey: outcomeKey)",
+            "            ScarletDiagnosticRecorder.shared.record(",
+            "                \"refresh\", \"automatic_attempt_blocked\", status: \"blocked\","
+          ],
+          "after": [
+            "            return false",
+            "        }",
+            "        guard authState.isAuthenticated else {",
+            "            if origin == \"verified_account_switch\" { accountSwitchRequest.consume(switchGeneration) }",
+            "            prefs.set(\"차단 · SideStore 로그인 세션 없음\", forKey: outcomeKey)",
+            "            ScarletDiagnosticRecorder.shared.record(",
+            "                \"refresh\", \"automatic_attempt_blocked\", status: \"blocked\","
+          ]
+        },
+        {
+          "file": "rebuild/HostApp/ScarletAutomaticRenewal.swift",
+          "location": "@@ -436,6 +460,9 @@ final class ScarletAutomaticRenewal {",
+          "before": [
+            "            let transient = pairingReason == \"pairing_state_read_timeout\" ||",
+            "                pairingReason == \"transport_unavailable\" ||",
+            "                pairingReason == \"pairing_saved_transport_unavailable\"",
+            "            prefs.set(transient ? \"보류 · 기기 연결 재확인 예정\"",
+            "                                : \"차단 · 페어링 연결 확인 필요\", forKey: outcomeKey)",
+            "            prefs.set(pairingReason, forKey: failureReasonKey)"
+          ],
+          "after": [
+            "            let transient = pairingReason == \"pairing_state_read_timeout\" ||",
+            "                pairingReason == \"transport_unavailable\" ||",
+            "                pairingReason == \"pairing_saved_transport_unavailable\"",
+            "            if !transient {",
+            "                if origin == \"verified_account_switch\" { accountSwitchRequest.consume(switchGeneration) }",
+            "            }",
+            "            prefs.set(transient ? \"보류 · 기기 연결 재확인 예정\"",
+            "                                : \"차단 · 페어링 연결 확인 필요\", forKey: outcomeKey)",
+            "            prefs.set(pairingReason, forKey: failureReasonKey)"
+          ]
+        },
+        {
+          "file": "rebuild/HostApp/ScarletAutomaticRenewal.swift",
+          "location": "@@ -455,7 +482,6 @@ final class ScarletAutomaticRenewal {",
+          "before": [
+            "                     \"signing_ready\": nativeState.signingReady ? \"true\" : \"false\",",
+            "                     \"reason\": nativeState.reason])",
+            "        if nativeState.reason == \"team_operation_in_progress\" {",
+            "            if origin == \"verified_account_switch\" { pendingVerifiedAccountSwitch = true }",
+            "            lastCheckWasDeferred = true",
+            "            prefs.set(\"보류 · 다른 서명 작업 진행 중\", forKey: outcomeKey)",
+            "            prefs.set(nativeState.reason, forKey: failureReasonKey)"
+          ],
+          "after": [
+            "                     \"signing_ready\": nativeState.signingReady ? \"true\" : \"false\",",
+            "                     \"reason\": nativeState.reason])",
+            "        if nativeState.reason == \"team_operation_in_progress\" {",
+            "            lastCheckWasDeferred = true",
+            "            prefs.set(\"보류 · 다른 서명 작업 진행 중\", forKey: outcomeKey)",
+            "            prefs.set(nativeState.reason, forKey: failureReasonKey)"
+          ]
+        },
+        {
+          "file": "rebuild/HostApp/ScarletAutomaticRenewal.swift",
+          "location": "@@ -465,6 +491,16 @@ final class ScarletAutomaticRenewal {",
+          "before": [
+            "            return true",
+            "        }",
+            "        guard nativeState.canRefreshSelectedTeam else {",
+            "            prefs.set(\"차단 · 내장 SideStore 관리 앱·인증서 확인 필요\",",
+            "                      forKey: outcomeKey)",
+            "            prefs.set(nativeState.reason, forKey: failureReasonKey)"
+          ],
+          "after": [
+            "            return true",
+            "        }",
+            "        guard nativeState.canRefreshSelectedTeam else {",
+            "            let terminalReasons: Set<String> = [",
+            "                \"host_selected_team_mismatch\", \"selected_team_certificate_missing\",",
+            "                \"host_selected_team_certificate_missing\", \"host_managed_record_inactive\",",
+            "                \"managed_apps_inactive_for_selected_team\",",
+            "                \"managed_apps_excluded_from_refresh_for_selected_team\",",
+            "                \"no_managed_apps\", \"no_managed_apps_for_selected_team\"",
+            "            ]",
+            "            if terminalReasons.contains(nativeState.reason), origin == \"verified_account_switch\" {",
+            "                accountSwitchRequest.consume(switchGeneration)",
+            "            }",
+            "            prefs.set(\"차단 · 내장 SideStore 관리 앱·인증서 확인 필요\",",
+            "                      forKey: outcomeKey)",
+            "            prefs.set(nativeState.reason, forKey: failureReasonKey)"
+          ]
+        },
+        {
+          "file": "rebuild/HostApp/ScarletAutomaticRenewal.swift",
+          "location": "@@ -474,7 +510,6 @@ final class ScarletAutomaticRenewal {",
+          "before": [
+            "        // A preflight is not authority to start a mutation after that change.",
+            "        guard !settingsInteractionActive || UIApplication.shared.applicationState == .background else {",
+            "            pendingSettingsCatchUp = true",
+            "            if origin == \"verified_account_switch\" { pendingVerifiedAccountSwitch = true }",
+            "            lastCheckWasDeferred = true",
+            "            prefs.set(\"보류 · 계정 설정 작업 중\", forKey: outcomeKey)",
+            "            ScarletDiagnosticRecorder.shared.record(\"refresh\","
+          ],
+          "after": [
+            "        // A preflight is not authority to start a mutation after that change.",
+            "        guard !settingsInteractionActive || UIApplication.shared.applicationState == .background else {",
+            "            pendingSettingsCatchUp = true",
+            "            lastCheckWasDeferred = true",
+            "            prefs.set(\"보류 · 계정 설정 작업 중\", forKey: outcomeKey)",
+            "            ScarletDiagnosticRecorder.shared.record(\"refresh\","
+          ]
+        },
+        {
+          "file": "rebuild/HostApp/ScarletAutomaticRenewal.swift",
+          "location": "@@ -484,17 +519,21 @@ final class ScarletAutomaticRenewal {",
+          "before": [
+            "            return true",
+            "        }",
+            "        guard !Task.isCancelled else {",
+            "            if origin == \"verified_account_switch\" { pendingVerifiedAccountSwitch = true }",
+            "            prefs.set(\"중단 · 갱신 요청 취소됨\", forKey: outcomeKey)",
+            "            return false",
+            "        }",
+            "        guard !ScarletSelfUpdate.isRunning else {",
+            "            if origin == \"verified_account_switch\" { pendingVerifiedAccountSwitch = true }",
+            "            lastCheckWasDeferred = true",
+            "            return true",
+            "        }",
+            "        guard ScarletInstalledProfileReadback.beginRequest(source: \"automatic\") else {",
+            "            if origin == \"verified_account_switch\" { pendingVerifiedAccountSwitch = true }",
+            "            lastCheckWasDeferred = true",
+            "            ScarletDiagnosticRecorder.shared.record(\"refresh\",",
+            "                \"profile_readback_request_busy\","
+          ],
+          "after": [
+            "            return true",
+            "        }",
+            "        guard !Task.isCancelled else {",
+            "            prefs.set(\"중단 · 갱신 요청 취소됨\", forKey: outcomeKey)",
+            "            return false",
+            "        }",
+            "        guard !ScarletSelfUpdate.isRunning else {",
+            "            lastCheckWasDeferred = true",
+            "            return true",
+            "        }",
+            "        guard accountSwitchRequest.generation == switchGeneration else {",
+            "            lastCheckWasDeferred = true",
+            "            ScarletDiagnosticRecorder.shared.record(\"refresh\",",
+            "                \"automatic_deferred_account_generation_changed\",",
+            "                fields: [\"installation_verified\": \"false\"])",
+            "            return true",
+            "        }",
+            "        guard ScarletInstalledProfileReadback.beginRequest(source: \"automatic\") else {",
+            "            lastCheckWasDeferred = true",
+            "            ScarletDiagnosticRecorder.shared.record(\"refresh\",",
+            "                \"profile_readback_request_busy\","
+          ]
+        },
+        {
+          "file": "rebuild/HostApp/ScarletAutomaticRenewal.swift",
+          "location": "@@ -502,6 +541,7 @@ final class ScarletAutomaticRenewal {",
+          "before": [
+            "            return true",
+            "        }",
+            "        defer { ScarletInstalledProfileReadback.finishRequest() }",
+            "        let previousAttempt = prefs.object(forKey: attemptKey) as? Date",
+            "        prefs.set(Date(), forKey: attemptKey)",
+            "        do {"
+          ],
+          "after": [
+            "            return true",
+            "        }",
+            "        defer { ScarletInstalledProfileReadback.finishRequest() }",
+            "        if origin == \"verified_account_switch\" { accountSwitchRequest.consume(switchGeneration) }",
+            "        let previousAttempt = prefs.object(forKey: attemptKey) as? Date",
+            "        prefs.set(Date(), forKey: attemptKey)",
+            "        do {"
+          ]
+        },
+        {
+          "file": "rebuild/HostApp/ScarletAutomaticRenewal.swift",
+          "location": "@@ -531,7 +571,7 @@ final class ScarletAutomaticRenewal {",
+          "before": [
+            "                // consume a new two-hour attempt cooldown.",
+            "                if let previousAttempt { prefs.set(previousAttempt, forKey: attemptKey) }",
+            "                else { prefs.removeObject(forKey: attemptKey) }",
+            "                if origin == \"verified_account_switch\" { pendingVerifiedAccountSwitch = true }",
+            "                lastCheckWasDeferred = true",
+            "                prefs.set(\"보류 · 다른 서명 작업 진행 중\", forKey: outcomeKey)",
+            "                prefs.set(reason, forKey: failureReasonKey)"
+          ],
+          "after": [
+            "                // consume a new two-hour attempt cooldown.",
+            "                if let previousAttempt { prefs.set(previousAttempt, forKey: attemptKey) }",
+            "                else { prefs.removeObject(forKey: attemptKey) }",
+            "                if origin == \"verified_account_switch\" { accountSwitchRequest.restore(switchGeneration) }",
+            "                lastCheckWasDeferred = true",
+            "                prefs.set(\"보류 · 다른 서명 작업 진행 중\", forKey: outcomeKey)",
+            "                prefs.set(reason, forKey: failureReasonKey)"
+          ]
+        },
+        {
+          "file": "rebuild/Tests/test_v48_r6p130_account_refresh_priority.py",
+          "location": "@@ -14,7 +14,7 @@ class AccountRefreshPriority(unittest.TestCase):",
+          "before": [
+            "        self.assertIn('private var settingsInteractionActive = false', AUTO)",
+            "        guard = AUTO.split('private func refreshIfDue(origin:', 1)[1]",
+            "        self.assertLess(guard.index('guard !settingsInteractionActive'), guard.index('prefs.set(Date(), forKey: attemptKey)'))",
+            "        self.assertIn('pendingVerifiedAccountSwitch = true', AUTO)",
+            "        self.assertIn('if wasActive && !active && (pendingVerifiedAccountSwitch || pendingSettingsCatchUp)', AUTO)",
+            "        self.assertIn('pendingVerifiedAccountSwitch ? \"verified_account_switch\" : \"foreground\"', AUTO)",
+            ""
+          ],
+          "after": [
+            "        self.assertIn('private var settingsInteractionActive = false', AUTO)",
+            "        guard = AUTO.split('private func refreshIfDue(origin:', 1)[1]",
+            "        self.assertLess(guard.index('guard !settingsInteractionActive'), guard.index('prefs.set(Date(), forKey: attemptKey)'))",
+            "        self.assertIn('accountSwitchRequest.enqueue()', AUTO)",
+            "        self.assertIn('if wasActive && !active && (pendingVerifiedAccountSwitch || pendingSettingsCatchUp)', AUTO)",
+            "        self.assertIn('pendingVerifiedAccountSwitch ? \"verified_account_switch\" : \"foreground\"', AUTO)",
+            ""
+          ]
+        },
+        {
+          "file": "rebuild/Tests/test_v48_r6p139_account_switch_generation.py",
+          "location": "@@ -0,0 +1,130 @@",
+          "before": [],
+          "after": [
+            "\"\"\"Account-switch priority survives transient preflight and newer switch events.\"\"\"",
+            "from pathlib import Path",
+            "import re",
+            "import importlib.util",
+            "import json",
+            "import plistlib",
+            "import zipfile",
+            "import shutil",
+            "import subprocess",
+            "import tempfile",
+            "import unittest",
+            "",
+            "ROOT = Path(__file__).resolve().parents[1]",
+            "AUTO = (ROOT / \"HostApp/ScarletAutomaticRenewal.swift\").read_text()",
+            "",
+            "class AccountSwitchGeneration(unittest.TestCase):",
+            "    def test_no_early_consumption_and_generation_fence(self):",
+            "        body = AUTO.split(\"private func refreshIfDue(origin:\", 1)[1]",
+            "        start = body.index(\"running = true\")",
+            "        dispatch = body.index(\"ScarletNativeRefreshExecutor.execute()\")",
+            "        preflight = body[start:dispatch]",
+            "        self.assertNotIn(\"pendingVerifiedAccountSwitch = false\", preflight)",
+            "        self.assertIn(\"let switchGeneration = accountSwitchRequest.generation\", preflight)",
+            "        self.assertIn(\"guard accountSwitchRequest.generation == switchGeneration\", preflight)",
+            "        self.assertLess(preflight.index(\"ScarletInstalledProfileReadback.beginRequest\"),",
+            "                        preflight.index(\"accountSwitchRequest.consume(switchGeneration)\", preflight.index(\"ScarletInstalledProfileReadback.beginRequest\")))",
+            "        self.assertIn(\"accountSwitchRequest.restore(switchGeneration)\", body[dispatch:])",
+            "",
+            "    def test_transient_preflight_does_not_consume_priority(self):",
+            "        body = AUTO.split(\"private func refreshIfDue(origin:\", 1)[1]",
+            "        for marker, end in [",
+            "            (\"if case .unavailable(let reason) = authState\", \"guard authState.isAuthenticated\"),",
+            "            (\"guard !Task.isCancelled else\", \"let (paired, pairingReason)\"),",
+            "            ('if nativeState.reason == \"team_operation_in_progress\"', \"guard nativeState.canRefreshSelectedTeam\"),",
+            "        ]:",
+            "            section = body.split(marker, 1)[1].split(end, 1)[0]",
+            "            self.assertNotIn(\"consume(\", section)",
+            "        self.assertIn(\"if !transient {\", body)",
+            "        self.assertIn(\"if origin == \\\"verified_account_switch\\\" { accountSwitchRequest.consume(switchGeneration) }\", body)",
+            "",
+            "    def test_cumulative_archive_rejects_missing_generation_fence(self):",
+            "        spec = importlib.util.spec_from_file_location(",
+            "            \"gate139\", ROOT / \"integration/verify_integrated_release.py\")",
+            "        gate = importlib.util.module_from_spec(spec)",
+            "        spec.loader.exec_module(gate)",
+            "        sha = \"d\" * 40",
+            "        host = \"Frameworks/LiveContainerSwiftUI.framework/LiveContainerSwiftUI\"",
+            "        worker = \"Frameworks/SideStoreApp.framework/SideStore\"",
+            "        actions = {k: {} for k in (\"RefreshAllIntent\", \"RefreshAllAppsWidgetIntent\", \"InstallIPAIntent\")}",
+            "        actions[\"ScarletSelfUpdateIntent\"] = {\"fullyQualifiedTypeName\": \"LiveContainerSwiftUI.ScarletSelfUpdateIntent\"}",
+            "        with tempfile.TemporaryDirectory() as tmp:",
+            "            ipa = Path(tmp) / \"candidate.ipa\"",
+            "            for include in (False, True):",
+            "                with zipfile.ZipFile(ipa, \"w\") as z:",
+            "                    z.writestr(gate.PREFIX + \"Info.plist\", plistlib.dumps({",
+            "                        \"CFBundleIdentifier\": \"com.kdt.livecontainer.P8EZT3U5N4\",",
+            "                        \"CFBundleShortVersionString\": \"3.8.11\",",
+            "                        \"CFBundleVersion\": \"3.8.139\", \"CFBundleExecutable\": \"LiveContainer\"}))",
+            "                    for path, markers in gate.REQUIRED_MARKERS.items():",
+            "                        data = list(markers)",
+            "                        if path == host:",
+            "                            data.extend([(\"scarlet-source-commit:\" + sha).encode(),",
+            "                                         b\"ScarletSelfUpdateIntent\", b\"shortcut_update_installed_build_verified\",",
+            "                                         b\"classic_handoff_drained\", b\"classic_handoff_blocked\",",
+            "                                         b\"selected_team_partial_refresh_results\", b\"selected_team_refresh_result_mismatch\",",
+            "                                         b\"profile_readback_request_busy\", b\"Scarlet.Refresh.InstalledProfileReceipt.V138\"])",
+            "                            if include:",
+            "                                data.append(b\"automatic_deferred_account_generation_changed\")",
+            "                        if path == worker:",
+            "                            data.extend([b\"self_update_identity_unverified\", b\"Scarlet self-update signed identity or version mismatch\",",
+            "                                         b\"self_update_archive_unverified\", b\"Scarlet self-update archive digest mismatch\",",
+            "                                         b\"Scarlet self-update source topology mismatch\", b\"Scarlet self-update provisioning Team mismatch\",",
+            "                                         b\"SideSign.DeveloperPortalError\", b\"selected_team_partial_refresh_results\",",
+            "                                         b\"selected_team_refresh_result_mismatch\"])",
+            "                        z.writestr(gate.PREFIX + path, b\"\\0\".join(data))",
+            "                    for path in (\"Metadata.appintents/extract.actionsdata\",",
+            "                                 \"Frameworks/LiveContainerSwiftUI.framework/Metadata.appintents/extract.actionsdata\"):",
+            "                        z.writestr(gate.PREFIX + path, json.dumps({\"actions\": actions}))",
+            "                if include:",
+            "                    self.assertFalse(gate.verify(ipa, \"3.8.139\", sha)[\"deviceVerified\"])",
+            "                else:",
+            "                    with self.assertRaisesRegex(ValueError, \"R139\"):",
+            "                        gate.verify(ipa, \"3.8.139\", sha)",
+            "",
+            "    def test_build_identity_not_publicly_published(self):",
+            "        workflow = (ROOT.parent / \".github/workflows/scarlet-paired-engines-build.yml\").read_text()",
+            "        branch = \"fix/scarlet-r6p139-switch-generation-20261124\"",
+            "        self.assertIn(branch, next(x for x in workflow.splitlines() if x.startswith(\"    branches:\")))",
+            "        self.assertIn(\"--host-build-version 3.8.139\", workflow)",
+            "        self.assertNotIn(branch, workflow.split(\"  publish-unsigned-github-release:\", 1)[1])",
+            "",
+            "    def test_actual_swift_generation_state(self):",
+            "        swiftc = shutil.which(\"swiftc\")",
+            "        if not swiftc:",
+            "            self.skipTest(\"Swift compiler unavailable\")",
+            "        match = re.search(r\"struct ScarletVerifiedAccountRefreshRequest: Sendable \\{.*?\\n\\}\", AUTO, re.S)",
+            "        self.assertIsNotNone(match)",
+            "        fixture = \"import Foundation\\n\" + match.group(0) + \"\"\"",
+            "var state = ScarletVerifiedAccountRefreshRequest()",
+            "precondition(!state.isPending)",
+            "state.enqueue()",
+            "let a = state.generation",
+            "precondition(state.isPending)",
+            "state.enqueue()",
+            "let b = state.generation",
+            "precondition(a != b && state.isPending)",
+            "state.consume(a)",
+            "precondition(state.isPending)",
+            "state.restore(a)",
+            "precondition(state.generation == b && state.isPending)",
+            "state.consume(b)",
+            "precondition(!state.isPending)",
+            "state.restore(b)",
+            "precondition(state.isPending)",
+            "state.consume(b)",
+            "state.enqueue()",
+            "let c = state.generation",
+            "state.restore(b)",
+            "precondition(c != b && state.generation == c && state.isPending)",
+            "print(\"R139_SWITCH_GENERATION_PASS\")",
+            "\"\"\"",
+            "        with tempfile.TemporaryDirectory() as tmp:",
+            "            src = Path(tmp) / \"main.swift\"",
+            "            src.write_text(fixture)",
+            "            exe = Path(tmp) / \"test\"",
+            "            p = subprocess.run([swiftc, \"-swift-version\", \"6\", \"-strict-concurrency=complete\", \"-warnings-as-errors\", str(src), \"-o\", str(exe)], capture_output=True, text=True, timeout=90)",
+            "            self.assertEqual(p.returncode, 0, p.stderr)",
+            "            p = subprocess.run([str(exe)], capture_output=True, text=True, timeout=10)",
+            "            self.assertEqual(p.returncode, 0, p.stderr)",
+            "            self.assertIn(\"R139_SWITCH_GENERATION_PASS\", p.stdout)"
+          ]
+        },
+        {
+          "file": "rebuild/diagnostics/SCARLET_ENGINEERING_STATE.md",
+          "location": "@@ -63,3 +63,10 @@ Baseline: R6P133, source 865f2257dd210906f7512c1c305fcd456c0945df.",
+          "before": [
+            "- R138 stores one property-list dictionary, validates all four fields, migrates complete legacy records before retiring old keys, and uses a canonical empty dictionary to suppress stale legacy fallback after consumption. The existing R137 MainActor lease and rollback semantics remain. A fully populated legacy record might still contain mixed epochs; compatibility migration cannot reconstruct its original transaction. This design removes independently written receipt fields, not an fsync/disk-durability or multi-process locking guarantee. Downgrading to an older build may lose pending receipt evidence; no signer/Keychain/entitlement changes. Callback installation_verified remains false.",
+            "- Verification: pre-edit gate passed 218 historical entries with an added distinct non-Island persistence taxonomy. NAS RED 4 tests, 3 failed, 1 skipped; focused initial GREEN 9 tests, 7 passed, 2 skipped. Swift strict compile found nested actor isolation and fixture-helper defects; explicitly isolated the nested Receipt and helpers, then matched source enum SHA256 0fccab1abec6061296b9692b6275feed2587a2c0e98cf3aee1b7edf0e38cfda5 and executed R138_PROFILE_RECEIPT_PASS. Full source regression initially hit shallow-history and obsolete V37 string assertion; fetched exact full history from verified R137, preserved assertion meaning with new digest member. Final full NAS source suite 1110 tests, 1102 passed, 8 skipped, 19.111 s, exit 0; synthetic IPA rejects missing R138 marker. Swift fixture is Linux, not Xcode/iOS.",
+            "- Candidate build 3.8.138 requires all previous compiled markers plus canonical receipt marker. Existing public release allowlist unchanged. Native Xcode/IPA and actual signed device gates pending: migration across reinstall, account A/B/A and partial/native callbacks, profile readback after new process, manual/automatic overlap, classic/resident matched guest A/B/A, actual status icons, touch/scroll/rotation, Shortcut update. Do not claim Apple issuance or installation success from CI or from profile change alone."
+          ],
+          "after": [
+            "- R138 stores one property-list dictionary, validates all four fields, migrates complete legacy records before retiring old keys, and uses a canonical empty dictionary to suppress stale legacy fallback after consumption. The existing R137 MainActor lease and rollback semantics remain. A fully populated legacy record might still contain mixed epochs; compatibility migration cannot reconstruct its original transaction. This design removes independently written receipt fields, not an fsync/disk-durability or multi-process locking guarantee. Downgrading to an older build may lose pending receipt evidence; no signer/Keychain/entitlement changes. Callback installation_verified remains false.",
+            "- Verification: pre-edit gate passed 218 historical entries with an added distinct non-Island persistence taxonomy. NAS RED 4 tests, 3 failed, 1 skipped; focused initial GREEN 9 tests, 7 passed, 2 skipped. Swift strict compile found nested actor isolation and fixture-helper defects; explicitly isolated the nested Receipt and helpers, then matched source enum SHA256 0fccab1abec6061296b9692b6275feed2587a2c0e98cf3aee1b7edf0e38cfda5 and executed R138_PROFILE_RECEIPT_PASS. Full source regression initially hit shallow-history and obsolete V37 string assertion; fetched exact full history from verified R137, preserved assertion meaning with new digest member. Final full NAS source suite 1110 tests, 1102 passed, 8 skipped, 19.111 s, exit 0; synthetic IPA rejects missing R138 marker. Swift fixture is Linux, not Xcode/iOS.",
+            "- Candidate build 3.8.138 requires all previous compiled markers plus canonical receipt marker. Existing public release allowlist unchanged. Native Xcode/IPA and actual signed device gates pending: migration across reinstall, account A/B/A and partial/native callbacks, profile readback after new process, manual/automatic overlap, classic/resident matched guest A/B/A, actual status icons, touch/scroll/rotation, Shortcut update. Do not claim Apple issuance or installation success from CI or from profile change alone.",
+            "",
+            "## R6P139 — generation-bound verified account-switch refresh priority (2026-11-24 UTC)",
+            "- Remote baseline R138 a3d01544701358db5d9656de5e008b45c67079ed. GitHub Actions run 45395094165 observed in progress. Latest supplied signed-device log remains R135 894fd0c9a3da, build 3.8.135, session 9676cc08, 315 events, iOS 27.2. Seq265–268 and 279–282 selected-team manual callback install-unverified; seq272/276/296 Apple create code 20/domain other; seq288 verified account switch; seq291 Settings-priority deferral; seq293 host-selected-team mismatch. These do not validate newer builds or establish a lost-priority event on device.",
+            "- Reproduced source-contract defect: R138 clears the verified-switch flag at running=true, before suspended auth/pairing/native-readiness preflight. Transient failure can discard the priority even though no native attempt was admitted. New verified switch events can supersede an awaited preflight.",
+            "- L220 adds a Sendable value state with UUID generation, retaining priority on transient preflight, consuming only the captured generation on explicit terminal denial or native admission, fencing a superseded preflight before host profile lease/cooldown, and restoring only that generation on native busy. Existing Settings guard, worker identity checks, R137 lease and R138 receipt remain; no geometry, signing identity, entitlements or certificate portal changes. Priority is process-local, not durable across termination, and the host fence is not a new worker identity pin.",
+            "- RED: new source-contract tests 2 failures, 1 skipped, exit 1. Pre-edit gate passed 219 historical attempts. GREEN focused 5 tests, 4 pass, 1 skip (Swift compiler absent); synthetic IPA missing marker rejected and complete fixture accepted. Final full Python suite 1115 tests, 1106 pass, 9 skip, 19.085 s, exit 0. YAML and 15 Bash run-step syntax checks pass; git diff --check pass. Native Swift/Xcode, simulator and signed iPhone not exercised on DS920+ NAS. Existing Python escape warnings unchanged.",
+            "- Build 3.8.139 adds cumulative compiled generation-fence marker; public unsigned release allowlist unchanged. Next gates: exact source/IPA on native CI, real device switch A/B/A with transient auth/pairing interruption and native busy, host-owner mismatch fail-closed, manual/automatic/P12 receipt overlap, post-relaunch installed profile, original/resident matched guest rotation/touch/status icons. Do not infer installation or visual success from fixture or CI."
+          ]
+        },
+        {
+          "file": "rebuild/diagnostics/scarlet_distinct_strategy_gate.py",
+          "location": "@@ -45,6 +45,7 @@ OTHER_ALLOWED_METHODS = {",
+          "before": [
+            "    \"cumulative_binary_release_identity_and_native_readiness_serialization\",",
+            "    \"classic_bootstrap_owned_switcher_and_token_bound_diagnostic_handoff\",",
+            "    \"interactive_account_priority_and_certificate_transport_reservation\",",
+            "    # R6P129: align native slot wire limits, result semantics and readback lifetime.",
+            "    \"native_slot_response_contract_and_serialized_readback\",",
+            "    # R6P128: exact installed bundle artwork and truthful read-only ownership labels."
+          ],
+          "after": [
+            "    \"cumulative_binary_release_identity_and_native_readiness_serialization\",",
+            "    \"classic_bootstrap_owned_switcher_and_token_bound_diagnostic_handoff\",",
+            "    \"interactive_account_priority_and_certificate_transport_reservation\",",
+            "    \"generation_bound_account_switch_priority_consumption_at_native_admission\",",
+            "    # R6P129: align native slot wire limits, result semantics and readback lifetime.",
+            "    \"native_slot_response_contract_and_serialized_readback\",",
+            "    # R6P128: exact installed bundle artwork and truthful read-only ownership labels."
+          ]
+        },
+        {
+          "file": "rebuild/integration/verify_integrated_release.py",
+          "location": "@@ -112,6 +112,10 @@ def verify(ipa: Path, version: str, source_commit: str) -> dict:",
+          "before": [
+            "            binary = z.read(PREFIX + \"Frameworks/LiveContainerSwiftUI.framework/LiveContainerSwiftUI\")",
+            "            require(b\"Scarlet.Refresh.InstalledProfileReceipt.V138\" in binary,",
+            "                    \"R138 single-value profile receipt marker missing\")",
+            "    with ipa.open(\"rb\") as f:",
+            "        digest = hashlib.file_digest(f, \"sha256\").hexdigest()",
+            "    return {\"schema\": 1, \"sourceCommit\": source_commit, \"version\": version,"
+          ],
+          "after": [
+            "            binary = z.read(PREFIX + \"Frameworks/LiveContainerSwiftUI.framework/LiveContainerSwiftUI\")",
+            "            require(b\"Scarlet.Refresh.InstalledProfileReceipt.V138\" in binary,",
+            "                    \"R138 single-value profile receipt marker missing\")",
+            "        if tuple(map(int, version.split(\".\"))) >= (3, 8, 139):",
+            "            binary = z.read(PREFIX + \"Frameworks/LiveContainerSwiftUI.framework/LiveContainerSwiftUI\")",
+            "            require(b\"automatic_deferred_account_generation_changed\" in binary,",
+            "                    \"R139 account-switch generation fence marker missing\")",
+            "    with ipa.open(\"rb\") as f:",
+            "        digest = hashlib.file_digest(f, \"sha256\").hexdigest()",
+            "    return {\"schema\": 1, \"sourceCommit\": source_commit, \"version\": version,"
+          ]
+        }
+      ],
+      "rollback_commit": "a3d01544701358db5d9656de5e008b45c67079ed",
+      "source_revisions": [
+        {
+          "sha": "4890cb2f2cec87ab8871b1f8ce1be96789f933b2",
+          "title": "fix(r6p139): retain generation-bound verified account refresh priority"
+        }
+      ],
+      "source_verification": "git_patch_observed",
+      "status": "source_committed_static_and_xcode_ci_pending",
+      "device_verification": "device_unverified",
+      "observation": "Signed R135 session 9676cc08 seq288 verified switch, seq291 interactive Settings deferred; no phone proof of lost priority. R138 source clears the flag before awaited preflight.",
+      "hypothesis": "A transient preflight return discards the priority flag, and an awaited stale generation can proceed after a newer verified switch.",
+      "action": "Generation-bound priority retention and admission fence; keep worker identity and profile lease unchanged.",
+      "verification": "RED 2 failures 1 skip exit 1; preedit 219 entries pass; focused 4 pass 1 skip; full 1115 tests 1106 passed 9 skipped 19.085s exit 0; YAML 15 Bash steps and diff check passed. Swift/Xcode/device pending.",
+      "repeat_policy": "Distinct request lifetime, not Settings priority, transport reservation, receipt persistence, or any Island layout method."
     }
   ]
 }

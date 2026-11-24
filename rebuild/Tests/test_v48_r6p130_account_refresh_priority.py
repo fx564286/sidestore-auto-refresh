@@ -14,7 +14,7 @@ class AccountRefreshPriority(unittest.TestCase):
         self.assertIn('private var settingsInteractionActive = false', AUTO)
         guard = AUTO.split('private func refreshIfDue(origin:', 1)[1]
         self.assertLess(guard.index('guard !settingsInteractionActive'), guard.index('prefs.set(Date(), forKey: attemptKey)'))
-        self.assertIn('pendingVerifiedAccountSwitch = true', AUTO)
+        self.assertIn('accountSwitchRequest.enqueue()', AUTO)
         self.assertIn('if wasActive && !active && (pendingVerifiedAccountSwitch || pendingSettingsCatchUp)', AUTO)
         self.assertIn('pendingVerifiedAccountSwitch ? "verified_account_switch" : "foreground"', AUTO)
 
