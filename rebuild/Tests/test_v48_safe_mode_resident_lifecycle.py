@@ -34,7 +34,10 @@ class TestV48(unittest.TestCase):
   self.assertIn('canRelaunch: canRestart',S)
   self.assertIn('slots.map { slot in',S)
   self.assertIn('target.scarletRemoteContentReady()',S)
-  self.assertNotIn('.terminate()',S)
+  before, drain = S.split('func prepareClassicHandoff() async -> Bool', 1)
+  drain, after = drain.split('func livePID', 1)
+  self.assertNotIn('terminate()', before + after)
+  self.assertEqual(drain.count('controller.terminate()'), 1)
  def test_original_fullscreen_statusbar_behavior_restored(self):
   self.assertIn('assert a.count("        settings.statusBarDisabled = !self.isNativeWindow;") == 1',I)
   self.assertIn('settings.statusBarDisabled = !self.isNativeWindow && !self.scarletNativeFullscreenSlot;',I)

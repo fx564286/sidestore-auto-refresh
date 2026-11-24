@@ -50,7 +50,10 @@ class TestV47InPlaceGuestSwitch(unittest.TestCase):
         self.assertIn('attemptsRemaining > 0',SCENE)
         self.assertIn('guard !old.isAppRunning else { return false }',SCENE)
         self.assertIn('old.view.removeFromSuperview()',SCENE)
-        self.assertNotIn('terminate()',SCENE)
+        before, drain = SCENE.split('func prepareClassicHandoff() async -> Bool', 1)
+        drain, after = drain.split('func livePID', 1)
+        self.assertNotIn('terminate()', before + after)
+        self.assertEqual(drain.count('controller.terminate()'), 1)
 
     def test_safe_area_and_signed_release_contract(self):
         self.assertIn('first(where: { $0.isKeyWindow })?.safeAreaInsets',SCENE)

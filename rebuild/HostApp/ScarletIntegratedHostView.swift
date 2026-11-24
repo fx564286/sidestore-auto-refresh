@@ -643,6 +643,8 @@ struct ScarletIntegratedHostView: View {
     @State private var showOriginalError: String?
     @State private var signingRecoveryNeeded = false
     @State private var launchingGuestKeys: Set<String> = []
+    @State private var pendingClassicGuestKey: String?
+    @State private var confirmClassicGuestHandoff = false
     // Guest removal never alters data containers, Keychain or certificates.
     @State private var pendingGuestUninstallKey: String?
     @State private var confirmGuestUninstall = false
@@ -1045,6 +1047,23 @@ struct ScarletIntegratedHostView: View {
                 return
             }
             defer { launchingGuestKeys.remove(key) }
+            guard !fullscreenStack.classicHandoffInProgress, !confirmClassicGuestHandoff else { return }
+            if UIDevice.current.userInterfaceIdiom == .phone, !experimentalFullscreenResident {
+                guard launchingGuestKeys.count == 1, !app.isAppRunning else {
+                    showOriginalError = "다른 실행 작업이 진행 중입니다."
+                    return
+                }
+                if fullscreenStack.classicHandoffRequired {
+                    // Prompt before signing or mutating recent history.
+                    pendingClassicGuestKey = key
+                    confirmClassicGuestHandoff = true
+                    return
+                }
+                guard !MultitaskManager.isMultitasking() else {
+                    showOriginalError = "원본 실행 엔진의 다른 세션이 아직 종료되지 않았습니다. 해당 세션을 종료한 뒤 다시 실행하세요."
+                    return
+                }
+            }
             do {
                 guard ensureOriginalLCGuestBootstrap() else { return }
                 // The removed LCAppListView normally owns the JIT delegate.
@@ -1244,6 +1263,25 @@ struct ScarletIntegratedHostView: View {
                 // certificate/container diagnostics available for recovery.
                 // Errors stay on this host; never open the old app-list screen.
             }
+        }
+    }
+
+    private func confirmClassicHandoff() {
+        guard let key = pendingClassicGuestKey else { return }
+        pendingClassicGuestKey = nil
+        confirmClassicGuestHandoff = false
+        Task { @MainActor in
+            guard !experimentalFullscreenResident, launchingGuestKeys.isEmpty,
+                  !fullscreenStack.classicHandoffInProgress,
+                  sharedModel.apps.contains(where: {
+                      ($0.appInfo.relativeBundlePath ?? $0.bundleIdentifier) == key
+                  }) else { return }
+            guard await fullscreenStack.prepareClassicHandoff() else {
+                showOriginalError = "기존 세션 종료를 확인하지 못했습니다. 데이터와 서명은 유지되며 기본 실행은 시작하지 않았습니다."
+                return
+            }
+            guard !experimentalFullscreenResident else { return }
+            runGuest(key)
         }
     }
 
@@ -2424,6 +2462,12 @@ struct ScarletIntegratedHostView: View {
             }
         } message: {
             Text("게스트 앱 파일만 삭제합니다. 데이터, 키체인, 다른 앱과 인증서는 보존됩니다.")
+        }
+        .confirmationDialog("기본 실행 방식으로 전환", isPresented: $confirmClassicGuestHandoff, titleVisibility: .visible) {
+            Button("종료 후 기본 모드 실행", role: .destructive) { confirmClassicHandoff() }
+            Button("취소", role: .cancel) { pendingClassicGuestKey = nil }
+        } message: {
+            Text("실행 중인 RAM 유지 게스트를 종료합니다. 미저장 작업은 사라질 수 있습니다. 앱 데이터와 인증서는 삭제하지 않습니다.")
         }
         .alert("Scarlet Crystal 진단", isPresented: Binding(
             get: { showOriginalError != nil },
