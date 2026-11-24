@@ -278,7 +278,16 @@ struct ScarletSigningReadinessPanel: View {
                     forKey: "Scarlet.Refresh.LastFailureReason")
                 return
             }
-            ScarletInstalledProfileReadback.beginRequest(source: "manual")
+            guard ScarletInstalledProfileReadback.beginRequest(source: "manual") else {
+                statusMessage = ScarletRefreshFailureDiagnosis.nativeGuidance("team_operation_in_progress")
+                lastRefreshAttemptState = "보류 · 다른 서명 작업 진행 중"
+                lastRefreshFailureReason = "team_operation_in_progress"
+                ScarletDiagnosticRecorder.shared.record("refresh",
+                    "profile_readback_request_busy",
+                    fields: ["reason": "team_operation_in_progress", "installation_verified": "false"])
+                return
+            }
+            defer { ScarletInstalledProfileReadback.finishRequest() }
             do {
                 // Native upstream action; do not navigate to the guest SideStore.
                 // It can refresh registered apps, but must not be taken as proof
@@ -667,11 +676,18 @@ struct ScarletSigningReadinessPanel: View {
         }
         refreshing = true
         defer { refreshing = false }
+        guard ScarletInstalledProfileReadback.beginRequest(source: "selected_p12_rotation") else {
+            certificateRecoveryStatus = ScarletRefreshFailureDiagnosis.nativeGuidance("team_operation_in_progress")
+            ScarletDiagnosticRecorder.shared.record("refresh",
+                "profile_readback_request_busy",
+                fields: ["reason": "team_operation_in_progress", "installation_verified": "false"])
+            return
+        }
+        defer { ScarletInstalledProfileReadback.finishRequest() }
         certificateRecoveryStatus = "가져온 인증서로 Scarlet Crystal 호스트를 재서명·재설치하는 중입니다."
         ScarletDiagnosticRecorder.shared.record(
             "certificate", "selected_p12_host_resign_started",
             fields: ["result": "native_host_install_requested"])
-        ScarletInstalledProfileReadback.beginRequest(source: "selected_p12_rotation")
         do {
             // The selected P12 is already imported and pinned to the exact
             // account+Team in the original SideStore native Keychain.
