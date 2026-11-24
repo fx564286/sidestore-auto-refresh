@@ -493,9 +493,17 @@ final class ScarletAutomaticRenewal {
             lastCheckWasDeferred = true
             return true
         }
+        guard ScarletInstalledProfileReadback.beginRequest(source: "automatic") else {
+            if origin == "verified_account_switch" { pendingVerifiedAccountSwitch = true }
+            lastCheckWasDeferred = true
+            ScarletDiagnosticRecorder.shared.record("refresh",
+                "profile_readback_request_busy",
+                fields: ["reason": "team_operation_in_progress", "installation_verified": "false"])
+            return true
+        }
+        defer { ScarletInstalledProfileReadback.finishRequest() }
         let previousAttempt = prefs.object(forKey: attemptKey) as? Date
         prefs.set(Date(), forKey: attemptKey)
-        ScarletInstalledProfileReadback.beginRequest(source: "automatic")
         do {
             // Calls the pinned SideStore native signing+installation workflow.
             // This may return with no registered apps. Do not claim success.
@@ -556,6 +564,12 @@ enum ScarletInstalledProfileReadback {
     private static let sourceKey = "Scarlet.Refresh.ProfileRequestSource.V37"
     private static let requestTimeKey = "Scarlet.Refresh.ProfileRequestDate.V37"
     private static let processMarker = UUID().uuidString
+    // One MainActor transaction spans manual, background and explicit P12
+    // rotation callers. A failed later request restores the earlier receipt.
+    private static var previousRequest: [String: Any]?
+    private static var requestKeys: [String] {
+        [beforeKey, ownerKey, sourceKey, requestTimeKey]
+    }
 
     private static func installedDigest() -> String? {
         let profile = Bundle.main.bundleURL.appendingPathComponent(
@@ -566,14 +580,20 @@ enum ScarletInstalledProfileReadback {
             .map { String(format: "%02x", $0) }.joined()
     }
 
-    static func beginRequest(source: String) {
+    static func beginRequest(source: String) -> Bool {
+        guard previousRequest == nil else { return false }
+        let prefs = UserDefaults.standard
+        previousRequest = Dictionary(uniqueKeysWithValues: requestKeys.compactMap { key in
+            prefs.object(forKey: key).map { (key, $0) }
+        })
         guard let digest = installedDigest() else {
             ScarletDiagnosticRecorder.shared.record(
                 "refresh", "installed_profile_readback_unavailable",
                 status: "warning", fields: ["reason": "profile_not_readable"])
-            return
+            // The lease protects the native operation even without a readable
+            // profile. Do not manufacture a baseline or reject valid refresh.
+            return true
         }
-        let prefs = UserDefaults.standard
         prefs.set(digest, forKey: beforeKey)
         prefs.set(processMarker, forKey: ownerKey)
         prefs.set(source, forKey: sourceKey)
@@ -581,17 +601,24 @@ enum ScarletInstalledProfileReadback {
         ScarletDiagnosticRecorder.shared.record(
             "refresh", "installed_profile_before_request",
             fields: ["reason": "baseline_captured", "source": source])
+        return true
     }
 
     static func discardFailedRequest() {
+        guard let previousRequest else { return }
         let prefs = UserDefaults.standard
-        guard prefs.string(forKey: ownerKey) == processMarker else { return }
-        for key in [beforeKey, ownerKey, sourceKey, requestTimeKey] {
-            prefs.removeObject(forKey: key)
+        for key in requestKeys {
+            if let value = previousRequest[key] { prefs.set(value, forKey: key) }
+            else { prefs.removeObject(forKey: key) }
         }
     }
 
+    static func finishRequest() {
+        previousRequest = nil
+    }
+
     static func verifyNewProcess() {
+        guard previousRequest == nil else { return }
         let prefs = UserDefaults.standard
         guard let before = prefs.string(forKey: beforeKey),
               let owner = prefs.string(forKey: ownerKey),

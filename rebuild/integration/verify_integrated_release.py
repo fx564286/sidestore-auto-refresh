@@ -104,6 +104,10 @@ def verify(ipa: Path, version: str, source_commit: str) -> dict:
                 binary = z.read(PREFIX + binary_path)
                 require(all(marker in binary for marker in markers),
                         f"R136 converged refresh/portal markers missing: {binary_path}")
+        if tuple(map(int, version.split("."))) >= (3, 8, 137):
+            binary = z.read(PREFIX + "Frameworks/LiveContainerSwiftUI.framework/LiveContainerSwiftUI")
+            require(b"profile_readback_request_busy" in binary,
+                    "R137 host profile transaction lease marker missing")
     with ipa.open("rb") as f:
         digest = hashlib.file_digest(f, "sha256").hexdigest()
     return {"schema": 1, "sourceCommit": source_commit, "version": version,
