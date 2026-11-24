@@ -32,10 +32,10 @@ class ProfileRequestLease(unittest.TestCase):
         body = A.split("enum ScarletInstalledProfileReadback {", 1)[1]
         begin = body.split("static func beginRequest", 1)[1].split("static func discardFailedRequest", 1)[0]
         self.assertIn("guard previousRequest == nil else { return false }", begin)
-        self.assertLess(begin.index("previousRequest ="), begin.index("prefs.set(digest"))
+        self.assertLess(begin.index("previousRequest ="), begin.index("storeReceipt(Receipt("))
         rollback = body.split("static func discardFailedRequest", 1)[1].split("static func finishRequest", 1)[0]
         self.assertIn("guard let previousRequest else { return }", rollback)
-        self.assertIn("previousRequest[key]", rollback)
+        self.assertIn("storeReceipt(previousRequest.previousReceipt", rollback)
         self.assertIn("previousRequest = nil", body.split("static func finishRequest",1)[1])
         self.assertIn("guard previousRequest == nil else { return }", body.split("static func verifyNewProcess",1)[1])
 
@@ -112,7 +112,9 @@ let before = "Scarlet.Refresh.PreviousInstalledProfileSHA.V37"
 let owner = "Scarlet.Refresh.ProfileRequestProcess.V37"
 let source = "Scarlet.Refresh.ProfileRequestSource.V37"
 let date = "Scarlet.Refresh.ProfileRequestDate.V37"
-let keys = [before, owner, source, date]
+let record = "Scarlet.Refresh.InstalledProfileReceipt.V138"
+let keys = [before, owner, source, date, record]
+@MainActor func receipt() -> [String: Any] { prefs.dictionary(forKey: record) ?? [:] }
 for key in keys { prefs.removeObject(forKey: key) }
 defer { for key in keys { prefs.removeObject(forKey: key) } }
 prefs.set("old", forKey: before)
@@ -122,25 +124,25 @@ let priorDate = Date(timeIntervalSince1970: 1000)
 prefs.set(priorDate, forKey: date)
 precondition(ScarletInstalledProfileReadback.beginRequest(source: "manual"))
 precondition(!ScarletInstalledProfileReadback.beginRequest(source: "automatic"))
-precondition(prefs.string(forKey: source) == "manual")
+precondition(receipt()[source] as? String == "manual")
 ScarletInstalledProfileReadback.verifyNewProcess()
-precondition(prefs.string(forKey: before) == "new")
+precondition(receipt()[before] as? String == "new")
 ScarletInstalledProfileReadback.discardFailedRequest()
 ScarletInstalledProfileReadback.finishRequest()
-precondition(prefs.string(forKey: before) == "old")
-precondition(prefs.string(forKey: owner) == "prior-process")
-precondition(prefs.string(forKey: source) == "prior-source")
-precondition(prefs.object(forKey: date) as? Date == priorDate)
+precondition(receipt()[before] as? String == "old")
+precondition(receipt()[owner] as? String == "prior-process")
+precondition(receipt()[source] as? String == "prior-source")
+precondition(receipt()[date] as? Date == priorDate)
 precondition(ScarletInstalledProfileReadback.beginRequest(source: "automatic"))
 ScarletInstalledProfileReadback.finishRequest()
-precondition(prefs.string(forKey: before) == "new")
-precondition(prefs.string(forKey: source) == "automatic")
+precondition(receipt()[before] as? String == "new")
+precondition(receipt()[source] as? String == "automatic")
 ScarletInstalledProfileReadback.fixtureDigest = nil
 precondition(ScarletInstalledProfileReadback.beginRequest(source: "selected_p12_rotation"))
 precondition(!ScarletInstalledProfileReadback.beginRequest(source: "manual"))
 ScarletInstalledProfileReadback.discardFailedRequest()
 ScarletInstalledProfileReadback.finishRequest()
-precondition(prefs.string(forKey: source) == "automatic")
+precondition(receipt()[source] as? String == "automatic")
 print("R137_PROFILE_LEASE_PASS")
 """
         with tempfile.TemporaryDirectory() as d:
