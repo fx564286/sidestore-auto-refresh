@@ -27,6 +27,36 @@ private final class ScarletInstallStageGroup: @unchecked Sendable {
 @objc(ScarletDeviceInstallAgent)
 final class ScarletDeviceInstallAgent: NSObject {
     private static let stageGroup = ScarletInstallStageGroup()
+    private struct SelfUpdateExpectation: Sendable {
+        let bundleID: String
+        let extensionIDs: Set<String>
+        let teamID: String
+        let version: String
+    }
+    private final class SelfUpdateFence: @unchecked Sendable {
+        private let lock = NSLock()
+        private var value: SelfUpdateExpectation?
+        func set(_ expected: SelfUpdateExpectation?) {
+            lock.lock(); defer { lock.unlock() }; value = expected
+        }
+        func get() -> SelfUpdateExpectation? {
+            lock.lock(); defer { lock.unlock() }; return value
+        }
+    }
+    private static let selfUpdateFence = SelfUpdateFence()
+    static func validateSelfUpdateTarget(_ app: ALTApplication) throws {
+        guard let expected = selfUpdateFence.get() else { return }
+        guard app.bundleIdentifier == expected.bundleID,
+              app.provisioningProfile?.bundleIdentifier == expected.bundleID,
+              app.provisioningProfile?.teamIdentifier == expected.teamID,
+              expected.extensionIDs == Set(app.appExtensions.map { $0.bundleIdentifier }),
+              app.appExtensions.count == expected.extensionIDs.count,
+              app.appExtensions.allSatisfy({ $0.provisioningProfile?.teamIdentifier == expected.teamID &&
+                    $0.provisioningProfile?.bundleIdentifier == $0.bundleIdentifier }),
+              expected.version == app.infoPlist["CFBundleVersion"] as? String else {
+            throw OperationError.invalidApp(reason: "Scarlet self-update signed identity or version mismatch")
+        }
+    }
     private static let directory = "ScarletDeviceInstall"
     private static let stageKey = "Scarlet.Install.LastStage.V44"
     // The host can read only these generic stages from its SAME signed group.
@@ -119,8 +149,28 @@ final class ScarletDeviceInstallAgent: NSObject {
                       fileSize > 100 else {
                     notify("staged_ipa_missing"); return
                 }
+                if let hostPath = payload["selfUpdateHostPath"] as? String,
+                   let version = payload["selfUpdateVersion"] as? String {
+                    guard !legacy, stagedName.hasPrefix("scarlet-self-update-"),
+                          hostGroupID == "group.com.SideStore.SideStore." + owner.teamID,
+                          let hostURL = await ScarletGuestHostManagedBootstrap.shared
+                            .verifiedSameTeamManualHostURL(hostBundlePath: hostPath, teamID: owner.teamID),
+                          let installedHost = ALTApplication(fileURL: hostURL),
+                          let oldVersion = installedHost.infoPlist["CFBundleVersion"] as? String,
+                          version.hasPrefix("3.8."), oldVersion.hasPrefix("3.8."),
+                          let newBuild = Int(version.dropFirst(4)),
+                          let oldBuild = Int(oldVersion.dropFirst(4)), newBuild > oldBuild else {
+                        notify("self_update_identity_unverified"); return
+                    }
+                    selfUpdateFence.set(SelfUpdateExpectation(bundleID: installedHost.bundleIdentifier,
+                        extensionIDs: Set(installedHost.appExtensions.map { $0.bundleIdentifier }),
+                        teamID: owner.teamID, version: version))
+                } else if stagedName.hasPrefix("scarlet-self-update-") ||
+                          payload["selfUpdateHostPath"] != nil || payload["selfUpdateVersion"] != nil {
+                    notify("self_update_identity_unverified"); return
+                }
                 stageGroup.set(hostGroupID, ownerScope: scope)
-                defer { stageGroup.set(nil) }
+                defer { stageGroup.set(nil); selfUpdateFence.set(nil) }
                 mark("request_received")
                 mark("ipa_staged")
                 // Free Personal Teams should reuse their EXISTING valid

@@ -202,7 +202,16 @@ final class ScarletDiagnosticRecorder: @unchecked Sendable {
     // Exact non-sensitive protocol receipts only. Do not loosen the general
     // length/entropy filter for arbitrary incoming values or user data.
     private static let fixedLongCategories: Set<String> = [
-        "native_selected_team_refresh_returned_install_unverified"
+        "native_selected_team_refresh_returned_install_unverified",
+        "selected_p12_host_resign_started",
+        "selected_p12_host_resign_blocked",
+        "selected_p12_host_resign_returned",
+        "selected_p12_host_resign_failed",
+        "selected_p12_host_resign_native_error",
+        "account_p12_guest_signer_blocked",
+        "v48_original_pan_observed",
+        "v48_original_pan_reused_in_resident",
+        "shortcut_update_installed_build_verified"
     ]
     private static func sanitized(_ source: String) -> String {
         if Self.fixedLongCategories.contains(source) { return source }

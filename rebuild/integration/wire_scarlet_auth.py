@@ -344,14 +344,18 @@ def patch_livecontainer(engine: Path) -> None:
         // request; each field is independently validated by the worker.
         NSString* rawStage = mangledTypeName ?: @"";
         NSArray<NSString*>* parts = [rawStage componentsSeparatedByString:@"|"];
-        if (parts.count != 2) {
+        if (parts.count != 2 && parts.count != 4) {
             [handler.server finish:@"scarlet.install.invalid_request"];
             return;
         }
-        NSDictionary* payload = @{@"requestID": requestID,
+        NSMutableDictionary* payload = [@{@"requestID": requestID,
                                   @"hostGroupID": parts[0],
                                   @"filename": parts[1],
-                                  @"expectedTeamID": teamID};
+                                  @"expectedTeamID": teamID} mutableCopy];
+        if (parts.count == 4) {
+            payload[@"selfUpdateHostPath"] = parts[2];
+            payload[@"selfUpdateVersion"] = parts[3];
+        }
         ((void (*)(id, SEL, id))objc_msgSend)(worker, @selector(install:), payload);
         return;
     }
@@ -406,7 +410,9 @@ def patch_livecontainer(engine: Path) -> None:
 @available(iOS 17.0, *)
 public enum ScarletDeviceInstaller {
     public static func install(stagedIPA: URL, teamID: String,
-                               hostGroupID: String) async throws {
+                               hostGroupID: String,
+                               selfUpdateHostPath: String? = nil,
+                               selfUpdateVersion: String? = nil) async throws {
         guard teamID.utf8.count == 10 && teamID.allSatisfy({
             $0.isASCII && ($0.isUppercase || $0.isNumber)
         }) else { throw NSError(domain: "scarlet.install.invalid_team", code: 3) }
@@ -442,10 +448,20 @@ public enum ScarletDeviceInstaller {
               FileManager.default.isReadableFile(atPath: resolved.path) else {
             throw NSError(domain: "scarlet.install.staged_ipa_invalid", code: 2)
         }
+        var payload = hostGroupID + "|" +
+            (isScoped ? slot + "/" : "") + resolved.lastPathComponent
+        if let selfUpdateHostPath, let selfUpdateVersion {
+            guard isScoped, selfUpdateHostPath.hasPrefix("/"),
+                  selfUpdateHostPath.utf8.count <= 1024,
+                  !selfUpdateHostPath.contains("|"), !selfUpdateVersion.contains("|") else {
+                throw NSError(domain: "scarlet.install.self_update_identity_unverified", code: 3)
+            }
+            payload += "|" + selfUpdateHostPath + "|" + selfUpdateVersion
+        } else if selfUpdateHostPath != nil || selfUpdateVersion != nil {
+            throw NSError(domain: "scarlet.install.self_update_identity_unverified", code: 3)
+        }
         try await RefreshHandler.shared.startRefresh(
-            identifier: "scarlet.install.ipa." + teamID,
-            mangledName: hostGroupID + "|" +
-                (isScoped ? slot + "/" : "") + resolved.lastPathComponent)
+            identifier: "scarlet.install.ipa." + teamID, mangledName: payload)
     }
 }
 """
@@ -662,6 +678,11 @@ def patch_sidestore(engine: Path) -> None:
         ScarletDeviceInstallAgent.mark("afc_install_dispatched")
         if UserDefaults.standard.preferResignedIPA {"""
     io = replace_one(io, anchor, replacement, "V44 post-sign RPPairing recheck")
+    io = replace_one(io,
+        "        @Managed var appVersion = context.appVersion",
+        "        try ScarletDeviceInstallAgent.validateSelfUpdateTarget(resignedAppBundle)\n\n"
+        "        @Managed var appVersion = context.appVersion",
+        "R133 exact signed self-update identity before DB/install")
     io = replace_one(io, "        self.setProgress(90)",
         '        ScarletDeviceInstallAgent.mark("install_pipeline_returned")\n'
         "        self.setProgress(90)", "V44 native install returned")

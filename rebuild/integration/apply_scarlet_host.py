@@ -3051,6 +3051,7 @@ def main():
     out.mkdir(parents=True)
     sources={
         root/"rebuild/HostApp/ScarletIntegratedHostView.swift":"ScarletIntegratedHostView.swift",
+        root/"rebuild/HostApp/ScarletSelfUpdateIntent.swift":"ScarletSelfUpdateIntent.swift",
         root/"rebuild/HostApp/ScarletNativeGlass.swift":"ScarletNativeGlass.swift",
         root/"rebuild/HostApp/ScarletFeatureModulesSection.swift":"ScarletFeatureModulesSection.swift",
         root/"rebuild/HostApp/ScarletAutomaticRenewal.swift":"ScarletAutomaticRenewal.swift",

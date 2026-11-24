@@ -655,6 +655,16 @@ struct ScarletSigningReadinessPanel: View {
             certificateRecoveryStatus = "호스트 App Group·서명 권한이 없어 재서명을 시작할 수 없습니다."
             return
         }
+        // Import into a selected account and replacing this signed host
+        // are separate authorities. A foreign Team's P12 remains available
+        // to its account, but cannot update this host in place.
+        guard ScarletSigningReadiness.authorizedSideStoreGroupID() ==
+                "group.com.SideStore.SideStore." + teamID else {
+            certificateRecoveryStatus = "선택 계정 인증서는 보관됐습니다. 현재 Scarlet 서명팀과 달라 호스트 재설치는 하지 않습니다."
+            ScarletDiagnosticRecorder.shared.record("certificate", "selected_p12_host_resign_blocked",
+                status: "blocked", fields: ["reason": "host_selected_team_mismatch"])
+            return
+        }
         refreshing = true
         defer { refreshing = false }
         certificateRecoveryStatus = "가져온 인증서로 Scarlet Crystal 호스트를 재서명·재설치하는 중입니다."

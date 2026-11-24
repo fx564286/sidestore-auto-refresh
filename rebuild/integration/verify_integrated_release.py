@@ -61,10 +61,30 @@ def verify(ipa: Path, version: str, source_commit: str) -> dict:
             if relative == "Frameworks/LiveContainerSwiftUI.framework/LiveContainerSwiftUI":
                 stamp = ("scarlet-source-commit:" + source_commit).encode("ascii")
                 require(stamp in binary, "Host source stamp mismatch")
+        if tuple(map(int, version.split("."))) >= (3, 8, 133):
+            action_name = "ScarletSelfUpdateIntent"
+            meta_path = "Metadata.appintents/extract.actionsdata"
+            host_path = "Frameworks/LiveContainerSwiftUI.framework/"
+            meta = json.loads(z.read(PREFIX + meta_path))
+            generated = json.loads(z.read(PREFIX + host_path + meta_path))
+            actions = meta.get("actions", {})
+            action = generated.get("actions", {}).get(action_name)
+            require(isinstance(action, dict) and actions.get(action_name) == action and
+                    action.get("fullyQualifiedTypeName") == "LiveContainerSwiftUI.ScarletSelfUpdateIntent",
+                    "Compiled shortcut metadata missing or altered")
+            require(all(k in actions for k in ("RefreshAllIntent", "RefreshAllAppsWidgetIntent", "InstallIPAIntent")),
+                    "Existing SideStore shortcut metadata lost")
+            for binary_path, markers in (
+                (host_path + "LiveContainerSwiftUI", (b"ScarletSelfUpdateIntent", b"shortcut_update_installed_build_verified")),
+                ("Frameworks/SideStoreApp.framework/SideStore", (b"self_update_identity_unverified", b"Scarlet self-update signed identity or version mismatch")),
+            ):
+                binary = z.read(PREFIX + binary_path)
+                require(all(m in binary for m in markers), f"Shortcut native code missing: {binary_path}")
     with ipa.open("rb") as f:
         digest = hashlib.file_digest(f, "sha256").hexdigest()
     return {"schema": 1, "sourceCommit": source_commit, "version": version,
-            "sha256": digest, "compiledComponents": list(REQUIRED_MARKERS),
+            "sha256": digest, "bundleIdentifier": info["CFBundleIdentifier"],
+            "size": ipa.stat().st_size, "compiledComponents": list(REQUIRED_MARKERS),
             "deviceVerified": False, "signed": False}
 
 def main():

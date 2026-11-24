@@ -111,6 +111,25 @@ def remove_sidestore_ui_preference(settings_bundle: Path) -> int:
         write(settings,payload)
     return removed
 
+def merge_self_update_action(existing: dict, host: dict) -> dict:
+    """Merge one Xcode-generated action without changing legacy shortcut data."""
+    import copy
+    name = "ScarletSelfUpdateIntent"
+    if existing.get("version") != host.get("version"):
+        raise ValueError("App Intents metadata schema mismatch")
+    actions = existing.get("actions")
+    source = host.get("actions")
+    if not isinstance(actions, dict) or not isinstance(source, dict):
+        raise ValueError("Invalid App Intents action table")
+    action = source.get(name)
+    if name in actions or not isinstance(action, dict) or action.get(
+            "fullyQualifiedTypeName") != "LiveContainerSwiftUI.ScarletSelfUpdateIntent":
+        raise ValueError("Missing or conflicting native Scarlet update action")
+    merged = copy.deepcopy(existing)
+    merged["actions"][name] = copy.deepcopy(action)
+    return merged
+
+
 def main():
     p=argparse.ArgumentParser()
     p.add_argument("--lc-tar",type=Path,required=True)
@@ -212,6 +231,13 @@ def main():
     content=content.replace(b"9SideStore26RefreshAllAppsWidgetIntentV",
                             b"16SideStoreSupport26RefreshAllAppsWidgetIntentV")
     binary_metadata.write_bytes(content)
+    if args.host_build_version and tuple(map(int, args.host_build_version.split("."))) >= (3, 8, 133):
+        # Preserve existing SideStore actions, provider and NLU assets.
+        # Only import the actual Xcode-generated parameterless host action.
+        host_metadata = combined / "Frameworks/LiveContainerSwiftUI.framework/Metadata.appintents/extract.actionsdata"
+        assert host_metadata.is_file(), "Xcode did not extract Scarlet host App Intent metadata"
+        merged = merge_self_update_action(json.loads(content), json.loads(host_metadata.read_bytes()))
+        binary_metadata.write_text(json.dumps(merged, ensure_ascii=False, separators=(",", ":")))
 
     # Optional SideStore widget requires a fifth provisioning profile, which
     # this user's Personal Team has not authorized. Fail closed on new
