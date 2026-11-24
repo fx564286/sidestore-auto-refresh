@@ -566,9 +566,59 @@ enum ScarletInstalledProfileReadback {
     private static let processMarker = UUID().uuidString
     // One MainActor transaction spans manual, background and explicit P12
     // rotation callers. A failed later request restores the earlier receipt.
-    private static var previousRequest: [String: Any]?
-    private static var requestKeys: [String] {
-        [beforeKey, ownerKey, sourceKey, requestTimeKey]
+    private static let receiptKey = "Scarlet.Refresh.InstalledProfileReceipt.V138"
+    private static var legacyKeys: [String] { [beforeKey, ownerKey, sourceKey, requestTimeKey] }
+
+    @MainActor private struct Receipt {
+        let digest: String
+        let owner: String
+        let source: String
+        let date: Date
+
+        init(digest: String, owner: String, source: String, date: Date) {
+            self.digest = digest
+            self.owner = owner
+            self.source = source
+            self.date = date
+        }
+
+        init?(values: [String: Any]) {
+            guard let digest = values[beforeKey] as? String, !digest.isEmpty,
+                  let owner = values[ownerKey] as? String, !owner.isEmpty,
+                  let source = values[sourceKey] as? String, !source.isEmpty,
+                  let date = values[requestTimeKey] as? Date else { return nil }
+            self.init(digest: digest, owner: owner, source: source, date: date)
+        }
+
+        var values: [String: Any] {
+            [beforeKey: digest, ownerKey: owner, sourceKey: source, requestTimeKey: date]
+        }
+    }
+
+    private struct RequestLease { let previousReceipt: Receipt? }
+    private static var previousRequest: RequestLease?
+
+    private static func storeReceipt(_ receipt: Receipt?, in prefs: UserDefaults) {
+        // One property-list value, never four independently updated keys.
+        // Empty dictionary is a tombstone: consumed evidence cannot revive
+        // through legacy fallback after a process interruption.
+        prefs.set(receipt?.values ?? [:], forKey: receiptKey)
+    }
+
+    private static func readReceipt(from prefs: UserDefaults) -> Receipt? {
+        if prefs.object(forKey: receiptKey) != nil {
+            return prefs.dictionary(forKey: receiptKey).flatMap(Receipt.init(values:))
+        }
+        let values = Dictionary(uniqueKeysWithValues: legacyKeys.compactMap { key in
+            prefs.object(forKey: key).map { (key, $0) }
+        })
+        guard !values.isEmpty else { return nil }
+        let legacy = Receipt(values: values)
+        // Migrate only a complete legacy record; an incomplete record is not
+        // evidence. Establish the new value before retiring legacy keys.
+        storeReceipt(legacy, in: prefs)
+        for key in legacyKeys { prefs.removeObject(forKey: key) }
+        return legacy
     }
 
     private static func installedDigest() -> String? {
@@ -583,9 +633,7 @@ enum ScarletInstalledProfileReadback {
     static func beginRequest(source: String) -> Bool {
         guard previousRequest == nil else { return false }
         let prefs = UserDefaults.standard
-        previousRequest = Dictionary(uniqueKeysWithValues: requestKeys.compactMap { key in
-            prefs.object(forKey: key).map { (key, $0) }
-        })
+        previousRequest = RequestLease(previousReceipt: readReceipt(from: prefs))
         guard let digest = installedDigest() else {
             ScarletDiagnosticRecorder.shared.record(
                 "refresh", "installed_profile_readback_unavailable",
@@ -594,10 +642,8 @@ enum ScarletInstalledProfileReadback {
             // profile. Do not manufacture a baseline or reject valid refresh.
             return true
         }
-        prefs.set(digest, forKey: beforeKey)
-        prefs.set(processMarker, forKey: ownerKey)
-        prefs.set(source, forKey: sourceKey)
-        prefs.set(Date(), forKey: requestTimeKey)
+        storeReceipt(Receipt(digest: digest, owner: processMarker,
+                             source: source, date: Date()), in: prefs)
         ScarletDiagnosticRecorder.shared.record(
             "refresh", "installed_profile_before_request",
             fields: ["reason": "baseline_captured", "source": source])
@@ -607,10 +653,7 @@ enum ScarletInstalledProfileReadback {
     static func discardFailedRequest() {
         guard let previousRequest else { return }
         let prefs = UserDefaults.standard
-        for key in requestKeys {
-            if let value = previousRequest[key] { prefs.set(value, forKey: key) }
-            else { prefs.removeObject(forKey: key) }
-        }
+        storeReceipt(previousRequest.previousReceipt, in: prefs)
     }
 
     static func finishRequest() {
@@ -620,16 +663,15 @@ enum ScarletInstalledProfileReadback {
     static func verifyNewProcess() {
         guard previousRequest == nil else { return }
         let prefs = UserDefaults.standard
-        guard let before = prefs.string(forKey: beforeKey),
-              let owner = prefs.string(forKey: ownerKey),
-              owner != processMarker else { return }
+        guard let receipt = readReceipt(from: prefs),
+              receipt.owner != processMarker else { return }
         guard let after = installedDigest() else {
             ScarletDiagnosticRecorder.shared.record(
                 "refresh", "installed_profile_readback_unavailable",
                 status: "warning", fields: ["reason": "profile_not_readable"])
             return
         }
-        if after != before {
+        if after != receipt.digest {
             prefs.set("앱 프로파일 변경 확인",
                       forKey: "Scarlet.Refresh.LastAttemptOutcome")
             ScarletDiagnosticRecorder.shared.record(
@@ -637,9 +679,7 @@ enum ScarletInstalledProfileReadback {
                 status: "success",
                 fields: ["result": "installed_host_profile_changed",
                          "installation_verified": "false"])
-            for key in [beforeKey, ownerKey, sourceKey, requestTimeKey] {
-                prefs.removeObject(forKey: key)
-            }
+            storeReceipt(nil, in: prefs)
         } else {
             // Same profile bytes do not prove an installation failure:
             // the native worker may have reused the original profile.

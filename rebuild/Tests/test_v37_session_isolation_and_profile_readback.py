@@ -62,7 +62,7 @@ class V37SessionAndRefresh(unittest.TestCase):
         self.assertIn('static func beginRequest(source: String)',A)
         self.assertIn('static func verifyNewProcess()',A)
         self.assertIn('owner != processMarker',A)
-        self.assertIn('if after != before {',A)
+        self.assertIn('if after != receipt.digest {',A)
         self.assertIn('"installed_profile_changed_after_request"',A)
         self.assertIn('"installed_profile_unchanged_after_request"',A)
         self.assertIn('"installation_verified": "false"',A)

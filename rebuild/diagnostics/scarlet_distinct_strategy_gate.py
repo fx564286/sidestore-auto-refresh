@@ -37,6 +37,7 @@ OTHER_ALLOWED_METHODS = {
     "typed_sidesign_certificate_quota_error_contract",
     "owner_scoped_refresh_requested_returned_target_set_coverage",
     "host_refresh_profile_readback_transaction_lease",
+    "single_value_profile_receipt_migration_and_tombstone",
     # Simulator evidence only: bind live process identity across screenshot capture.
     "simulator_launch_pid_bundle_liveness_before_after_capture",
     "worker_verified_update_snapshot_and_preportal_existing_identity_pin",
