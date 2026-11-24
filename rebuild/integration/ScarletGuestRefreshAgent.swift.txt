@@ -338,6 +338,10 @@ final class ScarletGuestRefreshAgent: NSObject {
     @objc static func inspectHostBundle(_ hostBundlePath: String,
                                        reply: @escaping (Int, Bool, Bool, String) -> Void) {
         Task {
+            guard await ScarletTeamOperationGate.shared.claim() else {
+                reply(0, false, false, "team_operation_in_progress")
+                return
+            }
             do {
                 // SideStore's original start() prepares/reconciles its own
                 // installed host record; this is not a fake copy of a DB.
@@ -425,9 +429,12 @@ final class ScarletGuestRefreshAgent: NSObject {
                 } else {
                     reason = "ready_selected_team"
                 }
-                reply(min(targets.count, 99), managesHost, signingReady, reason)
+                let count = min(targets.count, 99)
+                await ScarletTeamOperationGate.shared.release()
+                reply(count, managesHost, signingReady, reason)
             } catch {
                 // Never send account info, DB URLs or arbitrary error strings.
+                await ScarletTeamOperationGate.shared.release()
                 reply(0, false, false, "sidestore_database_unavailable")
             }
         }

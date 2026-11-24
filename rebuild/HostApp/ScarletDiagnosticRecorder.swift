@@ -11,6 +11,7 @@ final class ScarletDiagnosticRecorder: @unchecked Sendable {
     static let shared = ScarletDiagnosticRecorder()
     // Replaced by pinned Xcode integration at archive time (not a device ID).
     static let buildCommit = "__SCARLET_BUILD_SHA__"
+    static let buildSourceStamp = "__SCARLET_BUILD_SOURCE_STAMP__"
     private let lock = NSLock()
     private let fm = FileManager.default
     private let directory: URL
@@ -393,6 +394,7 @@ final class ScarletDiagnosticRecorder: @unchecked Sendable {
         App: \(Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "unknown")
         Build: \(Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "unknown")
         SourceCommit: \(Self.buildCommit)
+        SourceStamp: \(Self.buildSourceStamp)
         OS: \(ProcessInfo.processInfo.operatingSystemVersionString)
         Collection: local-only JSONL, no credentials/OTP/UDID/guest names
         LogScope: \(includeHistory ? "current launch + archived launches" : "CURRENT LAUNCH ONLY")

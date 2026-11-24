@@ -15,7 +15,7 @@ class AccountRefreshPriority(unittest.TestCase):
         guard = AUTO.split('private func refreshIfDue(origin:', 1)[1]
         self.assertLess(guard.index('guard !settingsInteractionActive'), guard.index('prefs.set(Date(), forKey: attemptKey)'))
         self.assertIn('pendingVerifiedAccountSwitch = true', AUTO)
-        self.assertIn('if wasActive && !active && pendingVerifiedAccountSwitch', AUTO)
+        self.assertIn('if wasActive && !active && (pendingVerifiedAccountSwitch || pendingSettingsCatchUp)', AUTO)
         self.assertIn('pendingVerifiedAccountSwitch ? "verified_account_switch" : "foreground"', AUTO)
 
     def test_certificate_request_reserves_id_before_suspending(self):

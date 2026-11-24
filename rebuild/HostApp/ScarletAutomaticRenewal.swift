@@ -200,6 +200,7 @@ final class ScarletAutomaticRenewal {
     // Defer automatic renewal without losing the explicit owner-switch request.
     private var settingsInteractionActive = false
     private var pendingVerifiedAccountSwitch = false
+    private var pendingSettingsCatchUp = false
     private var lastCheckWasDeferred = false
     private var lastDeferredReportAt: Date?
     private var lastScheduledFor: Date?
@@ -262,7 +263,7 @@ final class ScarletAutomaticRenewal {
     func setSettingsInteractionActive(_ active: Bool) {
         let wasActive = settingsInteractionActive
         settingsInteractionActive = active
-        if wasActive && !active && pendingVerifiedAccountSwitch {
+        if wasActive && !active && (pendingVerifiedAccountSwitch || pendingSettingsCatchUp) {
             Task { @MainActor in await self.foregroundCatchUp() }
         }
     }
@@ -315,6 +316,7 @@ final class ScarletAutomaticRenewal {
         guard !running else { return false }
         lastCheckWasDeferred = false
         guard !settingsInteractionActive || UIApplication.shared.applicationState == .background else {
+            pendingSettingsCatchUp = true
             lastCheckWasDeferred = true
             ScarletDiagnosticRecorder.shared.record("refresh",
                 "automatic_deferred_interactive_settings",
@@ -322,6 +324,7 @@ final class ScarletAutomaticRenewal {
                          "installation_verified": "false"])
             return true
         }
+        pendingSettingsCatchUp = false
         let prefs = UserDefaults.standard
         let now = Date()
         if origin != "verified_account_switch",
@@ -441,6 +444,16 @@ final class ScarletAutomaticRenewal {
                      "host_managed": nativeState.hostManaged ? "true" : "false",
                      "signing_ready": nativeState.signingReady ? "true" : "false",
                      "reason": nativeState.reason])
+        if nativeState.reason == "team_operation_in_progress" {
+            if origin == "verified_account_switch" { pendingVerifiedAccountSwitch = true }
+            lastCheckWasDeferred = true
+            prefs.set("보류 · 다른 서명 작업 진행 중", forKey: outcomeKey)
+            prefs.set(nativeState.reason, forKey: failureReasonKey)
+            ScarletDiagnosticRecorder.shared.record("refresh",
+                "automatic_deferred_native_busy",
+                fields: ["reason": nativeState.reason, "installation_verified": "false"])
+            return true
+        }
         guard nativeState.canRefreshSelectedTeam else {
             prefs.set("차단 · 내장 SideStore 관리 앱·인증서 확인 필요",
                       forKey: outcomeKey)
@@ -450,6 +463,7 @@ final class ScarletAutomaticRenewal {
         // Settings may have opened while an awaited preflight was running.
         // A preflight is not authority to start a mutation after that change.
         guard !settingsInteractionActive || UIApplication.shared.applicationState == .background else {
+            pendingSettingsCatchUp = true
             if origin == "verified_account_switch" { pendingVerifiedAccountSwitch = true }
             lastCheckWasDeferred = true
             prefs.set("보류 · 계정 설정 작업 중", forKey: outcomeKey)
@@ -458,6 +472,11 @@ final class ScarletAutomaticRenewal {
                 fields: ["reason": "settings_account_work_active",
                          "installation_verified": "false"])
             return true
+        }
+        guard !Task.isCancelled else {
+            if origin == "verified_account_switch" { pendingVerifiedAccountSwitch = true }
+            prefs.set("중단 · 갱신 요청 취소됨", forKey: outcomeKey)
+            return false
         }
         let previousAttempt = prefs.object(forKey: attemptKey) as? Date
         prefs.set(Date(), forKey: attemptKey)
