@@ -741,7 +741,9 @@ final class ScarletFullscreenGuestTabInstaller: NSObject {
         // Rotation can replace the guest's key UIWindow. Reacquire the
         // current real owner instead of tracking a stale weak window pointer.
         if let key = floatingWindow.windowScene?.windows.first(where: {
-            $0 !== floatingWindow && $0.isKeyWindow
+            $0 !== floatingWindow && $0.isKeyWindow &&
+                !$0.isHidden && $0.windowLevel == .normal &&
+                $0.rootViewController?.viewIfLoaded?.window === $0
         }) {
             guestWindow = key
         }
@@ -1131,12 +1133,58 @@ final class ScarletFullscreenGuestTabInstaller: NSObject {
         return submitted
     }
 
+    private static func captureClassicGeometry(window: UIWindow?, event: String) {
+        guard let window, !window.isHidden, window.windowLevel == .normal,
+              let root = window.rootViewController?.viewIfLoaded,
+              root.window === window,
+              window.windowScene?.interfaceOrientation.isPortrait == true else { return }
+        let safeTop = window.safeAreaInsets.top
+        guard safeTop.isFinite, safeTop >= 40, safeTop <= 160,
+              root.safeAreaInsets.top.isFinite else { return }
+        var visited = 0, near = 0, severe = 0, first = 2400
+        var complete = true
+        func walk(_ node: UIView, depth: Int, clipping: CGRect) {
+            guard complete, node.window === window, !node.isHidden, node.alpha >= 0.05 else { return }
+            visited += 1
+            guard depth <= 56, visited <= 2400 else { complete = false; return }
+            let full = node.convert(node.bounds, to: window)
+            guard !full.isNull, !full.isInfinite,
+                  full.minY.isFinite, full.height.isFinite else { complete = false; return }
+            let visible = full.intersection(clipping)
+            if depth > 0, full.height > 2, full.height <= 160,
+               !visible.isNull, !visible.isEmpty, visible.maxY > 5 {
+                let control = node is UIControl ||
+                    (node.isAccessibilityElement && node.accessibilityTraits.contains(.button))
+                let content = node is UILabel || node is UIImageView ||
+                    node is UITextField || node is UITextView
+                if control && visible.minY < safeTop - 2 {
+                    near += 1
+                    first = min(first, Int(visible.minY.rounded()))
+                }
+                if (control || content) && visible.minY < safeTop - 9 { severe += 1 }
+            }
+            let nextClip = node.clipsToBounds ? visible : clipping
+            guard !nextClip.isNull, !nextClip.isEmpty else { return }
+            for child in node.subviews { walk(child, depth: depth + 1, clipping: nextClip) }
+        }
+        walk(root, depth: 0, clipping: window.bounds)
+        let metrics = ["safe_top_pt": Int(safeTop.rounded()),
+                       "root_safe_top_pt": Int(root.safeAreaInsets.top.rounded()),
+                       "near_controls": near, "severe_nodes": severe,
+                       "first_near_control_y": first == 2400 ? -999 : first,
+                       "scan_complete": complete ? 1 : 0]
+        ScarletGuestSessionLedger.traceSwitcher(event,
+            processPID: ProcessInfo.processInfo.processIdentifier, classicGeometry: metrics)
+    }
+
     @objc(installForGuestName:)
     static func installForGuestName(_ rawName: NSString) {
         // TweakLoader's real guest bootstrap is the authority for whether
         // an A->B switch relaunched a process. A retained switcher row is
         // NOT proof that the app's last in-memory view still exists.
         let runtimeGuestID = rawName as String
+        guard !runtimeGuestID.isEmpty else { return }
+        ScarletGuestSessionLedger.bindClassicTrace()
         if !runtimeGuestID.isEmpty,
            runtimeGuestID != lastObservedGuestRuntimeID {
             lastObservedGuestRuntimeID = runtimeGuestID
@@ -1144,21 +1192,24 @@ final class ScarletFullscreenGuestTabInstaller: NSObject {
                 "runtime_guest_process_observed",
                 processPID: ProcessInfo.processInfo.processIdentifier)
         }
-        guard let scene = UIApplication.shared.connectedScenes
-                .compactMap({ $0 as? UIWindowScene })
-                .first(where: { $0.activationState == .foregroundActive ||
-                                $0.activationState == .foregroundInactive }),
-              // Some full-screen LC guest scenes never expose a key window
-              // after an app-to-app handoff. Recover only the visible normal
-              // level root guest window, not an alert/keyboard/our overlay.
-              let original = scene.windows.first(where: { window in
-                    window !== floatingWindow && window.isKeyWindow &&
-                    window.rootViewController?.viewIfLoaded?.window != nil
-              }) ?? scene.windows.first(where: { window in
-                    window !== floatingWindow && !window.isHidden &&
+        // A foreground-inactive empty scene must not hide the actual
+        // foreground guest window. Do not select the switcher or keyboard.
+        let candidates = UIApplication.shared.connectedScenes
+            .compactMap { $0 as? UIWindowScene }
+            .filter { $0.activationState == .foregroundActive ||
+                      $0.activationState == .foregroundInactive }
+            .sorted { lhs, rhs in
+                lhs.activationState == .foregroundActive &&
+                    rhs.activationState != .foregroundActive
+            }
+            .flatMap { $0.windows }
+            .filter { window in
+                window !== floatingWindow && !window.isHidden &&
                     window.windowLevel == .normal &&
-                    window.rootViewController?.viewIfLoaded?.window != nil
-              }) else {
+                    window.rootViewController?.viewIfLoaded?.window === window
+            }
+        guard let original = candidates.first(where: { $0.isKeyWindow }) ?? candidates.first,
+              let scene = original.windowScene else {
             if lastFailure != "window_not_ready" {
                 lastFailure = "window_not_ready"
                 ScarletGuestSessionLedger.traceSwitcher("mount_window_not_ready")
@@ -1205,6 +1256,8 @@ final class ScarletFullscreenGuestTabInstaller: NSObject {
             initialButtonCenter: center(in: original),
             onSwitch: { switchGuest(to: $0, runtimeGuestID: runtimeGuestID) },
             onExit: {
+                captureClassicGeometry(window: guestWindow, event: "classic_geometry_on_exit")
+                ScarletGuestSessionLedger.traceSwitcher("classic_return_requested")
                 ScarletDiagnosticRecorder.shared.record(
                     "guest", "fullscreen_tab_exit_requested")
                 guard let defaults = UserDefaults.lc() else {
@@ -1228,6 +1281,7 @@ final class ScarletFullscreenGuestTabInstaller: NSObject {
                              "original_pan_used": "true"])
                 if !LCSharedUtils.launchToGuestApp(withClassicMode: 0) {
                     ScarletGuestSessionLedger.cancelReturnToHost()
+                    ScarletGuestSessionLedger.traceSwitcher("classic_return_failed")
                     ScarletDiagnosticRecorder.shared.record(
                         "guest", "return_to_host_request_failed", status: "warning")
                 }
@@ -1299,6 +1353,7 @@ final class ScarletFullscreenGuestTabInstaller: NSObject {
         }
         lastFailure = nil
         ScarletGuestSessionLedger.traceSwitcher("fullscreen_tab_mounted")
+        captureClassicGeometry(window: original, event: "classic_geometry_on_mount")
         NSLog("[SCARLET_GUEST_TAB] mounted_nonkey_window")
         ScarletDiagnosticRecorder.shared.record(
             "guest", "fullscreen_tab_mounted",
