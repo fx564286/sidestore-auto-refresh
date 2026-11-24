@@ -133,6 +133,12 @@ enum ScarletRefreshFailureDiagnosis {
             return "기기 연결 작업이 응답을 완료하지 못했습니다."
         case "host_not_in_refresh_results":
             return "내장 SideStore 갱신이 종료됐지만 Scarlet 자체의 재서명 결과가 없습니다. 실행 중인 앱 제외 또는 갱신 대상 누락을 확인해야 합니다."
+        case "selected_team_not_in_refresh_results":
+            return "선택 계정의 갱신 결과가 없습니다. 실행 중인 앱은 원본 SideStore에서 제외될 수 있습니다."
+        case "selected_team_partial_refresh_results":
+            return "일부 앱만 갱신 결과를 반환했습니다. 모든 앱의 갱신 및 실제 설치 완료는 확인되지 않았습니다."
+        case "selected_team_refresh_result_mismatch":
+            return "요청한 앱과 갱신 결과의 식별자가 일치하지 않습니다. 전체 갱신 완료로 처리하지 않았습니다."
         case "native_unknown_database_stage":
             return "원본 SideStore 관리 앱 데이터베이스 준비 도중 원인이 분류되지 않은 오류가 발생했습니다."
         case "native_unknown_team_stage":

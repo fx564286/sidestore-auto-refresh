@@ -34,6 +34,8 @@ POTENTIALLY_DISTINCT_ISLAND_METHODS = {
 }
 OTHER_ALLOWED_METHODS = {
     "user_confirmed_native_resident_ownership_drain_before_classic_bootstrap",
+    "typed_sidesign_certificate_quota_error_contract",
+    "owner_scoped_refresh_requested_returned_target_set_coverage",
     # Simulator evidence only: bind live process identity across screenshot capture.
     "simulator_launch_pid_bundle_liveness_before_after_capture",
     "worker_verified_update_snapshot_and_preportal_existing_identity_pin",
