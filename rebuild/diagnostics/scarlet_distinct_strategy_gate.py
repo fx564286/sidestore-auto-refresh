@@ -33,6 +33,7 @@ POTENTIALLY_DISTINCT_ISLAND_METHODS = {
     "native_process_scene_ownership_contract_repair",
 }
 OTHER_ALLOWED_METHODS = {
+    "paired_installation_proxy_inventory_and_unverified_renewal_cooldown",
     "source_history_strict_strategy_gate",
     "independent_guest_import_transaction_repair",
     "account_auth_team_selection_repair",

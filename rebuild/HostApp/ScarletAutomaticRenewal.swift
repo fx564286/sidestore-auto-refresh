@@ -201,9 +201,10 @@ final class ScarletAutomaticRenewal {
     private var lastScheduleSubmitAt: Date?
 
     private var interval: TimeInterval {
-        let status = UserDefaults.standard.string(forKey: outcomeKey) ?? ""
-        return status.hasPrefix("실패") || status.hasPrefix("차단")
-            ? 2 * 3600 : 6 * 3600
+        // No current worker outcome verifies every installed profile.
+        // In-flight, returned, changed-host-only and failed receipts all
+        // remain unresolved; do not assign them a six-hour success cooldown.
+        return 2 * 3600
     }
 
     func registerAtLaunch() {

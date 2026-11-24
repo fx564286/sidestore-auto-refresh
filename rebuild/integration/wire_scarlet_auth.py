@@ -578,6 +578,8 @@ def patch_idempotent_team_provisioning(source: str) -> str:
 
 
 def patch_sidestore(engine: Path) -> None:
+    from scarlet_device_inventory import patch_device_inventory
+    patch_device_inventory(engine)
     # SideStore's original self-registration returns immediately inside ALL
     # .appex processes. Scarlet intentionally runs SideStore headlessly in
     # LiveProcess.appex, unlike the upstream UI setup that first opens the

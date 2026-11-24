@@ -825,6 +825,8 @@ public struct ScarletSideloadSlot: Identifiable, Decodable, Sendable {
     public let name: String
     public let active: Bool
     public let editable: Bool
+    public let managed: Bool?
+    public let deviceInstalled: Bool?
 }
 
 @available(iOS 17.0, *)
@@ -849,7 +851,7 @@ public enum ScarletNativeSideloadSlots {
                     gate.finish([], "response_invalid"); return
                 }
                 let status = reason ?? "worker_unknown"
-                gate.finish(rows, ["ready", "database_unavailable", "response_too_large",
+                gate.finish(rows, ["ready", "ready_inventory_unavailable", "database_unavailable", "response_too_large",
                                    "slot_worker_missing"].contains(status) ? status : "worker_unknown")
             }
         }
