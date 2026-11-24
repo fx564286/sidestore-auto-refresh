@@ -4,6 +4,7 @@
 // does not replace either engine, credentials, profiles or guest storage.
 import SwiftUI
 import UIKit
+import ObjectiveC
 import UniformTypeIdentifiers
 import Security
 import CryptoKit
@@ -670,8 +671,9 @@ struct ScarletIntegratedHostView: View {
             managedDeviceApps = result.apps.map { slot in
                 ScarletManagedDevicePresentation(
                     id: slot.id, title: slot.name,
-                    isActive: slot.active, isHost: slot.managed != false && !slot.editable,
-                    isManaged: slot.managed != false, deviceInstalled: slot.deviceInstalled)
+                    isActive: slot.active, isHost: slot.id == Bundle.main.bundleIdentifier || (slot.managed != false && !slot.editable),
+                    isManaged: slot.managed != false, deviceInstalled: slot.deviceInstalled,
+                    iconPNG: ScarletInstalledIconReader.icon(bundleID: slot.id))
             }
             deviceAppLookupStatus = result.reason
             ScarletDiagnosticRecorder.shared.record(
@@ -2462,7 +2464,7 @@ private struct ScarletManagedSlotSheet: View {
     var body: some View {
         NavigationStack {
             List {
-                Section("SideStore 설치 기록") {
+                Section("기기 설치 앱 및 관리 상태") {
                     if rows.isEmpty {
                         Text(loading ? "SideStore 설치 기록 확인 중" : "관리 가능한 앱이 없거나 SideStore 데이터베이스에 접근할 수 없습니다.")
                             .foregroundStyle(.secondary)
@@ -2486,7 +2488,7 @@ private struct ScarletManagedSlotSheet: View {
                                 }
                                 .disabled(loading || operationRunning)
                             } else {
-                                Text(app.managed == false ? "원본 IPA 필요" : "호스트 보호").font(.caption).foregroundStyle(.secondary)
+                                Text(app.id == Bundle.main.bundleIdentifier ? "호스트 보호" : app.managed == false ? "관리 미등록" : "호스트 보호").font(.caption).foregroundStyle(.secondary)
                             }
                         }
                     }
@@ -2566,3 +2568,16 @@ private struct ScarletManagedSlotSheet: View {
     }
 }
 // R6P61_SLOT_MANAGER_END
+
+// Read SpringBoard's existing icon cache; no guest-name matching or invented artwork.
+@MainActor
+private enum ScarletInstalledIconReader {
+    static func icon(bundleID: String) -> Data? {
+        let selector = NSSelectorFromString("_applicationIconImageForBundleIdentifier:format:scale:")
+        guard let method = class_getClassMethod(UIImage.self, selector) else { return nil }
+        typealias Getter = @convention(c) (AnyClass, Selector, NSString, Int, CGFloat) -> Unmanaged<UIImage>?
+        let getter = unsafeBitCast(method_getImplementation(method), to: Getter.self)
+        return getter(UIImage.self, selector, bundleID as NSString, 2, 2)?
+            .takeUnretainedValue().pngData()
+    }
+}

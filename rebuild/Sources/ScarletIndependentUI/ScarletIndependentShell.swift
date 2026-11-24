@@ -39,15 +39,17 @@ public struct ScarletManagedDevicePresentation: Identifiable, Equatable, Sendabl
     public let isHost: Bool
     public let isManaged: Bool
     public let deviceInstalled: Bool?
+    public let iconPNG: Data?
 
     public init(id: String, title: String, isActive: Bool, isHost: Bool,
-                isManaged: Bool = true, deviceInstalled: Bool? = nil) {
+                isManaged: Bool = true, deviceInstalled: Bool? = nil, iconPNG: Data? = nil) {
         self.id = id
         self.title = title
         self.isActive = isActive
         self.isHost = isHost
         self.isManaged = isManaged
         self.deviceInstalled = deviceInstalled
+        self.iconPNG = iconPNG
     }
 }
 
@@ -318,10 +320,10 @@ private struct ScarletManagedDeviceLauncherTile: View {
         Button(action: onManage) {
             VStack(spacing: 7) {
                 ScarletLauncherArtwork(
-                    iconPNG: nil,
+                    iconPNG: app.iconPNG,
                     fallbackSymbol: app.isHost ? "shield.lefthalf.filled" : "iphone.gen3")
                 ScarletLauncherCaption(title: app.title)
-                if !app.isManaged { Text("미관리").font(.caption2) }
+                if !app.isManaged && !app.isHost { Text("미관리").font(.caption2) }
             }
             .frame(maxWidth: .infinity, alignment: .top)
             .contentShape(Rectangle())
@@ -624,7 +626,7 @@ public struct ScarletIndependentShell: View {
                     .accessibilityIdentifier("SCARLET_DEVICE_APP_MANAGE")
             }
             .accessibilityIdentifier("SCARLET_DEVICE_MANAGED_IPA_SECTION")
-            Text("선택한 계정의 SideStore 관리 앱 목록")
+            Text("실제 기기 설치 앱 및 관리 상태")
                 .font(.caption)
                 .foregroundStyle(ScarletPresentationColor.muted)
             if deviceAppLookupStatus == "ready_inventory_unavailable" {
@@ -639,7 +641,7 @@ public struct ScarletIndependentShell: View {
                     .font(.subheadline)
                     .foregroundStyle(ScarletPresentationColor.muted)
             } else if visibleDeviceApps.isEmpty {
-                Text("선택한 계정의 SideStore 관리 앱이 없습니다.")
+                Text("표시할 기기 설치 앱이 없습니다.")
                     .font(.subheadline)
                     .foregroundStyle(ScarletPresentationColor.muted)
             } else {
