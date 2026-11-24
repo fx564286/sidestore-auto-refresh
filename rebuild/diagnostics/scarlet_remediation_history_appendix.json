@@ -19972,6 +19972,225 @@
           "title": "R6P134: pin verified update bytes and existing IDs; isolate simulator pairing FFI"
         }
       ]
+    },
+    {
+      "id": "L213",
+      "date": "2026-11-24",
+      "version": "R6P134-QA-followup-simulator-liveness",
+      "incident_family": "simulator_launch_receipt_false_positive_after_app_exit",
+      "strategy_family": "simulator_launch_pid_bundle_liveness_before_after_capture",
+      "problem": "simulator_screenshot_success_without_surviving_launched_process",
+      "mechanism": "verify_launch_receipt_pid_bundle_and_launchd_identity_on_both_sides_of_capture",
+      "operation_fingerprint": "Parse exact bundle and positive PID from launch receipt and independently require the same UIKitApplication launchd label and PID before and after screenshot; missing evidence blocks success.",
+      "source_behavior_contract": "Diagnostic-only simulator validation; preserve existing device archive, signing identities, portal operations, guest geometry and build version. Do not infer UI correctness or real iPhone behavior from simulator liveness.",
+      "rollback_commit": "86b54ef28e47447e7fdc4d11cce66124ce3be534",
+      "source_verification": "git_patch_observed",
+      "status": "source_committed_static_and_xcode_ci_pending",
+      "device_verification": "device_unverified",
+      "novelty": {
+        "prior_excluded_ids": [
+          "L195",
+          "L196",
+          "L212"
+        ],
+        "causal_difference": "Prior simulator fixes isolated compilation or architecture and SDK platform link inputs. None establishes that the exact launched process remains alive on both sides of capture.",
+        "falsifiable_prediction": "An exited process, wrong bundle or mismatched PID cannot report capture success; the same observed launched process at both probes can pass."
+      },
+      "observation": "Synthetic command-level regression on P134: four incorrect pass results and one missing liveness receipt, five tests total. Existing native R134 run 45350213262 in progress.",
+      "hypothesis": "simctl launch can succeed before process termination; screenshot capture is not scoped to the launched process.",
+      "action": "Bind receipt to PID and bundle, query selected simulator launchd before and after capture, block missing evidence, preserve unrelated behavior.",
+      "verification": "RED 4 failures and 1 error; GREEN 5 pass; full 1086 tests, 1081 passed, 5 skipped. Native simulator command and device proof pending.",
+      "repeat_policy": "Do not claim actual device or visual correctness based on mock or simulator output.",
+      "code_locations": [
+        {
+          "file": "rebuild/Tests/test_simulator_launch_liveness.py",
+          "location": "@@ -0,0 +1,78 @@",
+          "before": [],
+          "after": [
+            "\"\"\"Regression: a simctl launch receipt is not proof of a surviving app.\"\"\"",
+            "import importlib.util",
+            "import json",
+            "from pathlib import Path",
+            "import plistlib",
+            "import tempfile",
+            "import unittest",
+            "from unittest.mock import patch",
+            "",
+            "SCRIPT = Path(__file__).resolve().parents[1] / 'diagnostics/scarlet_ios_simulator_smoke.py'",
+            "SPEC = importlib.util.spec_from_file_location('scarlet_smoke_liveness', SCRIPT)",
+            "smoke = importlib.util.module_from_spec(SPEC)",
+            "SPEC.loader.exec_module(smoke)",
+            "",
+            "",
+            "class SimulatorLaunchLiveness(unittest.TestCase):",
+            "    def scenario(self, snapshots, receipt='test.scarlet.smoke: 123'):",
+            "        with tempfile.TemporaryDirectory() as tmp:",
+            "            root = Path(tmp)",
+            "            app = root / 'LiveContainer.app'",
+            "            app.mkdir()",
+            "            (app / 'Info.plist').write_bytes(plistlib.dumps(",
+            "                {'CFBundleIdentifier': 'test.scarlet.smoke'}))",
+            "            probes = iter(snapshots)",
+            "            calls = []",
+            "",
+            "            def fake_run(args, *, stage, timeout=100, cwd=None):",
+            "                calls.append(args)",
+            "                if args[:4] == ['xcrun', 'simctl', 'list', '-j']:",
+            "                    return json.dumps({'devices': {",
+            "                        'com.apple.CoreSimulator.SimRuntime.iOS-27-2': [",
+            "                            {'name': 'iPhone 18 Pro', 'udid': 'test-id', 'state': 'Booted'}]}})",
+            "                if args[:3] == ['xcrun', 'simctl', 'launch']:",
+            "                    return receipt",
+            "                if args[:3] == ['xcrun', 'simctl', 'spawn']:",
+            "                    return next(probes)",
+            "                if args[:3] == ['xcrun', 'simctl', 'io']:",
+            "                    Path(args[-1]).write_bytes(b'fake screenshot' * 100)",
+            "                return ''",
+            "",
+            "            with patch.object(smoke, 'simulator_build', return_value=app), \\",
+            "                 patch.object(smoke, 'run', side_effect=fake_run), \\",
+            "                 patch.object(smoke.time, 'sleep'), \\",
+            "                 patch('sys.argv', ['smoke', '--engine', str(root), '--report-dir', str(root/'report')]):",
+            "                status = smoke.main()",
+            "            return status, json.loads((root/'report/smoke.json').read_text()), calls",
+            "",
+            "    live = 'PID\\tStatus\\tLabel\\n123\\t0\\tUIKitApplication:test.scarlet.smoke[abc][rb-legacy]'",
+            "    dead = 'PID\\tStatus\\tLabel\\n-\\t9\\tUIKitApplication:test.scarlet.smoke[abc][rb-legacy]'",
+            "",
+            "    def test_exit_before_capture_is_blocked(self):",
+            "        rc, report, calls = self.scenario([self.dead])",
+            "        self.assertEqual(rc, 2)",
+            "        self.assertEqual(report['stage'], 'simulator_launch_liveness_failed')",
+            "        self.assertFalse(any(c[:3] == ['xcrun', 'simctl', 'io'] for c in calls))",
+            "",
+            "    def test_exit_during_capture_is_blocked(self):",
+            "        rc, report, _ = self.scenario([self.live, self.dead])",
+            "        self.assertEqual(rc, 2)",
+            "        self.assertEqual(report['result'], 'blocked')",
+            "",
+            "    def test_pid_reuse_by_different_bundle_is_blocked(self):",
+            "        rc, _, _ = self.scenario([self.live.replace('test.scarlet.smoke', 'test.scarlet.smoke.other')])",
+            "        self.assertEqual(rc, 2)",
+            "",
+            "    def test_wrong_launch_receipt_is_blocked(self):",
+            "        rc, _, _ = self.scenario([], receipt='other.bundle: 123')",
+            "        self.assertEqual(rc, 2)",
+            "",
+            "    def test_surviving_same_process_has_two_probes(self):",
+            "        rc, report, calls = self.scenario([self.live, self.live])",
+            "        self.assertEqual(rc, 0)",
+            "        self.assertEqual(report['launch_liveness'], 'verified_before_and_after_screenshot')",
+            "        self.assertEqual(sum(c[:3] == ['xcrun', 'simctl', 'spawn'] for c in calls), 2)",
+            "",
+            "",
+            "if __name__ == '__main__':",
+            "    unittest.main()"
+          ],
+          "commit": "dbfe00c156174d2bcdca46aa849db6d733562145"
+        },
+        {
+          "file": "rebuild/diagnostics/SCARLET_ENGINEERING_STATE.md",
+          "location": "@@ -20,0 +21,7 @@ Baseline: R6P133, source 865f2257dd210906f7512c1c305fcd456c0945df.",
+          "before": [],
+          "after": [
+            "",
+            "## 2026-11-24 R134 QA follow-up (not a new IPA version)",
+            "- Source baseline: 86b54ef28e47447e7fdc4d11cce66124ce3be534, PR #146. Actual GitHub repository visibility is public; do not include private runtime data or account credentials in evidence.",
+            "- R134 paired native CI run 45350213262 observed in progress at 07:58 UTC. Keep its release branch unchanged; this diagnostic-only follow-up uses a separate branch.",
+            "- Reproduced a simulator evidence false positive: a successful simctl launch receipt followed by a screenshot larger than 1024 bytes passed even if the app exited, or the reported bundle was wrong. RED: 5 tests, 4 failures and 1 error; GREEN: 5 passed, full Python suite 1086 tests, 1081 passed, 5 skipped. These are simulated command responses, not actual CoreSimulator evidence.",
+            "- Require matching launch receipt bundle and positive PID, then exact UIKitApplication launchd identity before and after screenshot. Failure or unobservable process is blocked, never a screenshot success. This does not prove foreground UI correctness.",
+            "- Next native gate: verify actual launchctl output on Xcode 27.2; if unsupported, retain blocked status and choose an observed equivalent process query. Existing R134 CI and signed device acceptance remain independent. No Swift, signing, profile, portal, guest geometry, release tag, or app version changes."
+          ],
+          "commit": "dbfe00c156174d2bcdca46aa849db6d733562145"
+        },
+        {
+          "file": "rebuild/diagnostics/scarlet_distinct_strategy_gate.py",
+          "location": "@@ -35,0 +36,2 @@ OTHER_ALLOWED_METHODS = {",
+          "before": [],
+          "after": [
+            "    # Simulator evidence only: bind live process identity across screenshot capture.",
+            "    \"simulator_launch_pid_bundle_liveness_before_after_capture\","
+          ],
+          "commit": "dbfe00c156174d2bcdca46aa849db6d733562145"
+        },
+        {
+          "file": "rebuild/diagnostics/scarlet_ios_simulator_smoke.py",
+          "location": "@@ -77,0 +78,23 @@ def extract_build_errors(log: str) -> list[str]:",
+          "before": [],
+          "after": [
+            "def launch_pid(receipt: str, bundle_id: str) -> int:",
+            "    match = re.fullmatch(re.escape(bundle_id) + r\":\\s*([1-9][0-9]*)\", receipt.strip())",
+            "    if match is None:",
+            "        raise SmokeBlocked('simulator_launch_liveness_failed', 'launch_receipt_identity_invalid')",
+            "    return int(match.group(1))",
+            "",
+            "",
+            "def require_live_process(udid: str, bundle_id: str, pid: int) -> None:",
+            "    # launchctl executes inside the selected simulator's launchd namespace.",
+            "    # A screenshot alone may be SpringBoard after the launched process exits.",
+            "    snapshot = run(['xcrun', 'simctl', 'spawn', udid, 'launchctl', 'list'],",
+            "                   stage='simulator_launch_liveness_failed', timeout=30)",
+            "    for line in snapshot.splitlines():",
+            "        fields = line.split(None, 2)",
+            "        if len(fields) != 3 or fields[0] != str(pid):",
+            "            continue",
+            "        label = fields[2]",
+            "        expected = 'UIKitApplication:' + bundle_id",
+            "        if label == expected or label.startswith(expected + '['):",
+            "            return",
+            "    raise SmokeBlocked('simulator_launch_liveness_failed', 'launched_process_not_observed')",
+            "",
+            ""
+          ],
+          "commit": "dbfe00c156174d2bcdca46aa849db6d733562145"
+        },
+        {
+          "file": "rebuild/diagnostics/scarlet_ios_simulator_smoke.py",
+          "location": "@@ -161,0 +185 @@ def main() -> int:",
+          "before": [],
+          "after": [
+            "        pid = launch_pid(launch_receipt, bundle_id)"
+          ],
+          "commit": "dbfe00c156174d2bcdca46aa849db6d733562145"
+        },
+        {
+          "file": "rebuild/diagnostics/scarlet_ios_simulator_smoke.py",
+          "location": "@@ -162,0 +187,2 @@ def main() -> int:",
+          "before": [],
+          "after": [
+            "        report['stage'] = 'simulator_launch_liveness'",
+            "        require_live_process(udid, bundle_id, pid)"
+          ],
+          "commit": "dbfe00c156174d2bcdca46aa849db6d733562145"
+        },
+        {
+          "file": "rebuild/diagnostics/scarlet_ios_simulator_smoke.py",
+          "location": "@@ -167 +193 @@ def main() -> int:",
+          "before": [
+            "        if screenshot.stat().st_size < 1024:"
+          ],
+          "after": [
+            "        if not screenshot.is_file() or screenshot.stat().st_size < 1024:"
+          ],
+          "commit": "dbfe00c156174d2bcdca46aa849db6d733562145"
+        },
+        {
+          "file": "rebuild/diagnostics/scarlet_ios_simulator_smoke.py",
+          "location": "@@ -168,0 +195,2 @@ def main() -> int:",
+          "before": [],
+          "after": [
+            "        require_live_process(udid, bundle_id, pid)",
+            "        report['launch_liveness'] = 'verified_before_and_after_screenshot'"
+          ],
+          "commit": "dbfe00c156174d2bcdca46aa849db6d733562145"
+        }
+      ],
+      "source_revisions": [
+        {
+          "sha": "dbfe00c156174d2bcdca46aa849db6d733562145",
+          "title": "fix(qa): reject simulator screenshot success when launched app is gone"
+        }
+      ]
     }
   ]
 }
