@@ -15,7 +15,7 @@ FIXTURE = (ROOT / "Tests/fixtures/resident_scene_settings.m").read_text()
 class HostTeamMismatchPropagation(unittest.TestCase):
     def test_zero_target_host_mismatch_wins_over_inventory_alias(self):
         start = SRC.index("let reason: String")
-        end = SRC.index("reply(min(targets.count, 99)", start)
+        end = SRC.index("reply(count, managesHost, signingReady, reason)", start)
         segment = SRC[start:end]
         self.assertIn('if targets.isEmpty && hostBootstrap == "host_selected_team_mismatch"', segment)
         self.assertIn('reason = "host_selected_team_mismatch"', segment)

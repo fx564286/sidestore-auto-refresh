@@ -392,7 +392,8 @@ public enum ScarletNativeRefreshInspector {
                     "host_managed_owner_mismatch", "host_managed_record_inactive",
                     "sidestore_certificate_missing", "selected_team_certificate_missing",
                     "sidestore_database_unavailable",
-                    "refresh_worker_missing"
+                    "refresh_worker_missing", "team_operation_in_progress",
+                    "host_managed_duplicate_records", "host_managed_extensions_mismatch"
                 ]
                 let status = rawStatus ?? "worker_unknown"
                 gate.finish(ScarletNativeRefreshInspection(

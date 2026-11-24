@@ -3117,7 +3117,11 @@ def main():
     assert report_source.count(marker) == 1, "Diagnostic build identity anchor changed"
     runner_sha = os.environ.get("GITHUB_SHA", "").strip()
     build_sha = runner_sha[:12].lower() if re.fullmatch(r"[0-9a-fA-F]{40}", runner_sha) else "local-unverified"
-    recorder.write_text(report_source.replace(marker, build_sha))
+    stamp_marker = "__SCARLET_BUILD_SOURCE_STAMP__"
+    assert report_source.count(stamp_marker) == 1, "Full source stamp anchor changed"
+    full_stamp = "scarlet-source-commit:" + (
+        runner_sha.lower() if re.fullmatch(r"[0-9a-fA-F]{40}", runner_sha) else "local-unverified")
+    recorder.write_text(report_source.replace(marker, build_sha).replace(stamp_marker, full_stamp))
     # R6P10: a one-file user diagnostic report must contain all earlier
     # interventions with file/function, original and replacement source code,
     # verification grade, and the complete AI no-repeat instructions.
