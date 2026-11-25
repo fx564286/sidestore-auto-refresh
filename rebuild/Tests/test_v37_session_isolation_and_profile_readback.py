@@ -70,8 +70,8 @@ class V37SessionAndRefresh(unittest.TestCase):
         self.assertIn('ScarletInstalledProfileReadback.verifyNewProcess()',H)
         self.assertIn('ScarletInstalledProfileReadback.beginRequest(source: "manual")',M)
         self.assertIn('ScarletInstalledProfileReadback.beginRequest(source: "automatic")',A)
-        self.assertIn('ScarletInstalledProfileReadback.discardFailedRequest()',A)
-        self.assertIn('ScarletInstalledProfileReadback.discardFailedRequest()',M)
+        self.assertIn('ScarletInstalledProfileReadback.resolveFailedRequest(',A)
+        self.assertIn('ScarletInstalledProfileReadback.resolveFailedRequest(',M)
 
     def test_preserves_guest_data_original_display_and_identity(self):
         self.assertIn('com.kdt.livecontainer.P8EZT3U5N4',A)

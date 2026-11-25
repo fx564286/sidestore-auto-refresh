@@ -116,6 +116,10 @@ def verify(ipa: Path, version: str, source_commit: str) -> dict:
             binary = z.read(PREFIX + "Frameworks/LiveContainerSwiftUI.framework/LiveContainerSwiftUI")
             require(b"automatic_deferred_account_generation_changed" in binary,
                     "R139 account-switch generation fence marker missing")
+        if tuple(map(int, version.split("."))) >= (3, 8, 140):
+            binary = z.read(PREFIX + "Frameworks/LiveContainerSwiftUI.framework/LiveContainerSwiftUI")
+            require(b"profile_readback_retained_uncertain_native_failure" in binary,
+                    "R140 uncertain native failure readback marker missing")
     with ipa.open("rb") as f:
         digest = hashlib.file_digest(f, "sha256").hexdigest()
     return {"schema": 1, "sourceCommit": source_commit, "version": version,
