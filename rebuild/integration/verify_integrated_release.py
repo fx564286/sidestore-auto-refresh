@@ -120,6 +120,10 @@ def verify(ipa: Path, version: str, source_commit: str) -> dict:
             binary = z.read(PREFIX + "Frameworks/LiveContainerSwiftUI.framework/LiveContainerSwiftUI")
             require(b"profile_readback_retained_uncertain_native_failure" in binary,
                     "R140 uncertain native failure readback marker missing")
+        if tuple(map(int, version.split("."))) >= (3, 8, 141):
+            binary = z.read(PREFIX + "Frameworks/LiveContainerSwiftUI.framework/LiveContainerSwiftUI")
+            require(b"resident_launch_mode_revoked" in binary,
+                    "R141 resident mode admission marker missing")
     with ipa.open("rb") as f:
         digest = hashlib.file_digest(f, "sha256").hexdigest()
     return {"schema": 1, "sourceCommit": source_commit, "version": version,

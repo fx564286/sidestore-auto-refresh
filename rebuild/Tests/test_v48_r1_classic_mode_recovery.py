@@ -22,7 +22,8 @@ class TestV48RestoredNativeOff(unittest.TestCase):
   self.assertIn('if pendingInPlaceLaunch { return true }',p)
   self.assertIn('guard !slot.failed else { return false }',p)
   self.assertIn('viewport?.isAlive(folder: slot.id)',p)
-  self.assertIn('return isVisible',p)
+  self.assertIn('if slot.pid <= 0 { return true }',p)
+  self.assertNotIn('return isVisible',p)
  def test_return_to_container_home_without_current_guest_identity(self):
   p=TAB[TAB.index('onExit: {',TAB.index('let content = ScarletFullscreenGuestFloatingTab(')):]
   self.assertIn('if let activeGuestFolder {',p)

@@ -60,6 +60,11 @@ final class ScarletFullscreenSceneStack: NSObject, ObservableObject,
     // through Scarlet Home. Existing live scenes are always preferred.
     private var installedModels: [String: LCAppModel] = [:]
     private var pendingInPlaceLaunch = false
+    // Read the same persisted setting as the host and native LC Settings
+    // at admission, not a SwiftUI snapshot taken before an awaited sign.
+    private var residentModeEnabled: Bool {
+        UserDefaults.standard.bool(forKey: "Scarlet.Feature.FullscreenResidentPilot.V45")
+    }
     private(set) var classicHandoffInProgress = false
     // Weak references distinguish an intentionally terminated controller from
     // an unrelated future process, even if memory addresses/PIDs are reused.
@@ -76,7 +81,10 @@ final class ScarletFullscreenSceneStack: NSObject, ObservableObject,
         if pendingInPlaceLaunch { return true }
         return slots.contains { slot in
             guard !slot.failed else { return false }
-            if slot.pid <= 0 { return isVisible }  // provisional async start
+            // An admitted extension request is an owner even on Home or
+            // after disabling resident mode. Keep its viewport mounted until
+            // native success/failure resolves the provisional slot.
+            if slot.pid <= 0 { return true }
             return viewport?.isAlive(folder: slot.id) ?? true
         }
     }
@@ -172,6 +180,15 @@ final class ScarletFullscreenSceneStack: NSObject, ObservableObject,
     }
 
     func enqueueSignedGuest(_ app: LCAppModel) throws {
+        // Both Home and in-place switcher signing can suspend. A mode
+        // disabled during that suspension cannot admit another resident slot.
+        guard residentModeEnabled else {
+            ScarletDiagnosticRecorder.shared.record(
+                "guest", "resident_launch_mode_revoked", status: "blocked",
+                fields: ["reason": "resident_mode_disabled"])
+            throw NSError(domain: "scarlet.fullscreen", code: 6,
+                userInfo: [NSLocalizedDescriptionKey: "RAM 유지 모드가 꺼져 실행을 중단했습니다. 기본 모드에서 다시 실행할 수 있습니다."])
+        }
         guard !classicHandoffInProgress else {
             throw NSError(domain: "scarlet.fullscreen", code: 5,
                 userInfo: [NSLocalizedDescriptionKey: "기본 실행 방식으로 전환 중입니다."])
@@ -666,7 +683,7 @@ final class ScarletFullscreenSceneStack: NSObject, ObservableObject,
     // Only safe when no other live resident guest will lose its work state.
     private func recoverFastFailedGuest(_ folder: String, dataUUID: String,
                                         reason: String) {
-        guard !classicFallbackAttempted.contains(folder),
+        guard residentModeEnabled, !classicFallbackAttempted.contains(folder),
               !pendingClassicFallback.contains(folder) else { return }
         pendingClassicFallback.insert(folder)
         ScarletDiagnosticRecorder.shared.record(
@@ -681,6 +698,10 @@ final class ScarletFullscreenSceneStack: NSObject, ObservableObject,
             try? await Task.sleep(nanoseconds: 650_000_000)
             guard let self else { return }
             self.pendingClassicFallback.remove(folder)
+            // The user may have disabled the experimental route while the
+            // native registry was draining. Never initiate an unsolicited
+            // compatibility handoff after that decision.
+            guard self.residentModeEnabled else { return }
             guard !self.classicFallbackAttempted.contains(folder) else { return }
             // Never tear down an app A just to rescue app B.
             guard !self.hasLiveResidentProcess, !self.pendingInPlaceLaunch else {
