@@ -24,7 +24,7 @@ class ProfileRequestLease(unittest.TestCase):
                 self.assertIn("guard ", body[start-12:start])
                 dispatch = body.index("ScarletNativeRefreshExecutor.execute(", start)
                 self.assertIn("defer { ScarletInstalledProfileReadback.finishRequest() }", body[start:dispatch])
-                self.assertIn("ScarletInstalledProfileReadback.discardFailedRequest()", body[dispatch:])
+                self.assertIn("ScarletInstalledProfileReadback.resolveFailedRequest(", body[dispatch:])
         self.assertLess(A.index('guard ScarletInstalledProfileReadback.beginRequest(source: "automatic")'),
                         A.index("prefs.set(Date(), forKey: attemptKey)"))
 

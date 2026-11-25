@@ -316,9 +316,10 @@ struct ScarletSigningReadinessPanel: View {
                     status: "info", fields: ["installation_verified": "false"])
                 inspect()
             } catch {
-                ScarletInstalledProfileReadback.discardFailedRequest()
-                let failure = (error as? ScarletNativeRefreshFailure)?.reason ??
-                    ScarletRefreshFailureDiagnosis.category(error)
+                let nativeFailure = error as? ScarletNativeRefreshFailure
+                let failure = nativeFailure?.reason ?? ScarletRefreshFailureDiagnosis.category(error)
+                ScarletInstalledProfileReadback.resolveFailedRequest(
+                    reason: failure, stage: nativeFailure?.nativeEvidence?.stage)
                 statusMessage = error is ScarletNativeRefreshFailure
                     ? ScarletRefreshFailureDiagnosis.nativeGuidance(failure)
                     : ScarletRefreshFailureDiagnosis.guidance(failure)
@@ -701,9 +702,10 @@ struct ScarletSigningReadinessPanel: View {
                 "certificate", "selected_p12_host_resign_returned",
                 fields: ["result": outcome, "installation_verified": "false"])
         } catch {
-            ScarletInstalledProfileReadback.discardFailedRequest()
-            let reason = (error as? ScarletNativeRefreshFailure)?.reason ??
-                ScarletRefreshFailureDiagnosis.category(error)
+            let nativeFailure = error as? ScarletNativeRefreshFailure
+            let reason = nativeFailure?.reason ?? ScarletRefreshFailureDiagnosis.category(error)
+            ScarletInstalledProfileReadback.resolveFailedRequest(
+                reason: reason, stage: nativeFailure?.nativeEvidence?.stage)
             certificateRecoveryStatus = "호스트 재서명·설치 실패: " +
                 ScarletRefreshFailureDiagnosis.nativeGuidance(reason)
             ScarletDiagnosticRecorder.shared.record(

@@ -563,9 +563,10 @@ final class ScarletAutomaticRenewal {
                 fields: ["installation_verified": "false"])
             return true
         } catch {
-            ScarletInstalledProfileReadback.discardFailedRequest()
-            let reason = (error as? ScarletNativeRefreshFailure)?.reason ??
-                ScarletRefreshFailureDiagnosis.category(error)
+            let nativeFailure = error as? ScarletNativeRefreshFailure
+            let reason = nativeFailure?.reason ?? ScarletRefreshFailureDiagnosis.category(error)
+            ScarletInstalledProfileReadback.resolveFailedRequest(
+                reason: reason, stage: nativeFailure?.nativeEvidence?.stage)
             if reason == "team_operation_in_progress" || reason == "already_running" {
                 // Native gate refusal occurs before any renewal; do not
                 // consume a new two-hour attempt cooldown.
@@ -694,6 +695,30 @@ enum ScarletInstalledProfileReadback {
         guard let previousRequest else { return }
         let prefs = UserDefaults.standard
         storeReceipt(previousRequest.previousReceipt, in: prefs)
+    }
+
+    // A native failure is not necessarily a no-op: AppManager may have
+    // already installed a subset, or its XPC reply may have been lost.
+    // Preserve a baseline for later readback, never claim installation.
+    static func resolveFailedRequest(reason: String, stage: String?) {
+        guard previousRequest != nil else { return }
+        // An explicit pre-refresh stage is stronger evidence than a bare
+        // reason. A bare mismatch or generic callback error is ambiguous.
+        let possiblyMutating = stage == "refresh" || (stage == nil &&
+            ["worker_unresponsive", "selected_team_partial_refresh_results",
+             "selected_team_refresh_result_mismatch",
+             "sidestore_native_operation_failed",
+             "host_not_in_refresh_results", "selected_team_not_in_refresh_results",
+             "native_host_reinstall_owner_unverified"].contains(reason))
+        guard possiblyMutating else {
+            discardFailedRequest()
+            return
+        }
+        guard readReceipt(from: UserDefaults.standard) != nil else { return }
+        ScarletDiagnosticRecorder.shared.record(
+            "refresh", "profile_readback_retained_uncertain_native_failure",
+            status: "warning", fields: ["reason": reason,
+                                         "installation_verified": "false"])
     }
 
     static func finishRequest() {
